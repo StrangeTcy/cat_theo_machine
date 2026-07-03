@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HYGE Inspector</title>
+  <link rel="stylesheet" href="/inspector.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>HYGE Inspector</h1>
+      <div class="subline">
+        <span id="sourceText">booting</span>
+        <span id="summaryText"></span>
+      </div>
+    </div>
+    <div class="controls">
+      <label>
+        Visible Rule Edges
+        <input id="maxRuleEdges" type="number" min="1" step="1" value="80">
+      </label>
+      <button id="refreshButton" type="button">Refresh</button>
+      <label class="checkbox">
+        <input id="autoRefresh" type="checkbox">
+        Auto Refresh
+      </label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="graph-pane">
+      <div class="section-header">
+        <h2>Hypergraph</h2>
+        <div id="countsText" class="section-meta"></div>
+      </div>
+      <div id="graphStatus" class="status">Loading graph…</div>
+      <div id="graph"></div>
+    </section>
+
+    <aside class="side-pane">
+      <section class="panel">
+        <div class="section-header">
+          <h2>Selection</h2>
+        </div>
+        <pre id="selectionDetail" class="detail">Nothing selected.</pre>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <h2>Search Packets</h2>
+          <div id="packetCount" class="section-meta"></div>
+        </div>
+        <div id="packetList" class="stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <h2>Active Workers</h2>
+          <div id="workerCount" class="section-meta"></div>
+        </div>
+        <div id="workerList" class="stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <h2>Comparison State</h2>
+        </div>
+        <div id="comparisonList" class="stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <h2>Derivation Fragments</h2>
+          <div id="derivationCount" class="section-meta"></div>
+        </div>
+        <div id="derivationList" class="stack"></div>
+      </section>
+    </aside>
+  </main>
+
+  <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+  <script src="/inspector.js"></script>
+</body>
+</html>

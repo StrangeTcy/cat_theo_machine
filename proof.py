@@ -1,0 +1,2461 @@
+from __future__ import annotations
+
+import sys
+import threading
+
+from . import machine as M
+from .heuristics import HeuristicRuleOrder
+from .labels import (
+    DerivationLabel,
+    GoalHeadOrderLabel,
+    KnowledgeLabel,
+    ProofCostLabel,
+    RewriteActionLabel,
+    SearchAttemptLabel,
+    SearchFailureLabel,
+    SearchPausedLabel,
+    SearchRunningLabel,
+    SearchSuccessLabel,
+    SearchTimedOutLabel,
+    SearchAbortedByUserLabel,
+    StepLabel,
+    TheoremActionLabel,
+    TotalCostLabel,
+)
+from .schemata import (
+    DerivationSchemaGoal,
+    DerivationSchemaPlan,
+    DerivationSchemaStart,
+    LookupDerivationSchema,
+    StoreDerivationSchema,
+)
+
+DEBUG_TRACE_STATE = M.Atom()
+DEBUG_TRACE_STATE.value = M.false_value
+_DEBUG_STATUS_LINE_STATE = M.Atom()
+_DEBUG_STATUS_LINE_STATE.value = ""
+_DEBUG_STATUS_WIDTH_STATE = M.Atom()
+_DEBUG_STATUS_WIDTH_STATE.value = 0
+_DEBUG_LOCK = threading.RLock()
+
+
+class SetDebugTrace(M.Edge):
+    def __init__(self, enabled):
+        if M.IdentityCompare(enabled, M.truth_value)() is M.truth_value:
+            DEBUG_TRACE_STATE.value = M.truth_value
+        else:
+            DEBUG_TRACE_STATE.value = M.false_value
+        self.result = DEBUG_TRACE_STATE()
+        super().__init__(inputs=M.Pair(enabled, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+def _debug_clear_status():
+    if _DEBUG_STATUS_WIDTH_STATE.value > 0:
+        sys.stdout.write("\r" + (" " * _DEBUG_STATUS_WIDTH_STATE.value) + "\r")
+        _DEBUG_STATUS_WIDTH_STATE.value = 0
+
+
+def _debug_status(message):
+    if M.IdentityCompare(DEBUG_TRACE_STATE(), M.false_value)() is M.truth_value:
+        return
+    with _DEBUG_LOCK:
+        _DEBUG_STATUS_LINE_STATE.value = "DEBUG: " + message
+        _debug_clear_status()
+        sys.stdout.write(_DEBUG_STATUS_LINE_STATE.value)
+        sys.stdout.flush()
+        _DEBUG_STATUS_WIDTH_STATE.value = len(_DEBUG_STATUS_LINE_STATE.value)
+
+
+def _debug_status_clear():
+    if M.IdentityCompare(DEBUG_TRACE_STATE(), M.false_value)() is M.truth_value:
+        return
+    with _DEBUG_LOCK:
+        _debug_clear_status()
+        _DEBUG_STATUS_LINE_STATE.value = ""
+        sys.stdout.flush()
+
+
+def _debug(message):
+    if M.IdentityCompare(DEBUG_TRACE_STATE(), M.false_value)() is M.truth_value:
+        return
+    with _DEBUG_LOCK:
+        had_status = _DEBUG_STATUS_WIDTH_STATE.value > 0
+        if had_status:
+            _debug_clear_status()
+        sys.stdout.write("DEBUG: " + message + "\n")
+        if had_status and _DEBUG_STATUS_LINE_STATE.value != "":
+            sys.stdout.write(_DEBUG_STATUS_LINE_STATE.value)
+            _DEBUG_STATUS_WIDTH_STATE.value = len(_DEBUG_STATUS_LINE_STATE.value)
+        sys.stdout.flush()
+
+
+def _debug_term(x, registry):
+    try:
+        return M.PrettyTerm(x, registry)()
+    except Exception:
+        pass
+    try:
+        return M.PrettyTerm(x, M.AllConstructors)()
+    except Exception:
+        constructor = M.GetConstructor(x, registry)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            try:
+                return M.PrettyTerm(M.Head(constructor)(), registry)() + "(...)"
+            except Exception:
+                pass
+        return "<opaque-term>"
+
+
+class Rule(M.Edge):
+    def __init__(self, pattern, replacement):
+        super().__init__(
+            inputs=M.Pair(M.Pair(pattern, M.EmptyList), M.Pair(replacement, M.EmptyList)),
+            results=M.EmptyList,
+        )
+
+    def __call__(self):
+        return self
+
+
+class MultiRule(M.Edge):
+    def __init__(self, premises, replacement):
+        super().__init__(
+            inputs=M.Pair(premises, M.Pair(replacement, M.EmptyList)),
+            results=M.EmptyList,
+        )
+
+    def __call__(self):
+        return self
+
+
+class RulePremises(M.Edge):
+    def __init__(self, rule):
+        self.result = M.Head(M.EdgeInputs(rule)())()
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RulePattern(M.Edge):
+    def __init__(self, rule):
+        premises = RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = M.Head(premises)()
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleIsUnary(M.Edge):
+    def __init__(self, rule):
+        premises = RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(premises)(), M.EmptyList)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = M.false_value
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleReplacement(M.Edge):
+    def __init__(self, rule):
+        self.result = M.Head(M.Tail(M.EdgeInputs(rule)())())()
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TheoremAction(M.Edge):
+    def __init__(self, rule):
+        self.result = M.Pair(TheoremActionLabel, M.Pair(rule, M.EmptyList))
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RewriteAction(M.Edge):
+    def __init__(self, rule, path):
+        self.result = M.Pair(RewriteActionLabel, M.Pair(rule, M.Pair(path, M.EmptyList)))
+        super().__init__(inputs=M.Pair(rule, M.Pair(path, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsTheoremAction(M.Edge):
+    def __init__(self, x):
+        if M.IsPair(x)() is M.false_value:
+            self.result = M.false_value
+        else:
+            head = M.Head(x)()
+            tail = M.Tail(x)()
+            if M.IdentityCompare(head, TheoremActionLabel)() is M.false_value:
+                self.result = M.false_value
+            elif M.IsPair(tail)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Tail(tail)(), M.EmptyList)() is M.false_value:
+                self.result = M.false_value
+            else:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsRewriteAction(M.Edge):
+    def __init__(self, x):
+        if M.IsPair(x)() is M.false_value:
+            self.result = M.false_value
+        else:
+            head = M.Head(x)()
+            tail = M.Tail(x)()
+            if M.IdentityCompare(head, RewriteActionLabel)() is M.false_value:
+                self.result = M.false_value
+            elif M.IsPair(tail)() is M.false_value:
+                self.result = M.false_value
+            else:
+                tail_rest = M.Tail(tail)()
+                if M.IsPair(tail_rest)() is M.false_value:
+                    self.result = M.false_value
+                elif M.IdentityCompare(M.Tail(tail_rest)(), M.EmptyList)() is M.false_value:
+                    self.result = M.false_value
+                else:
+                    self.result = M.truth_value
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ActionRule(M.Edge):
+    def __init__(self, x):
+        if IsTheoremAction(x)() is M.truth_value:
+            self.result = M.Head(M.Tail(x)())()
+        elif IsRewriteAction(x)() is M.truth_value:
+            self.result = M.Head(M.Tail(x)())()
+        else:
+            self.result = x
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ActionPath(M.Edge):
+    def __init__(self, x):
+        if IsRewriteAction(x)() is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(x)())())()
+        else:
+            self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Append(M.Edge):
+    def __init__(self, left, right):
+        self.result = self._append(left, right)
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def _append(self, left, right):
+        reversed_left = M.EmptyList
+        current = left
+        while M.IdentityCompare(current, M.EmptyList)() is M.false_value:
+            reversed_left = M.Pair(M.Head(current)(), reversed_left)
+            current = M.Tail(current)()
+        result = right
+        current = reversed_left
+        while M.IdentityCompare(current, M.EmptyList)() is M.false_value:
+            result = M.Pair(M.Head(current)(), result)
+            current = M.Tail(current)()
+        return result
+
+    def __call__(self):
+        return self.result
+
+
+class CollectRules(M.Edge):
+    def __init__(self, tree):
+        collected = self._collect(M.TreeEntries(tree)())
+        self.result = M.Reverse(collected)()
+        super().__init__(inputs=M.Pair(tree, M.EmptyList), results=self.result)
+
+    def _collect(self, entries):
+        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        entry = M.Head(entries)()
+        fact = M.Head(M.Tail(entry)())()
+        rest = self._collect(M.Tail(entries)())
+        return M.Pair(fact, rest)
+
+    def __call__(self):
+        return self.result
+
+
+class Knowledge(M.Edge):
+    def __init__(self, facts):
+        self.result = M.Pair(KnowledgeLabel, M.Pair(facts, M.EmptyList))
+        super().__init__(inputs=M.Pair(facts, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsKnowledge(M.Edge):
+    def __init__(self, x):
+        if M.IsPair(x)() is M.false_value:
+            atom_result = M.false_value
+        else:
+            head = M.Head(x)()
+            tail = M.Tail(x)()
+            if M.IdentityCompare(head, KnowledgeLabel)() is M.false_value:
+                atom_result = M.false_value
+            elif M.IsPair(tail)() is M.false_value:
+                atom_result = M.false_value
+            elif M.IdentityCompare(M.Tail(tail)(), M.EmptyList)() is M.false_value:
+                atom_result = M.false_value
+            else:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class KnowledgeFacts(M.Edge):
+    def __init__(self, x):
+        if IsKnowledge(x)() is M.truth_value:
+            self.result = M.Head(M.Tail(x)())()
+        else:
+            self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NormalizeKnowledgeFacts(M.Edge):
+    def __init__(self, facts, registry):
+        self.registry = registry
+        self.result = self._sort_all(facts, M.EmptyList)
+        super().__init__(inputs=M.Pair(facts, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _key_less(self, left, right):
+        if M.Compare(left, right)() is M.truth_value:
+            return M.false_value
+        left_is_pair = M.IsPair(left)()
+        right_is_pair = M.IsPair(right)()
+        if left_is_pair is M.truth_value:
+            if right_is_pair is M.false_value:
+                return M.truth_value
+            left_head = M.Head(left)()
+            right_head = M.Head(right)()
+            if M.Compare(left_head, right_head)() is M.truth_value:
+                return self._key_less(M.Tail(left)(), M.Tail(right)())
+            return self._key_less(left_head, right_head)
+        if right_is_pair is M.truth_value:
+            return M.false_value
+        return M.IdentityLess(left, right)()
+
+    def _insert_sorted(self, fact, sorted_facts):
+        if M.IdentityCompare(sorted_facts, M.EmptyList)() is M.truth_value:
+            return M.Pair(fact, M.EmptyList)
+        current = M.Head(sorted_facts)()
+        if M.TermEqual(fact, current)() is M.truth_value:
+            return sorted_facts
+        fact_key = M.ExactKey(fact, self.registry)()
+        current_key = M.ExactKey(current, self.registry)()
+        if self._key_less(fact_key, current_key) is M.truth_value:
+            return M.Pair(fact, sorted_facts)
+        return M.Pair(current, self._insert_sorted(fact, M.Tail(sorted_facts)()))
+
+    def _sort_all(self, facts, sorted_facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return sorted_facts
+        fact = M.Head(facts)()
+        next_sorted = self._insert_sorted(fact, sorted_facts)
+        return self._sort_all(M.Tail(facts)(), next_sorted)
+
+    def __call__(self):
+        return self.result
+
+
+class NormalizeKnowledge(M.Edge):
+    def __init__(self, x, registry):
+        if IsKnowledge(x)() is M.truth_value:
+            facts = NormalizeKnowledgeFacts(KnowledgeFacts(x)(), registry)()
+            self.result = Knowledge(facts)()
+        else:
+            self.result = x
+        super().__init__(inputs=M.Pair(x, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TermHead(M.Edge):
+    def __init__(self, x, registry):
+        if M.IsPair(x)() is M.truth_value:
+            atom_result = M.Head(x)()
+        else:
+            c = M.GetConstructor(x, registry)()
+            if M.IdentityCompare(c, M.EmptyList)() is M.truth_value:
+                atom_result = M.EmptyList
+            else:
+                atom_result = M.Head(c)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(x, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsVarPattern(M.Edge):
+    def __init__(self, p):
+        if M.IsPair(p)() is M.false_value:
+            atom_result = M.false_value
+        else:
+            h = M.Head(p)()
+            t = M.Tail(p)()
+            if M.IdentityCompare(h, M.VarTag)() is M.false_value:
+                atom_result = M.false_value
+            elif M.IsPair(t)() is M.false_value:
+                atom_result = M.false_value
+            elif M.IdentityCompare(M.Tail(t)(), M.EmptyList)() is M.false_value:
+                atom_result = M.false_value
+            else:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(p, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContainsVar(M.Edge):
+    def __init__(self, x):
+        self.result = self._contains(x)
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def _contains(self, x):
+        if IsVarPattern(x)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(x)() is M.truth_value:
+            head_has = self._contains(M.Head(x)())
+            tail_has = self._contains(M.Tail(x)())
+            return M.OrAtom(head_has, tail_has)()
+        return M.false_value
+
+    def __call__(self):
+        return self.result
+
+
+class FilterApplicableRules(M.Edge):
+    def __init__(self, rules, current, registry):
+        self.registry = registry
+        self.result = self._filter(rules, current)
+        super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _rule_anchor(self, rule):
+        premises = RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+            return M.Head(premises)()
+        return RulePattern(rule)()
+
+    def _anchor_matches_facts(self, anchor, facts):
+        if M.IdentityCompare(anchor, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        match = M.Match(anchor, fact)()
+        if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
+            return M.truth_value
+        return self._anchor_matches_facts(anchor, M.Tail(facts)())
+
+    def _rule_head_applicable(self, rule, current):
+        if IsKnowledge(current)() is M.truth_value:
+            return self._anchor_matches_facts(self._rule_anchor(rule), KnowledgeFacts(current)())
+        pattern = RulePattern(rule)()
+        if IsVarPattern(pattern)() is M.truth_value:
+            return M.truth_value
+        p_head = TermHead(pattern, self.registry)()
+        c_head = TermHead(current, self.registry)()
+        if M.IdentityCompare(p_head, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(c_head, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(p_head, c_head)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _filter(self, rules, current):
+        if M.Compare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        r = M.Head(rules)()
+        rest = M.Tail(rules)()
+        if self._rule_head_applicable(r, current) is M.truth_value:
+            return M.Pair(r, self._filter(rest, current))
+        return self._filter(rest, current)
+
+    def __call__(self):
+        return self.result
+
+
+class GoalHeadApplicableRuleBuckets(M.Edge):
+    def __init__(self, rules, current, goal, registry):
+        self.registry = registry
+        buckets = self._bucket(rules, current, goal, M.EmptyList, M.EmptyList, M.EmptyList)
+        immediate_bucket = M.Reverse(M.Head(buckets)())()
+        goal_bucket = M.Reverse(M.Head(M.Tail(buckets)())())()
+        other_bucket = M.Reverse(M.Head(M.Tail(M.Tail(buckets)())())())()
+        self.result = M.Pair(immediate_bucket, M.Pair(goal_bucket, M.Pair(other_bucket, M.EmptyList)))
+        super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def _replacement_matches_goal_head(self, rule, goal):
+        r_head = TermHead(RuleReplacement(rule)(), self.registry)()
+        g_head = TermHead(goal, self.registry)()
+        if M.IdentityCompare(r_head, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(g_head, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(r_head, g_head)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _knowledge_has_fact(self, facts, target):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        if M.TermEqual(fact, target)() is M.truth_value:
+            return M.truth_value
+        return self._knowledge_has_fact(M.Tail(facts)(), target)
+
+    def _match_premises(self, premises, facts, bindings):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, bindings)
+        premise = M.Head(premises)()
+        rest = M.Tail(premises)()
+        return self._match_premise_against_facts(premise, rest, facts, facts, bindings)
+
+    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
+
+        fact = M.Head(facts)()
+        match = M.Match(premise, fact)()
+        flag = M.Head(match)()
+        bound = M.Tail(match)()
+        if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
+            merged = M.MergeBindings(bindings, bound)()
+            merged_flag = M.Head(merged)()
+            merged_bindings = M.Tail(merged)()
+            if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
+                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings)
+                if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
+                    return rest_result
+
+        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
+
+    def _rule_reaches_goal_immediately(self, rule, current, goal):
+        if IsKnowledge(current)() is M.false_value:
+            if RuleIsUnary(rule)() is M.false_value:
+                return M.false_value
+            match = M.Match(RulePattern(rule)(), current)()
+            if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.false_value:
+                return M.false_value
+            inst = M.Instantiate(RuleReplacement(rule)(), M.Tail(match)())()
+            return M.TermEqual(M.Head(inst)(), goal)()
+
+        facts = KnowledgeFacts(current)()
+        bindings_pair = self._match_premises(RulePremises(rule)(), facts, M.EmptyList)
+        bindings_flag = M.Head(bindings_pair)()
+        bindings = M.Tail(bindings_pair)()
+        if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
+            return M.false_value
+        inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
+        conclusion = M.Head(inst)()
+        return M.TermEqual(conclusion, goal)()
+
+    def _bucket(self, rules, current, goal, immediate_acc, goal_acc, other_acc):
+        if M.Compare(rules, M.EmptyList)() is M.truth_value:
+            return M.Pair(immediate_acc, M.Pair(goal_acc, M.Pair(other_acc, M.EmptyList)))
+        r = M.Head(rules)()
+        rest = M.Tail(rules)()
+        immediate_goal = self._rule_reaches_goal_immediately(r, current, goal)
+        if immediate_goal is M.truth_value:
+            return self._bucket(rest, current, goal, M.Pair(r, immediate_acc), goal_acc, other_acc)
+        toward_goal = self._replacement_matches_goal_head(r, goal)
+        if toward_goal is M.truth_value:
+            return self._bucket(rest, current, goal, immediate_acc, M.Pair(r, goal_acc), other_acc)
+        return self._bucket(rest, current, goal, immediate_acc, goal_acc, M.Pair(r, other_acc))
+
+    def __call__(self):
+        return self.result
+
+
+class GoalHeadRuleBuckets(M.Edge):
+    def __init__(self, rules, current, goal, registry):
+        applicable = FilterApplicableRules(rules, current, registry)()
+        self.result = GoalHeadApplicableRuleBuckets(applicable, current, goal, registry)()
+        super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GoalHeadRewriteOrderer(M.Edge):
+    def __init__(self, rules, goal, registry):
+        self.registry = registry
+        buckets = self._bucket(rules, goal, M.EmptyList, M.EmptyList)
+        goal_bucket = M.Reverse(M.Head(buckets)())()
+        other_bucket = M.Reverse(M.Head(M.Tail(buckets)())())()
+        self.result = Append(goal_bucket, other_bucket)()
+        super().__init__(inputs=M.Pair(rules, M.Pair(goal, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _replacement_matches_goal_head(self, rule, goal):
+        r_head = TermHead(RuleReplacement(rule)(), self.registry)()
+        g_head = TermHead(goal, self.registry)()
+        if M.IdentityCompare(r_head, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(g_head, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(r_head, g_head)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _bucket(self, rules, goal, goal_acc, other_acc):
+        if M.Compare(rules, M.EmptyList)() is M.truth_value:
+            return M.Pair(goal_acc, M.Pair(other_acc, M.EmptyList))
+        r = M.Head(rules)()
+        rest = M.Tail(rules)()
+        toward_goal = self._replacement_matches_goal_head(r, goal)
+        if toward_goal is M.truth_value:
+            return self._bucket(rest, goal, M.Pair(r, goal_acc), other_acc)
+        return self._bucket(rest, goal, goal_acc, M.Pair(r, other_acc))
+
+    def __call__(self):
+        return self.result
+
+
+class OrderRules(M.Edge):
+    def __init__(self, rules, current, goal, heuristic, registry):
+        mode = HeuristicRuleOrder(heuristic)()
+        if M.IdentityCompare(mode, GoalHeadOrderLabel)() is M.truth_value:
+            atom_result = GoalHeadRuleOrderer(rules, current, goal, registry)()
+        else:
+            atom_result = FilterApplicableRules(rules, current, registry)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(heuristic, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Step(M.Edge):
+    def __init__(self, current, action, next_term, registry):
+        args = M.Pair(current, M.Pair(action, M.Pair(next_term, M.EmptyList)))
+        key = M.Pair(StepLabel, args)
+        existing = M.TreeLookup(registry, key, registry)()
+        if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
+            node = M.Atom()
+            constructed = M.ConstructedBy(node, StepLabel, args, registry)()
+            new_registry = M.Head(M.Tail(constructed)())()
+        else:
+            node = existing
+            new_registry = registry
+        self.result = M.Pair(node, M.Pair(new_registry, M.EmptyList))
+        super().__init__(inputs=M.Pair(current, M.Pair(action, M.Pair(next_term, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StepCurrent(M.Edge):
+    def __init__(self, step, registry):
+        c = M.GetConstructor(step, registry)()
+        if M.IdentityCompare(c, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            args = M.Tail(c)()
+            self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(step, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StepAction(M.Edge):
+    def __init__(self, step, registry):
+        c = M.GetConstructor(step, registry)()
+        if M.IdentityCompare(c, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            args = M.Tail(c)()
+            self.result = M.Head(M.Tail(args)())()
+        super().__init__(inputs=M.Pair(step, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+StepRule = StepAction
+
+
+class StepNext(M.Edge):
+    def __init__(self, step, registry):
+        c = M.GetConstructor(step, registry)()
+        if M.IdentityCompare(c, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            args = M.Tail(c)()
+            self.result = M.Head(M.Tail(M.Tail(args)())())()
+        super().__init__(inputs=M.Pair(step, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProofCost(M.Edge):
+    def __init__(self, value, steps, theorem_steps, rewrite_steps):
+        self.result = M.Pair(
+            ProofCostLabel,
+            M.Pair(value, M.Pair(steps, M.Pair(theorem_steps, M.Pair(rewrite_steps, M.EmptyList)))),
+        )
+        super().__init__(
+            inputs=M.Pair(value, M.Pair(steps, M.Pair(theorem_steps, M.Pair(rewrite_steps, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsProofCost(M.Edge):
+    def __init__(self, x):
+        if M.IsPair(x)() is M.false_value:
+            atom_result = M.false_value
+        else:
+            head = M.Head(x)()
+            tail = M.Tail(x)()
+            if M.IdentityCompare(head, ProofCostLabel)() is M.false_value:
+                atom_result = M.false_value
+            elif M.IsPair(tail)() is M.false_value:
+                atom_result = M.false_value
+            else:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProofCostValue(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(cost)())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProofCostSteps(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(M.Tail(cost)())())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProofCostTheoremSteps(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(cost)())())())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProofCostRewriteSteps(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(cost)())())())())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BuildProofCost(M.Edge):
+    def __init__(self, steps, registry):
+        counts_pair = self._counts(steps, registry)
+        counts = M.Head(counts_pair)()
+        new_registry = M.Head(M.Tail(counts_pair)())()
+        total_steps = M.Head(counts)()
+        theorem_steps = M.Head(M.Tail(counts)())()
+        rewrite_steps = M.Head(M.Tail(M.Tail(counts)())())()
+        self.result = M.Pair(
+            ProofCost(total_steps, total_steps, theorem_steps, rewrite_steps)(),
+            M.Pair(new_registry, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(steps, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _counts(self, steps, registry):
+        if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:
+            zero_counts = M.Pair(M.Zero, M.Pair(M.Zero, M.Pair(M.Zero, M.EmptyList)))
+            return M.Pair(zero_counts, M.Pair(registry, M.EmptyList))
+
+        rest_pair = self._counts(M.Tail(steps)(), registry)
+        rest_counts = M.Head(rest_pair)()
+        reg1 = M.Head(M.Tail(rest_pair)())()
+
+        total_inc_pair = M.Succ(M.Head(rest_counts)(), reg1)()
+        total_steps = M.Head(total_inc_pair)()
+        reg2 = M.Head(M.Tail(total_inc_pair)())()
+        theorem_steps = M.Head(M.Tail(rest_counts)())()
+        rewrite_steps = M.Head(M.Tail(M.Tail(rest_counts)())())()
+        action = StepAction(M.Head(steps)(), reg2)()
+
+        if IsTheoremAction(action)() is M.truth_value:
+            theorem_inc_pair = M.Succ(theorem_steps, reg2)()
+            theorem_steps = M.Head(theorem_inc_pair)()
+            reg2 = M.Head(M.Tail(theorem_inc_pair)())()
+        elif IsRewriteAction(action)() is M.truth_value:
+            rewrite_inc_pair = M.Succ(rewrite_steps, reg2)()
+            rewrite_steps = M.Head(rewrite_inc_pair)()
+            reg2 = M.Head(M.Tail(rewrite_inc_pair)())()
+
+        counts = M.Pair(total_steps, M.Pair(theorem_steps, M.Pair(rewrite_steps, M.EmptyList)))
+        return M.Pair(counts, M.Pair(reg2, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class Derivation(M.Edge):
+    def __init__(self, steps, cost, registry):
+        args = M.Pair(steps, M.Pair(cost, M.EmptyList))
+        key = M.Pair(DerivationLabel, args)
+        existing = M.TreeLookup(registry, key, registry)()
+        if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
+            node = M.Atom()
+            constructed = M.ConstructedBy(node, DerivationLabel, args, registry)()
+            new_registry = M.Head(M.Tail(constructed)())()
+        else:
+            node = existing
+            new_registry = registry
+        self.result = M.Pair(node, M.Pair(new_registry, M.EmptyList))
+        super().__init__(inputs=M.Pair(steps, M.Pair(cost, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationSteps(M.Edge):
+    def __init__(self, d, registry):
+        c = M.GetConstructor(d, registry)()
+        if M.IdentityCompare(c, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            args = M.Tail(c)()
+            if M.IsPair(args)() is M.truth_value:
+                rest = M.Tail(args)()
+                if (
+                    M.IsPair(rest)() is M.truth_value
+                    and M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.truth_value
+                    and IsProofCost(M.Head(rest)())() is M.truth_value
+                ):
+                    self.result = M.Head(args)()
+                else:
+                    self.result = args
+            else:
+                self.result = args
+        super().__init__(inputs=M.Pair(d, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationCost(M.Edge):
+    def __init__(self, d, registry):
+        c = M.GetConstructor(d, registry)()
+        if M.IdentityCompare(c, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        else:
+            args = M.Tail(c)()
+            if M.IsPair(args)() is M.truth_value:
+                rest = M.Tail(args)()
+                if (
+                    M.IsPair(rest)() is M.truth_value
+                    and M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.truth_value
+                    and IsProofCost(M.Head(rest)())() is M.truth_value
+                ):
+                    self.result = M.Pair(M.Head(rest)(), M.Pair(registry, M.EmptyList))
+                else:
+                    self.result = BuildProofCost(args, registry)()
+            else:
+                self.result = BuildProofCost(args, registry)()
+        super().__init__(inputs=M.Pair(d, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsDerivation(M.Edge):
+    def __init__(self, x, registry):
+        c = M.GetConstructor(x, registry)()
+        if M.IdentityCompare(c, M.EmptyList)() is M.truth_value:
+            atom_result = M.false_value
+        else:
+            label = M.Head(c)()
+            atom_result = M.truth_value if M.IdentityCompare(label, DerivationLabel)() is M.truth_value else M.false_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(x, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationStart(M.Edge):
+    def __init__(self, d, registry):
+        steps = DerivationSteps(d, registry)()
+        if M.Compare(steps, M.EmptyList)() is M.truth_value:
+            atom_result = M.EmptyList
+        else:
+            atom_result = StepCurrent(M.Head(steps)(), registry)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(d, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationEnd(M.Edge):
+    def __init__(self, d, registry):
+        steps = DerivationSteps(d, registry)()
+        self.registry = registry
+        self.result = self._end(steps)
+        super().__init__(inputs=M.Pair(d, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _end(self, steps):
+        if M.Compare(steps, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rest = M.Tail(steps)()
+        if M.Compare(rest, M.EmptyList)() is M.truth_value:
+            return StepNext(M.Head(steps)(), self.registry)()
+        return self._end(rest)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationEntryStart(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(entry)()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationEntryGoal(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(entry)())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationEntryProof(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(M.Tail(entry)())())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LookupDerivation(M.Edge):
+    def __init__(self, start, goal, tree):
+        self.result = self._lookup(M.TreeEntries(tree)(), start, goal)
+        super().__init__(inputs=M.Pair(start, M.Pair(goal, M.Pair(tree, M.EmptyList))), results=self.result)
+
+    def _lookup(self, entries, start, goal):
+        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        item = M.Head(entries)()
+        entry = M.Head(M.Tail(item)())()
+        entry_start = DerivationEntryStart(entry)()
+        entry_goal = DerivationEntryGoal(entry)()
+        same_start = M.TermEqual(entry_start, start)()
+        same_goal = M.TermEqual(entry_goal, goal)()
+        if M.AndAtom(same_start, same_goal)() is M.truth_value:
+            return DerivationEntryProof(entry)()
+        return self._lookup(M.Tail(entries)(), start, goal)
+
+    def __call__(self):
+        return self.result
+
+
+class StoreDerivation(M.Edge):
+    def __init__(self, start, goal, derivation, tree, registry):
+        entry = M.Pair(start, M.Pair(goal, M.Pair(derivation, M.EmptyList)))
+        key = M.Atom()
+        new_tree = M.TreeInsert(tree, key, entry, registry)()
+        self.result = M.Pair(new_tree, M.EmptyList)
+        super().__init__(inputs=M.Pair(start, M.Pair(goal, M.Pair(derivation, M.Pair(tree, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstantiateDerivation(M.Edge):
+    def __init__(self, start, plan, bindings, registry):
+        pair = BuildDerivation(start, plan, registry, bindings)()
+        self.result = pair
+        super().__init__(inputs=M.Pair(start, M.Pair(plan, M.Pair(bindings, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PrettyRule(M.Edge):
+    def __init__(self, rule, term_registry):
+        premises = RulePremises(rule)()
+        replacement = RuleReplacement(rule)()
+        if RuleIsUnary(rule)() is M.truth_value:
+            left_text = M.PrettyTerm(M.Head(premises)(), term_registry)()
+        else:
+            left_text = "[" + self._show_premises(premises, term_registry) + "]"
+        self.result = left_text + "  ->  " + M.PrettyTerm(replacement, term_registry)()
+        super().__init__(inputs=M.Pair(rule, M.Pair(term_registry, M.EmptyList)), results=M.EmptyList)
+
+    def _show_premises(self, premises, registry):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return ""
+        premise = M.Head(premises)()
+        rest = M.Tail(premises)()
+        here = M.PrettyTerm(premise, registry)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return here
+        return here + ", " + self._show_premises(rest, registry)
+
+    def __call__(self):
+        return self.result
+
+
+class PrettyRuleChain(M.Edge):
+    def __init__(self, rules, term_registry):
+        self.term_registry = term_registry
+        self.result = "[" + self._walk(rules) + "]"
+        super().__init__(inputs=M.Pair(rules, M.Pair(term_registry, M.EmptyList)), results=M.EmptyList)
+
+    def _walk(self, rules):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return ""
+        r = M.Head(rules)()
+        rest = M.Tail(rules)()
+        here = PrettyRule(r, self.term_registry)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return here
+        return here + ", " + self._walk(rest)
+
+    def __call__(self):
+        return self.result
+
+
+class PrettyPath(M.Edge):
+    def __init__(self, path, registry):
+        self.registry = registry
+        self.result = self._show(path)
+        super().__init__(inputs=M.Pair(path, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def _show(self, path):
+        if M.IdentityCompare(path, M.EmptyList)() is M.truth_value:
+            return "root"
+        segment = M.Head(path)()
+        rest = M.Tail(path)()
+        here = "head" if M.NatEq(segment, M.Zero, self.registry)() is M.truth_value else "tail"
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return here
+        return here + "." + self._show(rest)
+
+    def __call__(self):
+        return self.result
+
+
+class GoalHeadRuleOrderer(M.Edge):
+    def __init__(self, rules, current, goal, registry):
+        buckets = GoalHeadRuleBuckets(rules, current, goal, registry)()
+        immediate_bucket = M.Head(buckets)()
+        goal_bucket = M.Head(M.Tail(buckets)())()
+        other_bucket = M.Head(M.Tail(M.Tail(buckets)())())()
+        self.result = Append(immediate_bucket, Append(goal_bucket, other_bucket)())()
+        super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PrettyAction(M.Edge):
+    def __init__(self, action, registry):
+        rule = ActionRule(action)()
+        if IsRewriteAction(action)() is M.truth_value:
+            path = ActionPath(action)()
+            self.result = "rewrite " + PrettyRule(rule, registry)() + " at " + PrettyPath(path, registry)()
+        elif IsTheoremAction(action)() is M.truth_value:
+            self.result = "apply " + PrettyRule(rule, registry)()
+        else:
+            self.result = PrettyRule(rule, registry)()
+        super().__init__(inputs=M.Pair(action, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class PrettyPlanItem(M.Edge):
+    def __init__(self, x, registry):
+        if IsDerivation(x, registry)() is M.truth_value:
+            start = DerivationStart(x, registry)()
+            end = DerivationEnd(x, registry)()
+            self.result = "CachedDerivation(" + M.PrettyTerm(start, registry)() + " -> " + M.PrettyTerm(end, registry)() + ")"
+        elif M.OrAtom(IsTheoremAction(x)(), IsRewriteAction(x)())() is M.truth_value:
+            self.result = PrettyAction(x, registry)()
+        elif M.IsEdge(x, registry)() is M.truth_value:
+            self.result = PrettyRule(x, registry)()
+        else:
+            self.result = M.PrettyTerm(x, registry)()
+        super().__init__(inputs=M.Pair(x, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class PrettyPlanChain(M.Edge):
+    def __init__(self, plan, registry):
+        self.registry = registry
+        self.result = "[" + self._walk(plan) + "]"
+        super().__init__(inputs=M.Pair(plan, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def _walk(self, plan):
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            return ""
+        h = M.Head(plan)()
+        t = M.Tail(plan)()
+        here = PrettyPlanItem(h, self.registry)()
+        if M.IdentityCompare(t, M.EmptyList)() is M.truth_value:
+            return here
+        return here + ", " + self._walk(t)
+
+    def __call__(self):
+        return self.result
+
+
+class RewriteHere(M.Edge):
+    def __init__(self, rule, target):
+        if RuleIsUnary(rule)() is M.false_value:
+            self.result = target
+        else:
+            match = M.Match(RulePattern(rule)(), target)()
+            flag = M.Head(match)()
+            bindings = M.Tail(match)()
+            if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
+                inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
+                self.result = M.Head(inst)()
+            else:
+                self.result = target
+        super().__init__(inputs=M.Pair(rule, M.Pair(target, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RewriteAtPath(M.Edge):
+    def __init__(self, rule, target, path, registry):
+        self.registry = registry
+        _debug(
+            "rewrite-at-path: rule="
+            + PrettyRule(rule, registry)()
+            + " path="
+            + PrettyPath(path, registry)()
+            + " target="
+            + _debug_term(target, registry)
+        )
+        self.result = self._rewrite(rule, target, path)
+        _debug("rewrite-at-path result: " + _debug_term(self.result, registry))
+        super().__init__(inputs=M.Pair(rule, M.Pair(target, M.Pair(path, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def _rewrite(self, rule, target, path):
+        if M.IdentityCompare(path, M.EmptyList)() is M.truth_value:
+            return RewriteHere(rule, target)()
+        if M.IsPair(target)() is M.false_value:
+            return target
+        step = M.Head(path)()
+        rest = M.Tail(path)()
+        if M.NatEq(step, M.Zero, self.registry)() is M.truth_value:
+            new_head = self._rewrite(rule, M.Head(target)(), rest)
+            return M.Pair(new_head, M.Tail(target)())
+        new_tail = self._rewrite(rule, M.Tail(target)(), rest)
+        return M.Pair(M.Head(target)(), new_tail)
+
+    def __call__(self):
+        return self.result
+
+
+class BuildDerivation(M.Edge):
+    def __init__(self, start, plan, registry, bindings=None):
+        if bindings is None:
+            bindings = M.EmptyList
+        self.bindings = bindings
+        _debug("build-derivation: start=" + _debug_term(start, registry))
+        _debug("build-derivation: plan=" + PrettyPlanChain(plan, registry)())
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        else:
+            pair = self._build(start, plan, registry)
+            steps = M.Head(pair)()
+            new_registry = M.Head(M.Tail(pair)())()
+            cost_pair = BuildProofCost(steps, new_registry)()
+            cost = M.Head(cost_pair)()
+            new_registry = M.Head(M.Tail(cost_pair)())()
+            deriv_pair = Derivation(steps, cost, new_registry)()
+            self.result = deriv_pair
+        _debug("build-derivation: finished")
+        super().__init__(inputs=M.Pair(start, M.Pair(plan, M.Pair(bindings, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def _knowledge_has_fact(self, facts, target):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        if M.TermEqual(fact, target)() is M.truth_value:
+            return M.truth_value
+        return self._knowledge_has_fact(M.Tail(facts)(), target)
+
+    def _match_premises(self, premises, facts, bindings):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, bindings)
+        premise = M.Head(premises)()
+        rest = M.Tail(premises)()
+        return self._match_premise_against_facts(premise, rest, facts, facts, bindings)
+
+    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
+
+        fact = M.Head(facts)()
+        match = M.Match(premise, fact)()
+        flag = M.Head(match)()
+        bound = M.Tail(match)()
+        if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
+            merged = M.MergeBindings(bindings, bound)()
+            merged_flag = M.Head(merged)()
+            merged_bindings = M.Tail(merged)()
+            if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
+                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings)
+                if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
+                    return rest_result
+
+        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
+
+    def _premises_satisfied_by_bindings(self, premises, facts, bindings):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        premise = M.Head(premises)()
+        instantiated = M.Instantiate(premise, bindings)()
+        concrete_premise = M.Head(instantiated)()
+        has_fact = self._knowledge_has_fact(facts, concrete_premise)
+        if M.IdentityCompare(has_fact, M.false_value)() is M.truth_value:
+            return M.false_value
+        return self._premises_satisfied_by_bindings(M.Tail(premises)(), facts, bindings)
+
+    def _apply_theorem_rule_to_knowledge(self, rule, current, registry):
+        facts = KnowledgeFacts(current)()
+        bindings_are_empty = M.IdentityCompare(self.bindings, M.EmptyList)()
+        if bindings_are_empty is M.false_value:
+            _debug("apply-action: theorem replay using concrete bindings")
+            if self._premises_satisfied_by_bindings(RulePremises(rule)(), facts, self.bindings) is M.false_value:
+                _debug("apply-action: concrete theorem premises missing")
+                return current
+            inst = M.Instantiate(RuleReplacement(rule)(), self.bindings)()
+            conclusion = M.Head(inst)()
+            if self._knowledge_has_fact(facts, conclusion) is M.truth_value:
+                _debug("apply-action: concrete theorem conclusion already known")
+                return current
+            _debug("apply-action: concrete theorem conclusion added")
+            return NormalizeKnowledge(Knowledge(M.Pair(conclusion, facts))(), registry)()
+
+        bindings_pair = self._match_premises(RulePremises(rule)(), facts, self.bindings)
+        bindings_flag = M.Head(bindings_pair)()
+        bindings = M.Tail(bindings_pair)()
+        if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
+            return current
+
+        inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
+        conclusion = M.Head(inst)()
+        if self._knowledge_has_fact(facts, conclusion) is M.truth_value:
+            return current
+        return NormalizeKnowledge(Knowledge(M.Pair(conclusion, facts))(), registry)()
+
+    def _apply_theorem_rule_at_root(self, rule, current, registry):
+        if IsKnowledge(current)() is M.truth_value:
+            return self._apply_theorem_rule_to_knowledge(rule, current, registry)
+        if RuleIsUnary(rule)() is M.false_value:
+            return current
+        pattern = RulePattern(rule)()
+        replacement = RuleReplacement(rule)()
+        match = M.Match(pattern, current)()
+        flag = M.Head(match)()
+        binds = M.Tail(match)()
+        if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
+            merged = M.MergeBindings(self.bindings, binds)()
+            merged_flag = M.Head(merged)()
+            merged_bindings = M.Tail(merged)()
+            if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
+                inst = M.Instantiate(replacement, merged_bindings)()
+                return M.Head(inst)()
+        return current
+
+    def _apply_action(self, action, current, registry):
+        _debug("apply-action: current=" + _debug_term(current, registry))
+        _debug("apply-action: " + PrettyAction(action, registry)())
+        if IsTheoremAction(action)() is M.truth_value:
+            result = self._apply_theorem_rule_at_root(ActionRule(action)(), current, registry)
+            _debug("apply-action result=" + _debug_term(result, registry))
+            return result
+        if IsRewriteAction(action)() is M.truth_value:
+            result = RewriteAtPath(ActionRule(action)(), current, ActionPath(action)(), registry)()
+            _debug("apply-action result=" + _debug_term(result, registry))
+            return result
+        result = self._apply_theorem_rule_at_root(action, current, registry)
+        _debug("apply-action result=" + _debug_term(result, registry))
+        return result
+
+    def _build(self, current, plan, registry):
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        item = M.Head(plan)()
+        rest = M.Tail(plan)()
+        if IsDerivation(item, registry)() is M.truth_value:
+            cached_steps = DerivationSteps(item, registry)()
+            cached_end = DerivationEnd(item, registry)()
+            rest_pair = self._build(cached_end, rest, registry)
+            rest_steps = M.Head(rest_pair)()
+            reg2 = M.Head(M.Tail(rest_pair)())()
+            return M.Pair(Append(cached_steps, rest_steps)(), M.Pair(reg2, M.EmptyList))
+        next_term = self._apply_action(item, current, registry)
+        step_pair = Step(current, item, next_term, registry)()
+        step_node = M.Head(step_pair)()
+        reg1 = M.Head(M.Tail(step_pair)())()
+        rest_pair = self._build(next_term, rest, reg1)
+        rest_steps = M.Head(rest_pair)()
+        reg2 = M.Head(M.Tail(rest_pair)())()
+        return M.Pair(M.Pair(step_node, rest_steps), M.Pair(reg2, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BuildRewriteDerivation(M.Edge):
+    def __init__(self, start, plan, registry):
+        self.result = BuildDerivation(start, plan, registry)()
+        super().__init__(inputs=M.Pair(start, M.Pair(plan, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExplainDerivation(M.Edge):
+    def __init__(self, derivation, goal, registry):
+        self.registry = registry
+        self.goal = goal
+        if derivation is None:
+            self.result = "We were looking for " + M.PrettyTerm(goal, registry)() + ".\nNo derivation was produced (got Python None)."
+        elif M.Compare(derivation, M.EmptyList)() is M.truth_value:
+            self.result = "We were looking for " + M.PrettyTerm(goal, registry)() + ".\nNo derivation was found."
+        else:
+            steps = DerivationSteps(derivation, registry)()
+            if M.Compare(steps, M.EmptyList)() is M.truth_value:
+                self.result = "We found a derivation node, but it contains no steps."
+            else:
+                first_step = M.Head(steps)()
+                start = StepCurrent(first_step, registry)()
+                self.result = "We were looking for " + M.PrettyTerm(goal, registry)() + ".\nWe started with " + M.PrettyTerm(start, registry)() + ".\n\n" + self._walk(steps, 1)
+        super().__init__(inputs=M.Pair(derivation, M.Pair(goal, M.Pair(registry, M.EmptyList))), results=M.EmptyList)
+
+    def _walk(self, steps, n):
+        if M.Compare(steps, M.EmptyList)() is M.truth_value:
+            return ""
+        s = M.Head(steps)()
+        rest = M.Tail(steps)()
+        cur = StepCurrent(s, self.registry)()
+        action = StepAction(s, self.registry)()
+        nxt = StepNext(s, self.registry)()
+        line = "Step " + str(n) + ": from " + M.PrettyTerm(cur, self.registry)() + "\n  " + PrettyAction(action, self.registry)() + "\n  get " + M.PrettyTerm(nxt, self.registry)() + "\n\n"
+        if M.Compare(rest, M.EmptyList)() is M.truth_value:
+            if self._goal_reached(nxt) is M.truth_value:
+                return line + "Therefore we reached " + M.PrettyTerm(nxt, self.registry)() + ", so the goal follows."
+            return line + "We ended at " + M.PrettyTerm(nxt, self.registry)() + ", which is not the goal."
+        return line + self._walk(rest, n + 1)
+
+    def _knowledge_has_fact(self, facts, target):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        if M.TermEqual(fact, target)() is M.truth_value:
+            return M.truth_value
+        return self._knowledge_has_fact(M.Tail(facts)(), target)
+
+    def _goal_reached(self, current):
+        if IsKnowledge(current)() is M.truth_value:
+            return self._knowledge_has_fact(KnowledgeFacts(current)(), self.goal)
+        return M.TermEqual(current, self.goal)()
+
+    def __call__(self):
+        return self.result
+
+
+class TotalCost(M.Edge):
+    def __init__(self, value, alpha, beta, proof_value, search_value):
+        self.result = M.Pair(
+            TotalCostLabel,
+            M.Pair(value, M.Pair(alpha, M.Pair(beta, M.Pair(proof_value, M.Pair(search_value, M.EmptyList))))),
+        )
+        super().__init__(
+            inputs=M.Pair(value, M.Pair(alpha, M.Pair(beta, M.Pair(proof_value, M.Pair(search_value, M.EmptyList))))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TotalCostValue(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(cost)())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TotalCostAlpha(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(M.Tail(cost)())())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TotalCostBeta(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(cost)())())())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TotalCostProofValue(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(cost)())())())())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TotalCostSearchValue(M.Edge):
+    def __init__(self, cost):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(cost)())())())())())()
+        super().__init__(inputs=M.Pair(cost, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BuildTotalCost(M.Edge):
+    def __init__(self, proof_cost, search_cost, heuristic, registry):
+        from .search import SearchCostValue
+
+        alpha = M.HeuristicAlpha(heuristic)()
+        beta = M.HeuristicBeta(heuristic)()
+        proof_value = ProofCostValue(proof_cost)()
+        search_value = SearchCostValue(search_cost)()
+        weighted_proof_pair = M.Multiply(alpha, proof_value, registry)()
+        weighted_proof = M.Head(weighted_proof_pair)()
+        reg1 = M.Head(M.Tail(weighted_proof_pair)())()
+        weighted_search_pair = M.Multiply(beta, search_value, reg1)()
+        weighted_search = M.Head(weighted_search_pair)()
+        reg2 = M.Head(M.Tail(weighted_search_pair)())()
+        total_pair = M.Add(weighted_proof, weighted_search, reg2)()
+        total_value = M.Head(total_pair)()
+        reg3 = M.Head(M.Tail(total_pair)())()
+        self.result = M.Pair(
+            TotalCost(total_value, alpha, beta, proof_value, search_value)(),
+            M.Pair(reg3, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(proof_cost, M.Pair(search_cost, M.Pair(heuristic, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttempt(M.Edge):
+    def __init__(self, start, goal, heuristic, status, derivation, proof_cost, search_cost, total_cost):
+        self.result = M.Pair(
+            SearchAttemptLabel,
+            M.Pair(
+                start,
+                M.Pair(
+                    goal,
+                    M.Pair(
+                        heuristic,
+                        M.Pair(
+                            status,
+                            M.Pair(derivation, M.Pair(proof_cost, M.Pair(search_cost, M.Pair(total_cost, M.EmptyList)))),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                start,
+                M.Pair(
+                    goal,
+                    M.Pair(
+                        heuristic,
+                        M.Pair(
+                            status,
+                            M.Pair(derivation, M.Pair(proof_cost, M.Pair(search_cost, M.Pair(total_cost, M.EmptyList)))),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+def _search_attempt_has_status(candidate):
+    return M.OrAtom(
+        M.OrAtom(
+            M.IdentityCompare(candidate, SearchSuccessLabel)(),
+            M.IdentityCompare(candidate, SearchFailureLabel)(),
+        )(),
+        M.OrAtom(
+            M.OrAtom(
+                M.IdentityCompare(candidate, SearchRunningLabel)(),
+                M.IdentityCompare(candidate, SearchPausedLabel)(),
+            )(),
+            M.OrAtom(
+                M.IdentityCompare(candidate, SearchTimedOutLabel)(),
+                M.IdentityCompare(candidate, SearchAbortedByUserLabel)(),
+            )(),
+        )(),
+    )()
+
+
+class SearchAttemptStatus(M.Edge):
+    def __init__(self, attempt):
+        candidate = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())()
+        if _search_attempt_has_status(candidate) is M.truth_value:
+            self.result = candidate
+        elif M.Compare(candidate, M.EmptyList)() is M.truth_value:
+            self.result = SearchFailureLabel
+        else:
+            self.result = SearchSuccessLabel
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptStart(M.Edge):
+    def __init__(self, attempt):
+        self.result = M.Head(M.Tail(attempt)())()
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptGoal(M.Edge):
+    def __init__(self, attempt):
+        self.result = M.Head(M.Tail(M.Tail(attempt)())())()
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptDerivation(M.Edge):
+    def __init__(self, attempt):
+        candidate = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())()
+        if _search_attempt_has_status(candidate) is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())())()
+        else:
+            self.result = candidate
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptHeuristic(M.Edge):
+    def __init__(self, attempt):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(attempt)())())())()
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptProofCost(M.Edge):
+    def __init__(self, attempt):
+        candidate = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())()
+        if _search_attempt_has_status(candidate) is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())())())()
+        else:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())())()
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptSearchCost(M.Edge):
+    def __init__(self, attempt):
+        candidate = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())()
+        if _search_attempt_has_status(candidate) is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())())())())()
+        else:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())())())()
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptTotalCost(M.Edge):
+    def __init__(self, attempt):
+        candidate = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())()
+        if _search_attempt_has_status(candidate) is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())())())())())()
+        else:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(attempt)())())())())())())())()
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchAttemptSucceeded(M.Edge):
+    def __init__(self, attempt):
+        self.result = M.IdentityCompare(SearchAttemptStatus(attempt)(), SearchSuccessLabel)()
+        super().__init__(inputs=M.Pair(attempt, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Prove(M.Edge):
+    def __init__(self, graph, start, goal, rules, heuristic, registry):
+        self.graph = graph
+        self.start = NormalizeKnowledge(start, registry)()
+        self.goal = NormalizeKnowledge(goal, registry)()
+        self.rules = rules
+        self.heuristic = heuristic
+        self.registry = registry
+        _debug("prove: start=" + _debug_term(start, registry))
+        _debug("prove: goal=" + _debug_term(goal, registry))
+        atom_result = self._prove()
+        if atom_result is None:
+            atom_result = M.EmptyList
+        self.result = M.Pair(atom_result, M.EmptyList)
+        if M.Compare(atom_result, M.EmptyList)() is M.truth_value:
+            _debug("prove: no derivation found")
+        else:
+            _debug("prove: derivation produced")
+        super().__init__(inputs=M.Pair(graph, M.Pair(start, M.Pair(goal, M.Pair(rules, M.Pair(heuristic, M.Pair(registry, M.EmptyList)))))), results=self.result)
+
+    def _knowledge_has_fact(self, facts, target):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        if M.TermEqual(fact, target)() is M.truth_value:
+            return M.truth_value
+        return self._knowledge_has_fact(M.Tail(facts)(), target)
+
+    def _premises_satisfied_by_bindings(self, premises, facts, bindings):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        premise = M.Head(premises)()
+        instantiated = M.Instantiate(premise, bindings)()
+        concrete_premise = M.Head(instantiated)()
+        if self._knowledge_has_fact(facts, concrete_premise) is M.false_value:
+            return M.false_value
+        return self._premises_satisfied_by_bindings(M.Tail(premises)(), facts, bindings)
+
+    def _match_premises(self, premises, facts, bindings):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, bindings)
+        premise = M.Head(premises)()
+        rest = M.Tail(premises)()
+        return self._match_premise_against_facts(premise, rest, facts, facts, bindings)
+
+    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
+
+        fact = M.Head(facts)()
+        match = M.Match(premise, fact)()
+        flag = M.Head(match)()
+        bound = M.Tail(match)()
+        if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
+            merged = M.MergeBindings(bindings, bound)()
+            merged_flag = M.Head(merged)()
+            merged_bindings = M.Tail(merged)()
+            if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
+                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings)
+                if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
+                    return rest_result
+
+        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
+
+    def _direct_next_term(self, rule, current):
+        if IsKnowledge(current)() is M.truth_value:
+            facts = KnowledgeFacts(current)()
+            bindings_pair = self._match_premises(RulePremises(rule)(), facts, M.EmptyList)
+            bindings_flag = M.Head(bindings_pair)()
+            bindings = M.Tail(bindings_pair)()
+            if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
+                return current
+            inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
+            conclusion = M.Head(inst)()
+            if self._knowledge_has_fact(facts, conclusion) is M.truth_value:
+                return current
+            registry = M.FromContextGetConstructors(self.graph)()
+            return NormalizeKnowledge(Knowledge(M.Pair(conclusion, facts))(), registry)()
+
+        if RuleIsUnary(rule)() is M.false_value:
+            return current
+        match = M.Match(RulePattern(rule)(), current)()
+        flag = M.Head(match)()
+        binds = M.Tail(match)()
+        if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
+            inst = M.Instantiate(RuleReplacement(rule)(), binds)()
+            return M.Head(inst)()
+        return current
+
+    def _find_goal_instantiating_plan(self, rule_list, current):
+        if M.IdentityCompare(rule_list, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+
+        rule = M.Head(rule_list)()
+        _debug(
+            "prove-stage: goal-instantiating check replacement="
+            + _debug_term(RuleReplacement(rule)(), M.FromContextGetConstructors(self.graph)())
+        )
+        replacement_match = M.Match(RuleReplacement(rule)(), self.goal)()
+        replacement_flag = M.Head(replacement_match)()
+        replacement_bindings = M.Tail(replacement_match)()
+
+        if M.IdentityCompare(replacement_flag, M.truth_value)() is M.truth_value:
+            _debug("prove-stage: replacement matched goal")
+            if IsKnowledge(current)() is M.truth_value:
+                facts = KnowledgeFacts(current)()
+                if self._premises_satisfied_by_bindings(RulePremises(rule)(), facts, replacement_bindings) is M.truth_value:
+                    _debug("prove-stage: instantiated premises are present in knowledge facts")
+                    return M.Pair(TheoremAction(rule)(), M.Pair(replacement_bindings, M.EmptyList))
+                _debug("prove-stage: instantiated premises are missing from knowledge facts")
+            elif RuleIsUnary(rule)() is M.truth_value:
+                premise_match = M.Match(RulePattern(rule)(), current)()
+                premise_flag = M.Head(premise_match)()
+                premise_bindings = M.Tail(premise_match)()
+                if M.IdentityCompare(premise_flag, M.truth_value)() is M.truth_value:
+                    merged = M.MergeBindings(replacement_bindings, premise_bindings)()
+                    merged_flag = M.Head(merged)()
+                    merged_bindings = M.Tail(merged)()
+                    if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
+                        _debug("prove-stage: unary premise matched current")
+                        return M.Pair(TheoremAction(rule)(), M.Pair(merged_bindings, M.EmptyList))
+                _debug("prove-stage: unary premise did not match current")
+        else:
+            _debug("prove-stage: replacement did not match goal")
+
+        return self._find_goal_instantiating_plan(M.Tail(rule_list)(), current)
+
+    def _find_immediate_rule_plan(self, rule_list, current):
+        if M.IdentityCompare(rule_list, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rule = M.Head(rule_list)()
+        next_term = self._direct_next_term(rule, current)
+        if M.TermEqual(next_term, current)() is M.false_value:
+            if IsKnowledge(next_term)() is M.truth_value:
+                if self._knowledge_has_fact(KnowledgeFacts(next_term)(), self.goal) is M.truth_value:
+                    return M.Pair(TheoremAction(rule)(), M.EmptyList)
+            elif M.TermEqual(next_term, self.goal)() is M.truth_value:
+                return M.Pair(TheoremAction(rule)(), M.EmptyList)
+        return self._find_immediate_rule_plan(M.Tail(rule_list)(), current)
+
+    def _derivation_reaches_goal(self, derivation, registry):
+        end = DerivationEnd(derivation, registry)()
+        if IsKnowledge(end)() is M.truth_value:
+            return self._knowledge_has_fact(KnowledgeFacts(end)(), self.goal)
+        return M.TermEqual(end, self.goal)()
+
+    def _zero_search_cost(self, registry):
+        from .search import BuildSearchCost
+
+        return BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, SearchSuccessLabel, registry)()
+
+    def _store_search_attempt(self, derivation, search_cost, heuristic=None):
+        if heuristic is None:
+            heuristic = self.heuristic
+        registry = M.FromContextGetConstructors(self.graph)()
+        status = SearchFailureLabel if M.Compare(derivation, M.EmptyList)() is M.truth_value else SearchSuccessLabel
+        if M.Compare(derivation, M.EmptyList)() is M.truth_value:
+            proof_cost = ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+            reg1 = registry
+        else:
+            proof_cost_pair = DerivationCost(derivation, registry)()
+            proof_cost = M.Head(proof_cost_pair)()
+            reg1 = M.Head(M.Tail(proof_cost_pair)())()
+
+        total_cost_pair = BuildTotalCost(proof_cost, search_cost, heuristic, reg1)()
+        total_cost = M.Head(total_cost_pair)()
+        reg2 = M.Head(M.Tail(total_cost_pair)())()
+        self.graph._replace_context(constructors=reg2)
+        if M.Compare(derivation, M.EmptyList)() is M.false_value:
+            alpha = TotalCostAlpha(total_cost)()
+            beta = TotalCostBeta(total_cost)()
+            proof_value = TotalCostProofValue(total_cost)()
+            search_value = TotalCostSearchValue(total_cost)()
+            weighted_proof_pair = M.Multiply(alpha, proof_value, reg2)()
+            weighted_proof = M.Head(weighted_proof_pair)()
+            reg3 = M.Head(M.Tail(weighted_proof_pair)())()
+            weighted_search_pair = M.Multiply(beta, search_value, reg3)()
+            weighted_search = M.Head(weighted_search_pair)()
+            reg4 = M.Head(M.Tail(weighted_search_pair)())()
+            self.graph._replace_context(constructors=reg4)
+            _debug(
+                "prove-stage: total_cost = "
+                + M.PrettyTerm(alpha, reg4)()
+                + "*"
+                + M.PrettyTerm(proof_value, reg4)()
+                + " + "
+                + M.PrettyTerm(beta, reg4)()
+                + "*"
+                + M.PrettyTerm(search_value, reg4)()
+                + " = "
+                + M.PrettyTerm(weighted_proof, reg4)()
+                + " + "
+                + M.PrettyTerm(weighted_search, reg4)()
+                + " = "
+                + M.PrettyTerm(TotalCostValue(total_cost)(), reg4)()
+                + " (proof_cost="
+                + M.PrettyTerm(ProofCostValue(proof_cost)(), reg4)()
+                + ", search_cost="
+                + M.PrettyTerm(M.SearchCostValue(search_cost)(), reg4)()
+                + ")"
+            )
+        attempt = SearchAttempt(self.start, self.goal, heuristic, status, derivation, proof_cost, search_cost, total_cost)()
+        _debug("prove-stage: storing search attempt in context.search_history")
+        self.graph.add_search_attempt(attempt)
+        return attempt
+
+    def _store_success(self, derivation, new_registry, search_cost, heuristic=None):
+        self.graph._replace_context(constructors=new_registry)
+        _debug("prove-stage: storing derivation in context.derivations (snapshot will persist current context when saved)")
+        stored = self.graph.add_derivation(self.start, self.goal, derivation)
+        self._store_search_attempt(stored, search_cost, heuristic)
+        return stored
+
+    def _comparison_for_problem(self, registry):
+        from .search import (
+            LookupSearchComparison,
+            LookupSearchComparisonJob,
+            SearchComparisonBestAttempt,
+            SearchComparisonJobOutcome,
+            SearchSignatureForProblem,
+        )
+
+        signature = SearchSignatureForProblem(self.start, self.goal, registry)()
+        paused_job = LookupSearchComparisonJob(signature, self.graph.search_comparison_jobs)()
+        if M.Compare(paused_job, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(SearchComparisonJobOutcome(paused_job)(), SearchPausedLabel)() is M.truth_value:
+                return M.EmptyList
+        comparison = LookupSearchComparison(signature, M.FromContextGetSearchComparisons(self.graph)())()
+        if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+            return comparison
+        if M.Compare(SearchComparisonBestAttempt(comparison)(), M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return comparison
+
+    def _maybe_seed_search_comparison(self):
+        from .search import CompareSearchModes
+
+        if M.IdentityCompare(self.graph._search_disable_console, M.truth_value)() is M.truth_value:
+            return M.EmptyList
+
+        registry = M.FromContextGetConstructors(self.graph)()
+        existing = self._comparison_for_problem(registry)
+        if M.Compare(existing, M.EmptyList)() is M.false_value:
+            return existing
+        _debug("prove-stage: seeding search mode comparison evidence")
+        comparison_pair = CompareSearchModes(
+            self.graph,
+            self.start,
+            self.goal,
+            self.rules,
+            self.heuristic,
+            registry,
+        )()
+        return M.Head(comparison_pair)()
+
+    def _recommended_search(self, comparison, registry):
+        from .search import SearchAdviceText, SearchComparisonBestHeuristic, SearchComparisonHasUniqueBestAttempt
+
+        if SearchComparisonHasUniqueBestAttempt(comparison)() is M.truth_value:
+            recommended_heuristic = SearchComparisonBestHeuristic(comparison)()
+            _debug("prove-stage: " + SearchAdviceText(comparison)())
+        else:
+            recommended_heuristic = self.heuristic
+            _debug("prove-stage: comparison did not distinguish a unique best mode; keeping current heuristic")
+        search_pair = M.Search(self.graph, self.start, self.goal, self.rules, recommended_heuristic, registry)()
+        return M.Pair(search_pair, M.Pair(recommended_heuristic, M.EmptyList))
+
+    # def _prove(self):
+    #     from .search import CompareSearchModes, SearchCostOutcome
+
+    #     start_has_var = ContainsVar(self.start)()
+    #     goal_has_var = ContainsVar(self.goal)()
+    #     schematic_proof = M.OrAtom(start_has_var, goal_has_var)()
+    #     if schematic_proof is M.false_value:
+    #         _debug("prove-stage: concrete proof path")
+    #         cached = self.graph.lookup_derivation(self.start, self.goal)
+    #         if M.Compare(cached, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: derivation cache hit")
+    #             zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
+    #             zero_search_cost = M.Head(zero_search_pair)()
+    #             self.graph._replace_context(constructors=M.Head(M.Tail(zero_search_pair)())())
+    #             self._store_search_attempt(cached, zero_search_cost)
+    #             self._maybe_seed_search_comparison()
+    #             return cached
+    #         # schema_hit = self.graph.lookup_derivation_schema(self.start, self.goal)
+    #         # if M.Compare(schema_hit, M.EmptyList)() is not M.truth_value:
+    #         #     _debug("prove-stage: schema hit")
+    #         #     plan = M.Head(schema_hit)()
+    #         #     bindings = M.Head(M.Tail(schema_hit)())()
+    #         #     _debug("prove-stage: schema plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+    #         #     derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+    #         #     derivation = M.Head(derivation_pair)()
+    #         #     new_registry = M.Head(M.Tail(derivation_pair)())()
+    #         #     if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #         #         if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+    #         #             _debug("prove-stage: schema replay succeeded")
+    #         #             zero_search_pair = self._zero_search_cost(new_registry)
+    #         #             zero_search_cost = M.Head(zero_search_pair)()
+    #         #             zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #         #             stored = self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+    #         #             self._maybe_seed_search_comparison()
+    #         #             return stored
+    #         # goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
+    #         # if M.Compare(goal_instantiating_plan, M.EmptyList)() is not M.truth_value:
+    #         #     _debug("prove-stage: found goal-instantiating theorem action")
+    #         #     action = M.Head(goal_instantiating_plan)()
+    #         #     bindings = M.Head(M.Tail(goal_instantiating_plan)())()
+    #         #     plan = M.Pair(action, M.EmptyList)
+    #         #     _debug("prove-stage: plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+    #         #     derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+    #         #     derivation = M.Head(derivation_pair)()
+    #         #     new_registry = M.Head(M.Tail(derivation_pair)())()
+    #         #     if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #         #         if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+    #         #             _debug("prove-stage: goal-instantiating plan succeeded")
+    #         #             zero_search_pair = self._zero_search_cost(new_registry)
+    #         #             zero_search_cost = M.Head(zero_search_pair)()
+    #         #             zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #         #             stored = self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+    #         #             self._maybe_seed_search_comparison()
+    #         #             return stored
+    #         # immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
+    #         # if M.Compare(immediate_plan, M.EmptyList)() is not M.truth_value:
+    #         #     _debug("prove-stage: found immediate plan=" + PrettyPlanChain(immediate_plan, M.FromContextGetConstructors(self.graph)())())
+    #         #     derivation_pair = BuildDerivation(self.start, immediate_plan, M.FromContextGetConstructors(self.graph)())()
+    #         #     derivation = M.Head(derivation_pair)()
+    #         #     new_registry = M.Head(M.Tail(derivation_pair)())()
+    #         #     if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #         #         _debug("prove-stage: immediate plan succeeded")
+    #         #         zero_search_pair = self._zero_search_cost(new_registry)
+    #         #         zero_search_cost = M.Head(zero_search_pair)()
+    #         #         zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #         #         stored = self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+    #         #         self._maybe_seed_search_comparison()
+    #         #         return stored
+    #         # comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
+    #         # if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+    #         #     _debug("prove-stage: no search comparison evidence yet; benchmarking all current search modes")
+    #         #     comparison_pair = CompareSearchModes(
+    #         #         self.graph,
+    #         #         self.start,
+    #         #         self.goal,
+    #         #         self.rules,
+    #         #         self.heuristic,
+    #         #         M.FromContextGetConstructors(self.graph)(),
+    #         #     )()
+    #         #     comparison = M.Head(comparison_pair)()
+    #         #     if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+    #         #         if M.IdentityCompare(self.graph._last_search_comparison_outcome, SearchPausedLabel)() is M.truth_value:
+    #         #             _debug("prove-stage: benchmarking paused")
+    #         #         else:
+    #         #             _debug("prove-stage: benchmarking aborted")
+    #         #         return M.EmptyList
+    #         #     _debug("prove-stage: benchmarking selected a best heuristic")
+    #         #     recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
+    #         #     search_pair = M.Head(recommended_search)()
+    #         #     recommended_heuristic = M.Head(M.Tail(recommended_search)())()
+    #         #     search_result = M.Head(search_pair)()
+    #         #     search_cost = M.Head(M.Tail(search_pair)())()
+
+    #         #     if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+    #         #         _debug("prove-stage: recommended search paused")
+    #         #         return M.EmptyList
+
+    #         #     if M.Compare(search_result, M.EmptyList)() is M.false_value:
+    #         #         _debug("prove-stage: recommended search produced a plan")
+    #         #         derivation_pair = BuildDerivation(
+    #         #             self.start,
+    #         #             search_result,
+    #         #             M.FromContextGetConstructors(self.graph)(),
+    #         #         )()
+    #         #         derivation = M.Head(derivation_pair)()
+    #         #         new_registry = M.Head(M.Tail(derivation_pair)())()
+    #         #         if M.Compare(derivation, M.EmptyList)() is M.false_value:
+    #         #             return self._store_success(
+    #         #                 derivation,
+    #         #                 new_registry,
+    #         #                 search_cost,
+    #         #                 recommended_heuristic,
+    #         #             )
+    #         # else:
+    #         #     recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
+    #         #     search_pair = M.Head(recommended_search)()
+    #         #     recommended_heuristic = M.Head(M.Tail(recommended_search)())()
+    #         #     search_result = M.Head(search_pair)()
+    #         #     search_cost = M.Head(M.Tail(search_pair)())()
+    #         #     if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+    #         #         _debug("prove-stage: recommended search paused")
+    #         #         return M.EmptyList
+    #         #     if M.Compare(search_result, M.EmptyList)() is M.false_value:
+    #         #         _debug("prove-stage: recommended search produced a plan")
+    #         #         derivation_pair = BuildDerivation(self.start, search_result, M.FromContextGetConstructors(self.graph)())()
+    #         #         derivation = M.Head(derivation_pair)()
+    #         #         new_registry = M.Head(M.Tail(derivation_pair)())()
+    #         #         if M.Compare(derivation, M.EmptyList)() is M.false_value:
+    #         #             return self._store_success(derivation, new_registry, search_cost, recommended_heuristic)
+    #         # _debug("prove-stage: falling through to mixed search")
+
+
+    #         comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
+    #         if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+    #             _debug("prove-stage: no search comparison evidence yet; benchmarking all current search modes first")
+    #             comparison_pair = CompareSearchModes(
+    #                 self.graph,
+    #                 self.start,
+    #                 self.goal,
+    #                 self.rules,
+    #                 self.heuristic,
+    #                 M.FromContextGetConstructors(self.graph)(),
+    #             )()
+    #             comparison = M.Head(comparison_pair)()
+    #             if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+    #                 if M.IdentityCompare(self.graph._last_search_comparison_outcome, SearchPausedLabel)() is M.truth_value:
+    #                     _debug("prove-stage: benchmarking paused")
+    #                 else:
+    #                     _debug("prove-stage: benchmarking aborted")
+    #                 return M.EmptyList
+
+    #         recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
+    #         search_pair = M.Head(recommended_search)()
+    #         recommended_heuristic = M.Head(M.Tail(recommended_search)())()
+    #         search_result = M.Head(search_pair)()
+    #         search_cost = M.Head(M.Tail(search_pair)())()
+    #         if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+    #             _debug("prove-stage: recommended search paused")
+    #             return M.EmptyList
+    #         if M.Compare(search_result, M.EmptyList)() is M.false_value:
+    #             _debug("prove-stage: recommended search produced a plan")
+    #             derivation_pair = BuildDerivation(self.start, search_result, M.FromContextGetConstructors(self.graph)())()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is M.false_value:
+    #                 return self._store_success(derivation, new_registry, search_cost, recommended_heuristic)
+
+    #         schema_hit = self.graph.lookup_derivation_schema(self.start, self.goal)
+    #         if M.Compare(schema_hit, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: schema hit")
+    #             plan = M.Head(schema_hit)()
+    #             bindings = M.Head(M.Tail(schema_hit)())()
+    #             _debug("prove-stage: schema plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+    #             derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #                 if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+    #                     _debug("prove-stage: schema replay succeeded")
+    #                     zero_search_pair = self._zero_search_cost(new_registry)
+    #                     zero_search_cost = M.Head(zero_search_pair)()
+    #                     zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #                     return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+
+    #         goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
+    #         if M.Compare(goal_instantiating_plan, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: found goal-instantiating theorem action")
+    #             action = M.Head(goal_instantiating_plan)()
+    #             bindings = M.Head(M.Tail(goal_instantiating_plan)())()
+    #             plan = M.Pair(action, M.EmptyList)
+    #             _debug("prove-stage: plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+    #             derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #                 if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+    #                     _debug("prove-stage: goal-instantiating plan succeeded")
+    #                     zero_search_pair = self._zero_search_cost(new_registry)
+    #                     zero_search_cost = M.Head(zero_search_pair)()
+    #                     zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #                     return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+
+    #         immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
+    #         if M.Compare(immediate_plan, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: found immediate plan=" + PrettyPlanChain(immediate_plan, M.FromContextGetConstructors(self.graph)())())
+    #             derivation_pair = BuildDerivation(self.start, immediate_plan, M.FromContextGetConstructors(self.graph)())()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #                 _debug("prove-stage: immediate plan succeeded")
+    #                 zero_search_pair = self._zero_search_cost(new_registry)
+    #                 zero_search_cost = M.Head(zero_search_pair)()
+    #                 zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #                 return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+    #     search_pair = M.Search(self.graph, self.start, self.goal, self.rules, self.heuristic, M.FromContextGetConstructors(self.graph)())()
+    #     search_result = M.Head(search_pair)()
+    #     search_cost = M.Head(M.Tail(search_pair)())()
+    #     if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+    #         _debug("prove-stage: mixed search paused")
+    #         return M.EmptyList
+    #     if M.Compare(search_result, M.EmptyList)() is M.truth_value:
+    #         _debug("prove-stage: mixed search returned empty plan")
+    #         self._store_search_attempt(M.EmptyList, search_cost, self.heuristic)
+    #         return M.EmptyList
+    #     _debug("prove-stage: mixed search plan=" + PrettyPlanChain(search_result, M.FromContextGetConstructors(self.graph)())())
+    #     derivation_pair = BuildDerivation(self.start, search_result, M.FromContextGetConstructors(self.graph)())()
+    #     derivation = M.Head(derivation_pair)()
+    #     new_registry = M.Head(M.Tail(derivation_pair)())()
+    #     _debug("prove-stage: mixed search derivation built")
+    #     return self._store_success(derivation, new_registry, search_cost, self.heuristic)
+
+
+    # def _prove(self):
+    #     from .search import CompareSearchModes, SearchCostOutcome
+
+    #     start_has_var = ContainsVar(self.start)()
+    #     goal_has_var = ContainsVar(self.goal)()
+    #     schematic_proof = M.OrAtom(start_has_var, goal_has_var)()
+
+    #     if schematic_proof is M.false_value:
+    #         _debug("prove-stage: concrete proof path")
+
+    #         cached = self.graph.lookup_derivation(self.start, self.goal)
+    #         if M.Compare(cached, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: derivation cache hit")
+    #             zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
+    #             zero_search_cost = M.Head(zero_search_pair)()
+    #             self.graph._replace_context(constructors=M.Head(M.Tail(zero_search_pair)())())
+    #             self._store_search_attempt(cached, zero_search_cost)
+    #             return cached
+
+    #         comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
+    #         if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+    #             _debug("prove-stage: no search comparison evidence yet; benchmarking all current search modes first")
+    #             comparison_pair = CompareSearchModes(
+    #                 self.graph,
+    #                 self.start,
+    #                 self.goal,
+    #                 self.rules,
+    #                 self.heuristic,
+    #                 M.FromContextGetConstructors(self.graph)(),
+    #             )()
+    #             comparison = M.Head(comparison_pair)()
+    #             if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+    #                 if M.IdentityCompare(self.graph._last_search_comparison_outcome, SearchPausedLabel)() is M.truth_value:
+    #                     _debug("prove-stage: benchmarking paused")
+    #                 else:
+    #                     _debug("prove-stage: benchmarking aborted")
+    #                 return M.EmptyList
+
+    #         recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
+    #         search_pair = M.Head(recommended_search)()
+    #         recommended_heuristic = M.Head(M.Tail(recommended_search)())()
+    #         search_result = M.Head(search_pair)()
+    #         search_cost = M.Head(M.Tail(search_pair)())()
+
+    #         if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+    #             _debug("prove-stage: recommended search paused")
+    #             return M.EmptyList
+
+    #         if M.Compare(search_result, M.EmptyList)() is M.false_value:
+    #             _debug("prove-stage: recommended search produced a plan")
+    #             derivation_pair = BuildDerivation(
+    #                 self.start,
+    #                 search_result,
+    #                 M.FromContextGetConstructors(self.graph)(),
+    #             )()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is M.false_value:
+    #                 return self._store_success(
+    #                     derivation,
+    #                     new_registry,
+    #                     search_cost,
+    #                     recommended_heuristic,
+    #                 )
+
+    #         schema_hit = self.graph.lookup_derivation_schema(self.start, self.goal)
+    #         if M.Compare(schema_hit, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: schema hit")
+    #             plan = M.Head(schema_hit)()
+    #             bindings = M.Head(M.Tail(schema_hit)())()
+    #             _debug("prove-stage: schema plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+    #             derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #                 if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+    #                     _debug("prove-stage: schema replay succeeded")
+    #                     zero_search_pair = self._zero_search_cost(new_registry)
+    #                     zero_search_cost = M.Head(zero_search_pair)()
+    #                     zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #                     return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+
+    #         goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
+    #         if M.Compare(goal_instantiating_plan, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: found goal-instantiating theorem action")
+    #             action = M.Head(goal_instantiating_plan)()
+    #             bindings = M.Head(M.Tail(goal_instantiating_plan)())()
+    #             plan = M.Pair(action, M.EmptyList)
+    #             _debug("prove-stage: plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+    #             derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #                 if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+    #                     _debug("prove-stage: goal-instantiating plan succeeded")
+    #                     zero_search_pair = self._zero_search_cost(new_registry)
+    #                     zero_search_cost = M.Head(zero_search_pair)()
+    #                     zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #                     return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+
+    #         immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
+    #         if M.Compare(immediate_plan, M.EmptyList)() is not M.truth_value:
+    #             _debug("prove-stage: found immediate plan=" + PrettyPlanChain(immediate_plan, M.FromContextGetConstructors(self.graph)())())
+    #             derivation_pair = BuildDerivation(self.start, immediate_plan, M.FromContextGetConstructors(self.graph)())()
+    #             derivation = M.Head(derivation_pair)()
+    #             new_registry = M.Head(M.Tail(derivation_pair)())()
+    #             if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+    #                 _debug("prove-stage: immediate plan succeeded")
+    #                 zero_search_pair = self._zero_search_cost(new_registry)
+    #                 zero_search_cost = M.Head(zero_search_pair)()
+    #                 zero_registry = M.Head(M.Tail(zero_search_pair)())()
+    #                 return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+
+    #         _debug("prove-stage: falling through to mixed search")
+
+    #     search_pair = M.Search(
+    #         self.graph,
+    #         self.start,
+    #         self.goal,
+    #         self.rules,
+    #         self.heuristic,
+    #         M.FromContextGetConstructors(self.graph)(),
+    #     )()
+    #     search_result = M.Head(search_pair)()
+    #     search_cost = M.Head(M.Tail(search_pair)())()
+
+    #     if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+    #         _debug("prove-stage: mixed search paused")
+    #         return M.EmptyList
+
+    #     if M.Compare(search_result, M.EmptyList)() is M.truth_value:
+    #         _debug("prove-stage: mixed search returned empty plan")
+    #         self._store_search_attempt(M.EmptyList, search_cost, self.heuristic)
+    #         return M.EmptyList
+
+    #     _debug("prove-stage: mixed search plan=" + PrettyPlanChain(search_result, M.FromContextGetConstructors(self.graph)())())
+    #     derivation_pair = BuildDerivation(self.start, search_result, M.FromContextGetConstructors(self.graph)())()
+    #     derivation = M.Head(derivation_pair)()
+    #     new_registry = M.Head(M.Tail(derivation_pair)())()
+    #     _debug("prove-stage: mixed search derivation built")
+    #     return self._store_success(derivation, new_registry, search_cost, self.heuristic)
+
+    def _prove(self):
+        from .search import CompareSearchModes, SearchComparisonBestAttempt, SearchComparisonOutcome, SearchCostOutcome
+
+        start_has_var = ContainsVar(self.start)()
+        goal_has_var = ContainsVar(self.goal)()
+        schematic_proof = M.OrAtom(start_has_var, goal_has_var)()
+
+        if schematic_proof is M.false_value:
+            _debug("prove-stage: concrete proof path")
+
+            cached = self.graph.lookup_derivation(self.start, self.goal)
+            if M.Compare(cached, M.EmptyList)() is not M.truth_value:
+                _debug("prove-stage: derivation cache hit")
+                zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
+                zero_search_cost = M.Head(zero_search_pair)()
+                self.graph._replace_context(constructors=M.Head(M.Tail(zero_search_pair)())())
+                self._store_search_attempt(cached, zero_search_cost)
+                self._maybe_seed_search_comparison()
+                return cached
+
+            comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
+            if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+                _debug("prove-stage: no search comparison evidence yet; benchmarking all current search modes")
+                comparison_pair = CompareSearchModes(
+                    self.graph,
+                    self.start,
+                    self.goal,
+                    self.rules,
+                    self.heuristic,
+                    M.FromContextGetConstructors(self.graph)(),
+                )()
+                comparison = M.Head(comparison_pair)()
+                if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+                    if M.IdentityCompare(self.graph._last_search_comparison_outcome, SearchPausedLabel)() is M.truth_value:
+                        _debug("prove-stage: benchmarking paused")
+                    else:
+                        _debug("prove-stage: benchmarking aborted")
+                    return M.EmptyList
+            if M.IdentityCompare(SearchComparisonOutcome(comparison)(), SearchPausedLabel)() is M.truth_value:
+                _debug("prove-stage: benchmarking paused")
+                return M.EmptyList
+
+            best_attempt = SearchComparisonBestAttempt(comparison)()
+            if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
+                if SearchAttemptSucceeded(best_attempt)() is M.truth_value:
+                    comparison_derivation = SearchAttemptDerivation(best_attempt)()
+                    if M.Compare(comparison_derivation, M.EmptyList)() is M.false_value:
+                        _debug("prove-stage: comparison already produced a derivation")
+                        return self._store_success(
+                            comparison_derivation,
+                            M.FromContextGetConstructors(self.graph)(),
+                            SearchAttemptSearchCost(best_attempt)(),
+                            SearchAttemptHeuristic(best_attempt)(),
+                        )
+
+            recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
+            search_pair = M.Head(recommended_search)()
+            recommended_heuristic = M.Head(M.Tail(recommended_search)())()
+            search_result = M.Head(search_pair)()
+            search_cost = M.Head(M.Tail(search_pair)())()
+
+            if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+                _debug("prove-stage: recommended search paused")
+                return M.EmptyList
+
+            if M.Compare(search_result, M.EmptyList)() is M.false_value:
+                _debug("prove-stage: recommended search produced a plan")
+                derivation_pair = BuildDerivation(
+                    self.start,
+                    search_result,
+                    M.FromContextGetConstructors(self.graph)(),
+                )()
+                derivation = M.Head(derivation_pair)()
+                new_registry = M.Head(M.Tail(derivation_pair)())()
+                if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                    return self._store_success(
+                        derivation,
+                        new_registry,
+                        search_cost,
+                        recommended_heuristic,
+                    )
+
+            _debug("prove-stage: falling through to mixed search")
+
+        search_pair = M.Search(
+            self.graph,
+            self.start,
+            self.goal,
+            self.rules,
+            self.heuristic,
+            M.FromContextGetConstructors(self.graph)(),
+        )()
+        search_result = M.Head(search_pair)()
+        search_cost = M.Head(M.Tail(search_pair)())()
+
+        if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+            _debug("prove-stage: mixed search paused")
+            return M.EmptyList
+
+        if M.Compare(search_result, M.EmptyList)() is M.truth_value:
+            _debug("prove-stage: mixed search returned empty plan")
+            self._store_search_attempt(M.EmptyList, search_cost, self.heuristic)
+            return M.EmptyList
+
+        _debug("prove-stage: mixed search plan=" + PrettyPlanChain(search_result, M.FromContextGetConstructors(self.graph)())())
+        derivation_pair = BuildDerivation(self.start, search_result, M.FromContextGetConstructors(self.graph)())()
+        derivation = M.Head(derivation_pair)()
+        new_registry = M.Head(M.Tail(derivation_pair)())()
+        _debug("prove-stage: mixed search derivation built")
+        return self._store_success(derivation, new_registry, search_cost, self.heuristic)
+
+    def __call__(self):
+        return self.result
+
+
+def sync_from_namespace(namespace):
+    for name in (
+        "KnowledgeLabel",
+        "StepLabel",
+        "DerivationLabel",
+        "ProofCostLabel",
+        "SearchAttemptLabel",
+        "SearchSuccessLabel",
+        "SearchFailureLabel",
+        "SearchPausedLabel",
+        "SearchRunningLabel",
+        "TheoremActionLabel",
+        "RewriteActionLabel",
+        "TotalCostLabel",
+    ):
+        if name in namespace:
+            globals()[name] = namespace[name]
+
+
+__all__ = [name for name in globals() if not name.startswith("_")]

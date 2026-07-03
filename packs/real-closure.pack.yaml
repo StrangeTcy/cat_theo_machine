@@ -1,0 +1,319 @@
+format: hyge-pack
+version: 1
+
+name: real-closure
+description: Multi-premise real-closure theorems for addition and multiplication
+requires: []
+
+rules:
+  - id: real_add_mul_closed
+    premises:
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: a}
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: b}
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: c}
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {var: a}
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {var: b}
+                      - {var: c}
+
+  - id: real_add_closed
+    premises:
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: a}
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: b}
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {var: a}
+                - {var: b}
+
+  - id: real_mul_closed
+    premises:
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: a}
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: b}
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {var: a}
+                - {var: b}
+
+schemata:
+  - id: real_mul_schema
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - {var: a}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - {var: b}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {var: a}
+                - {var: b}
+    plan:
+      - theorem: real_mul_closed
+
+  - id: real_add_schema
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - {var: a}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - {var: b}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {var: a}
+                - {var: b}
+    plan:
+      - theorem: real_add_closed
+
+  - id: real_add_mul_schema
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - {var: a}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - {var: b}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - {var: c}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {var: a}
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {var: b}
+                      - {var: c}
+    plan:
+      - theorem: real_add_mul_closed
+
+examples:
+  - id: sqrt2_plus_sqrt3_times_sqrt5_real
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: two}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: three}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: five}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call:
+                    head: {sym: SqrtLabel}
+                    args:
+                      - {sym: two}
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - call:
+                          head: {sym: SqrtLabel}
+                          args:
+                            - {sym: three}
+                      - call:
+                          head: {sym: SqrtLabel}
+                          args:
+                            - {sym: five}
+
+  - id: branchy_real_closure_benchmark
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: two}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: three}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: five}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: six}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: seven}
+              - call:
+                  head: {sym: IsRealLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - {sym: eight}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprAddLabel}
+                          args:
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: two}
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: three}
+                      - call:
+                          head: {sym: ExprAddLabel}
+                          args:
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: five}
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: seven}
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprAddLabel}
+                          args:
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: six}
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: eight}
+                      - call:
+                          head: {sym: ExprAddLabel}
+                          args:
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: two}
+                            - call:
+                                head: {sym: SqrtLabel}
+                                args:
+                                  - {sym: five}

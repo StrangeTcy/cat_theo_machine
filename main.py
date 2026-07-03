@@ -1,0 +1,820 @@
+from __future__ import annotations
+
+import argparse
+import http.server
+import json
+import multiprocessing
+import os
+import sys
+import time
+import urllib.parse
+import webbrowser
+
+if __package__ in (None, ""):
+    IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if IMPORT_ROOT not in sys.path:
+        sys.path.insert(0, IMPORT_ROOT)
+
+    from hyge.math import arithmetic as A
+    from hyge import graph as G
+    from hyge import heuristics as Hmod
+    from hyge import labels as Lmod
+    from hyge import machine as M
+    from hyge import matching as X
+    from hyge import proof as P
+    from hyge import rewrite_rules as R
+    from hyge.runtime import boot_from_packs, boot_from_snapshot, save_runtime
+    from hyge import search as Smod
+    from hyge import theorem_rules as T
+    from hyge.testsuite import install_default_tests
+else:
+    from .math import arithmetic as A
+    from . import graph as G
+    from . import heuristics as Hmod
+    from . import labels as Lmod
+    from . import machine as M
+    from . import matching as X
+    from . import proof as P
+    from . import rewrite_rules as R
+    from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
+    from . import search as Smod
+    from . import theorem_rules as T
+    from .testsuite import install_default_tests
+
+
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+PACK_DIR = os.path.join(PACKAGE_DIR, "packs")
+SNAPSHOT_DIR = os.path.join(PACKAGE_DIR, "snapshots")
+INSPECTOR_DIR = os.path.join(PACKAGE_DIR, "inspector")
+SNAPSHOT_NAME = "hyge_snapshot_v8.json"
+INSPECTOR_DEFAULT_PORT = 8765
+INSPECTOR_DEFAULT_MAX_RULE_EDGES = 80
+PACK_PATHS = [
+    os.path.join(PACK_DIR, "order-sign.pack.yaml"),
+    os.path.join(PACK_DIR, "sqrt-real.pack.yaml"),
+    os.path.join(PACK_DIR, "algebra-distribute.pack.yaml"),
+    os.path.join(PACK_DIR, "real-closure.pack.yaml"),
+    os.path.join(PACK_DIR, "arithmetic.pack.yaml"),
+    os.path.join(PACK_DIR, "geometry-ontology.pack.yaml"),
+    os.path.join(PACK_DIR, "trigonometry.pack.yaml"),
+    os.path.join(PACK_DIR, "geometry.pack.yaml"),
+]
+
+def _latest_snapshot_path():
+    try:
+        names = os.listdir(SNAPSHOT_DIR)
+    except OSError:
+        names = []
+    best_version = -1
+    best_name = ""
+    prefix = "hyge_snapshot_v"
+    suffix = ".json"
+    for name in names:
+        if not name.startswith(prefix):
+            continue
+        if not name.endswith(suffix):
+            continue
+        version_text = name[len(prefix) : -len(suffix)]
+        if not version_text.isdigit():
+            continue
+        version = int(version_text)
+        if version > best_version:
+            best_version = version
+            best_name = name
+    if best_name:
+        return os.path.join(SNAPSHOT_DIR, best_name)
+    return os.path.join(SNAPSHOT_DIR, SNAPSHOT_NAME)
+
+
+SNAPSHOT_PATH = _latest_snapshot_path()
+
+
+class PausedSearchRequested(RuntimeError):
+    def __init__(self, label, job, elapsed):
+        self.label = label
+        self.job = job
+        self.elapsed = elapsed
+        super().__init__(label)
+
+
+class PausedComparisonRequested(RuntimeError):
+    def __init__(self, label, comparison_job, elapsed):
+        self.label = label
+        self.comparison_job = comparison_job
+        self.elapsed = elapsed
+        super().__init__(label)
+
+
+def _first_paused_search_comparison_job(graph):
+    comparison_jobs = graph.search_comparison_jobs
+    while M.IdentityCompare(comparison_jobs, M.EmptyList)() is M.false_value:
+        comparison_job = M.Head(comparison_jobs)()
+        if M.IdentityCompare(Smod.SearchComparisonJobOutcome(comparison_job)(), M.SearchPausedLabel)() is M.truth_value:
+            return comparison_job
+        comparison_jobs = M.Tail(comparison_jobs)()
+    return M.EmptyList
+
+
+def _first_paused_search_job(graph):
+    jobs = M.FromContextGetSearchJobs(graph)()
+    while M.IdentityCompare(jobs, M.EmptyList)() is M.false_value:
+        job = M.Head(jobs)()
+        if M.IdentityCompare(Smod.SearchJobStatus(job)(), M.SearchPausedLabel)() is M.truth_value:
+            return job
+        jobs = M.Tail(jobs)()
+    return M.EmptyList
+
+
+def _search_job_mode_text(job):
+    mode = Hmod.HeuristicSearchMode(Smod.SearchJobHeuristic(job)())()
+    return Smod.SearchModeText(mode)()
+
+
+def _search_comparison_text(comparison_job):
+    return "search comparison benchmark"
+
+
+def _paused_job_is_compatible(job, graph):
+    registry = M.FromContextGetConstructors(graph)()
+
+    frontier = Smod.SearchJobFrontier(job)()
+    frontier_ok = M.OrAtom(M.IsPair(frontier)(), M.IdentityCompare(frontier, M.EmptyList)())()
+    if frontier_ok is M.false_value:
+        return M.false_value
+
+    if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+        return M.truth_value
+
+    state = M.Head(frontier)()
+    steps = Smod.SearchStateStepsRemaining(state)()
+    if M.IsNat(steps, registry)() is M.false_value:
+        return M.false_value
+
+    cursor = Smod.SearchStateCursor(state)()
+    cursor_ok = M.OrAtom(M.IsPair(cursor)(), M.IdentityCompare(cursor, M.EmptyList)())()
+    if cursor_ok is M.false_value:
+        return M.false_value
+
+    return M.truth_value
+
+
+def _paused_comparison_job_is_compatible(comparison_job, graph):
+    states = Smod.SearchComparisonJobStates(comparison_job)()
+    states_ok = M.OrAtom(M.IsPair(states)(), M.IdentityCompare(states, M.EmptyList)())()
+    if states_ok is M.false_value:
+        return M.false_value
+    return M.truth_value
+
+
+def _save_snapshot_now(runtime, runtime_namespace):
+    os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+    temp_snapshot_path = SNAPSHOT_PATH + ".tmp"
+    save_runtime(runtime, temp_snapshot_path, runtime_namespace)
+    os.replace(temp_snapshot_path, SNAPSHOT_PATH)
+    print("saved snapshot to", SNAPSHOT_PATH)
+
+
+def _debug_log(debug_flag, *args, **kwargs):
+    if M.IdentityCompare(debug_flag, M.truth_value)() is M.truth_value:
+        print(*args, **kwargs)
+
+
+def _maybe_resume_paused_cold_search(debug: bool = False):
+    debug_flag = M.truth_value if debug else M.false_value
+    _debug_log(debug_flag, f"DEBUG: checking paused snapshot at {SNAPSHOT_PATH}")
+    if os.path.exists(SNAPSHOT_PATH):
+        snapshot_exists = M.truth_value
+    else:
+        snapshot_exists = M.false_value
+    if snapshot_exists is M.false_value:
+        _debug_log(debug_flag, "DEBUG: no paused snapshot found")
+        return M.false_value
+
+    _debug_log(debug_flag, "DEBUG: paused snapshot found, restoring")
+    runtime_namespace = _runtime_namespace()
+    try:
+        runtime = boot_from_snapshot(SNAPSHOT_PATH, runtime_namespace, debug=debug_flag)
+    except (OSError, RuntimeError, json.JSONDecodeError, ValueError, KeyError, TypeError) as error:
+        print(
+            "ignoring unreadable snapshot at",
+            SNAPSHOT_PATH,
+            "(" + error.__class__.__name__ + ": " + str(error) + ")",
+        )
+        try:
+            bad_path = SNAPSHOT_PATH + ".bad"
+            if os.path.exists(bad_path):
+                os.remove(bad_path)
+            os.replace(SNAPSHOT_PATH, bad_path)
+            print("moved unreadable snapshot to", bad_path)
+        except OSError:
+            pass
+        return M.false_value
+    job = _first_paused_search_job(runtime.graph)
+    comparison_job = _first_paused_search_comparison_job(runtime.graph)
+    if M.Compare(comparison_job, M.EmptyList)() is M.false_value:
+        if _paused_comparison_job_is_compatible(comparison_job, runtime.graph) is M.false_value:
+            print("ignoring incompatible paused comparison snapshot at", SNAPSHOT_PATH)
+            incompatible_path = SNAPSHOT_PATH + ".incompatible"
+            os.replace(SNAPSHOT_PATH, incompatible_path)
+            print("moved incompatible snapshot to", incompatible_path)
+            return M.false_value
+
+        comparison_text = _search_comparison_text(comparison_job)
+        try:
+            response = input("Oh, you're back, and apparently we have an unfinished " + comparison_text + ", would you like to resume it? ")
+        except (EOFError, KeyboardInterrupt):
+            response = ""
+
+        answer = response.strip().lower()
+        if answer not in ("y", "yes", "resume", "continue"):
+            print("leaving paused snapshot untouched")
+            return M.truth_value
+
+        _debug_log(debug_flag, "\nDEBUG: resuming paused comparison:", comparison_text)
+
+        start_time = time.time()
+        derivation = runtime.prove(
+            Smod.SearchComparisonJobStart(comparison_job)(),
+            Smod.SearchComparisonJobGoal(comparison_job)(),
+            Smod.SearchComparisonJobRules(comparison_job)(),
+            Smod.SearchComparisonJobHeuristic(comparison_job)(),
+        )
+        elapsed = time.time() - start_time
+
+        paused_comparison_again = _first_paused_search_comparison_job(runtime.graph)
+        if M.Compare(paused_comparison_again, M.EmptyList)() is not M.truth_value:
+            print(comparison_text + ": paused again after " + str(elapsed) + " seconds")
+            _save_snapshot_now(runtime, runtime_namespace)
+            return M.truth_value
+
+        proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
+        if proved:
+            print(comparison_text + ": resumed, finished benchmarking, and proved the goal in " + str(elapsed) + " seconds")
+        else:
+            print(comparison_text + ": resumed and finished benchmarking after " + str(elapsed) + " seconds")
+
+        _save_snapshot_now(runtime, runtime_namespace)
+        return M.truth_value
+
+    if M.Compare(job, M.EmptyList)() is M.truth_value:
+        return M.false_value
+
+    if _paused_job_is_compatible(job, runtime.graph) is M.false_value:
+        print("ignoring incompatible paused snapshot at", SNAPSHOT_PATH)
+        incompatible_path = SNAPSHOT_PATH + ".incompatible"
+        os.replace(SNAPSHOT_PATH, incompatible_path)
+        print("moved incompatible snapshot to", incompatible_path)
+        return M.false_value
+
+    mode_text = _search_job_mode_text(job)
+    try:
+        response = input("Oh, you're back, and apparently we have an unfinished " + mode_text + ", would you like to resume it? ")
+    except (EOFError, KeyboardInterrupt):
+        response = ""
+
+    answer = response.strip().lower()
+    if answer not in ("y", "yes", "resume", "continue"):
+        print("leaving paused snapshot untouched")
+        return M.truth_value
+
+    _debug_log(debug_flag, "\nDEBUG: resuming paused search job:", mode_text)
+
+    start_time = time.time()
+    derivation = runtime.prove(
+        Smod.SearchJobStart(job)(),
+        Smod.SearchJobGoal(job)(),
+        Smod.SearchJobRules(job)(),
+        Smod.SearchJobHeuristic(job)(),
+    )
+    elapsed = time.time() - start_time
+
+    paused_again = _first_paused_search_job(runtime.graph)
+    if M.Compare(paused_again, M.EmptyList)() is not M.truth_value:
+        print(mode_text + ": paused again after " + str(elapsed) + " seconds")
+        _save_snapshot_now(runtime, runtime_namespace)
+        return M.truth_value
+
+    proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
+    if proved:
+        print(mode_text + ": resumed and finished in " + str(elapsed) + " seconds")
+    else:
+        print(mode_text + ": resumed and did not prove the goal after " + str(elapsed) + " seconds")
+
+    _save_snapshot_now(runtime, runtime_namespace)
+    return M.truth_value
+
+
+def _runtime_namespace():
+    namespace = dict(vars(M))
+    namespace.update(vars(Hmod))
+    namespace.update(vars(Lmod))
+    namespace.update(vars(P))
+    namespace.update(vars(G))
+    namespace.update(vars(X))
+    namespace.update(vars(R))
+    namespace.update(vars(Smod))
+    namespace.update(vars(T))
+    stable_machine_names = (
+        "Zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ZeroLabel",
+        "SuccLabel",
+        "PairLabel",
+        "TreeLabel",
+    )
+    for name in stable_machine_names:
+        if name in vars(M):
+            namespace[name] = vars(M)[name]
+    return namespace
+
+
+def _print_summary(runtime, title: str):
+    print(f"\n=== {title} ===")
+    for key, value in runtime.summary().items():
+        print(f"{key}: {value}")
+    sys.stdout.flush()
+
+
+def _make_isreal_sqrt_case(name: str, nat_atom):
+    start = M.Pair(M.SqrtLabel, M.Pair(nat_atom, M.EmptyList))
+    goal = M.Pair(M.IsRealLabel, M.Pair(start, M.EmptyList))
+    return name, start, goal
+
+
+def _make_real_closure_case(name: str, a, b, c):
+    sqrt_a = M.Pair(M.SqrtLabel, M.Pair(a, M.EmptyList))
+    sqrt_b = M.Pair(M.SqrtLabel, M.Pair(b, M.EmptyList))
+    sqrt_c = M.Pair(M.SqrtLabel, M.Pair(c, M.EmptyList))
+    facts = M.Pair(
+        M.Pair(M.IsRealLabel, M.Pair(sqrt_a, M.EmptyList)),
+        M.Pair(
+            M.Pair(M.IsRealLabel, M.Pair(sqrt_b, M.EmptyList)),
+            M.Pair(
+                M.Pair(M.IsRealLabel, M.Pair(sqrt_c, M.EmptyList)),
+                M.EmptyList,
+            ),
+        ),
+    )
+    start = M.Knowledge(facts)()
+    expr = M.Pair(M.ExprAddLabel, M.Pair(sqrt_a, M.Pair(M.Pair(M.ExprMulLabel, M.Pair(sqrt_b, M.Pair(sqrt_c, M.EmptyList))), M.EmptyList)))
+    goal = M.Pair(M.IsRealLabel, M.Pair(expr, M.EmptyList))
+    return name, start, goal
+
+
+def _make_tao_problem_1_1_case(name: str):
+    triangle = Lmod.TaoProblem11TriangleLabel
+    facts = M.Pair(
+        M.Pair(
+            Lmod.GivenLabel,
+            M.Pair(
+                M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
+                M.EmptyList,
+            ),
+        ),
+        M.Pair(
+            M.Pair(
+                Lmod.NeedLabel,
+                M.Pair(
+                    M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+            M.Pair(
+                M.Pair(
+                    Lmod.NeedLabel,
+                    M.Pair(
+                        M.Pair(Lmod.AnglesLabel, M.Pair(triangle, M.EmptyList)),
+                        M.EmptyList,
+                    ),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Lmod.GivenLabel,
+                        M.Pair(
+                            M.Pair(
+                                Lmod.ArithmeticProgressionLabel,
+                                M.Pair(
+                                    M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
+                                    M.EmptyList,
+                                ),
+                            ),
+                            M.EmptyList,
+                        ),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.GivenLabel,
+                            M.Pair(
+                                M.Pair(
+                                    Lmod.CommonDifferenceLabel,
+                                    M.Pair(
+                                        M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                                M.EmptyList,
+                            ),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Lmod.GivenLabel,
+                                M.Pair(
+                                    M.Pair(Lmod.AreaLabel, M.Pair(triangle, M.EmptyList)),
+                                    M.EmptyList,
+                                ),
+                            ),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+    start = M.Knowledge(facts)()
+    goal = M.Pair(
+        Lmod.SolvedLabel,
+        M.Pair(
+            M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
+            M.EmptyList,
+        ),
+    )
+    return name, start, goal
+
+
+def _theorem_agenda(packs):
+    sqrt_pack = packs.by_name("sqrt-real")
+    closure_pack = packs.by_name("real-closure")
+    geometry_pack = packs.by_name("geometry")
+    cases = []
+
+    if "tao_problem_1_1_triangle" in geometry_pack.examples:
+        start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
+        cases.append(("Tao Problem 1.1 AP triangle", start, goal))
+    else:
+        cases.append(_make_tao_problem_1_1_case("Tao Problem 1.1 AP triangle"))
+
+    if "branchy_real_closure_benchmark" in closure_pack.examples:
+        start, goal = closure_pack.examples["branchy_real_closure_benchmark"]
+        cases.append(("branchy real-closure proof", start, goal))
+
+    for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
+        if example_id in sqrt_pack.examples:
+            start, goal = sqrt_pack.examples[example_id]
+            label = example_id.replace("_real", "").replace("sqrt", "sqrt(") + ")"
+            cases.append((label, start, goal))
+
+    cases.append(_make_isreal_sqrt_case("sqrt(5)", M.five))
+    if "sqrt2_plus_sqrt3_times_sqrt5_real" in closure_pack.examples:
+        start, goal = closure_pack.examples["sqrt2_plus_sqrt3_times_sqrt5_real"]
+        cases.append(("sqrt(2) + sqrt(3)*sqrt(5) from real premises", start, goal))
+    return cases
+
+
+def _run_theorem_agenda(runtime, cases, title: str, debug: bool = False):
+    print(f"\n--- {title} ---")
+    results = []
+
+    for label, start, goal in cases:
+        if debug:
+            print(f"\nDEBUG: theorem-case start: {label}")
+        start_time = time.time()
+        derivation = runtime.prove(start, goal)
+        elapsed = time.time() - start_time
+        paused_comparison = _first_paused_search_comparison_job(runtime.graph)
+        if M.Compare(paused_comparison, M.EmptyList)() is not M.truth_value:
+            raise PausedComparisonRequested(label, paused_comparison, elapsed)
+        paused_job = _first_paused_search_job(runtime.graph)
+        if M.Compare(paused_job, M.EmptyList)() is not M.truth_value:
+            raise PausedSearchRequested(label, paused_job, elapsed)
+        proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
+        results.append((label, proved, elapsed, goal, derivation))
+
+        if proved:
+            print(f"{label}: proved in {elapsed} seconds")
+        else:
+            print(f"{label}: not proved after {elapsed} seconds")
+
+    return results
+
+
+def run_cold_mode(debug: bool = False):
+    if debug:
+        P.SetDebugTrace(M.truth_value)()
+    else:
+        P.SetDebugTrace(M.false_value)()
+    runtime_namespace = _runtime_namespace()
+    if M.IdentityCompare(_maybe_resume_paused_cold_search(debug=debug), M.truth_value)() is M.truth_value:
+        return
+
+    start_time = time.time()
+    runtime, packs = boot_from_packs(PACK_PATHS, runtime_namespace)
+    pack_load_time = time.time() - start_time
+    print(f"Pack loading took {pack_load_time:.2f} seconds")
+
+    summary_start = time.time()
+    _print_summary(runtime, "Cold boot summary")
+    summary_time = time.time() - summary_start
+    print(f"Summary took {summary_time:.2f} seconds")
+
+    for pack_info in runtime.pack_summaries():
+        print("loaded pack:", pack_info)
+
+    try:
+        theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs), "Cold theorem agenda", debug=debug)
+    except PausedComparisonRequested as paused:
+        print(paused.label + ": comparison paused after " + str(paused.elapsed) + " seconds")
+        _save_snapshot_now(runtime, runtime_namespace)
+        return
+    except PausedSearchRequested as paused:
+        print(paused.label + ": paused after " + str(paused.elapsed) + " seconds")
+        _save_snapshot_now(runtime, runtime_namespace)
+        return
+    proved_count = sum(1 for _label, proved, _elapsed, _goal, _derivation in theorem_results if proved)
+    print(f"proved {proved_count} / {len(theorem_results)} theorem cases during cold boot")
+
+    _save_snapshot_now(runtime, runtime_namespace)
+
+
+def run_warm_mode(debug: bool = False):
+    if debug:
+        P.SetDebugTrace(M.truth_value)()
+    else:
+        P.SetDebugTrace(M.false_value)()
+    runtime_namespace = _runtime_namespace()
+    runtime = boot_from_snapshot(SNAPSHOT_PATH, runtime_namespace, debug=M.truth_value if debug else M.false_value)
+    graph = runtime.graph
+
+    _print_summary(runtime, "Warm boot summary")
+    print("loaded snapshot roots:")
+    print("  constructor_registry =", M.FromContextGetConstructors(graph)())
+    print("  all_rules =", M.FromContextGetAllRules(graph)())
+    print("  rule_order =", M.FromContextGetRuleOrder(graph)())
+    print("  derivations =", M.FromContextGetDerivations(graph)())
+    print("  derivation_schemata =", M.FromContextGetDerivationSchemata(graph)())
+
+    branchy_sqrt_two = M.Pair(M.SqrtLabel, M.Pair(M.two, M.EmptyList))
+    branchy_sqrt_three = M.Pair(M.SqrtLabel, M.Pair(M.three, M.EmptyList))
+    branchy_sqrt_five = M.Pair(M.SqrtLabel, M.Pair(M.five, M.EmptyList))
+    branchy_sqrt_six = M.Pair(M.SqrtLabel, M.Pair(M.six, M.EmptyList))
+    branchy_sqrt_seven = M.Pair(M.SqrtLabel, M.Pair(M.seven, M.EmptyList))
+    branchy_sqrt_eight = M.Pair(M.SqrtLabel, M.Pair(M.eight, M.EmptyList))
+    branchy_start = M.Knowledge(
+        M.Pair(
+            M.Pair(M.IsRealLabel, M.Pair(branchy_sqrt_two, M.EmptyList)),
+            M.Pair(
+                M.Pair(M.IsRealLabel, M.Pair(branchy_sqrt_three, M.EmptyList)),
+                M.Pair(
+                    M.Pair(M.IsRealLabel, M.Pair(branchy_sqrt_five, M.EmptyList)),
+                    M.Pair(
+                        M.Pair(M.IsRealLabel, M.Pair(branchy_sqrt_six, M.EmptyList)),
+                        M.Pair(
+                            M.Pair(M.IsRealLabel, M.Pair(branchy_sqrt_seven, M.EmptyList)),
+                            M.Pair(M.Pair(M.IsRealLabel, M.Pair(branchy_sqrt_eight, M.EmptyList)), M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+    )()
+    branchy_left = M.Pair(
+        M.ExprMulLabel,
+        M.Pair(
+            M.Pair(M.ExprAddLabel, M.Pair(branchy_sqrt_two, M.Pair(branchy_sqrt_three, M.EmptyList))),
+            M.Pair(M.Pair(M.ExprAddLabel, M.Pair(branchy_sqrt_five, M.Pair(branchy_sqrt_seven, M.EmptyList))), M.EmptyList),
+        ),
+    )
+    branchy_right = M.Pair(
+        M.ExprMulLabel,
+        M.Pair(
+            M.Pair(M.ExprAddLabel, M.Pair(branchy_sqrt_six, M.Pair(branchy_sqrt_eight, M.EmptyList))),
+            M.Pair(M.Pair(M.ExprAddLabel, M.Pair(branchy_sqrt_two, M.Pair(branchy_sqrt_five, M.EmptyList))), M.EmptyList),
+        ),
+    )
+    branchy_goal = M.Pair(
+        M.IsRealLabel,
+        M.Pair(M.Pair(M.ExprAddLabel, M.Pair(branchy_left, M.Pair(branchy_right, M.EmptyList))), M.EmptyList),
+    )
+
+    try:
+        theorem_results = _run_theorem_agenda(
+            runtime,
+            [
+                _make_tao_problem_1_1_case("Tao Problem 1.1 AP triangle"),
+                ("branchy real-closure proof", branchy_start, branchy_goal),
+                _make_isreal_sqrt_case("sqrt(3)", M.three),
+                _make_isreal_sqrt_case("sqrt(4)", M.four),
+                _make_isreal_sqrt_case("sqrt(5)", M.five),
+                _make_real_closure_case("sqrt(2) + sqrt(3)*sqrt(5) from real premises", M.two, M.three, M.five),
+            ],
+            "Warm theorem agenda",
+            debug=debug,
+        )
+    except PausedComparisonRequested as paused:
+        print(paused.label + ": comparison paused after " + str(paused.elapsed) + " seconds")
+        _save_snapshot_now(runtime, runtime_namespace)
+        return
+    except PausedSearchRequested as paused:
+        print(paused.label + ": paused after " + str(paused.elapsed) + " seconds")
+        _save_snapshot_now(runtime, runtime_namespace)
+        return
+    proved_count = sum(1 for _label, proved, _elapsed, _goal, _derivation in theorem_results if proved)
+    print(f"proved {proved_count} / {len(theorem_results)} theorem cases during warm boot")
+
+
+def run_test_mode(debug: bool = False):
+    if debug:
+        P.SetDebugTrace(M.truth_value)()
+    else:
+        P.SetDebugTrace(M.false_value)()
+    runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    install_default_tests(runtime.graph)
+    _print_summary(runtime, "Cold boot summary for tests")
+    start_time = time.time()
+    report = runtime.run_tests_report()
+    elapsed = time.time() - start_time
+    if report == "All the tests have passed.":
+        print(f"All tests passed in {elapsed} seconds.")
+    else:
+        print(f"Some tests failed after {elapsed} seconds.")
+        print(report)
+
+
+def _inspector_runtime(debug: bool, prefer_snapshot: bool):
+    runtime_namespace = _runtime_namespace()
+    if debug:
+        P.SetDebugTrace(M.truth_value)()
+    else:
+        P.SetDebugTrace(M.false_value)()
+    if prefer_snapshot and os.path.exists(SNAPSHOT_PATH):
+        return boot_from_snapshot(SNAPSHOT_PATH, runtime_namespace, debug=M.truth_value if debug else M.false_value), "snapshot"
+    runtime, _packs = boot_from_packs(PACK_PATHS, runtime_namespace)
+    return runtime, "packs"
+
+
+class _HygeInspectorServer(http.server.ThreadingHTTPServer):
+    def __init__(self, server_address, request_handler_class, runtime, source_text, max_rule_edges):
+        self.runtime = runtime
+        self.source_text = source_text
+        self.max_rule_edges = max_rule_edges
+        super().__init__(server_address, request_handler_class)
+
+
+class _HygeInspectorHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, directory=None, **kwargs):
+        super().__init__(*args, directory=INSPECTOR_DIR, **kwargs)
+
+    def _send_json(self, payload_text):
+        body = payload_text.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _payload_text(self, max_rule_edges):
+        runtime = self.server.runtime
+        return runtime.inspector_payload_json(self.server.source_text, max_rule_edges)
+
+    def _query_max_rule_edges(self, query_text):
+        query = urllib.parse.parse_qs(query_text)
+        if "max_rule_edges" not in query:
+            return self.server.max_rule_edges
+        values = query["max_rule_edges"]
+        if len(values) == 0:
+            return self.server.max_rule_edges
+        try:
+            parsed = int(values[0])
+        except Exception:
+            return self.server.max_rule_edges
+        if parsed <= 0:
+            return self.server.max_rule_edges
+        return parsed
+
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/introspection":
+            payload_text = self._payload_text(self._query_max_rule_edges(parsed.query))
+            self._send_json(payload_text)
+            return
+        if parsed.path == "/":
+            self.path = "/index.html"
+        else:
+            self.path = parsed.path
+        super().do_GET()
+
+    def log_message(self, format, *args):
+        print("inspector:", format % args)
+
+
+def _build_inspector_server(debug: bool, prefer_snapshot: bool, port: int, max_rule_edges: int):
+    runtime, source_text = _inspector_runtime(debug, prefer_snapshot)
+    server = _HygeInspectorServer(
+        ("127.0.0.1", port),
+        _HygeInspectorHandler,
+        runtime,
+        source_text,
+        max_rule_edges,
+    )
+    return server, "http://127.0.0.1:" + str(port) + "/"
+
+
+def run_inspect_mode(debug: bool = False, prefer_snapshot: bool = True, port: int = INSPECTOR_DEFAULT_PORT, max_rule_edges: int = INSPECTOR_DEFAULT_MAX_RULE_EDGES, open_browser: bool = True):
+    server, url = _build_inspector_server(debug, prefer_snapshot, port, max_rule_edges)
+    print("HYGE inspector running at " + url)
+    print("runtime source: " + server.source_text)
+    print("initial visible rule cap: " + str(max_rule_edges))
+    try:
+        if open_browser:
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("HYGE inspector stopped")
+    finally:
+        server.server_close()
+
+
+def _terminate_active_children():
+    children = multiprocessing.active_children()
+    for child in children:
+        try:
+            child.terminate()
+        except Exception:
+            pass
+    for child in children:
+        try:
+            child.join(1.0)
+        except Exception:
+            pass
+
+
+def main():
+    parser = argparse.ArgumentParser(description="HYGE runtime modes")
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="cold",
+        choices=["cold", "warm", "test", "inspect"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, or inspect",
+    )
+    parser.add_argument(
+        "debug",
+        nargs="?",
+        default=None,
+        choices=["debug"],
+        help="Pass 'debug' as a second argument to enable debug output.",
+    )
+    parser.add_argument("--port", type=int, default=INSPECTOR_DEFAULT_PORT, help="Inspector port for inspect mode.")
+    parser.add_argument(
+        "--max-rule-edges",
+        type=int,
+        default=INSPECTOR_DEFAULT_MAX_RULE_EDGES,
+        help="Initial visible theorem-rule cap for the inspector graph.",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Do not auto-open the inspector in the browser.",
+    )
+    parser.add_argument(
+        "--cold-inspector",
+        action="store_true",
+        help="For inspect mode, boot from packs even if a snapshot exists.",
+    )
+    args = parser.parse_args()
+    debug_enabled = args.debug == "debug"
+
+    try:
+        if args.mode == "cold":
+            run_cold_mode(debug_enabled)
+        elif args.mode == "warm":
+            run_warm_mode(debug_enabled)
+        elif args.mode == "inspect":
+            run_inspect_mode(
+                debug_enabled,
+                prefer_snapshot=not args.cold_inspector,
+                port=args.port,
+                max_rule_edges=args.max_rule_edges,
+                open_browser=not args.no_browser,
+            )
+        else:
+            run_test_mode(debug_enabled)
+    except KeyboardInterrupt:
+        print("\nInterrupted; terminating active HYGE worker processes...")
+        _terminate_active_children()
+        raise SystemExit(130)
+
+
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    main()

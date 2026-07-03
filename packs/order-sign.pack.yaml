@@ -1,0 +1,213 @@
+format: hyge-pack
+version: 1
+
+name: order-sign
+description: Generic sign and order knowledge for real expressions
+requires: []
+
+rules:
+  - id: zero_is_nonnegative
+    pattern:
+      sym: Zero
+    replacement:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - {sym: Zero}
+
+  - id: zero_is_real
+    pattern:
+      sym: Zero
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - {sym: Zero}
+
+  - id: successor_is_positive
+    pattern:
+      call:
+        head: {sym: SuccLabel}
+        args:
+          - {var: n}
+    replacement:
+      call:
+        head: {sym: PositiveLabel}
+        args:
+          - call:
+              head: {sym: SuccLabel}
+              args:
+                - {var: n}
+
+  - id: successor_is_real
+    pattern:
+      call:
+        head: {sym: SuccLabel}
+        args:
+          - {var: n}
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: SuccLabel}
+              args:
+                - {var: n}
+
+  - id: positive_implies_nonnegative
+    pattern:
+      call:
+        head: {sym: PositiveLabel}
+        args:
+          - {var: x}
+    replacement:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - {var: x}
+
+  - id: positive_fraction_of_positive_terms
+    premises:
+      - call:
+          head: {sym: PositiveLabel}
+          args:
+            - {var: a}
+      - call:
+          head: {sym: PositiveLabel}
+          args:
+            - {var: b}
+    replacement:
+      call:
+        head: {sym: PositiveLabel}
+        args:
+          - call:
+              head: {sym: FractionLabel}
+              args:
+                - {var: a}
+                - {var: b}
+
+  - id: positive_fraction_of_positive_terms_is_real
+    premises:
+      - call:
+          head: {sym: PositiveLabel}
+          args:
+            - {var: a}
+      - call:
+          head: {sym: PositiveLabel}
+          args:
+            - {var: b}
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: FractionLabel}
+              args:
+                - {var: a}
+                - {var: b}
+
+  - id: square_of_real_is_nonnegative
+    premises:
+      - call:
+          head: {sym: IsRealLabel}
+          args:
+            - {var: x}
+    replacement:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - call:
+              head: {sym: ExprPowLabel}
+              args:
+                - {var: x}
+                - {sym: two}
+
+  - id: sum_of_nonnegative_terms_is_nonnegative
+    premises:
+      - call:
+          head: {sym: NonNegativeLabel}
+          args:
+            - {var: x}
+      - call:
+          head: {sym: NonNegativeLabel}
+          args:
+            - {var: y}
+    replacement:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {var: x}
+                - {var: y}
+
+  - id: product_of_nonnegative_terms_is_nonnegative
+    premises:
+      - call:
+          head: {sym: NonNegativeLabel}
+          args:
+            - {var: x}
+      - call:
+          head: {sym: NonNegativeLabel}
+          args:
+            - {var: y}
+    replacement:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {var: x}
+                - {var: y}
+
+  - id: quotient_of_nonnegative_by_positive_is_nonnegative
+    premises:
+      - call:
+          head: {sym: NonNegativeLabel}
+          args:
+            - {var: x}
+      - call:
+          head: {sym: PositiveLabel}
+          args:
+            - {var: y}
+    replacement:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - call:
+              head: {sym: ExprFracLabel}
+              args:
+                - {var: x}
+                - {var: y}
+
+  - id: nonnegative_argument_yields_real_sqrt
+    pattern:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - {var: x}
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: SqrtLabel}
+              args:
+                - {var: x}
+
+  - id: nonnegative_argument_yields_nonnegative_sqrt
+    pattern:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - {var: x}
+    replacement:
+      call:
+        head: {sym: NonNegativeLabel}
+        args:
+          - call:
+              head: {sym: SqrtLabel}
+              args:
+                - {var: x}

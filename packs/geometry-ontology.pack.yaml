@@ -1,0 +1,214 @@
+format: hyge-pack
+version: 1
+
+name: geometry-ontology
+description: Reusable geometry ontology for polygons, triangles, and their attached quantities
+requires: []
+
+rules:
+  - id: triangle_is_a_polygon
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: PolygonLabel}
+        args:
+          - {var: shape}
+
+  - id: polygon_has_edges
+    pattern:
+      call:
+        head: {sym: PolygonLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: EdgesLabel}
+        args:
+          - {var: shape}
+
+  - id: polygon_has_vertices
+    pattern:
+      call:
+        head: {sym: PolygonLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: VerticesLabel}
+        args:
+          - {var: shape}
+
+  - id: triangle_has_side_lengths
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: SideLengthsLabel}
+        args:
+          - {var: shape}
+
+  - id: triangle_has_angles
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: AnglesLabel}
+        args:
+          - {var: shape}
+
+  - id: triangle_has_first_edge
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: FirstEdgeLabel}
+        args:
+          - call:
+              head: {sym: EdgesLabel}
+              args:
+                - {var: shape}
+
+  - id: triangle_has_second_edge
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: SecondEdgeLabel}
+        args:
+          - call:
+              head: {sym: EdgesLabel}
+              args:
+                - {var: shape}
+
+  - id: triangle_has_third_edge
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: ThirdEdgeLabel}
+        args:
+          - call:
+              head: {sym: EdgesLabel}
+              args:
+                - {var: shape}
+
+  - id: triangle_has_first_edge_length
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: LengthLabel}
+        args:
+          - call:
+              head: {sym: FirstEdgeLabel}
+              args:
+                - call:
+                    head: {sym: EdgesLabel}
+                    args:
+                      - {var: shape}
+
+  - id: triangle_has_second_edge_length
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: LengthLabel}
+        args:
+          - call:
+              head: {sym: SecondEdgeLabel}
+              args:
+                - call:
+                    head: {sym: EdgesLabel}
+                    args:
+                      - {var: shape}
+
+  - id: triangle_has_third_edge_length
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: LengthLabel}
+        args:
+          - call:
+              head: {sym: ThirdEdgeLabel}
+              args:
+                - call:
+                    head: {sym: EdgesLabel}
+                    args:
+                      - {var: shape}
+
+  - id: triangle_has_first_angle
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: FirstAngleLabel}
+        args:
+          - {var: shape}
+
+  - id: triangle_has_second_angle
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: SecondAngleLabel}
+        args:
+          - {var: shape}
+
+  - id: triangle_has_third_angle
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: ThirdAngleLabel}
+        args:
+          - {var: shape}
+
+  - id: triangle_has_area
+    pattern:
+      call:
+        head: {sym: TriangleLabel}
+        args:
+          - {var: shape}
+    replacement:
+      call:
+        head: {sym: AreaLabel}
+        args:
+          - {var: shape}

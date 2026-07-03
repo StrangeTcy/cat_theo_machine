@@ -1,0 +1,4309 @@
+{
+  "format": "hyge-pack",
+  "version": 1,
+  "name": "geometry",
+  "description": "Geometry and problem-solving knowledge for Tao Problem 1.1 on arithmetic-progression triangles",
+  "requires": [
+    "geometry-ontology",
+    "trigonometry",
+    "arithmetic"
+  ],
+  "rules": [
+    {
+      "id": "given_triangle_is_available",
+      "pattern": {
+        "call": {
+          "head": {
+            "sym": "GivenLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "TriangleLabel"
+                },
+                "args": [
+                  {
+                    "var": "triangle"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "TriangleLabel"
+          },
+          "args": [
+            {
+              "var": "triangle"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "given_area_becomes_parameter",
+      "pattern": {
+        "call": {
+          "head": {
+            "sym": "GivenLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "AreaLabel"
+                },
+                "args": [
+                  {
+                    "var": "triangle"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "ParameterLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "AreaLabel"
+                },
+                "args": [
+                  {
+                    "var": "triangle"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "triangle_allows_area_formula",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "TriangleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "LengthLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "FirstEdgeLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "EdgesLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "LengthLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SecondEdgeLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "EdgesLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ThirdAngleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "AreaLabel"
+                      },
+                      "args": [
+                        {
+                          "var": "triangle"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprMulLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "FractionLabel"
+                            },
+                            "args": [
+                              {
+                                "sym": "one"
+                              },
+                              {
+                                "sym": "two"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "LengthLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "FirstEdgeLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "EdgesLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "var": "triangle"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "LengthLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "SecondEdgeLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "EdgesLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "var": "triangle"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "SineLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ThirdAngleLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "triangle"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "triangle_imposes_physical_constraints",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "TriangleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "GivenLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AreaLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprLtLabel"
+                },
+                "args": [
+                  {
+                    "sym": "Zero"
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "AreaLabel"
+                      },
+                      "args": [
+                        {
+                          "var": "triangle"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "triangle_imposes_triangle_inequality",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "TriangleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "LengthLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "FirstEdgeLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "EdgesLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "LengthLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SecondEdgeLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "EdgesLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "LengthLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ThirdEdgeLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "EdgesLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprLtLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "LengthLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ThirdEdgeLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "EdgesLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "var": "triangle"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprAddLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "LengthLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "FirstEdgeLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "EdgesLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "triangle"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "LengthLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "SecondEdgeLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "EdgesLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "triangle"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tao_problem_is_evaluate_type",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "TriangleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SideLengthsLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AnglesLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "EvaluateProblemLabel"
+          },
+          "args": [
+            {
+              "var": "triangle"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evaluate_problem_prefers_algebra",
+      "pattern": {
+        "call": {
+          "head": {
+            "sym": "EvaluateProblemLabel"
+          },
+          "args": [
+            {
+              "var": "triangle"
+            }
+          ]
+        }
+      },
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "AlgebraicApproachLabel"
+          },
+          "args": [
+            {
+              "var": "triangle"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "arithmetic_progression_yields_first_edge_equation",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "TriangleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ArithmeticProgressionLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SideLengthsLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ParameterLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "CommonDifferenceLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "SideLengthsLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "LengthLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "FirstEdgeLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "EdgesLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "var": "triangle"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprAddLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "LengthLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "SecondEdgeLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "EdgesLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "triangle"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprNegLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "CommonDifferenceLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "SideLengthsLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "triangle"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "arithmetic_progression_yields_third_edge_equation",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "TriangleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ArithmeticProgressionLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SideLengthsLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ParameterLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "CommonDifferenceLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "SideLengthsLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "LengthLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ThirdEdgeLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "EdgesLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "var": "triangle"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprAddLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "LengthLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "SecondEdgeLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "EdgesLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "triangle"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "CommonDifferenceLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "SideLengthsLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "var": "triangle"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "arithmetic_progression_reduces_objective_to_second_edge_length",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "AlgebraicApproachLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SideLengthsLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ArithmeticProgressionLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SideLengthsLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ParameterLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "CommonDifferenceLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "SideLengthsLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "NeedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "LengthLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "SecondEdgeLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "EdgesLabel"
+                            },
+                            "args": [
+                              {
+                                "var": "triangle"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "heron_yields_tao_equation",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "LengthLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "SecondEdgeLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "EdgesLabel"
+                              },
+                              "args": [
+                                {
+                                  "var": "triangle"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ParameterLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AreaLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "ParameterLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "CommonDifferenceLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "SideLengthsLabel"
+                        },
+                        "args": [
+                          {
+                            "var": "triangle"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprPowLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "AreaLabel"
+                            },
+                            "args": [
+                              {
+                                "var": "triangle"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "sym": "two"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprFracLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "sym": "three"
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SecondEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprAddLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SecondEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprNegLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "ExprMulLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "sym": "four"
+                                                },
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "ExprPowLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "CommonDifferenceLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "call": {
+                                                                "head": {
+                                                                  "sym": "SideLengthsLabel"
+                                                                },
+                                                                "args": [
+                                                                  {
+                                                                    "var": "triangle"
+                                                                  }
+                                                                ]
+                                                              }
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      {
+                                                        "sym": "two"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "sym": "four"
+                              },
+                              {
+                                "sym": "four"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "heron_equation_becomes_quadratic_in_second_edge_length_squared",
+      "pattern": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprPowLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "AreaLabel"
+                            },
+                            "args": [
+                              {
+                                "var": "triangle"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "sym": "two"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprFracLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "sym": "three"
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SecondEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprAddLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SecondEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprNegLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "ExprMulLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "sym": "four"
+                                                },
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "ExprPowLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "CommonDifferenceLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "call": {
+                                                                "head": {
+                                                                  "sym": "SideLengthsLabel"
+                                                                },
+                                                                "args": [
+                                                                  {
+                                                                    "var": "triangle"
+                                                                  }
+                                                                ]
+                                                              }
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      {
+                                                        "sym": "two"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "sym": "four"
+                              },
+                              {
+                                "sym": "four"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprMulLabel"
+                      },
+                      "args": [
+                        {
+                          "sym": "three"
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprPowLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "LengthLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "SecondEdgeLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "EdgesLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "var": "triangle"
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "sym": "four"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprAddLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "sym": "three"
+                                    },
+                                    {
+                                      "sym": "four"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "CommonDifferenceLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SideLengthsLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "var": "triangle"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SecondEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "sym": "four"
+                                    },
+                                    {
+                                      "sym": "four"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprPowLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "AreaLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "triangle"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "sym": "two"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "quadratic_formula_solves_second_edge_length",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "ExprMulLabel"
+                        },
+                        "args": [
+                          {
+                            "sym": "three"
+                          },
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "ExprPowLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "LengthLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "call": {
+                                          "head": {
+                                            "sym": "SecondEdgeLabel"
+                                          },
+                                          "args": [
+                                            {
+                                              "call": {
+                                                "head": {
+                                                  "sym": "EdgesLabel"
+                                                },
+                                                "args": [
+                                                  {
+                                                    "var": "triangle"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "sym": "four"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "ExprAddLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "ExprMulLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "ExprMulLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "sym": "three"
+                                      },
+                                      {
+                                        "sym": "four"
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "ExprMulLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "call": {
+                                          "head": {
+                                            "sym": "ExprPowLabel"
+                                          },
+                                          "args": [
+                                            {
+                                              "call": {
+                                                "head": {
+                                                  "sym": "CommonDifferenceLabel"
+                                                },
+                                                "args": [
+                                                  {
+                                                    "call": {
+                                                      "head": {
+                                                        "sym": "SideLengthsLabel"
+                                                      },
+                                                      "args": [
+                                                        {
+                                                          "var": "triangle"
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "sym": "two"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      {
+                                        "call": {
+                                          "head": {
+                                            "sym": "ExprPowLabel"
+                                          },
+                                          "args": [
+                                            {
+                                              "call": {
+                                                "head": {
+                                                  "sym": "LengthLabel"
+                                                },
+                                                "args": [
+                                                  {
+                                                    "call": {
+                                                      "head": {
+                                                        "sym": "SecondEdgeLabel"
+                                                      },
+                                                      "args": [
+                                                        {
+                                                          "call": {
+                                                            "head": {
+                                                              "sym": "EdgesLabel"
+                                                            },
+                                                            "args": [
+                                                              {
+                                                                "var": "triangle"
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "sym": "two"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "ExprMulLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "ExprMulLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "sym": "four"
+                                      },
+                                      {
+                                        "sym": "four"
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "ExprPowLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "call": {
+                                          "head": {
+                                            "sym": "AreaLabel"
+                                          },
+                                          "args": [
+                                            {
+                                              "var": "triangle"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      {
+                                        "sym": "two"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "LengthLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "SecondEdgeLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "EdgesLabel"
+                              },
+                              "args": [
+                                {
+                                  "var": "triangle"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "LengthLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "SecondEdgeLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "EdgesLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "var": "triangle"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "SqrtLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprAddLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "sym": "two"
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "CommonDifferenceLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SideLengthsLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "var": "triangle"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "sym": "two"
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "SqrtLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "ExprAddLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "ExprPowLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "CommonDifferenceLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "call": {
+                                                                "head": {
+                                                                  "sym": "SideLengthsLabel"
+                                                                },
+                                                                "args": [
+                                                                  {
+                                                                    "var": "triangle"
+                                                                  }
+                                                                ]
+                                                              }
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      {
+                                                        "sym": "four"
+                                                      }
+                                                    ]
+                                                  }
+                                                },
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "ExprMulLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "FractionLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "sym": "four"
+                                                            },
+                                                            {
+                                                              "sym": "three"
+                                                            }
+                                                          ]
+                                                        }
+                                                      },
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "ExprPowLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "call": {
+                                                                "head": {
+                                                                  "sym": "AreaLabel"
+                                                                },
+                                                                "args": [
+                                                                  {
+                                                                    "var": "triangle"
+                                                                  }
+                                                                ]
+                                                              }
+                                                            },
+                                                            {
+                                                              "sym": "two"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "second_edge_formula_determines_all_side_lengths",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "SecondEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "second_edge_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "FirstEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "first_edge_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "ThirdEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "third_edge_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "SideLengthsLabel"
+                },
+                "args": [
+                  {
+                    "var": "triangle"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cosine_rule_recovers_angles_from_side_lengths",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SideLengthsLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AnglesLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "ExprPowLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "LengthLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "FirstEdgeLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "call": {
+                                          "head": {
+                                            "sym": "EdgesLabel"
+                                          },
+                                          "args": [
+                                            {
+                                              "var": "triangle"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "sym": "two"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "first_cosine_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "ExprPowLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "LengthLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "SecondEdgeLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "call": {
+                                          "head": {
+                                            "sym": "EdgesLabel"
+                                          },
+                                          "args": [
+                                            {
+                                              "var": "triangle"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "sym": "two"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "second_cosine_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "ExprPowLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "LengthLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "ThirdEdgeLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "call": {
+                                          "head": {
+                                            "sym": "EdgesLabel"
+                                          },
+                                          "args": [
+                                            {
+                                              "var": "triangle"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "sym": "two"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "third_cosine_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "CosineLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "FirstAngleLabel"
+                            },
+                            "args": [
+                              {
+                                "var": "triangle"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprFracLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprAddLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprAddLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "SecondEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "ThirdEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprNegLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "LengthLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "FirstEdgeLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "call": {
+                                                          "head": {
+                                                            "sym": "EdgesLabel"
+                                                          },
+                                                          "args": [
+                                                            {
+                                                              "var": "triangle"
+                                                            }
+                                                          ]
+                                                        }
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "sym": "two"
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "LengthLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "SecondEdgeLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "EdgesLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "var": "triangle"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "LengthLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "call": {
+                                              "head": {
+                                                "sym": "ThirdEdgeLabel"
+                                              },
+                                              "args": [
+                                                {
+                                                  "call": {
+                                                    "head": {
+                                                      "sym": "EdgesLabel"
+                                                    },
+                                                    "args": [
+                                                      {
+                                                        "var": "triangle"
+                                                      }
+                                                    ]
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cosine_rule_recovers_second_angle_equation_from_side_lengths",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AnglesLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "FirstEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "first_edge"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "SecondEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "second_edge"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "ThirdEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "third_edge"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "CosineLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "SecondAngleLabel"
+                            },
+                            "args": [
+                              {
+                                "var": "triangle"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprFracLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprAddLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprAddLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "first_edge"
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "third_edge"
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprNegLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "second_edge"
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "sym": "two"
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "var": "first_edge"
+                                    },
+                                    {
+                                      "var": "third_edge"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cosine_rule_recovers_third_angle_equation_from_side_lengths",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AnglesLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "FirstEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "first_edge"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "SecondEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "second_edge"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "LengthLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "ThirdEdgeLabel"
+                              },
+                              "args": [
+                                {
+                                  "call": {
+                                    "head": {
+                                      "sym": "EdgesLabel"
+                                    },
+                                    "args": [
+                                      {
+                                        "var": "triangle"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "third_edge"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "ExprEqLabel"
+                },
+                "args": [
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "CosineLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ThirdAngleLabel"
+                            },
+                            "args": [
+                              {
+                                "var": "triangle"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "call": {
+                      "head": {
+                        "sym": "ExprFracLabel"
+                      },
+                      "args": [
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprAddLabel"
+                            },
+                            "args": [
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprAddLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "first_edge"
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "second_edge"
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprNegLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "call": {
+                                        "head": {
+                                          "sym": "ExprPowLabel"
+                                        },
+                                        "args": [
+                                          {
+                                            "var": "third_edge"
+                                          },
+                                          {
+                                            "sym": "two"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "call": {
+                            "head": {
+                              "sym": "ExprMulLabel"
+                            },
+                            "args": [
+                              {
+                                "sym": "two"
+                              },
+                              {
+                                "call": {
+                                  "head": {
+                                    "sym": "ExprMulLabel"
+                                  },
+                                  "args": [
+                                    {
+                                      "var": "first_edge"
+                                    },
+                                    {
+                                      "var": "second_edge"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cosine_equations_determine_angles",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "NeedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AnglesLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "CosineLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "FirstAngleLabel"
+                              },
+                              "args": [
+                                {
+                                  "var": "triangle"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "first_angle_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "CosineLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "SecondAngleLabel"
+                              },
+                              "args": [
+                                {
+                                  "var": "triangle"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "second_angle_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "ExprEqLabel"
+                  },
+                  "args": [
+                    {
+                      "call": {
+                        "head": {
+                          "sym": "CosineLabel"
+                        },
+                        "args": [
+                          {
+                            "call": {
+                              "head": {
+                                "sym": "ThirdAngleLabel"
+                              },
+                              "args": [
+                                {
+                                  "var": "triangle"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "var": "third_angle_rhs"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "AnglesLabel"
+                },
+                "args": [
+                  {
+                    "var": "triangle"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "solved_sides_and_angles_finish_tao_problem",
+      "premises": [
+        {
+          "call": {
+            "head": {
+              "sym": "TriangleLabel"
+            },
+            "args": [
+              {
+                "var": "triangle"
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "SideLengthsLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "call": {
+            "head": {
+              "sym": "SolvedLabel"
+            },
+            "args": [
+              {
+                "call": {
+                  "head": {
+                    "sym": "AnglesLabel"
+                  },
+                  "args": [
+                    {
+                      "var": "triangle"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "replacement": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "TriangleLabel"
+                },
+                "args": [
+                  {
+                    "var": "triangle"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "id": "tao_problem_1_1_triangle",
+      "start": {
+        "call": {
+          "head": {
+            "sym": "KnowledgeLabel"
+          },
+          "args": [
+            {
+              "list": [
+                {
+                  "call": {
+                    "head": {
+                      "sym": "GivenLabel"
+                    },
+                    "args": [
+                      {
+                        "call": {
+                          "head": {
+                            "sym": "TriangleLabel"
+                          },
+                          "args": [
+                            {
+                              "sym": "TaoProblem11TriangleLabel"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "call": {
+                    "head": {
+                      "sym": "NeedLabel"
+                    },
+                    "args": [
+                      {
+                        "call": {
+                          "head": {
+                            "sym": "SideLengthsLabel"
+                          },
+                          "args": [
+                            {
+                              "sym": "TaoProblem11TriangleLabel"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "call": {
+                    "head": {
+                      "sym": "NeedLabel"
+                    },
+                    "args": [
+                      {
+                        "call": {
+                          "head": {
+                            "sym": "AnglesLabel"
+                          },
+                          "args": [
+                            {
+                              "sym": "TaoProblem11TriangleLabel"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "call": {
+                    "head": {
+                      "sym": "GivenLabel"
+                    },
+                    "args": [
+                      {
+                        "call": {
+                          "head": {
+                            "sym": "ArithmeticProgressionLabel"
+                          },
+                          "args": [
+                            {
+                              "call": {
+                                "head": {
+                                  "sym": "SideLengthsLabel"
+                                },
+                                "args": [
+                                  {
+                                    "sym": "TaoProblem11TriangleLabel"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "call": {
+                    "head": {
+                      "sym": "GivenLabel"
+                    },
+                    "args": [
+                      {
+                        "call": {
+                          "head": {
+                            "sym": "CommonDifferenceLabel"
+                          },
+                          "args": [
+                            {
+                              "call": {
+                                "head": {
+                                  "sym": "SideLengthsLabel"
+                                },
+                                "args": [
+                                  {
+                                    "sym": "TaoProblem11TriangleLabel"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "call": {
+                    "head": {
+                      "sym": "GivenLabel"
+                    },
+                    "args": [
+                      {
+                        "call": {
+                          "head": {
+                            "sym": "AreaLabel"
+                          },
+                          "args": [
+                            {
+                              "sym": "TaoProblem11TriangleLabel"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "goal": {
+        "call": {
+          "head": {
+            "sym": "SolvedLabel"
+          },
+          "args": [
+            {
+              "call": {
+                "head": {
+                  "sym": "TriangleLabel"
+                },
+                "args": [
+                  {
+                    "sym": "TaoProblem11TriangleLabel"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

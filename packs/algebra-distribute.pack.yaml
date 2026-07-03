@@ -1,0 +1,90 @@
+format: hyge-pack
+version: 1
+
+name: algebra-distribute
+description: Tiny rewrite pack for distributivity and multiplication associativity
+requires: []
+
+rules:
+  - id: distribute_right
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: c}
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {var: a}
+                - {var: b}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {var: c}
+                - {var: a}
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {var: c}
+                - {var: b}
+
+  - id: mul_assoc
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: a}
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {var: b}
+                - {var: c}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {var: a}
+                - {var: b}
+          - {var: c}
+
+examples:
+  - id: distrib_assoc_demo
+    start:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {char: a}
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {char: b}
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {char: c}
+                      - {char: d}
+    goal:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {char: a}
+                - {char: b}
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {char: a}
+                      - {char: c}
+                - {char: d}

@@ -1,0 +1,196 @@
+format: hyge-pack
+version: 1
+
+name: sqrt-real
+description: Newton-style theorem pack for proving IsReal(sqrt(a))
+requires: []
+
+rules:
+  - id: sqrt_unfold
+    pattern:
+      call:
+        head: {sym: SqrtLabel}
+        args:
+          - {var: a}
+    replacement:
+      call:
+        head: {sym: SqrtSeqTermLabel}
+        args:
+          - {var: a}
+
+  - id: sqrtseq_to_newtonstep
+    pattern:
+      call:
+        head: {sym: SqrtSeqTermLabel}
+        args:
+          - {var: a}
+    replacement:
+      call:
+        head: {sym: NewtonStepTermLabel}
+        args:
+          - call:
+              head: {sym: SqrtSeqTermLabel}
+              args:
+                - {var: a}
+
+  - id: newton_positive
+    pattern:
+      call:
+        head: {sym: NewtonStepTermLabel}
+        args:
+          - {var: s}
+    replacement:
+      call:
+        head: {sym: NewtonPositiveLabel}
+        args:
+          - {var: s}
+
+  - id: newton_error_identity
+    pattern:
+      call:
+        head: {sym: NewtonPositiveLabel}
+        args:
+          - {var: s}
+    replacement:
+      call:
+        head: {sym: NewtonErrorIdentityLabel}
+        args:
+          - {var: s}
+
+  - id: newton_error_shrinks
+    pattern:
+      call:
+        head: {sym: NewtonErrorIdentityLabel}
+        args:
+          - {var: s}
+    replacement:
+      call:
+        head: {sym: NewtonErrorShrinksLabel}
+        args:
+          - {var: s}
+
+  - id: newton_shrinks_to_cauchy
+    pattern:
+      call:
+        head: {sym: NewtonErrorShrinksLabel}
+        args:
+          - {var: s}
+    replacement:
+      call:
+        head: {sym: SqrtSeqCauchyLabel}
+        args:
+          - {var: s}
+
+  - id: sqrtseq_cauchy_to_iscauchy
+    pattern:
+      call:
+        head: {sym: SqrtSeqCauchyLabel}
+        args:
+          - {var: s}
+    replacement:
+      call:
+        head: {sym: IsCauchyLabel}
+        args:
+          - {var: s}
+
+  - id: cauchy_to_realnum
+    pattern:
+      call:
+        head: {sym: IsCauchyLabel}
+        args:
+          - {var: s}
+    replacement:
+      call:
+        head: {sym: RealNumLabel}
+        args:
+          - {var: s}
+
+  - id: realnum_sqrtseq_to_isreal
+    pattern:
+      call:
+        head: {sym: RealNumLabel}
+        args:
+          - call:
+              head: {sym: SqrtSeqTermLabel}
+              args:
+                - {var: a}
+    replacement:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: SqrtLabel}
+              args:
+                - {var: a}
+
+schemata:
+  - id: sqrt_is_real
+    start:
+      call:
+        head: {sym: SqrtLabel}
+        args:
+          - {var: a}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: SqrtLabel}
+              args:
+                - {var: a}
+    plan:
+      - theorem: sqrt_unfold
+      - theorem: sqrtseq_to_newtonstep
+      - theorem: newton_positive
+      - theorem: newton_error_identity
+      - theorem: newton_error_shrinks
+      - theorem: newton_shrinks_to_cauchy
+      - theorem: sqrtseq_cauchy_to_iscauchy
+      - theorem: cauchy_to_realnum
+      - theorem: realnum_sqrtseq_to_isreal
+
+examples:
+  - id: sqrt2_real
+    start:
+      call:
+        head: {sym: SqrtLabel}
+        args:
+          - {sym: two}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: SqrtLabel}
+              args:
+                - {sym: two}
+
+  - id: sqrt3_real
+    start:
+      call:
+        head: {sym: SqrtLabel}
+        args:
+          - {sym: three}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: SqrtLabel}
+              args:
+                - {sym: three}
+
+  - id: sqrt4_real
+    start:
+      call:
+        head: {sym: SqrtLabel}
+        args:
+          - {sym: four}
+    goal:
+      call:
+        head: {sym: IsRealLabel}
+        args:
+          - call:
+              head: {sym: SqrtLabel}
+              args:
+                - {sym: four}
