@@ -3448,6 +3448,26 @@ class CompareSearchModes(M.Edge):
             remaining_shards = M.Tail(remaining_shards)()
         return self._reverse(entries_rev, M.EmptyList)
 
+    def _spawn_root_wave_replacement_executor(self, shard_count):
+        slot = self._succ_nat_local(shard_count)
+        try:
+            executor = self._spawn_parallel_executor(self._comparison_mp_context, slot)
+        except Exception as error:
+            _debug(
+                "search-compare: resident root-wave replacement unavailable at slot "
+                + self._nat_text(slot)
+                + " ("
+                + str(error)
+                + ")"
+            )
+            return M.EmptyList
+        _debug(
+            "search-compare: replenished resident root-wave executor "
+            + self._nat_text(slot)
+            + " for failed shard retry"
+        )
+        return executor
+
     def _comparison_root_candidate_rules_parallel(self, job):
         t0 = time.time()
         _debug("search-compare: root prepass: building shards...")
@@ -3504,6 +3524,10 @@ class CompareSearchModes(M.Edge):
                 remaining_shards = M.Tail(remaining_shards)()
 
             if M.IdentityCompare(workers, M.EmptyList)() is M.truth_value:
+                replacement_executor = self._spawn_root_wave_replacement_executor(shard_count)
+                if M.IdentityCompare(replacement_executor, M.EmptyList)() is M.false_value:
+                    idle_executors = M.Pair(replacement_executor, idle_executors)
+                    continue
                 self._comparison_root_wave_idle_executors = idle_executors
                 raise RuntimeError("search-compare: resident root-wave executors unavailable")
 
@@ -3570,6 +3594,7 @@ class CompareSearchModes(M.Edge):
             None,
             None,
         )
+        expanded_total = self._succ_nat_local(SearchJobExpanded(job)())
         packet_jobs_rev = M.EmptyList
         packet_count = M.Zero
         generated = M.Tree(M.EmptyList)
@@ -3633,7 +3658,7 @@ class CompareSearchModes(M.Edge):
             job,
             SearchRunningLabel,
             remaining_frontier,
-            SearchJobExpanded(job)(),
+            expanded_total,
             SearchJobGenerated(job)(),
             frontier_peak,
             M.EmptyList,
@@ -5070,6 +5095,12 @@ class CompareSearchModes(M.Edge):
         current_idle_executors = idle_executors
         prior_total_queued = self._comparison_total_queued_packets(current_states)
 
+        current_idle_executors = self._grow_parallel_executor_pool(
+            mp_context,
+            current_idle_executors,
+            current_states,
+            current_workers,
+        )
         self._comparison_root_wave_idle_executors = current_idle_executors
         current_states = self._comparison_prepare_shared_root_wave(current_states)
         current_idle_executors = self._comparison_root_wave_idle_executors

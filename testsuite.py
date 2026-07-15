@@ -570,6 +570,33 @@ class _RootWaveFailingTaskQueueProbe:
                 self.result_queue.put(None)
 
 
+class _WarmRootWaveCompareProbe(_CompareSearchModesProbe):
+    def __init__(self, graph, start, goal, rules, heuristic, registry):
+        super().__init__(graph, start, goal, rules, heuristic, registry)
+        self.spawned = M.Zero
+        self.root_launches = M.Zero
+
+    def _spawn_parallel_executor(self, mp_context, slot):
+        result_queue = _RootWaveResultQueueProbe()
+        task_queue = _RootWaveTaskQueueProbe(result_queue)
+        process = _ResidentExecutorProcessProbe()
+        self.spawned = M.Head(M.Succ(self.spawned, self.registry)())()
+        return self._resident_executor(slot, process, task_queue, result_queue)
+
+
+class _ReplacementRootWaveCompareProbe(_CompareSearchModesProbe):
+    def __init__(self, graph, start, goal, rules, heuristic, registry):
+        super().__init__(graph, start, goal, rules, heuristic, registry)
+        self.spawned = M.Zero
+
+    def _spawn_parallel_executor(self, mp_context, slot):
+        result_queue = _RootWaveResultQueueProbe()
+        task_queue = _RootWaveTaskQueueProbe(result_queue)
+        process = _ResidentExecutorProcessProbe()
+        self.spawned = M.Head(M.Succ(self.spawned, self.registry)())()
+        return self._resident_executor(slot, process, task_queue, result_queue)
+
+
 class CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -628,6 +655,39 @@ class CompareSearchModesRootWaveRequiresResidentExecutorTest(M.Edge):
             probe._comparison_root_candidate_rules_parallel(job)
         except RuntimeError:
             self.result = M.truth_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        start = M.Thingy()
+        goal = M.Atom()
+        heuristic = M.Heuristic(M.BFSLabel, M.InsertionOrderLabel, M.one, M.one, M.one, M.one)()
+        rules = M.Pair(Rule(start, goal), empty)
+        probe = _WarmRootWaveCompareProbe(graph, start, goal, rules, heuristic, registry)
+        probe._comparison_machine_parallelism = M.one
+        states = probe._comparison_states(probe._mode_chain())
+
+        filled = probe._fill_parallel_workers(M.EmptyList, empty, states, empty)
+        next_states = M.Head(filled)()
+        workers = M.Head(M.Tail(filled)())()
+
+        result = M.truth_value
+        if M.NatEq(probe.spawned, M.Zero, probe.registry)() is M.truth_value:
+            result = M.false_value
+        elif M.IdentityCompare(probe._comparison_shared_root_candidates_ready, M.truth_value)() is M.false_value:
+            result = M.false_value
+        elif M.IdentityCompare(workers, empty)() is M.truth_value:
+            result = M.false_value
+        elif M.IdentityCompare(probe._comparison_states_need_shared_root_wave(next_states), M.truth_value)() is M.truth_value:
+            result = M.false_value
+
+        self.result = result
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
@@ -713,6 +773,43 @@ class CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(M.Edge):
         return self.result
 
 
+class CompareSearchModesRootWaveReplacesExhaustedResidentTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        start = M.Thingy()
+        goal = M.Atom()
+        heuristic = M.Heuristic(M.BFSLabel, M.InsertionOrderLabel, M.one, M.one, M.one, M.one)()
+        rules = M.Pair(Rule(start, goal), empty)
+        probe = _ReplacementRootWaveCompareProbe(graph, start, goal, rules, heuristic, registry)
+        probe._comparison_machine_parallelism = M.one
+        probe._comparison_mp_context = M.EmptyList
+
+        failing_result_queue = _RootWaveResultQueueProbe()
+        failing_task_queue = _RootWaveFailingTaskQueueProbe(failing_result_queue)
+        failing_process = _ResidentExecutorProcessProbe()
+        failing_executor = probe._resident_executor(M.one, failing_process, failing_task_queue, failing_result_queue)
+        probe._comparison_root_wave_idle_executors = M.Pair(failing_executor, empty)
+
+        candidates = probe._comparison_root_candidate_rules_parallel(probe._fresh_compare_job(M.BFSLabel))
+
+        result = M.truth_value
+        if M.NatEq(probe.spawned, M.one, probe.registry)() is M.false_value:
+            result = M.false_value
+        elif M.IdentityCompare(failing_process.alive, M.false_value)() is M.false_value:
+            result = M.false_value
+        elif RawTermEqual(candidates, rules, probe.registry)() is M.false_value:
+            result = M.false_value
+        elif M.IdentityCompare(probe._comparison_root_wave_idle_executors, empty)() is M.truth_value:
+            result = M.false_value
+
+        self.result = result
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -727,11 +824,14 @@ class CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest(M.Edge):
         job = probe._fresh_compare_job(M.BFSLabel)
 
         seeded = probe._comparison_seed_rule_wave(M.BFSLabel, job, rules)
+        drained_job = M.Head(seeded)()
         packets = M.Head(M.Tail(seeded)())()
         packet_count = M.Head(M.Tail(M.Tail(seeded)())())()
 
         result = M.truth_value
         if M.NatEq(packet_count, M.three, probe.registry)() is M.false_value:
+            result = M.false_value
+        elif M.NatEq(M.SearchJobExpanded(drained_job)(), M.one, probe.registry)() is M.false_value:
             result = M.false_value
         elif M.IdentityCompare(packets, empty)() is M.truth_value:
             result = M.false_value
@@ -2303,6 +2403,72 @@ class CompareSearchModesIntegratesReturnedReadyPacketsTest(M.Edge):
         return self.result
 
 
+class CompareSearchModesEmptyReadyResultRefillsJobFrontierTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        start = M.Thingy()
+        goal = M.Atom()
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        probe = _CompareSearchModesProbe(graph, start, goal, empty, heuristic, registry)
+
+        job = probe._fresh_compare_job(M.BFSLabel)
+        drained_job = probe._comparison_rebuild_packetized_job(
+            job,
+            M.SearchRunningLabel,
+            empty,
+            M.Zero,
+            M.Zero,
+            M.Zero,
+            empty,
+            M.Tree(empty),
+            empty,
+            empty,
+            M.Zero,
+        )
+        state = probe._comparison_state(M.BFSLabel, drained_job, M.Tree(empty), M.one)
+        states = M.Pair(state, empty)
+        child = M.SearchState(start, empty, empty, M.one)()
+        returned_job = probe._comparison_branch_packet_job(job, child, M.Tree(empty), empty, empty)
+        decoded = SearchWorkerResult(
+            M.BFSLabel,
+            M.SearchRunningLabel,
+            M.one,
+            M.Zero,
+            M.one,
+            M.Zero,
+            M.Zero,
+            M.one,
+            M.Zero,
+            returned_job,
+            M.Tree(empty),
+            empty,
+            M.Zero,
+            empty,
+            M.one,
+        )()
+
+        next_states = probe._integrate_parallel_result(states, M.BFSLabel, decoded)
+        next_state = probe._comparison_state_for_mode(next_states, M.BFSLabel)
+        pending_packets = probe._comparison_state_pending_packets(next_state)
+
+        result = M.truth_value
+        if M.NatEq(probe._comparison_state_active_packets(next_state), M.Zero, probe.registry)() is M.false_value:
+            result = M.false_value
+        elif M.NatEq(probe._comparison_state_pending_packets_count(next_state), M.one, probe.registry)() is M.false_value:
+            result = M.false_value
+        elif M.IdentityCompare(pending_packets, empty)() is M.truth_value:
+            result = M.false_value
+        elif RawTermEqual(probe._comparison_packet_state(M.BFSLabel, M.Head(pending_packets)()), child, probe.registry)() is M.false_value:
+            result = M.false_value
+
+        self.result = result
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class CompareSearchModesReturnedReadyPacketCountFollowsPacketShapeTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -3743,9 +3909,23 @@ def install_default_tests(graph):
     )
     _register_test(
         graph,
+        "compare_search_modes_fill_warms_resident_pool_before_root_wave_test",
+        empty,
+        CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
         "compare_search_modes_root_wave_retries_failed_shard_on_resident_test",
         empty,
         CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_root_wave_replaces_exhausted_resident_test",
+        empty,
+        CompareSearchModesRootWaveReplacesExhaustedResidentTest(graph),
         M.truth_value,
     )
     _register_test(
@@ -4012,6 +4192,13 @@ def install_default_tests(graph):
         "compare_search_modes_integrates_returned_ready_packets_test",
         empty,
         CompareSearchModesIntegratesReturnedReadyPacketsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_empty_ready_result_refills_job_frontier_test",
+        empty,
+        CompareSearchModesEmptyReadyResultRefillsJobFrontierTest(graph),
         M.truth_value,
     )
     _register_test(
