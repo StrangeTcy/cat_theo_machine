@@ -4732,13 +4732,36 @@ class CompareSearchModes(M.Edge):
             args=(slot_text, task_queue, result_queue),
         )
         process.start()
+        executor = self._resident_executor(slot, process, task_queue, result_queue)
+        if self._await_parallel_executor_ready(executor) is M.false_value:
+            self._retire_parallel_executor(executor, "retiring unready resident executor ")
+            raise RuntimeError("search-compare: resident executor did not acknowledge startup")
         _debug(
             "search-compare: resident executor "
             + slot_text
             + " ready pid="
             + str(process.pid)
         )
-        return self._resident_executor(slot, process, task_queue, result_queue)
+        return executor
+
+    def _parallel_executor_ready_message(self, payload):
+        if M.IsPair(payload)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(payload)(), SearchWorkerReadyLabel)()
+
+    def _await_parallel_executor_ready(self, executor):
+        process = self._resident_executor_process(executor)
+        result_queue = self._resident_executor_result_queue(executor)
+        while process.is_alive():
+            try:
+                payload = result_queue.get_nowait()
+            except queue.Empty:
+                time.sleep(0.01)
+                continue
+            if self._parallel_executor_ready_message(payload) is M.truth_value:
+                return M.truth_value
+            return M.false_value
+        return M.false_value
 
     def _start_parallel_executor_pool(self, mp_context):
         _debug("search-compare: elastic resident executor pool starts empty and grows on demand")
@@ -5095,12 +5118,13 @@ class CompareSearchModes(M.Edge):
         current_idle_executors = idle_executors
         prior_total_queued = self._comparison_total_queued_packets(current_states)
 
-        current_idle_executors = self._grow_parallel_executor_pool(
-            mp_context,
-            current_idle_executors,
-            current_states,
-            current_workers,
-        )
+        if self._comparison_states_need_shared_root_wave(current_states) is M.truth_value:
+            current_idle_executors = self._grow_parallel_executor_pool(
+                mp_context,
+                current_idle_executors,
+                current_states,
+                current_workers,
+            )
         self._comparison_root_wave_idle_executors = current_idle_executors
         current_states = self._comparison_prepare_shared_root_wave(current_states)
         current_idle_executors = self._comparison_root_wave_idle_executors

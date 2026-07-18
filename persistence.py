@@ -55,6 +55,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ContextSearchComparisonJobsLabel",
     "ContextSearchJobsLabel",
     "ContextSearchMemoLabel",
+    "ContextNatValueIndexLabel",
     "ProofCostLabel",
     "NewtonErrorIdentityLabel",
     "NewtonErrorShrinksLabel",
@@ -104,9 +105,17 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SearchRootSchemaResultLabel",
     "SearchRootGoalResultLabel",
     "SearchRootImmediateResultLabel",
+    "SearchRootRulePacketLabel",
+    "SearchRootWaveShardLaunchLabel",
+    "SearchFrontierStatePacketLabel",
+    "SearchWorkerBaselineLabel",
     "SearchWorkerBaselineProblemLabel",
+    "SearchWorkerSetupLabel",
+    "SearchWorkerReadyLabel",
+    "SearchWorkerPacketLabel",
     "SearchWorkerPacketStoresLabel",
     "SearchWorkerPacketControlsLabel",
+    "SearchWorkerStandalonePacketLabel",
     "SearchWorkerLaunchDispatchLabel",
     "SearchWorkerMetricsLabel",
     "SearchWorkerPayloadLabel",
@@ -404,6 +413,9 @@ class SnapshotCodec:
 
     def _is_pair_object(self, obj):
         return self._ns_get("IsPair")(obj)() is self._ns_get("truth_value")
+
+    def _is_edge_object(self, obj):
+        return self._ns_get("IdentityCompare")(obj._snapshot_edge_marker, obj)() is self._ns_get("truth_value")
 
     def _captured_object_id(self, target):
         for obj in self.obj_to_id:
@@ -881,6 +893,8 @@ class SnapshotCodec:
     def _child_refs(self, obj):
         if self._is_pair_object(obj):
             return (obj.head.value, obj.tail.value)
+        if self._is_edge_object(obj) is self._ns_get("truth_value"):
+            return (obj.inputs, obj.results, obj.value)
         if obj.value is None:
             return ()
         return (obj.value,)
@@ -939,6 +953,14 @@ class SnapshotCodec:
                 "tail": self._encode_field(obj.tail.value),
             }
 
+        if self._is_edge_object(obj) is self._ns_get("truth_value"):
+            return {
+                "id": oid,
+                "inputs": self._encode_field(obj.inputs),
+                "results": self._encode_field(obj.results),
+                "value": self._encode_field(obj.value),
+            }
+
         return {
             "id": oid,
             "value": self._encode_field(obj.value),
@@ -993,6 +1015,7 @@ class SnapshotCodec:
             "search_comparison_jobs": graph.search_comparison_jobs,
             "search_jobs": graph.search_jobs,
             "search_memo": graph.search_memo,
+            "nat_value_index": graph.nat_value_index,
         }
         if extra_roots is not None:
             for name in extra_roots:
@@ -1064,6 +1087,7 @@ class SnapshotCodec:
                 obj.inputs = self._decode_field(record["inputs"], id_to_obj)
                 obj.results = self._decode_field(record["results"], id_to_obj)
                 obj.value = self._decode_field(record["value"], id_to_obj)
+                obj._snapshot_edge_marker = obj
             else:
                 obj.value = self._decode_field(record["value"], id_to_obj)
 

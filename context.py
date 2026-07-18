@@ -1069,6 +1069,7 @@ def sync_from_namespace(namespace):
         "ContextSearchComparisonJobsLabel",
         "ContextSearchJobsLabel",
         "ContextSearchMemoLabel",
+        "ContextNatValueIndexLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

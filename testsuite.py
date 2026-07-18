@@ -17,6 +17,7 @@ from . import search as Smod
 from . import theorem_rules as Theoremmod
 from . import trees as Tmod
 from .graph import Test
+from .persistence import SnapshotCodec
 from .proof import BuildDerivation, CollectRules, Rule, RulePremises, RuleReplacement
 from .runtime import boot_from_snapshot, make_fresh_runtime, save_runtime
 from .search import (
@@ -632,6 +633,25 @@ class CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest(M.Edge):
             sys.setrecursionlimit(previous_limit)
 
         self.result = result
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CompareSearchModesResidentExecutorReadyHandshakeTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        start = M.Thingy()
+        goal = M.Atom()
+        heuristic = M.Heuristic(M.BFSLabel, M.InsertionOrderLabel, M.one, M.one, M.one, M.one)()
+        probe = _CompareSearchModesProbe(graph, start, goal, empty, heuristic, registry)
+        result_queue = _RootWaveResultQueueProbe()
+        result_queue.put(M.Pair(Lmod.SearchWorkerReadyLabel, empty))
+        executor = probe._resident_executor(M.one, _ResidentExecutorProcessProbe(), _ResidentExecutorQueueProbe(), result_queue)
+
+        self.result = probe._await_parallel_executor_ready(executor)
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
@@ -1994,6 +2014,64 @@ class PausedSearchJobSnapshotRoundtripTest(M.Edge):
         return self.result
 
 
+class NatValueIndexSnapshotRoundtripTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        namespace = dict(vars(M))
+        namespace.update(vars(Hmod))
+        namespace.update(vars(Lmod))
+        namespace.update(vars(Pmod))
+        namespace.update(vars(Gmod))
+        namespace.update(vars(Xmod))
+        namespace.update(vars(Rmod))
+        namespace.update(vars(Smod))
+        namespace.update(vars(Theoremmod))
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            registry = _registry(runtime.graph)
+            nat_value_index = M.TreeInsert(M.Tree(empty), M.one, M.two, registry)()
+            runtime.graph._replace_context(nat_value_index=nat_value_index)
+            save_runtime(runtime, snapshot_path, namespace)
+            loaded_runtime = boot_from_snapshot(snapshot_path, namespace)
+            loaded_registry = M.FromContextGetConstructors(loaded_runtime.graph)()
+            self.result = RawTermEqual(loaded_runtime.graph.nat_value_index, nat_value_index, loaded_registry)()
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SnapshotPreservesMachineEdgeStructureTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        edge_inputs = M.Pair(M.one, empty)
+        edge_results = M.Pair(M.two, empty)
+        edge = M.Edge(inputs=edge_inputs, results=edge_results)
+        snapshot = SnapshotCodec(namespace).capture_objects({"edge": edge})
+        loaded = SnapshotCodec(namespace).load_snapshot(snapshot).roots["edge"]
+
+        self.result = M.truth_value
+        if M.IdentityCompare(loaded._snapshot_edge_marker, loaded)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.EdgeInputs(loaded)(), edge_inputs, M.AllConstructors)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.EdgeResults(loaded)(), edge_results, M.AllConstructors)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
     def __init__(self, _graph):
         empty = M.EmptyList
@@ -2018,13 +2096,7 @@ class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
             rules = M.Pair(rule, empty)
             probe = _CompareSearchModesProbe(runtime.graph, start, goal, rules, heuristic, registry)
             job = probe._fresh_compare_job(M.BFSLabel)
-            pending_packet = probe._comparison_branch_packet_job(
-                job,
-                M.SearchState(goal, empty, empty, M.one)(),
-                M.Tree(empty),
-                M.Tree(empty),
-                empty,
-            )
+            pending_packet = probe._comparison_frontier_state_packet(M.SearchState(goal, empty, empty, M.one)())
             state = probe._comparison_state(
                 M.BFSLabel,
                 job,
@@ -2056,6 +2128,11 @@ class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
             elif M.NatEq(loaded_probe._comparison_state_pending_packets_count(loaded_state), M.one, loaded_probe.registry)() is M.false_value:
                 self.result = M.false_value
             elif M.IdentityCompare(loaded_probe._comparison_state_pending_packets(loaded_state), empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(M.Head(loaded_probe._comparison_state_pending_packets(loaded_state))()),
+                Lmod.SearchFrontierStatePacketLabel,
+            )() is M.false_value:
                 self.result = M.false_value
         finally:
             try:
@@ -2460,6 +2537,34 @@ class CompareSearchModesEmptyReadyResultRefillsJobFrontierTest(M.Edge):
         elif M.IdentityCompare(pending_packets, empty)() is M.truth_value:
             result = M.false_value
         elif RawTermEqual(probe._comparison_packet_state(M.BFSLabel, M.Head(pending_packets)()), child, probe.registry)() is M.false_value:
+            result = M.false_value
+
+        self.result = result
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CompareSearchModesRootWaveRecordsEmptyExpansionTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        start = M.Thingy()
+        goal = M.Atom()
+        heuristic = M.Heuristic(M.BFSLabel, M.InsertionOrderLabel, M.one, M.one, M.one, M.one)()
+        probe = _CompareSearchModesProbe(graph, start, goal, empty, heuristic, registry)
+        seeded = probe._comparison_seed_rule_wave(M.BFSLabel, probe._fresh_compare_job(M.BFSLabel), empty)
+        drained_job = M.Head(seeded)()
+        packets = M.Head(M.Tail(seeded)())()
+        packet_count = M.Head(M.Tail(M.Tail(seeded)())())()
+
+        result = M.truth_value
+        if M.NatEq(M.SearchJobExpanded(drained_job)(), M.one, probe.registry)() is M.false_value:
+            result = M.false_value
+        elif M.NatEq(packet_count, M.one, probe.registry)() is M.false_value:
+            result = M.false_value
+        elif M.IdentityCompare(packets, empty)() is M.truth_value:
             result = M.false_value
 
         self.result = result
@@ -3895,6 +4000,13 @@ def install_default_tests(graph):
     )
     _register_test(
         graph,
+        "compare_search_modes_resident_executor_ready_handshake_test",
+        empty,
+        CompareSearchModesResidentExecutorReadyHandshakeTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
         "compare_search_modes_root_wave_uses_resident_executor_test",
         empty,
         CompareSearchModesRootWaveUsesResidentExecutorTest(graph),
@@ -3933,6 +4045,13 @@ def install_default_tests(graph):
         "compare_search_modes_root_wave_seeds_single_rewrite_handoff_test",
         empty,
         CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_root_wave_records_empty_expansion_test",
+        empty,
+        CompareSearchModesRootWaveRecordsEmptyExpansionTest(graph),
         M.truth_value,
     )
     _register_test(
@@ -4136,6 +4255,20 @@ def install_default_tests(graph):
         "paused_search_job_snapshot_roundtrip_test",
         empty,
         PausedSearchJobSnapshotRoundtripTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "nat_value_index_snapshot_roundtrip_test",
+        empty,
+        NatValueIndexSnapshotRoundtripTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "snapshot_preserves_machine_edge_structure_test",
+        empty,
+        SnapshotPreservesMachineEdgeStructureTest(graph),
         M.truth_value,
     )
     _register_test(

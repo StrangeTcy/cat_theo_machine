@@ -507,6 +507,10 @@ class SearchWorkerSetupLabel(ConstructorLabel):
     pass
 
 
+class SearchWorkerReadyLabel(ConstructorLabel):
+    pass
+
+
 class SearchWorkerPacketLabel(ConstructorLabel):
     pass
 
@@ -804,6 +808,7 @@ SearchFrontierStatePacketLabel = SearchFrontierStatePacketLabel()
 SearchWorkerBaselineLabel = SearchWorkerBaselineLabel()
 SearchWorkerBaselineProblemLabel = SearchWorkerBaselineProblemLabel()
 SearchWorkerSetupLabel = SearchWorkerSetupLabel()
+SearchWorkerReadyLabel = SearchWorkerReadyLabel()
 SearchWorkerPacketLabel = SearchWorkerPacketLabel()
 SearchWorkerPacketStoresLabel = SearchWorkerPacketStoresLabel()
 SearchWorkerPacketControlsLabel = SearchWorkerPacketControlsLabel()
@@ -976,6 +981,7 @@ def sync_from_namespace(namespace):
         "SearchWorkerBaselineLabel",
         "SearchWorkerBaselineProblemLabel",
         "SearchWorkerSetupLabel",
+        "SearchWorkerReadyLabel",
         "SearchWorkerPacketLabel",
         "SearchWorkerPacketStoresLabel",
         "SearchWorkerPacketControlsLabel",

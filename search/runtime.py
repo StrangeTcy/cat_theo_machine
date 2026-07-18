@@ -477,10 +477,20 @@ class _SearchRootWaveShardResult:
         return self.result
 
 
+class _SearchWorkerReady(M.Edge):
+    def __init__(self):
+        self.result = M.Pair(SearchWorkerReadyLabel, M.EmptyList)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class _SearchModeWorkerExecutor:
     def __init__(self, slot_text, task_queue, result_queue):
         pid = multiprocessing.current_process().pid
         baseline = M.EmptyList
+        result_queue.put(_SearchWorkerReady()())
         while M.IdentityCompare(M.truth_value, M.truth_value)() is M.truth_value:
             launch = task_queue.get()
             if launch is None:
