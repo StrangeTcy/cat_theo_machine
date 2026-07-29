@@ -229,8 +229,6 @@ def _restore_constructor_registry_shard_worker(snapshot_path, shard_index, shard
     """
 
     def _record_ref_id(field):
-        if not isinstance(field, dict):
-            return None
         if field.get("tag") != "ref":
             return None
         return field.get("id")
