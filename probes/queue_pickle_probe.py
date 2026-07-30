@@ -12,82 +12,8 @@ runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
 registry = M.FromContextGetConstructors(runtime.graph)()
 runtime.graph._search_disable_console = M.truth_value
 
-triangle = Lmod.TaoProblem11TriangleLabel
-facts = M.Pair(
-    M.Pair(
-        Lmod.GivenLabel,
-        M.Pair(
-            M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
-            M.EmptyList,
-        ),
-    ),
-    M.Pair(
-        M.Pair(
-            Lmod.NeedLabel,
-            M.Pair(
-                M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                M.EmptyList,
-            ),
-        ),
-        M.Pair(
-            M.Pair(
-                Lmod.NeedLabel,
-                M.Pair(
-                    M.Pair(Lmod.AnglesLabel, M.Pair(triangle, M.EmptyList)),
-                    M.EmptyList,
-                ),
-            ),
-            M.Pair(
-                M.Pair(
-                    Lmod.GivenLabel,
-                    M.Pair(
-                        M.Pair(
-                            Lmod.ArithmeticProgressionLabel,
-                            M.Pair(
-                                M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                                M.EmptyList,
-                            ),
-                        ),
-                        M.EmptyList,
-                    ),
-                ),
-                M.Pair(
-                    M.Pair(
-                        Lmod.GivenLabel,
-                        M.Pair(
-                            M.Pair(
-                                Lmod.CommonDifferenceLabel,
-                                M.Pair(
-                                    M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                                    M.EmptyList,
-                                ),
-                            ),
-                            M.EmptyList,
-                        ),
-                    ),
-                    M.Pair(
-                        M.Pair(
-                            Lmod.GivenLabel,
-                            M.Pair(
-                                M.Pair(Lmod.AreaLabel, M.Pair(triangle, M.EmptyList)),
-                                M.EmptyList,
-                            ),
-                        ),
-                        M.EmptyList,
-                    ),
-                ),
-            ),
-        ),
-    ),
-)
-start = M.Knowledge(facts)()
-goal = M.Pair(
-    Lmod.SolvedLabel,
-    M.Pair(
-        M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
-        M.EmptyList,
-    ),
-)
+geometry_pack = packs.by_name("geometry")
+start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
 
 left = M.EmptyList
 right = M.EmptyList

@@ -10,60 +10,15 @@
   ],
   "rules": [
     {
-      "id": "given_triangle_is_available",
+      "id": "area_becomes_parameter",
       "pattern": {
         "call": {
           "head": {
-            "sym": "GivenLabel"
-          },
-          "args": [
-            {
-              "call": {
-                "head": {
-                  "sym": "TriangleLabel"
-                },
-                "args": [
-                  {
-                    "var": "triangle"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      },
-      "replacement": {
-        "call": {
-          "head": {
-            "sym": "TriangleLabel"
+            "sym": "AreaLabel"
           },
           "args": [
             {
               "var": "triangle"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "given_area_becomes_parameter",
-      "pattern": {
-        "call": {
-          "head": {
-            "sym": "GivenLabel"
-          },
-          "args": [
-            {
-              "call": {
-                "head": {
-                  "sym": "AreaLabel"
-                },
-                "args": [
-                  {
-                    "var": "triangle"
-                  }
-                ]
-              }
             }
           ]
         }
@@ -350,20 +305,11 @@
         {
           "call": {
             "head": {
-              "sym": "GivenLabel"
+              "sym": "AreaLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "AreaLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -645,20 +591,11 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "SideLengthsLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "SideLengthsLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -666,20 +603,11 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "AnglesLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "AnglesLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -1104,20 +1032,11 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "SideLengthsLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "SideLengthsLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -1177,32 +1096,23 @@
       "replacement": {
         "call": {
           "head": {
-            "sym": "NeedLabel"
+            "sym": "LengthLabel"
           },
           "args": [
             {
               "call": {
                 "head": {
-                  "sym": "LengthLabel"
+                  "sym": "SecondEdgeLabel"
                 },
                 "args": [
                   {
                     "call": {
                       "head": {
-                        "sym": "SecondEdgeLabel"
+                        "sym": "EdgesLabel"
                       },
                       "args": [
                         {
-                          "call": {
-                            "head": {
-                              "sym": "EdgesLabel"
-                            },
-                            "args": [
-                              {
-                                "var": "triangle"
-                              }
-                            ]
-                          }
+                          "var": "triangle"
                         }
                       ]
                     }
@@ -1220,32 +1130,23 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "LengthLabel"
             },
             "args": [
               {
                 "call": {
                   "head": {
-                    "sym": "LengthLabel"
+                    "sym": "SecondEdgeLabel"
                   },
                   "args": [
                     {
                       "call": {
                         "head": {
-                          "sym": "SecondEdgeLabel"
+                          "sym": "EdgesLabel"
                         },
                         "args": [
                           {
-                            "call": {
-                              "head": {
-                                "sym": "EdgesLabel"
-                              },
-                              "args": [
-                                {
-                                  "var": "triangle"
-                                }
-                              ]
-                            }
+                            "var": "triangle"
                           }
                         ]
                       }
@@ -2260,32 +2161,23 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "LengthLabel"
             },
             "args": [
               {
                 "call": {
                   "head": {
-                    "sym": "LengthLabel"
+                    "sym": "SecondEdgeLabel"
                   },
                   "args": [
                     {
                       "call": {
                         "head": {
-                          "sym": "SecondEdgeLabel"
+                          "sym": "EdgesLabel"
                         },
                         "args": [
                           {
-                            "call": {
-                              "head": {
-                                "sym": "EdgesLabel"
-                              },
-                              "args": [
-                                {
-                                  "var": "triangle"
-                                }
-                              ]
-                            }
+                            "var": "triangle"
                           }
                         ]
                       }
@@ -2726,20 +2618,11 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "AnglesLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "AnglesLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -3223,20 +3106,11 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "AnglesLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "AnglesLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -3549,20 +3423,11 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "AnglesLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "AnglesLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -3875,20 +3740,11 @@
         {
           "call": {
             "head": {
-              "sym": "NeedLabel"
+              "sym": "AnglesLabel"
             },
             "args": [
               {
-                "call": {
-                  "head": {
-                    "sym": "AnglesLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
+                "var": "triangle"
               }
             ]
           }
@@ -4137,20 +3993,11 @@
                 {
                   "call": {
                     "head": {
-                      "sym": "GivenLabel"
+                      "sym": "TriangleLabel"
                     },
                     "args": [
                       {
-                        "call": {
-                          "head": {
-                            "sym": "TriangleLabel"
-                          },
-                          "args": [
-                            {
-                              "sym": "TaoProblem11TriangleLabel"
-                            }
-                          ]
-                        }
+                        "sym": "TaoProblem11TriangleLabel"
                       }
                     ]
                   }
@@ -4158,7 +4005,31 @@
                 {
                   "call": {
                     "head": {
-                      "sym": "NeedLabel"
+                      "sym": "SideLengthsLabel"
+                    },
+                    "args": [
+                      {
+                        "sym": "TaoProblem11TriangleLabel"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "call": {
+                    "head": {
+                      "sym": "AnglesLabel"
+                    },
+                    "args": [
+                      {
+                        "sym": "TaoProblem11TriangleLabel"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "call": {
+                    "head": {
+                      "sym": "ArithmeticProgressionLabel"
                     },
                     "args": [
                       {
@@ -4179,13 +4050,13 @@
                 {
                   "call": {
                     "head": {
-                      "sym": "NeedLabel"
+                      "sym": "CommonDifferenceLabel"
                     },
                     "args": [
                       {
                         "call": {
                           "head": {
-                            "sym": "AnglesLabel"
+                            "sym": "SideLengthsLabel"
                           },
                           "args": [
                             {
@@ -4200,80 +4071,11 @@
                 {
                   "call": {
                     "head": {
-                      "sym": "GivenLabel"
+                      "sym": "AreaLabel"
                     },
                     "args": [
                       {
-                        "call": {
-                          "head": {
-                            "sym": "ArithmeticProgressionLabel"
-                          },
-                          "args": [
-                            {
-                              "call": {
-                                "head": {
-                                  "sym": "SideLengthsLabel"
-                                },
-                                "args": [
-                                  {
-                                    "sym": "TaoProblem11TriangleLabel"
-                                  }
-                                ]
-                              }
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "call": {
-                    "head": {
-                      "sym": "GivenLabel"
-                    },
-                    "args": [
-                      {
-                        "call": {
-                          "head": {
-                            "sym": "CommonDifferenceLabel"
-                          },
-                          "args": [
-                            {
-                              "call": {
-                                "head": {
-                                  "sym": "SideLengthsLabel"
-                                },
-                                "args": [
-                                  {
-                                    "sym": "TaoProblem11TriangleLabel"
-                                  }
-                                ]
-                              }
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "call": {
-                    "head": {
-                      "sym": "GivenLabel"
-                    },
-                    "args": [
-                      {
-                        "call": {
-                          "head": {
-                            "sym": "AreaLabel"
-                          },
-                          "args": [
-                            {
-                              "sym": "TaoProblem11TriangleLabel"
-                            }
-                          ]
-                        }
+                        "sym": "TaoProblem11TriangleLabel"
                       }
                     ]
                   }

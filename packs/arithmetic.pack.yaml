@@ -5,15 +5,12 @@ name: arithmetic
 description: Generic arithmetic-progression knowledge
 
 rules:
-  - id: given_common_difference_becomes_parameter
+  - id: common_difference_becomes_parameter
     pattern:
       call:
-        head: {sym: GivenLabel}
+        head: {sym: CommonDifferenceLabel}
         args:
-          - call:
-              head: {sym: CommonDifferenceLabel}
-              args:
-                - {var: object}
+          - {var: object}
     replacement:
       call:
         head: {sym: ParameterLabel}
@@ -22,21 +19,6 @@ rules:
               head: {sym: CommonDifferenceLabel}
               args:
                 - {var: object}
-
-  - id: given_arithmetic_progression_is_available
-    pattern:
-      call:
-        head: {sym: GivenLabel}
-        args:
-          - call:
-              head: {sym: ArithmeticProgressionLabel}
-              args:
-                - {var: object}
-    replacement:
-      call:
-        head: {sym: ArithmeticProgressionLabel}
-        args:
-          - {var: object}
 
   - id: arithmetic_progression_has_middle_average
     pattern:
