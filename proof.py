@@ -497,9 +497,18 @@ class FilterApplicableRules(M.Edge):
             return M.truth_value
         p_head = TermHead(pattern, self.registry)()
         c_head = TermHead(current, self.registry)()
-        if M.IdentityCompare(p_head, M.EmptyList)() is M.truth_value:
+        if M.AndAtom(
+            M.IdentityCompare(p_head, M.EmptyList)(),
+            M.IdentityCompare(c_head, M.EmptyList)(),
+        )() is M.truth_value:
+            match = M.Match(pattern, current)()
+            if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
+                return M.truth_value
             return M.false_value
-        if M.IdentityCompare(c_head, M.EmptyList)() is M.truth_value:
+        if M.OrAtom(
+            M.IdentityCompare(p_head, M.EmptyList)(),
+            M.IdentityCompare(c_head, M.EmptyList)(),
+        )() is M.truth_value:
             return M.false_value
         if M.IdentityCompare(p_head, c_head)() is M.truth_value:
             return M.truth_value

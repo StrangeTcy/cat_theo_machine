@@ -2650,10 +2650,7 @@ class CompareSearchModes(M.Edge):
             SearchJobVisited(base_job)(),
             SearchJobVisited(returned_job)(),
         )
-        merged_theorem_cache = self._merge_tree(
-            SearchJobTheoremRuleCache(base_job)(),
-            SearchJobTheoremRuleCache(returned_job)(),
-        )
+        merged_theorem_cache = M.EmptyList
         rewrite_rules = SearchJobRewriteRules(base_job)()
         if M.IdentityCompare(rewrite_rules, M.EmptyList)() is M.truth_value:
             rewrite_rules = SearchJobRewriteRules(returned_job)()
@@ -2725,7 +2722,7 @@ class CompareSearchModes(M.Edge):
             active_packets = M.Zero
         completed_packets = self._succ_nat_local(self._comparison_state_completed_packets(prior_state))
 
-        merged_search_memo = self._merge_tree(self._comparison_state_search_memo(prior_state), returned_search_memo)
+        merged_search_memo = self._comparison_state_search_memo(prior_state)
 
         if M.Compare(returned_job, M.EmptyList)() is M.truth_value:
             next_job = self._comparison_state_job(prior_state)
@@ -3663,7 +3660,7 @@ class CompareSearchModes(M.Edge):
             frontier_peak,
             M.EmptyList,
             SearchJobVisited(job)(),
-            kernel._theorem_rule_cache,
+            M.EmptyList,
             kernel._rewrite_rules,
             remaining_count,
         )
@@ -4135,7 +4132,7 @@ class CompareSearchModes(M.Edge):
                         frontier_peak,
                         M.EmptyList,
                         SearchJobVisited(job)(),
-                        kernel._theorem_rule_cache,
+                        M.EmptyList,
                         kernel._rewrite_rules,
                         M.Zero,
                     )
@@ -4262,7 +4259,7 @@ class CompareSearchModes(M.Edge):
                 frontier_peak,
                 M.EmptyList,
                 SearchJobVisited(job)(),
-                kernel._theorem_rule_cache,
+                M.EmptyList,
                 kernel._rewrite_rules,
                 M.Zero,
             )
@@ -4493,9 +4490,9 @@ class CompareSearchModes(M.Edge):
         parent_job = self._comparison_state_job(state)
         return SearchWorkerPacket(
             packet_descriptor,
-            self._comparison_state_search_memo(state),
+            M.EmptyList,
             SearchJobVisited(parent_job)(),
-            SearchJobTheoremRuleCache(parent_job)(),
+            M.EmptyList,
             SearchJobRewriteRules(parent_job)(),
             step_budget,
             Pmod.DEBUG_TRACE_STATE(),
@@ -4545,7 +4542,7 @@ class CompareSearchModes(M.Edge):
             M.Zero,
             M.EmptyList,
             SearchJobVisited(parent_job)(),
-            SearchJobTheoremRuleCache(parent_job)(),
+            M.EmptyList,
             SearchJobRewriteRules(parent_job)(),
             M.one,
         )()
