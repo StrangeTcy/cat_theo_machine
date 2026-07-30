@@ -4,11 +4,22 @@ import sys
 import threading
 
 from . import machine as M
-from .heuristics import HeuristicRuleOrder
+from .heuristics import (
+    AnchorPreferenceHeuristicCriterionFour,
+    AnchorPreferenceHeuristicCriterionOne,
+    AnchorPreferenceHeuristicCriterionThree,
+    AnchorPreferenceHeuristicCriterionTwo,
+    DefaultAnchorPreferenceHeuristic,
+    HeuristicRuleOrder,
+)
 from .labels import (
     DerivationLabel,
     GoalHeadOrderLabel,
     KnowledgeLabel,
+    PreferEarlierPremiseLabel,
+    PreferFewerVariablesLabel,
+    PreferGreaterSpecificityLabel,
+    PreferLowerFanoutLabel,
     ProofCostLabel,
     RewriteActionLabel,
     SearchAttemptLabel,
@@ -466,16 +477,152 @@ class ContainsVar(M.Edge):
         return self.result
 
 
+class ChooseRuleAnchor(M.Edge):
+    def __init__(self, heuristic, rule, current, registry):
+        self.registry = registry
+        self.heuristic = heuristic
+        self.current = current
+        self.result = self._choose(RulePremises(rule)(), M.Zero, M.EmptyList, M.Zero)
+        super().__init__(
+            inputs=M.Pair(heuristic, M.Pair(rule, M.Pair(current, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def _succ(self, x):
+        pair = M.Succ(x, self.registry)()
+        self.registry = M.Head(M.Tail(pair)())()
+        return M.Head(pair)()
+
+    def _add(self, left, right):
+        pair = M.Add(left, right, self.registry)()
+        self.registry = M.Head(M.Tail(pair)())()
+        return M.Head(pair)()
+
+    def _fact_count(self, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.Zero
+        return self._succ(self._fact_count(M.Tail(facts)()))
+
+    def _facts(self):
+        if IsKnowledge(self.current)() is M.truth_value:
+            return KnowledgeFacts(self.current)()
+        return M.Pair(self.current, M.EmptyList)
+
+    def _premise_head(self, premise):
+        return TermHead(premise, self.registry)()
+
+    def _head_count(self, premise_head, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.Zero
+        fact = M.Head(facts)()
+        rest = self._head_count(premise_head, M.Tail(facts)())
+        fact_head = TermHead(fact, self.registry)()
+        if M.IdentityCompare(fact_head, premise_head)() is M.truth_value:
+            return self._succ(rest)
+        return rest
+
+    def _fanout(self, premise):
+        premise_head = self._premise_head(premise)
+        if M.IdentityCompare(premise_head, M.EmptyList)() is M.truth_value:
+            return self._fact_count(self._facts())
+        return self._head_count(premise_head, self._facts())
+
+    def _var_count(self, term):
+        if IsVarPattern(term)() is M.truth_value:
+            return M.one
+        if M.IsPair(term)() is M.truth_value:
+            return self._add(self._var_count(M.Head(term)()), self._var_count(M.Tail(term)()))
+        return M.Zero
+
+    def _specificity(self, term):
+        if IsVarPattern(term)() is M.truth_value:
+            return M.Zero
+        if M.IsPair(term)() is M.truth_value:
+            return self._succ(self._add(self._specificity(M.Head(term)()), self._specificity(M.Tail(term)())))
+        return M.one
+
+    def _criterion_prefers_left(self, criterion, left_premise, left_index, right_premise, right_index):
+        if M.IdentityCompare(criterion, PreferLowerFanoutLabel)() is M.truth_value:
+            left_value = self._fanout(left_premise)
+            right_value = self._fanout(right_premise)
+            if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
+                return M.truth_value
+            if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
+                return M.false_value
+            return M.EmptyList
+        if M.IdentityCompare(criterion, PreferFewerVariablesLabel)() is M.truth_value:
+            left_value = self._var_count(left_premise)
+            right_value = self._var_count(right_premise)
+            if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
+                return M.truth_value
+            if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
+                return M.false_value
+            return M.EmptyList
+        if M.IdentityCompare(criterion, PreferGreaterSpecificityLabel)() is M.truth_value:
+            left_value = self._specificity(left_premise)
+            right_value = self._specificity(right_premise)
+            if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
+                return M.truth_value
+            if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
+                return M.false_value
+            return M.EmptyList
+        if M.IdentityCompare(criterion, PreferEarlierPremiseLabel)() is M.truth_value:
+            if M.NatLess(left_index, right_index, self.registry)() is M.truth_value:
+                return M.truth_value
+            if M.NatLess(right_index, left_index, self.registry)() is M.truth_value:
+                return M.false_value
+            return M.EmptyList
+        return M.EmptyList
+
+    def _prefer(self, left_premise, left_index, right_premise, right_index):
+        criterion = AnchorPreferenceHeuristicCriterionOne(self.heuristic)()
+        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
+            return choice
+        criterion = AnchorPreferenceHeuristicCriterionTwo(self.heuristic)()
+        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
+            return choice
+        criterion = AnchorPreferenceHeuristicCriterionThree(self.heuristic)()
+        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
+            return choice
+        criterion = AnchorPreferenceHeuristicCriterionFour(self.heuristic)()
+        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
+            return choice
+        return M.false_value
+
+    def _choose(self, premises, premise_index, best, best_index):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return best
+        premise = M.Head(premises)()
+        next_best = best
+        next_best_index = best_index
+        if M.IdentityCompare(best, M.EmptyList)() is M.truth_value:
+            next_best = premise
+            next_best_index = premise_index
+        elif self._prefer(premise, premise_index, best, best_index) is M.truth_value:
+            next_best = premise
+            next_best_index = premise_index
+        return self._choose(M.Tail(premises)(), self._succ(premise_index), next_best, next_best_index)
+
+    def __call__(self):
+        return self.result
+
+
 class FilterApplicableRules(M.Edge):
     def __init__(self, rules, current, registry):
         self.registry = registry
+        self.current = current
+        self._anchor_heuristic = DefaultAnchorPreferenceHeuristic()()
         self.result = self._filter(rules, current)
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def _rule_anchor(self, rule):
         premises = RulePremises(rule)()
         if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
-            return M.Head(premises)()
+            return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry)()
         return RulePattern(rule)()
 
     def _anchor_matches_facts(self, anchor, facts):

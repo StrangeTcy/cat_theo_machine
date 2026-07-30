@@ -175,6 +175,22 @@ class GoalHeadOrderLabel(ConstructorLabel):
     pass
 
 
+class PreferLowerFanoutLabel(ConstructorLabel):
+    pass
+
+
+class PreferFewerVariablesLabel(ConstructorLabel):
+    pass
+
+
+class PreferGreaterSpecificityLabel(ConstructorLabel):
+    pass
+
+
+class PreferEarlierPremiseLabel(ConstructorLabel):
+    pass
+
+
 class KnowledgeLabel(ConstructorLabel):
     pass
 
@@ -725,6 +741,10 @@ AStarLabel = AStarLabel()
 RewriteDFSLabel = RewriteDFSLabel()
 InsertionOrderLabel = InsertionOrderLabel()
 GoalHeadOrderLabel = GoalHeadOrderLabel()
+PreferLowerFanoutLabel = PreferLowerFanoutLabel()
+PreferFewerVariablesLabel = PreferFewerVariablesLabel()
+PreferGreaterSpecificityLabel = PreferGreaterSpecificityLabel()
+PreferEarlierPremiseLabel = PreferEarlierPremiseLabel()
 KnowledgeLabel = KnowledgeLabel()
 StepLabel = StepLabel()
 DerivationLabel = DerivationLabel()
@@ -898,6 +918,10 @@ def sync_from_namespace(namespace):
         "RewriteDFSLabel",
         "InsertionOrderLabel",
         "GoalHeadOrderLabel",
+        "PreferLowerFanoutLabel",
+        "PreferFewerVariablesLabel",
+        "PreferGreaterSpecificityLabel",
+        "PreferEarlierPremiseLabel",
         "KnowledgeLabel",
         "StepLabel",
         "DerivationLabel",

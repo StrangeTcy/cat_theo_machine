@@ -4,6 +4,12 @@ from .core import Edge, EmptyList, Head, Pair, Tail
 from . import machine as M
 from . import proof as Pmod
 from . import trees as Tmod
+from .labels import (
+    PreferEarlierPremiseLabel,
+    PreferFewerVariablesLabel,
+    PreferGreaterSpecificityLabel,
+    PreferLowerFanoutLabel,
+)
 
 
 class HeuristicGoalHeadIndex(Edge):
@@ -90,6 +96,74 @@ class HeuristicGoalHeadAllowsSubterm(Edge):
             found = Tmod.TreeLookup(goal_head_index, head, registry)()
             self.result = M.false_value if M.IdentityCompare(found, M.EmptyList)() is M.truth_value else M.truth_value
         super().__init__(inputs=Pair(goal_head_index, Pair(subterm, Pair(registry, EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorPreferenceHeuristic(Edge):
+    def __init__(self, criterion_one, criterion_two, criterion_three, criterion_four):
+        self.result = Pair(
+            criterion_one,
+            Pair(criterion_two, Pair(criterion_three, Pair(criterion_four, EmptyList))),
+        )
+        super().__init__(
+            inputs=Pair(
+                criterion_one,
+                Pair(criterion_two, Pair(criterion_three, Pair(criterion_four, EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorPreferenceHeuristicCriterionOne(Edge):
+    def __init__(self, heuristic):
+        self.result = Head(heuristic)()
+        super().__init__(inputs=Pair(heuristic, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorPreferenceHeuristicCriterionTwo(Edge):
+    def __init__(self, heuristic):
+        self.result = Head(Tail(heuristic)())()
+        super().__init__(inputs=Pair(heuristic, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorPreferenceHeuristicCriterionThree(Edge):
+    def __init__(self, heuristic):
+        self.result = Head(Tail(Tail(heuristic)())())()
+        super().__init__(inputs=Pair(heuristic, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorPreferenceHeuristicCriterionFour(Edge):
+    def __init__(self, heuristic):
+        self.result = Head(Tail(Tail(Tail(heuristic)())())())()
+        super().__init__(inputs=Pair(heuristic, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefaultAnchorPreferenceHeuristic(Edge):
+    def __init__(self):
+        self.result = AnchorPreferenceHeuristic(
+            PreferLowerFanoutLabel,
+            PreferFewerVariablesLabel,
+            PreferGreaterSpecificityLabel,
+            PreferEarlierPremiseLabel,
+        )()
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         return self.result
