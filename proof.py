@@ -4,6 +4,7 @@ import sys
 import threading
 
 from . import machine as M
+from . import knowledge as K
 from .heuristics import (
     AnchorPreferenceHeuristicCriterionFour,
     AnchorPreferenceHeuristicCriterionOne,
@@ -364,44 +365,9 @@ class KnowledgeFacts(M.Edge):
 class NormalizeKnowledgeFacts(M.Edge):
     def __init__(self, facts, registry):
         self.registry = registry
-        self.result = self._sort_all(facts, M.EmptyList)
+        trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, registry)()
+        self.result = K.KnowledgeTrieFacts(trie, registry)()
         super().__init__(inputs=M.Pair(facts, M.Pair(registry, M.EmptyList)), results=self.result)
-
-    def _key_less(self, left, right):
-        if M.Compare(left, right)() is M.truth_value:
-            return M.false_value
-        left_is_pair = M.IsPair(left)()
-        right_is_pair = M.IsPair(right)()
-        if left_is_pair is M.truth_value:
-            if right_is_pair is M.false_value:
-                return M.truth_value
-            left_head = M.Head(left)()
-            right_head = M.Head(right)()
-            if M.Compare(left_head, right_head)() is M.truth_value:
-                return self._key_less(M.Tail(left)(), M.Tail(right)())
-            return self._key_less(left_head, right_head)
-        if right_is_pair is M.truth_value:
-            return M.false_value
-        return M.IdentityLess(left, right)()
-
-    def _insert_sorted(self, fact, sorted_facts):
-        if M.IdentityCompare(sorted_facts, M.EmptyList)() is M.truth_value:
-            return M.Pair(fact, M.EmptyList)
-        current = M.Head(sorted_facts)()
-        if M.TermEqual(fact, current)() is M.truth_value:
-            return sorted_facts
-        fact_key = M.ExactKey(fact, self.registry)()
-        current_key = M.ExactKey(current, self.registry)()
-        if self._key_less(fact_key, current_key) is M.truth_value:
-            return M.Pair(fact, sorted_facts)
-        return M.Pair(current, self._insert_sorted(fact, M.Tail(sorted_facts)()))
-
-    def _sort_all(self, facts, sorted_facts):
-        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
-            return sorted_facts
-        fact = M.Head(facts)()
-        next_sorted = self._insert_sorted(fact, sorted_facts)
-        return self._sort_all(M.Tail(facts)(), next_sorted)
 
     def __call__(self):
         return self.result
@@ -616,6 +582,9 @@ class FilterApplicableRules(M.Edge):
         self.registry = registry
         self.current = current
         self._anchor_heuristic = DefaultAnchorPreferenceHeuristic()()
+        self._knowledge_head_index = M.EmptyList
+        if IsKnowledge(current)() is M.truth_value:
+            self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
         self.result = self._filter(rules, current)
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(registry, M.EmptyList))), results=self.result)
 
@@ -638,7 +607,13 @@ class FilterApplicableRules(M.Edge):
 
     def _rule_head_applicable(self, rule, current):
         if IsKnowledge(current)() is M.truth_value:
-            return self._anchor_matches_facts(self._rule_anchor(rule), KnowledgeFacts(current)())
+            anchor = self._rule_anchor(rule)
+            facts = KnowledgeFacts(current)()
+            premise_head = TermHead(anchor, self.registry)()
+            if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+                    facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+            return self._anchor_matches_facts(anchor, facts)
         pattern = RulePattern(rule)()
         if IsVarPattern(pattern)() is M.truth_value:
             return M.truth_value
@@ -677,23 +652,18 @@ class FilterApplicableRules(M.Edge):
 class GoalHeadApplicableRuleBuckets(M.Edge):
     def __init__(self, rules, current, goal, registry):
         self.registry = registry
-        buckets = self._bucket(rules, current, goal, M.EmptyList, M.EmptyList, M.EmptyList)
-        immediate_bucket = M.Reverse(M.Head(buckets)())()
-        goal_bucket = M.Reverse(M.Head(M.Tail(buckets)())())()
-        other_bucket = M.Reverse(M.Head(M.Tail(M.Tail(buckets)())())())()
-        self.result = M.Pair(immediate_bucket, M.Pair(goal_bucket, M.Pair(other_bucket, M.EmptyList)))
+        self._match_memo = M.EmptyTree
+        self._knowledge_head_index = M.EmptyList
+        if IsKnowledge(current)() is M.truth_value:
+            self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        goal_head = TermHead(goal, self.registry)()
+        by_replacement = K.RulesByReplacementHeadInsertChain(M.EmptyTree, rules, self.registry)()
+        goal_bucket = K.RulesByHeadBucket(by_replacement, goal_head, self.registry)()
+        immediate_bucket = self._filter_immediate(goal_bucket, current, goal)
+        remaining_goal_bucket = self._without_rules(goal_bucket, immediate_bucket)
+        other_bucket = self._without_rules(rules, goal_bucket)
+        self.result = M.Pair(immediate_bucket, M.Pair(remaining_goal_bucket, M.Pair(other_bucket, M.EmptyList)))
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
-
-    def _replacement_matches_goal_head(self, rule, goal):
-        r_head = TermHead(RuleReplacement(rule)(), self.registry)()
-        g_head = TermHead(goal, self.registry)()
-        if M.IdentityCompare(r_head, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        if M.IdentityCompare(g_head, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        if M.IdentityCompare(r_head, g_head)() is M.truth_value:
-            return M.truth_value
-        return M.false_value
 
     def _knowledge_has_fact(self, facts, target):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
@@ -703,14 +673,26 @@ class GoalHeadApplicableRuleBuckets(M.Edge):
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
-    def _match_premises(self, premises, facts, bindings):
+    def _match_premises(self, rule, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(M.truth_value, bindings)
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
-        return self._match_premise_against_facts(premise, rest, facts, facts, bindings)
+        candidate_facts = facts
+        premise_head = TermHead(premise, self.registry)()
+        if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+            memo_hit = K.MatchMemoLookup(self._match_memo, rule, candidate_facts, self.registry)()
+            if M.IdentityCompare(memo_hit, M.EmptyList)() is M.false_value:
+                return memo_hit
+        result = self._match_premise_against_facts(rule, premise, rest, candidate_facts, facts, bindings)
+        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+            self._match_memo = K.MatchMemoStore(self._match_memo, rule, candidate_facts, result, self.registry)()
+        return result
 
-    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings):
+    def _match_premise_against_facts(self, rule, premise, rest_premises, facts, all_facts, bindings):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.Pair(M.false_value, M.EmptyList)
 
@@ -723,11 +705,11 @@ class GoalHeadApplicableRuleBuckets(M.Edge):
             merged_flag = M.Head(merged)()
             merged_bindings = M.Tail(merged)()
             if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
-                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings)
+                rest_result = self._match_premises(rule, rest_premises, all_facts, merged_bindings)
                 if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
                     return rest_result
 
-        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
+        return self._match_premise_against_facts(rule, premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
 
     def _rule_reaches_goal_immediately(self, rule, current, goal):
         if IsKnowledge(current)() is M.false_value:
@@ -740,7 +722,7 @@ class GoalHeadApplicableRuleBuckets(M.Edge):
             return M.TermEqual(M.Head(inst)(), goal)()
 
         facts = KnowledgeFacts(current)()
-        bindings_pair = self._match_premises(RulePremises(rule)(), facts, M.EmptyList)
+        bindings_pair = self._match_premises(rule, RulePremises(rule)(), facts, M.EmptyList)
         bindings_flag = M.Head(bindings_pair)()
         bindings = M.Tail(bindings_pair)()
         if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
@@ -749,18 +731,30 @@ class GoalHeadApplicableRuleBuckets(M.Edge):
         conclusion = M.Head(inst)()
         return M.TermEqual(conclusion, goal)()
 
-    def _bucket(self, rules, current, goal, immediate_acc, goal_acc, other_acc):
-        if M.Compare(rules, M.EmptyList)() is M.truth_value:
-            return M.Pair(immediate_acc, M.Pair(goal_acc, M.Pair(other_acc, M.EmptyList)))
-        r = M.Head(rules)()
-        rest = M.Tail(rules)()
-        immediate_goal = self._rule_reaches_goal_immediately(r, current, goal)
-        if immediate_goal is M.truth_value:
-            return self._bucket(rest, current, goal, M.Pair(r, immediate_acc), goal_acc, other_acc)
-        toward_goal = self._replacement_matches_goal_head(r, goal)
-        if toward_goal is M.truth_value:
-            return self._bucket(rest, current, goal, immediate_acc, M.Pair(r, goal_acc), other_acc)
-        return self._bucket(rest, current, goal, immediate_acc, goal_acc, M.Pair(r, other_acc))
+    def _rule_in_chain(self, rule, rules):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Head(rules)(), rule)() is M.truth_value:
+            return M.truth_value
+        return self._rule_in_chain(rule, M.Tail(rules)())
+
+    def _without_rules(self, rules, removed_rules):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rule = M.Head(rules)()
+        rest = self._without_rules(M.Tail(rules)(), removed_rules)
+        if self._rule_in_chain(rule, removed_rules) is M.truth_value:
+            return rest
+        return M.Pair(rule, rest)
+
+    def _filter_immediate(self, rules, current, goal):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rule = M.Head(rules)()
+        rest = self._filter_immediate(M.Tail(rules)(), current, goal)
+        if self._rule_reaches_goal_immediately(rule, current, goal) is M.truth_value:
+            return M.Pair(rule, rest)
+        return rest
 
     def __call__(self):
         return self.result
@@ -1381,6 +1375,8 @@ class BuildDerivation(M.Edge):
         if bindings is None:
             bindings = M.EmptyList
         self.bindings = bindings
+        self._knowledge_head_index = M.EmptyList
+        self._match_memo = M.EmptyTree
         _debug("build-derivation: start=" + _debug_term(start, registry))
         _debug("build-derivation: plan=" + PrettyPlanChain(plan, registry)())
         if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
@@ -1405,14 +1401,26 @@ class BuildDerivation(M.Edge):
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
-    def _match_premises(self, premises, facts, bindings):
+    def _match_premises(self, rule, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(M.truth_value, bindings)
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
-        return self._match_premise_against_facts(premise, rest, facts, facts, bindings)
+        candidate_facts = facts
+        premise_head = TermHead(premise, self.registry)()
+        if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+            memo_hit = K.MatchMemoLookup(self._match_memo, rule, candidate_facts, self.registry)()
+            if M.IdentityCompare(memo_hit, M.EmptyList)() is M.false_value:
+                return memo_hit
+        result = self._match_premise_against_facts(rule, premise, rest, candidate_facts, facts, bindings)
+        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+            self._match_memo = K.MatchMemoStore(self._match_memo, rule, candidate_facts, result, self.registry)()
+        return result
 
-    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings):
+    def _match_premise_against_facts(self, rule, premise, rest_premises, facts, all_facts, bindings):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.Pair(M.false_value, M.EmptyList)
 
@@ -1425,11 +1433,11 @@ class BuildDerivation(M.Edge):
             merged_flag = M.Head(merged)()
             merged_bindings = M.Tail(merged)()
             if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
-                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings)
+                rest_result = self._match_premises(rule, rest_premises, all_facts, merged_bindings)
                 if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
                     return rest_result
 
-        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
+        return self._match_premise_against_facts(rule, premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
 
     def _premises_satisfied_by_bindings(self, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
@@ -1444,6 +1452,8 @@ class BuildDerivation(M.Edge):
 
     def _apply_theorem_rule_to_knowledge(self, rule, current, registry):
         facts = KnowledgeFacts(current)()
+        self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, registry)()
+        self._match_memo = M.EmptyTree
         bindings_are_empty = M.IdentityCompare(self.bindings, M.EmptyList)()
         if bindings_are_empty is M.false_value:
             _debug("apply-action: theorem replay using concrete bindings")
@@ -1458,7 +1468,7 @@ class BuildDerivation(M.Edge):
             _debug("apply-action: concrete theorem conclusion added")
             return NormalizeKnowledge(Knowledge(M.Pair(conclusion, facts))(), registry)()
 
-        bindings_pair = self._match_premises(RulePremises(rule)(), facts, self.bindings)
+        bindings_pair = self._match_premises(rule, RulePremises(rule)(), facts, self.bindings)
         bindings_flag = M.Head(bindings_pair)()
         bindings = M.Tail(bindings_pair)()
         if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
@@ -1842,6 +1852,8 @@ class SearchAttemptSucceeded(M.Edge):
 class Prove(M.Edge):
     def __init__(self, graph, start, goal, rules, heuristic, registry):
         self.graph = graph
+        self._knowledge_head_index = M.EmptyList
+        self._match_memo = M.EmptyTree
         self.start = NormalizeKnowledge(start, registry)()
         self.goal = NormalizeKnowledge(goal, registry)()
         self.rules = rules
@@ -1877,14 +1889,26 @@ class Prove(M.Edge):
             return M.false_value
         return self._premises_satisfied_by_bindings(M.Tail(premises)(), facts, bindings)
 
-    def _match_premises(self, premises, facts, bindings):
+    def _match_premises(self, rule, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(M.truth_value, bindings)
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
-        return self._match_premise_against_facts(premise, rest, facts, facts, bindings)
+        candidate_facts = facts
+        premise_head = TermHead(premise, self.registry)()
+        if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+            memo_hit = K.MatchMemoLookup(self._match_memo, rule, candidate_facts, self.registry)()
+            if M.IdentityCompare(memo_hit, M.EmptyList)() is M.false_value:
+                return memo_hit
+        result = self._match_premise_against_facts(rule, premise, rest, candidate_facts, facts, bindings)
+        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+            self._match_memo = K.MatchMemoStore(self._match_memo, rule, candidate_facts, result, self.registry)()
+        return result
 
-    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings):
+    def _match_premise_against_facts(self, rule, premise, rest_premises, facts, all_facts, bindings):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.Pair(M.false_value, M.EmptyList)
 
@@ -1897,16 +1921,18 @@ class Prove(M.Edge):
             merged_flag = M.Head(merged)()
             merged_bindings = M.Tail(merged)()
             if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
-                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings)
+                rest_result = self._match_premises(rule, rest_premises, all_facts, merged_bindings)
                 if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
                     return rest_result
 
-        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
+        return self._match_premise_against_facts(rule, premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
 
     def _direct_next_term(self, rule, current):
         if IsKnowledge(current)() is M.truth_value:
             facts = KnowledgeFacts(current)()
-            bindings_pair = self._match_premises(RulePremises(rule)(), facts, M.EmptyList)
+            self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
+            self._match_memo = M.EmptyTree
+            bindings_pair = self._match_premises(rule, RulePremises(rule)(), facts, M.EmptyList)
             bindings_flag = M.Head(bindings_pair)()
             bindings = M.Tail(bindings_pair)()
             if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
