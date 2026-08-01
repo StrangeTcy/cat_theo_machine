@@ -3,24 +3,62 @@ from __future__ import annotations
 from . import machine as M
 
 
-class FactHead(M.Edge):
-    """Head label of a fact.  A fact is Pair(label, args); the head is Head(fact).
-    A non-pair atom is its own head (it is a bare symbol/constant)."""
+class HeadBucketKey(M.Edge):
+    """Identity-stable head key for bucket indexing.
 
-    def __init__(self, fact):
-        if M.IsPair(fact)() is M.truth_value:
-            self.result = M.Head(fact)()
+    Every fact is Pair(label, args); the head label is Head(fact).
+    A non-pair atom has no concrete head and maps to EmptyList (the
+    residual/non-bucketable key).
+
+    The key atom is memoised on the registry via a cache trie so that
+    the same source term always returns the same atom by IdentityCompare.
+    Both the write side (KnowledgeHeadIndexInsert) and the read side
+    (KnowledgeHeadIndexBucket, _match_premises) use THIS edge and only
+    this edge, eliminating the FactHead-vs-TermHead divergence."""
+
+    _CACHE_LABEL = M.Atom()
+
+    def __init__(self, term, registry):
+        self.registry = registry
+        self.result = self._compute(term, registry)
+        super().__init__(inputs=M.Pair(term, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _compute(self, term, registry):
+        if M.IsPair(term)() is M.truth_value:
+            raw = M.Head(term)()
+            return self._memoise(raw, registry)
+        return M.EmptyList
+
+    def _memoise(self, atom, registry):
+        key = M.ExactKey(atom, registry)()
+        cached = M.TreeLookup(HeadBucketKey._CACHE_LABEL, key, registry)()
+        if M.IdentityCompare(cached, M.EmptyList)() is M.false_value:
+            return cached
+        fresh = M.Atom()
+        HeadBucketKey._CACHE_LABEL = M.TreeInsert(HeadBucketKey._CACHE_LABEL, key, fresh, registry)()
+        return fresh
+
+    def __call__(self):
+        return self.result
+
+
+class IsBucketable(M.Edge):
+    """A term is bucketable iff its HeadBucketKey is not EmptyList."""
+
+    def __init__(self, term, registry):
+        key = HeadBucketKey(term, registry)()
+        if M.IdentityCompare(key, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
         else:
-            self.result = fact
-        super().__init__(inputs=M.Pair(fact, M.EmptyList), results=self.result)
+            self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.Pair(registry, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
 
 
 class FactKey(M.Edge):
-    """Structural key of a fact under a registry.  Same notion of equality the
-    prover already uses (ExactKey), so two facts that are TermEqual share a key."""
+    """Structural key of a fact under a registry."""
 
     def __init__(self, fact, registry):
         self.result = M.ExactKey(fact, registry)()
@@ -31,12 +69,7 @@ class FactKey(M.Edge):
 
 
 class KnowledgeTrieInsert(M.Edge):
-    """Insert one fact into a knowledge trie.
-
-    The trie is a plain M.Tree (the existing Patricia index) keyed on the
-    fact's structural ExactKey.  Insertion is incremental: O(key depth), with
-    structural sharing of every un-touched subtrie.  The trie IS the sorted
-    order, so there is no separate normalisation pass."""
+    """Insert one fact into a knowledge trie keyed on the fact's ExactKey."""
 
     def __init__(self, knowledge, fact, registry):
         self.registry = registry
@@ -52,10 +85,6 @@ class KnowledgeTrieInsert(M.Edge):
 
 
 class KnowledgeTrieInsertChain(M.Edge):
-    """Insert a chain of facts into a knowledge trie, one insert per fact.
-    Replaces NormalizeKnowledgeFacts: the same inputs produce a deterministically
-    ordered structure, but by construction rather than by an O(n^2) sort."""
-
     def __init__(self, knowledge, facts, registry):
         self.registry = registry
         self.result = self._insert_chain(knowledge, facts)
@@ -76,8 +105,6 @@ class KnowledgeTrieInsertChain(M.Edge):
 
 
 class KnowledgeTrieLookup(M.Edge):
-    """Look a fact up by its structural key.  O(key depth), not O(n)."""
-
     def __init__(self, knowledge, fact, registry):
         self.registry = registry
         key = FactKey(fact, registry)()
@@ -92,8 +119,6 @@ class KnowledgeTrieLookup(M.Edge):
 
 
 class KnowledgeTrieHasFact(M.Edge):
-    """Membership test.  Empty result means absent."""
-
     def __init__(self, knowledge, fact, registry):
         self.registry = registry
         found = KnowledgeTrieLookup(knowledge, fact, registry)()
@@ -111,11 +136,6 @@ class KnowledgeTrieHasFact(M.Edge):
 
 
 class KnowledgeTrieFacts(M.Edge):
-    """All facts in deterministic order, as a chain.  The trie's intrinsic key
-    ordering is the order, so this is the replacement for the sorted cons-list
-    the prover used to carry around.  Rebuilds the chain by walking TreeEntries
-    (already an ordered walk)."""
-
     def __init__(self, knowledge, registry):
         self.registry = registry
         entries = M.TreeEntries(knowledge)()
@@ -135,15 +155,6 @@ class KnowledgeTrieFacts(M.Edge):
 
 
 class KnowledgeTrieSameRoot(M.Edge):
-    """Two knowledge tries hold the same facts iff their stored roots are
-    structurally equal.  TreeInsert produces a fresh Tree wrapper per insert, so
-    the guard is TermEqual on the roots, not IdentityCompare.  TermEqual on two
-    Patricia roots is O(shared-prefix): for a state that recurs (a->b->a) the
-    re-derived trie is TermEqual to a prior one, so the visited-set keyed on this
-    predicate catches the cycle with no numbers and no depth limit.  This is the
-    structural guardrail: same facts -> same root (by TermEqual), once and
-    without paying for a full rescan."""
-
     def __init__(self, left, right):
         left_root = M.TreeRoot(left)()
         right_root = M.TreeRoot(right)()
@@ -157,26 +168,29 @@ class KnowledgeTrieSameRoot(M.Edge):
 class KnowledgeHeadIndexInsert(M.Edge):
     """Insert one fact into a head-label index.
 
-    The index is a trie keyed on FactHead(fact) (the head label).  The value
-    stored at that key is a chain of all facts sharing that head, so a second
-    fact with the same label extends the chain instead of overwriting it.  A
-    premise whose pattern head is a concrete label looks up exactly its bucket
-    -- O(label key depth) -- instead of scanning every fact.
+    Keyed on HeadBucketKey(fact).  If the fact is not bucketable (HeadBucketKey
+    returns EmptyList), it goes into the residual bucket.  Every lookup ALWAYS
+    includes the residual bucket, so narrowing is safe: it can over-match but
+    never under-match.
 
-    A non-pair fact (bare atom/constant) is keyed on itself; that bucket holds
-    the bare-atom facts."""
+    Returns Pair(index, Pair(residual, EmptyList))."""
 
-    def __init__(self, index, fact, registry):
+    def __init__(self, index, residual, fact, registry):
         self.registry = registry
-        head = FactHead(fact)()
-        existing = M.TreeLookup(index, head, registry)()
-        if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
-            bucket = M.Pair(fact, M.EmptyList)
+        head = HeadBucketKey(fact, registry)()
+        if M.IdentityCompare(head, M.EmptyList)() is M.truth_value:
+            next_residual = M.Pair(fact, residual)
+            self.result = M.Pair(index, M.Pair(next_residual, M.EmptyList))
         else:
-            bucket = M.Pair(fact, existing)
-        self.result = M.TreeInsert(index, head, bucket, registry)()
+            existing = M.TreeLookup(index, head, registry)()
+            if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
+                bucket = M.Pair(fact, M.EmptyList)
+            else:
+                bucket = M.Pair(fact, existing)
+            next_index = M.TreeInsert(index, head, bucket, registry)()
+            self.result = M.Pair(next_index, M.Pair(residual, M.EmptyList))
         super().__init__(
-            inputs=M.Pair(index, M.Pair(fact, M.Pair(registry, M.EmptyList))),
+            inputs=M.Pair(index, M.Pair(residual, M.Pair(fact, M.Pair(registry, M.EmptyList)))),
             results=self.result,
         )
 
@@ -185,53 +199,117 @@ class KnowledgeHeadIndexInsert(M.Edge):
 
 
 class KnowledgeHeadIndexInsertChain(M.Edge):
-    def __init__(self, index, facts, registry):
+    def __init__(self, index, residual, facts, registry):
         self.registry = registry
-        self.result = self._insert_chain(index, facts)
+        self.result = self._insert_chain(index, residual, facts)
         super().__init__(
-            inputs=M.Pair(index, M.Pair(facts, M.Pair(registry, M.EmptyList))),
+            inputs=M.Pair(index, M.Pair(residual, M.Pair(facts, M.Pair(registry, M.EmptyList)))),
             results=self.result,
         )
 
-    def _insert_chain(self, index, facts):
+    def _insert_chain(self, index, residual, facts):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
-            return index
+            return M.Pair(index, M.Pair(residual, M.EmptyList))
         fact = M.Head(facts)()
-        next_index = KnowledgeHeadIndexInsert(index, fact, self.registry)()
-        return self._insert_chain(next_index, M.Tail(facts)())
+        next_pair = KnowledgeHeadIndexInsert(index, residual, fact, self.registry)()
+        next_index = M.Head(next_pair)()
+        next_residual = M.Head(M.Tail(next_pair)())()
+        return self._insert_chain(next_index, next_residual, M.Tail(facts)())
 
     def __call__(self):
         return self.result
 
 
 class KnowledgeHeadIndexBucket(M.Edge):
-    """All facts whose head label equals the given label, as a chain.
+    """All facts whose HeadBucketKey equals the given key, plus the residual
+    bucket, as a chain.  The residual is always included so narrowing is safe.
 
-    This is the premise-match candidate set.  For a concrete-head premise it is
-    exactly the facts that can possibly match; the O(n^k) full scan collapses to
-    O(bucket_size^k)."""
+    When key is EmptyList (not bucketable), returns EmptyList — the caller
+    should fall back to the full fact chain in that case."""
 
-    def __init__(self, index, label, registry):
+    def __init__(self, index, residual, key, registry):
         self.registry = registry
-        found = M.TreeLookup(index, label, registry)()
-        if M.IdentityCompare(found, M.EmptyList)() is M.truth_value:
-            self.result = M.EmptyList
-        else:
-            self.result = found
+        self.result = self._bucket(index, residual, key)
         super().__init__(
-            inputs=M.Pair(index, M.Pair(label, M.Pair(registry, M.EmptyList))),
+            inputs=M.Pair(index, M.Pair(residual, M.Pair(key, M.Pair(registry, M.EmptyList)))),
             results=self.result,
         )
+
+    def _bucket(self, index, residual, key):
+        if M.IdentityCompare(key, M.EmptyList)() is M.truth_value:
+            return residual
+        found = M.TreeLookup(index, key, self.registry)()
+        if M.IdentityCompare(found, M.EmptyList)() is M.truth_value:
+            return residual
+        return self._append(found, residual)
+
+    def _append(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            return right
+        return M.Pair(M.Head(left)(), self._append(M.Tail(left)(), right))
+
+    def __call__(self):
+        return self.result
+
+
+class KnowledgeHeadIndexResidual(M.Edge):
+    """Return the residual chain from Pair(index, Pair(residual, EmptyList))."""
+
+    def __init__(self, pair):
+        self.result = M.Head(M.Tail(pair)())()
+        super().__init__(inputs=M.Pair(pair, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class KnowledgeHeadIndexTrie(M.Edge):
+    """Return the index trie from Pair(index, Pair(residual, EmptyList))."""
+
+    def __init__(self, pair):
+        self.result = M.Head(pair)()
+        super().__init__(inputs=M.Pair(pair, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class KnowledgeHeadIndexConsistent(M.Edge):
+    """Consistency probe: for every fact, compute HeadBucketKey, fetch the
+    bucket (including residual), and verify the fact is present.  Returns
+    truth_value if all facts are accounted for, false_value otherwise."""
+
+    def __init__(self, index, residual, facts, registry):
+        self.registry = registry
+        self.result = self._check(index, residual, facts)
+        super().__init__(
+            inputs=M.Pair(index, M.Pair(residual, M.Pair(facts, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def _check(self, index, residual, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        fact = M.Head(facts)()
+        key = HeadBucketKey(fact, self.registry)()
+        bucket = KnowledgeHeadIndexBucket(index, residual, key, self.registry)()
+        present = self._fact_in_chain(fact, bucket)
+        if present is M.false_value:
+            return M.false_value
+        return self._check(index, residual, M.Tail(facts)())
+
+    def _fact_in_chain(self, fact, chain):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Head(chain)(), fact)() is M.truth_value:
+            return M.truth_value
+        return self._fact_in_chain(fact, M.Tail(chain)())
 
     def __call__(self):
         return self.result
 
 
 class RuleReplacementHead(M.Edge):
-    """Head label of a rule's replacement (conclusion).  For a unary Rule the
-    replacement is the whole RHS; for a MultiRule it is the second input cell.
-    A non-pair replacement is its own head."""
-
     def __init__(self, rule):
         replacement = M.Head(M.Tail(M.EdgeInputs(rule)())())()
         if M.IsPair(replacement)() is M.truth_value:
@@ -245,11 +323,6 @@ class RuleReplacementHead(M.Edge):
 
 
 class RulePremiseHead(M.Edge):
-    """Head label of a rule's first premise.  For a unary Rule the premise is
-    the whole LHS pattern; for a MultiRule it is the head of the premise chain.
-    A non-pair premise is its own head.  EmptyList when the rule has no
-    premises (a fact-rule)."""
-
     def __init__(self, rule):
         premises = M.Head(M.EdgeInputs(rule)())()
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
@@ -267,10 +340,6 @@ class RulePremiseHead(M.Edge):
 
 
 class RulesByHeadInsert(M.Edge):
-    """Insert a rule into a trie keyed on a rule's head label (replacement or
-    premise).  The bucket at that label is a chain of rules.  Used to build
-    RulesByReplacementHead and RulesByPremiseHead at pack-load time, once."""
-
     def __init__(self, index, rule, head, registry):
         self.registry = registry
         found = M.TreeLookup(index, head, registry)()
@@ -342,10 +411,6 @@ class RulesByPremiseHeadInsertChain(M.Edge):
 
 
 class RulesByHeadBucket(M.Edge):
-    """All rules whose (replacement or premise) head equals the given label, as
-    a chain.  This is the rule-ordering bucket: a label compare gave us the
-    candidate rules with zero unification."""
-
     def __init__(self, index, label, registry):
         self.registry = registry
         found = M.TreeLookup(index, label, registry)()
@@ -363,17 +428,6 @@ class RulesByHeadBucket(M.Edge):
 
 
 class MatchMemoKey(M.Edge):
-    """Key for the match memo: Pair(rule_atom, ExactKey(bucket_root)).
-
-    The bucket root is the root atom of a head-index bucket.  TreeInsert returns
-    a fresh wrapper per insert, so identity is not stable across independent
-    rebuilds; we key on the structural ExactKey of the bucket root instead.
-    Within a search lineage the head bucket for a label changes identity only
-    when a fact with that head is added -- otherwise the bucket root is
-    TermEqual to its predecessor, hence the same ExactKey, hence the memo entry
-    keyed on (rule, ExactKey(bucket_root)) stays valid with no invalidation
-    logic: an unchanged bucket yields the same key, hence a hit."""
-
     def __init__(self, rule, bucket_root, registry):
         self.registry = registry
         bucket_key = M.ExactKey(bucket_root, registry)()
@@ -388,9 +442,6 @@ class MatchMemoKey(M.Edge):
 
 
 class MatchMemoLookup(M.Edge):
-    """Look up a previously computed binding chain for (rule, bucket_root).
-    EmptyList means 'not yet computed'."""
-
     def __init__(self, memo, rule, bucket_root, registry):
         self.registry = registry
         key = MatchMemoKey(rule, bucket_root, registry)()
@@ -408,9 +459,6 @@ class MatchMemoLookup(M.Edge):
 
 
 class MatchMemoStore(M.Edge):
-    """Record a computed binding chain for (rule, bucket_root).  Idempotent:
-    storing the same key twice keeps the latest value."""
-
     def __init__(self, memo, rule, bucket_root, bindings, registry):
         self.registry = registry
         key = MatchMemoKey(rule, bucket_root, registry)()
