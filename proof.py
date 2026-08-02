@@ -443,16 +443,20 @@ class ContainsVar(M.Edge):
         return self.result
 
 
-class ChooseRuleAnchor(M.Edge):
-    def __init__(self, heuristic, rule, current, registry):
+class RuleAnchorStaticEntry(M.Edge):
+    def __init__(self, premise, premise_index, registry):
         self.registry = registry
-        self.heuristic = heuristic
-        self.current = current
-        self.result = self._choose(RulePremises(rule)(), M.Zero, M.EmptyList, M.Zero)
-        super().__init__(
-            inputs=M.Pair(heuristic, M.Pair(rule, M.Pair(current, M.Pair(registry, M.EmptyList)))),
-            results=self.result,
+        self.result = M.Pair(
+            premise,
+            M.Pair(
+                premise_index,
+                M.Pair(
+                    self._var_count(premise),
+                    M.Pair(self._specificity(premise), M.EmptyList),
+                ),
+            ),
         )
+        super().__init__(inputs=M.Pair(premise, M.Pair(premise_index, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def _succ(self, x):
         pair = M.Succ(x, self.registry)()
@@ -463,35 +467,6 @@ class ChooseRuleAnchor(M.Edge):
         pair = M.Add(left, right, self.registry)()
         self.registry = M.Head(M.Tail(pair)())()
         return M.Head(pair)()
-
-    def _fact_count(self, facts):
-        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
-            return M.Zero
-        return self._succ(self._fact_count(M.Tail(facts)()))
-
-    def _facts(self):
-        if IsKnowledge(self.current)() is M.truth_value:
-            return KnowledgeFacts(self.current)()
-        return M.Pair(self.current, M.EmptyList)
-
-    def _premise_head(self, premise):
-        return TermHead(premise, self.registry)()
-
-    def _head_count(self, premise_head, facts):
-        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
-            return M.Zero
-        fact = M.Head(facts)()
-        rest = self._head_count(premise_head, M.Tail(facts)())
-        fact_head = TermHead(fact, self.registry)()
-        if M.IdentityCompare(fact_head, premise_head)() is M.truth_value:
-            return self._succ(rest)
-        return rest
-
-    def _fanout(self, premise):
-        premise_head = self._premise_head(premise)
-        if M.IdentityCompare(premise_head, M.EmptyList)() is M.truth_value:
-            return self._fact_count(self._facts())
-        return self._head_count(premise_head, self._facts())
 
     def _var_count(self, term):
         if IsVarPattern(term)() is M.truth_value:
@@ -507,91 +482,171 @@ class ChooseRuleAnchor(M.Edge):
             return self._succ(self._add(self._specificity(M.Head(term)()), self._specificity(M.Tail(term)())))
         return M.one
 
-    def _criterion_prefers_left(self, criterion, left_premise, left_index, right_premise, right_index):
+    def __call__(self):
+        return self.result
+
+
+class RuleAnchorStaticMeta(M.Edge):
+    def __init__(self, rule, registry):
+        self.registry = registry
+        self.result = self._walk(RulePremises(rule)(), M.Zero)
+        super().__init__(inputs=M.Pair(rule, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _succ(self, x):
+        pair = M.Succ(x, self.registry)()
+        self.registry = M.Head(M.Tail(pair)())()
+        return M.Head(pair)()
+
+    def _walk(self, premises, premise_index):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        entry = RuleAnchorStaticEntry(M.Head(premises)(), premise_index, self.registry)()
+        return M.Pair(entry, self._walk(M.Tail(premises)(), self._succ(premise_index)))
+
+    def __call__(self):
+        return self.result
+
+
+class ChooseRuleAnchorWithMeta(M.Edge):
+    def __init__(self, heuristic, anchor_meta, current, knowledge_head_index, registry):
+        self.registry = registry
+        self.heuristic = heuristic
+        self.current = current
+        self._knowledge_head_index = knowledge_head_index
+        self.result = self._choose(anchor_meta, M.EmptyList)
+        super().__init__(inputs=M.Pair(heuristic, M.Pair(anchor_meta, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def _fact_count(self, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.Zero
+        pair = M.Succ(self._fact_count(M.Tail(facts)()), self.registry)()
+        self.registry = M.Head(M.Tail(pair)())()
+        return M.Head(pair)()
+
+    def _facts(self):
+        if IsKnowledge(self.current)() is M.truth_value:
+            return KnowledgeFacts(self.current)()
+        return M.Pair(self.current, M.EmptyList)
+
+    def _entry_premise(self, entry):
+        return M.Head(entry)()
+
+    def _entry_index(self, entry):
+        return M.Head(M.Tail(entry)())()
+
+    def _entry_var_count(self, entry):
+        return M.Head(M.Tail(M.Tail(entry)())())()
+
+    def _entry_specificity(self, entry):
+        return M.Head(M.Tail(M.Tail(M.Tail(entry)())())())()
+
+    def _fanout(self, premise):
+        candidate_facts = self._facts()
+        if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+            candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
+        return self._fact_count(candidate_facts)
+
+    def _criterion_prefers_left(self, criterion, left_entry, right_entry):
         if M.IdentityCompare(criterion, PreferLowerFanoutLabel)() is M.truth_value:
-            left_value = self._fanout(left_premise)
-            right_value = self._fanout(right_premise)
+            left_value = self._fanout(self._entry_premise(left_entry))
+            right_value = self._fanout(self._entry_premise(right_entry))
             if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
                 return M.truth_value
             if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferFewerVariablesLabel)() is M.truth_value:
-            left_value = self._var_count(left_premise)
-            right_value = self._var_count(right_premise)
+            left_value = self._entry_var_count(left_entry)
+            right_value = self._entry_var_count(right_entry)
             if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
                 return M.truth_value
             if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferGreaterSpecificityLabel)() is M.truth_value:
-            left_value = self._specificity(left_premise)
-            right_value = self._specificity(right_premise)
+            left_value = self._entry_specificity(left_entry)
+            right_value = self._entry_specificity(right_entry)
             if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
                 return M.truth_value
             if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferEarlierPremiseLabel)() is M.truth_value:
-            if M.NatLess(left_index, right_index, self.registry)() is M.truth_value:
+            if M.NatLess(self._entry_index(left_entry), self._entry_index(right_entry), self.registry)() is M.truth_value:
                 return M.truth_value
-            if M.NatLess(right_index, left_index, self.registry)() is M.truth_value:
+            if M.NatLess(self._entry_index(right_entry), self._entry_index(left_entry), self.registry)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         return M.EmptyList
 
-    def _prefer(self, left_premise, left_index, right_premise, right_index):
+    def _prefer(self, left_entry, right_entry):
         criterion = AnchorPreferenceHeuristicCriterionOne(self.heuristic)()
-        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        choice = self._criterion_prefers_left(criterion, left_entry, right_entry)
         if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
             return choice
         criterion = AnchorPreferenceHeuristicCriterionTwo(self.heuristic)()
-        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        choice = self._criterion_prefers_left(criterion, left_entry, right_entry)
         if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
             return choice
         criterion = AnchorPreferenceHeuristicCriterionThree(self.heuristic)()
-        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        choice = self._criterion_prefers_left(criterion, left_entry, right_entry)
         if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
             return choice
         criterion = AnchorPreferenceHeuristicCriterionFour(self.heuristic)()
-        choice = self._criterion_prefers_left(criterion, left_premise, left_index, right_premise, right_index)
+        choice = self._criterion_prefers_left(criterion, left_entry, right_entry)
         if M.IdentityCompare(choice, M.EmptyList)() is M.false_value:
             return choice
         return M.false_value
 
-    def _choose(self, premises, premise_index, best, best_index):
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return best
-        premise = M.Head(premises)()
-        next_best = best
-        next_best_index = best_index
-        if M.IdentityCompare(best, M.EmptyList)() is M.truth_value:
-            next_best = premise
-            next_best_index = premise_index
-        elif self._prefer(premise, premise_index, best, best_index) is M.truth_value:
-            next_best = premise
-            next_best_index = premise_index
-        return self._choose(M.Tail(premises)(), self._succ(premise_index), next_best, next_best_index)
+    def _choose(self, meta, best_entry):
+        if M.IdentityCompare(meta, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(best_entry, M.EmptyList)() is M.truth_value:
+                return M.EmptyList
+            return self._entry_premise(best_entry)
+        entry = M.Head(meta)()
+        next_best = best_entry
+        if M.IdentityCompare(best_entry, M.EmptyList)() is M.truth_value:
+            next_best = entry
+        elif self._prefer(entry, best_entry) is M.truth_value:
+            next_best = entry
+        return self._choose(M.Tail(meta)(), next_best)
+
+    def __call__(self):
+        return self.result
+
+
+class ChooseRuleAnchor(M.Edge):
+    def __init__(self, heuristic, rule, current, registry, knowledge_head_index=None):
+        if knowledge_head_index is None:
+            knowledge_head_index = M.EmptyList
+            if IsKnowledge(current)() is M.truth_value:
+                knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), registry)()
+        anchor_meta = RuleAnchorStaticMeta(rule, registry)()
+        self.result = ChooseRuleAnchorWithMeta(heuristic, anchor_meta, current, knowledge_head_index, registry)()
+        super().__init__(inputs=M.Pair(heuristic, M.Pair(rule, M.Pair(current, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
         return self.result
 
 
 class FilterApplicableRules(M.Edge):
-    def __init__(self, rules, current, registry):
+    def __init__(self, rules, current, registry, knowledge_head_index=None):
         self.registry = registry
         self.current = current
         self._anchor_heuristic = DefaultAnchorPreferenceHeuristic()()
         self._knowledge_head_index = M.EmptyList
-        if IsKnowledge(current)() is M.truth_value:
-            self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        if knowledge_head_index is None:
+            if IsKnowledge(current)() is M.truth_value:
+                self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        else:
+            self._knowledge_head_index = knowledge_head_index
         self.result = self._filter(rules, current)
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def _rule_anchor(self, rule):
         premises = RulePremises(rule)()
         if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
-            return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry)()
+            return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
         return RulePattern(rule)()
 
     def _anchor_matches_facts(self, anchor, facts):
@@ -612,7 +667,7 @@ class FilterApplicableRules(M.Edge):
             premise_head = TermHead(anchor, self.registry)()
             if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
                 if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
-                    facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+                    facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
             return self._anchor_matches_facts(anchor, facts)
         pattern = RulePattern(rule)()
         if IsVarPattern(pattern)() is M.truth_value:
@@ -650,19 +705,21 @@ class FilterApplicableRules(M.Edge):
 
 
 class GoalHeadApplicableRuleBuckets(M.Edge):
-    def __init__(self, rules, current, goal, registry):
+    def __init__(self, rules, current, goal, registry, knowledge_head_index=None):
         self.registry = registry
         self._match_memo = M.EmptyTree
         self._knowledge_head_index = M.EmptyList
-        if IsKnowledge(current)() is M.truth_value:
-            self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
-        goal_head = TermHead(goal, self.registry)()
-        by_replacement = K.RulesByReplacementHeadInsertChain(M.EmptyTree, rules, self.registry)()
-        goal_bucket = K.RulesByHeadBucket(by_replacement, goal_head, self.registry)()
-        immediate_bucket = self._filter_immediate(goal_bucket, current, goal)
-        remaining_goal_bucket = self._without_rules(goal_bucket, immediate_bucket)
-        other_bucket = self._without_rules(rules, goal_bucket)
-        self.result = M.Pair(immediate_bucket, M.Pair(remaining_goal_bucket, M.Pair(other_bucket, M.EmptyList)))
+        if knowledge_head_index is None:
+            if IsKnowledge(current)() is M.truth_value:
+                self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        else:
+            self._knowledge_head_index = knowledge_head_index
+        immediate_bucket = self._filter_immediate(rules, current, goal)
+        remaining_rules = self._without_rules(rules, immediate_bucket)
+        by_replacement = K.RulesByReplacementHeadInsertChain(M.EmptyTree, remaining_rules, self.registry)()
+        goal_bucket = M.Reverse(K.RulesByHeadBucket(by_replacement, goal, self.registry)())()
+        other_bucket = self._without_rules(remaining_rules, goal_bucket)
+        self.result = M.Pair(immediate_bucket, M.Pair(goal_bucket, M.Pair(other_bucket, M.EmptyList)))
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def _knowledge_has_fact(self, facts, target):
@@ -682,14 +739,14 @@ class GoalHeadApplicableRuleBuckets(M.Edge):
         premise_head = TermHead(premise, self.registry)()
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
             if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
-                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            memo_hit = K.MatchMemoLookup(self._match_memo, rule, candidate_facts, self.registry)()
+            memo_hit = K.MatchMemoLookup(self._match_memo, rule, premises, candidate_facts, self.registry)()
             if M.IdentityCompare(memo_hit, M.EmptyList)() is M.false_value:
                 return memo_hit
         result = self._match_premise_against_facts(rule, premise, rest, candidate_facts, facts, bindings)
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            self._match_memo = K.MatchMemoStore(self._match_memo, rule, candidate_facts, result, self.registry)()
+            self._match_memo = K.MatchMemoStore(self._match_memo, rule, premises, candidate_facts, result, self.registry)()
         return result
 
     def _match_premise_against_facts(self, rule, premise, rest_premises, facts, all_facts, bindings):
@@ -760,11 +817,63 @@ class GoalHeadApplicableRuleBuckets(M.Edge):
         return self.result
 
 
+class FilterApplicableRulesShard(M.Edge):
+    def __init__(self, rules, current, knowledge_head_index, registry):
+        self.result = FilterApplicableRules(rules, current, registry, knowledge_head_index)()
+        super().__init__(
+            inputs=M.Pair(rules, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FilterApplicableRulesWithIndex(M.Edge):
+    def __init__(self, rules, current, knowledge_head_index, registry):
+        self.result = FilterApplicableRules(rules, current, registry, knowledge_head_index)()
+        super().__init__(
+            inputs=M.Pair(rules, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GoalHeadApplicableRuleBucketsWithIndex(M.Edge):
+    def __init__(self, rules, current, goal, knowledge_head_index, registry):
+        self.result = GoalHeadApplicableRuleBuckets(rules, current, goal, registry, knowledge_head_index)()
+        super().__init__(
+            inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList))))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class GoalHeadRuleBuckets(M.Edge):
-    def __init__(self, rules, current, goal, registry):
-        applicable = FilterApplicableRules(rules, current, registry)()
-        self.result = GoalHeadApplicableRuleBuckets(applicable, current, goal, registry)()
+    def __init__(self, rules, current, goal, registry, knowledge_head_index=None):
+        applicable = FilterApplicableRules(rules, current, registry, knowledge_head_index)()
+        self.result = GoalHeadApplicableRuleBuckets(applicable, current, goal, registry, knowledge_head_index)()
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GoalHeadRuleOrdererWithIndex(M.Edge):
+    def __init__(self, rules, current, goal, knowledge_head_index, registry):
+        buckets = GoalHeadRuleBuckets(rules, current, goal, registry, knowledge_head_index)()
+        immediate_bucket = M.Head(buckets)()
+        goal_bucket = M.Head(M.Tail(buckets)())()
+        other_bucket = M.Head(M.Tail(M.Tail(buckets)())())()
+        self.result = Append(immediate_bucket, Append(goal_bucket, other_bucket)())()
+        super().__init__(
+            inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList))))),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result
@@ -1253,8 +1362,8 @@ class PrettyPath(M.Edge):
 
 
 class GoalHeadRuleOrderer(M.Edge):
-    def __init__(self, rules, current, goal, registry):
-        buckets = GoalHeadRuleBuckets(rules, current, goal, registry)()
+    def __init__(self, rules, current, goal, registry, knowledge_head_index=None):
+        buckets = GoalHeadRuleBuckets(rules, current, goal, registry, knowledge_head_index)()
         immediate_bucket = M.Head(buckets)()
         goal_bucket = M.Head(M.Tail(buckets)())()
         other_bucket = M.Head(M.Tail(M.Tail(buckets)())())()
@@ -1410,14 +1519,14 @@ class BuildDerivation(M.Edge):
         premise_head = TermHead(premise, self.registry)()
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
             if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
-                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            memo_hit = K.MatchMemoLookup(self._match_memo, rule, candidate_facts, self.registry)()
+            memo_hit = K.MatchMemoLookup(self._match_memo, rule, premises, candidate_facts, self.registry)()
             if M.IdentityCompare(memo_hit, M.EmptyList)() is M.false_value:
                 return memo_hit
         result = self._match_premise_against_facts(rule, premise, rest, candidate_facts, facts, bindings)
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            self._match_memo = K.MatchMemoStore(self._match_memo, rule, candidate_facts, result, self.registry)()
+            self._match_memo = K.MatchMemoStore(self._match_memo, rule, premises, candidate_facts, result, self.registry)()
         return result
 
     def _match_premise_against_facts(self, rule, premise, rest_premises, facts, all_facts, bindings):
@@ -1898,14 +2007,14 @@ class Prove(M.Edge):
         premise_head = TermHead(premise, self.registry)()
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
             if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
-                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise_head, self.registry)()
+                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            memo_hit = K.MatchMemoLookup(self._match_memo, rule, candidate_facts, self.registry)()
+            memo_hit = K.MatchMemoLookup(self._match_memo, rule, premises, candidate_facts, self.registry)()
             if M.IdentityCompare(memo_hit, M.EmptyList)() is M.false_value:
                 return memo_hit
         result = self._match_premise_against_facts(rule, premise, rest, candidate_facts, facts, bindings)
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            self._match_memo = K.MatchMemoStore(self._match_memo, rule, candidate_facts, result, self.registry)()
+            self._match_memo = K.MatchMemoStore(self._match_memo, rule, premises, candidate_facts, result, self.registry)()
         return result
 
     def _match_premise_against_facts(self, rule, premise, rest_premises, facts, all_facts, bindings):

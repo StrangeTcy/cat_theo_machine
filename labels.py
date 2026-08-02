@@ -191,6 +191,14 @@ class PreferEarlierPremiseLabel(ConstructorLabel):
     pass
 
 
+class HeadBucketKeyLabel(ConstructorLabel):
+    pass
+
+
+class ResidualHeadBucketLabel(ConstructorLabel):
+    pass
+
+
 class KnowledgeLabel(ConstructorLabel):
     pass
 
@@ -745,6 +753,8 @@ PreferLowerFanoutLabel = PreferLowerFanoutLabel()
 PreferFewerVariablesLabel = PreferFewerVariablesLabel()
 PreferGreaterSpecificityLabel = PreferGreaterSpecificityLabel()
 PreferEarlierPremiseLabel = PreferEarlierPremiseLabel()
+HeadBucketKeyLabel = HeadBucketKeyLabel()
+ResidualHeadBucketLabel = ResidualHeadBucketLabel()
 KnowledgeLabel = KnowledgeLabel()
 StepLabel = StepLabel()
 DerivationLabel = DerivationLabel()
@@ -922,6 +932,8 @@ def sync_from_namespace(namespace):
         "PreferFewerVariablesLabel",
         "PreferGreaterSpecificityLabel",
         "PreferEarlierPremiseLabel",
+        "HeadBucketKeyLabel",
+        "ResidualHeadBucketLabel",
         "KnowledgeLabel",
         "StepLabel",
         "DerivationLabel",

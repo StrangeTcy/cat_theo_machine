@@ -5,6 +5,7 @@ from hyge.runtime import boot_from_packs
 from hyge.main import PACK_PATHS, _runtime_namespace
 from hyge import machine as M
 from hyge import labels as Lmod
+from hyge import knowledge as K
 from hyge import proof as Pmod
 from hyge import search as Smod
 from hyge.search.engine import _SearchStepKernel
@@ -81,16 +82,17 @@ print("DEBUG-EXT: loading ordered rules")
 rules_started_at = time.time()
 ordered_rules = runtime.ordered_rules()
 print("DEBUG-EXT: ordered rules loaded in", time.time() - rules_started_at, "seconds")
-rule_count_pair = M.Count(ordered_rules, registry)()
-rule_count = M.Head(rule_count_pair)()
-registry = M.Head(M.Tail(rule_count_pair)())()
-print("DEBUG-EXT: ordered rule count =", M.PrettyTerm(rule_count, registry)())
 
 max_steps = runtime.graph.next_rule_index
 if M.IdentityCompare(max_steps, M.EmptyList)() is M.truth_value:
-    max_steps = rule_count
+    count_rep = M.CountRep(ordered_rules)()
+    max_steps = M.Atom()
+    max_steps.value = count_rep
 elif M.NatEq(max_steps, M.Zero, registry)() is M.truth_value:
-    max_steps = rule_count
+    count_rep = M.CountRep(ordered_rules)()
+    max_steps = M.Atom()
+    max_steps.value = count_rep
+print("DEBUG-EXT: ordered rule max-steps =", M.PrettyTerm(max_steps, registry)())
 print("DEBUG-EXT: building root state")
 root_state = M.SearchState(normalized_start, M.EmptyList, M.EmptyList, max_steps)()
 print("DEBUG-EXT: root current =", M.PrettyTerm(M.SearchStateCurrent(root_state)(), registry)())
@@ -153,6 +155,11 @@ except Exception:
     trace_file.write(traceback.format_exc())
     raise
 
+print("DEBUG-EXT: probing knowledge head index for root")
+head_index_started_at = time.time()
+root_facts = Pmod.KnowledgeFacts(M.SearchStateCurrent(root_state)())()
+root_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, root_facts, registry)()
+print("DEBUG-EXT: root knowledge head index built in", time.time() - head_index_started_at, "seconds")
 print("DEBUG-EXT: probing applicable theorem rules for root")
 applicable_started_at = time.time()
 try:

@@ -617,10 +617,26 @@ class Search(M.Edge):
 
     def _theorem_applicable_rule_cache_key(self, current):
         if IsKnowledge(current)() is M.truth_value:
-            return KnowledgeLabel
+            return self._state_key(current)
         if M.IsPair(current)() is M.truth_value:
             return M.Head(current)()
         return current
+
+    def _theorem_applicable_rules_sharded(self, current, knowledge_head_index):
+        shard_width = M.four
+        remaining_rules = self.rules
+        shard_results_rev = M.EmptyList
+        while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
+            shard_rules = SearchChainTake(remaining_rules, shard_width)()
+            remaining_rules = SearchChainDrop(remaining_rules, shard_width)()
+            shard_result = FilterApplicableRulesShard(shard_rules, current, knowledge_head_index, self.registry)()
+            shard_results_rev = M.Pair(shard_result, shard_results_rev)
+        shard_results = M.EmptyList
+        remaining_results = shard_results_rev
+        while M.IdentityCompare(remaining_results, M.EmptyList)() is M.false_value:
+            shard_results = M.Pair(M.Head(remaining_results)(), shard_results)
+            remaining_results = M.Tail(remaining_results)()
+        return SearchChainAppendMany(shard_results)()
 
     def _theorem_applicable_rules_for(self, current):
         cache_key = self._theorem_applicable_rule_cache_key(current)
@@ -640,7 +656,10 @@ class Search(M.Edge):
             "computing applicable theorem rules for current="
             + _debug_term(current, self.registry)
         )
-        applicable = FilterApplicableRules(self.rules, current, self.registry)()
+        knowledge_head_index = M.EmptyList
+        if IsKnowledge(current)() is M.truth_value:
+            knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        applicable = self._theorem_applicable_rules_sharded(current, knowledge_head_index)
         applicable_count_pair = M.Count(applicable, self.registry)()
         applicable_count = M.Head(applicable_count_pair)()
         self.registry = M.Head(M.Tail(applicable_count_pair)())()
@@ -675,6 +694,9 @@ class Search(M.Edge):
             return M.Head(cached)()
 
         applicable_rules = self._theorem_applicable_rules_for(current)
+        knowledge_head_index = M.EmptyList
+        if IsKnowledge(current)() is M.truth_value:
+            knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
             self._stage_debug(
                 "ordering theorem rules toward goal="
@@ -682,7 +704,7 @@ class Search(M.Edge):
                 + " for current="
                 + _debug_term(current, self.registry)
             )
-            ordered = GoalHeadRuleOrderer(applicable_rules, current, goal, self.registry)()
+            ordered = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, self.registry)()
         else:
             ordered = applicable_rules
         ordered_count_pair = M.Count(ordered, self.registry)()
