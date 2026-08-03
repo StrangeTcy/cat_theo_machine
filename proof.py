@@ -446,42 +446,27 @@ class ContainsVar(M.Edge):
 
 class RuleAnchorStaticEntry(M.Edge):
     def __init__(self, premise, premise_index, registry):
-        self.registry = registry
-        self.result = M.Pair(
+        self.result = (
             premise,
-            M.Pair(
-                premise_index,
-                M.Pair(
-                    self._var_count(premise),
-                    M.Pair(self._specificity(premise), M.EmptyList),
-                ),
-            ),
+            premise_index,
+            self._var_count(premise),
+            self._specificity(premise),
         )
         super().__init__(inputs=M.Pair(premise, M.Pair(premise_index, M.Pair(registry, M.EmptyList))), results=self.result)
 
-    def _succ(self, x):
-        pair = M.Succ(x, self.registry)()
-        self.registry = M.Head(M.Tail(pair)())()
-        return M.Head(pair)()
-
-    def _add(self, left, right):
-        pair = M.Add(left, right, self.registry)()
-        self.registry = M.Head(M.Tail(pair)())()
-        return M.Head(pair)()
-
     def _var_count(self, term):
         if IsVarPattern(term)() is M.truth_value:
-            return M.one
+            return 1
         if M.IsPair(term)() is M.truth_value:
-            return self._add(self._var_count(M.Head(term)()), self._var_count(M.Tail(term)()))
-        return M.Zero
+            return self._var_count(M.Head(term)()) + self._var_count(M.Tail(term)())
+        return 0
 
     def _specificity(self, term):
         if IsVarPattern(term)() is M.truth_value:
-            return M.Zero
+            return 0
         if M.IsPair(term)() is M.truth_value:
-            return self._succ(self._add(self._specificity(M.Head(term)()), self._specificity(M.Tail(term)())))
-        return M.one
+            return 1 + self._specificity(M.Head(term)()) + self._specificity(M.Tail(term)())
+        return 1
 
     def __call__(self):
         return self.result
@@ -489,20 +474,15 @@ class RuleAnchorStaticEntry(M.Edge):
 
 class RuleAnchorStaticMeta(M.Edge):
     def __init__(self, rule, registry):
-        self.registry = registry
-        self.result = self._walk(RulePremises(rule)(), M.Zero)
+        premises = RulePremises(rule)()
+        premise_index = 0
+        entries = ()
+        while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+            entries = entries + (RuleAnchorStaticEntry(M.Head(premises)(), premise_index, registry)(),)
+            premises = M.Tail(premises)()
+            premise_index = premise_index + 1
+        self.result = entries
         super().__init__(inputs=M.Pair(rule, M.Pair(registry, M.EmptyList)), results=self.result)
-
-    def _succ(self, x):
-        pair = M.Succ(x, self.registry)()
-        self.registry = M.Head(M.Tail(pair)())()
-        return M.Head(pair)()
-
-    def _walk(self, premises, premise_index):
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        entry = RuleAnchorStaticEntry(M.Head(premises)(), premise_index, self.registry)()
-        return M.Pair(entry, self._walk(M.Tail(premises)(), self._succ(premise_index)))
 
     def __call__(self):
         return self.result
@@ -514,7 +494,7 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         self.heuristic = heuristic
         self.current = current
         self._knowledge_head_index = knowledge_head_index
-        self.result = self._choose(anchor_meta, M.EmptyList)
+        self.result = self._choose(anchor_meta, None)
         super().__init__(inputs=M.Pair(heuristic, M.Pair(anchor_meta, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList))))), results=self.result)
 
     def _fact_count(self, facts):
@@ -530,22 +510,21 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         return M.Pair(self.current, M.EmptyList)
 
     def _entry_premise(self, entry):
-        return M.Head(entry)()
+        return entry[0]
 
     def _entry_index(self, entry):
-        return M.Head(M.Tail(entry)())()
+        return entry[1]
 
     def _entry_var_count(self, entry):
-        return M.Head(M.Tail(M.Tail(entry)())())()
+        return entry[2]
 
     def _entry_specificity(self, entry):
-        return M.Head(M.Tail(M.Tail(M.Tail(entry)())())())()
+        return entry[3]
 
     def _fanout(self, premise):
-        candidate_facts = self._facts()
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
-            candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
-        return self._fact_count(candidate_facts)
+            return K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, premise, self.registry)()
+        return self._fact_count(self._facts())
 
     def _criterion_prefers_left(self, criterion, left_entry, right_entry):
         if M.IdentityCompare(criterion, PreferLowerFanoutLabel)() is M.truth_value:
@@ -559,23 +538,23 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         if M.IdentityCompare(criterion, PreferFewerVariablesLabel)() is M.truth_value:
             left_value = self._entry_var_count(left_entry)
             right_value = self._entry_var_count(right_entry)
-            if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
+            if left_value < right_value:
                 return M.truth_value
-            if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
+            if right_value < left_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferGreaterSpecificityLabel)() is M.truth_value:
             left_value = self._entry_specificity(left_entry)
             right_value = self._entry_specificity(right_entry)
-            if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
+            if right_value < left_value:
                 return M.truth_value
-            if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
+            if left_value < right_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferEarlierPremiseLabel)() is M.truth_value:
-            if M.NatLess(self._entry_index(left_entry), self._entry_index(right_entry), self.registry)() is M.truth_value:
+            if self._entry_index(left_entry) < self._entry_index(right_entry):
                 return M.truth_value
-            if M.NatLess(self._entry_index(right_entry), self._entry_index(left_entry), self.registry)() is M.truth_value:
+            if self._entry_index(right_entry) < self._entry_index(left_entry):
                 return M.false_value
             return M.EmptyList
         return M.EmptyList
@@ -600,17 +579,18 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         return M.false_value
 
     def _choose(self, meta, best_entry):
-        if M.IdentityCompare(meta, M.EmptyList)() is M.truth_value:
-            if M.IdentityCompare(best_entry, M.EmptyList)() is M.truth_value:
-                return M.EmptyList
-            return self._entry_premise(best_entry)
-        entry = M.Head(meta)()
+        index = 0
         next_best = best_entry
-        if M.IdentityCompare(best_entry, M.EmptyList)() is M.truth_value:
-            next_best = entry
-        elif self._prefer(entry, best_entry) is M.truth_value:
-            next_best = entry
-        return self._choose(M.Tail(meta)(), next_best)
+        while index < len(meta):
+            entry = meta[index]
+            if next_best is None:
+                next_best = entry
+            elif self._prefer(entry, next_best) is M.truth_value:
+                next_best = entry
+            index = index + 1
+        if next_best is None:
+            return M.EmptyList
+        return self._entry_premise(next_best)
 
     def __call__(self):
         return self.result
@@ -618,12 +598,15 @@ class ChooseRuleAnchorWithMeta(M.Edge):
 
 class ChooseRuleAnchor(M.Edge):
     def __init__(self, heuristic, rule, current, registry, knowledge_head_index=None):
-        if knowledge_head_index is None:
-            knowledge_head_index = M.EmptyList
-            if IsKnowledge(current)() is M.truth_value:
-                knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), registry)()
-        anchor_meta = RuleAnchorStaticMeta(rule, registry)()
-        self.result = ChooseRuleAnchorWithMeta(heuristic, anchor_meta, current, knowledge_head_index, registry)()
+        if RuleIsUnary(rule)() is M.truth_value:
+            self.result = RulePattern(rule)()
+        else:
+            if knowledge_head_index is None:
+                knowledge_head_index = M.EmptyList
+                if IsKnowledge(current)() is M.truth_value:
+                    knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), registry)()
+            anchor_meta = RuleAnchorStaticMeta(rule, registry)()
+            self.result = ChooseRuleAnchorWithMeta(heuristic, anchor_meta, current, knowledge_head_index, registry)()
         super().__init__(inputs=M.Pair(heuristic, M.Pair(rule, M.Pair(current, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
@@ -648,9 +631,26 @@ class FilterApplicableRules(M.Edge):
 
     def _rule_anchor(self, rule):
         premises = RulePremises(rule)()
-        if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
-            return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
-        return RulePattern(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return RulePattern(rule)()
+        if RuleIsUnary(rule)() is M.truth_value:
+            return RulePattern(rule)()
+        return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
+
+    def _rule_has_present_premise_head(self, rule):
+        premises = RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+            premise = M.Head(premises)()
+            premise_head = TermHead(premise, self.registry)()
+            if M.IdentityCompare(premise_head, M.EmptyList)() is M.truth_value:
+                return M.truth_value
+            bucket_size = K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, premise, self.registry)()
+            if M.NatEq(bucket_size, M.Zero, self.registry)() is M.false_value:
+                return M.truth_value
+            premises = M.Tail(premises)()
+        return M.false_value
 
     def _anchor_matches_facts(self, anchor, facts):
         if M.IdentityCompare(anchor, M.EmptyList)() is M.truth_value:
@@ -668,20 +668,32 @@ class FilterApplicableRules(M.Edge):
 
     def _rule_head_applicable(self, rule, current):
         if IsKnowledge(current)() is M.truth_value:
+            premises = RulePremises(rule)()
+            if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+                    if self._rule_has_present_premise_head(rule) is M.false_value:
+                        _debug(
+                            "filter-applicable: rule-index="
+                            + M.PrettyTerm(self._probe_rule_index, self.registry)()
+                            + " anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no"
+                        )
+                        return M.false_value
             anchor_started_at = time.time()
             anchor = self._rule_anchor(rule)
             after_anchor = time.time()
             facts = KnowledgeFacts(current)()
+            bucket_size = M.Zero
             premise_head = TermHead(anchor, self.registry)()
             if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
                 if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+                    bucket_size = K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, anchor, self.registry)()
                     facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
             after_bucket_lookup = time.time()
-            bucket_size = M.Zero
-            if M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
-                bucket_count_pair = M.Count(facts, self.registry)()
-                bucket_size = M.Head(bucket_count_pair)()
-                self.registry = M.Head(M.Tail(bucket_count_pair)())()
+            if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.truth_value:
+                if M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+                    bucket_count_pair = M.Count(facts, self.registry)()
+                    bucket_size = M.Head(bucket_count_pair)()
+                    self.registry = M.Head(M.Tail(bucket_count_pair)())()
             self._last_anchor_match_attempts = M.Zero
             match_started_at = time.time()
             admitted = self._anchor_matches_facts(anchor, facts)
