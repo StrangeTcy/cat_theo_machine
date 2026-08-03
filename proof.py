@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 
 from . import machine as M
 from . import knowledge as K
@@ -635,6 +636,8 @@ class FilterApplicableRules(M.Edge):
         self.current = current
         self._anchor_heuristic = DefaultAnchorPreferenceHeuristic()()
         self._knowledge_head_index = M.EmptyList
+        self._probe_rule_index = M.Zero
+        self._last_anchor_match_attempts = M.Zero
         if knowledge_head_index is None:
             if IsKnowledge(current)() is M.truth_value:
                 self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
@@ -654,6 +657,9 @@ class FilterApplicableRules(M.Edge):
             return M.false_value
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
+        next_count_pair = M.Succ(self._last_anchor_match_attempts, self.registry)()
+        self._last_anchor_match_attempts = M.Head(next_count_pair)()
+        self.registry = M.Head(M.Tail(next_count_pair)())()
         fact = M.Head(facts)()
         match = M.Match(anchor, fact)()
         if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
@@ -662,13 +668,43 @@ class FilterApplicableRules(M.Edge):
 
     def _rule_head_applicable(self, rule, current):
         if IsKnowledge(current)() is M.truth_value:
+            anchor_started_at = time.time()
             anchor = self._rule_anchor(rule)
+            after_anchor = time.time()
             facts = KnowledgeFacts(current)()
             premise_head = TermHead(anchor, self.registry)()
             if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
                 if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
                     facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
-            return self._anchor_matches_facts(anchor, facts)
+            after_bucket_lookup = time.time()
+            bucket_size = M.Zero
+            if M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+                bucket_count_pair = M.Count(facts, self.registry)()
+                bucket_size = M.Head(bucket_count_pair)()
+                self.registry = M.Head(M.Tail(bucket_count_pair)())()
+            self._last_anchor_match_attempts = M.Zero
+            match_started_at = time.time()
+            admitted = self._anchor_matches_facts(anchor, facts)
+            after_match = time.time()
+            _debug(
+                "filter-applicable: rule-index="
+                + M.PrettyTerm(self._probe_rule_index, self.registry)()
+                + " anchor="
+                + _debug_term(anchor, self.registry)
+                + " anchor-s="
+                + "{:.3f}".format(after_anchor - anchor_started_at)
+                + " bucket-s="
+                + "{:.3f}".format(after_bucket_lookup - after_anchor)
+                + " bucket-size="
+                + M.PrettyTerm(bucket_size, self.registry)()
+                + " match-s="
+                + "{:.3f}".format(after_match - match_started_at)
+                + " attempts="
+                + M.PrettyTerm(self._last_anchor_match_attempts, self.registry)()
+                + " admitted="
+                + ("yes" if admitted is M.truth_value else "no")
+            )
+            return admitted
         pattern = RulePattern(rule)()
         if IsVarPattern(pattern)() is M.truth_value:
             return M.truth_value
@@ -696,7 +732,11 @@ class FilterApplicableRules(M.Edge):
             return M.EmptyList
         r = M.Head(rules)()
         rest = M.Tail(rules)()
-        if self._rule_head_applicable(r, current) is M.truth_value:
+        admitted = self._rule_head_applicable(r, current)
+        next_index_pair = M.Succ(self._probe_rule_index, self.registry)()
+        self._probe_rule_index = M.Head(next_index_pair)()
+        self.registry = M.Head(M.Tail(next_index_pair)())()
+        if admitted is M.truth_value:
             return M.Pair(r, self._filter(rest, current))
         return self._filter(rest, current)
 

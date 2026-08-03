@@ -167,6 +167,25 @@ def _worker_filter_seeded_theorem_continuations(packet_descriptor, frontier):
     return filtered
 
 
+def _SearchApplicableRulesShardWorker(slot, shard_rules, current, knowledge_head_index, registry, result_queue):
+    try:
+        M.AllConstructors = M.set_all_constructors(registry)
+        admitted = FilterApplicableRulesShard(shard_rules, current, knowledge_head_index, registry)()
+        result_queue.put((slot, admitted))
+    except Exception as error:
+        import traceback
+
+        print(
+            "search-worker: failed theorem applicability shard "
+            + str(slot)
+            + " ("
+            + str(error)
+            + ")",
+        )
+        traceback.print_exc()
+        result_queue.put((slot, None))
+
+
 class _SearchModeWorkerResult:
     def __init__(self, problem_packet, baseline):
         pid = multiprocessing.current_process().pid

@@ -623,19 +623,56 @@ class Search(M.Edge):
         return current
 
     def _theorem_applicable_rules_sharded(self, current, knowledge_head_index):
+        from .runtime import _SearchApplicableRulesShardWorker
+
         shard_width = M.four
+        host_parallelism = 1
+        try:
+            host_parallelism = multiprocessing.cpu_count()
+        except Exception:
+            host_parallelism = 1
+        if host_parallelism <= 1:
+            return FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry)()
+
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except Exception:
+            mp_context = multiprocessing.get_context("spawn")
         remaining_rules = self.rules
-        shard_results_rev = M.EmptyList
+        slot = 0
+        workers = ()
         while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
             shard_rules = SearchChainTake(remaining_rules, shard_width)()
             remaining_rules = SearchChainDrop(remaining_rules, shard_width)()
-            shard_result = FilterApplicableRulesShard(shard_rules, current, knowledge_head_index, self.registry)()
-            shard_results_rev = M.Pair(shard_result, shard_results_rev)
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=_SearchApplicableRulesShardWorker,
+                args=(slot, shard_rules, current, knowledge_head_index, self.registry, result_queue),
+            )
+            process.start()
+            workers = workers + ((slot, process, result_queue),)
+            slot = slot + 1
+
+        ordered_results = ()
+        for worker in workers:
+            slot = worker[0]
+            process = worker[1]
+            result_queue = worker[2]
+            process.join()
+            shard_payload = result_queue.get()
+            shard_slot = shard_payload[0]
+            shard_result = shard_payload[1]
+            if shard_result is None:
+                raise RuntimeError("search theorem applicability shard failed at slot " + str(shard_slot))
+            if shard_slot != slot:
+                raise RuntimeError("search theorem applicability shard order mismatch")
+            ordered_results = ordered_results + (shard_result,)
+
         shard_results = M.EmptyList
-        remaining_results = shard_results_rev
-        while M.IdentityCompare(remaining_results, M.EmptyList)() is M.false_value:
-            shard_results = M.Pair(M.Head(remaining_results)(), shard_results)
-            remaining_results = M.Tail(remaining_results)()
+        index = len(ordered_results)
+        while index > 0:
+            index = index - 1
+            shard_results = M.Pair(ordered_results[index], shard_results)
         return SearchChainAppendMany(shard_results)()
 
     def _theorem_applicable_rules_for(self, current):
