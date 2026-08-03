@@ -26,6 +26,7 @@ from .search import (
     SearchComparisonOutcome,
     SearchFailureLabel,
     SearchFrontierStatePacket,
+    SearchPacketSearchPhaseLabel,
     SearchPatriciaInsertByKey,
     SearchPatriciaIsTree,
     SearchPatriciaLookupByKey,
@@ -971,7 +972,7 @@ class CompareSearchModesPacketizesNonRootFrontierTest(M.Edge):
             result = M.false_value
         if M.NatEq(pending_count, M.one, probe.registry)() is M.false_value:
             result = M.false_value
-        if M.IdentityCompare(M.Head(probe._comparison_state_pending_packets(queued_state))(), Lmod.SearchJobLabel)() is M.false_value:
+        if M.IdentityCompare(M.Head(M.Head(probe._comparison_state_pending_packets(queued_state))())(), Lmod.SearchJobLabel)() is M.false_value:
             result = M.false_value
         if M.IdentityCompare(M.SearchJobFrontier(probe._comparison_state_job(queued_state))(), M.EmptyList)() is M.false_value:
             result = M.false_value
@@ -1025,19 +1026,27 @@ class CompareSearchModesPacketizesWideFrontierInChunksTest(M.Edge):
         released = probe._comparison_packet_frontier_width(M.BFSLabel)
         remaining = probe._nat_sub_or_zero_local(M.six, released)
         packet = M.Head(probe._comparison_state_pending_packets(queued_state))()
+        trailing_packets = M.Tail(probe._comparison_state_pending_packets(queued_state))()
+        trailing_packet = empty
+        if M.IdentityCompare(trailing_packets, empty)() is M.false_value:
+            trailing_packet = M.Head(trailing_packets)()
 
         result = M.truth_value
         if M.NatEq(probe._comparison_state_pending_packets_count(queued_state), M.two, probe.registry)() is M.false_value:
             result = M.false_value
-        if M.NatEq(M.SearchJobFrontierSize(probe._comparison_state_job(queued_state))(), remaining, probe.registry)() is M.false_value:
+        if M.NatEq(M.SearchJobFrontierSize(probe._comparison_state_job(queued_state))(), M.Zero, probe.registry)() is M.false_value:
             result = M.false_value
         if M.IdentityCompare(probe._comparison_state_pending_packets(queued_state), empty)() is M.truth_value:
             result = M.false_value
-        if M.IdentityCompare(M.SearchJobFrontier(probe._comparison_state_job(queued_state))(), empty)() is M.truth_value:
+        if M.IdentityCompare(M.SearchJobFrontier(probe._comparison_state_job(queued_state))(), empty)() is M.false_value:
             result = M.false_value
         if M.IdentityCompare(M.Head(packet)(), Lmod.SearchJobLabel)() is M.false_value:
             result = M.false_value
         if M.NatEq(M.SearchJobFrontierSize(packet)(), released, probe.registry)() is M.false_value:
+            result = M.false_value
+        if M.IdentityCompare(trailing_packet, empty)() is M.truth_value:
+            result = M.false_value
+        elif M.NatEq(M.SearchJobFrontierSize(trailing_packet)(), remaining, probe.registry)() is M.false_value:
             result = M.false_value
         self.result = result
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
@@ -1175,11 +1184,11 @@ class CompareSearchModesMergesPacketJobTest(M.Edge):
         result = M.truth_value
         if M.NatEq(M.SearchJobFrontierSize(merged_job)(), M.two, probe.registry)() is M.false_value:
             result = M.false_value
-        if RawTermEqual(M.SearchJobExpanded(merged_job)(), M.one, probe.registry)() is M.false_value:
+        if M.NatEq(M.SearchJobExpanded(merged_job)(), M.one, probe.registry)() is M.false_value:
             result = M.false_value
-        if RawTermEqual(M.SearchJobGenerated(merged_job)(), M.one, probe.registry)() is M.false_value:
+        if M.NatEq(M.SearchJobGenerated(merged_job)(), M.one, probe.registry)() is M.false_value:
             result = M.false_value
-        if RawTermEqual(M.SearchJobFrontierPeak(merged_job)(), M.two, probe.registry)() is M.false_value:
+        if M.NatEq(M.SearchJobFrontierPeak(merged_job)(), M.two, probe.registry)() is M.false_value:
             result = M.false_value
 
         self.result = result
@@ -1221,6 +1230,37 @@ class SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest(M.Edge):
 
         delta = SearchTreeDelta(left_tree, right_tree, registry)()
         self.result = M.IdentityCompare(M.TreeRoot(delta)(), empty)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class TreeInsertDeepPairLookupAvoidsRecursionTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        left = empty
+        right = empty
+        depth = 0
+        previous_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(100)
+        result = M.truth_value
+        try:
+            while depth < 150:
+                left = M.Pair(M.one, left)
+                right = M.Pair(M.one, right)
+                depth = depth + 1
+            fact = M.Pair(M.two, empty)
+            tree = M.TreeInsert(M.Tree(empty), left, fact, registry)()
+            looked_up = M.TreeLookup(tree, right, registry)()
+            if RawTermEqual(looked_up, fact, registry)() is M.false_value:
+                result = M.false_value
+        except RecursionError:
+            result = M.false_value
+        finally:
+            sys.setrecursionlimit(previous_limit)
+        self.result = result
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
@@ -1398,8 +1438,9 @@ class CompareSearchModesRefillWidensPendingPacketsTest(M.Edge):
         rules = M.Pair(rule_one, M.Pair(rule_two, empty))
         probe = _CompareSearchModesProbe(graph, start, goal, rules, heuristic, registry)
 
-        packet_state = M.SearchState(start, empty, empty, M.two)()
-        pending_packet = probe._comparison_frontier_state_packet(packet_state)
+        seeded = probe._comparison_seed_rule_wave(M.BFSLabel, probe._fresh_compare_job(M.BFSLabel), rules)
+        seeded_packets = M.Head(M.Tail(seeded)())()
+        pending_packet = M.Head(seeded_packets)()
         job = M.SearchJob(
             start,
             goal,
@@ -3073,8 +3114,10 @@ class SearchStateHasSingletonTheoremCursor(M.Edge):
         cursor = M.SearchStateCursor(state)()
         if M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
             if M.IdentityCompare(M.Head(cursor)(), M.SearchTheoremCursorLabel)() is M.truth_value:
-                if M.IdentityCompare(M.Tail(M.SearchTheoremCursorRules(cursor)()), M.EmptyList)() is M.truth_value:
-                    self.result = M.truth_value
+                rules = M.SearchTheoremCursorRules(cursor)()
+                if M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(M.Tail(rules)(), M.EmptyList)() is M.truth_value:
+                        self.result = M.truth_value
         super().__init__(inputs=M.Pair(state, M.EmptyList), results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
@@ -3088,8 +3131,10 @@ class SearchStateHasSingletonRewriteCursor(M.Edge):
         if M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
             if M.IdentityCompare(M.Head(cursor)(), M.SearchRewriteCursorLabel)() is M.truth_value:
                 if M.IdentityCompare(M.SearchRewriteCursorAgenda(cursor)(), M.EmptyList)() is M.truth_value:
-                    if M.IdentityCompare(M.Tail(M.SearchRewriteCursorRestRules(cursor)()), M.EmptyList)() is M.truth_value:
-                        self.result = M.truth_value
+                    rest_rules = M.SearchRewriteCursorRestRules(cursor)()
+                    if M.IdentityCompare(rest_rules, M.EmptyList)() is M.false_value:
+                        if M.IdentityCompare(M.Tail(rest_rules)(), M.EmptyList)() is M.truth_value:
+                            self.result = M.truth_value
         super().__init__(inputs=M.Pair(state, M.EmptyList), results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
@@ -4122,6 +4167,13 @@ def install_default_tests(graph):
         "search_tree_delta_skips_equal_content_different_shape_trees_test",
         empty,
         SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "tree_insert_deep_pair_lookup_avoids_recursion_test",
+        empty,
+        TreeInsertDeepPairLookupAvoidsRecursionTest(graph),
         M.truth_value,
     )
     _register_test(

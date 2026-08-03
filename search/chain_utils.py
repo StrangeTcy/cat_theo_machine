@@ -104,6 +104,38 @@ class SearchChainHead(M.Edge):
         return self.result
 
 
+class SearchChainTake(M.Edge):
+    def __init__(self, chain, count):
+        if M.IsPair(chain)() is M.false_value:
+            self.result = M.EmptyList
+        elif M.NatEq(count, M.Zero, M.AllConstructors)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            next_count_pair = M.NatPred(count, M.AllConstructors)()
+            next_count = M.Head(next_count_pair)()
+            self.result = M.Pair(M.Head(chain)(), SearchChainTake(M.Tail(chain)(), next_count)())
+        super().__init__(inputs=M.Pair(chain, M.Pair(count, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchChainAppendMany(M.Edge):
+    def __init__(self, chains):
+        self.result = self._append_many(chains)
+        super().__init__(inputs=M.Pair(chains, M.EmptyList), results=self.result)
+
+    def _append_many(self, chains):
+        if M.IdentityCompare(chains, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        head_chain = M.Head(chains)()
+        tail_chains = self._append_many(M.Tail(chains)())
+        return Append(head_chain, tail_chains)()
+
+    def __call__(self):
+        return self.result
+
+
 class SearchChainAt(M.Edge):
     def __init__(self, chain, index):
         self.result = SearchChainHead(SearchChainDrop(chain, index)())()

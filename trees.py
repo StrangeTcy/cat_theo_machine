@@ -21,6 +21,12 @@ from .labels import (
 )
 from .core import Atom, Edge, EmptyList, Head, IdentityCompare, Pair, Tail, false_value, truth_value
 from .logic import AndAtom, OrAtom
+from .tree_patricia import (
+    TreePatriciaLongestCommonPrefix,
+    TreePatriciaPathEqual,
+    TreePatriciaStripPrefix,
+    TreePatriciaTokenEqual,
+)
 
 
 class IsPair(Edge):
@@ -534,19 +540,13 @@ class TreePatriciaLookup(Edge):
         return Head(Tail(Tail(choice)())())()
 
     def _strip_prefix(self, path, prefix):
-        if IdentityCompare(prefix, EmptyList)() is truth_value:
-            return Pair(truth_value, Pair(path, EmptyList))
-        if IdentityCompare(path, EmptyList)() is truth_value:
-            return Pair(false_value, Pair(EmptyList, EmptyList))
-        if TreeTermEqual(Head(path)(), Head(prefix)())() is false_value:
-            return Pair(false_value, Pair(EmptyList, EmptyList))
-        return self._strip_prefix(Tail(path)(), Tail(prefix)())
+        return TreePatriciaStripPrefix(path, prefix)()
 
     def _find_choice(self, choices, token):
         if IdentityCompare(choices, EmptyList)() is truth_value:
             return EmptyList
         choice = Head(choices)()
-        if TreeTermEqual(self._choice_token(choice), token)() is truth_value:
+        if TreePatriciaTokenEqual(self._choice_token(choice), token)() is truth_value:
             return self._choice_subtree(choice)
         return self._find_choice(Tail(choices)(), token)
 
@@ -557,6 +557,8 @@ class TreePatriciaLookup(Edge):
         if IdentityCompare(entries, EmptyList)() is truth_value:
             return EmptyList
         entry = Head(entries)()
+        if IdentityCompare(self._bucket_entry_exact_key(entry), exact_key)() is truth_value:
+            return self._bucket_entry_fact(entry)
         if TreeTermEqual(self._bucket_entry_exact_key(entry), exact_key)() is truth_value:
             return self._bucket_entry_fact(entry)
         return self._lookup_bucket_entries(Tail(entries)(), exact_key)
@@ -565,10 +567,12 @@ class TreePatriciaLookup(Edge):
         if IdentityCompare(tree, EmptyList)() is truth_value:
             return EmptyList
         if self._is_leaf(tree) is truth_value:
-            if TreeTermEqual(self._leaf_suffix(tree), path)() is false_value:
+            if TreePatriciaPathEqual(self._leaf_suffix(tree), path)() is false_value:
                 return EmptyList
             if self._leaf_is_bucketed(tree) is truth_value:
                 return self._lookup_bucket(self._leaf_payload(tree), exact_key)
+            if IdentityCompare(self._leaf_exact_key(tree), exact_key)() is truth_value:
+                return self._leaf_fact(tree)
             if TreeTermEqual(self._leaf_exact_key(tree), exact_key)() is false_value:
                 return EmptyList
             return self._leaf_fact(tree)
@@ -654,23 +658,13 @@ class TreePatriciaInsert(Edge):
         return Head(Tail(Tail(choice)())())()
 
     def _longest_common_prefix(self, left, right):
-        if IdentityCompare(left, EmptyList)() is truth_value:
-            return Pair(EmptyList, Pair(left, Pair(right, EmptyList)))
-        if IdentityCompare(right, EmptyList)() is truth_value:
-            return Pair(EmptyList, Pair(left, Pair(right, EmptyList)))
-        if TreeTermEqual(Head(left)(), Head(right)())() is false_value:
-            return Pair(EmptyList, Pair(left, Pair(right, EmptyList)))
-        rest = self._longest_common_prefix(Tail(left)(), Tail(right)())
-        return Pair(
-            Pair(Head(left)(), Head(rest)()),
-            Pair(Head(Tail(rest)())(), Pair(Head(Tail(Tail(rest)())())(), EmptyList)),
-        )
+        return TreePatriciaLongestCommonPrefix(left, right)()
 
     def _find_choice(self, choices, token):
         if IdentityCompare(choices, EmptyList)() is truth_value:
             return EmptyList
         choice = Head(choices)()
-        if TreeTermEqual(self._choice_token(choice), token)() is truth_value:
+        if TreePatriciaTokenEqual(self._choice_token(choice), token)() is truth_value:
             return self._choice_subtree(choice)
         return self._find_choice(Tail(choices)(), token)
 
@@ -679,7 +673,7 @@ class TreePatriciaInsert(Edge):
             return Pair(TreePatriciaChoice(token, subtree)(), EmptyList)
         choice = Head(choices)()
         rest = Tail(choices)()
-        if TreeTermEqual(self._choice_token(choice), token)() is truth_value:
+        if TreePatriciaTokenEqual(self._choice_token(choice), token)() is truth_value:
             return Pair(TreePatriciaChoice(token, subtree)(), rest)
         return Pair(choice, self._upsert_choice(rest, token, subtree))
 
@@ -703,13 +697,15 @@ class TreePatriciaInsert(Edge):
         if IdentityCompare(entries, EmptyList)() is truth_value:
             return Pair(next_entry, EmptyList)
         entry = Head(entries)()
+        if IdentityCompare(self._bucket_entry_exact_key(entry), exact_key)() is truth_value:
+            return Pair(next_entry, Tail(entries)())
         if TreeTermEqual(self._bucket_entry_exact_key(entry), exact_key)() is truth_value:
             return Pair(next_entry, Tail(entries)())
         return Pair(entry, self._upsert_bucket_entries(Tail(entries)(), exact_key, key, fact))
 
     def _insert_into_leaf(self, tree, path, exact_key, key, fact):
         leaf_suffix = self._leaf_suffix(tree)
-        if TreeTermEqual(leaf_suffix, path)() is truth_value:
+        if TreePatriciaPathEqual(leaf_suffix, path)() is truth_value:
             next_bucket = self._upsert_bucket(self._leaf_bucket(tree), exact_key, key, fact)
             return TreePatriciaLeaf(path, next_bucket)()
         split = self._longest_common_prefix(path, leaf_suffix)

@@ -232,7 +232,7 @@ class _SearchModeWorkerResult:
                 M.Zero,
                 M.EmptyList,
                 packet_visited,
-                packet_theorem_rule_cache,
+                M.EmptyList,
                 rewrite_rules,
                 M.one,
             )()
@@ -325,9 +325,6 @@ class _SearchModeWorkerResult:
         )
 
         returned_search_memo = M.EmptyList
-        current_search_memo = M.FromContextGetSearchMemo(graph)()
-        if M.Compare(current_search_memo, packet_search_memo)() is M.false_value:
-            returned_search_memo = SearchTreeDelta(current_search_memo, packet_search_memo, registry)()
 
         returned_visited = M.EmptyList
         current_visited = SearchJobVisited(job)()
@@ -335,13 +332,6 @@ class _SearchModeWorkerResult:
             returned_visited = SearchTreeDelta(current_visited, packet_visited, registry)()
 
         returned_theorem_rule_cache = M.EmptyList
-        current_theorem_rule_cache = SearchJobTheoremRuleCache(job)()
-        if M.Compare(current_theorem_rule_cache, packet_theorem_rule_cache)() is M.false_value:
-            returned_theorem_rule_cache = SearchTreeDelta(
-                current_theorem_rule_cache,
-                packet_theorem_rule_cache,
-                registry,
-            )()
 
         returned_registry = M.EmptyList
         if M.Compare(registry, packet_registry)() is M.false_value:
@@ -361,7 +351,7 @@ class _SearchModeWorkerResult:
             SearchJobFrontierPeak(job)(),
             SearchJobResultPlan(job)(),
             returned_visited,
-            returned_theorem_rule_cache,
+            M.EmptyList,
             SearchJobRewriteRules(job)(),
             SearchJobFrontierSize(job)(),
         )()
@@ -396,7 +386,7 @@ class _SearchModeWorkerResult:
                     SearchJobFrontierPeak(job)(),
                     SearchJobResultPlan(job)(),
                     returned_visited,
-                    returned_theorem_rule_cache,
+                    M.EmptyList,
                     SearchJobRewriteRules(job)(),
                     M.Zero,
                 )()
