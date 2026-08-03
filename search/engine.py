@@ -44,7 +44,7 @@ class Search(M.Edge):
             self._console_input = _SearchConsoleInput()
             self.graph._search_console_input = self._console_input
         self._stop_listener = None
-        self._dfs_timeout_seconds = 100
+        self._dfs_timeout_seconds = None
         self._dfs_timeout_triggered = M.false_value
         self._init_search_prompt_state()
         self._final_status_text = "stopped"
@@ -276,6 +276,8 @@ class Search(M.Edge):
 
     def _timeout_requested(self):
         if self._mode_is_plain_dfs() is M.false_value:
+            return M.false_value
+        if self._dfs_timeout_seconds is None:
             return M.false_value
         if self._progress_ticker._elapsed_seconds() <= self._dfs_timeout_seconds:
             return M.false_value
@@ -1153,13 +1155,7 @@ class SearchBFS(Search):
                 + " action="
                 + PrettyAction(action, self.registry)()
             )
-            if IsKnowledge(current)() is M.truth_value:
-                if self._comparison_uses_raw_theorem_branches() is M.truth_value:
-                    next_term = self._apply_theorem_rule_at_root(rule, current)
-                else:
-                    next_term = self._apply_goal_directed_theorem_rule_at_root(rule, current, goal)
-            else:
-                next_term = self._apply_theorem_rule_at_root(rule, current)
+            next_term = self._apply_theorem_rule_at_root(rule, current)
             next_term = self._canonical_term(next_term)
             if M.TermEqual(next_term, current)() is M.truth_value:
                 rules = rest_rules
