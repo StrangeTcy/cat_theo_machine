@@ -18,6 +18,9 @@ runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
 print("DEBUG-EXT: runtime booted in", time.time() - boot_started_at, "seconds")
 registry = M.FromContextGetConstructors(runtime.graph)()
 runtime.graph._search_disable_console = M.truth_value
+runtime.graph._search_probe_disable_applicable_cache = M.truth_value
+runtime.graph._search_probe_disable_applicable_shards = M.truth_value
+runtime.graph._search_probe_disable_anchor_meta = M.truth_value
 print("DEBUG-EXT: console disabled for probe")
 print("DEBUG-EXT: pack order-sign loaded")
 print("DEBUG-EXT: pack sqrt-real loaded")
