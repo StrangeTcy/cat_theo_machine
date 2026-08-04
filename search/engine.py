@@ -760,46 +760,65 @@ class Search(M.Edge):
         )
         return ordered
 
-    def _theorem_cursor_for(self, current, goal):
+    def _theorem_cursor_for(self, current, goal, knowledge_head_index=None, knowledge_exact_trie=None, delta=None, provenance=None, actions_rev=None):
         started_at = time.time()
         self._stage_debug("cursor build start")
-        indexes = self._theorem_indexes_for(current)
-        knowledge_head_index = M.Head(indexes)()
-        knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+        if knowledge_head_index is None or knowledge_exact_trie is None:
+            indexes = self._theorem_indexes_for(current)
+            knowledge_head_index = M.Head(indexes)()
+            knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+        if delta is None:
+            delta = knowledge_exact_trie
+        if provenance is None:
+            provenance = M.EmptyList
+        if actions_rev is None:
+            actions_rev = M.EmptyList
         after_indexes = time.time()
         self._stage_debug(
             "cursor build after indexes in "
             + "{:.3f}".format(after_indexes - started_at)
             + "s"
         )
-        shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)() is M.truth_value
-        if shard_disabled:
-            applicable_rules = FilterApplicableRulesWithIndex(
-                self.rules,
-                current,
-                knowledge_head_index,
-                self.registry,
-                knowledge_exact_trie,
-            )()
+        if IsKnowledge(current)() is M.truth_value:
+            ordered_rules = self.rules
         else:
-            applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
+            shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)() is M.truth_value
+            if shard_disabled:
+                applicable_rules = FilterApplicableRulesWithIndex(
+                    self.rules,
+                    current,
+                    knowledge_head_index,
+                    self.registry,
+                    knowledge_exact_trie,
+                )()
+            else:
+                applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
+            if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
+                ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
+            else:
+                ordered_rules = applicable_rules
         after_applicable = time.time()
         self._stage_debug(
             "cursor build after applicable in "
             + "{:.3f}".format(after_applicable - after_indexes)
             + "s"
         )
-        if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
-            ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
-        else:
-            ordered_rules = applicable_rules
         after_order = time.time()
         self._stage_debug(
             "cursor build after order in "
             + "{:.3f}".format(after_order - after_applicable)
             + "s"
         )
-        cursor = SearchTheoremCursor(ordered_rules, M.EmptyList)()
+        cursor = SearchTheoremCursor(
+            ordered_rules,
+            M.EmptyList,
+            knowledge_head_index,
+            knowledge_exact_trie,
+            delta,
+            M.EmptyList,
+            provenance,
+            actions_rev,
+        )()
         after_cursor = time.time()
         self._stage_debug(
             "cursor build ready in "
@@ -928,9 +947,15 @@ class Search(M.Edge):
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
-    def _goal_reached(self, current, goal):
+    def _goal_reached(self, current, goal, knowledge_exact_trie=None):
         if IsKnowledge(current)() is M.truth_value:
-            return self._knowledge_has_fact(KnowledgeFacts(current)(), goal)
+            if knowledge_exact_trie is None:
+                knowledge_exact_trie = K.KnowledgeTrieInsertChain(
+                    M.EmptyTree,
+                    KnowledgeFacts(current)(),
+                    self.registry,
+                )()
+            return K.KnowledgeTrieHasFact(knowledge_exact_trie, goal, self.registry)()
         return M.TermEqual(current, goal)()
 
     def _derivation_reaches_goal(self, derivation, goal):
@@ -972,10 +997,12 @@ class Search(M.Edge):
 
         return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings, knowledge_head_index, knowledge_exact_trie)
 
-    def _apply_theorem_rule_to_knowledge(self, rule, current):
+    def _apply_theorem_rule_to_knowledge(self, rule, current, knowledge_head_index=None, knowledge_exact_trie=None):
         facts = KnowledgeFacts(current)()
-        knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
-        knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
+        if knowledge_head_index is None or knowledge_exact_trie is None:
+            indexes = self._theorem_indexes_for(current)
+            knowledge_head_index = M.Head(indexes)()
+            knowledge_exact_trie = M.Head(M.Tail(indexes)())()
         bindings_pair = self._match_premises(RulePremises(rule)(), facts, M.EmptyList, knowledge_head_index, knowledge_exact_trie)
         bindings_flag = M.Head(bindings_pair)()
         bindings = M.Tail(bindings_pair)()
@@ -984,7 +1011,7 @@ class Search(M.Edge):
 
         inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
         conclusion = M.Head(inst)()
-        if self._knowledge_has_fact(facts, conclusion) is M.truth_value:
+        if K.KnowledgeTrieHasFact(knowledge_exact_trie, conclusion, self.registry)() is M.truth_value:
             return current
         return NormalizeKnowledge(Knowledge(M.Pair(conclusion, facts))(), self.registry)()
 
@@ -1036,9 +1063,9 @@ class Search(M.Edge):
         inst = M.Instantiate(RuleReplacement(rule)(), merged_bindings)()
         return M.Head(inst)()
 
-    def _apply_theorem_rule_at_root(self, rule, current):
+    def _apply_theorem_rule_at_root(self, rule, current, knowledge_head_index=None, knowledge_exact_trie=None):
         if IsKnowledge(current)() is M.truth_value:
-            return self._apply_theorem_rule_to_knowledge(rule, current)
+            return self._apply_theorem_rule_to_knowledge(rule, current, knowledge_head_index, knowledge_exact_trie)
         if RuleIsUnary(rule)() is M.false_value:
             return current
         pattern = RulePattern(rule)()
@@ -1148,8 +1175,32 @@ class SearchBFS(Search):
         current = self._state_current(state)
         rules = SearchTheoremCursorRules(cursor)()
         generated = SearchTheoremCursorGenerated(cursor)()
+        knowledge_head_index = SearchTheoremCursorHeadIndex(cursor)()
+        knowledge_exact_trie = SearchTheoremCursorExactTrie(cursor)()
+        if IsKnowledge(current)() is M.truth_value:
+            if M.IdentityCompare(knowledge_head_index, M.EmptyList)() is M.truth_value:
+                indexes = self._theorem_indexes_for(current)
+                knowledge_head_index = M.Head(indexes)()
+                knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+            elif M.IdentityCompare(knowledge_exact_trie, M.EmptyList)() is M.truth_value:
+                indexes = self._theorem_indexes_for(current)
+                knowledge_head_index = M.Head(indexes)()
+                knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+        delta = SearchTheoremCursorDelta(cursor)()
+        next_delta = SearchTheoremCursorNextDelta(cursor)()
+        provenance = SearchTheoremCursorProvenance(cursor)()
+        actions_rev = SearchTheoremCursorActions(cursor)()
         while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
-            active_cursor = SearchTheoremCursor(rules, generated)()
+            active_cursor = SearchTheoremCursor(
+                rules,
+                generated,
+                knowledge_head_index,
+                knowledge_exact_trie,
+                delta,
+                next_delta,
+                provenance,
+                actions_rev,
+            )()
             if self._checkpoint_state_cursor(state, active_cursor) is M.truth_value:
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
 
@@ -1157,7 +1208,7 @@ class SearchBFS(Search):
             rest_rules = M.Tail(rules)()
             action = TheoremAction(rule)()
             self._stage_debug("trying theorem")
-            next_term = self._apply_theorem_rule_at_root(rule, current)
+            next_term = self._apply_theorem_rule_at_root(rule, current, knowledge_head_index, knowledge_exact_trie)
             next_term = self._canonical_term(next_term)
             if M.TermEqual(next_term, current)() is M.truth_value:
                 rules = rest_rules
@@ -1178,7 +1229,17 @@ class SearchBFS(Search):
             next_steps = M.Head(next_steps_pair)()
             self.registry = M.Head(M.Tail(next_steps_pair)())()
             child = self._make_state(next_term, next_plan_rev, M.Pair(current, self._state_seen(state)), next_steps)
-            continuation = self._state_with_cursor(state, SearchTheoremCursor(rest_rules, next_generated)())
+            continuation_cursor = SearchTheoremCursor(
+                rest_rules,
+                next_generated,
+                knowledge_head_index,
+                knowledge_exact_trie,
+                delta,
+                next_delta,
+                provenance,
+                actions_rev,
+            )()
+            continuation = self._state_with_cursor(state, continuation_cursor)
             return self._advance_result(M.EmptyList, child, continuation, M.one)
 
         if IsKnowledge(current)() is M.truth_value:

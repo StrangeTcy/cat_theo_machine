@@ -762,6 +762,7 @@ from .context import (
 from .graph import Hypergraph, Reverse, RunTests, Test
 from .heuristics import Heuristic, HeuristicAlpha, HeuristicBeamWidth, HeuristicBeta, HeuristicRuleOrder, HeuristicSearchMode
 from .proof import (
+    ActionBindings,
     ActionPath,
     ActionRule,
     CollectRules,
@@ -841,7 +842,13 @@ from .search import (
     SearchStateCursor,
     SearchStatePlan,
     SearchTheoremCursor,
+    SearchTheoremCursorActions,
+    SearchTheoremCursorDelta,
+    SearchTheoremCursorExactTrie,
     SearchTheoremCursorGenerated,
+    SearchTheoremCursorHeadIndex,
+    SearchTheoremCursorNextDelta,
+    SearchTheoremCursorProvenance,
     SearchTheoremCursorRules,
     SearchRewriteCursor,
     SearchRewriteCursorAgenda,

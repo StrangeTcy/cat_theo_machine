@@ -146,13 +146,27 @@ class MultiRule(M.Edge):
 
 
 class CompiledRule(M.Edge):
-    def __init__(self, rule, anchor_meta, requires_variable_anchor):
+    def __init__(self, rule, anchor_meta, requires_variable_anchor, premise_meta=None):
+        if premise_meta is None:
+            premise_meta = M.EmptyList
         self.result = M.Pair(
             CompiledRuleLabel,
-            M.Pair(rule, M.Pair(anchor_meta, M.Pair(requires_variable_anchor, M.EmptyList))),
+            M.Pair(
+                rule,
+                M.Pair(
+                    anchor_meta,
+                    M.Pair(requires_variable_anchor, M.Pair(premise_meta, M.EmptyList)),
+                ),
+            ),
         )
         super().__init__(
-            inputs=M.Pair(rule, M.Pair(anchor_meta, M.Pair(requires_variable_anchor, M.EmptyList))),
+            inputs=M.Pair(
+                rule,
+                M.Pair(
+                    anchor_meta,
+                    M.Pair(requires_variable_anchor, M.Pair(premise_meta, M.EmptyList)),
+                ),
+            ),
             results=self.result,
         )
 
@@ -210,10 +224,41 @@ class CompiledRuleRequiresVariableAnchor(M.Edge):
         return self.result
 
 
+class CompiledRulePremiseMeta(M.Edge):
+    def __init__(self, rule):
+        if IsCompiledRule(rule)() is M.truth_value:
+            args = M.Tail(rule)()
+            if M.IsPair(M.Tail(M.Tail(M.Tail(args)())())())() is M.truth_value:
+                self.result = M.Head(M.Tail(M.Tail(M.Tail(args)())())())()
+            else:
+                self.result = M.EmptyList
+        else:
+            self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class CompileRule(M.Edge):
     def __init__(self, rule, registry):
         anchor_meta = RuleAnchorStaticMeta(rule, registry)()
         requires_variable_anchor = M.false_value
+        premise_meta = M.EmptyList
+        premise_meta_rev = M.EmptyList
+        premises = RulePremises(rule)()
+        while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+            premise = M.Head(premises)()
+            contains_variable = ContainsVar(premise)()
+            head_key = K.HeadBucketKey(premise, registry)()
+            premise_meta_rev = M.Pair(
+                M.Pair(premise, M.Pair(contains_variable, M.Pair(head_key, M.EmptyList))),
+                premise_meta_rev,
+            )
+            premises = M.Tail(premises)()
+        while M.IdentityCompare(premise_meta_rev, M.EmptyList)() is M.false_value:
+            premise_meta = M.Pair(M.Head(premise_meta_rev)(), premise_meta)
+            premise_meta_rev = M.Tail(premise_meta_rev)()
         index = 0
         while index < len(anchor_meta):
             entry = anchor_meta[index]
@@ -221,7 +266,7 @@ class CompileRule(M.Edge):
                 requires_variable_anchor = M.truth_value
                 break
             index = index + 1
-        self.result = CompiledRule(rule, anchor_meta, requires_variable_anchor)()
+        self.result = CompiledRule(rule, anchor_meta, requires_variable_anchor, premise_meta)()
         super().__init__(inputs=M.Pair(rule, M.Pair(registry, M.EmptyList)), results=self.result)
 
     def __call__(self):
@@ -294,9 +339,11 @@ class RuleReplacement(M.Edge):
 
 
 class TheoremAction(M.Edge):
-    def __init__(self, rule):
-        self.result = M.Pair(TheoremActionLabel, M.Pair(rule, M.EmptyList))
-        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+    def __init__(self, rule, bindings=None):
+        if bindings is None:
+            bindings = M.EmptyList
+        self.result = M.Pair(TheoremActionLabel, M.Pair(rule, M.Pair(bindings, M.EmptyList)))
+        super().__init__(inputs=M.Pair(rule, M.Pair(bindings, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
@@ -322,7 +369,9 @@ class IsTheoremAction(M.Edge):
                 self.result = M.false_value
             elif M.IsPair(tail)() is M.false_value:
                 self.result = M.false_value
-            elif M.IdentityCompare(M.Tail(tail)(), M.EmptyList)() is M.false_value:
+            elif M.IsPair(M.Tail(tail)())() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Tail(M.Tail(tail)())(), M.EmptyList)() is M.false_value:
                 self.result = M.false_value
             else:
                 self.result = M.truth_value
@@ -374,6 +423,18 @@ class ActionRule(M.Edge):
 class ActionPath(M.Edge):
     def __init__(self, x):
         if IsRewriteAction(x)() is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(x)())())()
+        else:
+            self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(x, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ActionBindings(M.Edge):
+    def __init__(self, x):
+        if IsTheoremAction(x)() is M.truth_value:
             self.result = M.Head(M.Tail(M.Tail(x)())())()
         else:
             self.result = M.EmptyList
@@ -739,6 +800,132 @@ class ChooseRuleAnchor(M.Edge):
 
 
 class FilterApplicableRules(M.Edge):
+    """Production rule admission.
+
+    Contains no timing, no pretty-printing, no Peano probe counters and no
+    per-rule debug calls. Diagnostic admission lives in
+    FilterApplicableRulesProbe, which is dispatched to before any timing or
+    formatting occurs.
+    """
+
+    def __init__(self, rules, current, registry, knowledge_head_index=None, knowledge_exact_trie=None):
+        self.registry = registry
+        self.current = current
+        self._anchor_heuristic = DefaultAnchorPreferenceHeuristic()()
+        self._knowledge_head_index = M.EmptyList
+        self._knowledge_exact_trie = M.EmptyList
+        if knowledge_head_index is None:
+            if IsKnowledge(current)() is M.truth_value:
+                self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        else:
+            self._knowledge_head_index = knowledge_head_index
+        if knowledge_exact_trie is None:
+            if IsKnowledge(current)() is M.truth_value:
+                self._knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        else:
+            self._knowledge_exact_trie = knowledge_exact_trie
+        compiled_rules = rules
+        if M.IdentityCompare(compiled_rules, M.EmptyList)() is M.false_value:
+            if IsCompiledRule(M.Head(compiled_rules)())() is M.false_value:
+                compiled_rules = CompileRuleChain(compiled_rules, registry)()
+        self.result = self._filter(compiled_rules, current)
+        super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _rule_anchor(self, rule):
+        premises = RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return RulePattern(rule)()
+        if RuleIsUnary(rule)() is M.truth_value:
+            return RulePattern(rule)()
+        return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
+
+    def _rule_has_missing_required_premise_head(self, rule):
+        premises = RulePremises(rule)()
+        while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+            premise = M.Head(premises)()
+            if IsVarPattern(premise)() is M.truth_value:
+                premises = M.Tail(premises)()
+                continue
+            if ContainsVar(premise)() is M.false_value:
+                if K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)() is M.false_value:
+                    return M.truth_value
+                premises = M.Tail(premises)()
+                continue
+            bucket_size = K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, premise, self.registry)()
+            if M.NatEq(bucket_size, M.Zero, self.registry)() is M.truth_value:
+                return M.truth_value
+            premises = M.Tail(premises)()
+        return M.false_value
+
+    def _anchor_matches_facts(self, anchor, facts):
+        if M.IdentityCompare(anchor, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        match = M.Match(anchor, fact)()
+        if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
+            return M.truth_value
+        return self._anchor_matches_facts(anchor, M.Tail(facts)())
+
+    def _rule_head_applicable(self, rule, current):
+        if IsKnowledge(current)() is M.truth_value:
+            premises = RulePremises(rule)()
+            if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+                    if self._rule_has_missing_required_premise_head(rule) is M.truth_value:
+                        return M.false_value
+            anchor = self._rule_anchor(rule)
+            facts = KnowledgeFacts(current)()
+            if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
+                if IsVarPattern(anchor)() is M.false_value:
+                    facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
+            if ContainsVar(anchor)() is M.false_value:
+                return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, anchor, self.registry)()
+            return self._anchor_matches_facts(anchor, facts)
+        pattern = RulePattern(rule)()
+        if IsVarPattern(pattern)() is M.truth_value:
+            return M.truth_value
+        p_head = TermHead(pattern, self.registry)()
+        c_head = TermHead(current, self.registry)()
+        if M.AndAtom(
+            M.IdentityCompare(p_head, M.EmptyList)(),
+            M.IdentityCompare(c_head, M.EmptyList)(),
+        )() is M.truth_value:
+            match = M.Match(pattern, current)()
+            if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
+                return M.truth_value
+            return M.false_value
+        if M.OrAtom(
+            M.IdentityCompare(p_head, M.EmptyList)(),
+            M.IdentityCompare(c_head, M.EmptyList)(),
+        )() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(p_head, c_head)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _filter(self, rules, current):
+        if M.Compare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        r = M.Head(rules)()
+        rest = M.Tail(rules)()
+        if self._rule_head_applicable(r, current) is M.truth_value:
+            return M.Pair(r, self._filter(rest, current))
+        return self._filter(rest, current)
+
+    def __call__(self):
+        return self.result
+
+
+class FilterApplicableRulesProbe(M.Edge):
+    """Diagnostic rule admission.
+
+    Mirrors FilterApplicableRules but records per-rule anchor/bucket/match
+    timings, Peano attempt and rule-index counters, and emits a per-rule
+    debug line. Never used by the production admission path.
+    """
+
     def __init__(self, rules, current, registry, knowledge_head_index=None, knowledge_exact_trie=None):
         self.registry = registry
         self.current = current
@@ -838,6 +1025,10 @@ class FilterApplicableRules(M.Edge):
             else:
                 admitted = self._anchor_matches_facts(anchor, facts)
             after_match = time.time()
+            if admitted is M.truth_value:
+                admitted_text = "yes"
+            else:
+                admitted_text = "no"
             _debug(
                 "filter-applicable: rule-index="
                 + M.PrettyTerm(self._probe_rule_index, self.registry)()
@@ -854,7 +1045,7 @@ class FilterApplicableRules(M.Edge):
                 + " attempts="
                 + M.PrettyTerm(self._last_anchor_match_attempts, self.registry)()
                 + " admitted="
-                + ("yes" if admitted is M.truth_value else "no")
+                + admitted_text
             )
             return admitted
         pattern = RulePattern(rule)()
@@ -988,7 +1179,7 @@ class GoalHeadRuleBuckets(M.Edge):
 
 
 class GoalHeadRuleOrdererWithIndex(M.Edge):
-    def __init__(self, rules, current, goal, knowledge_head_index, knowledge_exact_trie, registry):
+    def __init__(self, rules, current, goal, knowledge_head_index, knowledge_exact_trie, registry, prepared_entries=None):
         self.registry = registry
         self._knowledge_head_index = knowledge_head_index
         self._knowledge_exact_trie = knowledge_exact_trie
@@ -996,7 +1187,10 @@ class GoalHeadRuleOrdererWithIndex(M.Edge):
             self._all_facts = KnowledgeFacts(current)()
         else:
             self._all_facts = M.Pair(current, M.EmptyList)
-        self.result = self._sort(self._entries(rules))
+        entries = prepared_entries
+        if entries is None:
+            entries = self._entries(rules)
+        self.result = self._sort(entries)
         super().__init__(
             inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(knowledge_head_index, M.Pair(knowledge_exact_trie, M.Pair(registry, M.EmptyList)))))),
             results=self.result,
@@ -1035,14 +1229,33 @@ class GoalHeadRuleOrdererWithIndex(M.Edge):
         return entry[3]
 
     def _make_entry(self, rule):
-        premises = RulePremises(rule)()
+        premise_meta = CompiledRulePremiseMeta(rule)()
         ready_count = 0
         total_count = 0
-        while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+        while M.IdentityCompare(premise_meta, M.EmptyList)() is M.false_value:
+            entry = M.Head(premise_meta)()
+            premise = M.Head(entry)()
+            contains_variable = M.Head(M.Tail(entry)())()
             total_count = total_count + 1
-            if self._premise_ready(M.Head(premises)()) is M.truth_value:
+            if IsVarPattern(premise)() is M.truth_value:
+                if M.IdentityCompare(self._all_facts, M.EmptyList)() is M.false_value:
+                    ready_count = ready_count + 1
+            elif contains_variable is M.false_value:
+                if K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)() is M.truth_value:
+                    ready_count = ready_count + 1
+            elif self._premise_matches_facts(
+                premise,
+                K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(),
+            ) is M.truth_value:
                 ready_count = ready_count + 1
-            premises = M.Tail(premises)()
+            premise_meta = M.Tail(premise_meta)()
+        if total_count == 0:
+            premises = RulePremises(rule)()
+            while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+                total_count = total_count + 1
+                if self._premise_ready(M.Head(premises)()) is M.truth_value:
+                    ready_count = ready_count + 1
+                premises = M.Tail(premises)()
         return (rule, ready_count, total_count - ready_count, total_count)
 
     def _entries(self, rules):
@@ -1833,7 +2046,12 @@ class BuildDerivation(M.Edge):
         _debug("apply-action: current=" + _debug_term(current, registry))
         _debug("apply-action: " + PrettyAction(action, registry)())
         if IsTheoremAction(action)() is M.truth_value:
+            previous_bindings = self.bindings
+            action_bindings = ActionBindings(action)()
+            if M.IdentityCompare(action_bindings, M.EmptyList)() is M.false_value:
+                self.bindings = action_bindings
             result = self._apply_theorem_rule_at_root(ActionRule(action)(), current, registry)
+            self.bindings = previous_bindings
             _debug("apply-action result=" + _debug_term(result, registry))
             return result
         if IsRewriteAction(action)() is M.truth_value:

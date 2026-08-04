@@ -4543,13 +4543,70 @@ def install_default_tests(graph):
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()
-    theorem_cursor = M.SearchTheoremCursor(theorem_cursor_rules, theorem_cursor_generated)()
+    theorem_cursor_head_index = M.Pair(M.Zero, empty)
+    theorem_cursor_exact_trie = M.Pair(M.one, empty)
+    theorem_cursor_delta = M.Pair(M.two, empty)
+    theorem_cursor_next_delta = M.Pair(M.three, empty)
+    theorem_cursor_provenance = M.Pair(M.four, empty)
+    theorem_cursor_actions = M.Pair(b, empty)
+    theorem_cursor = M.SearchTheoremCursor(
+        theorem_cursor_rules,
+        theorem_cursor_generated,
+        theorem_cursor_head_index,
+        theorem_cursor_exact_trie,
+        theorem_cursor_delta,
+        theorem_cursor_next_delta,
+        theorem_cursor_provenance,
+        theorem_cursor_actions,
+    )()
     cursor_state = M.SearchState(a, empty, empty, M.one, theorem_cursor)()
     _register_test(
         graph,
         "search_state_cursor_roundtrip_test",
         M.Pair(cursor_state, empty),
         ComputedRawTermEqual(M.SearchStateCursor(cursor_state), theorem_cursor, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_head_index_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorHeadIndex(theorem_cursor), theorem_cursor_head_index, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_exact_trie_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorExactTrie(theorem_cursor), theorem_cursor_exact_trie, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_delta_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorDelta(theorem_cursor), theorem_cursor_delta, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_next_delta_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorNextDelta(theorem_cursor), theorem_cursor_next_delta, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_provenance_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorProvenance(theorem_cursor), theorem_cursor_provenance, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_actions_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorActions(theorem_cursor), theorem_cursor_actions, _registry(graph)),
         M.truth_value,
     )
 
