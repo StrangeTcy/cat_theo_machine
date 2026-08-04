@@ -39,9 +39,13 @@ class MachineRuntime:
         self.rewrite_heuristic = rewrite_heuristic
         self.loaded_packs = loaded_packs if loaded_packs is not None else ()
         self.snapshot_upgraded = M.false_value
+        self._compiled_ordered_rules = None
 
     def ordered_rules(self):
-        return Reverse(M.FromContextGetRuleOrder(self.graph)())()
+        if self._compiled_ordered_rules is None:
+            raw_rules = Reverse(M.FromContextGetRuleOrder(self.graph)())()
+            self._compiled_ordered_rules = Pmod.CompileRuleChain(raw_rules, M.FromContextGetConstructors(self.graph)())()
+        return self._compiled_ordered_rules
 
     def flat_rules(self):
         return CollectRules(M.FromContextGetAllRules(self.graph)())()
@@ -51,6 +55,7 @@ class MachineRuntime:
         loader = PackLoader(namespace)
         pack = loader.load_pack_file(path, self.graph)
         self.loaded_packs = self.loaded_packs + (pack,)
+        self._compiled_ordered_rules = None
         return pack
 
     def save_snapshot(self, path, namespace):
@@ -285,8 +290,8 @@ class MachineRuntime:
         for rule_index, rule in enumerate(visible_rule_edges, 1):
             hyperedge_id = "rule-edge:" + str(rule_index)
             rule_text = Pmod.PrettyRule(rule, registry)()
-            inputs = self._chain_items(M.EdgeInputs(rule)())
-            results = self._chain_items(M.EdgeResults(rule)())
+            inputs = self._chain_items(Pmod.RulePremises(rule)())
+            results = (Pmod.RuleReplacement(rule)(),)
             nodes = nodes + (
                 {
                     "data": {
@@ -996,7 +1001,7 @@ class MachineRuntime:
                 cy_nodes += 1
 
                 input_index = 0
-                inputs = M.EdgeInputs(rule)()
+                inputs = Pmod.RulePremises(rule)()
                 while M.IdentityCompare(inputs, M.EmptyList)() is M.false_value:
                     input_index += 1
                     input_term = M.Head(inputs)()
@@ -1019,7 +1024,7 @@ class MachineRuntime:
                     inputs = M.Tail(inputs)()
 
                 result_index = 0
-                results = M.EdgeResults(rule)()
+                results = M.Pair(Pmod.RuleReplacement(rule)(), M.EmptyList)
                 while M.IdentityCompare(results, M.EmptyList)() is M.false_value:
                     result_index += 1
                     result_term = M.Head(results)()

@@ -207,6 +207,10 @@ class KnowledgeLabel(ConstructorLabel):
     pass
 
 
+class CompiledRuleLabel(ConstructorLabel):
+    pass
+
+
 class StepLabel(ConstructorLabel):
     pass
 
@@ -761,6 +765,7 @@ HeadBucketKeyLabel = HeadBucketKeyLabel()
 KnowledgeHeadBucketLabel = KnowledgeHeadBucketLabel()
 ResidualHeadBucketLabel = ResidualHeadBucketLabel()
 KnowledgeLabel = KnowledgeLabel()
+CompiledRuleLabel = CompiledRuleLabel()
 StepLabel = StepLabel()
 DerivationLabel = DerivationLabel()
 TheoremActionLabel = TheoremActionLabel()
@@ -941,6 +946,7 @@ def sync_from_namespace(namespace):
         "KnowledgeHeadBucketLabel",
         "ResidualHeadBucketLabel",
         "KnowledgeLabel",
+        "CompiledRuleLabel",
         "StepLabel",
         "DerivationLabel",
         "TheoremActionLabel",

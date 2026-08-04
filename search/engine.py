@@ -624,58 +624,17 @@ class Search(M.Edge):
             return M.Head(current)()
         return current
 
-    def _theorem_applicable_rules_sharded(self, current, knowledge_head_index):
-        from .runtime import _SearchApplicableRulesShardWorker
+    def _theorem_applicable_rules_sharded(self, current, knowledge_head_index, knowledge_exact_trie):
+        return FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry, knowledge_exact_trie)()
 
-        shard_width = M.four
-        host_parallelism = 1
-        try:
-            host_parallelism = multiprocessing.cpu_count()
-        except Exception:
-            host_parallelism = 1
-        if host_parallelism <= 1:
-            return FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry)()
-
-        try:
-            mp_context = multiprocessing.get_context("fork")
-        except Exception:
-            mp_context = multiprocessing.get_context("spawn")
-        remaining_rules = self.rules
-        slot = 0
-        workers = ()
-        while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
-            shard_rules = SearchChainTake(remaining_rules, shard_width)()
-            remaining_rules = SearchChainDrop(remaining_rules, shard_width)()
-            result_queue = mp_context.Queue()
-            process = mp_context.Process(
-                target=_SearchApplicableRulesShardWorker,
-                args=(slot, shard_rules, current, knowledge_head_index, self.registry, result_queue),
-            )
-            process.start()
-            workers = workers + ((slot, process, result_queue),)
-            slot = slot + 1
-
-        ordered_results = ()
-        for worker in workers:
-            slot = worker[0]
-            process = worker[1]
-            result_queue = worker[2]
-            process.join()
-            shard_payload = result_queue.get()
-            shard_slot = shard_payload[0]
-            shard_result = shard_payload[1]
-            if shard_result is None:
-                raise RuntimeError("search theorem applicability shard failed at slot " + str(shard_slot))
-            if shard_slot != slot:
-                raise RuntimeError("search theorem applicability shard order mismatch")
-            ordered_results = ordered_results + (shard_result,)
-
-        shard_results = M.EmptyList
-        index = len(ordered_results)
-        while index > 0:
-            index = index - 1
-            shard_results = M.Pair(ordered_results[index], shard_results)
-        return SearchChainAppendMany(shard_results)()
+    def _theorem_indexes_for(self, current):
+        knowledge_head_index = M.EmptyList
+        knowledge_exact_trie = M.EmptyList
+        if IsKnowledge(current)() is M.truth_value:
+            facts = KnowledgeFacts(current)()
+            knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
+            knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
+        return M.Pair(knowledge_head_index, M.Pair(knowledge_exact_trie, M.EmptyList))
 
     def _theorem_applicable_rules_for(self, current):
         started_at = time.time()
@@ -683,56 +642,26 @@ class Search(M.Edge):
             "applicable theorem rules start for current="
             + _debug_term(current, self.registry)
         )
-        cache_key = self._theorem_applicable_rule_cache_key(current)
-        after_cache_key = time.time()
+        indexes = self._theorem_indexes_for(current)
+        knowledge_head_index = M.Head(indexes)()
+        knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+        after_indexes = time.time()
         self._stage_debug(
-            "applicable theorem rules after cache key in "
-            + "{:.3f}".format(after_cache_key - started_at)
+            "applicable theorem rules after indexes in "
+            + "{:.3f}".format(after_indexes - started_at)
             + "s"
         )
-        cache_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_cache, M.truth_value)() is M.truth_value
-        cached = M.EmptyList
-        if cache_disabled is M.false_value:
-            cached = self._tree_lookup_fact(self._theorem_applicable_rule_cache, cache_key)
-        after_cache_lookup = time.time()
-        self._stage_debug(
-            "applicable theorem rules after cache lookup in "
-            + "{:.3f}".format(after_cache_lookup - after_cache_key)
-            + "s"
-        )
-        if M.IdentityCompare(cached, M.EmptyList)() is M.false_value:
-            cached_count_pair = M.Count(M.Head(cached)(), self.registry)()
-            cached_count = M.Head(cached_count_pair)()
-            self.registry = M.Head(M.Tail(cached_count_pair)())()
-            self._stage_debug(
-                "applicable theorem rules cache hit count="
-                + M.PrettyTerm(cached_count, self.registry)()
-                + " for current="
-                + _debug_term(current, self.registry)
-            )
-            return M.Head(cached)()
-        self._stage_debug(
-            "computing applicable theorem rules for current="
-            + _debug_term(current, self.registry)
-        )
-        knowledge_head_index = M.EmptyList
-        if IsKnowledge(current)() is M.truth_value:
-            knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
-        after_head_index = time.time()
-        self._stage_debug(
-            "applicable theorem rules after head index in "
-            + "{:.3f}".format(after_head_index - after_cache_lookup)
-            + "s"
-        )
-        shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)() is M.truth_value
-        if shard_disabled is M.truth_value:
-            applicable = FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry)()
-        else:
-            applicable = self._theorem_applicable_rules_sharded(current, knowledge_head_index)
+        applicable = FilterApplicableRulesWithIndex(
+            self.rules,
+            current,
+            knowledge_head_index,
+            self.registry,
+            knowledge_exact_trie,
+        )()
         after_filter = time.time()
         self._stage_debug(
             "applicable theorem rules after filtering in "
-            + "{:.3f}".format(after_filter - after_head_index)
+            + "{:.3f}".format(after_filter - after_indexes)
             + "s"
         )
         applicable_count_pair = M.Count(applicable, self.registry)()
@@ -744,46 +673,32 @@ class Search(M.Edge):
             + " for current="
             + _debug_term(current, self.registry)
         )
-        meta_disabled = M.IdentityCompare(self.graph._search_probe_disable_anchor_meta, M.truth_value)() is M.truth_value
-        if meta_disabled is M.truth_value:
-            self._stage_debug("applicable theorem rules note: anchor meta probe disabled flag is on, but no runtime fallback is wired")
-        if cache_disabled is M.false_value:
-            self._theorem_applicable_rule_cache = self._tree_insert_fact(
-                self._theorem_applicable_rule_cache,
-                cache_key,
-                M.Pair(applicable, M.EmptyList),
-            )
-        after_cache_store = time.time()
-        self._stage_debug(
-            "applicable theorem rules after cache store in "
-            + "{:.3f}".format(after_cache_store - after_filter)
-            + "s total="
-            + "{:.3f}".format(after_cache_store - started_at)
-            + "s"
-        )
         return applicable
 
     def _theorem_rules_for(self, current, goal):
-        cache_key = self._theorem_rule_cache_key(current, goal)
-        cached = self._tree_lookup_fact(self._theorem_rule_cache, cache_key)
-        if M.IdentityCompare(cached, M.EmptyList)() is M.false_value:
-            cached_count_pair = M.Count(M.Head(cached)(), self.registry)()
-            cached_count = M.Head(cached_count_pair)()
-            self.registry = M.Head(M.Tail(cached_count_pair)())()
-            self._stage_debug(
-                "theorem rule order cache hit count="
-                + M.PrettyTerm(cached_count, self.registry)()
-                + " for current="
-                + _debug_term(current, self.registry)
-                + " goal="
-                + _debug_term(goal, self.registry)
-            )
-            return M.Head(cached)()
-
-        applicable_rules = self._theorem_applicable_rules_for(current)
-        knowledge_head_index = M.EmptyList
-        if IsKnowledge(current)() is M.truth_value:
-            knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        started_at = time.time()
+        indexes = self._theorem_indexes_for(current)
+        knowledge_head_index = M.Head(indexes)()
+        knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+        after_indexes = time.time()
+        self._stage_debug(
+            "theorem rule order after indexes in "
+            + "{:.3f}".format(after_indexes - started_at)
+            + "s"
+        )
+        applicable_rules = FilterApplicableRulesWithIndex(
+            self.rules,
+            current,
+            knowledge_head_index,
+            self.registry,
+            knowledge_exact_trie,
+        )()
+        after_applicable = time.time()
+        self._stage_debug(
+            "theorem rule order after applicable in "
+            + "{:.3f}".format(after_applicable - after_indexes)
+            + "s"
+        )
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
             self._stage_debug(
                 "ordering theorem rules toward goal="
@@ -794,23 +709,32 @@ class Search(M.Edge):
             ordered = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, self.registry)()
         else:
             ordered = applicable_rules
-        ordered_count_pair = M.Count(ordered, self.registry)()
-        ordered_count = M.Head(ordered_count_pair)()
-        self.registry = M.Head(M.Tail(ordered_count_pair)())()
+        after_orderer = time.time()
         self._stage_debug(
-            "theorem rule order ready count="
-            + M.PrettyTerm(ordered_count, self.registry)()
-            + " for current="
-            + _debug_term(current, self.registry)
-            + " goal="
-            + _debug_term(goal, self.registry)
-        )
-        self._theorem_rule_cache = self._tree_insert_fact(
-            self._theorem_rule_cache,
-            cache_key,
-            M.Pair(ordered, M.EmptyList),
+            "theorem rule order after orderer in "
+            + "{:.3f}".format(after_orderer - after_applicable)
+            + "s total="
+            + "{:.3f}".format(after_orderer - started_at)
+            + "s"
         )
         return ordered
+
+    def _theorem_cursor_for(self, current, goal):
+        indexes = self._theorem_indexes_for(current)
+        knowledge_head_index = M.Head(indexes)()
+        knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+        applicable_rules = FilterApplicableRulesWithIndex(
+            self.rules,
+            current,
+            knowledge_head_index,
+            self.registry,
+            knowledge_exact_trie,
+        )()
+        if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
+            ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, self.registry)()
+        else:
+            ordered_rules = applicable_rules
+        return SearchTheoremCursor(ordered_rules, M.EmptyList)()
 
     def _rewrite_rules_for(self, goal):
         return self._ensure_rewrite_rules(goal)
@@ -939,14 +863,23 @@ class Search(M.Edge):
         end = DerivationEnd(derivation, self.registry)()
         return self._goal_reached(end, goal)
 
-    def _match_premises(self, premises, facts, bindings):
+    def _match_premises(self, premises, facts, bindings, knowledge_head_index, knowledge_exact_trie):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(M.truth_value, bindings)
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
-        return self._match_premise_against_facts(premise, rest, facts, facts, bindings)
+        candidate_facts = facts
+        if IsVarPattern(premise)() is M.false_value:
+            if ContainsVar(premise)() is M.false_value:
+                if K.KnowledgeTrieHasFact(knowledge_exact_trie, premise, self.registry)() is M.truth_value:
+                    candidate_facts = M.Pair(premise, M.EmptyList)
+                else:
+                    candidate_facts = M.EmptyList
+            else:
+                candidate_facts = K.KnowledgeHeadIndexBucket(knowledge_head_index, premise, self.registry)()
+        return self._match_premise_against_facts(premise, rest, candidate_facts, facts, bindings, knowledge_head_index, knowledge_exact_trie)
 
-    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings):
+    def _match_premise_against_facts(self, premise, rest_premises, facts, all_facts, bindings, knowledge_head_index, knowledge_exact_trie):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.Pair(M.false_value, M.EmptyList)
 
@@ -959,15 +892,17 @@ class Search(M.Edge):
             merged_flag = M.Head(merged)()
             merged_bindings = M.Tail(merged)()
             if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
-                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings)
+                rest_result = self._match_premises(rest_premises, all_facts, merged_bindings, knowledge_head_index, knowledge_exact_trie)
                 if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
                     return rest_result
 
-        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
+        return self._match_premise_against_facts(premise, rest_premises, M.Tail(facts)(), all_facts, bindings, knowledge_head_index, knowledge_exact_trie)
 
     def _apply_theorem_rule_to_knowledge(self, rule, current):
         facts = KnowledgeFacts(current)()
-        bindings_pair = self._match_premises(RulePremises(rule)(), facts, M.EmptyList)
+        knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
+        knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
+        bindings_pair = self._match_premises(RulePremises(rule)(), facts, M.EmptyList, knowledge_head_index, knowledge_exact_trie)
         bindings_flag = M.Head(bindings_pair)()
         bindings = M.Tail(bindings_pair)()
         if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
@@ -1286,22 +1221,27 @@ class SearchBFS(Search):
                 + " steps="
                 + self._nat_text(self._state_steps_remaining(state))
             )
+            self._stage_debug("advance_state: fresh state start")
             self._record_prompt_expansion()
             if self._checkpoint_state_cursor(state, M.EmptyList) is M.truth_value:
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
             if self._goal_reached(current, goal) is M.truth_value:
-                self._stage_debug("goal already reached")
+                self._stage_debug("advance_state: goal already reached")
                 return self._advance_result(self._reverse(plan_rev, M.EmptyList), M.EmptyList, M.EmptyList, M.Zero)
+            self._stage_debug("advance_state: after goal check")
             cached_solution = self._cached_solution(current, goal, plan_rev, self._state_steps_remaining(state))
             if M.Compare(cached_solution, M.EmptyList)() is not M.truth_value:
                 return self._advance_result(cached_solution, M.EmptyList, M.EmptyList, M.Zero)
+            self._stage_debug("advance_state: after cached-solution check")
             if M.NatEq(self._state_steps_remaining(state), M.Zero, self.registry)() is M.truth_value:
                 self._stage_debug("exhausted step budget")
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
             if self._seen_term(self._state_seen(state), current) is M.truth_value:
                 self._stage_debug("seen current before, pruning")
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
-            cursor = SearchTheoremCursor(self._theorem_rules_for(current, goal), M.EmptyList)()
+            self._stage_debug("advance_state: before cursor construction")
+            cursor = self._theorem_cursor_for(current, goal)
+            self._stage_debug("advance_state: after cursor construction")
             state = self._state_with_cursor(state, cursor)
         if self._cursor_is_theorem(cursor) is M.truth_value:
             theorem_result = self._advance_theorem_cursor(state, cursor, goal)
@@ -1402,6 +1342,9 @@ class _SearchStepKernel(SearchBFS):
         self.job = job
         self.registry = registry
         self.rules = rules
+        if M.IdentityCompare(self.rules, M.EmptyList)() is M.false_value:
+            if IsCompiledRule(M.Head(self.rules)())() is M.false_value:
+                self.rules = CompileRuleChain(self.rules, registry)()
         self.heuristic = heuristic
         self._stop_listener = stop_listener
         self._progress_owner = progress_owner
@@ -1759,9 +1702,12 @@ class SearchStep(M.Edge):
         )
 
     def _step(self):
+        _debug("search-step: start")
         frontier = SearchJobFrontier(self.job)()
+        _debug("search-step: after frontier extraction")
         mode = HeuristicSearchMode(SearchJobHeuristic(self.job)())()
         visited = self._initialize_job_visited(mode, frontier, SearchJobVisited(self.job)())
+        _debug("search-step: after visited initialization")
 
         if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
             finished = self._rebuild_job(
@@ -1783,16 +1729,42 @@ class SearchStep(M.Edge):
         rest_size = self._pred_nat_or_zero(frontier_size)
         fresh_state = M.IdentityCompare(SearchStateCursor(state)(), M.EmptyList)()
 
+        job_rules = SearchJobRules(self.job)()
+        compiled_text = "no"
+        if M.IdentityCompare(job_rules, M.EmptyList)() is M.false_value:
+            if IsCompiledRule(M.Head(job_rules)())() is M.truth_value:
+                compiled_text = "yes"
+            else:
+                job_rules = CompileRuleChain(job_rules, self.registry)()
+                self.job = SearchJob(
+                    SearchJobStart(self.job)(),
+                    SearchJobGoal(self.job)(),
+                    job_rules,
+                    SearchJobHeuristic(self.job)(),
+                    SearchJobStatus(self.job)(),
+                    SearchJobFrontier(self.job)(),
+                    SearchJobExpanded(self.job)(),
+                    SearchJobGenerated(self.job)(),
+                    SearchJobFrontierPeak(self.job)(),
+                    SearchJobResultPlan(self.job)(),
+                    SearchJobVisited(self.job)(),
+                    SearchJobTheoremRuleCache(self.job)(),
+                    SearchJobRewriteRules(self.job)(),
+                    SearchJobFrontierSize(self.job)(),
+                )()
+                compiled_text = "yes"
+        _debug("search-step: job rules compiled=" + compiled_text)
         kernel = _SearchStepKernel(
             self.graph,
             self.job,
-            SearchJobRules(self.job)(),
+            job_rules,
             SearchJobHeuristic(self.job)(),
             SearchJobGoal(self.job)(),
             self.registry,
             self.stop_listener,
             self.progress_owner,
         )
+        _debug("search-step: after kernel construction")
         advanced = kernel._advance_state(state, SearchJobGoal(self.job)())
         if kernel.search_aborted is M.truth_value:
             self.registry = kernel.registry

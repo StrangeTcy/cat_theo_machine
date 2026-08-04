@@ -15,6 +15,7 @@ from .heuristics import (
     HeuristicRuleOrder,
 )
 from .labels import (
+    CompiledRuleLabel,
     DerivationLabel,
     GoalHeadOrderLabel,
     KnowledgeLabel,
@@ -144,9 +145,110 @@ class MultiRule(M.Edge):
         return self
 
 
+class CompiledRule(M.Edge):
+    def __init__(self, rule, anchor_meta, requires_variable_anchor):
+        self.result = M.Pair(
+            CompiledRuleLabel,
+            M.Pair(rule, M.Pair(anchor_meta, M.Pair(requires_variable_anchor, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(rule, M.Pair(anchor_meta, M.Pair(requires_variable_anchor, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsCompiledRule(M.Edge):
+    def __init__(self, rule):
+        if M.IsPair(rule)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(rule)(), CompiledRuleLabel)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = M.false_value
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompiledRuleRaw(M.Edge):
+    def __init__(self, rule):
+        if IsCompiledRule(rule)() is M.truth_value:
+            self.result = M.Head(M.Tail(rule)())()
+        else:
+            self.result = rule
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompiledRuleAnchorMeta(M.Edge):
+    def __init__(self, rule):
+        if IsCompiledRule(rule)() is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(rule)())())()
+        else:
+            self.result = ()
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompiledRuleRequiresVariableAnchor(M.Edge):
+    def __init__(self, rule):
+        if IsCompiledRule(rule)() is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(M.Tail(rule)())())())()
+        else:
+            self.result = M.false_value
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompileRule(M.Edge):
+    def __init__(self, rule, registry):
+        anchor_meta = RuleAnchorStaticMeta(rule, registry)()
+        requires_variable_anchor = M.false_value
+        index = 0
+        while index < len(anchor_meta):
+            entry = anchor_meta[index]
+            if entry[2] > 0:
+                requires_variable_anchor = M.truth_value
+                break
+            index = index + 1
+        self.result = CompiledRule(rule, anchor_meta, requires_variable_anchor)()
+        super().__init__(inputs=M.Pair(rule, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompileRuleChain(M.Edge):
+    def __init__(self, rules, registry):
+        self.registry = registry
+        self.result = self._compile(rules)
+        super().__init__(inputs=M.Pair(rules, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _compile(self, rules):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rule = M.Head(rules)()
+        rest = M.Tail(rules)()
+        return M.Pair(CompileRule(rule, self.registry)(), self._compile(rest))
+
+    def __call__(self):
+        return self.result
+
+
 class RulePremises(M.Edge):
     def __init__(self, rule):
-        self.result = M.Head(M.EdgeInputs(rule)())()
+        raw_rule = CompiledRuleRaw(rule)()
+        self.result = M.Head(M.EdgeInputs(raw_rule)())()
         super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -183,7 +285,8 @@ class RuleIsUnary(M.Edge):
 
 class RuleReplacement(M.Edge):
     def __init__(self, rule):
-        self.result = M.Head(M.Tail(M.EdgeInputs(rule)())())()
+        raw_rule = CompiledRuleRaw(rule)()
+        self.result = M.Head(M.Tail(M.EdgeInputs(raw_rule)())())()
         super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -489,13 +592,14 @@ class RuleAnchorStaticMeta(M.Edge):
 
 
 class ChooseRuleAnchorWithMeta(M.Edge):
-    def __init__(self, heuristic, anchor_meta, current, knowledge_head_index, registry):
+    def __init__(self, heuristic, anchor_meta, requires_variable_anchor, current, knowledge_head_index, registry):
         self.registry = registry
         self.heuristic = heuristic
         self.current = current
         self._knowledge_head_index = knowledge_head_index
+        self._requires_variable_anchor = requires_variable_anchor
         self.result = self._choose(anchor_meta, None)
-        super().__init__(inputs=M.Pair(heuristic, M.Pair(anchor_meta, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList))))), results=self.result)
+        super().__init__(inputs=M.Pair(heuristic, M.Pair(anchor_meta, M.Pair(requires_variable_anchor, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList)))))), results=self.result)
 
     def _fact_count(self, facts):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
@@ -583,6 +687,10 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         next_best = best_entry
         while index < len(meta):
             entry = meta[index]
+            if M.IdentityCompare(self._requires_variable_anchor, M.truth_value)() is M.truth_value:
+                if self._entry_var_count(entry) == 0:
+                    index = index + 1
+                    continue
             if next_best is None:
                 next_best = entry
             elif self._prefer(entry, next_best) is M.truth_value:
@@ -605,8 +713,25 @@ class ChooseRuleAnchor(M.Edge):
                 knowledge_head_index = M.EmptyList
                 if IsKnowledge(current)() is M.truth_value:
                     knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), registry)()
-            anchor_meta = RuleAnchorStaticMeta(rule, registry)()
-            self.result = ChooseRuleAnchorWithMeta(heuristic, anchor_meta, current, knowledge_head_index, registry)()
+            anchor_meta = CompiledRuleAnchorMeta(rule)()
+            requires_variable_anchor = CompiledRuleRequiresVariableAnchor(rule)()
+            if len(anchor_meta) == 0:
+                anchor_meta = RuleAnchorStaticMeta(rule, registry)()
+                index = 0
+                while index < len(anchor_meta):
+                    entry = anchor_meta[index]
+                    if entry[2] > 0:
+                        requires_variable_anchor = M.truth_value
+                        break
+                    index = index + 1
+            self.result = ChooseRuleAnchorWithMeta(
+                heuristic,
+                anchor_meta,
+                requires_variable_anchor,
+                current,
+                knowledge_head_index,
+                registry,
+            )()
         super().__init__(inputs=M.Pair(heuristic, M.Pair(rule, M.Pair(current, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
@@ -614,11 +739,12 @@ class ChooseRuleAnchor(M.Edge):
 
 
 class FilterApplicableRules(M.Edge):
-    def __init__(self, rules, current, registry, knowledge_head_index=None):
+    def __init__(self, rules, current, registry, knowledge_head_index=None, knowledge_exact_trie=None):
         self.registry = registry
         self.current = current
         self._anchor_heuristic = DefaultAnchorPreferenceHeuristic()()
         self._knowledge_head_index = M.EmptyList
+        self._knowledge_exact_trie = M.EmptyList
         self._probe_rule_index = M.Zero
         self._last_anchor_match_attempts = M.Zero
         if knowledge_head_index is None:
@@ -626,7 +752,16 @@ class FilterApplicableRules(M.Edge):
                 self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
         else:
             self._knowledge_head_index = knowledge_head_index
-        self.result = self._filter(rules, current)
+        if knowledge_exact_trie is None:
+            if IsKnowledge(current)() is M.truth_value:
+                self._knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
+        else:
+            self._knowledge_exact_trie = knowledge_exact_trie
+        compiled_rules = rules
+        if M.IdentityCompare(compiled_rules, M.EmptyList)() is M.false_value:
+            if IsCompiledRule(M.Head(compiled_rules)())() is M.false_value:
+                compiled_rules = CompileRuleChain(compiled_rules, registry)()
+        self.result = self._filter(compiled_rules, current)
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def _rule_anchor(self, rule):
@@ -637,17 +772,20 @@ class FilterApplicableRules(M.Edge):
             return RulePattern(rule)()
         return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
 
-    def _rule_has_present_premise_head(self, rule):
+    def _rule_has_missing_required_premise_head(self, rule):
         premises = RulePremises(rule)()
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return M.truth_value
         while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
             premise = M.Head(premises)()
-            premise_head = TermHead(premise, self.registry)()
-            if M.IdentityCompare(premise_head, M.EmptyList)() is M.truth_value:
-                return M.truth_value
+            if IsVarPattern(premise)() is M.truth_value:
+                premises = M.Tail(premises)()
+                continue
+            if ContainsVar(premise)() is M.false_value:
+                if K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)() is M.false_value:
+                    return M.truth_value
+                premises = M.Tail(premises)()
+                continue
             bucket_size = K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, premise, self.registry)()
-            if M.NatEq(bucket_size, M.Zero, self.registry)() is M.false_value:
+            if M.NatEq(bucket_size, M.Zero, self.registry)() is M.truth_value:
                 return M.truth_value
             premises = M.Tail(premises)()
         return M.false_value
@@ -671,7 +809,7 @@ class FilterApplicableRules(M.Edge):
             premises = RulePremises(rule)()
             if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
                 if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
-                    if self._rule_has_present_premise_head(rule) is M.false_value:
+                    if self._rule_has_missing_required_premise_head(rule) is M.truth_value:
                         _debug(
                             "filter-applicable: rule-index="
                             + M.PrettyTerm(self._probe_rule_index, self.registry)()
@@ -683,9 +821,8 @@ class FilterApplicableRules(M.Edge):
             after_anchor = time.time()
             facts = KnowledgeFacts(current)()
             bucket_size = M.Zero
-            premise_head = TermHead(anchor, self.registry)()
             if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
-                if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+                if IsVarPattern(anchor)() is M.false_value:
                     bucket_size = K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, anchor, self.registry)()
                     facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
             after_bucket_lookup = time.time()
@@ -696,7 +833,10 @@ class FilterApplicableRules(M.Edge):
                     self.registry = M.Head(M.Tail(bucket_count_pair)())()
             self._last_anchor_match_attempts = M.Zero
             match_started_at = time.time()
-            admitted = self._anchor_matches_facts(anchor, facts)
+            if ContainsVar(anchor)() is M.false_value:
+                admitted = K.KnowledgeTrieHasFact(self._knowledge_exact_trie, anchor, self.registry)()
+            else:
+                admitted = self._anchor_matches_facts(anchor, facts)
             after_match = time.time()
             _debug(
                 "filter-applicable: rule-index="
@@ -758,120 +898,52 @@ class FilterApplicableRules(M.Edge):
 
 class GoalHeadApplicableRuleBuckets(M.Edge):
     def __init__(self, rules, current, goal, registry, knowledge_head_index=None):
+        started_at = time.time()
         self.registry = registry
-        self._match_memo = M.EmptyTree
         self._knowledge_head_index = M.EmptyList
         if knowledge_head_index is None:
             if IsKnowledge(current)() is M.truth_value:
                 self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
         else:
             self._knowledge_head_index = knowledge_head_index
-        immediate_bucket = self._filter_immediate(rules, current, goal)
-        remaining_rules = self._without_rules(rules, immediate_bucket)
-        by_replacement = K.RulesByReplacementHeadInsertChain(M.EmptyTree, remaining_rules, self.registry)()
-        goal_bucket = M.Reverse(K.RulesByHeadBucket(by_replacement, goal, self.registry)())()
-        other_bucket = self._without_rules(remaining_rules, goal_bucket)
-        self.result = M.Pair(immediate_bucket, M.Pair(goal_bucket, M.Pair(other_bucket, M.EmptyList)))
+        buckets = self._partition(rules, goal, M.EmptyList, M.EmptyList)
+        after_partition = time.time()
+        _debug("goal-head-buckets: after partition in " + "{:.3f}".format(after_partition - started_at) + "s")
+        goal_bucket = M.Reverse(M.Head(buckets)())()
+        other_bucket = M.Reverse(M.Head(M.Tail(buckets)())())()
+        after_reverse = time.time()
+        _debug("goal-head-buckets: after reverse in " + "{:.3f}".format(after_reverse - after_partition) + "s total=" + "{:.3f}".format(after_reverse - started_at) + "s")
+        self.result = M.Pair(goal_bucket, M.Pair(other_bucket, M.EmptyList))
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
 
-    def _knowledge_has_fact(self, facts, target):
-        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+    def _replacement_matches_goal_head(self, rule, goal):
+        r_head = TermHead(RuleReplacement(rule)(), self.registry)()
+        g_head = TermHead(goal, self.registry)()
+        if M.IdentityCompare(r_head, M.EmptyList)() is M.truth_value:
             return M.false_value
-        fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.IdentityCompare(g_head, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(r_head, g_head)() is M.truth_value:
             return M.truth_value
-        return self._knowledge_has_fact(M.Tail(facts)(), target)
+        return M.false_value
 
-    def _match_premises(self, rule, premises, facts, bindings):
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.truth_value, bindings)
-        premise = M.Head(premises)()
-        rest = M.Tail(premises)()
-        candidate_facts = facts
-        premise_head = TermHead(premise, self.registry)()
-        if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
-            if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
-                candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
-        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            memo_hit = K.MatchMemoLookup(self._match_memo, rule, premises, candidate_facts, self.registry)()
-            if M.IdentityCompare(memo_hit, M.EmptyList)() is M.false_value:
-                return memo_hit
-        result = self._match_premise_against_facts(rule, premise, rest, candidate_facts, facts, bindings)
-        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
-            self._match_memo = K.MatchMemoStore(self._match_memo, rule, premises, candidate_facts, result, self.registry)()
-        return result
-
-    def _match_premise_against_facts(self, rule, premise, rest_premises, facts, all_facts, bindings):
-        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.EmptyList)
-
-        fact = M.Head(facts)()
-        match = M.Match(premise, fact)()
-        flag = M.Head(match)()
-        bound = M.Tail(match)()
-        if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
-            merged = M.MergeBindings(bindings, bound)()
-            merged_flag = M.Head(merged)()
-            merged_bindings = M.Tail(merged)()
-            if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
-                rest_result = self._match_premises(rule, rest_premises, all_facts, merged_bindings)
-                if M.IdentityCompare(M.Head(rest_result)(), M.truth_value)() is M.truth_value:
-                    return rest_result
-
-        return self._match_premise_against_facts(rule, premise, rest_premises, M.Tail(facts)(), all_facts, bindings)
-
-    def _rule_reaches_goal_immediately(self, rule, current, goal):
-        if IsKnowledge(current)() is M.false_value:
-            if RuleIsUnary(rule)() is M.false_value:
-                return M.false_value
-            match = M.Match(RulePattern(rule)(), current)()
-            if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.false_value:
-                return M.false_value
-            inst = M.Instantiate(RuleReplacement(rule)(), M.Tail(match)())()
-            return M.TermEqual(M.Head(inst)(), goal)()
-
-        facts = KnowledgeFacts(current)()
-        bindings_pair = self._match_premises(rule, RulePremises(rule)(), facts, M.EmptyList)
-        bindings_flag = M.Head(bindings_pair)()
-        bindings = M.Tail(bindings_pair)()
-        if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
-            return M.false_value
-        inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
-        conclusion = M.Head(inst)()
-        return M.TermEqual(conclusion, goal)()
-
-    def _rule_in_chain(self, rule, rules):
+    def _partition(self, rules, goal, goal_acc, other_acc):
         if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        if M.IdentityCompare(M.Head(rules)(), rule)() is M.truth_value:
-            return M.truth_value
-        return self._rule_in_chain(rule, M.Tail(rules)())
-
-    def _without_rules(self, rules, removed_rules):
-        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
+            return M.Pair(goal_acc, M.Pair(other_acc, M.EmptyList))
         rule = M.Head(rules)()
-        rest = self._without_rules(M.Tail(rules)(), removed_rules)
-        if self._rule_in_chain(rule, removed_rules) is M.truth_value:
-            return rest
-        return M.Pair(rule, rest)
-
-    def _filter_immediate(self, rules, current, goal):
-        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        rule = M.Head(rules)()
-        rest = self._filter_immediate(M.Tail(rules)(), current, goal)
-        if self._rule_reaches_goal_immediately(rule, current, goal) is M.truth_value:
-            return M.Pair(rule, rest)
-        return rest
+        rest = M.Tail(rules)()
+        toward_goal = self._replacement_matches_goal_head(rule, goal)
+        if toward_goal is M.truth_value:
+            return self._partition(rest, goal, M.Pair(rule, goal_acc), other_acc)
+        return self._partition(rest, goal, goal_acc, M.Pair(rule, other_acc))
 
     def __call__(self):
         return self.result
 
 
 class FilterApplicableRulesShard(M.Edge):
-    def __init__(self, rules, current, knowledge_head_index, registry):
-        self.result = FilterApplicableRules(rules, current, registry, knowledge_head_index)()
+    def __init__(self, rules, current, knowledge_head_index, registry, knowledge_exact_trie=None):
+        self.result = FilterApplicableRules(rules, current, registry, knowledge_head_index, knowledge_exact_trie)()
         super().__init__(
             inputs=M.Pair(rules, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList)))),
             results=self.result,
@@ -882,8 +954,8 @@ class FilterApplicableRulesShard(M.Edge):
 
 
 class FilterApplicableRulesWithIndex(M.Edge):
-    def __init__(self, rules, current, knowledge_head_index, registry):
-        self.result = FilterApplicableRules(rules, current, registry, knowledge_head_index)()
+    def __init__(self, rules, current, knowledge_head_index, registry, knowledge_exact_trie=None):
+        self.result = FilterApplicableRules(rules, current, registry, knowledge_head_index, knowledge_exact_trie)()
         super().__init__(
             inputs=M.Pair(rules, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList)))),
             results=self.result,
@@ -917,11 +989,15 @@ class GoalHeadRuleBuckets(M.Edge):
 
 class GoalHeadRuleOrdererWithIndex(M.Edge):
     def __init__(self, rules, current, goal, knowledge_head_index, registry):
-        buckets = GoalHeadRuleBuckets(rules, current, goal, registry, knowledge_head_index)()
-        immediate_bucket = M.Head(buckets)()
-        goal_bucket = M.Head(M.Tail(buckets)())()
-        other_bucket = M.Head(M.Tail(M.Tail(buckets)())())()
-        self.result = Append(immediate_bucket, Append(goal_bucket, other_bucket)())()
+        started_at = time.time()
+        buckets = GoalHeadApplicableRuleBucketsWithIndex(rules, current, goal, knowledge_head_index, registry)()
+        after_buckets = time.time()
+        _debug("goal-head-orderer: after buckets in " + "{:.3f}".format(after_buckets - started_at) + "s")
+        goal_bucket = M.Head(buckets)()
+        other_bucket = M.Head(M.Tail(buckets)())()
+        self.result = Append(goal_bucket, other_bucket)()
+        after_append = time.time()
+        _debug("goal-head-orderer: after append in " + "{:.3f}".format(after_append - after_buckets) + "s total=" + "{:.3f}".format(after_append - started_at) + "s")
         super().__init__(
             inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList))))),
             results=self.result,
@@ -1416,10 +1492,9 @@ class PrettyPath(M.Edge):
 class GoalHeadRuleOrderer(M.Edge):
     def __init__(self, rules, current, goal, registry, knowledge_head_index=None):
         buckets = GoalHeadRuleBuckets(rules, current, goal, registry, knowledge_head_index)()
-        immediate_bucket = M.Head(buckets)()
-        goal_bucket = M.Head(M.Tail(buckets)())()
-        other_bucket = M.Head(M.Tail(M.Tail(buckets)())())()
-        self.result = Append(immediate_bucket, Append(goal_bucket, other_bucket)())()
+        goal_bucket = M.Head(buckets)()
+        other_bucket = M.Head(M.Tail(buckets)())()
+        self.result = Append(goal_bucket, other_bucket)()
         super().__init__(inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
@@ -1568,9 +1643,8 @@ class BuildDerivation(M.Edge):
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
         candidate_facts = facts
-        premise_head = TermHead(premise, self.registry)()
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
-            if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+            if IsVarPattern(premise)() is M.false_value:
                 candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
             memo_hit = K.MatchMemoLookup(self._match_memo, rule, premises, candidate_facts, self.registry)()
@@ -2056,9 +2130,8 @@ class Prove(M.Edge):
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
         candidate_facts = facts
-        premise_head = TermHead(premise, self.registry)()
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
-            if M.IdentityCompare(premise_head, M.EmptyList)() is M.false_value:
+            if IsVarPattern(premise)() is M.false_value:
                 candidate_facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
             memo_hit = K.MatchMemoLookup(self._match_memo, rule, premises, candidate_facts, self.registry)()
@@ -2785,6 +2858,7 @@ class Prove(M.Edge):
 def sync_from_namespace(namespace):
     for name in (
         "KnowledgeLabel",
+        "CompiledRuleLabel",
         "StepLabel",
         "DerivationLabel",
         "ProofCostLabel",
