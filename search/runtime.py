@@ -167,11 +167,22 @@ def _worker_filter_seeded_theorem_continuations(packet_descriptor, frontier):
     return filtered
 
 
-def _SearchApplicableRulesShardWorker(slot, shard_rules, current, knowledge_head_index, registry, result_queue):
+def _SearchApplicableRulesShardWorker(slot, shard_rules, current, knowledge_head_index, knowledge_exact_trie, registry, result_queue):
     try:
         M.AllConstructors = M.set_all_constructors(registry)
-        admitted = FilterApplicableRulesShard(shard_rules, current, knowledge_head_index, registry)()
-        result_queue.put((slot, admitted))
+        admitted = FilterApplicableRulesShard(shard_rules, current, knowledge_head_index, registry, knowledge_exact_trie)()
+        positions = ()
+        shard_cursor = shard_rules
+        admitted_cursor = admitted
+        position = 0
+        while M.IdentityCompare(shard_cursor, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(admitted_cursor, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(M.Head(shard_cursor)(), M.Head(admitted_cursor)())() is M.truth_value:
+                    positions = positions + (position,)
+                    admitted_cursor = M.Tail(admitted_cursor)()
+            shard_cursor = M.Tail(shard_cursor)()
+            position = position + 1
+        result_queue.put((slot, positions))
     except Exception as error:
         import traceback
 

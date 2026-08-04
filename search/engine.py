@@ -625,7 +625,56 @@ class Search(M.Edge):
         return current
 
     def _theorem_applicable_rules_sharded(self, current, knowledge_head_index, knowledge_exact_trie):
-        return FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry, knowledge_exact_trie)()
+        from .runtime import _SearchApplicableRulesShardWorker
+
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except Exception:
+            return FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry, knowledge_exact_trie)()
+        remaining_rules = self.rules
+        shard_width = M.four
+        slot = 0
+        workers = ()
+        while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
+            shard_rules = SearchChainTake(remaining_rules, shard_width)()
+            remaining_rules = SearchChainDrop(remaining_rules, shard_width)()
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=_SearchApplicableRulesShardWorker,
+                args=(slot, shard_rules, current, knowledge_head_index, knowledge_exact_trie, self.registry, result_queue),
+            )
+            process.start()
+            workers = workers + ((slot, shard_rules, process, result_queue),)
+            slot = slot + 1
+        shard_results = M.EmptyList
+        worker_index = len(workers)
+        while worker_index != 0:
+            worker_index = worker_index - 1
+            worker = workers[worker_index]
+            shard_rules = worker[1]
+            process = worker[2]
+            result_queue = worker[3]
+            process.join()
+            shard_payload = result_queue.get()
+            shard_positions = shard_payload[1]
+            if shard_positions is None:
+                raise RuntimeError("search theorem applicability shard failed")
+            shard_results = M.Pair(self._select_shard_rules(shard_rules, shard_positions), shard_results)
+        return SearchChainAppendMany(shard_results)()
+
+    def _select_shard_rules(self, shard_rules, shard_positions):
+        selected_rev = M.EmptyList
+        shard_cursor = shard_rules
+        position_index = 0
+        shard_index = 0
+        while M.IdentityCompare(shard_cursor, M.EmptyList)() is M.false_value:
+            if position_index != len(shard_positions):
+                if shard_index == shard_positions[position_index]:
+                    selected_rev = M.Pair(M.Head(shard_cursor)(), selected_rev)
+                    position_index = position_index + 1
+            shard_cursor = M.Tail(shard_cursor)()
+            shard_index = shard_index + 1
+        return self._reverse(selected_rev, M.EmptyList)
 
     def _theorem_indexes_for(self, current):
         knowledge_head_index = M.EmptyList
@@ -638,10 +687,7 @@ class Search(M.Edge):
 
     def _theorem_applicable_rules_for(self, current):
         started_at = time.time()
-        self._stage_debug(
-            "applicable theorem rules start for current="
-            + _debug_term(current, self.registry)
-        )
+        self._stage_debug("applicable theorem rules start")
         indexes = self._theorem_indexes_for(current)
         knowledge_head_index = M.Head(indexes)()
         knowledge_exact_trie = M.Head(M.Tail(indexes)())()
@@ -651,28 +697,24 @@ class Search(M.Edge):
             + "{:.3f}".format(after_indexes - started_at)
             + "s"
         )
-        applicable = FilterApplicableRulesWithIndex(
-            self.rules,
-            current,
-            knowledge_head_index,
-            self.registry,
-            knowledge_exact_trie,
-        )()
+        shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)() is M.truth_value
+        if shard_disabled:
+            applicable = FilterApplicableRulesWithIndex(
+                self.rules,
+                current,
+                knowledge_head_index,
+                self.registry,
+                knowledge_exact_trie,
+            )()
+        else:
+            applicable = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
         after_filter = time.time()
         self._stage_debug(
             "applicable theorem rules after filtering in "
             + "{:.3f}".format(after_filter - after_indexes)
             + "s"
         )
-        applicable_count_pair = M.Count(applicable, self.registry)()
-        applicable_count = M.Head(applicable_count_pair)()
-        self.registry = M.Head(M.Tail(applicable_count_pair)())()
-        self._stage_debug(
-            "applicable theorem rules ready count="
-            + M.PrettyTerm(applicable_count, self.registry)()
-            + " for current="
-            + _debug_term(current, self.registry)
-        )
+        self._stage_debug("applicable theorem rules ready")
         return applicable
 
     def _theorem_rules_for(self, current, goal):
@@ -686,13 +728,17 @@ class Search(M.Edge):
             + "{:.3f}".format(after_indexes - started_at)
             + "s"
         )
-        applicable_rules = FilterApplicableRulesWithIndex(
-            self.rules,
-            current,
-            knowledge_head_index,
-            self.registry,
-            knowledge_exact_trie,
-        )()
+        shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)() is M.truth_value
+        if shard_disabled:
+            applicable_rules = FilterApplicableRulesWithIndex(
+                self.rules,
+                current,
+                knowledge_head_index,
+                self.registry,
+                knowledge_exact_trie,
+            )()
+        else:
+            applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
         after_applicable = time.time()
         self._stage_debug(
             "theorem rule order after applicable in "
@@ -700,13 +746,8 @@ class Search(M.Edge):
             + "s"
         )
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
-            self._stage_debug(
-                "ordering theorem rules toward goal="
-                + _debug_term(goal, self.registry)
-                + " for current="
-                + _debug_term(current, self.registry)
-            )
-            ordered = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, self.registry)()
+            self._stage_debug("ordering theorem rules")
+            ordered = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
         else:
             ordered = applicable_rules
         after_orderer = time.time()
@@ -720,21 +761,54 @@ class Search(M.Edge):
         return ordered
 
     def _theorem_cursor_for(self, current, goal):
+        started_at = time.time()
+        self._stage_debug("cursor build start")
         indexes = self._theorem_indexes_for(current)
         knowledge_head_index = M.Head(indexes)()
         knowledge_exact_trie = M.Head(M.Tail(indexes)())()
-        applicable_rules = FilterApplicableRulesWithIndex(
-            self.rules,
-            current,
-            knowledge_head_index,
-            self.registry,
-            knowledge_exact_trie,
-        )()
+        after_indexes = time.time()
+        self._stage_debug(
+            "cursor build after indexes in "
+            + "{:.3f}".format(after_indexes - started_at)
+            + "s"
+        )
+        shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)() is M.truth_value
+        if shard_disabled:
+            applicable_rules = FilterApplicableRulesWithIndex(
+                self.rules,
+                current,
+                knowledge_head_index,
+                self.registry,
+                knowledge_exact_trie,
+            )()
+        else:
+            applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
+        after_applicable = time.time()
+        self._stage_debug(
+            "cursor build after applicable in "
+            + "{:.3f}".format(after_applicable - after_indexes)
+            + "s"
+        )
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
-            ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, self.registry)()
+            ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
         else:
             ordered_rules = applicable_rules
-        return SearchTheoremCursor(ordered_rules, M.EmptyList)()
+        after_order = time.time()
+        self._stage_debug(
+            "cursor build after order in "
+            + "{:.3f}".format(after_order - after_applicable)
+            + "s"
+        )
+        cursor = SearchTheoremCursor(ordered_rules, M.EmptyList)()
+        after_cursor = time.time()
+        self._stage_debug(
+            "cursor build ready in "
+            + "{:.3f}".format(after_cursor - after_order)
+            + "s total="
+            + "{:.3f}".format(after_cursor - started_at)
+            + "s"
+        )
+        return cursor
 
     def _rewrite_rules_for(self, goal):
         return self._ensure_rewrite_rules(goal)
@@ -1082,14 +1156,7 @@ class SearchBFS(Search):
             rule = M.Head(rules)()
             rest_rules = M.Tail(rules)()
             action = TheoremAction(rule)()
-            self._stage_debug(
-                "trying theorem; "
-                + self._state_progress_text(state)
-                + " goal="
-                + _debug_term(goal, self.registry)
-                + " action="
-                + PrettyAction(action, self.registry)()
-            )
+            self._stage_debug("trying theorem")
             next_term = self._apply_theorem_rule_at_root(rule, current)
             next_term = self._canonical_term(next_term)
             if M.TermEqual(next_term, current)() is M.truth_value:
@@ -1099,22 +1166,12 @@ class SearchBFS(Search):
                 rules = rest_rules
                 continue
 
-            self._stage_debug(
-                "advanced via theorem="
-                + _debug_term(rule, self.registry)
-                + "; "
-                + self._state_transition_text(state, action, next_term)
-            )
+            self._stage_debug("advanced via theorem")
             next_generated = self._tree_insert(generated, next_term)
             next_plan_rev = M.Pair(action, self._state_plan(state))
             self._record_prompt_generated_one()
             if self._goal_reached(next_term, goal) is M.truth_value:
-                self._stage_debug(
-                    "goal reached directly via theorem="
-                    + _debug_term(rule, self.registry)
-                    + "; "
-                    + self._state_transition_text(state, action, next_term)
-                )
+                self._stage_debug("goal reached directly via theorem")
                 return self._advance_result(self._reverse(next_plan_rev, M.EmptyList), M.EmptyList, M.EmptyList, M.one)
 
             next_steps_pair = M.NatPred(self._state_steps_remaining(state), self.registry)()
@@ -1177,16 +1234,7 @@ class SearchBFS(Search):
             return self._advance_rewrite_cursor(state, next_cursor, goal)
 
         action = RewriteAction(active_rule, path)()
-        self._stage_debug(
-            "trying rewrite; "
-            + self._state_progress_text(state)
-            + " goal="
-            + _debug_term(goal, self.registry)
-            + " focus="
-            + _debug_term(subterm, self.registry)
-            + " action="
-            + PrettyAction(action, self.registry)()
-        )
+        self._stage_debug("trying rewrite")
         next_term = RewriteAtPath(active_rule, current, path, self.registry)()
         next_term = self._canonical_term(next_term)
         if M.TermEqual(next_term, current)() is M.truth_value:
@@ -1194,12 +1242,12 @@ class SearchBFS(Search):
         if self._tree_contains(generated, next_term) is M.truth_value:
             return self._advance_rewrite_cursor(state, next_cursor, goal)
 
-        self._stage_debug("advanced via rewrite; " + self._state_transition_text(state, action, next_term))
+        self._stage_debug("advanced via rewrite")
         next_generated = self._tree_insert(generated, next_term)
         self._record_prompt_generated_one()
         next_plan_rev = M.Pair(action, self._state_plan(state))
         if self._goal_reached(next_term, goal) is M.truth_value:
-            self._stage_debug("goal reached directly via rewrite; " + self._state_transition_text(state, action, next_term))
+            self._stage_debug("goal reached directly via rewrite")
             return self._advance_result(self._reverse(next_plan_rev, M.EmptyList), M.EmptyList, M.EmptyList, M.one)
 
         next_steps_pair = M.NatPred(self._state_steps_remaining(state), self.registry)()
@@ -1214,13 +1262,6 @@ class SearchBFS(Search):
         plan_rev = self._state_plan(state)
         cursor = self._state_cursor(state)
         if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
-            self._stage_debug(
-                self._state_progress_text(state)
-                + " goal="
-                + _debug_term(goal, self.registry)
-                + " steps="
-                + self._nat_text(self._state_steps_remaining(state))
-            )
             self._stage_debug("advance_state: fresh state start")
             self._record_prompt_expansion()
             if self._checkpoint_state_cursor(state, M.EmptyList) is M.truth_value:

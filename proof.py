@@ -988,20 +988,115 @@ class GoalHeadRuleBuckets(M.Edge):
 
 
 class GoalHeadRuleOrdererWithIndex(M.Edge):
-    def __init__(self, rules, current, goal, knowledge_head_index, registry):
-        started_at = time.time()
-        buckets = GoalHeadApplicableRuleBucketsWithIndex(rules, current, goal, knowledge_head_index, registry)()
-        after_buckets = time.time()
-        _debug("goal-head-orderer: after buckets in " + "{:.3f}".format(after_buckets - started_at) + "s")
-        goal_bucket = M.Head(buckets)()
-        other_bucket = M.Head(M.Tail(buckets)())()
-        self.result = Append(goal_bucket, other_bucket)()
-        after_append = time.time()
-        _debug("goal-head-orderer: after append in " + "{:.3f}".format(after_append - after_buckets) + "s total=" + "{:.3f}".format(after_append - started_at) + "s")
+    def __init__(self, rules, current, goal, knowledge_head_index, knowledge_exact_trie, registry):
+        self.registry = registry
+        self._knowledge_head_index = knowledge_head_index
+        self._knowledge_exact_trie = knowledge_exact_trie
+        if IsKnowledge(current)() is M.truth_value:
+            self._all_facts = KnowledgeFacts(current)()
+        else:
+            self._all_facts = M.Pair(current, M.EmptyList)
+        self.result = self._sort(self._entries(rules))
         super().__init__(
-            inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList))))),
+            inputs=M.Pair(rules, M.Pair(current, M.Pair(goal, M.Pair(knowledge_head_index, M.Pair(knowledge_exact_trie, M.Pair(registry, M.EmptyList)))))),
             results=self.result,
         )
+
+    def _premise_matches_facts(self, premise, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        match = M.Match(premise, M.Head(facts)())()
+        if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
+            return M.truth_value
+        return self._premise_matches_facts(premise, M.Tail(facts)())
+
+    def _premise_ready(self, premise):
+        if IsVarPattern(premise)() is M.truth_value:
+            if M.IdentityCompare(self._all_facts, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            return M.truth_value
+        if ContainsVar(premise)() is M.false_value:
+            return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)()
+        return self._premise_matches_facts(
+            premise,
+            K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(),
+        )
+
+    def _entry_rule(self, entry):
+        return entry[0]
+
+    def _entry_ready(self, entry):
+        return entry[1]
+
+    def _entry_unmatched(self, entry):
+        return entry[2]
+
+    def _entry_total(self, entry):
+        return entry[3]
+
+    def _make_entry(self, rule):
+        premises = RulePremises(rule)()
+        ready_count = 0
+        total_count = 0
+        while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+            total_count = total_count + 1
+            if self._premise_ready(M.Head(premises)()) is M.truth_value:
+                ready_count = ready_count + 1
+            premises = M.Tail(premises)()
+        return (rule, ready_count, total_count - ready_count, total_count)
+
+    def _entries(self, rules):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(self._make_entry(M.Head(rules)()), self._entries(M.Tail(rules)()))
+
+    def _prefer_left(self, left_entry, right_entry):
+        left_ready = self._entry_ready(left_entry)
+        right_ready = self._entry_ready(right_entry)
+        left_unmatched = self._entry_unmatched(left_entry)
+        right_unmatched = self._entry_unmatched(right_entry)
+        left_total = self._entry_total(left_entry)
+        right_total = self._entry_total(right_entry)
+        if left_unmatched == 0:
+            if right_unmatched != 0:
+                return M.truth_value
+        else:
+            if right_unmatched == 0:
+                return M.false_value
+        if left_ready != right_ready:
+            if left_ready > right_ready:
+                return M.truth_value
+            return M.false_value
+        if left_unmatched != right_unmatched:
+            if right_unmatched > left_unmatched:
+                return M.truth_value
+            return M.false_value
+        if left_total != right_total:
+            if right_total > left_total:
+                return M.truth_value
+            return M.false_value
+        return M.false_value
+
+    def _insert(self, entry, ordered):
+        if M.IdentityCompare(ordered, M.EmptyList)() is M.truth_value:
+            return M.Pair(entry, M.EmptyList)
+        head_entry = M.Head(ordered)()
+        if self._prefer_left(entry, head_entry) is M.truth_value:
+            return M.Pair(entry, ordered)
+        return M.Pair(head_entry, self._insert(entry, M.Tail(ordered)()))
+
+    def _sort_entries(self, entries):
+        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return self._insert(M.Head(entries)(), self._sort_entries(M.Tail(entries)()))
+
+    def _rules(self, entries):
+        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(self._entry_rule(M.Head(entries)()), self._rules(M.Tail(entries)()))
+
+    def _sort(self, entries):
+        return self._rules(self._sort_entries(entries))
 
     def __call__(self):
         return self.result
