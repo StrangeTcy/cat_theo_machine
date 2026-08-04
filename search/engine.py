@@ -631,6 +631,9 @@ class Search(M.Edge):
             mp_context = multiprocessing.get_context("fork")
         except ValueError:
             mp_context = multiprocessing.get_context("spawn")
+        if mp_context.get_start_method() == "spawn":
+            self._stage_debug("applicability multiprocessing disabled on spawn")
+            return FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry, knowledge_exact_trie)()
 
         rule_count = 0
         remaining_rules = self.rules
@@ -678,6 +681,14 @@ class Search(M.Edge):
                     args=(slot, shard_rules, current, knowledge_head_index, knowledge_exact_trie, self.registry, result_queue),
                 )
                 process.start()
+                self._stage_debug(
+                    "applicability worker start slot="
+                    + str(slot)
+                    + " pid="
+                    + str(process.pid)
+                    + " rules="
+                    + str(active_shard_width_count)
+                )
                 workers = workers + ((slot, shard_rules, process, result_queue),)
                 slot = slot + 1
 
@@ -693,12 +704,24 @@ class Search(M.Edge):
                 if process.exitcode != 0:
                     raise RuntimeError("search theorem applicability worker exited with code " + str(process.exitcode))
                 try:
-                    shard_payload = result_queue.get(timeout=1.0)
+                        shard_payload = result_queue.get(timeout=1.0)
                 except queue.Empty:
                     raise RuntimeError("search theorem applicability worker produced no result")
                 result_queue.close()
                 result_queue.join_thread()
                 shard_positions = shard_payload[1]
+                worker_pid = shard_payload[2]
+                worker_elapsed = shard_payload[3]
+                self._stage_debug(
+                    "applicability worker done slot="
+                    + str(worker[0])
+                    + " pid="
+                    + str(worker_pid)
+                    + " elapsed="
+                    + "{:.3f}".format(worker_elapsed)
+                    + "s exit="
+                    + str(process.exitcode)
+                )
                 if shard_positions is None:
                     raise RuntimeError("search theorem applicability shard failed")
                 shard_results = M.Pair(self._select_shard_rules(shard_rules, shard_positions), shard_results)
