@@ -24,7 +24,6 @@ from .engine import *
 from .engine import _SearchStepKernel
 from .model import *
 from .patricia import *
-from .runtime import _SearchModeWorkerExecutor
 from .ui import _SearchComparisonPromptGuard, _SearchConsoleInput, _SearchStopConsole
 
 
@@ -4721,6 +4720,8 @@ class CompareSearchModes(M.Edge):
         return count
 
     def _spawn_parallel_executor(self, mp_context, slot):
+        from .runtime import _SearchModeWorkerExecutor
+
         slot_text = self._nat_text(slot)
         task_queue = mp_context.Queue()
         result_queue = mp_context.Queue()
