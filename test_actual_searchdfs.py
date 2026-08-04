@@ -1,11 +1,24 @@
+import math as _stdlib_math
+import multiprocessing
 import sys
 import time
+import traceback
 from pathlib import Path
 
 THIS_DIR = Path(__file__).resolve().parent
+THIS_DIR_TEXT = str(THIS_DIR)
 PARENT_DIR = str(THIS_DIR.parent)
+sys.modules["math"] = _stdlib_math
 if PARENT_DIR not in sys.path:
     sys.path.insert(0, PARENT_DIR)
+trimmed_path = []
+path_index = 0
+while path_index != len(sys.path):
+    path_entry = sys.path[path_index]
+    if path_entry != THIS_DIR_TEXT:
+        trimmed_path.append(path_entry)
+    path_index = path_index + 1
+sys.path = trimmed_path
 
 from hyge.runtime import boot_from_packs
 from hyge.main import PACK_PATHS, _runtime_namespace
@@ -40,6 +53,8 @@ def main():
             pack_name = sys.argv[1]
             example_name = sys.argv[2]
 
+    Pmod.SetDebugTrace(M.truth_value)()
+    print("SEARCHDFS-TEST: pid", multiprocessing.current_process().pid, flush=True)
     print("SEARCHDFS-TEST: boot start", flush=True)
     boot_started_at = time.time()
     runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
@@ -48,6 +63,11 @@ def main():
 
     registry = M.FromContextGetConstructors(runtime.graph)()
     runtime.graph._search_disable_console = M.truth_value
+    runtime.graph._search_probe_disable_applicable_cache = M.false_value
+    runtime.graph._search_probe_disable_applicable_shards = M.false_value
+    runtime.graph._search_probe_disable_anchor_meta = M.truth_value
+    print("SEARCHDFS-TEST: debug trace enabled", flush=True)
+    print("SEARCHDFS-TEST: multiprocessing start method", multiprocessing.get_start_method(), flush=True)
 
     pack = packs.by_name(pack_name)
     example = pack.examples[example_name]
@@ -60,17 +80,31 @@ def main():
     normalized_goal = Pmod.NormalizeKnowledge(goal, registry)()
     normalize_elapsed = time.time() - normalize_started_at
     print("SEARCHDFS-TEST: normalize elapsed", round(normalize_elapsed, 3), flush=True)
+    print("SEARCHDFS-TEST: normalized start", M.PrettyTerm(normalized_start, registry)(), flush=True)
+    print("SEARCHDFS-TEST: normalized goal", M.PrettyTerm(normalized_goal, registry)(), flush=True)
+
+    ordered_rules = runtime.ordered_rules()
+    compiled_text = "no"
+    if M.IdentityCompare(ordered_rules, M.EmptyList)() is M.false_value:
+        if Pmod.IsCompiledRule(M.Head(ordered_rules)())() is M.truth_value:
+            compiled_text = "yes"
+    print("SEARCHDFS-TEST: ordered rules compiled", compiled_text, flush=True)
 
     print("SEARCHDFS-TEST: search start", flush=True)
     search_started_at = time.time()
-    search_pair = Smod.SearchDFS(
-        runtime.graph,
-        normalized_start,
-        normalized_goal,
-        runtime.ordered_rules(),
-        runtime.theorem_heuristic,
-        registry,
-    )()
+    try:
+        search_pair = Smod.SearchDFS(
+            runtime.graph,
+            normalized_start,
+            normalized_goal,
+            ordered_rules,
+            runtime.theorem_heuristic,
+            registry,
+        )()
+    except Exception as error:
+        print("SEARCHDFS-TEST: exception", error.__class__.__name__, flush=True)
+        print(traceback.format_exc(), flush=True)
+        raise
     search_elapsed = time.time() - search_started_at
 
     plan = M.Head(search_pair)()
