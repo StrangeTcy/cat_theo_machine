@@ -24,6 +24,7 @@ from .math import peano as Peanomod
 from .math import arithmetic as Arithmod
 from . import prettyprinting as Prettymod
 from . import proof as Pmod
+from . import planner as Plannermod
 from . import search as Searchmod
 from . import trees as T
 from .graph import Hypergraph, Reverse, RunTests, TestResultsReport
@@ -90,6 +91,17 @@ class MachineRuntime:
             M.FromContextGetConstructors(self.graph)(),
         )()
         return M.Head(pair)()
+
+    def evaluate(self, start, goal, rules=None, heuristic=None, step_budget=None):
+        if rules is None:
+            rules = self.ordered_rules()
+        if heuristic is None:
+            heuristic = self.theorem_heuristic
+        if step_budget is None:
+            step_budget = M.nine
+        problem = Plannermod.PlannerProblem(start, goal, rules, heuristic)()
+        state = Plannermod.PlannerState(problem, M.FromContextGetConstructors(self.graph)())()
+        return Plannermod.PlannerRun(self.graph, state, step_budget)()
 
     def explain(self, derivation, goal):
         return ExplainDerivation(derivation, goal, M.FromContextGetConstructors(self.graph)())()

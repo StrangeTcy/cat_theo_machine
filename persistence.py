@@ -412,12 +412,6 @@ class SnapshotCodec:
     def _is_pair_object(self, obj):
         return self._ns_get("IsPair")(obj)() is self._ns_get("truth_value")
 
-    def _is_char_object(self, obj):
-        try:
-            return obj.symbol is not None
-        except (AttributeError, TypeError):
-            return False
-
     def _is_edge_object(self, obj):
         return self._ns_get("IdentityCompare")(obj._snapshot_edge_marker, obj)() is self._ns_get("truth_value")
 
@@ -955,13 +949,6 @@ class SnapshotCodec:
                 "id": oid,
                 "head": self._encode_field(obj.head.value),
                 "tail": self._encode_field(obj.tail.value),
-            }
-
-        if self._is_char_object(obj):
-            return {
-                "id": oid,
-                "symbol": obj.symbol,
-                "value": self._encode_field(obj.value),
             }
 
         if self._is_edge_object(obj) is self._ns_get("truth_value"):

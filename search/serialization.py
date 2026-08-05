@@ -321,29 +321,6 @@ def _search_reduce_char(atom):
     return _search_rebuild_char, (symbol,)
 
 
-def _search_rebuild_pair_chain(elements, tail):
-    res = tail
-    i = len(elements)
-    while i > 0:
-        i -= 1
-        res = M.Pair(elements[i], res)
-    return res
-
-
-def _search_reduce_pair(pair):
-    def _gen(p):
-        curr = p
-        while M.IsPair(curr)() is M.truth_value:
-            yield M.Head(curr)()
-            curr = M.Tail(curr)()
-
-    curr = pair
-    while M.IsPair(curr)() is M.truth_value:
-        curr = M.Tail(curr)()
-
-    return _search_rebuild_pair_chain, (tuple(_gen(pair)), curr)
-
-
 def _search_reduce_constructor_label(atom):
     return _search_pickled_singleton, (atom.__class__.__name__,)
 
@@ -356,7 +333,6 @@ def _install_search_worker_pickle_support():
     copyreg.pickle(M.Diff, _search_reduce_false_value)
     copyreg.pickle(M.VarTag.__class__, _search_reduce_var_tag)
     copyreg.pickle(M.Char, _search_reduce_char)
-    copyreg.pickle(M.Pair, _search_reduce_pair)
 
 
 _install_search_worker_pickle_support()

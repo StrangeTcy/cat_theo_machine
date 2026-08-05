@@ -59,6 +59,28 @@ from .labels import (
     SqrtSeqTermLabel,
     SuccLabel,
     TaoProblem11TriangleLabel,
+    TaoProblem11VertexULabel,
+    TaoProblem11VertexVLabel,
+    TaoProblem11VertexWLabel,
+    TaoProblem11BaseValueLabel,
+    TaoProblem11DifferenceValueLabel,
+    TaoProblem11AreaValueLabel,
+    TaoProblem11AlphaValueLabel,
+    TaoProblem11BetaValueLabel,
+    TaoProblem11GammaValueLabel,
+    DistinctLabel,
+    VertexOfLabel,
+    SegmentLabel,
+    AngleLabel,
+    SideOfLabel,
+    AngleOfLabel,
+    OppositeLabel,
+    AngleMeasureLabel,
+    APNameLabel,
+    ApplyLabel,
+    PerimeterLabel,
+    ArccosLabel,
+    TaoProblem11PerimeterValueLabel,
     TestFailLabel,
     TestNameLabel,
     TestOKLabel,
@@ -462,6 +484,30 @@ class PrettyTerm(Edge):
             return "EvaluateProblem"
         if IdentityCompare(label, AlgebraicApproachLabel)() is truth_value:
             return "AlgebraicApproach"
+        if IdentityCompare(label, DistinctLabel)() is truth_value:
+            return "Distinct"
+        if IdentityCompare(label, VertexOfLabel)() is truth_value:
+            return "VertexOf"
+        if IdentityCompare(label, SegmentLabel)() is truth_value:
+            return "Segment"
+        if IdentityCompare(label, AngleLabel)() is truth_value:
+            return "Angle"
+        if IdentityCompare(label, SideOfLabel)() is truth_value:
+            return "SideOf"
+        if IdentityCompare(label, AngleOfLabel)() is truth_value:
+            return "AngleOf"
+        if IdentityCompare(label, OppositeLabel)() is truth_value:
+            return "Opposite"
+        if IdentityCompare(label, AngleMeasureLabel)() is truth_value:
+            return "AngleMeasure"
+        if IdentityCompare(label, APNameLabel)() is truth_value:
+            return "APName"
+        if IdentityCompare(label, ApplyLabel)() is truth_value:
+            return "Apply"
+        if IdentityCompare(label, PerimeterLabel)() is truth_value:
+            return "Perimeter"
+        if IdentityCompare(label, ArccosLabel)() is truth_value:
+            return "arccos"
         label_class_name = label.__class__.__name__
         if label_class_name == "ArithmeticProgressionLabel":
             return "ArithmeticProgression"
@@ -660,6 +706,9 @@ class PrettyTerm(Edge):
         tail = Tail(x)()
         if M.IsPair(tail)() is false_value and C.Compare(tail, EmptyList)() is false_value:
             return None
+        constructor_name = self._generic_unary_constructor_name(head)
+        if constructor_name is not None:
+            return constructor_name + "(" + self._show_args(tail) + ")"
         if IdentityCompare(head, SqrtLabel)() is truth_value:
             return "sqrt(" + self._show(Head(tail)()) + ")"
         if IdentityCompare(head, SqrtSeqTermLabel)() is truth_value:
@@ -684,6 +733,8 @@ class PrettyTerm(Edge):
             return "sin(" + self._show(Head(tail)()) + ")"
         if IdentityCompare(head, CosineLabel)() is truth_value:
             return "cos(" + self._show(Head(tail)()) + ")"
+        if IdentityCompare(head, ArccosLabel)() is truth_value:
+            return "arccos(" + self._show(Head(tail)()) + ")"
         if IdentityCompare(head, LimitLabel)() is truth_value:
             return "Limit(" + self._show(Head(tail)()) + ", " + self._show(Head(Tail(tail)())()) + ")"
         if IdentityCompare(head, ExprAddLabel)() is truth_value:
@@ -712,9 +763,6 @@ class PrettyTerm(Edge):
             return "Sequence(" + self._show_args(tail) + ")"
         if IdentityCompare(head, KnowledgeLabel)() is truth_value:
             return self._knowledge_text(Head(tail)())
-        generic_unary = self._generic_unary_text(head, Head(tail)())
-        if generic_unary is not None:
-            return generic_unary
         arithmetic_text = self._arithmetic_label_text(head)
         if arithmetic_text is not None:
             return self._scoped_fact_text(Head(tail)(), arithmetic_text)
@@ -804,6 +852,26 @@ class PrettyTerm(Edge):
             return "[" + self._list_like(x) + "]"
         if IdentityCompare(x, TaoProblem11TriangleLabel)() is truth_value:
             return "Tao Problem 1.1 triangle"
+        if IdentityCompare(x, TaoProblem11VertexULabel)() is truth_value:
+            return "u"
+        if IdentityCompare(x, TaoProblem11VertexVLabel)() is truth_value:
+            return "v"
+        if IdentityCompare(x, TaoProblem11VertexWLabel)() is truth_value:
+            return "w"
+        if IdentityCompare(x, TaoProblem11BaseValueLabel)() is truth_value:
+            return "x"
+        if IdentityCompare(x, TaoProblem11DifferenceValueLabel)() is truth_value:
+            return "d"
+        if IdentityCompare(x, TaoProblem11AreaValueLabel)() is truth_value:
+            return "A"
+        if IdentityCompare(x, TaoProblem11PerimeterValueLabel)() is truth_value:
+            return "p"
+        if IdentityCompare(x, TaoProblem11AlphaValueLabel)() is truth_value:
+            return "alpha"
+        if IdentityCompare(x, TaoProblem11BetaValueLabel)() is truth_value:
+            return "beta"
+        if IdentityCompare(x, TaoProblem11GammaValueLabel)() is truth_value:
+            return "gamma"
         if IdentityCompare(x, GeometryFactLabel)() is truth_value:
             return "GeometryFact"
         generic_name = self._generic_unary_constructor_name(x)
@@ -902,6 +970,28 @@ def sync_from_namespace(namespace):
         "SqrtSeqTermLabel",
         "SuccLabel",
         "TaoProblem11TriangleLabel",
+        "TaoProblem11VertexULabel",
+        "TaoProblem11VertexVLabel",
+        "TaoProblem11VertexWLabel",
+        "TaoProblem11BaseValueLabel",
+        "TaoProblem11DifferenceValueLabel",
+        "TaoProblem11AreaValueLabel",
+        "TaoProblem11AlphaValueLabel",
+        "TaoProblem11BetaValueLabel",
+        "TaoProblem11GammaValueLabel",
+        "DistinctLabel",
+        "VertexOfLabel",
+        "SegmentLabel",
+        "AngleLabel",
+        "SideOfLabel",
+        "AngleOfLabel",
+        "OppositeLabel",
+        "AngleMeasureLabel",
+        "APNameLabel",
+        "ApplyLabel",
+        "PerimeterLabel",
+        "ArccosLabel",
+        "TaoProblem11PerimeterValueLabel",
         "TestFailLabel",
         "TestNameLabel",
         "TestOKLabel",

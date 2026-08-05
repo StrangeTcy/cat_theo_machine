@@ -270,11 +270,6 @@ class PackLoader:
             all_rules = M.TreeInsert(all_rules, key, canonical_rule, M.AllConstructors)()
             graph_rule_order = M.Pair(canonical_rule, graph_rule_order)
 
-            # Increment rule index to maintain search depth budget semantics.
-            next_pair = M.Succ(next_rule_index, M.AllConstructors)()
-            next_rule_index = M.Head(next_pair)()
-            M.AllConstructors = M.Head(M.Tail(next_pair)())()
-
             rule_map.store(rid, canonical_rule)
             rule_order = rule_order + (canonical_rule,)
 

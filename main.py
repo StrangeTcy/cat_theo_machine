@@ -369,86 +369,6 @@ def _make_real_closure_case(name: str, a, b, c):
     return name, start, goal
 
 
-def _make_tao_problem_1_1_case(name: str):
-    triangle = Lmod.TaoProblem11TriangleLabel
-    facts = M.Pair(
-        M.Pair(
-            Lmod.GivenLabel,
-            M.Pair(
-                M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
-                M.EmptyList,
-            ),
-        ),
-        M.Pair(
-            M.Pair(
-                Lmod.NeedLabel,
-                M.Pair(
-                    M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                    M.EmptyList,
-                ),
-            ),
-            M.Pair(
-                M.Pair(
-                    Lmod.NeedLabel,
-                    M.Pair(
-                        M.Pair(Lmod.AnglesLabel, M.Pair(triangle, M.EmptyList)),
-                        M.EmptyList,
-                    ),
-                ),
-                M.Pair(
-                    M.Pair(
-                        Lmod.GivenLabel,
-                        M.Pair(
-                            M.Pair(
-                                Lmod.ArithmeticProgressionLabel,
-                                M.Pair(
-                                    M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                                    M.EmptyList,
-                                ),
-                            ),
-                            M.EmptyList,
-                        ),
-                    ),
-                    M.Pair(
-                        M.Pair(
-                            Lmod.GivenLabel,
-                            M.Pair(
-                                M.Pair(
-                                    Lmod.CommonDifferenceLabel,
-                                    M.Pair(
-                                        M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                                        M.EmptyList,
-                                    ),
-                                ),
-                                M.EmptyList,
-                            ),
-                        ),
-                        M.Pair(
-                            M.Pair(
-                                Lmod.GivenLabel,
-                                M.Pair(
-                                    M.Pair(Lmod.AreaLabel, M.Pair(triangle, M.EmptyList)),
-                                    M.EmptyList,
-                                ),
-                            ),
-                            M.EmptyList,
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    )
-    start = M.Knowledge(facts)()
-    goal = M.Pair(
-        Lmod.SolvedLabel,
-        M.Pair(
-            M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
-            M.EmptyList,
-        ),
-    )
-    return name, start, goal
-
-
 def _theorem_agenda(packs):
     sqrt_pack = packs.by_name("sqrt-real")
     closure_pack = packs.by_name("real-closure")
@@ -457,9 +377,7 @@ def _theorem_agenda(packs):
 
     if "tao_problem_1_1_triangle" in geometry_pack.examples:
         start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
-        cases.append(("Tao Problem 1.1 AP triangle", start, goal))
-    else:
-        cases.append(_make_tao_problem_1_1_case("Tao Problem 1.1 AP triangle"))
+        cases.append(("Tao Problem 1.1 metric structure", start, goal))
 
     if "branchy_real_closure_benchmark" in closure_pack.examples:
         start, goal = closure_pack.examples["branchy_real_closure_benchmark"]
@@ -607,7 +525,6 @@ def run_warm_mode(debug: bool = False):
         theorem_results = _run_theorem_agenda(
             runtime,
             [
-                _make_tao_problem_1_1_case("Tao Problem 1.1 AP triangle"),
                 ("branchy real-closure proof", branchy_start, branchy_goal),
                 _make_isreal_sqrt_case("sqrt(3)", M.three),
                 _make_isreal_sqrt_case("sqrt(4)", M.four),

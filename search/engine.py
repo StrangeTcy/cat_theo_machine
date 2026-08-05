@@ -614,6 +614,10 @@ class Search(M.Edge):
     def _theorem_applicable_rules_sharded(self, current, knowledge_head_index, knowledge_exact_trie):
         from .runtime import _SearchApplicableRulesShardWorker
 
+        if multiprocessing.get_start_method() == "spawn":
+            self._stage_debug("applicability multiprocessing disabled on spawn")
+            return FilterApplicableRulesWithIndex(self.rules, current, knowledge_head_index, self.registry, knowledge_exact_trie)()
+
         try:
             mp_context = multiprocessing.get_context("fork")
         except ValueError:
@@ -831,7 +835,7 @@ class Search(M.Edge):
 
     def _theorem_cursor_for(self, current, goal, knowledge_head_index=None, knowledge_exact_trie=None, delta=None, provenance=None, actions_rev=None):
         started_at = time.time()
-        self._stage_debug("cursor build start")
+        self._stage_debug("cursor build: constructing knowledge indexes")
         if knowledge_head_index is None or knowledge_exact_trie is None:
             indexes = self._theorem_indexes_for(current)
             knowledge_head_index = M.Head(indexes)()
@@ -844,9 +848,12 @@ class Search(M.Edge):
             actions_rev = M.EmptyList
         after_indexes = time.time()
         self._stage_debug(
-            "cursor build after indexes in "
+            "cursor build: knowledge indexes complete; elapsed="
             + "{:.3f}".format(after_indexes - started_at)
-            + "s"
+            + "s facts="
+            + str(M.CountRep(K.KnowledgeTrieFacts(knowledge_exact_trie, self.registry)())())
+            + " rules="
+            + str(M.CountRep(self.rules)())
         )
         shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)()
         if shard_disabled is M.truth_value:
@@ -859,21 +866,23 @@ class Search(M.Edge):
             )()
         else:
             applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
+        after_applicable = time.time()
+        self._stage_debug(
+            "cursor build: applicability scan complete; elapsed="
+            + "{:.3f}".format(after_applicable - after_indexes)
+            + "s applicable-rules="
+            + str(M.CountRep(applicable_rules)())
+        )
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
             ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
         else:
             ordered_rules = applicable_rules
-        after_applicable = time.time()
-        self._stage_debug(
-            "cursor build after applicable in "
-            + "{:.3f}".format(after_applicable - after_indexes)
-            + "s"
-        )
         after_order = time.time()
         self._stage_debug(
-            "cursor build after order in "
+            "cursor build: rule ordering complete; elapsed="
             + "{:.3f}".format(after_order - after_applicable)
-            + "s"
+            + "s queued-rules="
+            + str(M.CountRep(ordered_rules)())
         )
         cursor = SearchTheoremCursor(
             ordered_rules,
@@ -888,9 +897,9 @@ class Search(M.Edge):
         )()
         after_cursor = time.time()
         self._stage_debug(
-            "cursor build ready in "
+            "cursor build: ready; assembly-elapsed="
             + "{:.3f}".format(after_cursor - after_order)
-            + "s total="
+            + "s total-elapsed="
             + "{:.3f}".format(after_cursor - started_at)
             + "s"
         )
@@ -1404,7 +1413,19 @@ class SearchBFS(Search):
                     return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
                 rule = M.Head(rules)()
                 rule_started_at = time.time()
-                self._stage_debug("knowledge closure rule start")
+                if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                    delta_debug_facts = M.EmptyList
+                    if M.IdentityCompare(delta, M.EmptyList)() is M.false_value:
+                        delta_debug_facts = K.KnowledgeTrieFacts(delta, self.registry)()
+                    self._stage_debug(
+                        "theorem rule: premise join starting"
+                        + " premises="
+                        + str(M.CountRep(RulePremises(rule)())())
+                        + " delta-facts="
+                        + str(M.CountRep(delta_debug_facts)())
+                        + " rule="
+                        + Pmod.PrettyRule(rule, self.registry)()
+                    )
                 closure_result = self._apply_theorem_rule_to_knowledge(
                     rule,
                     current,
@@ -1419,6 +1440,14 @@ class SearchBFS(Search):
                 provenance = M.Head(M.Tail(closure_result)())()
                 actions_rev = M.Head(M.Tail(M.Tail(closure_result)())())()
                 rule_delta_facts = M.Head(M.Tail(M.Tail(M.Tail(closure_result)())())())()
+                if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                    self._stage_debug(
+                        "theorem rule result"
+                        + " rule="
+                        + Pmod.PrettyRule(rule, self.registry)()
+                        + " derived-facts="
+                        + _debug_term(rule_delta_facts, self.registry)
+                    )
                 if M.IdentityCompare(rule_delta_facts, M.EmptyList)() is M.false_value:
                     knowledge_exact_trie = K.KnowledgeTrieInsertChain(
                         knowledge_exact_trie,
@@ -1432,7 +1461,13 @@ class SearchBFS(Search):
                     )()
                     current = Knowledge(Append(rule_delta_facts, KnowledgeFacts(current)())())()
                     if self._goal_reached(current, goal, knowledge_exact_trie) is M.truth_value:
-                        self._stage_debug("goal reached during knowledge closure")
+                        self._stage_debug(
+                            "goal reached after theorem rule"
+                            + " rule="
+                            + _debug_term(rule, self.registry)
+                            + " derived-facts="
+                            + _debug_term(rule_delta_facts, self.registry)
+                        )
                         generated_count = M.Zero
                         pending_facts = K.KnowledgeTrieFacts(next_delta, self.registry)()
                         while M.IdentityCompare(pending_facts, M.EmptyList)() is M.false_value:
@@ -1446,14 +1481,19 @@ class SearchBFS(Search):
                             M.EmptyList,
                             generated_count,
                         )
-                self._stage_debug(
-                    "knowledge closure rule done in "
-                    + "{:.3f}".format(time.time() - rule_started_at)
-                    + "s"
-                )
+                if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                    self._stage_debug(
+                        "theorem rule: premise join complete"
+                        + " elapsed="
+                        + "{:.3f}".format(time.time() - rule_started_at)
+                        + "s derived-facts="
+                        + str(M.CountRep(rule_delta_facts)())
+                        + " facts="
+                        + _debug_term(rule_delta_facts, self.registry)
+                    )
                 rules = M.Tail(rules)()
             if M.IdentityCompare(M.TreeRoot(next_delta)(), M.EmptyList)() is M.truth_value:
-                self._stage_debug("knowledge closure reached fixed point")
+                self._stage_debug("theorem saturation reached fixed point; no new facts")
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
             delta_facts = K.KnowledgeTrieFacts(next_delta, self.registry)()
             next_exact_trie = knowledge_exact_trie
@@ -1467,7 +1507,11 @@ class SearchBFS(Search):
                 generated_count = self._succ_nat(generated_count)
                 remaining_delta = M.Tail(remaining_delta)()
             if self._goal_reached(next_current, goal, next_exact_trie) is M.truth_value:
-                self._stage_debug("goal reached by knowledge closure")
+                self._stage_debug(
+                    "goal reached after theorem saturation"
+                    + " derived-facts="
+                    + _debug_term(delta_facts, self.registry)
+                )
                 return self._advance_result(
                     self._reverse(next_plan_rev, M.EmptyList),
                     M.EmptyList,

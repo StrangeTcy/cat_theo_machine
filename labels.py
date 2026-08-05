@@ -715,6 +715,122 @@ class TaoProblem11TriangleLabel(ConstructorLabel):
     pass
 
 
+class TaoProblem11VertexULabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11VertexVLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11VertexWLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11BaseValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11DifferenceValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11AreaValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11AlphaValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11BetaValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11GammaValueLabel(ConstructorLabel):
+    pass
+
+
+class DistinctLabel(ConstructorLabel):
+    pass
+
+
+class VertexOfLabel(ConstructorLabel):
+    pass
+
+
+class SegmentLabel(ConstructorLabel):
+    pass
+
+
+class AngleLabel(ConstructorLabel):
+    pass
+
+
+class SideOfLabel(ConstructorLabel):
+    pass
+
+
+class AngleOfLabel(ConstructorLabel):
+    pass
+
+
+class OppositeLabel(ConstructorLabel):
+    pass
+
+
+class AngleMeasureLabel(ConstructorLabel):
+    pass
+
+
+class APNameLabel(ConstructorLabel):
+    pass
+
+
+class ApplyLabel(ConstructorLabel):
+    pass
+
+
+class PlannerProblemLabel(ConstructorLabel):
+    pass
+
+
+class PlannerObligationLabel(ConstructorLabel):
+    pass
+
+
+class PlannerDependencyLabel(ConstructorLabel):
+    pass
+
+
+class PlannerJobLabel(ConstructorLabel):
+    pass
+
+
+class ProvedLabel(ConstructorLabel):
+    pass
+
+
+class PendingLabel(ConstructorLabel):
+    pass
+
+
+class FailedLabel(ConstructorLabel):
+    pass
+
+
+class PerimeterLabel(ConstructorLabel):
+    pass
+
+
+class ArccosLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11PerimeterValueLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -726,6 +842,25 @@ TestOKLabel = TestOKLabel()
 TestFailLabel = TestFailLabel()
 TestNameLabel = TestNameLabel()
 SequenceLabel = SequenceLabel()
+VertexOfLabel = VertexOfLabel()
+SegmentLabel = SegmentLabel()
+AngleLabel = AngleLabel()
+SideOfLabel = SideOfLabel()
+AngleOfLabel = AngleOfLabel()
+OppositeLabel = OppositeLabel()
+AngleMeasureLabel = AngleMeasureLabel()
+APNameLabel = APNameLabel()
+ApplyLabel = ApplyLabel()
+PlannerProblemLabel = PlannerProblemLabel()
+PlannerObligationLabel = PlannerObligationLabel()
+PlannerDependencyLabel = PlannerDependencyLabel()
+PlannerJobLabel = PlannerJobLabel()
+ProvedLabel = ProvedLabel()
+PendingLabel = PendingLabel()
+FailedLabel = FailedLabel()
+PerimeterLabel = PerimeterLabel()
+ArccosLabel = ArccosLabel()
+TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -892,6 +1027,20 @@ CommonDifferenceParameterLabel = CommonDifferenceParameterLabel()
 SymmetricProgressionNotationLabel = SymmetricProgressionNotationLabel()
 MiddleTermAverageLabel = MiddleTermAverageLabel()
 TaoProblem11TriangleLabel = TaoProblem11TriangleLabel()
+TaoProblem11VertexULabel = TaoProblem11VertexULabel()
+TaoProblem11VertexVLabel = TaoProblem11VertexVLabel()
+TaoProblem11VertexWLabel = TaoProblem11VertexWLabel()
+TaoProblem11BaseValueLabel = TaoProblem11BaseValueLabel()
+TaoProblem11DifferenceValueLabel = TaoProblem11DifferenceValueLabel()
+TaoProblem11AreaValueLabel = TaoProblem11AreaValueLabel()
+TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
+TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
+TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
+DistinctLabel = DistinctLabel()
+PerimeterLabel = PerimeterLabel()
+ArccosLabel = ArccosLabel()
+TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
+
 
 
 def sync_from_namespace(namespace):
@@ -986,6 +1135,25 @@ def sync_from_namespace(namespace):
         "SearchRewriteCursorLabel",
         "SearchRewritePathFrameLabel",
         "SearchRewriteRuleBundleLabel",
+        "VertexOfLabel",
+        "SegmentLabel",
+        "AngleLabel",
+        "SideOfLabel",
+        "AngleOfLabel",
+        "OppositeLabel",
+        "AngleMeasureLabel",
+        "APNameLabel",
+        "ApplyLabel",
+        "PlannerProblemLabel",
+        "PlannerObligationLabel",
+        "PlannerDependencyLabel",
+        "PlannerJobLabel",
+        "ProvedLabel",
+        "PendingLabel",
+        "FailedLabel",
+        "PerimeterLabel",
+        "ArccosLabel",
+        "TaoProblem11PerimeterValueLabel",
         "SearchPairKeyLabel",
         "SearchCtorKeyLabel",
         "ExactAtomKeyLabel",
@@ -1073,6 +1241,19 @@ def sync_from_namespace(namespace):
         "SymmetricProgressionNotationLabel",
         "MiddleTermAverageLabel",
         "TaoProblem11TriangleLabel",
+        "TaoProblem11VertexULabel",
+        "TaoProblem11VertexVLabel",
+        "TaoProblem11VertexWLabel",
+        "TaoProblem11BaseValueLabel",
+        "TaoProblem11DifferenceValueLabel",
+        "TaoProblem11AreaValueLabel",
+        "TaoProblem11AlphaValueLabel",
+        "TaoProblem11BetaValueLabel",
+        "TaoProblem11GammaValueLabel",
+        "DistinctLabel",
+        "PerimeterLabel",
+        "ArccosLabel",
+        "TaoProblem11PerimeterValueLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
