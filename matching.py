@@ -44,32 +44,41 @@ class TermEqual(M.Edge):
         super().__init__(inputs=M.Pair(x, M.Pair(y, M.EmptyList)), results=self.result)
 
     def _eq(self, x, y):
-        if M.IdentityCompare(x, y)() is M.truth_value:
-            return M.truth_value
+        stack = M.Pair(M.Pair(x, y), M.EmptyList)
+        while M.IdentityCompare(stack, M.EmptyList)() is M.false_value:
+            top = M.Head(stack)()
+            stack = M.Tail(stack)()
+            left = M.Head(top)()
+            right = M.Tail(top)()
 
-        x_is_pair = M.IsPair(x)()
-        y_is_pair = M.IsPair(y)()
-        if M.AndAtom(x_is_pair, y_is_pair)() is M.truth_value:
-            head_eq = self._eq(M.Head(x)(), M.Head(y)())
-            tail_eq = self._eq(M.Tail(x)(), M.Tail(y)())
-            return M.AndAtom(head_eq, tail_eq)()
-        if M.OrAtom(x_is_pair, y_is_pair)() is M.truth_value:
-            return M.false_value
+            if M.IdentityCompare(left, right)() is M.truth_value:
+                continue
 
-        cx = M.GetConstructor(x)()
-        cy = M.GetConstructor(y)()
-        cx_empty = M.IdentityCompare(cx, M.EmptyList)()
-        cy_empty = M.IdentityCompare(cy, M.EmptyList)()
-        if M.AndAtom(cx_empty, cy_empty)() is M.truth_value:
-            return M.false_value
-        if M.OrAtom(cx_empty, cy_empty)() is M.truth_value:
-            return M.false_value
+            x_is_pair = M.IsPair(left)()
+            y_is_pair = M.IsPair(right)()
+            if M.AndAtom(x_is_pair, y_is_pair)() is M.truth_value:
+                stack = M.Pair(M.Pair(M.Head(left)(), M.Head(right)()), stack)
+                stack = M.Pair(M.Pair(M.Tail(left)(), M.Tail(right)()), stack)
+                continue
 
-        lx = M.Head(cx)()
-        ly = M.Head(cy)()
-        if M.IdentityCompare(lx, ly)() is M.false_value:
-            return M.false_value
-        return self._eq(M.Tail(cx)(), M.Tail(cy)())
+            if M.OrAtom(x_is_pair, y_is_pair)() is M.truth_value:
+                return M.false_value
+
+            cx = M.GetConstructor(left)()
+            cy = M.GetConstructor(right)()
+            cx_empty = M.IdentityCompare(cx, M.EmptyList)()
+            cy_empty = M.IdentityCompare(cy, M.EmptyList)()
+            if M.AndAtom(cx_empty, cy_empty)() is M.truth_value:
+                return M.false_value
+            if M.OrAtom(cx_empty, cy_empty)() is M.truth_value:
+                return M.false_value
+
+            lx = M.Head(cx)()
+            ly = M.Head(cy)()
+            if M.IdentityCompare(lx, ly)() is M.false_value:
+                return M.false_value
+            stack = M.Pair(M.Pair(M.Tail(cx)(), M.Tail(cy)()), stack)
+        return M.truth_value
 
     def __call__(self):
         return self.result

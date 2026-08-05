@@ -473,12 +473,19 @@ class CollectRules(M.Edge):
         super().__init__(inputs=M.Pair(tree, M.EmptyList), results=self.result)
 
     def _collect(self, entries):
-        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        entry = M.Head(entries)()
-        fact = M.Head(M.Tail(entry)())()
-        rest = self._collect(M.Tail(entries)())
-        return M.Pair(fact, rest)
+        stack = M.EmptyList
+        curr = entries
+        while M.IdentityCompare(curr, M.EmptyList)() is M.false_value:
+            entry = M.Head(curr)()
+            fact = M.Head(M.Tail(entry)())()
+            stack = M.Pair(fact, stack)
+            curr = M.Tail(curr)()
+        
+        res = M.EmptyList
+        while M.IdentityCompare(stack, M.EmptyList)() is M.false_value:
+            res = M.Pair(M.Head(stack)(), res)
+            stack = M.Tail(stack)()
+        return res
 
     def __call__(self):
         return self.result

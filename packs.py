@@ -237,16 +237,6 @@ class PackLoader:
         sys.stdout.write(f"Reading pack {name}...\n")
         sys.stdout.flush()
         pack_start = time.monotonic()
-        last_report = pack_start
-
-        def _report_loading():
-            nonlocal last_report
-            now = time.monotonic()
-            if now - last_report >= 1.0:
-                elapsed = now - pack_start
-                sys.stdout.write(f"\rReading pack {name}, it's taken {elapsed:.1f}s already and counting")
-                sys.stdout.flush()
-                last_report = now
 
         rule_specs = tuple(data.get("rules", ()))
         schema_specs = tuple(data.get("schemata", ()))
@@ -280,9 +270,13 @@ class PackLoader:
             all_rules = M.TreeInsert(all_rules, key, canonical_rule, M.AllConstructors)()
             graph_rule_order = M.Pair(canonical_rule, graph_rule_order)
 
+            # Increment rule index to maintain search depth budget semantics.
+            next_pair = M.Succ(next_rule_index, M.AllConstructors)()
+            next_rule_index = M.Head(next_pair)()
+            M.AllConstructors = M.Head(M.Tail(next_pair)())()
+
             rule_map.store(rid, canonical_rule)
             rule_order = rule_order + (canonical_rule,)
-            _report_loading()
 
         rule_chain = self._chain(rule_order)
 
@@ -305,7 +299,6 @@ class PackLoader:
             key = M.Atom()
             derivation_schemata = M.TreeInsert(derivation_schemata, key, entry, M.AllConstructors)()
             schema_map.store(sid, (start, goal, plan_chain))
-            _report_loading()
 
         examples = PackTreeMap(self.string_table)
 
@@ -315,7 +308,6 @@ class PackLoader:
             start = self._compile_term(e["start"], var_env)
             goal = self._compile_term(e["goal"], var_env)
             examples.store(eid, (start, goal))
-            _report_loading()
 
         elapsed = time.monotonic() - pack_start
         sys.stdout.write(f"\rReading pack {name}, done in {elapsed:.2f}s\n")
