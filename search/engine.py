@@ -52,8 +52,8 @@ class Search(M.Edge):
         self._start_stop_listener()
         job = M.EmptyList
         try:
-            _debug(self.mode_text + ": start=" + _debug_term(self.start, registry))
-            _debug(self.mode_text + ": goal=" + _debug_term(self.goal, registry))
+            _debug(self.mode_text + ": start received")
+            _debug(self.mode_text + ": goal received")
             job = self._resume_or_start_search_job()
             try:
                 while M.IdentityCompare(SearchJobStatus(job)(), SearchRunningLabel)() is M.truth_value:
@@ -130,10 +130,15 @@ class Search(M.Edge):
 
     def _start_progress_ticker(self):
         self.mode_text = SearchModeText(HeuristicSearchMode(self.heuristic)())()
+        if M.IdentityCompare(self.graph._search_disable_progress_ticker, M.truth_value)() is M.truth_value:
+            self._progress_ticker = None
+            return
         self._progress_ticker = _SearchProgressTicker(self.mode_text, self)
         self._progress_ticker.start()
 
     def _stop_progress_ticker(self):
+        if self._progress_ticker is None:
+            return
         elapsed = self._progress_ticker.stop()
         if self._final_status_text == "done":
             _debug(self.mode_text + ": done in " + str(elapsed) + " seconds")
@@ -161,9 +166,13 @@ class Search(M.Edge):
         self._stop_listener = None
 
     def _pause_progress_ticker(self):
+        if self._progress_ticker is None:
+            return
         self._progress_ticker.pause()
 
     def _resume_progress_ticker(self):
+        if self._progress_ticker is None:
+            return
         self._progress_ticker.resume()
 
     def _nat_text(self, value):
@@ -243,6 +252,8 @@ class Search(M.Edge):
         )
 
     def _ticker_progress_text(self):
+        if self._progress_ticker is None:
+            return self.mode_text
         job = self._active_search_job
         if job is None:
             return self.mode_text + ": " + str(self._progress_ticker._elapsed_seconds()) + "s elapsed"
@@ -274,6 +285,8 @@ class Search(M.Edge):
         if self._mode_is_plain_dfs() is M.false_value:
             return M.false_value
         if self._dfs_timeout_seconds is None:
+            return M.false_value
+        if self._progress_ticker is None:
             return M.false_value
         if self._progress_ticker._elapsed_seconds() <= self._dfs_timeout_seconds:
             return M.false_value

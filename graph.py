@@ -15,6 +15,7 @@ class Hypergraph:
         self.default_tests_installed = M.false_value
         self._search_console_input = None
         self._search_disable_console = M.false_value
+        self._search_disable_progress_ticker = M.false_value
         self._search_stop_help_shown = M.false_value
         self._search_comparison_prompt_guard = None
         self._search_compare_ignore_root_fast_paths = M.false_value

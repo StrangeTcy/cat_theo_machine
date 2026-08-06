@@ -1,4 +1,4 @@
-﻿import hyge.main
+import hyge.main
 import hyge.runtime
 rt = hyge.runtime.boot_from_packs(hyge.main.PACK_PATHS, hyge.main._runtime_namespace())
 s = rt.summary()

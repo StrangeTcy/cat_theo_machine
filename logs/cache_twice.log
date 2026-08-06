@@ -1,0 +1,164 @@
+Reading pack order-sign...
+Reading pack order-sign, done in 0.21s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.29s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.09s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.18s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 0.09s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.81s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.27s
+Reading pack geometry...
+Reading pack geometry, it's taken 1.0s already and countingReading pack geometry, done in 1.47s
+DEBUG: search-dfs-stage: applicable theorem rules start for current=Knowledge([Triangle(Tao Problem 1.1 triangle), SideLengths(Tao Problem 1.1 triangle), Angles(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), CommonDifference(SideLengths(Tao Problem 1.1 triangle))])
+DEBUG: search-dfs-stage: applicable theorem rules after cache key in 5.498s
+DEBUG: search-dfs-stage: applicable theorem rules after cache lookup in 0.000s
+DEBUG: search-dfs-stage: computing applicable theorem rules for current=Knowledge([Triangle(Tao Problem 1.1 triangle), SideLengths(Tao Problem 1.1 triangle), Angles(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), CommonDifference(SideLengths(Tao Problem 1.1 triangle))])
+DEBUG: search-dfs-stage: applicable theorem rules after head index in 2.624s
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=ArithmeticProgression(?object) anchor-s=0.000 bucket-s=0.590 bucket-size=1 match-s=0.278 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.578 bucket-size=1 match-s=0.304 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.625 bucket-size=1 match-s=0.306 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.727 bucket-size=1 match-s=0.357 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.001 bucket-s=0.713 bucket-size=1 match-s=0.386 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Area(?triangle) anchor-s=0.000 bucket-s=0.845 bucket-size=1 match-s=0.374 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.878 bucket-size=1 match-s=0.420 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.824 bucket-size=1 match-s=0.435 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.028 bucket-s=0.917 bucket-size=1 match-s=0.468 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?triangle) anchor-s=1.991 bucket-s=0.923 bucket-size=1 match-s=0.479 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=CommonDifference(?object) anchor-s=0.033 bucket-s=0.991 bucket-size=1 match-s=0.458 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.896 bucket-size=1 match-s=0.395 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.841 bucket-size=1 match-s=0.420 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?shape) anchor-s=0.028 bucket-s=0.806 bucket-size=1 match-s=0.360 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?triangle) anchor-s=0.685 bucket-s=0.582 bucket-size=1 match-s=0.247 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.536 bucket-size=1 match-s=0.238 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.476 bucket-size=1 match-s=0.231 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.487 bucket-size=1 match-s=0.255 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: search-dfs-stage: applicable theorem rules after filtering in 18.369s
+DEBUG: search-dfs-stage: applicable theorem rules ready count=18 for current=Knowledge([Triangle(Tao Problem 1.1 triangle), SideLengths(Tao Problem 1.1 triangle), Angles(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), CommonDifference(SideLengths(Tao Problem 1.1 triangle))])
+DEBUG: search-dfs-stage: applicable theorem rules after cache store in 12.853s total=39.344s
+DEBUG: search-dfs-stage: applicable theorem rules start for current=Knowledge([Triangle(Tao Problem 1.1 triangle), SideLengths(Tao Problem 1.1 triangle), Angles(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), CommonDifference(SideLengths(Tao Problem 1.1 triangle))])
+DEBUG: search-dfs-stage: applicable theorem rules after cache key in 6.939s
+DEBUG: search-dfs-stage: applicable theorem rules after cache lookup in 0.000s
+DEBUG: search-dfs-stage: computing applicable theorem rules for current=Knowledge([Triangle(Tao Problem 1.1 triangle), SideLengths(Tao Problem 1.1 triangle), Angles(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), CommonDifference(SideLengths(Tao Problem 1.1 triangle))])
+DEBUG: search-dfs-stage: applicable theorem rules after head index in 4.182s
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=ArithmeticProgression(?object) anchor-s=0.017 bucket-s=0.741 bucket-size=1 match-s=0.442 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.756 bucket-size=1 match-s=0.539 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?shape) anchor-s=0.001 bucket-s=0.909 bucket-size=1 match-s=0.575 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?shape) anchor-s=0.033 bucket-s=0.948 bucket-size=1 match-s=0.424 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Area(?triangle) anchor-s=0.029 bucket-s=1.117 bucket-size=1 match-s=0.615 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=1.100 bucket-size=1 match-s=0.677 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.029 bucket-s=1.114 bucket-size=1 match-s=0.740 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=1.035 bucket-size=1 match-s=0.657 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=1.073 bucket-size=1 match-s=0.688 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=0 anchor=Triangle(?triangle) anchor-s=2.234 bucket-s=1.113 bucket-size=1 match-s=0.667 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=1 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=CommonDifference(?object) anchor-s=0.000 bucket-s=1.199 bucket-size=1 match-s=0.681 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=1.158 bucket-size=1 match-s=0.549 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.935 bucket-size=1 match-s=0.503 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?shape) anchor-s=0.032 bucket-s=0.993 bucket-size=1 match-s=0.537 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=Triangle(?triangle) anchor-s=0.923 bucket-s=0.837 bucket-size=1 match-s=0.458 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=2 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.588 bucket-size=1 match-s=0.344 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.637 bucket-size=1 match-s=0.364 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=Triangle(?shape) anchor-s=0.000 bucket-s=0.638 bucket-size=1 match-s=0.343 attempts=1 admitted=yes
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: filter-applicable: rule-index=3 anchor=<skipped:no-head> anchor-s=0.000 bucket-s=0.000 bucket-size=0 match-s=0.000 attempts=0 admitted=no
+DEBUG: search-dfs-stage: applicable theorem rules after filtering in 24.254s
+DEBUG: search-dfs-stage: applicable theorem rules ready count=18 for current=Knowledge([Triangle(Tao Problem 1.1 triangle), SideLengths(Tao Problem 1.1 triangle), Angles(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), CommonDifference(SideLengths(Tao Problem 1.1 triangle))])
+DEBUG: search-dfs-stage: applicable theorem rules after cache store in 13.449s total=48.824s

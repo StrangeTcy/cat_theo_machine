@@ -1,0 +1,392 @@
+DEBUG: checking paused snapshot at /home/user/hyge/snapshots/hyge_snapshot_v8.json
+DEBUG: no paused snapshot found
+Reading pack order-sign...
+Reading pack order-sign, done in 0.31s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.46s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.12s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.25s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 0.22s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, it's taken 1.1s already and countingReading pack geometry-ontology, done in 1.41s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.47s
+Reading pack geometry...
+Reading pack geometry, it's taken 1.1s already and countingReading pack geometry, it's taken 2.1s already and countingReading pack geometry, done in 2.75s
+Pack loading took 28.61 seconds
+
+=== Cold boot summary ===
+rule_count: 68
+schema_count: 4
+example_count: 7
+loaded_packs: ('order-sign', 'sqrt-real', 'algebra-distribute', 'real-closure', 'arithmetic', 'geometry-ontology', 'trigonometry', 'geometry')
+Summary took 0.00 seconds
+loaded pack: {'name': 'order-sign', 'description': 'Generic sign and order knowledge for real expressions', 'requires': (), 'rule_count': 13, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'sqrt-real', 'description': 'Newton-style theorem pack for proving IsReal(sqrt(a))', 'requires': (), 'rule_count': 9, 'schema_count': 1, 'example_count': 3}
+loaded pack: {'name': 'algebra-distribute', 'description': 'Tiny rewrite pack for distributivity and multiplication associativity', 'requires': (), 'rule_count': 2, 'schema_count': 0, 'example_count': 1}
+loaded pack: {'name': 'real-closure', 'description': 'Multi-premise real-closure theorems for addition and multiplication', 'requires': (), 'rule_count': 3, 'schema_count': 3, 'example_count': 2}
+loaded pack: {'name': 'arithmetic', 'description': 'Generic arithmetic-progression knowledge', 'requires': (), 'rule_count': 3, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'geometry-ontology', 'description': 'Reusable geometry ontology for polygons, triangles, and their attached quantities', 'requires': (), 'rule_count': 15, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'trigonometry', 'description': 'Generic trigonometric triangle theorems stated as equations over edge-length terms', 'requires': ('geometry-ontology',), 'rule_count': 4, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'geometry', 'description': 'Geometry and problem-solving knowledge for Tao Problem 1.1 on arithmetic-progression triangles', 'requires': ('geometry-ontology', 'trigonometry', 'arithmetic'), 'rule_count': 19, 'schema_count': 0, 'example_count': 1}
+
+--- Cold theorem agenda ---
+
+DEBUG: theorem-case start: Tao Problem 1.1 AP triangle
+DEBUG: prove: start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))])
+DEBUG: prove: goal=Solved(Triangle(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: concrete proof path
+DEBUG: prove-stage: no search comparison evidence yet; benchmarking all current search modes
+DEBUG: search-compare: init starting
+DEBUG: search-compare: init fetched next_rule_index in 4.05s
+DEBUG: search-compare: init checking next_rule_index != Zero in 4.05s
+DEBUG: search-compare: init counting rules (fallback) in 4.05s
+DEBUG: search-compare: init got rule count in 4.05s
+DEBUG: search-compare: init computing signature in 4.09s
+DEBUG: search-compare: init looked up existing comparison in 4.16s
+DEBUG: search-compare: init looked up paused job in 4.29s
+DEBUG: search-compare: init entering compare_all_modes after 4.29s
+DEBUG: search-compare: benchmarking all current search modes for this problem family
+DEBUG: search-compare: initializing mode states...
+DEBUG: search-compare: initialized mode states in 6.98s
+DEBUG: search-compare: initializing multiprocessing context...
+DEBUG: search-compare: elastic resident executor pool starts empty and grows on demand
+DEBUG: search-compare: growing resident executor pool (pre-fast-path)...
+DEBUG: search-compare: resident executor 1 ready pid=1990
+DEBUG: search-compare: resident executor 2 ready pid=1992
+DEBUG: search-compare: resident executor 3 ready pid=1994
+DEBUG: search-compare: resident executor 4 ready pid=1996
+DEBUG: search-compare: resident executor 5 ready pid=1998
+DEBUG: search-compare: resident executor 6 ready pid=2000
+DEBUG: search-compare: resident executor 7 ready pid=2002
+DEBUG: search-compare: expanded elastic resident executor pool by 7 local workers; local capacity now 7
+DEBUG: search-compare: resident executor pool ready (idle=7) after 132.75s
+DEBUG: search-compare: applying shared-root fast-paths...
+DEBUG: search-compare: root prepass: building shards...
+DEBUG: search-compare: root prepass: shards built in 1.61s
+DEBUG: search-compare: root prepass: counting shards...
+DEBUG: search-compare: root prepass: shard count computed in 1.61s
+DEBUG: search-compare: routing one shared root rule chain for all fixed modes through 68 resident shards
+DEBUG: search-compare: shared root shard prepass covers SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: search-compare: awaiting 68 shared-root shard results
+DEBUG: search-compare: leased resident executor 1 for root-wave shard 1
+DEBUG: search-compare: leased resident executor 2 for root-wave shard 2
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 3
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 4
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 5
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 6
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 7
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 8
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 8
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 9
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 9
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 10
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 10
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 11
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 11
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 12
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 12
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 13
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 13
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 14
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 14
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 15
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 15
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 16
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 16
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 17
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 17
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 18
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 18
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 19
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 19
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 20
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 20
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 21
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 21
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 22
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 22
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 23
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 23
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 24
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 24
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 25
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 25
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 26
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 26
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 27
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 27
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 28
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 28
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 29
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 29
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 30
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 30
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 31
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 31
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 32
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 32
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 33
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 33
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 34
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 34
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 35
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 35
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 36
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 36
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 37
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 37
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 38
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 38
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 39
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 39
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 40
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 40
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 41
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 41
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 42
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 42
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 43
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 43
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 44
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 44
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 45
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 45
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 46
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 46
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 47
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 47
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 48
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 48
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 49
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 49
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 50
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 50
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 51
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 51
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 52
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 52
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 53
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 53
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 54
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 54
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 55
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 55
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 56
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 56
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 57
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 57
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 58
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 58
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 59
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 59
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 60
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 60
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 61
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 61
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 62
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 62
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 63
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 63
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 64
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 64
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 65
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 65
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 66
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 66
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 67
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 67
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 68
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 68
+DEBUG: search-compare: merged 68 shared-root candidate shard results for all fixed modes
+DEBUG: search-compare: shared root fast path miss; entering branch-first packet search
+DEBUG: search-compare: applying shared root result=miss to 5 mode states
+DEBUG: search-compare: shared root miss marks all mode states as packet search
+DEBUG: search-compare: marking SearchDFS with shared root result=miss
+DEBUG: search-compare: SearchDFS root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchBFS with shared root result=miss
+DEBUG: search-compare: SearchBFS root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchAStar with shared root result=miss
+DEBUG: search-compare: SearchAStar root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchBeam with shared root result=miss
+DEBUG: search-compare: SearchBeam root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchRewriteDFS with shared root result=miss
+DEBUG: search-compare: SearchRewriteDFS root result=miss so it continues into packet search
+DEBUG: search-compare: shared root result applied to all mode states
+DEBUG: search-compare: shared-root fast-paths done after 202.29s
+DEBUG: search-compare: removing stale paused comparison job if present
+DEBUG: search-compare: comparison job cleanup done
+DEBUG: search-compare: checking whether all mode states are already finished
+DEBUG: search-compare: all modes are searching for a derivation from Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) to Solved(Triangle(Tao Problem 1.1 triangle))
+DEBUG: search-compare: initial raw states SearchDFS(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchBFS(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchAStar(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchBeam(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchRewriteDFS(job=running, frontier=nonempty, active=0, pending=0, stop=none)
+DEBUG: search-compare: initial all-finished check returned unknown
+DEBUG: search-compare: all-finished predicate says no
+DEBUG: search-compare: starting console pause listener setup
+DEBUG: search-compare: console control unavailable in this environment
+DEBUG: search-compare: console pause listener setup finished
+DEBUG: search-compare: starting parallel mode race
+DEBUG: search-compare: shared root prepass: building root job...
+DEBUG: search-compare: shared root prepass: root job ready in 2.46s
+DEBUG: search-compare: shared root prepass: scanning for applicable root rules...
+DEBUG: search-compare: root prepass: building shards...
+DEBUG: search-compare: root prepass: shards built in 1.07s
+DEBUG: search-compare: root prepass: counting shards...
+DEBUG: search-compare: root prepass: shard count computed in 1.07s
+DEBUG: search-compare: routing one shared root rule chain for all fixed modes through 68 resident shards
+DEBUG: search-compare: shared root shard prepass covers SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: search-compare: awaiting 68 shared-root shard results
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 1
+DEBUG: search-compare: resident executor 5 pid=1998 starting root-wave shard 1
+DEBUG: search-compare: leased resident executor 1 for root-wave shard 2
+DEBUG: search-compare: resident executor 1 pid=1990 starting root-wave shard 2
+DEBUG: search-compare: leased resident executor 2 for root-wave shard 3
+DEBUG: search-compare: resident executor 2 pid=1992 starting root-wave shard 3
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 4
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 4
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 5
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 5
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 6
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 6
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 7
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 7
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 8
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 8
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 9
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 9
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 10
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 10
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 11
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 11
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 12
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 12
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 13
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 13
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 14
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 14
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 15
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 15
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 16
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 16
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 17
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 17
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 18
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 18
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 19
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 19
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 20
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 20
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 21
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 21
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 22
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 22
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 23
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 23
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 24
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 24
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 25
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 25
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 26
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 26
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 27
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 27
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 28
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 28
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 29
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 29
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 30
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 30
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 31
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 31
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 32
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 32
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 33
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 33
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 34
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 34
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 35
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 35
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 36
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 36
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 37
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 37
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 38
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 38
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 39
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 39
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 40
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 40
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 41
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 41
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 42
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 42
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 43
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 43
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 44
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 44
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 45
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 45
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 46
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 46
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 47
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 47
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 48
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 48
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 49
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 49
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 50
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 50
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 51
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 51
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 52
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 52
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 53
+DEBUG: search-compare: resident executor 4 pid=1996 starting root-wave shard 53
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 54
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 54
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 55
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 55
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 56
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 56
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 57
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 57
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 58
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 58
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 59
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 59
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 60
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 60
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 61
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 61
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 62
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 62
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 63
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 63
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 64
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 64
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 65
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 65
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 66
+DEBUG: search-compare: resident executor 7 pid=2002 starting root-wave shard 66
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 67
+DEBUG: search-compare: resident executor 6 pid=2000 starting root-wave shard 67
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 68
+DEBUG: search-compare: resident executor 3 pid=1994 starting root-wave shard 68
+DEBUG: search-compare: merged 68 shared-root candidate shard results for all fixed modes
+DEBUG: search-compare: shared root prepass: applicable rule scan done in 22.42s
+DEBUG: search-compare: shared root prepass: cached 7 candidates in 22.42s
+DEBUG: search-compare: reusing shared root candidate set for SearchDFS with 7 candidates
+DEBUG: search-compare: seeded SearchDFS root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchDFS root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchBFS with 7 candidates
+DEBUG: search-compare: seeded SearchBFS root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchBFS root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchAStar with 7 candidates
+DEBUG: search-compare: seeded SearchAStar root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchAStar root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchBeam with 7 candidates
+DEBUG: search-compare: seeded SearchBeam root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchBeam root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchRewriteDFS with 7 candidates

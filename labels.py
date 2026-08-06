@@ -1037,10 +1037,6 @@ TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
 TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
 TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
 DistinctLabel = DistinctLabel()
-PerimeterLabel = PerimeterLabel()
-ArccosLabel = ArccosLabel()
-TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
-
 
 
 def sync_from_namespace(namespace):

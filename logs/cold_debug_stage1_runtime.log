@@ -1,0 +1,631 @@
+DEBUG: checking paused snapshot at /home/user/hyge/snapshots/hyge_snapshot_v8.json
+DEBUG: no paused snapshot found
+Reading pack order-sign...
+Reading pack order-sign, done in 0.31s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.44s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.12s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.24s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 0.22s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, it's taken 1.1s already and countingReading pack geometry-ontology, done in 1.39s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.45s
+Reading pack geometry...
+Reading pack geometry, it's taken 1.0s already and countingReading pack geometry, it's taken 2.1s already and countingReading pack geometry, done in 2.75s
+Pack loading took 28.09 seconds
+
+=== Cold boot summary ===
+rule_count: 68
+schema_count: 4
+example_count: 7
+loaded_packs: ('order-sign', 'sqrt-real', 'algebra-distribute', 'real-closure', 'arithmetic', 'geometry-ontology', 'trigonometry', 'geometry')
+Summary took 0.00 seconds
+loaded pack: {'name': 'order-sign', 'description': 'Generic sign and order knowledge for real expressions', 'requires': (), 'rule_count': 13, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'sqrt-real', 'description': 'Newton-style theorem pack for proving IsReal(sqrt(a))', 'requires': (), 'rule_count': 9, 'schema_count': 1, 'example_count': 3}
+loaded pack: {'name': 'algebra-distribute', 'description': 'Tiny rewrite pack for distributivity and multiplication associativity', 'requires': (), 'rule_count': 2, 'schema_count': 0, 'example_count': 1}
+loaded pack: {'name': 'real-closure', 'description': 'Multi-premise real-closure theorems for addition and multiplication', 'requires': (), 'rule_count': 3, 'schema_count': 3, 'example_count': 2}
+loaded pack: {'name': 'arithmetic', 'description': 'Generic arithmetic-progression knowledge', 'requires': (), 'rule_count': 3, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'geometry-ontology', 'description': 'Reusable geometry ontology for polygons, triangles, and their attached quantities', 'requires': (), 'rule_count': 15, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'trigonometry', 'description': 'Generic trigonometric triangle theorems stated as equations over edge-length terms', 'requires': ('geometry-ontology',), 'rule_count': 4, 'schema_count': 0, 'example_count': 0}
+loaded pack: {'name': 'geometry', 'description': 'Geometry and problem-solving knowledge for Tao Problem 1.1 on arithmetic-progression triangles', 'requires': ('geometry-ontology', 'trigonometry', 'arithmetic'), 'rule_count': 19, 'schema_count': 0, 'example_count': 1}
+
+--- Cold theorem agenda ---
+
+DEBUG: theorem-case start: Tao Problem 1.1 AP triangle
+DEBUG: prove: start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))])
+DEBUG: prove: goal=Solved(Triangle(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: concrete proof path
+DEBUG: prove-stage: no search comparison evidence yet; benchmarking all current search modes
+DEBUG: search-compare: init starting
+DEBUG: search-compare: init fetched next_rule_index in 2.48s
+DEBUG: search-compare: init checking next_rule_index != Zero in 2.48s
+DEBUG: search-compare: init counting rules (fallback) in 2.48s
+DEBUG: search-compare: init got rule count in 2.49s
+DEBUG: search-compare: init computing signature in 2.53s
+DEBUG: search-compare: init looked up existing comparison in 2.59s
+DEBUG: search-compare: init looked up paused job in 2.66s
+DEBUG: search-compare: init entering compare_all_modes after 2.66s
+DEBUG: search-compare: benchmarking all current search modes for this problem family
+DEBUG: search-compare: initializing mode states...
+DEBUG: search-compare: initialized mode states in 4.72s
+DEBUG: search-compare: initializing multiprocessing context...
+DEBUG: search-compare: elastic resident executor pool starts empty and grows on demand
+DEBUG: search-compare: growing resident executor pool (pre-fast-path)...
+DEBUG: search-compare: resident executor 1 ready pid=1846
+DEBUG: search-compare: resident executor 2 ready pid=1849
+DEBUG: search-compare: resident executor 3 ready pid=1851
+DEBUG: search-compare: resident executor 4 ready pid=1853
+DEBUG: search-compare: resident executor 5 ready pid=1855
+DEBUG: search-compare: resident executor 6 ready pid=1857
+DEBUG: search-compare: resident executor 7 ready pid=1859
+DEBUG: search-compare: expanded elastic resident executor pool by 7 local workers; local capacity now 7
+DEBUG: search-compare: resident executor pool ready (idle=7) after 61.59s
+DEBUG: search-compare: applying shared-root fast-paths...
+DEBUG: search-compare: root prepass: building shards...
+DEBUG: search-compare: root prepass: shards built in 0.78s
+DEBUG: search-compare: root prepass: counting shards...
+DEBUG: search-compare: root prepass: shard count computed in 0.78s
+DEBUG: search-compare: routing one shared root rule chain for all fixed modes through 68 resident shards
+DEBUG: search-compare: shared root shard prepass covers SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: search-compare: awaiting 68 shared-root shard results
+DEBUG: search-compare: leased resident executor 1 for root-wave shard 1
+DEBUG: search-compare: leased resident executor 2 for root-wave shard 2
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 3
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 4
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 5
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 6
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 7
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 8
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 8
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 9
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 9
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 10
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 10
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 11
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 11
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 12
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 12
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 13
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 13
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 14
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 14
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 15
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 15
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 16
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 16
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 17
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 17
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 18
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 18
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 19
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 19
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 20
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 20
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 21
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 21
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 22
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 22
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 23
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 23
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 24
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 24
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 25
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 25
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 26
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 26
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 27
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 27
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 28
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 28
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 29
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 29
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 30
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 30
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 31
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 31
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 32
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 32
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 33
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 33
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 34
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 34
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 35
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 35
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 36
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 36
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 37
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 37
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 38
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 38
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 39
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 39
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 40
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 40
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 41
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 41
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 42
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 42
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 43
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 43
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 44
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 44
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 45
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 45
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 46
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 46
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 47
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 47
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 48
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 48
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 49
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 49
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 50
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 50
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 51
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 51
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 52
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 52
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 53
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 53
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 54
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 54
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 55
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 55
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 56
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 56
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 57
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 57
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 58
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 58
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 59
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 59
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 60
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 60
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 61
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 61
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 62
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 62
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 63
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 63
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 64
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 64
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 65
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 65
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 66
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 66
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 67
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 67
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 68
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 68
+DEBUG: search-compare: merged 68 shared-root candidate shard results for all fixed modes
+DEBUG: search-compare: shared root fast path miss; entering branch-first packet search
+DEBUG: search-compare: applying shared root result=miss to 5 mode states
+DEBUG: search-compare: shared root miss marks all mode states as packet search
+DEBUG: search-compare: marking SearchDFS with shared root result=miss
+DEBUG: search-compare: SearchDFS root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchBFS with shared root result=miss
+DEBUG: search-compare: SearchBFS root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchAStar with shared root result=miss
+DEBUG: search-compare: SearchAStar root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchBeam with shared root result=miss
+DEBUG: search-compare: SearchBeam root result=miss so it continues into packet search
+DEBUG: search-compare: marking SearchRewriteDFS with shared root result=miss
+DEBUG: search-compare: SearchRewriteDFS root result=miss so it continues into packet search
+DEBUG: search-compare: shared root result applied to all mode states
+DEBUG: search-compare: shared-root fast-paths done after 98.70s
+DEBUG: search-compare: removing stale paused comparison job if present
+DEBUG: search-compare: comparison job cleanup done
+DEBUG: search-compare: checking whether all mode states are already finished
+DEBUG: search-compare: all modes are searching for a derivation from Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) to Solved(Triangle(Tao Problem 1.1 triangle))
+DEBUG: search-compare: initial raw states SearchDFS(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchBFS(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchAStar(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchBeam(job=running, frontier=nonempty, active=0, pending=0, stop=none) | SearchRewriteDFS(job=running, frontier=nonempty, active=0, pending=0, stop=none)
+DEBUG: search-compare: initial all-finished check returned unknown
+DEBUG: search-compare: all-finished predicate says no
+DEBUG: search-compare: starting console pause listener setup
+DEBUG: search-compare: console control unavailable in this environment
+DEBUG: search-compare: console pause listener setup finished
+DEBUG: search-compare: starting parallel mode race
+DEBUG: search-compare: shared root prepass: building root job...
+DEBUG: search-compare: shared root prepass: root job ready in 1.53s
+DEBUG: search-compare: shared root prepass: scanning for applicable root rules...
+DEBUG: search-compare: root prepass: building shards...
+DEBUG: search-compare: root prepass: shards built in 0.82s
+DEBUG: search-compare: root prepass: counting shards...
+DEBUG: search-compare: root prepass: shard count computed in 0.82s
+DEBUG: search-compare: routing one shared root rule chain for all fixed modes through 68 resident shards
+DEBUG: search-compare: shared root shard prepass covers SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: search-compare: awaiting 68 shared-root shard results
+DEBUG: search-compare: leased resident executor 5 for root-wave shard 1
+DEBUG: search-compare: resident executor 5 pid=1855 starting root-wave shard 1
+DEBUG: search-compare: leased resident executor 1 for root-wave shard 2
+DEBUG: search-compare: resident executor 1 pid=1846 starting root-wave shard 2
+DEBUG: search-compare: leased resident executor 2 for root-wave shard 3
+DEBUG: search-compare: resident executor 2 pid=1849 starting root-wave shard 3
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 4
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 4
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 5
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 5
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 6
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 6
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 7
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 7
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 8
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 8
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 9
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 9
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 10
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 10
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 11
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 11
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 12
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 12
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 13
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 13
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 14
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 14
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 15
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 15
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 16
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 16
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 17
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 17
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 18
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 18
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 19
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 19
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 20
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 20
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 21
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 21
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 22
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 22
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 23
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 23
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 24
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 24
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 25
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 25
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 26
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 26
+DEBUG: search-compare: leased resident executor 7 for root-wave shard 27
+DEBUG: search-compare: resident executor 7 pid=1859 starting root-wave shard 27
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 28
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 28
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 29
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 29
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 30
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 30
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 31
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 31
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 32
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 32
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 33
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 33
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 34
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 34
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 35
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 35
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 36
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 36
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 37
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 37
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 38
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 38
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 39
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 39
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 40
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 40
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 41
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 41
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 42
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 42
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 43
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 43
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 44
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 44
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 45
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 45
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 46
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 46
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 47
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 47
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 48
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 48
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 49
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 49
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 50
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 50
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 51
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 51
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 52
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 52
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 53
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 53
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 54
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 54
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 55
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 55
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 56
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 56
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 57
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 57
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 58
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 58
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 59
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 59
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 60
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 60
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 61
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 61
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 62
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 62
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 63
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 63
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 64
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 64
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 65
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 65
+DEBUG: search-compare: leased resident executor 3 for root-wave shard 66
+DEBUG: search-compare: resident executor 3 pid=1851 starting root-wave shard 66
+DEBUG: search-compare: leased resident executor 6 for root-wave shard 67
+DEBUG: search-compare: resident executor 6 pid=1857 starting root-wave shard 67
+DEBUG: search-compare: leased resident executor 4 for root-wave shard 68
+DEBUG: search-compare: resident executor 4 pid=1853 starting root-wave shard 68
+DEBUG: search-compare: merged 68 shared-root candidate shard results for all fixed modes
+DEBUG: search-compare: shared root prepass: applicable rule scan done in 15.45s
+DEBUG: search-compare: shared root prepass: cached 7 candidates in 15.45s
+DEBUG: search-compare: reusing shared root candidate set for SearchDFS with 7 candidates
+DEBUG: search-compare: seeded SearchDFS root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchDFS root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchBFS with 7 candidates
+DEBUG: search-compare: seeded SearchBFS root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchBFS root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchAStar with 7 candidates
+DEBUG: search-compare: seeded SearchAStar root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchAStar root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchBeam with 7 candidates
+DEBUG: search-compare: seeded SearchBeam root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchBeam root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: reusing shared root candidate set for SearchRewriteDFS with 7 candidates
+DEBUG: search-compare: seeded SearchRewriteDFS root branch wave with 4 theorem/rewrite handoff packets
+DEBUG: search-compare: built SearchRewriteDFS root branch wave from shared candidates with 4 ready branches
+DEBUG: search-compare: rechecking fixed mode frontiers for newly packetizable work before refill; total-active-processes=0 total-queued-packets=20 machine-target=2 soft-target=7 live-budget=7
+DEBUG: search-compare: all fixed mode frontiers are packetized; total ready branches=20; total-active-processes=0 total-queued-packets=20 machine-target=2 soft-target=7 live-budget=7
+DEBUG: search-compare: global branch backlog currently has 20 ready branches; launching 7 resident executors now, 13 still queued
+DEBUG: search-compare: total-active-processes=0 total-queued-packets=20 machine-target=2 soft-target=7 live-budget=7 for SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: search-compare: scheduler sees total-active-processes=0 total-queued-packets=20 machine-target=2 soft-target=7 live-budget=7; leasing resident workers now
+DEBUG: search-compare: staging resident lease 1/7 -> SearchDFS packet 1
+DEBUG: search-compare: staged 1/7 resident leases already; latest=SearchDFS packet 1
+DEBUG: search-compare: leasing resident executor 4 for SearchDFS packet 1 (1/7) live=1 idle=6
+DEBUG: search-compare: leased 1/7 local executors already; latest=SearchDFS packet 1
+DEBUG: search-compare: resident executor 4 pid=1853 starting SearchDFS packet 1
+DEBUG: SearchDFS: worker pid=1853 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=1
+DEBUG: search-dfs-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))
+DEBUG: search-compare: staging resident lease 2/7 -> SearchBFS packet 1
+DEBUG: search-compare: staged 2/7 resident leases already; latest=SearchBFS packet 1
+DEBUG: search-compare: leasing resident executor 6 for SearchBFS packet 1 (2/7) live=2 idle=5
+DEBUG: search-compare: leased 2/7 local executors already; latest=SearchBFS packet 1
+DEBUG: search-compare: resident executor 6 pid=1857 starting SearchBFS packet 1
+DEBUG: SearchBFS: worker pid=1857 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: search-dfs-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f130d9b7b60>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object)) next=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) next-prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))]
+DEBUG: search-bfs-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))
+DEBUG: search-compare: staging resident lease 3/7 -> SearchAStar packet 1
+DEBUG: search-compare: staged 3/7 resident leases already; latest=SearchAStar packet 1
+DEBUG: search-compare: leasing resident executor 5 for SearchAStar packet 1 (3/7) live=3 idle=4
+DEBUG: search-compare: leased 3/7 local executors already; latest=SearchAStar packet 1
+DEBUG: search-compare: resident executor 5 pid=1855 starting SearchAStar packet 1
+DEBUG: SearchDFS: worker pid=1853 37.8s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=0
+DEBUG: SearchDFS: worker pid=1853 47.1s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=0
+DEBUG: search-bfs-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f2adfa23380>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object)) next=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))]
+DEBUG: SearchAStar: worker pid=1855 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: search-astar-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))
+DEBUG: search-compare: SearchDFS worker pid=1853 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchDFS worker pid=1853 elapsed=74.9s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-compare: staging resident lease 4/7 -> SearchBeam packet 1
+DEBUG: search-compare: staged 4/7 resident leases already; latest=SearchBeam packet 1
+DEBUG: search-compare: leasing resident executor 1 for SearchBeam packet 1 (4/7) live=4 idle=3
+DEBUG: search-compare: leased 4/7 local executors already; latest=SearchBeam packet 1
+DEBUG: search-compare: resident executor 1 pid=1846 starting SearchBeam packet 1
+DEBUG: SearchBFS: worker pid=1857 59.5s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-astar-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f61ce13f460>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object)) next=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))]
+DEBUG: SearchBeam: worker pid=1846 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: SearchBFS: worker pid=1857 71.0s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-beam-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))
+DEBUG: search-compare: staging resident lease 5/7 -> SearchRewriteDFS packet 1
+DEBUG: search-compare: staged 5/7 resident leases already; latest=SearchRewriteDFS packet 1
+DEBUG: search-compare: leasing resident executor 2 for SearchRewriteDFS packet 1 (5/7) live=5 idle=2
+DEBUG: search-compare: leased 5/7 local executors already; latest=SearchRewriteDFS packet 1
+DEBUG: search-compare: resident executor 2 pid=1849 starting SearchRewriteDFS packet 1
+DEBUG: SearchAStar: worker pid=1855 65.7s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-beam-stage: advanced via theorem=<hyge.proof.Rule object at 0x7fc988377460>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object)) next=Knowledge([Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))]
+DEBUG: SearchRewriteDFS: worker pid=1849 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=1
+DEBUG: search-compare: SearchBFS worker pid=1857 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchBFS worker pid=1857 elapsed=119.6s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: SearchAStar: worker pid=1855 79.6s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-rewrite-dfs-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))
+DEBUG: search-compare: staging resident lease 6/7 -> SearchDFS packet 2
+DEBUG: search-compare: staged 6/7 resident leases already; latest=SearchDFS packet 2
+DEBUG: search-compare: leasing resident executor 7 for SearchDFS packet 2 (6/7) live=6 idle=1
+DEBUG: search-compare: leased 6/7 local executors already; latest=SearchDFS packet 2
+DEBUG: search-compare: resident executor 7 pid=1859 starting SearchDFS packet 2
+DEBUG: SearchBeam: worker pid=1846 71.7s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-rewrite-dfs-stage: advanced via theorem=<hyge.proof.Rule object at 0x7faa511ff700>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object)) next=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) next-prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))]
+DEBUG: SearchDFS: worker pid=1859 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=1
+DEBUG: search-compare: SearchAStar worker pid=1855 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchAStar worker pid=1855 elapsed=129.6s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-dfs-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)
+DEBUG: SearchBeam: worker pid=1846 85.2s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-compare: staging resident lease 7/7 -> SearchBFS packet 2
+DEBUG: search-compare: staged 7/7 resident leases already; latest=SearchBFS packet 2
+DEBUG: search-compare: leasing resident executor 3 for SearchBFS packet 2 (7/7) live=7 idle=0
+DEBUG: search-compare: leased 7/7 local executors already; latest=SearchBFS packet 2
+DEBUG: search-compare: resident executor 3 pid=1851 starting SearchBFS packet 2
+DEBUG: SearchRewriteDFS: worker pid=1849 63.5s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=0
+DEBUG: search-compare: launched 7 resident worker leases this cycle; total-active-processes=7 total-queued-packets=13 machine-target=2 soft-target=7 live-budget=7
+DEBUG: search-compare: leasing 7 resident executors for the current branch backlog
+DEBUG: search-compare: total-active-processes=7 total-queued-packets=13 machine-target=2 soft-target=7 live-budget=7 for SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: SearchRewriteDFS: worker pid=1849 75.3s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=0
+DEBUG: search-compare: resident executor 5 pid=1855 finished SearchAStar packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 5 pid=1855 returned to the idle pool after completed SearchAStar packet; live=6 idle=1
+DEBUG: search-compare: resident executor 6 pid=1857 finished SearchBFS packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 6 pid=1857 returned to the idle pool after completed SearchBFS packet; live=5 idle=2
+DEBUG: SearchBFS: worker pid=1851 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: search-compare: resident executor 4 pid=1853 finished SearchDFS packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 4 pid=1853 returned to the idle pool after completed SearchDFS packet; live=4 idle=3
+DEBUG: search-compare: SearchBeam worker pid=1846 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchBeam worker pid=1846 elapsed=134.4s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-dfs-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f7281b339a0>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object) next=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) next-prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)]
+DEBUG: search-bfs-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)
+DEBUG: search-compare: SearchRewriteDFS worker pid=1849 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchRewriteDFS worker pid=1849 elapsed=108.1s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-compare: integrated SearchDFS packet status=running total=0 frontier=0 expanded=1 generated=1 peak=4 mode-active-processes=1 mode-queued-packets=3 mode-completed-packets=1 returned-goal-signal=none
+DEBUG: SearchDFS: worker pid=1859 67.5s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=0
+DEBUG: search-compare: integrated SearchBFS packet status=running total=0 frontier=0 expanded=1 generated=1 peak=4 mode-active-processes=1 mode-queued-packets=3 mode-completed-packets=1 returned-goal-signal=none
+DEBUG: SearchDFS: worker pid=1859 76.7s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=0
+DEBUG: search-bfs-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f5f5976c440>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object) next=Knowledge([ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)]
+DEBUG: search-compare: integrated SearchAStar packet status=running total=0 frontier=0 expanded=1 generated=1 peak=4 mode-active-processes=0 mode-queued-packets=4 mode-completed-packets=1 returned-goal-signal=none
+DEBUG: search-compare: SearchDFS worker pid=1859 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchDFS worker pid=1859 elapsed=100.8s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: SearchBFS: worker pid=1851 62.7s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: SearchBFS: worker pid=1851 69.0s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-compare: rechecking fixed mode frontiers for newly packetizable work before refill; total-active-processes=4 total-queued-packets=16 machine-target=2 soft-target=7 live-budget=7
+DEBUG: search-compare: SearchBFS worker pid=1851 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchBFS worker pid=1851 elapsed=96.3s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-compare: queued SearchBFS frontier-state worker packet states=1 remaining-frontier-states=0
+DEBUG: search-compare: SearchBFS packetized frontier into 1 batches; 0 frontier states remain in the mode job
+DEBUG: search-compare: queued SearchBeam frontier-state worker packet states=1 remaining-frontier-states=0
+DEBUG: search-compare: SearchBeam packetized frontier into 1 batches; 0 frontier states remain in the mode job
+DEBUG: search-compare: global branch backlog currently has 16 ready branches; launching 3 resident executors now, 13 still queued
+DEBUG: search-compare: total-active-processes=4 total-queued-packets=16 machine-target=2 soft-target=7 live-budget=7 for SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: search-compare: scheduler sees total-active-processes=4 total-queued-packets=16 machine-target=2 soft-target=7 live-budget=7; leasing resident workers now
+DEBUG: search-compare: staging resident lease 5/7 -> SearchAStar packet 2
+DEBUG: search-compare: staged 5/7 resident leases already; latest=SearchAStar packet 2
+DEBUG: search-compare: leasing resident executor 4 for SearchAStar packet 2 (5/7) live=5 idle=2
+DEBUG: search-compare: leased 5/7 local executors already; latest=SearchAStar packet 2
+DEBUG: search-compare: resident executor 4 pid=1853 starting SearchAStar packet 2
+DEBUG: SearchAStar: worker pid=1853 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: search-astar-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)
+DEBUG: search-compare: staging resident lease 6/7 -> SearchDFS packet 3
+DEBUG: search-compare: staged 6/7 resident leases already; latest=SearchDFS packet 3
+DEBUG: search-compare: leasing resident executor 6 for SearchDFS packet 3 (6/7) live=6 idle=1
+DEBUG: search-compare: leased 6/7 local executors already; latest=SearchDFS packet 3
+DEBUG: search-compare: resident executor 6 pid=1857 starting SearchDFS packet 3
+DEBUG: SearchDFS: worker pid=1857 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=1
+DEBUG: search-astar-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f130d89d6a0>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object) next=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)]
+DEBUG: search-dfs-stage: current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) steps=67
+DEBUG: search-compare: staging resident lease 7/7 -> SearchBFS packet 3
+DEBUG: search-compare: staged 7/7 resident leases already; latest=SearchBFS packet 3
+DEBUG: search-compare: leasing resident executor 5 for SearchBFS packet 3 (7/7) live=7 idle=0
+DEBUG: search-compare: leased 7/7 local executors already; latest=SearchBFS packet 3
+DEBUG: search-compare: resident executor 5 pid=1855 starting SearchBFS packet 3
+DEBUG: search-compare: launched 3 resident worker leases this cycle; total-active-processes=7 total-queued-packets=13 machine-target=2 soft-target=7 live-budget=7
+DEBUG: search-compare: resident executor 3 pid=1851 finished SearchBFS packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 3 pid=1851 returned to the idle pool after completed SearchBFS packet; live=6 idle=1
+DEBUG: search-compare: resident executor 7 pid=1859 finished SearchDFS packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 7 pid=1859 returned to the idle pool after completed SearchDFS packet; live=5 idle=2
+DEBUG: search-compare: resident executor 2 pid=1849 finished SearchRewriteDFS packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 2 pid=1849 returned to the idle pool after completed SearchRewriteDFS packet; live=4 idle=3
+DEBUG: SearchAStar: worker pid=1853 51.5s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-compare: resident executor 1 pid=1846 finished SearchBeam packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 1 pid=1846 returned to the idle pool after completed SearchBeam packet; live=3 idle=4
+DEBUG: SearchBFS: worker pid=1855 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: search-dfs-stage: computing applicable theorem rules for current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: SearchAStar: worker pid=1853 63.3s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-bfs-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(Triangle(?triangle))  ->  Triangle(?triangle)
+DEBUG: search-compare: integrated SearchDFS packet status=running total=0 frontier=0 expanded=1 generated=2 peak=4 mode-active-processes=1 mode-queued-packets=3 mode-completed-packets=2 returned-goal-signal=none
+DEBUG: search-compare: integrated SearchBFS packet status=running total=0 frontier=0 expanded=1 generated=2 peak=4 mode-active-processes=1 mode-queued-packets=3 mode-completed-packets=2 returned-goal-signal=none
+DEBUG: search-dfs-stage: applicable theorem rules ready count=7 for current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: search-dfs-stage: ordering theorem rules toward goal=Solved(Triangle(Tao Problem 1.1 triangle)) for current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: search-bfs-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f61ce76e9e0>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(Triangle(?triangle))  ->  Triangle(?triangle) next=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Triangle(Tao Problem 1.1 triangle), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(Triangle(?triangle))  ->  Triangle(?triangle)]
+DEBUG: search-compare: integrated SearchBeam packet status=running total=0 frontier=0 expanded=1 generated=1 peak=4 mode-active-processes=0 mode-queued-packets=4 mode-completed-packets=1 returned-goal-signal=none
+DEBUG: search-compare: SearchAStar worker pid=1853 produced a returned frontier wave with 1 ready packets
+DEBUG: search-compare: SearchAStar worker pid=1853 elapsed=117.8s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-dfs-stage: theorem rule order ready count=7 for current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle))
+DEBUG: search-compare: integrated SearchRewriteDFS packet status=running total=0 frontier=0 expanded=1 generated=1 peak=4 mode-active-processes=0 mode-queued-packets=4 mode-completed-packets=1 returned-goal-signal=none
+DEBUG: SearchBFS: worker pid=1855 69.8s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: SearchBFS: worker pid=1855 79.3s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-compare: rechecking fixed mode frontiers for newly packetizable work before refill; total-active-processes=3 total-queued-packets=17 machine-target=2 soft-target=7 live-budget=7
+DEBUG: search-compare: SearchBFS worker pid=1855 produced a returned frontier wave with 2 ready packets
+DEBUG: search-compare: SearchBFS worker pid=1855 elapsed=130.5s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-dfs-stage: trying theorem; current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply [Need(Angles(?triangle)), Solved((Length(FirstEdge(Edges(?triangle))) = ?first_edge)), Solved((Length(SecondEdge(Edges(?triangle))) = ?second_edge)), Solved((Length(ThirdEdge(Edges(?triangle))) = ?third_edge))]  ->  Solved((cos(SecondAngle(?triangle)) = ((((?first_edge^2) + (?third_edge^2)) + (-(?second_edge^2))) / (2 * (?first_edge * ?third_edge)))))
+DEBUG: search-dfs-stage: advanced via theorem=<hyge.proof.MultiRule object at 0x7f2adf461940>; current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] action=apply [Need(Angles(?triangle)), Solved((Length(FirstEdge(Edges(?triangle))) = ?first_edge)), Solved((Length(SecondEdge(Edges(?triangle))) = ?second_edge)), Solved((Length(ThirdEdge(Edges(?triangle))) = ?third_edge))]  ->  Solved((cos(SecondAngle(?triangle)) = ((((?first_edge^2) + (?third_edge^2)) + (-(?second_edge^2))) / (2 * (?first_edge * ?third_edge))))) next=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object)), apply [Need(Angles(?triangle)), Solved((Length(FirstEdge(Edges(?triangle))) = ?first_edge)), Solved((Length(SecondEdge(Edges(?triangle))) = ?second_edge)), Solved((Length(ThirdEdge(Edges(?triangle))) = ?third_edge))]  ->  Solved((cos(SecondAngle(?triangle)) = ((((?first_edge^2) + (?third_edge^2)) + (-(?second_edge^2))) / (2 * (?first_edge * ?third_edge)))))]
+DEBUG: search-compare: queued SearchBFS frontier-state worker packet states=1 remaining-frontier-states=0
+DEBUG: search-compare: SearchBFS packetized frontier into 1 batches; 0 frontier states remain in the mode job
+DEBUG: SearchDFS: worker pid=1857 187.7s elapsed; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] frontier=2 expanded=1 generated=1 peak=2 remaining-budget=0
+DEBUG: SearchDFS: worker pid=1857 195.9s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] frontier=2 expanded=1 generated=1 peak=2 remaining-budget=0
+DEBUG: search-compare: SearchDFS worker pid=1857 produced a returned frontier wave with 2 ready packets
+DEBUG: search-compare: SearchDFS worker pid=1857 elapsed=217.2s completed packet status=running frontier=2 expanded=1 generated=1 peak=2 total=0
+DEBUG: search-compare: queued SearchAStar frontier-state worker packet states=1 remaining-frontier-states=0
+DEBUG: search-compare: SearchAStar packetized frontier into 1 batches; 0 frontier states remain in the mode job
+DEBUG: search-compare: global branch backlog currently has 17 ready branches; launching 4 resident executors now, 13 still queued
+DEBUG: search-compare: total-active-processes=3 total-queued-packets=17 machine-target=2 soft-target=7 live-budget=7 for SearchDFS, SearchBFS, SearchAStar, SearchBeam, SearchRewriteDFS
+DEBUG: search-compare: scheduler sees total-active-processes=3 total-queued-packets=17 machine-target=2 soft-target=7 live-budget=7; leasing resident workers now
+DEBUG: search-compare: staging resident lease 4/7 -> SearchBeam packet 2
+DEBUG: search-compare: staged 4/7 resident leases already; latest=SearchBeam packet 2
+DEBUG: search-compare: leasing resident executor 1 for SearchBeam packet 2 (4/7) live=4 idle=3
+DEBUG: search-compare: leased 4/7 local executors already; latest=SearchBeam packet 2
+DEBUG: search-compare: resident executor 1 pid=1846 starting SearchBeam packet 2
+DEBUG: SearchBeam: worker pid=1846 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: search-beam-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)
+DEBUG: search-compare: staging resident lease 5/7 -> SearchRewriteDFS packet 2
+DEBUG: search-compare: staged 5/7 resident leases already; latest=SearchRewriteDFS packet 2
+DEBUG: search-compare: leasing resident executor 2 for SearchRewriteDFS packet 2 (5/7) live=5 idle=2
+DEBUG: search-compare: leased 5/7 local executors already; latest=SearchRewriteDFS packet 2
+DEBUG: search-compare: resident executor 2 pid=1849 starting SearchRewriteDFS packet 2
+DEBUG: search-beam-stage: advanced via theorem=<hyge.proof.Rule object at 0x7fc983824f30>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object) next=Knowledge([ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)]
+DEBUG: SearchRewriteDFS: worker pid=1849 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=1
+DEBUG: search-rewrite-dfs-stage: current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) steps=67
+DEBUG: search-compare: staging resident lease 6/7 -> SearchDFS packet 4
+DEBUG: search-compare: staged 6/7 resident leases already; latest=SearchDFS packet 4
+DEBUG: search-compare: leasing resident executor 7 for SearchDFS packet 4 (6/7) live=6 idle=1
+DEBUG: search-compare: leased 6/7 local executors already; latest=SearchDFS packet 4
+DEBUG: search-compare: resident executor 7 pid=1859 starting SearchDFS packet 4
+DEBUG: SearchBeam: worker pid=1846 50.1s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: SearchDFS: worker pid=1859 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=1
+DEBUG: search-rewrite-dfs-stage: computing applicable theorem rules for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: SearchBeam: worker pid=1846 61.7s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-dfs-stage: current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)] goal=Solved(Triangle(Tao Problem 1.1 triangle)) steps=67
+DEBUG: search-compare: staging resident lease 7/7 -> SearchBFS packet 4
+DEBUG: search-compare: staged 7/7 resident leases already; latest=SearchBFS packet 4
+DEBUG: search-compare: leasing resident executor 3 for SearchBFS packet 4 (7/7) live=7 idle=0
+DEBUG: search-compare: leased 7/7 local executors already; latest=SearchBFS packet 4
+DEBUG: search-rewrite-dfs-stage: applicable theorem rules ready count=7 for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: search-compare: resident executor 3 pid=1851 starting SearchBFS packet 4
+DEBUG: search-compare: launched 4 resident worker leases this cycle; total-active-processes=7 total-queued-packets=13 machine-target=2 soft-target=7 live-budget=7
+DEBUG: search-rewrite-dfs-stage: ordering theorem rules toward goal=Solved(Triangle(Tao Problem 1.1 triangle)) for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: search-compare: ignoring stale SearchBFS packet result token=10 expected=10
+DEBUG: search-compare: requeued rejected SearchBFS packet for resident retry; mode-active-processes=1 mode-queued-packets=3
+DEBUG: search-dfs-stage: computing applicable theorem rules for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: search-compare: resident executor 6 pid=1857 finished SearchDFS packet and returned status=running total=0 proof=0 search=0 expanded=1 generated=1 peak=2 ready-packets=2
+DEBUG: search-compare: resident executor 6 pid=1857 returned to the idle pool after completed SearchDFS packet; live=5 idle=2
+DEBUG: search-compare: resident executor 4 pid=1853 finished SearchAStar packet and returned status=running total=0 proof=0 search=0 expanded=0 generated=1 peak=2 ready-packets=1
+DEBUG: search-compare: resident executor 4 pid=1853 returned to the idle pool after completed SearchAStar packet; live=4 idle=3
+DEBUG: SearchBFS: worker pid=1851 packet start status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=1 expanded=0 generated=0 peak=0 remaining-budget=2
+DEBUG: search-rewrite-dfs-stage: theorem rule order ready count=7 for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle))
+DEBUG: search-compare: SearchBeam worker pid=1846 produced a returned frontier wave with 2 ready packets
+DEBUG: search-compare: SearchBeam worker pid=1846 elapsed=126.6s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-bfs-stage: trying theorem; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(Area(?triangle))  ->  Parameter(Area(?triangle))
+DEBUG: search-compare: integrated SearchDFS packet status=running total=0 frontier=0 expanded=2 generated=3 peak=4 mode-active-processes=1 mode-queued-packets=4 mode-completed-packets=3 returned-goal-signal=none
+DEBUG: search-dfs-stage: applicable theorem rules ready count=8 for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: search-dfs-stage: ordering theorem rules toward goal=Solved(Triangle(Tao Problem 1.1 triangle)) for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))])
+DEBUG: search-compare: integrated SearchAStar packet status=running total=0 frontier=0 expanded=1 generated=2 peak=4 mode-active-processes=0 mode-queued-packets=4 mode-completed-packets=2 returned-goal-signal=none
+DEBUG: search-bfs-stage: advanced via theorem=<hyge.proof.Rule object at 0x7f5f5935a970>; current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) prefix=[] action=apply Given(Area(?triangle))  ->  Parameter(Area(?triangle)) next=Knowledge([Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Parameter(Area(Tao Problem 1.1 triangle)), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) next-prefix=[apply Given(Area(?triangle))  ->  Parameter(Area(?triangle))]
+DEBUG: search-dfs-stage: theorem rule order ready count=8 for current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) goal=Solved(Triangle(Tao Problem 1.1 triangle))
+DEBUG: SearchBFS: worker pid=1851 76.7s elapsed; seeded branch packet resolved; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-compare: rechecking fixed mode frontiers for newly packetizable work before refill; total-active-processes=4 total-queued-packets=17 machine-target=2 soft-target=7 live-budget=7
+DEBUG: SearchBFS: worker pid=1851 87.9s elapsed; packet yielded more work; status=running start=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) current=Knowledge([Given(Triangle(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle))]) goal=Solved(Triangle(Tao Problem 1.1 triangle)) prefix=[] frontier=2 expanded=0 generated=1 peak=2 remaining-budget=1
+DEBUG: search-rewrite-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply [Need(Angles(?triangle)), Solved((Length(FirstEdge(Edges(?triangle))) = ?first_edge)), Solved((Length(SecondEdge(Edges(?triangle))) = ?second_edge)), Solved((Length(ThirdEdge(Edges(?triangle))) = ?third_edge))]  ->  Solved((cos(SecondAngle(?triangle)) = ((((?first_edge^2) + (?third_edge^2)) + (-(?second_edge^2))) / (2 * (?first_edge * ?third_edge)))))
+DEBUG: search-rewrite-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply [Need(Angles(?triangle)), Solved((Length(FirstEdge(Edges(?triangle))) = ?first_edge)), Solved((Length(SecondEdge(Edges(?triangle))) = ?second_edge)), Solved((Length(ThirdEdge(Edges(?triangle))) = ?third_edge))]  ->  Solved((cos(ThirdAngle(?triangle)) = ((((?first_edge^2) + (?second_edge^2)) + (-(?third_edge^2))) / (2 * (?first_edge * ?second_edge)))))
+DEBUG: search-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply [Need(Angles(?triangle)), Solved((Length(FirstEdge(Edges(?triangle))) = ?first_edge)), Solved((Length(SecondEdge(Edges(?triangle))) = ?second_edge)), Solved((Length(ThirdEdge(Edges(?triangle))) = ?third_edge))]  ->  Solved((cos(SecondAngle(?triangle)) = ((((?first_edge^2) + (?third_edge^2)) + (-(?second_edge^2))) / (2 * (?first_edge * ?third_edge)))))
+DEBUG: search-rewrite-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply [Need(Angles(?triangle)), Solved((cos(FirstAngle(?triangle)) = ?first_angle_rhs)), Solved((cos(SecondAngle(?triangle)) = ?second_angle_rhs)), Solved((cos(ThirdAngle(?triangle)) = ?third_angle_rhs))]  ->  Solved(Angles(?triangle))
+DEBUG: search-compare: SearchBFS worker pid=1851 produced a returned frontier wave with 2 ready packets
+DEBUG: search-compare: SearchBFS worker pid=1851 elapsed=150.5s completed packet status=running frontier=2 expanded=0 generated=1 peak=2 total=0
+DEBUG: search-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply [Need(Angles(?triangle)), Solved((Length(FirstEdge(Edges(?triangle))) = ?first_edge)), Solved((Length(SecondEdge(Edges(?triangle))) = ?second_edge)), Solved((Length(ThirdEdge(Edges(?triangle))) = ?third_edge))]  ->  Solved((cos(ThirdAngle(?triangle)) = ((((?first_edge^2) + (?second_edge^2)) + (-(?third_edge^2))) / (2 * (?first_edge * ?second_edge)))))
+DEBUG: search-rewrite-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))
+DEBUG: search-compare: queued SearchBFS frontier-state worker packet states=1 remaining-frontier-states=0
+DEBUG: search-compare: SearchBFS packetized frontier into 1 batches; 0 frontier states remain in the mode job
+DEBUG: search-rewrite-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), Parameter(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle))), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(CommonDifference(?object))  ->  Parameter(CommonDifference(?object))] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)
+DEBUG: search-dfs-stage: trying theorem; current=Knowledge([Need(Angles(Tao Problem 1.1 triangle)), Need(SideLengths(Tao Problem 1.1 triangle)), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Given(Area(Tao Problem 1.1 triangle)), Given(Triangle(Tao Problem 1.1 triangle)), Given(ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle))), Given(CommonDifference(SideLengths(Tao Problem 1.1 triangle)))]) prefix=[apply Given(ArithmeticProgression(?object))  ->  ArithmeticProgression(?object)] goal=Solved(Triangle(Tao Problem 1.1 triangle)) action=apply [Need(Angles(?triangle)), Solved((cos(FirstAngle(?triangle)) = ?first_angle_rhs)), Solved((cos(SecondAngle(?triangle)) = ?second_angle_rhs)), Solved((cos(ThirdAngle(?triangle)) = ?third_angle_rhs))]  ->  Solved(Angles(?triangle))
