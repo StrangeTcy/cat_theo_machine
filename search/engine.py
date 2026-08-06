@@ -1337,7 +1337,7 @@ class Search(M.Edge):
         while M.IdentityCompare(cache_lookup, M.EmptyList)() is M.false_value:
             cache_entry = M.Head(cache_lookup)()
             cache_key = M.Head(cache_entry)()
-            if M.IdentityCompare(cache_key, premise_key)() is M.truth_value:
+            if M.TermEqual(cache_key, premise_key)() is M.truth_value:
                 matching_bindings = M.Head(M.Tail(cache_entry)())()
                 cache_found = M.truth_value
                 cache_lookup = M.EmptyList
