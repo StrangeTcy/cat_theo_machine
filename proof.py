@@ -846,6 +846,16 @@ class FilterApplicableRules(M.Edge):
             return RulePattern(rule)()
         return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
 
+    def _knowledge_has_ground_fact(self, term):
+        if M.IdentityCompare(self._knowledge_exact_trie, M.EmptyList)() is M.false_value:
+            return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, term, self.registry)()
+        facts = KnowledgeFacts(self.current)()
+        while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+            if M.TermEqual(M.Head(facts)(), term)() is M.truth_value:
+                return M.truth_value
+            facts = M.Tail(facts)()
+        return M.false_value
+
     def _rule_has_missing_required_premise_head(self, rule):
         premises = RulePremises(rule)()
         while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
@@ -854,7 +864,7 @@ class FilterApplicableRules(M.Edge):
                 premises = M.Tail(premises)()
                 continue
             if ContainsVar(premise)() is M.false_value:
-                if K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)() is M.false_value:
+                if self._knowledge_has_ground_fact(premise) is M.false_value:
                     return M.truth_value
                 premises = M.Tail(premises)()
                 continue
@@ -888,7 +898,7 @@ class FilterApplicableRules(M.Edge):
                 if IsVarPattern(anchor)() is M.false_value:
                     facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
             if ContainsVar(anchor)() is M.false_value:
-                return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, anchor, self.registry)()
+                return self._knowledge_has_ground_fact(anchor)
             return self._anchor_matches_facts(anchor, facts)
         pattern = RulePattern(rule)()
         if IsVarPattern(pattern)() is M.truth_value:
@@ -966,6 +976,16 @@ class FilterApplicableRulesProbe(M.Edge):
             return RulePattern(rule)()
         return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
 
+    def _knowledge_has_ground_fact(self, term):
+        if M.IdentityCompare(self._knowledge_exact_trie, M.EmptyList)() is M.false_value:
+            return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, term, self.registry)()
+        facts = KnowledgeFacts(self.current)()
+        while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+            if M.TermEqual(M.Head(facts)(), term)() is M.truth_value:
+                return M.truth_value
+            facts = M.Tail(facts)()
+        return M.false_value
+
     def _rule_has_missing_required_premise_head(self, rule):
         premises = RulePremises(rule)()
         while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
@@ -974,7 +994,7 @@ class FilterApplicableRulesProbe(M.Edge):
                 premises = M.Tail(premises)()
                 continue
             if ContainsVar(premise)() is M.false_value:
-                if K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)() is M.false_value:
+                if self._knowledge_has_ground_fact(premise) is M.false_value:
                     return M.truth_value
                 premises = M.Tail(premises)()
                 continue
@@ -1028,7 +1048,7 @@ class FilterApplicableRulesProbe(M.Edge):
             self._last_anchor_match_attempts = M.Zero
             match_started_at = time.time()
             if ContainsVar(anchor)() is M.false_value:
-                admitted = K.KnowledgeTrieHasFact(self._knowledge_exact_trie, anchor, self.registry)()
+                admitted = self._knowledge_has_ground_fact(anchor)
             else:
                 admitted = self._anchor_matches_facts(anchor, facts)
             after_match = time.time()
@@ -1211,13 +1231,23 @@ class GoalHeadRuleOrdererWithIndex(M.Edge):
             return M.truth_value
         return self._premise_matches_facts(premise, M.Tail(facts)())
 
+    def _knowledge_has_ground_fact(self, term):
+        if M.IdentityCompare(self._knowledge_exact_trie, M.EmptyList)() is M.false_value:
+            return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, term, self.registry)()
+        facts = self._all_facts
+        while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+            if M.TermEqual(M.Head(facts)(), term)() is M.truth_value:
+                return M.truth_value
+            facts = M.Tail(facts)()
+        return M.false_value
+
     def _premise_ready(self, premise):
         if IsVarPattern(premise)() is M.truth_value:
             if M.IdentityCompare(self._all_facts, M.EmptyList)() is M.truth_value:
                 return M.false_value
             return M.truth_value
         if ContainsVar(premise)() is M.false_value:
-            return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)()
+            return self._knowledge_has_ground_fact(premise)
         return self._premise_matches_facts(
             premise,
             K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(),
@@ -1248,7 +1278,7 @@ class GoalHeadRuleOrdererWithIndex(M.Edge):
                 if M.IdentityCompare(self._all_facts, M.EmptyList)() is M.false_value:
                     ready_count = ready_count + 1
             elif contains_variable is M.false_value:
-                if K.KnowledgeTrieHasFact(self._knowledge_exact_trie, premise, self.registry)() is M.truth_value:
+                if self._knowledge_has_ground_fact(premise) is M.truth_value:
                     ready_count = ready_count + 1
             elif self._premise_matches_facts(
                 premise,

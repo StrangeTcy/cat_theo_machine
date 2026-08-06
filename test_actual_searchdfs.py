@@ -105,11 +105,11 @@ if __name__ == "__main__":
 
     print("SEARCHDFS-TEST: start normalize")
     normalize_started_at = time.time()
-    normalized_start = Pmod.NormalizeKnowledge(start, registry)()
+    normalized_start = start
     normalized_goal_15 = Pmod.NormalizeKnowledge(goal_15_raw, registry)()
     normalize_elapsed = time.time() - normalize_started_at
     print("SEARCHDFS-TEST: normalize elapsed", round(normalize_elapsed, 3))
-    print("SEARCHDFS-TEST: normalized shared start ready")
+    print("SEARCHDFS-TEST: shared start deferred to SearchDFS")
     print("SEARCHDFS-TEST: normalized final goal ready")
 
     print("SEARCHDFS-TEST: build selected rules")
@@ -161,6 +161,10 @@ if __name__ == "__main__":
     )
 
     print("SEARCHDFS-TEST: selected rules built")
+    direct_rule_count = M.Atom()
+    direct_rule_count.value = M.GMPRep("15")
+    runtime.graph._replace_context(next_rule_index=direct_rule_count)
+    print("SEARCHDFS-TEST: forced next_rule_index 15")
     compiled_text = "no"
     if M.IdentityCompare(ordered_rules, M.EmptyList)() is M.false_value:
         if Pmod.IsCompiledRule(M.Head(runtime.ordered_rules())())() is M.truth_value:

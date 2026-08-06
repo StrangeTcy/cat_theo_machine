@@ -303,12 +303,9 @@ class Search(M.Edge):
 
     def _burst_budget(self):
         mode = HeuristicSearchMode(self.heuristic)()
-        left = M.five
+        budget = M.five
         if M.OrAtom(M.IdentityCompare(mode, DFSLabel)(), M.IdentityCompare(mode, RewriteDFSLabel)())() is M.truth_value:
-            left = M.nine
-        budget_pair = M.Multiply(left, M.five, self.registry)()
-        budget = M.Head(budget_pair)()
-        self.registry = M.Head(M.Tail(budget_pair)())()
+            budget = M.nine
         return budget
 
     def _maybe_abort_slow_dfs(self, job):
@@ -768,7 +765,6 @@ class Search(M.Edge):
         if IsKnowledge(current)() is M.truth_value:
             facts = KnowledgeFacts(current)()
             knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
-            knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
         return M.Pair(knowledge_head_index, M.Pair(knowledge_exact_trie, M.EmptyList))
 
     def _theorem_applicable_rules_for(self, current, knowledge_head_index=None, knowledge_exact_trie=None):
@@ -870,16 +866,9 @@ class Search(M.Edge):
                 + "s facts="
                 + fact_count_text
             )
-            trie_started_at = time.time()
-            self._stage_debug("cursor build: exact trie build start; facts=" + fact_count_text)
-            knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
+            knowledge_exact_trie = M.EmptyList
             after_exact_trie = time.time()
-            self._stage_debug(
-                "cursor build: exact trie build complete; elapsed="
-                + "{:.3f}".format(after_exact_trie - trie_started_at)
-                + "s facts="
-                + fact_count_text
-            )
+            self._stage_debug("cursor build: exact trie skipped; facts=" + fact_count_text)
         else:
             after_exact_trie = time.time()
             self._stage_debug("cursor build: reusing supplied knowledge indexes; facts=" + fact_count_text)
@@ -940,7 +929,7 @@ class Search(M.Edge):
             knowledge_head_index,
             knowledge_exact_trie,
             delta,
-            M.EmptyTree,
+            M.EmptyList,
             actions_rev,
             current,
         )()
@@ -983,18 +972,24 @@ class Search(M.Edge):
         return M.Head(pair)()
 
     def _record_prompt_expansion(self):
+        if M.IdentityCompare(self.graph._search_disable_progress_ticker, M.truth_value)() is M.truth_value:
+            return
         self.prompt_expanded = self._succ_nat(self.prompt_expanded)
         self.prompt_total_cost = self._succ_nat(self.prompt_total_cost)
         self.prompt_expanded_units += 1
         self.prompt_total_cost_units += 1
 
     def _record_prompt_generated_one(self):
+        if M.IdentityCompare(self.graph._search_disable_progress_ticker, M.truth_value)() is M.truth_value:
+            return
         self.prompt_generated = self._succ_nat(self.prompt_generated)
         self.prompt_total_cost = self._succ_nat(self.prompt_total_cost)
         self.prompt_generated_units += 1
         self.prompt_total_cost_units += 1
 
     def _record_prompt_generated_count(self, count):
+        if M.IdentityCompare(self.graph._search_disable_progress_ticker, M.truth_value)() is M.truth_value:
+            return
         self.prompt_generated = self._nat_add_increment(self.prompt_generated, count)
         self.prompt_total_cost = self._nat_add_increment(self.prompt_total_cost, count)
         count_units = int(M.PrettyTerm(count, self.registry)())
@@ -1075,11 +1070,9 @@ class Search(M.Edge):
     def _goal_reached(self, current, goal, knowledge_exact_trie=None):
         if IsKnowledge(current)() is M.truth_value:
             if knowledge_exact_trie is None:
-                knowledge_exact_trie = K.KnowledgeTrieInsertChain(
-                    M.EmptyTree,
-                    KnowledgeFacts(current)(),
-                    self.registry,
-                )()
+                return self._knowledge_has_fact(KnowledgeFacts(current)(), goal)
+            if M.IdentityCompare(knowledge_exact_trie, M.EmptyList)() is M.truth_value:
+                return self._knowledge_has_fact(KnowledgeFacts(current)(), goal)
             return K.KnowledgeTrieHasFact(knowledge_exact_trie, goal, self.registry)()
         return M.TermEqual(current, goal)()
 
@@ -1102,15 +1095,35 @@ class Search(M.Edge):
         if M.IdentityCompare(bindings, M.EmptyList)() is M.false_value:
             instantiated_premise = M.Instantiate(premise, bindings)()
             match_premise = M.Head(instantiated_premise)()
-        candidate_facts = facts
         if IsVarPattern(match_premise)() is M.false_value:
             if ContainsVar(match_premise)() is M.false_value:
-                if K.KnowledgeTrieHasFact(knowledge_exact_trie, match_premise, self.registry)() is M.truth_value:
-                    candidate_facts = M.Pair(match_premise, M.EmptyList)
+                ground_present = M.false_value
+                if M.IdentityCompare(knowledge_exact_trie, M.EmptyList)() is M.truth_value:
+                    ground_present = self._knowledge_has_fact(facts, match_premise)
                 else:
-                    candidate_facts = M.EmptyList
-            else:
-                candidate_facts = K.KnowledgeHeadIndexBucket(knowledge_head_index, match_premise, self.registry)()
+                    ground_present = K.KnowledgeTrieHasFact(knowledge_exact_trie, match_premise, self.registry)()
+                if M.IdentityCompare(ground_present, M.false_value)() is M.truth_value:
+                    return M.EmptyList
+                next_used_delta = used_delta
+                remaining_delta = delta
+                while M.IdentityCompare(remaining_delta, M.EmptyList)() is M.false_value:
+                    if M.TermEqual(M.Head(remaining_delta)(), match_premise)() is M.truth_value:
+                        next_used_delta = M.truth_value
+                        remaining_delta = M.EmptyList
+                    else:
+                        remaining_delta = M.Tail(remaining_delta)()
+                return self._match_premises(
+                    rest,
+                    facts,
+                    bindings,
+                    knowledge_head_index,
+                    knowledge_exact_trie,
+                    delta,
+                    next_used_delta,
+                )
+        candidate_facts = facts
+        if IsVarPattern(match_premise)() is M.false_value:
+            candidate_facts = K.KnowledgeHeadIndexBucket(knowledge_head_index, match_premise, self.registry)()
         return self._match_premise_against_facts(
             match_premise,
             rest,
@@ -1183,7 +1196,7 @@ class Search(M.Edge):
                     next_used_delta = used_delta
                     remaining_delta = delta
                     while M.IdentityCompare(remaining_delta, M.EmptyList)() is M.false_value:
-                        if M.IdentityCompare(M.Head(remaining_delta)(), fact)() is M.truth_value:
+                        if M.TermEqual(M.Head(remaining_delta)(), fact)() is M.truth_value:
                             next_used_delta = M.truth_value
                             break
                         remaining_delta = M.Tail(remaining_delta)()
@@ -1228,10 +1241,40 @@ class Search(M.Edge):
                 + M.GMPRepText(M.CountRep(delta)())()
             )
         if next_delta is None:
-            next_delta = M.EmptyTree
+            next_delta = M.EmptyList
         if actions_rev is None:
             actions_rev = M.EmptyList
         rule_delta_facts = M.EmptyList
+        premise_probe = RulePremises(rule)()
+        premise_index = 0
+        while M.IdentityCompare(premise_probe, M.EmptyList)() is M.false_value:
+            premise_term = M.Head(premise_probe)()
+            if ContainsVar(premise_term)() is M.false_value:
+                ground_present = self._knowledge_has_fact(facts, premise_term)
+                if ground_present is M.truth_value:
+                    ground_text = "yes"
+                else:
+                    ground_text = "no"
+                self._stage_debug(
+                    "theorem rule premise "
+                    + str(premise_index)
+                    + " ground-present="
+                    + ground_text
+                    + " premise="
+                    + M.PrettyTerm(premise_term, self.registry)()
+                )
+            else:
+                premise_bucket = K.KnowledgeHeadIndexBucket(knowledge_head_index, premise_term, self.registry)()
+                self._stage_debug(
+                    "theorem rule premise "
+                    + str(premise_index)
+                    + " bucket-size="
+                    + M.GMPRepText(M.CountRep(premise_bucket)())()
+                    + " premise="
+                    + M.PrettyTerm(premise_term, self.registry)()
+                )
+            premise_probe = M.Tail(premise_probe)()
+            premise_index = premise_index + 1
         matching_bindings = self._match_premises(
             RulePremises(rule)(),
             facts,
@@ -1241,17 +1284,30 @@ class Search(M.Edge):
             delta,
             M.false_value,
         )
+        self._stage_debug(
+            "theorem rule: matching bindings ready count="
+            + M.GMPRepText(M.CountRep(matching_bindings)())()
+        )
         remaining_bindings = matching_bindings
         while M.IdentityCompare(remaining_bindings, M.EmptyList)() is M.false_value:
             bindings = M.Head(remaining_bindings)()
+            instantiate_started_at = time.time()
             inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
+            self._stage_debug(
+                "theorem rule: instantiate complete elapsed="
+                + "{:.3f}".format(time.time() - instantiate_started_at)
+                + "s"
+            )
             conclusion = M.Head(inst)()
-            already_known = K.KnowledgeTrieHasFact(knowledge_exact_trie, conclusion, self.registry)()
-            already_pending = K.KnowledgeTrieHasFact(next_delta, conclusion, self.registry)()
+            if M.IdentityCompare(knowledge_exact_trie, M.EmptyList)() is M.truth_value:
+                already_known = self._knowledge_has_fact(facts, conclusion)
+            else:
+                already_known = K.KnowledgeTrieHasFact(knowledge_exact_trie, conclusion, self.registry)()
+            already_pending = self._knowledge_has_fact(next_delta, conclusion)
             if M.IdentityCompare(already_known, M.false_value)() is M.truth_value:
                 if M.IdentityCompare(already_pending, M.false_value)() is M.truth_value:
                     action = TheoremAction(rule, bindings)()
-                    next_delta = K.KnowledgeTrieInsert(next_delta, conclusion, self.registry)()
+                    next_delta = M.Pair(conclusion, next_delta)
                     rule_delta_facts = M.Pair(conclusion, rule_delta_facts)
                     actions_rev = M.Pair(action, actions_rev)
             remaining_bindings = M.Tail(remaining_bindings)()
@@ -1539,18 +1595,10 @@ class SearchBFS(Search):
                         + _debug_term(rule_delta_facts, self.registry)
                     )
                 rules = M.Tail(rules)()
-            if M.IdentityCompare(M.TreeRoot(next_delta)(), M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(next_delta, M.EmptyList)() is M.truth_value:
                 self._stage_debug("theorem saturation reached fixed point; no new facts")
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
-            delta_rebuild_started_at = time.time()
-            self._stage_debug("theorem saturation: trie-to-delta reconstruction start")
-            delta_facts = K.KnowledgeTrieFacts(next_delta, self.registry)()
-            self._stage_debug(
-                "theorem saturation: trie-to-delta reconstruction complete; elapsed="
-                + "{:.3f}".format(time.time() - delta_rebuild_started_at)
-                + "s facts="
-                + M.GMPRepText(M.CountRep(delta_facts)())()
-            )
+            delta_facts = next_delta
             next_exact_trie = knowledge_exact_trie
             next_head_index = knowledge_head_index
             next_current = current
@@ -1586,7 +1634,7 @@ class SearchBFS(Search):
                 next_head_index,
                 next_exact_trie,
                 delta_facts,
-                M.EmptyTree,
+                M.EmptyList,
                 M.EmptyList,
                 next_current,
             )()

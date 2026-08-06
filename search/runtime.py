@@ -168,6 +168,8 @@ def _worker_filter_seeded_theorem_continuations(packet_descriptor, frontier):
 
 
 def _SearchApplicableRulesShardWorker(slot, shard_rules, current, knowledge_head_index, knowledge_exact_trie, registry, result_queue):
+    worker_started_at = time.time()
+    worker_pid = multiprocessing.current_process().pid
     try:
         M.AllConstructors = M.set_all_constructors(registry)
         admitted = FilterApplicableRulesShard(shard_rules, current, knowledge_head_index, registry, knowledge_exact_trie)()
@@ -182,19 +184,21 @@ def _SearchApplicableRulesShardWorker(slot, shard_rules, current, knowledge_head
                     admitted_cursor = M.Tail(admitted_cursor)()
             shard_cursor = M.Tail(shard_cursor)()
             position = position + 1
-        result_queue.put((slot, positions))
+        result_queue.put((slot, positions, worker_pid, time.time() - worker_started_at))
     except Exception as error:
         import traceback
 
         print(
             "search-worker: failed theorem applicability shard "
             + str(slot)
+            + " pid="
+            + str(worker_pid)
             + " ("
             + str(error)
             + ")",
         )
         traceback.print_exc()
-        result_queue.put((slot, None))
+        result_queue.put((slot, None, worker_pid, time.time() - worker_started_at))
 
 
 class _SearchModeWorkerResult:
