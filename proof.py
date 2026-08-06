@@ -1956,6 +1956,7 @@ class BuildDerivation(M.Edge):
         if bindings is None:
             bindings = M.EmptyList
         self.bindings = bindings
+        self.registry = registry
         self._knowledge_head_index = M.EmptyList
         self._match_memo = M.EmptyTree
         _debug("build-derivation: start=" + _debug_term(start, registry))
