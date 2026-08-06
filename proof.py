@@ -342,8 +342,9 @@ class TheoremAction(M.Edge):
     def __init__(self, rule, bindings=None):
         if bindings is None:
             bindings = M.EmptyList
-        self.result = M.Pair(TheoremActionLabel, M.Pair(rule, M.Pair(bindings, M.EmptyList)))
-        super().__init__(inputs=M.Pair(rule, M.Pair(bindings, M.EmptyList)), results=self.result)
+        raw_rule = CompiledRuleRaw(rule)()
+        self.result = M.Pair(TheoremActionLabel, M.Pair(raw_rule, M.Pair(bindings, M.EmptyList)))
+        super().__init__(inputs=M.Pair(raw_rule, M.Pair(bindings, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
@@ -351,8 +352,9 @@ class TheoremAction(M.Edge):
 
 class RewriteAction(M.Edge):
     def __init__(self, rule, path):
-        self.result = M.Pair(RewriteActionLabel, M.Pair(rule, M.Pair(path, M.EmptyList)))
-        super().__init__(inputs=M.Pair(rule, M.Pair(path, M.EmptyList)), results=self.result)
+        raw_rule = CompiledRuleRaw(rule)()
+        self.result = M.Pair(RewriteActionLabel, M.Pair(raw_rule, M.Pair(path, M.EmptyList)))
+        super().__init__(inputs=M.Pair(raw_rule, M.Pair(path, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
