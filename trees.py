@@ -448,38 +448,21 @@ class TreePatriciaChoice(Edge):
 
 class TreePatriciaPath(Edge):
     def __init__(self, exact_key):
-        self.result = self._tokens(exact_key)
+        self.result = self._tokens(exact_key, EmptyList)
         super().__init__(inputs=Pair(exact_key, EmptyList), results=self.result)
 
-    def _append(self, left, right):
-        reversed_left = EmptyList
-        current = left
-        while IdentityCompare(current, EmptyList)() is false_value:
-            reversed_left = Pair(Head(current)(), reversed_left)
-            current = Tail(current)()
-        result = right
-        current = reversed_left
-        while IdentityCompare(current, EmptyList)() is false_value:
-            result = Pair(Head(current)(), result)
-            current = Tail(current)()
-        return result
-
-    def _single(self, payload):
-        return Pair(TreePatriciaToken(payload)(), EmptyList)
-
-    def _tokens(self, term):
+    def _tokens(self, term, acc):
+        # Build the token list in one O(depth) pass by consing each
+        # contribution onto the suffix accumulator. The emitted order matches
+        # the original _append-based version exactly:
+        #   pair-token, head-tokens, tail-tokens, stop-token, acc
+        # No reverse, no left-fold append -> O(depth) instead of O(depth^2).
         if IsPair(term)() is truth_value:
-            return self._append(
-                self._single(TreePatriciaPairTokenLabel),
-                self._append(
-                    self._tokens(Head(term)()),
-                    self._append(
-                        self._tokens(Tail(term)()),
-                        self._single(TreePatriciaStopTokenLabel),
-                    ),
-                ),
-            )
-        return self._single(term)
+            stop_suffix = Pair(TreePatriciaToken(TreePatriciaStopTokenLabel)(), acc)
+            tail_tokens = self._tokens(Tail(term)(), stop_suffix)
+            head_tokens = self._tokens(Head(term)(), tail_tokens)
+            return Pair(TreePatriciaToken(TreePatriciaPairTokenLabel)(), head_tokens)
+        return Pair(TreePatriciaToken(term)(), acc)
 
     def __call__(self):
         return self.result
