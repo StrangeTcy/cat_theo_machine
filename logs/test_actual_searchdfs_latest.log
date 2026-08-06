@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/test_actual_searchdfs.py", line 23, in <module>
+    from hyge.runtime import boot_from_packs
+  File "/home/user/hyge/runtime.py", line 31, in <module>
+    from .persistence import SnapshotCodec
+  File "/home/user/hyge/persistence.py", line 8, in <module>
+    import tempfile
+  File "/usr/local/lib/python3.13/tempfile.py", line 45, in <module>
+    from random import Random as _Random
+  File "/usr/local/lib/python3.13/random.py", line 53, in <module>
+    from math import log as _log, exp as _exp, pi as _pi, e as _e, ceil as _ceil
+ImportError: cannot import name 'log' from 'math' (consider renaming '/home/user/cat_theo_machine/math/__init__.py' since it has the same name as the standard library module named 'math' and prevents importing that standard library module)

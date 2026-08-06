@@ -1,0 +1,48 @@
+SEARCHDFS-TEST: pid 17592
+SEARCHDFS-TEST: boot start
+Reading pack order-sign...
+Reading pack order-sign, done in 0.79s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.97s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.24s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.48s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 1.01s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 2.94s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.94s
+Reading pack geometry...
+Reading pack geometry, done in 10.91s
+SEARCHDFS-TEST: boot elapsed 76.954
+SEARCHDFS-TEST: debug trace enabled
+SEARCHDFS-TEST: multiprocessing start method fork
+SEARCHDFS-TEST: problem=triangle with given area, perimeter, arithmetic-progression side constraint, feasibility constraints
+SEARCHDFS-TEST: required proof obligations=15
+SEARCHDFS-TEST: target 1 of 15 side alpha
+SEARCHDFS-TEST: target 2 of 15 side beta
+SEARCHDFS-TEST: target 3 of 15 side gamma
+SEARCHDFS-TEST: target 4 of 15 angle alpha
+SEARCHDFS-TEST: target 5 of 15 angle beta
+SEARCHDFS-TEST: target 6 of 15 angle gamma
+SEARCHDFS-TEST: target 7 of 15 perimeter identity
+SEARCHDFS-TEST: target 8 of 15 area identity
+SEARCHDFS-TEST: target 9 of 15 side alpha positive
+SEARCHDFS-TEST: target 10 of 15 side beta positive
+SEARCHDFS-TEST: target 11 of 15 side gamma positive
+SEARCHDFS-TEST: target 12 of 15 strict triangle inequality
+SEARCHDFS-TEST: target 13 of 15 cosine identity alpha
+SEARCHDFS-TEST: target 14 of 15 cosine identity beta
+SEARCHDFS-TEST: target 15 of 15 cosine identity gamma
+SEARCHDFS-TEST: start normalize
+SEARCHDFS-TEST: normalize elapsed 0.0
+SEARCHDFS-TEST: raw shared start will be normalized inside SearchDFS
+SEARCHDFS-TEST: normalized final goal ready
+SEARCHDFS-TEST: build selected rules
+SEARCHDFS-TEST: selected rules built
+SEARCHDFS-TEST: ordered rules compiled yes
+SEARCHDFS-TEST: search start
+DEBUG: SearchDFS: start=Knowledge([Triangle(Tao Problem 1.1 triangle), Positive(A), Positive(p), Area(Tao Problem 1.1 triangle, A), Perimeter(Tao Problem 1.1 triangle, p), SideOf(Segment(v, w), Tao Problem 1.1 triangle), SideOf(Segment(w, u), Tao Problem 1.1 triangle), SideOf(Segment(u, v), Tao Problem 1.1 triangle), Opposite(Segment(v, w), Angle(v, u, w)), Opposite(Segment(w, u), Angle(w, v, u)), Opposite(Segment(u, v), Angle(u, w, v)), AngleOf(Angle(v, u, w), Tao Problem 1.1 triangle), AngleOf(Angle(w, v, u), Tao Problem 1.1 triangle), AngleOf(Angle(u, w, v), Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), NonNegative((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2))))), (sqrt((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2))))) < ((p / 3) / 2))])
+DEBUG: SearchDFS: goal=((((p / 3) + sqrt((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2))))))^2) = (((((p / 3) + (-sqrt((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2)))))))^2) + ((p / 3)^2)) + (-(2 * (((p / 3) + (-sqrt((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2))))))) * ((p / 3) * Cosine(arccos(((((((p / 3) + (-sqrt((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2)))))))^2) + ((p / 3)^2)) + (-(((p / 3) + sqrt((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2))))))^2))) / (2 * (((p / 3) + (-sqrt((((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2))))))) * (p / 3))))))))))))

@@ -29,10 +29,13 @@ class _SearchWorkerRuntime:
         self._search_disable_console = M.truth_value
         self._search_stop_help_shown = M.truth_value
         self._search_comparison_prompt_guard = None
+        self._search_compare_enable_shared_root_fast_paths = M.false_value
         self._search_compare_ignore_root_fast_paths = M.false_value
         self._search_compare_root_start = M.EmptyList
         self._search_compare_root_goal = M.EmptyList
         self._search_compare_discovery_mode = M.false_value
+        self._search_probe_disable_applicable_cache = M.false_value
+        self._search_probe_disable_applicable_shards = M.false_value
         self._last_search_comparison_outcome = SearchSuccessLabel
         self.context = Ctxmod.Context(
             constructor_registry,
@@ -55,6 +58,10 @@ class _SearchWorkerRuntime:
         self.constructor_registry = Ctxmod.ContextConstructors(self.context)()
         self.derivations = Ctxmod.ContextDerivations(self.context)()
         self.derivation_schemata = Ctxmod.ContextDerivationSchemata(self.context)()
+        self.search_history = Ctxmod.ContextSearchHistory(self.context)()
+        self.search_comparisons = Ctxmod.ContextSearchComparisons(self.context)()
+        self.search_comparison_jobs = Ctxmod.ContextSearchComparisonJobs(self.context)()
+        self.search_jobs = Ctxmod.ContextSearchJobs(self.context)()
         self.search_memo = Ctxmod.ContextSearchMemo(self.context)()
         self.nat_value_index = Ctxmod.ContextNatValueIndex(self.context)()
         M.AllConstructors = M.set_all_constructors(self.constructor_registry)
@@ -65,6 +72,10 @@ class _SearchWorkerRuntime:
         constructors=Ctxmod.ReplaceContext.KEEP,
         derivations=Ctxmod.ReplaceContext.KEEP,
         derivation_schemata=Ctxmod.ReplaceContext.KEEP,
+        search_history=Ctxmod.ReplaceContext.KEEP,
+        search_comparisons=Ctxmod.ReplaceContext.KEEP,
+        search_comparison_jobs=Ctxmod.ReplaceContext.KEEP,
+        search_jobs=Ctxmod.ReplaceContext.KEEP,
         search_memo=Ctxmod.ReplaceContext.KEEP,
     ):
         self.context = Ctxmod.ReplaceContext(
@@ -72,11 +83,19 @@ class _SearchWorkerRuntime:
             constructors=constructors,
             derivations=derivations,
             derivation_schemata=derivation_schemata,
+            search_history=search_history,
+            search_comparisons=search_comparisons,
+            search_comparison_jobs=search_comparison_jobs,
+            search_jobs=search_jobs,
             search_memo=search_memo,
         )()
         self.constructor_registry = Ctxmod.ContextConstructors(self.context)()
         self.derivations = Ctxmod.ContextDerivations(self.context)()
         self.derivation_schemata = Ctxmod.ContextDerivationSchemata(self.context)()
+        self.search_history = Ctxmod.ContextSearchHistory(self.context)()
+        self.search_comparisons = Ctxmod.ContextSearchComparisons(self.context)()
+        self.search_comparison_jobs = Ctxmod.ContextSearchComparisonJobs(self.context)()
+        self.search_jobs = Ctxmod.ContextSearchJobs(self.context)()
         self.search_memo = Ctxmod.ContextSearchMemo(self.context)()
         self.nat_value_index = Ctxmod.ContextNatValueIndex(self.context)()
         M.AllConstructors = M.set_all_constructors(self.constructor_registry)
@@ -96,6 +115,30 @@ class _SearchWorkerRuntime:
 
     def lookup_derivation_schema(self, start, goal):
         return Smod.LookupDerivationSchema(start, goal, self.derivation_schemata)()
+
+    def add_search_attempt(self, attempt):
+        self._replace_context(search_history=M.Pair(attempt, self.search_history))
+        return attempt
+
+    def add_search_comparison(self, comparison):
+        self._replace_context(search_comparisons=M.Pair(comparison, self.search_comparisons))
+        return comparison
+
+    def lookup_search_job(self, start, goal, heuristic):
+        return LookupSearchJob(start, goal, heuristic, self.search_jobs)()
+
+    def store_search_job(self, job):
+        start = SearchJobStart(job)()
+        goal = SearchJobGoal(job)()
+        heuristic = SearchJobHeuristic(job)()
+        remaining = RemoveSearchJob(start, goal, heuristic, self.search_jobs)()
+        self._replace_context(search_jobs=M.Pair(job, remaining))
+        return job
+
+    def remove_search_job(self, start, goal, heuristic):
+        updated = RemoveSearchJob(start, goal, heuristic, self.search_jobs)()
+        self._replace_context(search_jobs=updated)
+        return updated
 
     def lookup_search_memo(self, key):
         return SearchPatriciaLookupByKey(self.search_memo, key, self.constructor_registry)()
@@ -499,6 +542,68 @@ class _SearchRootWaveShardResult:
 
     def __call__(self):
         return self.result
+
+
+def _SearchIndependentModeAttemptWorker(mode, start, goal, rules, heuristic, constructor_registry, debug_trace_enabled, result_queue):
+    from .api import Search as SearchAPI
+
+    pid = multiprocessing.current_process().pid
+    worker_started_at = time.time()
+    try:
+        Pmod.SetDebugTrace(debug_trace_enabled)()
+        runtime = _SearchWorkerRuntime(constructor_registry, M.EmptyList)
+        runtime._search_disable_console = M.truth_value
+        runtime._search_disable_progress_ticker = M.truth_value
+        runtime._search_stop_help_shown = M.truth_value
+        runtime._search_compare_enable_shared_root_fast_paths = M.false_value
+        runtime._search_compare_ignore_root_fast_paths = M.truth_value
+        runtime._search_compare_root_start = start
+        runtime._search_compare_root_goal = goal
+        runtime._search_compare_discovery_mode = M.false_value
+        search_pair = SearchAPI(
+            runtime,
+            start,
+            goal,
+            rules,
+            heuristic,
+            runtime.constructor_registry,
+        )()
+        result_queue.put(
+            (
+                mode,
+                SearchCostOutcome(M.Head(M.Tail(search_pair)())())(),
+                M.Head(search_pair)(),
+                M.Head(M.Tail(search_pair)())(),
+                time.time() - worker_started_at,
+                pid,
+                "",
+            )
+        )
+    except Exception as error:
+        import traceback
+
+        traceback_text = traceback.format_exc()
+        print(
+            "search-worker: failed independent mode "
+            + SearchModeText(mode)()
+            + " pid="
+            + str(pid)
+            + " ("
+            + str(error)
+            + ")"
+        )
+        traceback.print_exc()
+        result_queue.put(
+            (
+                mode,
+                SearchFailureLabel,
+                M.EmptyList,
+                M.EmptyList,
+                time.time() - worker_started_at,
+                pid,
+                traceback_text,
+            )
+        )
 
 
 class _SearchWorkerReady(M.Edge):

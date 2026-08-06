@@ -460,11 +460,308 @@ class CompareSearchModes(M.Edge):
         best_status = SearchAttemptStatus(best_attempt)()
         attempt_succeeded = M.IdentityCompare(attempt_status, SearchSuccessLabel)()
         best_succeeded = M.IdentityCompare(best_status, SearchSuccessLabel)()
-        if attempt_succeeded is M.truth_value and best_succeeded is M.false_value:
-            return M.truth_value
-        if attempt_succeeded is M.false_value and best_succeeded is M.truth_value:
-            return M.false_value
+        if attempt_succeeded is M.truth_value:
+            if best_succeeded is M.false_value:
+                return M.truth_value
+        if attempt_succeeded is M.false_value:
+            if best_succeeded is M.truth_value:
+                return M.false_value
         return M.NatLess(self._attempt_total_value(attempt), self._attempt_total_value(best_attempt), self.registry)()
+
+    def _comparison_uses_shared_root_fast_paths(self):
+        return M.IdentityCompare(self.graph._search_compare_enable_shared_root_fast_paths, M.truth_value)()
+
+    def _fresh_independent_mode_runtime(self):
+        from .runtime import _SearchWorkerRuntime
+
+        runtime = _SearchWorkerRuntime(M.FromContextGetConstructors(self.graph)(), M.EmptyList)
+        runtime._search_disable_console = M.truth_value
+        runtime._search_disable_progress_ticker = M.truth_value
+        runtime._search_stop_help_shown = M.truth_value
+        runtime._search_compare_enable_shared_root_fast_paths = M.false_value
+        runtime._search_compare_ignore_root_fast_paths = M.truth_value
+        runtime._search_compare_root_start = self.start
+        runtime._search_compare_root_goal = self.goal
+        runtime._search_compare_discovery_mode = M.false_value
+        runtime._last_search_comparison_outcome = SearchSuccessLabel
+        return runtime
+
+    def _zero_proof_cost(self):
+        return ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+
+    def _zero_search_cost(self, outcome):
+        search_cost_pair = BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, outcome, self.registry)()
+        search_cost = M.Head(search_cost_pair)()
+        self.registry = M.Head(M.Tail(search_cost_pair)())()
+        return search_cost
+
+    def _mode_attempt_from_plan(self, heuristic, status, plan, search_cost):
+        derivation = M.EmptyList
+        proof_cost = self._zero_proof_cost()
+        if M.IdentityCompare(status, SearchSuccessLabel)() is M.truth_value:
+            derivation_pair = BuildDerivation(self.start, plan, self.registry)()
+            derivation = M.Head(derivation_pair)()
+            self.registry = M.Head(M.Tail(derivation_pair)())()
+            if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                proof_cost_pair = DerivationCost(derivation, self.registry)()
+                proof_cost = M.Head(proof_cost_pair)()
+                self.registry = M.Head(M.Tail(proof_cost_pair)())()
+        total_cost_pair = BuildTotalCost(proof_cost, search_cost, heuristic, self.registry)()
+        total_cost = M.Head(total_cost_pair)()
+        self.registry = M.Head(M.Tail(total_cost_pair)())()
+        return SearchAttempt(
+            self.start,
+            self.goal,
+            heuristic,
+            status,
+            derivation,
+            proof_cost,
+            search_cost,
+            total_cost,
+        )()
+
+    def _attempt_better_with_elapsed(self, attempt, elapsed_seconds, best_attempt, best_elapsed_seconds):
+        if M.Compare(best_attempt, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        attempt_status = SearchAttemptStatus(attempt)()
+        best_status = SearchAttemptStatus(best_attempt)()
+        attempt_succeeded = M.IdentityCompare(attempt_status, SearchSuccessLabel)()
+        best_succeeded = M.IdentityCompare(best_status, SearchSuccessLabel)()
+        if attempt_succeeded is M.truth_value:
+            if best_succeeded is M.false_value:
+                return M.truth_value
+        if attempt_succeeded is M.false_value:
+            if best_succeeded is M.truth_value:
+                return M.false_value
+        attempt_total = self._attempt_total_value(attempt)
+        best_total = self._attempt_total_value(best_attempt)
+        if M.NatLess(attempt_total, best_total, self.registry)() is M.truth_value:
+            return M.truth_value
+        if M.NatLess(best_total, attempt_total, self.registry)() is M.truth_value:
+            return M.false_value
+        if best_elapsed_seconds is None:
+            return M.truth_value
+        if best_elapsed_seconds - elapsed_seconds > 0.0:
+            return M.truth_value
+        if elapsed_seconds - best_elapsed_seconds > 0.0:
+            return M.false_value
+        attempt_search_cost = SearchAttemptSearchCost(attempt)()
+        best_search_cost = SearchAttemptSearchCost(best_attempt)()
+        attempt_expanded = SearchCostExpanded(attempt_search_cost)()
+        best_expanded = SearchCostExpanded(best_search_cost)()
+        if M.NatLess(attempt_expanded, best_expanded, self.registry)() is M.truth_value:
+            return M.truth_value
+        if M.NatLess(best_expanded, attempt_expanded, self.registry)() is M.truth_value:
+            return M.false_value
+        attempt_peak = SearchCostFrontierPeak(attempt_search_cost)()
+        best_peak = SearchCostFrontierPeak(best_search_cost)()
+        if M.NatLess(attempt_peak, best_peak, self.registry)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _independent_mode_attempt(self, mode):
+        from .api import Search as SearchAPI
+
+        heuristic = self._heuristic_for_mode(mode)
+        mode_text = SearchModeText(mode)()
+        _debug("SearchComparison: " + mode_text + " started")
+        started_at = time.time()
+        try:
+            mode_runtime = self._fresh_independent_mode_runtime()
+            search_pair = SearchAPI(
+                mode_runtime,
+                self.start,
+                self.goal,
+                self.rules,
+                heuristic,
+                mode_runtime.constructor_registry,
+            )()
+            plan = M.Head(search_pair)()
+            search_cost = M.Head(M.Tail(search_pair)())()
+            status = SearchCostOutcome(search_cost)()
+            attempt = self._mode_attempt_from_plan(heuristic, status, plan, search_cost)
+            elapsed_seconds = time.time() - started_at
+            _debug(
+                "SearchComparison: "
+                + mode_text
+                + " finished status="
+                + SearchStatusText(status)()
+                + " elapsed="
+                + "{:.3f}".format(elapsed_seconds)
+                + " expanded="
+                + self._nat_text(SearchCostExpanded(search_cost)())
+                + " generated="
+                + self._nat_text(SearchCostGenerated(search_cost)())
+                + " frontier_peak="
+                + self._nat_text(SearchCostFrontierPeak(search_cost)())
+            )
+            return attempt, elapsed_seconds
+        except Exception as error:
+            import traceback
+
+            elapsed_seconds = time.time() - started_at
+            _debug(
+                "SearchComparison: "
+                + mode_text
+                + " finished status=error elapsed="
+                + "{:.3f}".format(elapsed_seconds)
+                + " error="
+                + str(error)
+            )
+            traceback.print_exc()
+            failed_attempt = self._mode_attempt_from_plan(
+                heuristic,
+                SearchFailureLabel,
+                M.EmptyList,
+                self._zero_search_cost(SearchFailureLabel),
+            )
+            return failed_attempt, elapsed_seconds
+
+    def _log_independent_mode_finish(self, mode, status, elapsed_seconds, search_cost, error_text=""):
+        mode_text = SearchModeText(mode)()
+        status_text = SearchStatusText(status)()
+        if error_text != "":
+            status_text = "error"
+        _debug(
+            "SearchComparison: "
+            + mode_text
+            + " finished status="
+            + status_text
+            + " elapsed="
+            + "{:.3f}".format(elapsed_seconds)
+            + " expanded="
+            + self._nat_text(SearchCostExpanded(search_cost)())
+            + " generated="
+            + self._nat_text(SearchCostGenerated(search_cost)())
+            + " frontier_peak="
+            + self._nat_text(SearchCostFrontierPeak(search_cost)())
+        )
+        if error_text != "":
+            _debug("SearchComparison: " + mode_text + " worker traceback follows")
+            print(error_text)
+
+    def _finalize_independent_mode_attempts(self, attempts, best_attempt):
+        comparison_outcome = SearchFailureLabel
+        if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
+            comparison_outcome = SearchAttemptStatus(best_attempt)()
+        comparison = SearchComparison(self.signature, attempts, best_attempt, comparison_outcome)()
+        self.graph._replace_context(constructors=self.registry)
+        self.graph.add_search_comparison(comparison)
+        self.graph._last_search_comparison_outcome = comparison_outcome
+        best_mode_text = "none"
+        if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
+            best_mode_text = SearchModeText(HeuristicSearchMode(SearchAttemptHeuristic(best_attempt)())())()
+        _debug("SearchComparison: best mode=" + best_mode_text)
+        _debug("SearchComparison: provenance recorded")
+        return M.Pair(comparison, M.Pair(best_attempt, M.EmptyList))
+
+    def _compare_all_modes_independent_sequential(self, paused_job=M.EmptyList):
+        if M.Compare(paused_job, M.EmptyList)() is M.false_value:
+            _debug("SearchComparison: paused legacy comparison ignored; restarting independent mode attempts")
+        _debug("SearchComparison: starting independent mode attempts")
+        self.graph.remove_search_comparison_job(self.signature)
+        modes = self._mode_chain()
+        attempts_rev = M.EmptyList
+        best_attempt = M.EmptyList
+        best_elapsed_seconds = None
+        remaining_modes = modes
+        while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
+            mode = M.Head(remaining_modes)()
+            attempt, elapsed_seconds = self._independent_mode_attempt(mode)
+            attempts_rev = M.Pair(attempt, attempts_rev)
+            if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
+                best_attempt = attempt
+                best_elapsed_seconds = elapsed_seconds
+            remaining_modes = M.Tail(remaining_modes)()
+        attempts = self._reverse(attempts_rev, M.EmptyList)
+        return self._finalize_independent_mode_attempts(attempts, best_attempt)
+
+    def _compare_all_modes_independent_parallel(self, mp_context, paused_job=M.EmptyList):
+        from .runtime import _SearchIndependentModeAttemptWorker
+
+        if M.Compare(paused_job, M.EmptyList)() is M.false_value:
+            _debug("SearchComparison: paused legacy comparison ignored; restarting independent mode attempts")
+        _debug("SearchComparison: starting independent mode attempts")
+        self.graph.remove_search_comparison_job(self.signature)
+        constructor_registry = M.FromContextGetConstructors(self.graph)()
+        debug_trace_enabled = Pmod.DEBUG_TRACE_STATE()
+        modes = self._mode_chain()
+        attempts_by_mode = {}
+        best_attempt = M.EmptyList
+        best_elapsed_seconds = None
+        workers = ()
+        remaining_modes = modes
+        while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
+            mode = M.Head(remaining_modes)()
+            heuristic = self._heuristic_for_mode(mode)
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=_SearchIndependentModeAttemptWorker,
+                args=(mode, self.start, self.goal, self.rules, heuristic, constructor_registry, debug_trace_enabled, result_queue),
+            )
+            process.start()
+            _debug("SearchComparison: " + SearchModeText(mode)() + " started")
+            workers = workers + ((mode, heuristic, process, result_queue),)
+            remaining_modes = M.Tail(remaining_modes)()
+        worker_index = 0
+        while worker_index != len(workers):
+            worker = workers[worker_index]
+            worker_index = worker_index + 1
+            mode = worker[0]
+            heuristic = worker[1]
+            process = worker[2]
+            result_queue = worker[3]
+            process.join()
+            payload = None
+            try:
+                payload = result_queue.get(timeout=1.0)
+            except queue.Empty:
+                payload = None
+            try:
+                result_queue.close()
+                result_queue.join_thread()
+            except Exception:
+                pass
+            status = SearchFailureLabel
+            plan = M.EmptyList
+            search_cost = self._zero_search_cost(SearchFailureLabel)
+            elapsed_seconds = 0.0
+            error_text = ""
+            if payload is not None:
+                status = payload[1]
+                plan = payload[2]
+                elapsed_seconds = payload[4]
+                error_text = payload[6]
+                if M.Compare(payload[3], M.EmptyList)() is M.false_value:
+                    search_cost = payload[3]
+                else:
+                    search_cost = self._zero_search_cost(status)
+            attempt = self._mode_attempt_from_plan(heuristic, status, plan, search_cost)
+            attempts_by_mode[SearchModeText(mode)()] = attempt
+            self._log_independent_mode_finish(mode, status, elapsed_seconds, search_cost, error_text)
+            if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
+                best_attempt = attempt
+                best_elapsed_seconds = elapsed_seconds
+        attempts_rev = M.EmptyList
+        remaining_modes = modes
+        while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
+            mode = M.Head(remaining_modes)()
+            mode_text = SearchModeText(mode)()
+            attempts_rev = M.Pair(attempts_by_mode[mode_text], attempts_rev)
+            remaining_modes = M.Tail(remaining_modes)()
+        attempts = self._reverse(attempts_rev, M.EmptyList)
+        return self._finalize_independent_mode_attempts(attempts, best_attempt)
+
+    def _compare_all_modes_independent(self, paused_job=M.EmptyList):
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            _debug("SearchComparison: independent mode parallelism unavailable; falling back to sequential mode attempts")
+            return self._compare_all_modes_independent_sequential(paused_job)
+        if mp_context.get_start_method() == "spawn":
+            _debug("SearchComparison: independent mode parallelism unavailable on spawn; falling back to sequential mode attempts")
+            return self._compare_all_modes_independent_sequential(paused_job)
+        return self._compare_all_modes_independent_parallel(mp_context, paused_job)
 
     def _nat_text(self, value):
         if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
@@ -5343,6 +5640,8 @@ class CompareSearchModes(M.Edge):
         return next_states
 
     def _compare_all_modes(self, paused_job=M.EmptyList):
+        if self._comparison_uses_shared_root_fast_paths() is M.false_value:
+            return self._compare_all_modes_independent(paused_job)
         _debug("search-compare: benchmarking all current search modes for this problem family")
         compare_started_at = time.time()
         prior_guard = self.graph._search_comparison_prompt_guard

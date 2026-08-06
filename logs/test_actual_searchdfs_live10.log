@@ -1,0 +1,137 @@
+SEARCHDFS-TEST: pid 15665
+SEARCHDFS-TEST: boot start
+Reading pack order-sign...
+Reading pack order-sign, done in 0.34s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.49s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.15s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.31s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 0.62s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 1.60s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.60s
+Reading pack geometry...
+Reading pack geometry, done in 7.37s
+SEARCHDFS-TEST: boot elapsed 40.755
+SEARCHDFS-TEST: debug trace enabled
+SEARCHDFS-TEST: multiprocessing start method fork
+SEARCHDFS-TEST: problem=triangle with given area, perimeter, arithmetic-progression side constraint, feasibility constraints
+SEARCHDFS-TEST: required proof obligations=15
+SEARCHDFS-TEST: target 1 of 15 side alpha
+SEARCHDFS-TEST: target 2 of 15 side beta
+SEARCHDFS-TEST: target 3 of 15 side gamma
+SEARCHDFS-TEST: target 4 of 15 angle alpha
+SEARCHDFS-TEST: target 5 of 15 angle beta
+SEARCHDFS-TEST: target 6 of 15 angle gamma
+SEARCHDFS-TEST: target 7 of 15 perimeter identity
+SEARCHDFS-TEST: target 8 of 15 area identity
+SEARCHDFS-TEST: target 9 of 15 side alpha positive
+SEARCHDFS-TEST: target 10 of 15 side beta positive
+SEARCHDFS-TEST: target 11 of 15 side gamma positive
+SEARCHDFS-TEST: target 12 of 15 strict triangle inequality
+SEARCHDFS-TEST: target 13 of 15 cosine identity alpha
+SEARCHDFS-TEST: target 14 of 15 cosine identity beta
+SEARCHDFS-TEST: target 15 of 15 cosine identity gamma
+SEARCHDFS-TEST: start normalize
+SEARCHDFS-TEST: normalize elapsed 0.0
+SEARCHDFS-TEST: shared start deferred to SearchDFS
+SEARCHDFS-TEST: normalized final goal ready
+SEARCHDFS-TEST: build selected rules
+SEARCHDFS-TEST: selected rules built
+SEARCHDFS-TEST: forced next_rule_index 15
+SEARCHDFS-TEST: ordered rules compiled yes
+SEARCHDFS-TEST: search start
+DEBUG: SearchDFS: start received
+DEBUG: SearchDFS: goal received
+DEBUG: search-step: start
+DEBUG: search-step: after frontier extraction
+DEBUG: search-step: after visited initialization
+DEBUG: search-step: job rules compiled=yes
+DEBUG: search-step: after kernel construction
+DEBUG: search-dfs-stage: advance_state: fresh state start
+DEBUG: search-dfs-stage: advance_state: after goal check
+DEBUG: search-dfs-stage: advance_state: after cached-solution check
+DEBUG: search-dfs-stage: advance_state: before cursor construction
+DEBUG: search-dfs-stage: cursor build: root facts ready; facts=17 rules=15
+DEBUG: search-dfs-stage: cursor build: head index build start; facts=17
+DEBUG: search-dfs-stage: cursor build: head index build complete; elapsed=5.529s facts=17
+DEBUG: search-dfs-stage: cursor build: exact trie skipped; facts=17
+DEBUG: search-dfs-stage: cursor build: initial delta reuses root facts; trie reconstruction=no facts=17
+DEBUG: search-dfs-stage: cursor build: knowledge indexes complete; elapsed=5.538s facts=17 rules=15
+DEBUG: search-dfs-stage: applicability multiprocessing start-method=fork workers=2 rules=15 rules-per-worker=7-8
+DEBUG: search-dfs-stage: applicability worker start slot=0 pid=16863 rules=8
+DEBUG: search-dfs-stage: applicability worker start slot=1 pid=16864 rules=7
+SEARCHDFS-TEST: exception tuple index out of range
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/test_actual_searchdfs.py", line 186, in <module>
+    search_pair = Smod.SearchDFS(
+                  ~~~~~~~~~~~~~~^
+        runtime.graph,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        registry,
+        ^^^^^^^^^
+    )()
+    ^
+  File "/home/user/cat_theo_machine/search/engine.py", line 67, in __init__
+    burst_pair = SearchBurst(self.graph, job, self._burst_budget(), self.registry, self._stop_listener, self)()
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 2371, in __init__
+    self.result = self._run(job, step_budget)
+                  ~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 2488, in _run
+    step_pair = SearchStep(self.graph, current_job, self.registry, self.stop_listener, self.progress_owner)()
+                ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 1887, in __init__
+    self.result = self._step()
+                  ~~~~~~~~~~^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 2252, in _step
+    advanced = kernel._advance_state(state, SearchJobGoal(self.job)())
+  File "/home/user/cat_theo_machine/search/engine.py", line 1727, in _advance_state
+    cursor = self._theorem_cursor_for(current, goal)
+  File "/home/user/cat_theo_machine/search/engine.py", line 907, in _theorem_cursor_for
+    applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
+  File "/home/user/cat_theo_machine/search/engine.py", line 714, in _theorem_applicable_rules_sharded
+    worker_pid = shard_payload[2]
+                 ~~~~~~~~~~~~~^^^
+IndexError: tuple index out of range
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/user/cat_theo_machine/test_actual_searchdfs.py", line 186, in <module>
+    search_pair = Smod.SearchDFS(
+                  ~~~~~~~~~~~~~~^
+        runtime.graph,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        registry,
+        ^^^^^^^^^
+    )()
+    ^
+  File "/home/user/cat_theo_machine/search/engine.py", line 67, in __init__
+    burst_pair = SearchBurst(self.graph, job, self._burst_budget(), self.registry, self._stop_listener, self)()
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 2371, in __init__
+    self.result = self._run(job, step_budget)
+                  ~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 2488, in _run
+    step_pair = SearchStep(self.graph, current_job, self.registry, self.stop_listener, self.progress_owner)()
+                ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 1887, in __init__
+    self.result = self._step()
+                  ~~~~~~~~~~^^
+  File "/home/user/cat_theo_machine/search/engine.py", line 2252, in _step
+    advanced = kernel._advance_state(state, SearchJobGoal(self.job)())
+  File "/home/user/cat_theo_machine/search/engine.py", line 1727, in _advance_state
+    cursor = self._theorem_cursor_for(current, goal)
+  File "/home/user/cat_theo_machine/search/engine.py", line 907, in _theorem_cursor_for
+    applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
+  File "/home/user/cat_theo_machine/search/engine.py", line 714, in _theorem_applicable_rules_sharded
+    worker_pid = shard_payload[2]
+                 ~~~~~~~~~~~~~^^^
+IndexError: tuple index out of range

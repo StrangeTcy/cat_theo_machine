@@ -1,0 +1,39 @@
+SEARCHDFS-TEST: pid 11237
+SEARCHDFS-TEST: boot start
+Reading pack order-sign...
+Reading pack order-sign, done in 0.48s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.56s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.21s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.42s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 0.85s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 2.36s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.76s
+Reading pack geometry...
+Reading pack geometry, done in 8.89s
+SEARCHDFS-TEST: boot elapsed 62.787
+SEARCHDFS-TEST: debug trace enabled
+SEARCHDFS-TEST: multiprocessing start method fork
+SEARCHDFS-TEST: problem=triangle with given area, perimeter, arithmetic-progression side constraint, feasibility constraints
+SEARCHDFS-TEST: required proof obligations=15
+SEARCHDFS-TEST: target 1 of 15 side alpha
+SEARCHDFS-TEST: target 2 of 15 side beta
+SEARCHDFS-TEST: target 3 of 15 side gamma
+SEARCHDFS-TEST: target 4 of 15 angle alpha
+SEARCHDFS-TEST: target 5 of 15 angle beta
+SEARCHDFS-TEST: target 6 of 15 angle gamma
+SEARCHDFS-TEST: target 7 of 15 perimeter identity
+SEARCHDFS-TEST: target 8 of 15 area identity
+SEARCHDFS-TEST: target 9 of 15 side alpha positive
+SEARCHDFS-TEST: target 10 of 15 side beta positive
+SEARCHDFS-TEST: target 11 of 15 side gamma positive
+SEARCHDFS-TEST: target 12 of 15 strict triangle inequality
+SEARCHDFS-TEST: target 13 of 15 cosine identity alpha
+SEARCHDFS-TEST: target 14 of 15 cosine identity beta
+SEARCHDFS-TEST: target 15 of 15 cosine identity gamma
+SEARCHDFS-TEST: start normalize

@@ -20,10 +20,12 @@ class Hypergraph:
         self._search_cached_burst_budget_default = M.EmptyList
         self._search_cached_burst_budget_dfs = M.EmptyList
         self._search_comparison_prompt_guard = None
+        self._search_compare_enable_shared_root_fast_paths = M.false_value
         self._search_compare_ignore_root_fast_paths = M.false_value
         self._search_compare_root_start = M.EmptyList
         self._search_compare_root_goal = M.EmptyList
         self._search_compare_discovery_mode = M.false_value
+        self._search_probe_disable_applicable_cache = M.false_value
         self._search_probe_disable_applicable_shards = M.false_value
         self._search_compare_live_signature = M.EmptyList
         self._search_compare_live_start = M.EmptyList
