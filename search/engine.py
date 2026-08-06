@@ -766,6 +766,7 @@ class Search(M.Edge):
         if IsKnowledge(current)() is M.truth_value:
             facts = KnowledgeFacts(current)()
             knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
+            knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
         return M.Pair(knowledge_head_index, M.Pair(knowledge_exact_trie, M.EmptyList))
 
     def _theorem_applicable_rules_for(self, current, knowledge_head_index=None, knowledge_exact_trie=None):
@@ -867,9 +868,13 @@ class Search(M.Edge):
                 + "s facts="
                 + fact_count_text
             )
-            knowledge_exact_trie = M.EmptyList
+            knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
             after_exact_trie = time.time()
-            self._stage_debug("cursor build: exact trie skipped; facts=" + fact_count_text)
+            self._stage_debug(
+                "cursor build: exact trie built; elapsed="
+                + "{:.3f}".format(after_exact_trie - head_started_at)
+                + "s facts=" + fact_count_text
+            )
         else:
             after_exact_trie = time.time()
             self._stage_debug("cursor build: reusing supplied knowledge indexes; facts=" + fact_count_text)
