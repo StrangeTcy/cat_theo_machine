@@ -7,8 +7,10 @@ import sys
 import time
 import traceback
 
-if hasattr(sys.stdout, "reconfigure"):
+try:
     sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
 
 if __package__ in (None, ""):
     IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

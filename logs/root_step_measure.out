@@ -1,18 +1,0 @@
-ROOT-STEP: boot start
-Reading pack order-sign...
-Reading pack order-sign, it's taken 1.0s already and countingReading pack order-sign, done in 1.36s
-Reading pack sqrt-real...
-Reading pack sqrt-real, it's taken 1.4s already and countingReading pack sqrt-real, it's taken 2.4s already and countingReading pack sqrt-real, it's taken 3.5s already and countingReading pack sqrt-real, done in 3.57s
-Reading pack algebra-distribute...
-Reading pack algebra-distribute, it's taken 1.2s already and countingReading pack algebra-distribute, done in 1.42s
-Reading pack real-closure...
-Reading pack real-closure, it's taken 1.0s already and countingReading pack real-closure, done in 1.16s
-Reading pack arithmetic...
-Reading pack arithmetic, done in 0.78s
-Reading pack geometry-ontology...
-Reading pack geometry-ontology, it's taken 1.2s already and countingReading pack geometry-ontology, it's taken 2.6s already and countingReading pack geometry-ontology, it's taken 4.0s already and countingReading pack geometry-ontology, it's taken 5.1s already and countingReading pack geometry-ontology, it's taken 6.2s already and countingReading pack geometry-ontology, it's taken 7.4s already and countingReading pack geometry-ontology, it's taken 8.8s already and countingReading pack geometry-ontology, it's taken 10.5s already and countingReading pack geometry-ontology, done in 10.55s
-Reading pack trigonometry...
-Reading pack trigonometry, it's taken 1.0s already and countingReading pack trigonometry, it's taken 2.3s already and countingReading pack trigonometry, it's taken 3.6s already and countingReading pack trigonometry, done in 3.63s
-Reading pack geometry...
-Reading pack geometry, it's taken 2.1s already and countingReading pack geometry, it's taken 4.3s already and countingReading pack geometry, it's taken 5.9s already and countingReading pack geometry, it's taken 8.1s already and countingReading pack geometry, it's taken 12.9s already and countingReading pack geometry, it's taken 19.1s already and countingReading pack geometry, it's taken 26.1s already and countingReading pack geometry, it's taken 27.7s already and countingReading pack geometry, it's taken 33.1s already and countingReading pack geometry, it's taken 38.0s already and countingReading pack geometry, it's taken 40.7s already and countingReading pack geometry, it's taken 44.0s already and countingReading pack geometry, it's taken 47.6s already and countingReading pack geometry, it's taken 52.3s already and countingReading pack geometry, it's taken 56.9s already and countingReading pack geometry, it's taken 60.9s already and countingReading pack geometry, it's taken 62.9s already and countingReading pack geometry, done in 62.93s
-ROOT-STEP: boot elapsed 242.78

@@ -846,17 +846,54 @@ class Search(M.Edge):
         )
         return ordered
 
-    def _theorem_cursor_for(self, current, goal, knowledge_head_index=None, knowledge_exact_trie=None, delta=None, provenance=None, actions_rev=None):
+    def _theorem_cursor_for(self, current, goal, knowledge_head_index=None, knowledge_exact_trie=None, delta=None, actions_rev=None):
         started_at = time.time()
-        self._stage_debug("cursor build: constructing knowledge indexes")
+        facts = M.EmptyList
+        if IsKnowledge(current)() is M.truth_value:
+            facts = KnowledgeFacts(current)()
+        fact_count_text = M.GMPRepText(M.CountRep(facts)())()
+        rule_count_text = M.GMPRepText(M.CountRep(self.rules)())()
+        self._stage_debug(
+            "cursor build: root facts ready; facts="
+            + fact_count_text
+            + " rules="
+            + rule_count_text
+        )
         if knowledge_head_index is None or knowledge_exact_trie is None:
-            indexes = self._theorem_indexes_for(current)
-            knowledge_head_index = M.Head(indexes)()
-            knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+            head_started_at = time.time()
+            self._stage_debug("cursor build: head index build start; facts=" + fact_count_text)
+            knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
+            after_head_index = time.time()
+            self._stage_debug(
+                "cursor build: head index build complete; elapsed="
+                + "{:.3f}".format(after_head_index - head_started_at)
+                + "s facts="
+                + fact_count_text
+            )
+            trie_started_at = time.time()
+            self._stage_debug("cursor build: exact trie build start; facts=" + fact_count_text)
+            knowledge_exact_trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, self.registry)()
+            after_exact_trie = time.time()
+            self._stage_debug(
+                "cursor build: exact trie build complete; elapsed="
+                + "{:.3f}".format(after_exact_trie - trie_started_at)
+                + "s facts="
+                + fact_count_text
+            )
+        else:
+            after_exact_trie = time.time()
+            self._stage_debug("cursor build: reusing supplied knowledge indexes; facts=" + fact_count_text)
         if delta is None:
-            delta = K.KnowledgeTrieFacts(knowledge_exact_trie, self.registry)()
-        if provenance is None:
-            provenance = M.EmptyList
+            delta = facts
+            self._stage_debug(
+                "cursor build: initial delta reuses root facts; trie reconstruction=no facts="
+                + fact_count_text
+            )
+        else:
+            self._stage_debug(
+                "cursor build: supplied delta retained; trie reconstruction=no facts="
+                + M.GMPRepText(M.CountRep(delta)())()
+            )
         if actions_rev is None:
             actions_rev = M.EmptyList
         after_indexes = time.time()
@@ -864,9 +901,9 @@ class Search(M.Edge):
             "cursor build: knowledge indexes complete; elapsed="
             + "{:.3f}".format(after_indexes - started_at)
             + "s facts="
-            + str(M.CountRep(K.KnowledgeTrieFacts(knowledge_exact_trie, self.registry)())())
+            + fact_count_text
             + " rules="
-            + str(M.CountRep(self.rules)())
+            + rule_count_text
         )
         shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)()
         if shard_disabled is M.truth_value:
@@ -884,7 +921,7 @@ class Search(M.Edge):
             "cursor build: applicability scan complete; elapsed="
             + "{:.3f}".format(after_applicable - after_indexes)
             + "s applicable-rules="
-            + str(M.CountRep(applicable_rules)())
+            + M.GMPRepText(M.CountRep(applicable_rules)())()
         )
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
             ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
@@ -895,7 +932,7 @@ class Search(M.Edge):
             "cursor build: rule ordering complete; elapsed="
             + "{:.3f}".format(after_order - after_applicable)
             + "s queued-rules="
-            + str(M.CountRep(ordered_rules)())
+            + M.GMPRepText(M.CountRep(ordered_rules)())()
         )
         cursor = SearchTheoremCursor(
             ordered_rules,
@@ -904,7 +941,6 @@ class Search(M.Edge):
             knowledge_exact_trie,
             delta,
             M.EmptyTree,
-            provenance,
             actions_rev,
             current,
         )()
@@ -1174,7 +1210,6 @@ class Search(M.Edge):
         knowledge_exact_trie=None,
         delta=None,
         next_delta=None,
-        provenance=None,
         actions_rev=None,
     ):
         facts = KnowledgeFacts(current)()
@@ -1183,11 +1218,17 @@ class Search(M.Edge):
             knowledge_head_index = M.Head(indexes)()
             knowledge_exact_trie = M.Head(M.Tail(indexes)())()
         if delta is None:
+            self._stage_debug("theorem rule: reconstructing default delta from exact trie start")
+            delta_started_at = time.time()
             delta = K.KnowledgeTrieFacts(knowledge_exact_trie, self.registry)()
+            self._stage_debug(
+                "theorem rule: reconstructing default delta from exact trie complete; elapsed="
+                + "{:.3f}".format(time.time() - delta_started_at)
+                + "s facts="
+                + M.GMPRepText(M.CountRep(delta)())()
+            )
         if next_delta is None:
             next_delta = M.EmptyTree
-        if provenance is None:
-            provenance = M.EmptyList
         if actions_rev is None:
             actions_rev = M.EmptyList
         rule_delta_facts = M.EmptyList
@@ -1212,10 +1253,9 @@ class Search(M.Edge):
                     action = TheoremAction(rule, bindings)()
                     next_delta = K.KnowledgeTrieInsert(next_delta, conclusion, self.registry)()
                     rule_delta_facts = M.Pair(conclusion, rule_delta_facts)
-                    provenance = M.Pair(M.Pair(conclusion, M.Pair(action, M.EmptyList)), provenance)
                     actions_rev = M.Pair(action, actions_rev)
             remaining_bindings = M.Tail(remaining_bindings)()
-        return M.Pair(next_delta, M.Pair(provenance, M.Pair(actions_rev, M.Pair(rule_delta_facts, M.EmptyList))))
+        return M.Pair(next_delta, M.Pair(actions_rev, M.Pair(rule_delta_facts, M.EmptyList)))
 
     def _premises_satisfied_by_bindings(self, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
@@ -1407,7 +1447,6 @@ class SearchBFS(Search):
                 knowledge_exact_trie = M.Head(M.Tail(indexes)())()
         delta = SearchTheoremCursorDelta(cursor)()
         next_delta = SearchTheoremCursorNextDelta(cursor)()
-        provenance = SearchTheoremCursorProvenance(cursor)()
         actions_rev = SearchTheoremCursorActions(cursor)()
         if IsKnowledge(current)() is M.truth_value:
             while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
@@ -1418,7 +1457,6 @@ class SearchBFS(Search):
                     knowledge_exact_trie,
                     delta,
                     next_delta,
-                    provenance,
                     actions_rev,
                     current,
                 )()
@@ -1427,15 +1465,13 @@ class SearchBFS(Search):
                 rule = M.Head(rules)()
                 rule_started_at = time.time()
                 if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
-                    delta_debug_facts = M.EmptyList
-                    if M.IdentityCompare(delta, M.EmptyList)() is M.false_value:
-                        delta_debug_facts = K.KnowledgeTrieFacts(delta, self.registry)()
                     self._stage_debug(
                         "theorem rule: premise join starting"
                         + " premises="
-                        + str(M.CountRep(RulePremises(rule)())())
+                        + M.GMPRepText(M.CountRep(RulePremises(rule)())())()
                         + " delta-facts="
-                        + str(M.CountRep(delta_debug_facts)())
+                        + M.GMPRepText(M.CountRep(delta)())()
+                        + " delta-source=cursor-chain trie-reconstruction=no"
                         + " rule="
                         + Pmod.PrettyRule(rule, self.registry)()
                     )
@@ -1446,13 +1482,11 @@ class SearchBFS(Search):
                     knowledge_exact_trie,
                     delta,
                     next_delta,
-                    provenance,
                     actions_rev,
                 )
                 next_delta = M.Head(closure_result)()
-                provenance = M.Head(M.Tail(closure_result)())()
-                actions_rev = M.Head(M.Tail(M.Tail(closure_result)())())()
-                rule_delta_facts = M.Head(M.Tail(M.Tail(M.Tail(closure_result)())())())()
+                actions_rev = M.Head(M.Tail(closure_result)())()
+                rule_delta_facts = M.Head(M.Tail(M.Tail(closure_result)())())()
                 if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
                     self._stage_debug(
                         "theorem rule result"
@@ -1500,7 +1534,7 @@ class SearchBFS(Search):
                         + " elapsed="
                         + "{:.3f}".format(time.time() - rule_started_at)
                         + "s derived-facts="
-                        + str(M.CountRep(rule_delta_facts)())
+                        + M.GMPRepText(M.CountRep(rule_delta_facts)())()
                         + " facts="
                         + _debug_term(rule_delta_facts, self.registry)
                     )
@@ -1508,7 +1542,15 @@ class SearchBFS(Search):
             if M.IdentityCompare(M.TreeRoot(next_delta)(), M.EmptyList)() is M.truth_value:
                 self._stage_debug("theorem saturation reached fixed point; no new facts")
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
+            delta_rebuild_started_at = time.time()
+            self._stage_debug("theorem saturation: trie-to-delta reconstruction start")
             delta_facts = K.KnowledgeTrieFacts(next_delta, self.registry)()
+            self._stage_debug(
+                "theorem saturation: trie-to-delta reconstruction complete; elapsed="
+                + "{:.3f}".format(time.time() - delta_rebuild_started_at)
+                + "s facts="
+                + M.GMPRepText(M.CountRep(delta_facts)())()
+            )
             next_exact_trie = knowledge_exact_trie
             next_head_index = knowledge_head_index
             next_current = current
@@ -1545,7 +1587,6 @@ class SearchBFS(Search):
                 next_exact_trie,
                 delta_facts,
                 M.EmptyTree,
-                provenance,
                 M.EmptyList,
                 next_current,
             )()

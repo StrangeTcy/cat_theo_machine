@@ -72,15 +72,8 @@ from .logic import AndAtom, OrAtom
 from .trees import (
     AllConstructors as _InitialAllConstructors,
     Tree,
-    TreeEntries,
-    TreeFact,
     TreeInsert,
-    TreeKey,
-    TreeLeft,
     TreeLookup,
-    TreeRight,
-    TreeRoot,
-    TreeStoredRoot,
 )
 
 if _InitialAllConstructors is None:
@@ -177,6 +170,7 @@ class ConstructedBy(Edge):
         registry = _normalize_registry(registry)
         key = Pair(label, args)
         fact = node
+        fact.constructor = key
         new_registry = TreeInsert(registry, key, fact, registry)()
         self.result = Pair(fact, Pair(new_registry, EmptyList))
         super().__init__(
@@ -197,7 +191,10 @@ class GetConstructor(Edge):
         self.registry = registry
         self.result = self._direct_constructor(x)
         if IdentityCompare(self.result, EmptyList)() is truth_value:
-            self.result = self._find(TreeStoredRoot(registry)())
+            try:
+                self.result = x.constructor
+            except Exception:
+                self.result = EmptyList
         super().__init__(inputs=Pair(x, EmptyList), results=self.result)
 
     def _is_direct_label(self, label):
@@ -240,99 +237,6 @@ class GetConstructor(Edge):
         if self._is_direct_label(label) is truth_value:
             return value
         return EmptyList
-
-    def _is_leaf(self, tree):
-        try:
-            label = Head(tree)()
-        except Exception:
-            return false_value
-        return IdentityCompare(label, TreePatriciaLeafLabel)()
-
-    def _is_branch(self, tree):
-        try:
-            label = Head(tree)()
-        except Exception:
-            return false_value
-        return IdentityCompare(label, TreePatriciaBranchLabel)()
-
-    def _leaf_payload(self, leaf):
-        return Head(Tail(Tail(leaf)())())()
-
-    def _leaf_is_bucketed(self, leaf):
-        payload = self._leaf_payload(leaf)
-        try:
-            label = Head(payload)()
-        except Exception:
-            return false_value
-        return IdentityCompare(label, TreeBucketLabel)()
-
-    def _bucket_entries(self, bucket):
-        return Head(Tail(bucket)())()
-
-    def _bucket_entry_key(self, entry):
-        return Head(Tail(Tail(entry)())())()
-
-    def _bucket_entry_fact(self, entry):
-        return Head(Tail(Tail(Tail(entry)())())())()
-
-    def _leaf_key(self, leaf):
-        return Head(Tail(Tail(Tail(leaf)())())())()
-
-    def _leaf_fact(self, leaf):
-        return Head(Tail(Tail(Tail(Tail(leaf)())())())())()
-
-    def _branch_choices(self, branch):
-        return Head(Tail(Tail(branch)())())()
-
-    def _choice_subtree(self, choice):
-        return Head(Tail(Tail(choice)())())()
-
-    def _find_bucket(self, entries):
-        if IdentityCompare(entries, EmptyList)() is truth_value:
-            return EmptyList
-        entry = Head(entries)()
-        if IdentityCompare(self._bucket_entry_fact(entry), self.x)() is truth_value:
-            return self._bucket_entry_key(entry)
-        return self._find_bucket(Tail(entries)())
-
-    def _find_choices(self, choices):
-        if IdentityCompare(choices, EmptyList)() is truth_value:
-            return EmptyList
-        choice = Head(choices)()
-        found = self._find(self._choice_subtree(choice))
-        if IdentityCompare(found, EmptyList)() is false_value:
-            return found
-        return self._find_choices(Tail(choices)())
-
-    def _find_legacy(self, tree):
-        if IdentityCompare(tree, EmptyList)() is truth_value:
-            return EmptyList
-        try:
-            left = TreeLeft(tree)()
-            key = TreeKey(tree)()
-            fact = TreeFact(tree)()
-            right = TreeRight(tree)()
-        except Exception:
-            return EmptyList
-        found = self._find_legacy(left)
-        if IdentityCompare(found, EmptyList)() is false_value:
-            return found
-        if IdentityCompare(fact, self.x)() is truth_value:
-            return key
-        return self._find_legacy(right)
-
-    def _find(self, tree):
-        if IdentityCompare(tree, EmptyList)() is truth_value:
-            return EmptyList
-        if self._is_leaf(tree) is truth_value:
-            if self._leaf_is_bucketed(tree) is truth_value:
-                return self._find_bucket(self._bucket_entries(self._leaf_payload(tree)))
-            if IdentityCompare(self._leaf_fact(tree), self.x)() is truth_value:
-                return self._leaf_key(tree)
-            return EmptyList
-        if self._is_branch(tree) is truth_value:
-            return self._find_choices(self._branch_choices(tree))
-        return self._find_legacy(tree)
 
     def __call__(self):
         return self.result

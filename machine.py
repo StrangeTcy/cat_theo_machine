@@ -848,7 +848,6 @@ from .search import (
     SearchTheoremCursorGenerated,
     SearchTheoremCursorHeadIndex,
     SearchTheoremCursorNextDelta,
-    SearchTheoremCursorProvenance,
     SearchTheoremCursorRules,
     SearchRewriteCursor,
     SearchRewriteCursorAgenda,

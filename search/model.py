@@ -1770,7 +1770,6 @@ class SearchTheoremCursor(M.Edge):
         knowledge_exact_trie=None,
         delta=None,
         next_delta=None,
-        provenance=None,
         actions_rev=None,
         current=None,
     ):
@@ -1782,8 +1781,6 @@ class SearchTheoremCursor(M.Edge):
             delta = M.EmptyList
         if next_delta is None:
             next_delta = M.EmptyList
-        if provenance is None:
-            provenance = M.EmptyList
         if actions_rev is None:
             actions_rev = M.EmptyList
         if current is None:
@@ -1802,7 +1799,7 @@ class SearchTheoremCursor(M.Edge):
                                 delta,
                                 M.Pair(
                                     next_delta,
-                                    M.Pair(provenance, M.Pair(actions_rev, M.Pair(current, M.EmptyList))),
+                                    M.Pair(actions_rev, M.Pair(current, M.EmptyList)),
                                 ),
                             ),
                         ),
@@ -1823,7 +1820,7 @@ class SearchTheoremCursor(M.Edge):
                                 delta,
                                 M.Pair(
                                     next_delta,
-                                    M.Pair(provenance, M.Pair(actions_rev, M.Pair(current, M.EmptyList))),
+                                    M.Pair(actions_rev, M.Pair(current, M.EmptyList)),
                                 ),
                             ),
                         ),
@@ -1891,7 +1888,7 @@ class SearchTheoremCursorNextDelta(M.Edge):
         return self.result
 
 
-class SearchTheoremCursorProvenance(M.Edge):
+class SearchTheoremCursorActions(M.Edge):
     def __init__(self, cursor):
         self.result = SearchArgAt(cursor, M.six)()
         super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
@@ -1900,19 +1897,10 @@ class SearchTheoremCursorProvenance(M.Edge):
         return self.result
 
 
-class SearchTheoremCursorActions(M.Edge):
-    def __init__(self, cursor):
-        self.result = SearchArgAt(cursor, M.seven)()
-        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
 class SearchTheoremCursorCurrent(M.Edge):
     def __init__(self, cursor):
-        if SearchChainHasAt(SearchArgs(cursor)(), M.eight)() is M.truth_value:
-            self.result = SearchArgAt(cursor, M.eight)()
+        if SearchChainHasAt(SearchArgs(cursor)(), M.seven)() is M.truth_value:
+            self.result = SearchArgAt(cursor, M.seven)()
         else:
             self.result = M.EmptyList
         super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
