@@ -1623,18 +1623,50 @@ class SearchBFS(Search):
                         + _debug_term(rule_delta_facts, self.registry)
                     )
                 if M.IdentityCompare(rule_delta_facts, M.EmptyList)() is M.false_value:
+                    trie_insert_started_at = time.time()
                     knowledge_exact_trie = K.KnowledgeTrieInsertChain(
                         knowledge_exact_trie,
                         rule_delta_facts,
                         self.registry,
                     )()
+                    if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                        self._stage_debug(
+                            "post-rule: exact-trie insert complete; elapsed="
+                            + "{:.3f}".format(time.time() - trie_insert_started_at)
+                            + "s derived="
+                            + M.GMPRepText(M.CountRep(rule_delta_facts)())()
+                        )
+                    head_insert_started_at = time.time()
                     knowledge_head_index = K.KnowledgeHeadIndexInsertChain(
                         knowledge_head_index,
                         rule_delta_facts,
                         self.registry,
                     )()
+                    if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                        self._stage_debug(
+                            "post-rule: head-index insert complete; elapsed="
+                            + "{:.3f}".format(time.time() - head_insert_started_at)
+                            + "s"
+                        )
+                    current_rebuild_started_at = time.time()
                     current = Knowledge(Append(rule_delta_facts, KnowledgeFacts(current)())())()
-                    if self._goal_reached(current, goal, knowledge_exact_trie) is M.truth_value:
+                    if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                        self._stage_debug(
+                            "post-rule: current rebuild complete; elapsed="
+                            + "{:.3f}".format(time.time() - current_rebuild_started_at)
+                            + "s facts="
+                            + M.GMPRepText(M.CountRep(KnowledgeFacts(current)())())()
+                        )
+                    goal_check_started_at = time.time()
+                    goal_reached = self._goal_reached(current, goal, knowledge_exact_trie)
+                    if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                        self._stage_debug(
+                            "post-rule: goal check complete; elapsed="
+                            + "{:.3f}".format(time.time() - goal_check_started_at)
+                            + "s reached="
+                            + ("yes" if M.IdentityCompare(goal_reached, M.truth_value)() is M.truth_value else "no")
+                        )
+                    if M.IdentityCompare(goal_reached, M.truth_value)() is M.truth_value:
                         self._stage_debug(
                             "goal reached after theorem rule"
                             + " rule="
@@ -1665,7 +1697,21 @@ class SearchBFS(Search):
                         + " facts="
                         + _debug_term(rule_delta_facts, self.registry)
                     )
+                if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                    remaining_rules = M.GMPRepText(M.CountRep(rules)())()
+                    self._stage_debug(
+                        "post-rule: advancing to next rule; remaining-rules="
+                        + remaining_rules
+                        + " pass-elapsed="
+                        + "{:.3f}".format(time.time() - rule_started_at)
+                        + "s"
+                    )
                 rules = M.Tail(rules)()
+            if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                self._stage_debug(
+                    "theorm-pass: per-pass rule loop complete; derived-this-pass="
+                    + M.GMPRepText(M.CountRep(next_delta)())()
+                )
             if M.IdentityCompare(next_delta, M.EmptyList)() is M.truth_value:
                 self._stage_debug("theorem saturation reached fixed point; no new facts")
                 return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
