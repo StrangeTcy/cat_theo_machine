@@ -39,6 +39,7 @@ class Search(M.Edge):
         self.search_aborted = M.false_value
         self.search_outcome_on_abort = SearchFailureLabel
         self._active_search_job = None
+        self._premise_bindings_cache = M.EmptyList
         self._console_input = self.graph._search_console_input
         if self._console_input is None:
             self._console_input = _SearchConsoleInput()
@@ -1080,17 +1081,25 @@ class Search(M.Edge):
         end = DerivationEnd(derivation, self.registry)()
         return self._goal_reached(end, goal)
 
-    def _match_premises(self, premises, facts, bindings, knowledge_head_index, knowledge_exact_trie, delta=None, used_delta=None):
+    def _match_premises(self, premises, facts, bindings, knowledge_head_index, knowledge_exact_trie, delta=None, used_delta=None, premise_index=0):
         if delta is None:
             delta = K.KnowledgeTrieFacts(knowledge_exact_trie, self.registry)()
         if used_delta is None:
             used_delta = M.false_value
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                _debug(
+                    "premise-join: premise "
+                    + str(premise_index)
+                    + " head=(premises-exhausted) elapsed=0.000s candidates=0 matched=yes"
+                )
             if M.IdentityCompare(used_delta, M.truth_value)() is M.truth_value:
                 return M.Pair(bindings, M.EmptyList)
             return M.EmptyList
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
+        premise_started_at = time.time()
+        premise_head_text = _debug_term(premise, self.registry)
         match_premise = premise
         if M.IdentityCompare(bindings, M.EmptyList)() is M.false_value:
             instantiated_premise = M.Instantiate(premise, bindings)()
@@ -1103,6 +1112,16 @@ class Search(M.Edge):
                 else:
                     ground_present = K.KnowledgeTrieHasFact(knowledge_exact_trie, match_premise, self.registry)()
                 if M.IdentityCompare(ground_present, M.false_value)() is M.truth_value:
+                    if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                        _debug(
+                            "premise-join: premise "
+                            + str(premise_index)
+                            + " head="
+                            + premise_head_text
+                            + " elapsed="
+                            + "{:.3f}".format(time.time() - premise_started_at)
+                            + "s candidates=ground matched=no"
+                        )
                     return M.EmptyList
                 next_used_delta = used_delta
                 remaining_delta = delta
@@ -1112,6 +1131,16 @@ class Search(M.Edge):
                         remaining_delta = M.EmptyList
                     else:
                         remaining_delta = M.Tail(remaining_delta)()
+                if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                    _debug(
+                        "premise-join: premise "
+                        + str(premise_index)
+                        + " head="
+                        + premise_head_text
+                        + " elapsed="
+                        + "{:.3f}".format(time.time() - premise_started_at)
+                        + "s candidates=ground matched=yes"
+                    )
                 return self._match_premises(
                     rest,
                     facts,
@@ -1120,11 +1149,12 @@ class Search(M.Edge):
                     knowledge_exact_trie,
                     delta,
                     next_used_delta,
+                    premise_index + 1,
                 )
         candidate_facts = facts
         if IsVarPattern(match_premise)() is M.false_value:
             candidate_facts = K.KnowledgeHeadIndexBucket(knowledge_head_index, match_premise, self.registry)()
-        return self._match_premise_against_facts(
+        result = self._match_premise_against_facts(
             match_premise,
             rest,
             candidate_facts,
@@ -1134,7 +1164,25 @@ class Search(M.Edge):
             knowledge_exact_trie,
             delta,
             used_delta,
+            premise_index,
         )
+        if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+            matched_text = "no"
+            if M.IdentityCompare(result, M.EmptyList)() is M.false_value:
+                matched_text = "yes"
+            _debug(
+                "premise-join: premise "
+                + str(premise_index)
+                + " head="
+                + premise_head_text
+                + " elapsed="
+                + "{:.3f}".format(time.time() - premise_started_at)
+                + "s candidates="
+                + M.GMPRepText(M.CountRep(candidate_facts)())()
+                + " matched="
+                + matched_text
+            )
+        return result
 
     def _match_premise_against_facts(
         self,
@@ -1147,6 +1195,7 @@ class Search(M.Edge):
         knowledge_exact_trie,
         delta,
         used_delta,
+        premise_index=0,
     ):
         matches = M.EmptyList
         remaining = facts
@@ -1208,6 +1257,7 @@ class Search(M.Edge):
                         knowledge_exact_trie,
                         delta,
                         next_used_delta,
+                        premise_index + 1,
                     )
                     while M.IdentityCompare(rest_matches, M.EmptyList)() is M.false_value:
                         matches = M.Pair(M.Head(rest_matches)(), matches)
@@ -1275,18 +1325,38 @@ class Search(M.Edge):
                 )
             premise_probe = M.Tail(premise_probe)()
             premise_index = premise_index + 1
-        matching_bindings = self._match_premises(
-            RulePremises(rule)(),
-            facts,
-            M.EmptyList,
-            knowledge_head_index,
-            knowledge_exact_trie,
-            delta,
-            M.false_value,
-        )
+        matching_bindings = M.EmptyList
+        premise_key = M.ExactKey(RulePremises(rule)(), self.registry)()
+        cache_lookup = self._premise_bindings_cache
+        cache_found = M.false_value
+        while M.IdentityCompare(cache_lookup, M.EmptyList)() is M.false_value:
+            cache_entry = M.Head(cache_lookup)()
+            cache_key = M.Head(cache_entry)()
+            if M.IdentityCompare(cache_key, premise_key)() is M.truth_value:
+                matching_bindings = M.Head(M.Tail(cache_entry)())()
+                cache_found = M.truth_value
+                cache_lookup = M.EmptyList
+            else:
+                cache_lookup = M.Tail(cache_lookup)()
+        if M.IdentityCompare(cache_found, M.false_value)() is M.truth_value:
+            matching_bindings = self._match_premises(
+                RulePremises(rule)(),
+                facts,
+                M.EmptyList,
+                knowledge_head_index,
+                knowledge_exact_trie,
+                delta,
+                M.false_value,
+            )
+            self._premise_bindings_cache = M.Pair(
+                M.Pair(premise_key, M.Pair(matching_bindings, M.EmptyList)),
+                self._premise_bindings_cache,
+            )
         self._stage_debug(
             "theorem rule: matching bindings ready count="
             + M.GMPRepText(M.CountRep(matching_bindings)())()
+            + " join="
+            + ("cached" if M.IdentityCompare(cache_found, M.truth_value)() is M.truth_value else "fresh")
         )
         remaining_bindings = matching_bindings
         while M.IdentityCompare(remaining_bindings, M.EmptyList)() is M.false_value:
@@ -1485,6 +1555,7 @@ class SearchBFS(Search):
 
     def _advance_theorem_cursor(self, state, cursor, goal):
         current = self._state_current(state)
+        self._premise_bindings_cache = M.EmptyList
         cursor_current = SearchTheoremCursorCurrent(cursor)()
         if M.IdentityCompare(cursor_current, M.EmptyList)() is M.false_value:
             current = cursor_current
