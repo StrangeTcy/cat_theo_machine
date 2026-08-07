@@ -1675,7 +1675,7 @@ class SearchBFS(Search):
                         self._stage_debug(
                             "goal reached after theorem rule"
                             + " rule="
-                            + _debug_term(rule, self.registry)
+                            + Pmod.PrettyRule(rule, self.registry)()
                             + " derived-facts="
                             + _debug_term(rule_delta_facts, self.registry)
                         )

@@ -43,6 +43,7 @@ from .schemata import (
     LookupDerivationSchema,
     StoreDerivationSchema,
 )
+from . import gmprep as Gmpmod
 
 DEBUG_TRACE_STATE = M.Atom()
 DEBUG_TRACE_STATE.value = M.false_value
@@ -672,11 +673,7 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         super().__init__(inputs=M.Pair(heuristic, M.Pair(anchor_meta, M.Pair(requires_variable_anchor, M.Pair(current, M.Pair(knowledge_head_index, M.Pair(registry, M.EmptyList)))))), results=self.result)
 
     def _fact_count(self, facts):
-        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
-            return M.Zero
-        pair = M.Succ(self._fact_count(M.Tail(facts)()), self.registry)()
-        self.registry = M.Head(M.Tail(pair)())()
-        return M.Head(pair)()
+        return M.GMPRepText(M.CountRep(facts)())()
 
     def _facts(self):
         if IsKnowledge(self.current)() is M.truth_value:
@@ -697,16 +694,16 @@ class ChooseRuleAnchorWithMeta(M.Edge):
 
     def _fanout(self, premise):
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
-            return K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, premise, self.registry)()
+            return M.GMPRepText(M.CountRep(K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)())())()
         return self._fact_count(self._facts())
 
     def _criterion_prefers_left(self, criterion, left_entry, right_entry):
         if M.IdentityCompare(criterion, PreferLowerFanoutLabel)() is M.truth_value:
             left_value = self._fanout(self._entry_premise(left_entry))
             right_value = self._fanout(self._entry_premise(right_entry))
-            if M.NatLess(left_value, right_value, self.registry)() is M.truth_value:
+            if Gmpmod.GMPLessText(left_value, right_value)() is M.truth_value:
                 return M.truth_value
-            if M.NatLess(right_value, left_value, self.registry)() is M.truth_value:
+            if Gmpmod.GMPLessText(right_value, left_value)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferFewerVariablesLabel)() is M.truth_value:
@@ -870,8 +867,7 @@ class FilterApplicableRules(M.Edge):
                     return M.truth_value
                 premises = M.Tail(premises)()
                 continue
-            bucket_size = K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, premise, self.registry)()
-            if M.NatEq(bucket_size, M.Zero, self.registry)() is M.truth_value:
+            if M.IdentityCompare(K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(), M.EmptyList)() is M.truth_value:
                 return M.truth_value
             premises = M.Tail(premises)()
         return M.false_value
@@ -1000,8 +996,7 @@ class FilterApplicableRulesProbe(M.Edge):
                     return M.truth_value
                 premises = M.Tail(premises)()
                 continue
-            bucket_size = K.KnowledgeHeadIndexBucketSize(self._knowledge_head_index, premise, self.registry)()
-            if M.NatEq(bucket_size, M.Zero, self.registry)() is M.truth_value:
+            if M.IdentityCompare(K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(), M.EmptyList)() is M.truth_value:
                 return M.truth_value
             premises = M.Tail(premises)()
         return M.false_value
@@ -2084,7 +2079,13 @@ class BuildDerivation(M.Edge):
 
     def _apply_action(self, action, current, registry):
         _debug("apply-action: current=" + _debug_term(current, registry))
-        _debug("apply-action: " + PrettyAction(action, registry)())
+        if IsTheoremAction(action)() is M.truth_value:
+            if RuleIsUnary(ActionRule(action)())() is M.false_value:
+                _debug("apply-action: apply multi-premise theorem rule")
+            else:
+                _debug("apply-action: " + PrettyAction(action, registry)())
+        else:
+            _debug("apply-action: " + PrettyAction(action, registry)())
         if IsTheoremAction(action)() is M.truth_value:
             previous_bindings = self.bindings
             action_bindings = ActionBindings(action)()
