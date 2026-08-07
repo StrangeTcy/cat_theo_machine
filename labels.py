@@ -311,6 +311,10 @@ class SearchAttemptLabel(ConstructorLabel):
     pass
 
 
+class HeuristicPerformanceLabel(ConstructorLabel):
+    pass
+
+
 class SearchSignatureLabel(ConstructorLabel):
     pass
 
