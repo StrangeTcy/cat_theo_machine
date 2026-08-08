@@ -560,6 +560,7 @@ def _SearchIndependentModeAttemptWorker(mode, start, goal, rules, heuristic, con
         runtime._search_compare_root_start = start
         runtime._search_compare_root_goal = goal
         runtime._search_compare_discovery_mode = M.false_value
+        runtime._search_probe_disable_applicable_shards = M.truth_value
         search_pair = SearchAPI(
             runtime,
             start,
@@ -568,12 +569,32 @@ def _SearchIndependentModeAttemptWorker(mode, start, goal, rules, heuristic, con
             heuristic,
             runtime.constructor_registry,
         )()
+        plan = M.Head(search_pair)()
+        search_cost = M.Head(M.Tail(search_pair)())()
+        status = SearchCostOutcome(search_cost)()
+
+        derivation = M.EmptyList
+        proof_cost = ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        if M.IdentityCompare(status, SearchSuccessLabel)() is M.truth_value:
+            derivation_pair = BuildDerivation(start, plan, runtime.constructor_registry)()
+            derivation = M.Head(derivation_pair)()
+            runtime._replace_context(constructors=M.Head(M.Tail(derivation_pair)())())
+            if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                proof_cost_pair = DerivationCost(derivation, runtime.constructor_registry)()
+                proof_cost = M.Head(proof_cost_pair)()
+                runtime._replace_context(constructors=M.Head(M.Tail(proof_cost_pair)())())
+
+        total_cost_pair = BuildTotalCost(proof_cost, search_cost, heuristic, runtime.constructor_registry)()
+        total_cost = M.Head(total_cost_pair)()
+        runtime._replace_context(constructors=M.Head(M.Tail(total_cost_pair)())())
+
+        attempt = SearchAttempt(start, goal, heuristic, status, derivation, proof_cost, search_cost, total_cost)()
+
         result_queue.put(
             (
                 mode,
-                SearchCostOutcome(M.Head(M.Tail(search_pair)())())(),
-                M.Head(search_pair)(),
-                M.Head(M.Tail(search_pair)())(),
+                status,
+                attempt,
                 time.time() - worker_started_at,
                 pid,
                 "",
@@ -597,8 +618,7 @@ def _SearchIndependentModeAttemptWorker(mode, start, goal, rules, heuristic, con
             (
                 mode,
                 SearchFailureLabel,
-                M.EmptyList,
-                M.EmptyList,
+                SearchAttempt(start, goal, heuristic, SearchFailureLabel, M.EmptyList, ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(), M.EmptyList, M.EmptyList)(),
                 time.time() - worker_started_at,
                 pid,
                 traceback_text,

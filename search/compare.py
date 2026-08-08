@@ -579,7 +579,24 @@ class CompareSearchModes(M.Edge):
             plan = M.Head(search_pair)()
             search_cost = M.Head(M.Tail(search_pair)())()
             status = SearchCostOutcome(search_cost)()
-            attempt = self._mode_attempt_from_plan(heuristic, status, plan, search_cost)
+
+            derivation = M.EmptyList
+            proof_cost = self._zero_proof_cost()
+            if M.IdentityCompare(status, SearchSuccessLabel)() is M.truth_value:
+                derivation_pair = BuildDerivation(self.start, plan, mode_runtime.constructor_registry)()
+                derivation = M.Head(derivation_pair)()
+                mode_runtime._replace_context(constructors=M.Head(M.Tail(derivation_pair)())())
+                if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                    proof_cost_pair = DerivationCost(derivation, mode_runtime.constructor_registry)()
+                    proof_cost = M.Head(proof_cost_pair)()
+                    mode_runtime._replace_context(constructors=M.Head(M.Tail(proof_cost_pair)())())
+
+            total_cost_pair = BuildTotalCost(proof_cost, search_cost, heuristic, mode_runtime.constructor_registry)()
+            total_cost = M.Head(total_cost_pair)()
+            mode_runtime._replace_context(constructors=M.Head(M.Tail(total_cost_pair)())())
+
+            attempt = SearchAttempt(self.start, self.goal, heuristic, status, derivation, proof_cost, search_cost, total_cost)()
+
             elapsed_seconds = time.time() - started_at
             _debug(
                 "SearchComparison: "
@@ -609,12 +626,16 @@ class CompareSearchModes(M.Edge):
                 + str(error)
             )
             traceback.print_exc()
-            failed_attempt = self._mode_attempt_from_plan(
+            failed_attempt = SearchAttempt(
+                self.start,
+                self.goal,
                 heuristic,
                 SearchFailureLabel,
                 M.EmptyList,
+                self._zero_proof_cost(),
                 self._zero_search_cost(SearchFailureLabel),
-            )
+                M.EmptyList,
+            )()
             return failed_attempt, elapsed_seconds
 
     def _log_independent_mode_finish(self, mode, status, elapsed_seconds, search_cost, error_text=""):
@@ -723,20 +744,15 @@ class CompareSearchModes(M.Edge):
             except Exception:
                 pass
             status = SearchFailureLabel
-            plan = M.EmptyList
-            search_cost = self._zero_search_cost(SearchFailureLabel)
+            attempt = SearchAttempt(self.start, self.goal, heuristic, SearchFailureLabel, M.EmptyList, self._zero_proof_cost(), self._zero_search_cost(SearchFailureLabel), M.EmptyList)()
             elapsed_seconds = 0.0
             error_text = ""
             if payload is not None:
                 status = payload[1]
-                plan = payload[2]
-                elapsed_seconds = payload[4]
-                error_text = payload[6]
-                if M.Compare(payload[3], M.EmptyList)() is M.false_value:
-                    search_cost = payload[3]
-                else:
-                    search_cost = self._zero_search_cost(status)
-            attempt = self._mode_attempt_from_plan(heuristic, status, plan, search_cost)
+                attempt = payload[2]
+                elapsed_seconds = payload[3]
+                error_text = payload[5]
+            search_cost = SearchAttemptSearchCost(attempt)()
             attempts_by_mode[SearchModeText(mode)()] = attempt
             self._log_independent_mode_finish(mode, status, elapsed_seconds, search_cost, error_text)
             if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
