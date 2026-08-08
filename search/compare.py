@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import copyreg
+import json
 import multiprocessing
+import os
 import queue
+import subprocess
+import sys
+import tempfile
 import threading
 import time
 
@@ -638,16 +643,151 @@ class CompareSearchModes(M.Edge):
             )()
             return failed_attempt, elapsed_seconds
 
-    def _log_independent_mode_finish(self, mode, status, elapsed_seconds, search_cost, error_text=""):
+    def _comparison_main_script_path(self):
+        return os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py")
+
+    def _search_worker_result_manifest_path(self, result_path):
+        return result_path + ".manifest.json"
+
+    def _write_search_worker_manifest(self, result_path):
+        manifest = {
+            "start_text": _debug_term(self.start, self.registry),
+            "goal_text": _debug_term(self.goal, self.registry),
+        }
+        with open(self._search_worker_result_manifest_path(result_path), "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle)
+
+    def _mode_worker_token(self, mode):
+        if M.IdentityCompare(mode, DFSLabel)() is M.truth_value:
+            return "dfs"
+        if M.IdentityCompare(mode, BFSLabel)() is M.truth_value:
+            return "bfs"
+        if M.IdentityCompare(mode, AStarLabel)() is M.truth_value:
+            return "astar"
+        if M.IdentityCompare(mode, BeamLabel)() is M.truth_value:
+            return "beam"
+        if M.IdentityCompare(mode, RewriteDFSLabel)() is M.truth_value:
+            return "rewritedfs"
+        return "search"
+
+    def _gmp_atom(self, text):
+        atom = M.Atom()
+        atom.value = Gmpmod.GMPRep(text)
+        return atom
+
+    def _reason_atom(self, text):
+        atom = M.Atom()
+        atom.value = text
+        return atom
+
+    def _fabricate_worker_failure_attempt(self, heuristic, status, elapsed_seconds, reason_text):
+        search_cost = self._zero_search_cost(status)
+        proof_cost = self._zero_proof_cost()
+        total_cost_pair = BuildTotalCost(proof_cost, search_cost, heuristic, self.registry)()
+        total_cost = M.Head(total_cost_pair)()
+        self.registry = M.Head(M.Tail(total_cost_pair)())()
+        attempt = SearchAttempt(
+            self.start,
+            self.goal,
+            heuristic,
+            status,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            total_cost,
+        )()
+        elapsed_milliseconds = int(round(elapsed_seconds * 1000.0))
+        if elapsed_milliseconds < 0:
+            elapsed_milliseconds = 0
+        performance = HeuristicPerformance(
+            attempt,
+            self._gmp_atom(str(elapsed_milliseconds)),
+            self._gmp_atom("0"),
+            self._reason_atom(reason_text),
+        )()
+        return attempt, performance
+
+    def _performance_elapsed_seconds(self, performance):
+        elapsed = HeuristicPerformanceElapsedMilliseconds(performance)()
+        try:
+            return float(Gmpmod.GMPRepText(elapsed())()) / 1000.0
+        except Exception:
+            return 0.0
+
+    def _performance_reason_text(self, performance):
+        reason = HeuristicPerformanceCompletionReason(performance)()
+        if M.IsPair(reason)() is M.truth_value:
+            status_text = SearchStatusText(reason)()
+            if status_text != "unknown":
+                return status_text
+        try:
+            return str(reason())
+        except Exception:
+            return _debug_term(reason, self.registry)
+
+    def _is_heuristic_performance(self, value):
+        if M.IsPair(value)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(value)(), HeuristicPerformanceLabel)()
+
+    def _load_search_worker_snapshot(self, mode, heuristic, result_path):
+        from ..main import _runtime_namespace
+        from ..persistence import SnapshotCodec
+
+        if os.path.exists(result_path) is False:
+            return self._fabricate_worker_failure_attempt(heuristic, SearchFailureLabel, 0.0, "launch-error")
+        state = SnapshotCodec(_runtime_namespace()).load(result_path)
+        child_registry = state.roots.get("constructor_registry", M.EmptyList)
+        if M.Compare(child_registry, M.EmptyList)() is M.false_value:
+            self.registry = self._merge_tree(self.registry, child_registry)
+            self.graph._replace_context(constructors=self.registry)
+        attempts = state.roots.get("search_history", M.EmptyList)
+        attempt = M.EmptyList
+        if M.IdentityCompare(attempts, M.EmptyList)() is M.false_value:
+            attempt = M.Head(attempts)()
+        performances = state.roots.get("search_comparisons", M.EmptyList)
+        performance = M.EmptyList
+        if M.IdentityCompare(performances, M.EmptyList)() is M.false_value:
+            candidate = M.Head(performances)()
+            if self._is_heuristic_performance(candidate) is M.truth_value:
+                performance = candidate
+        if M.Compare(attempt, M.EmptyList)() is M.truth_value:
+            return self._fabricate_worker_failure_attempt(heuristic, SearchFailureLabel, 0.0, "missing-attempt")
+        if M.Compare(performance, M.EmptyList)() is M.truth_value:
+            return self._fabricate_worker_failure_attempt(
+                heuristic,
+                SearchAttemptStatus(attempt)(),
+                0.0,
+                "missing-performance",
+            )
+        return attempt, performance
+
+    def _relay_search_worker_output(self, mode_text, stdout_pipe):
+        if stdout_pipe is None:
+            return
+        for line in stdout_pipe:
+            text = line.rstrip()
+            if text == "":
+                continue
+            if text.startswith("DEBUG: "):
+                text = text[7:]
+            if "build-derivation:" in text:
+                continue
+            if text.startswith(mode_text + ":") is False:
+                text = mode_text + ": " + text
+            _debug(text)
+        try:
+            stdout_pipe.close()
+        except Exception:
+            pass
+
+    def _log_independent_mode_finish(self, mode, status, elapsed_seconds, search_cost, reason_text=""):
         mode_text = SearchModeText(mode)()
-        status_text = SearchStatusText(status)()
-        if error_text != "":
-            status_text = "error"
         _debug(
             "SearchComparison: "
             + mode_text
             + " finished status="
-            + status_text
+            + SearchStatusText(status)()
             + " elapsed="
             + "{:.3f}".format(elapsed_seconds)
             + " expanded="
@@ -656,17 +796,22 @@ class CompareSearchModes(M.Edge):
             + self._nat_text(SearchCostGenerated(search_cost)())
             + " frontier_peak="
             + self._nat_text(SearchCostFrontierPeak(search_cost)())
+            + " total="
+            + self._nat_text(SearchCostValue(search_cost)())
+            + " reason="
+            + reason_text
         )
-        if error_text != "":
-            _debug("SearchComparison: " + mode_text + " worker traceback follows")
-            print(error_text)
 
-    def _finalize_independent_mode_attempts(self, attempts, best_attempt):
+    def _finalize_independent_mode_attempts(self, attempts, best_attempt, performances):
         comparison_outcome = SearchFailureLabel
         if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
             comparison_outcome = SearchAttemptStatus(best_attempt)()
-        comparison = SearchComparison(self.signature, attempts, best_attempt, comparison_outcome)()
         self.graph._replace_context(constructors=self.registry)
+        attempts_cursor = attempts
+        while M.IdentityCompare(attempts_cursor, M.EmptyList)() is M.false_value:
+            self.graph.add_search_attempt(M.Head(attempts_cursor)())
+            attempts_cursor = M.Tail(attempts_cursor)()
+        comparison = SearchComparison(self.signature, attempts, best_attempt, comparison_outcome, performances)()
         self.graph.add_search_comparison(comparison)
         self.graph._last_search_comparison_outcome = comparison_outcome
         best_mode_text = "none"
@@ -676,108 +821,108 @@ class CompareSearchModes(M.Edge):
         _debug("SearchComparison: provenance recorded")
         return M.Pair(comparison, M.Pair(best_attempt, M.EmptyList))
 
-    def _compare_all_modes_independent_sequential(self, paused_job=M.EmptyList):
+    def _compare_all_modes_independent_parallel(self, paused_job=M.EmptyList):
         if M.Compare(paused_job, M.EmptyList)() is M.false_value:
             _debug("SearchComparison: paused legacy comparison ignored; restarting independent mode attempts")
         _debug("SearchComparison: starting independent mode attempts")
         self.graph.remove_search_comparison_job(self.signature)
-        modes = self._mode_chain()
-        attempts_rev = M.EmptyList
-        best_attempt = M.EmptyList
-        best_elapsed_seconds = None
-        remaining_modes = modes
-        while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
-            mode = M.Head(remaining_modes)()
-            attempt, elapsed_seconds = self._independent_mode_attempt(mode)
-            attempts_rev = M.Pair(attempt, attempts_rev)
-            if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
-                best_attempt = attempt
-                best_elapsed_seconds = elapsed_seconds
-            remaining_modes = M.Tail(remaining_modes)()
-        attempts = self._reverse(attempts_rev, M.EmptyList)
-        return self._finalize_independent_mode_attempts(attempts, best_attempt)
-
-    def _compare_all_modes_independent_parallel(self, mp_context, paused_job=M.EmptyList):
-        from .runtime import _SearchIndependentModeAttemptWorker
-
-        if M.Compare(paused_job, M.EmptyList)() is M.false_value:
-            _debug("SearchComparison: paused legacy comparison ignored; restarting independent mode attempts")
-        _debug("SearchComparison: starting independent mode attempts")
-        self.graph.remove_search_comparison_job(self.signature)
-        constructor_registry = M.FromContextGetConstructors(self.graph)()
-        debug_trace_enabled = Pmod.DEBUG_TRACE_STATE()
-        modes = self._mode_chain()
-        attempts_by_mode = {}
-        best_attempt = M.EmptyList
-        best_elapsed_seconds = None
+        package_root = os.path.dirname(os.path.dirname(__file__))
+        package_name = os.path.basename(package_root)
+        import_root = os.path.dirname(package_root)
+        result_dir = tempfile.mkdtemp(prefix="hyge_compare_")
+        timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "600")
         workers = ()
+        reader_threads = ()
+        modes = self._mode_chain()
         remaining_modes = modes
         while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
             mode = M.Head(remaining_modes)()
-            heuristic = self._heuristic_for_mode(mode)
-            result_queue = mp_context.Queue()
-            process = mp_context.Process(
-                target=_SearchIndependentModeAttemptWorker,
-                args=(mode, self.start, self.goal, self.rules, heuristic, constructor_registry, debug_trace_enabled, result_queue),
+            mode_token = self._mode_worker_token(mode)
+            result_path = os.path.join(result_dir, mode_token + ".snapshot.json")
+            self._write_search_worker_manifest(result_path)
+            cmd = [sys.executable, "-m", package_name + ".main", "search-worker", mode_token, result_path, timeout_text]
+            child_env = os.environ.copy()
+            child_env["PYTHONPATH"] = import_root
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=import_root,
+                env=child_env,
             )
-            process.start()
-            _debug("SearchComparison: " + SearchModeText(mode)() + " started")
-            workers = workers + ((mode, heuristic, process, result_queue),)
+            _debug("SearchComparison: launched search-worker mode=" + SearchModeText(mode)() + " pid=" + str(process.pid))
+            thread = threading.Thread(target=self._relay_search_worker_output, args=(SearchModeText(mode)(), process.stdout), daemon=True)
+            thread.start()
+            workers = workers + ((mode, self._heuristic_for_mode(mode), process, result_path),)
+            reader_threads = reader_threads + (thread,)
             remaining_modes = M.Tail(remaining_modes)()
         worker_index = 0
+        attempts_by_mode = {}
+        performances_by_mode = {}
+        best_attempt = M.EmptyList
+        best_elapsed_seconds = None
         while worker_index != len(workers):
-            worker = workers[worker_index]
+            mode, heuristic, process, result_path = workers[worker_index]
             worker_index = worker_index + 1
-            mode = worker[0]
-            heuristic = worker[1]
-            process = worker[2]
-            result_queue = worker[3]
-            process.join()
-            payload = None
-            try:
-                payload = result_queue.get(timeout=1.0)
-            except queue.Empty:
-                payload = None
-            try:
-                result_queue.close()
-                result_queue.join_thread()
-            except Exception:
-                pass
-            status = SearchFailureLabel
-            attempt = SearchAttempt(self.start, self.goal, heuristic, SearchFailureLabel, M.EmptyList, self._zero_proof_cost(), self._zero_search_cost(SearchFailureLabel), M.EmptyList)()
-            elapsed_seconds = 0.0
-            error_text = ""
-            if payload is not None:
-                status = payload[1]
-                attempt = payload[2]
-                elapsed_seconds = payload[3]
-                error_text = payload[5]
-            search_cost = SearchAttemptSearchCost(attempt)()
+            exit_code = process.wait()
+            attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
+            elapsed_seconds = self._performance_elapsed_seconds(performance)
+            reason_text = self._performance_reason_text(performance)
+            if exit_code == 2:
+                reason_text = "timed_out"
+            if exit_code not in (0, 1, 2):
+                attempt, performance = self._fabricate_worker_failure_attempt(
+                    heuristic,
+                    SearchFailureLabel,
+                    elapsed_seconds,
+                    "launch-error",
+                )
+                reason_text = "launch-error"
+                elapsed_seconds = self._performance_elapsed_seconds(performance)
             attempts_by_mode[SearchModeText(mode)()] = attempt
-            self._log_independent_mode_finish(mode, status, elapsed_seconds, search_cost, error_text)
+            performances_by_mode[SearchModeText(mode)()] = performance
+            self._log_independent_mode_finish(mode, SearchAttemptStatus(attempt)(), elapsed_seconds, SearchAttemptSearchCost(attempt)(), reason_text)
             if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
                 best_attempt = attempt
                 best_elapsed_seconds = elapsed_seconds
+        thread_index = 0
+        while thread_index != len(reader_threads):
+            reader_threads[thread_index].join(timeout=1.0)
+            thread_index = thread_index + 1
         attempts_rev = M.EmptyList
+        performances_rev = M.EmptyList
         remaining_modes = modes
         while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
             mode = M.Head(remaining_modes)()
             mode_text = SearchModeText(mode)()
             attempts_rev = M.Pair(attempts_by_mode[mode_text], attempts_rev)
+            performances_rev = M.Pair(performances_by_mode[mode_text], performances_rev)
             remaining_modes = M.Tail(remaining_modes)()
         attempts = self._reverse(attempts_rev, M.EmptyList)
-        return self._finalize_independent_mode_attempts(attempts, best_attempt)
+        performances = self._reverse(performances_rev, M.EmptyList)
+        perf_cursor = performances
+        while M.IdentityCompare(perf_cursor, M.EmptyList)() is M.false_value:
+            perf = M.Head(perf_cursor)()
+            attempt = HeuristicPerformanceAttempt(perf)()
+            _debug(
+                "SearchComparison: summary "
+                + SearchModeText(HeuristicSearchMode(SearchAttemptHeuristic(attempt)())())()
+                + " status="
+                + SearchStatusText(SearchAttemptStatus(attempt)())()
+                + " elapsed="
+                + "{:.3f}".format(self._performance_elapsed_seconds(perf))
+                + " expanded="
+                + self._nat_text(SearchCostExpanded(SearchAttemptSearchCost(attempt)())())
+                + " cost="
+                + self._nat_text(self._attempt_total_value(attempt))
+            )
+            perf_cursor = M.Tail(perf_cursor)()
+        return self._finalize_independent_mode_attempts(attempts, best_attempt, performances)
 
     def _compare_all_modes_independent(self, paused_job=M.EmptyList):
-        try:
-            mp_context = multiprocessing.get_context("fork")
-        except ValueError:
-            _debug("SearchComparison: independent mode parallelism unavailable; falling back to sequential mode attempts")
-            return self._compare_all_modes_independent_sequential(paused_job)
-        if mp_context.get_start_method() == "spawn":
-            _debug("SearchComparison: independent mode parallelism unavailable on spawn; falling back to sequential mode attempts")
-            return self._compare_all_modes_independent_sequential(paused_job)
-        return self._compare_all_modes_independent_parallel(mp_context, paused_job)
+        return self._compare_all_modes_independent_parallel(paused_job)
 
     def _nat_text(self, value):
         if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:

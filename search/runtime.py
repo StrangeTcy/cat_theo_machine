@@ -27,7 +27,9 @@ class _SearchWorkerRuntime:
     def __init__(self, constructor_registry, search_memo):
         self._search_console_input = None
         self._search_disable_console = M.truth_value
+        self._search_disable_progress_ticker = M.truth_value
         self._search_stop_help_shown = M.truth_value
+        self._search_worker_timeout_seconds = None
         self._search_comparison_prompt_guard = None
         self._search_compare_enable_shared_root_fast_paths = M.false_value
         self._search_compare_ignore_root_fast_paths = M.false_value

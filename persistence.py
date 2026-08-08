@@ -71,6 +71,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SearchComparisonSummaryLabel",
     "SearchSignatureLabel",
     "SearchAttemptLabel",
+    "HeuristicPerformanceLabel",
     "SearchCostLabel",
     "SearchSuccessLabel",
     "SearchFailureLabel",
@@ -413,7 +414,11 @@ class SnapshotCodec:
         return self._ns_get("IsPair")(obj)() is self._ns_get("truth_value")
 
     def _is_edge_object(self, obj):
-        return self._ns_get("IdentityCompare")(obj._snapshot_edge_marker, obj)() is self._ns_get("truth_value")
+        try:
+            marker = obj._snapshot_edge_marker
+        except Exception:
+            return self._ns_get("false_value")
+        return self._ns_get("IdentityCompare")(marker, obj)() is self._ns_get("truth_value")
 
     def _captured_object_id(self, target):
         for obj in self.obj_to_id:

@@ -3142,12 +3142,11 @@ class Prove(M.Edge):
                     comparison_derivation = SearchAttemptDerivation(best_attempt)()
                     if M.Compare(comparison_derivation, M.EmptyList)() is M.false_value:
                         _debug("prove-stage: comparison already produced a derivation")
-                        return self._store_success(
-                            comparison_derivation,
-                            M.FromContextGetConstructors(self.graph)(),
-                            SearchAttemptSearchCost(best_attempt)(),
-                            SearchAttemptHeuristic(best_attempt)(),
-                        )
+                        _debug("prove-stage: storing derivation in context.derivations (snapshot will persist current context when saved)")
+                        self.graph.add_derivation(self.start, self.goal, comparison_derivation)
+                        _debug("prove-stage: storing search attempt in context.search_history")
+                        self.graph.add_search_attempt(best_attempt)
+                        return comparison_derivation
 
             recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
             search_pair = M.Head(recommended_search)()

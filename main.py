@@ -5,6 +5,7 @@ import http.server
 import json
 import multiprocessing
 import os
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -12,21 +13,16 @@ import webbrowser
 
 if __package__ in (None, ""):
     IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if IMPORT_ROOT not in sys.path:
-        sys.path.insert(0, IMPORT_ROOT)
-
-    from hyge.math import arithmetic as A
-    from hyge import graph as G
-    from hyge import heuristics as Hmod
-    from hyge import labels as Lmod
-    from hyge import machine as M
-    from hyge import matching as X
-    from hyge import proof as P
-    from hyge import rewrite_rules as R
-    from hyge.runtime import boot_from_packs, boot_from_snapshot, save_runtime
-    from hyge import search as Smod
-    from hyge import theorem_rules as T
-    from hyge.testsuite import install_default_tests
+    PACKAGE_NAME = os.path.basename(os.path.abspath(os.path.dirname(__file__)))
+    CHILD_ARGS = [sys.executable, "-m", PACKAGE_NAME + ".main"]
+    ARG_INDEX = 1
+    while ARG_INDEX != len(sys.argv):
+        CHILD_ARGS.append(sys.argv[ARG_INDEX])
+        ARG_INDEX = ARG_INDEX + 1
+    CHILD_ENV = os.environ.copy()
+    CHILD_ENV["PYTHONPATH"] = IMPORT_ROOT
+    CHILD = subprocess.run(CHILD_ARGS, cwd=IMPORT_ROOT, env=CHILD_ENV)
+    raise SystemExit(CHILD.returncode)
 else:
     from .math import arithmetic as A
     from . import graph as G
@@ -423,6 +419,157 @@ def _run_theorem_agenda(runtime, cases, title: str, debug: bool = False):
     return results
 
 
+
+
+def _search_worker_result_manifest_path(result_path: str):
+    return result_path + ".manifest.json"
+
+
+def _search_worker_mode_label(mode_text: str):
+    if mode_text == "dfs":
+        return M.DFSLabel
+    if mode_text == "bfs":
+        return M.BFSLabel
+    if mode_text == "astar":
+        return M.AStarLabel
+    if mode_text == "beam":
+        return M.BeamLabel
+    if mode_text == "rewritedfs":
+        return M.RewriteDFSLabel
+    raise RuntimeError("unknown search-worker mode: " + mode_text)
+
+
+def _search_worker_mode_heuristic(runtime, mode_text: str, registry):
+    base = runtime.theorem_heuristic
+    mode = _search_worker_mode_label(mode_text)
+    beam_width = Hmod.HeuristicBeamWidth(base)()
+    if M.IdentityCompare(mode, M.BeamLabel)() is M.truth_value:
+        if M.NatEq(beam_width, M.Zero, registry)() is M.truth_value:
+            beam_width = M.three
+    return Hmod.Heuristic(
+        mode,
+        Hmod.HeuristicRuleOrder(base)(),
+        beam_width,
+        Hmod.HeuristicAlpha(base)(),
+        Hmod.HeuristicBeta(base)(),
+        Hmod.HeuristicCanonicalStrength(base)(),
+    )()
+
+
+def _gmp_atom_from_int(value: int):
+    atom = M.Atom()
+    atom.value = M.GMPRep(str(value))
+    return atom
+
+
+def _string_atom(text: str):
+    atom = M.Atom()
+    atom.value = text
+    return atom
+
+
+def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, registry):
+    cases = _theorem_agenda(packs)
+    manifest_path = _search_worker_result_manifest_path(result_path)
+    if os.path.exists(manifest_path) is False:
+        return cases[0]
+    with open(manifest_path, "r", encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    expected_start_text = manifest.get("start_text", "")
+    expected_goal_text = manifest.get("goal_text", "")
+    case_index = 0
+    while case_index != len(cases):
+        label, start, goal = cases[case_index]
+        candidate_start = Hmod.HeuristicCanonicalize(start, heuristic, registry)()
+        candidate_goal = Hmod.HeuristicCanonicalize(goal, heuristic, registry)()
+        if M.PrettyTerm(candidate_start, registry)() == expected_start_text:
+            if M.PrettyTerm(candidate_goal, registry)() == expected_goal_text:
+                return label, start, goal
+        case_index = case_index + 1
+    return cases[0]
+
+
+def _search_worker_store_result(runtime, result_path: str, attempt, performance):
+    runtime.graph.add_search_attempt(attempt)
+    runtime.graph._replace_context(search_comparisons=M.Pair(performance, runtime.graph.search_comparisons))
+    os.makedirs(os.path.dirname(result_path) or ".", exist_ok=True)
+    temp_path = result_path + ".tmp"
+    save_runtime(runtime, temp_path, _runtime_namespace())
+    os.replace(temp_path, result_path)
+
+
+def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 600):
+    P.SetDebugTrace(M.truth_value)()
+    runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    registry = M.FromContextGetConstructors(runtime.graph)()
+    runtime.graph._search_disable_console = M.truth_value
+    runtime.graph._search_disable_progress_ticker = M.false_value
+    runtime.graph._search_stop_help_shown = M.truth_value
+    runtime.graph._search_compare_enable_shared_root_fast_paths = M.false_value
+    worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
+    label, start, goal = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
+    start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
+    goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+    runtime.graph._search_compare_ignore_root_fast_paths = M.false_value
+    runtime.graph._search_compare_root_start = M.EmptyList
+    runtime.graph._search_compare_root_goal = M.EmptyList
+    runtime.graph._search_compare_discovery_mode = M.false_value
+    runtime.graph._search_probe_disable_applicable_cache = M.false_value
+    runtime.graph._search_probe_disable_applicable_shards = M.truth_value
+    runtime.graph._search_worker_timeout_seconds = float(timeout_seconds)
+    mode_label = _search_worker_mode_label(worker_mode)
+    mode_name = Smod.SearchModeText(mode_label)()
+    P._debug(mode_name + ": search-worker booted")
+    P._debug(mode_name + ": search-worker problem=" + label)
+    started_at = time.time()
+    outcome = M.SearchFailureLabel
+    derivation = M.EmptyList
+    proof_cost = P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+    search_cost = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, M.SearchFailureLabel, registry)()
+    search_cost = M.Head(search_cost)()
+    error_text = ""
+    try:
+        search_pair = Smod.Search(runtime.graph, start, goal, runtime.ordered_rules(), worker_heuristic, registry)()
+        plan = M.Head(search_pair)()
+        search_cost = M.Head(M.Tail(search_pair)())()
+        registry = M.FromContextGetConstructors(runtime.graph)()
+        outcome = Smod.SearchCostOutcome(search_cost)()
+        if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.truth_value:
+            derivation_pair = P.BuildDerivation(start, plan, registry)()
+            derivation = M.Head(derivation_pair)()
+            registry = M.Head(M.Tail(derivation_pair)())()
+            runtime.graph._replace_context(constructors=registry)
+            proof_cost_pair = P.DerivationCost(derivation, registry)()
+            proof_cost = M.Head(proof_cost_pair)()
+            registry = M.Head(M.Tail(proof_cost_pair)())()
+            runtime.graph._replace_context(constructors=registry)
+            runtime.graph.add_derivation(start, goal, derivation)
+    except Exception as error:
+        error_text = error.__class__.__name__ + ": " + str(error)
+        P._debug(mode_name + ": worker error=" + error_text)
+        outcome = M.SearchFailureLabel
+    elapsed_milliseconds = int(round((time.time() - started_at) * 1000.0))
+    total_cost_pair = P.BuildTotalCost(proof_cost, search_cost, worker_heuristic, registry)()
+    total_cost = M.Head(total_cost_pair)()
+    registry = M.Head(M.Tail(total_cost_pair)())()
+    runtime.graph._replace_context(constructors=registry)
+    attempt = P.SearchAttempt(start, goal, worker_heuristic, outcome, derivation, proof_cost, search_cost, total_cost)()
+    completion_reason = outcome
+    if error_text != "":
+        completion_reason = _string_atom(error_text)
+    performance = Smod.HeuristicPerformance(
+        attempt,
+        _gmp_atom_from_int(elapsed_milliseconds),
+        _gmp_atom_from_int(os.getpid()),
+        completion_reason,
+    )()
+    _search_worker_store_result(runtime, result_path, attempt, performance)
+    if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.truth_value:
+        return 0
+    if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
+        return 2
+    return 1
+
 def run_cold_mode(debug: bool = False):
     if debug:
         P.SetDebugTrace(M.truth_value)()
@@ -681,16 +828,12 @@ def main():
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, or inspect",
+        choices=["cold", "warm", "test", "inspect", "search-worker"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, or search-worker",
     )
-    parser.add_argument(
-        "debug",
-        nargs="?",
-        default=None,
-        choices=["debug"],
-        help="Pass 'debug' as a second argument to enable debug output.",
-    )
+    parser.add_argument("arg1", nargs="?", default=None)
+    parser.add_argument("arg2", nargs="?", default=None)
+    parser.add_argument("arg3", nargs="?", default=None)
     parser.add_argument("--port", type=int, default=INSPECTOR_DEFAULT_PORT, help="Inspector port for inspect mode.")
     parser.add_argument(
         "--max-rule-edges",
@@ -709,7 +852,7 @@ def main():
         help="For inspect mode, boot from packs even if a snapshot exists.",
     )
     args = parser.parse_args()
-    debug_enabled = args.debug == "debug"
+    debug_enabled = args.arg1 == "debug"
 
     try:
         if args.mode == "cold":
@@ -724,6 +867,13 @@ def main():
                 max_rule_edges=args.max_rule_edges,
                 open_browser=not args.no_browser,
             )
+        elif args.mode == "search-worker":
+            if args.arg1 is None or args.arg2 is None:
+                raise RuntimeError("search-worker requires MODE and RESULT_PATH")
+            timeout_seconds = 600
+            if args.arg3 is not None:
+                timeout_seconds = int(args.arg3)
+            raise SystemExit(run_search_worker_mode(args.arg1, args.arg2, timeout_seconds))
         else:
             run_test_mode(debug_enabled)
     except KeyboardInterrupt:

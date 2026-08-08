@@ -283,16 +283,19 @@ class Search(M.Edge):
         return self._console_input.read_prompt(prompt_text)
 
     def _timeout_requested(self):
-        if self._mode_is_plain_dfs() is M.false_value:
-            return M.false_value
-        if self._dfs_timeout_seconds is None:
-            return M.false_value
         if self._progress_ticker is None:
             return M.false_value
-        if self._progress_ticker._elapsed_seconds() <= self._dfs_timeout_seconds:
+        timeout_seconds = self.graph._search_worker_timeout_seconds
+        if timeout_seconds is None:
+            if self._mode_is_plain_dfs() is M.false_value:
+                return M.false_value
+            timeout_seconds = self._dfs_timeout_seconds
+        if timeout_seconds is None:
+            return M.false_value
+        if self._progress_ticker._elapsed_seconds() <= timeout_seconds:
             return M.false_value
         if self._dfs_timeout_triggered is M.false_value:
-            _debug("search-dfs: timeout requested")
+            _debug(self.mode_text + ": timeout requested")
             self._pause_progress_ticker()
             self._pause_stop_listener()
             self._dfs_timeout_triggered = M.truth_value
@@ -313,16 +316,20 @@ class Search(M.Edge):
         if self._timeout_requested() is M.false_value:
             return job
         self.search_aborted = M.truth_value
-        self.search_outcome_on_abort = SearchFailureLabel
-        return self._search_job_with_status(job, SearchFailureLabel)
+        self.search_outcome_on_abort = SearchTimedOutLabel
+        return self._search_job_with_status(job, SearchTimedOutLabel)
 
     def _completion_status_text(self, outcome):
         if self.search_aborted is M.truth_value:
             if M.IdentityCompare(self.search_outcome_on_abort, SearchPausedLabel)() is M.truth_value:
                 return "paused"
+            if M.IdentityCompare(self.search_outcome_on_abort, SearchTimedOutLabel)() is M.truth_value:
+                return "timed_out"
             return "aborted"
         if M.IdentityCompare(outcome, SearchPausedLabel)() is M.truth_value:
             return "paused"
+        if M.IdentityCompare(outcome, SearchTimedOutLabel)() is M.truth_value:
+            return "timed_out"
         if M.IdentityCompare(outcome, SearchFailureLabel)() is M.truth_value:
             return "failed"
         return "done"

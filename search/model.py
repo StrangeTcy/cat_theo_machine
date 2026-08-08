@@ -2549,6 +2549,63 @@ class LookupSearchAttempt(M.Edge):
         return self.result
 
 
+class HeuristicPerformance(M.Edge):
+    def __init__(self, attempt, elapsed_milliseconds, worker_pid, completion_reason):
+        self.result = M.Pair(
+            HeuristicPerformanceLabel,
+            M.Pair(
+                attempt,
+                M.Pair(elapsed_milliseconds, M.Pair(worker_pid, M.Pair(completion_reason, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                attempt,
+                M.Pair(elapsed_milliseconds, M.Pair(worker_pid, M.Pair(completion_reason, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class HeuristicPerformanceAttempt(M.Edge):
+    def __init__(self, performance):
+        self.result = SearchArgAt(performance, M.Zero)()
+        super().__init__(inputs=M.Pair(performance, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeuristicPerformanceElapsedMilliseconds(M.Edge):
+    def __init__(self, performance):
+        self.result = SearchArgAt(performance, M.one)()
+        super().__init__(inputs=M.Pair(performance, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeuristicPerformanceWorkerPid(M.Edge):
+    def __init__(self, performance):
+        self.result = SearchArgAt(performance, M.two)()
+        super().__init__(inputs=M.Pair(performance, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeuristicPerformanceCompletionReason(M.Edge):
+    def __init__(self, performance):
+        self.result = SearchArgAt(performance, M.three)()
+        super().__init__(inputs=M.Pair(performance, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class SearchSignature(M.Edge):
     def __init__(self, start_head, goal_head):
         self.result = M.Pair(SearchSignatureLabel, M.Pair(start_head, M.Pair(goal_head, M.EmptyList)))
@@ -2570,13 +2627,15 @@ class SearchSignatureForProblem(M.Edge):
 
 
 class SearchComparisonSummary(M.Edge):
-    def __init__(self, attempts, best_attempt, outcome):
+    def __init__(self, attempts, best_attempt, outcome, performances=None):
+        if performances is None:
+            performances = M.EmptyList
         self.result = M.Pair(
             SearchComparisonSummaryLabel,
-            M.Pair(attempts, M.Pair(best_attempt, M.Pair(outcome, M.EmptyList))),
+            M.Pair(attempts, M.Pair(best_attempt, M.Pair(outcome, M.Pair(performances, M.EmptyList)))),
         )
         super().__init__(
-            inputs=M.Pair(attempts, M.Pair(best_attempt, M.Pair(outcome, M.EmptyList))),
+            inputs=M.Pair(attempts, M.Pair(best_attempt, M.Pair(outcome, M.Pair(performances, M.EmptyList)))),
             results=self.result,
         )
 
@@ -2611,17 +2670,31 @@ class SearchComparisonSummaryOutcome(M.Edge):
         return self.result
 
 
+class SearchComparisonSummaryPerformances(M.Edge):
+    def __init__(self, summary):
+        if SearchChainHasAt(SearchArgs(summary)(), M.three)() is M.truth_value:
+            self.result = SearchArgAt(summary, M.three)()
+        else:
+            self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(summary, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class SearchComparison(M.Edge):
-    def __init__(self, signature, attempts, best_attempt, outcome=None):
+    def __init__(self, signature, attempts, best_attempt, outcome=None, performances=None):
         if outcome is None:
             outcome = M.EmptyList
-        summary = SearchComparisonSummary(attempts, best_attempt, outcome)()
+        if performances is None:
+            performances = M.EmptyList
+        summary = SearchComparisonSummary(attempts, best_attempt, outcome, performances)()
         self.result = M.Pair(
             SearchComparisonLabel,
             M.Pair(signature, M.Pair(summary, M.EmptyList)),
         )
         super().__init__(
-            inputs=M.Pair(signature, M.Pair(attempts, M.Pair(best_attempt, M.Pair(outcome, M.EmptyList)))),
+            inputs=M.Pair(signature, M.Pair(attempts, M.Pair(best_attempt, M.Pair(outcome, M.Pair(performances, M.EmptyList))))),
             results=self.result,
         )
 
@@ -2637,14 +2710,20 @@ class SearchComparisonSummaryBlock(M.Edge):
                 self.result = summary
             else:
                 outcome = M.EmptyList
+                performances = M.EmptyList
                 if SearchChainHasAt(SearchArgs(comparison)(), M.three)() is M.truth_value:
                     outcome = SearchArgAt(comparison, M.three)()
-                self.result = SearchComparisonSummary(summary, SearchArgAt(comparison, M.two)(), outcome)()
+                if SearchChainHasAt(SearchArgs(comparison)(), M.four)() is M.truth_value:
+                    performances = SearchArgAt(comparison, M.four)()
+                self.result = SearchComparisonSummary(summary, SearchArgAt(comparison, M.two)(), outcome, performances)()
         else:
             outcome = M.EmptyList
+            performances = M.EmptyList
             if SearchChainHasAt(SearchArgs(comparison)(), M.three)() is M.truth_value:
                 outcome = SearchArgAt(comparison, M.three)()
-            self.result = SearchComparisonSummary(summary, SearchArgAt(comparison, M.two)(), outcome)()
+            if SearchChainHasAt(SearchArgs(comparison)(), M.four)() is M.truth_value:
+                performances = SearchArgAt(comparison, M.four)()
+            self.result = SearchComparisonSummary(summary, SearchArgAt(comparison, M.two)(), outcome, performances)()
         super().__init__(inputs=M.Pair(comparison, M.EmptyList), results=self.result)
 
     def __call__(self):

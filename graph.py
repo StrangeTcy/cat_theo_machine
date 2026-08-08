@@ -17,6 +17,7 @@ class Hypergraph:
         self._search_disable_console = M.false_value
         self._search_disable_progress_ticker = M.false_value
         self._search_stop_help_shown = M.false_value
+        self._search_worker_timeout_seconds = None
         self._search_cached_burst_budget_default = M.EmptyList
         self._search_cached_burst_budget_dfs = M.EmptyList
         self._search_comparison_prompt_guard = None
