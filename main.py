@@ -490,19 +490,71 @@ def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, reg
     return cases[0]
 
 
+class _SearchWorkerResultGraph:
+    pass
+
+
+def _search_worker_result_graph(runtime, attempt, performance):
+    graph = _SearchWorkerResultGraph()
+    graph.constructor_registry = runtime.graph.constructor_registry
+    graph.all_rules = M.EmptyList
+    graph.rule_order = M.EmptyList
+    graph.derivations = M.EmptyList
+    graph.derivation_schemata = M.EmptyList
+    graph.search_history = M.Pair(attempt, M.EmptyList)
+    graph.search_comparisons = M.Pair(performance, M.EmptyList)
+    graph.search_comparison_jobs = M.EmptyList
+    graph.search_jobs = M.EmptyList
+    graph.search_memo = M.EmptyList
+    graph.nat_value_index = runtime.graph.nat_value_index
+    return graph
+
+
+def _search_worker_derivation_lock_path(result_path: str):
+    return os.path.join(os.path.dirname(result_path) or ".", "search_worker_derivation.lock")
+
+
+def _search_worker_acquire_derivation_lock(result_path: str, timeout_seconds: int):
+    lock_path = _search_worker_derivation_lock_path(result_path)
+    stale_after_seconds = timeout_seconds + 60
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            try:
+                os.write(fd, str(os.getpid()).encode("utf-8"))
+            finally:
+                os.close(fd)
+            return lock_path
+        except FileExistsError:
+            try:
+                lock_age = time.time() - os.path.getmtime(lock_path)
+            except OSError:
+                lock_age = 0.0
+            if lock_age > stale_after_seconds:
+                try:
+                    os.remove(lock_path)
+                    continue
+                except OSError:
+                    pass
+            time.sleep(0.2)
+
+
+def _search_worker_release_derivation_lock(lock_path: str):
+    try:
+        os.remove(lock_path)
+    except OSError:
+        pass
+
+
 def _search_worker_store_result(runtime, result_path: str, attempt, performance, worker_stage=None, worker_plan=None):
     if worker_stage is None:
         worker_stage = _string_atom("")
     if worker_plan is None:
         worker_plan = M.EmptyList
-    runtime.graph._replace_context(
-        search_history=M.Pair(attempt, M.EmptyList),
-        search_comparisons=M.Pair(performance, M.EmptyList),
-    )
     os.makedirs(os.path.dirname(result_path) or ".", exist_ok=True)
     codec = SnapshotCodec(_runtime_namespace())
     snapshot = codec.capture(
-        runtime.graph,
+        _search_worker_result_graph(runtime, attempt, performance),
         extra_roots={
             "worker_stage": worker_stage,
             "worker_plan": worker_plan,
@@ -743,16 +795,20 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
             plan = resume_plan
             outcome = M.SearchSuccessLabel
             elapsed_milliseconds = base_elapsed_milliseconds
-        derivation_pair = P.BuildDerivation(start, plan, registry)()
-        derivation = M.Head(derivation_pair)()
-        registry = M.Head(M.Tail(derivation_pair)())()
-        runtime.graph._replace_context(constructors=registry)
-        proof_cost_pair = P.DerivationCost(derivation, registry)()
-        proof_cost = M.Head(proof_cost_pair)()
-        registry = M.Head(M.Tail(proof_cost_pair)())()
-        runtime.graph._replace_context(constructors=registry)
-        runtime.graph.add_derivation(start, goal, derivation)
-        elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
+        derivation_lock_path = _search_worker_acquire_derivation_lock(result_path, timeout_seconds)
+        try:
+            derivation_pair = P.BuildDerivation(start, plan, registry)()
+            derivation = M.Head(derivation_pair)()
+            registry = M.Head(M.Tail(derivation_pair)())()
+            runtime.graph._replace_context(constructors=registry)
+            proof_cost_pair = P.DerivationCost(derivation, registry)()
+            proof_cost = M.Head(proof_cost_pair)()
+            registry = M.Head(M.Tail(proof_cost_pair)())()
+            runtime.graph._replace_context(constructors=registry)
+            runtime.graph.add_derivation(start, goal, derivation)
+            elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
+        finally:
+            _search_worker_release_derivation_lock(derivation_lock_path)
     except MemoryError:
         error_text = "failure-memory-error"
         P._debug(mode_name + ": worker error=" + error_text)

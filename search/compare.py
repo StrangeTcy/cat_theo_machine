@@ -803,8 +803,6 @@ class CompareSearchModes(M.Edge):
                 text = text[7:]
             if "build-derivation:" in text:
                 continue
-            if "apply-action:" in text:
-                continue
             if text.startswith(mode_text + ":") is False:
                 text = mode_text + ": " + text
             _debug(text)

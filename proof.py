@@ -77,6 +77,12 @@ def _derivation_replay_debug_enabled():
     return M.truth_value
 
 
+def _derivation_replay_action_debug_enabled():
+    if M.IdentityCompare(DEBUG_TRACE_STATE(), M.false_value)() is M.truth_value:
+        return M.false_value
+    return M.truth_value
+
+
 def _debug_clear_status():
     if _DEBUG_STATUS_WIDTH_STATE.value > 0:
         sys.stdout.write("\r" + (" " * _DEBUG_STATUS_WIDTH_STATE.value) + "\r")
@@ -2091,7 +2097,7 @@ class BuildDerivation(M.Edge):
         return current
 
     def _apply_action(self, action, current, registry):
-        debug_replay = _derivation_replay_debug_enabled()
+        debug_replay = _derivation_replay_action_debug_enabled()
         if debug_replay is M.truth_value:
             _debug("apply-action: current=" + _debug_term(current, registry))
             if IsTheoremAction(action)() is M.truth_value:
