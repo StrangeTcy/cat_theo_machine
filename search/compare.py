@@ -921,6 +921,7 @@ class CompareSearchModes(M.Edge):
         comparison_started_at = time.time()
         workers = ()
         reader_threads = ()
+        result_path_by_mode = {}
         modes = self._mode_chain()
         remaining_modes = modes
         while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
@@ -950,7 +951,6 @@ class CompareSearchModes(M.Edge):
             remaining_modes = M.Tail(remaining_modes)()
         attempts_by_mode = {}
         performances_by_mode = {}
-        result_path_by_mode = {}
         best_attempt = M.EmptyList
         best_elapsed_seconds = None
         worker_total = len(workers)
