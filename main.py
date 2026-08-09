@@ -714,6 +714,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         worker_heuristic,
     )
     if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+        P._debug(mode_name + ": saving checkpoint stage=running-search")
         _search_worker_checkpoint(
             runtime,
             result_path,
@@ -727,6 +728,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
             0,
             "running-search",
         )
+        P._debug(mode_name + ": checkpoint saved stage=running-search")
     else:
         base_elapsed_milliseconds = resume_elapsed_milliseconds
         search_cost = resume_search_cost
@@ -742,6 +744,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
             outcome = Smod.SearchCostOutcome(search_cost)()
             elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
             if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.truth_value:
+                P._debug(mode_name + ": goal reached; saving checkpoint stage=success-plan-found")
                 _search_worker_checkpoint(
                     runtime,
                     result_path,
@@ -756,6 +759,8 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
                     "success-plan-found",
                     plan,
                 )
+                P._debug(mode_name + ": checkpoint saved stage=success-plan-found")
+                P._debug(mode_name + ": saving checkpoint stage=running-derivation")
                 _search_worker_checkpoint(
                     runtime,
                     result_path,
@@ -770,6 +775,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
                     "running-derivation",
                     plan,
                 )
+                P._debug(mode_name + ": checkpoint saved stage=running-derivation")
             if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.false_value:
                 final_reason = "failure-search"
                 if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
@@ -796,7 +802,9 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
             outcome = M.SearchSuccessLabel
             elapsed_milliseconds = base_elapsed_milliseconds
         derivation_lock_path = _search_worker_acquire_derivation_lock(result_path, timeout_seconds)
+        P._debug(mode_name + ": acquired derivation lock")
         try:
+            P._debug(mode_name + ": starting derivation replay")
             derivation_pair = P.BuildDerivation(start, plan, registry)()
             derivation = M.Head(derivation_pair)()
             registry = M.Head(M.Tail(derivation_pair)())()
@@ -809,6 +817,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
             elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
         finally:
             _search_worker_release_derivation_lock(derivation_lock_path)
+            P._debug(mode_name + ": released derivation lock")
     except MemoryError:
         error_text = "failure-memory-error"
         P._debug(mode_name + ": worker error=" + error_text)
@@ -845,6 +854,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
             plan,
         )
         return 1
+    P._debug(mode_name + ": saving checkpoint stage=success-derivation-built")
     _search_worker_checkpoint(
         runtime,
         result_path,
@@ -859,6 +869,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         "success-derivation-built",
         plan,
     )
+    P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
     return 0
 
 def run_cold_mode(debug: bool = False):
