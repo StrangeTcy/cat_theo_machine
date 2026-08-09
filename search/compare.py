@@ -734,7 +734,9 @@ class CompareSearchModes(M.Edge):
     def _loaded_worker_attempt_is_final(self, attempt):
         status = SearchAttemptStatus(attempt)()
         if M.IdentityCompare(status, SearchSuccessLabel)() is M.truth_value:
-            return M.truth_value
+            if M.Compare(SearchAttemptDerivation(attempt)(), M.EmptyList)() is M.false_value:
+                return M.truth_value
+            return M.false_value
         if M.IdentityCompare(status, SearchFailureLabel)() is M.truth_value:
             return M.truth_value
         if M.IdentityCompare(status, SearchTimedOutLabel)() is M.truth_value:
@@ -832,6 +834,55 @@ class CompareSearchModes(M.Edge):
             + reason_text
         )
 
+    def _approval_to_materialize_best_attempt(self, best_attempt, performances_by_mode, result_path_by_mode):
+        if M.Compare(best_attempt, M.EmptyList)() is M.truth_value:
+            return best_attempt, performances_by_mode
+        if M.IdentityCompare(SearchAttemptStatus(best_attempt)(), SearchSuccessLabel)() is M.false_value:
+            return best_attempt, performances_by_mode
+        if M.Compare(SearchAttemptDerivation(best_attempt)(), M.EmptyList)() is M.false_value:
+            return best_attempt, performances_by_mode
+        mode = HeuristicSearchMode(SearchAttemptHeuristic(best_attempt)())()
+        mode_text = SearchModeText(mode)()
+        result_path = result_path_by_mode[mode_text]
+        prompt = mode_text + " found a plan. Proceed to derivation replay/save for " + result_path + "? "
+        try:
+            response = self._read_console_line(prompt)
+        except Exception:
+            response = ""
+        answer = response.strip().lower()
+        if answer not in ("y", "yes", "continue", "proceed"):
+            _debug("SearchComparison: derivation replay declined for " + mode_text)
+            return best_attempt, performances_by_mode
+        package_root = os.path.dirname(os.path.dirname(__file__))
+        package_name = os.path.basename(package_root)
+        import_root = os.path.dirname(package_root)
+        mode_token = self._mode_worker_token(mode)
+        timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "6000")
+        child_env = os.environ.copy()
+        child_env["PYTHONPATH"] = import_root
+        if "HYGE_SEARCH_WORKER_DEFER_DERIVATION" in child_env:
+            del child_env["HYGE_SEARCH_WORKER_DEFER_DERIVATION"]
+        child_env["HYGE_SEARCH_WORKER_RESUME_DERIVATION"] = "1"
+        process = subprocess.Popen(
+            [sys.executable, "-m", package_name + ".main", "search-worker", mode_token, result_path, timeout_text],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            cwd=import_root,
+            env=child_env,
+        )
+        _debug("SearchComparison: resumed search-worker mode=" + mode_text + " pid=" + str(process.pid))
+        thread = threading.Thread(target=self._relay_search_worker_output, args=(mode_text, process.stdout), daemon=True)
+        thread.start()
+        exit_code = process.wait()
+        thread.join(timeout=1.0)
+        heuristic = SearchAttemptHeuristic(best_attempt)()
+        attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
+        performances_by_mode[mode_text] = performance
+        _debug("SearchComparison: resumed worker exited mode=" + mode_text + " exit_code=" + str(exit_code))
+        return attempt, performances_by_mode
+
     def _finalize_independent_mode_attempts(self, attempts, best_attempt, performances):
         comparison_outcome = SearchFailureLabel
         if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
@@ -880,6 +931,7 @@ class CompareSearchModes(M.Edge):
             cmd = [sys.executable, "-m", package_name + ".main", "search-worker", mode_token, result_path, timeout_text]
             child_env = os.environ.copy()
             child_env["PYTHONPATH"] = import_root
+            child_env["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = "1"
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -893,10 +945,12 @@ class CompareSearchModes(M.Edge):
             thread = threading.Thread(target=self._relay_search_worker_output, args=(SearchModeText(mode)(), process.stdout), daemon=True)
             thread.start()
             workers = workers + ((mode, self._heuristic_for_mode(mode), process, result_path, time.time()),)
+            result_path_by_mode[SearchModeText(mode)()] = result_path
             reader_threads = reader_threads + (thread,)
             remaining_modes = M.Tail(remaining_modes)()
         attempts_by_mode = {}
         performances_by_mode = {}
+        result_path_by_mode = {}
         best_attempt = M.EmptyList
         best_elapsed_seconds = None
         worker_total = len(workers)
@@ -1054,6 +1108,20 @@ class CompareSearchModes(M.Edge):
                 + self._nat_text(self._attempt_total_value(attempt))
             )
             perf_cursor = M.Tail(perf_cursor)()
+        best_attempt, performances_by_mode = self._approval_to_materialize_best_attempt(best_attempt, performances_by_mode, result_path_by_mode)
+        attempts_rev = M.EmptyList
+        performances_rev = M.EmptyList
+        remaining_modes = modes
+        while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
+            mode = M.Head(remaining_modes)()
+            mode_text = SearchModeText(mode)()
+            if M.TermEqual(SearchAttemptHeuristic(best_attempt)(), self._heuristic_for_mode(mode))() is M.truth_value:
+                attempts_by_mode[mode_text] = best_attempt
+            attempts_rev = M.Pair(attempts_by_mode[mode_text], attempts_rev)
+            performances_rev = M.Pair(performances_by_mode[mode_text], performances_rev)
+            remaining_modes = M.Tail(remaining_modes)()
+        attempts = self._reverse(attempts_rev, M.EmptyList)
+        performances = self._reverse(performances_rev, M.EmptyList)
         return self._finalize_independent_mode_attempts(attempts, best_attempt, performances)
 
     def _compare_all_modes_independent(self, paused_job=M.EmptyList):

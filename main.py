@@ -700,6 +700,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     P.DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE.value = M.truth_value
     P._debug(mode_name + ": search-worker booted")
     P._debug(mode_name + ": search-worker problem=" + label)
+    defer_derivation = os.environ.get("HYGE_SEARCH_WORKER_DEFER_DERIVATION", "") == "1"
     started_at = time.time()
     base_elapsed_milliseconds = 0
     outcome = M.SearchFailureLabel
@@ -776,6 +777,9 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
                     plan,
                 )
                 P._debug(mode_name + ": checkpoint saved stage=running-derivation")
+                if defer_derivation:
+                    P._debug(mode_name + ": awaiting approval before derivation replay")
+                    return 4
             if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.false_value:
                 final_reason = "failure-search"
                 if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
