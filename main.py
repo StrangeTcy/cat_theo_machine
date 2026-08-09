@@ -494,9 +494,46 @@ class _SearchWorkerResultGraph:
     pass
 
 
-def _search_worker_result_graph(runtime, attempt, performance):
+
+
+def _search_worker_result_registry(runtime, attempt, performance, worker_stage=None, worker_plan=None):
+    base_registry = runtime.graph.constructor_registry
+    pruned_registry = M.Tree(M.EmptyList)
+    seen = set()
+    stack = [attempt, performance]
+    if worker_stage is not None:
+        stack.append(worker_stage)
+    if worker_plan is not None:
+        stack.append(worker_plan)
+    while stack:
+        current = stack.pop()
+        if current is None:
+            continue
+        current_identity = id(current)
+        if current_identity in seen:
+            continue
+        seen.add(current_identity)
+        try:
+            if M.IsPair(current)() is M.truth_value:
+                stack.append(M.Head(current)())
+                stack.append(M.Tail(current)())
+                continue
+        except Exception:
+            pass
+        try:
+            constructor = M.GetConstructor(current, base_registry)()
+        except Exception:
+            constructor = M.EmptyList
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.TreeLookup(pruned_registry, current, base_registry)(), M.EmptyList)() is M.truth_value:
+                pruned_registry = M.TreeInsert(pruned_registry, current, constructor, base_registry)()
+            stack.append(M.Head(constructor)())
+            stack.append(M.Tail(constructor)())
+    return pruned_registry
+
+def _search_worker_result_graph(runtime, attempt, performance, worker_stage=None, worker_plan=None):
     graph = _SearchWorkerResultGraph()
-    graph.constructor_registry = runtime.graph.constructor_registry
+    graph.constructor_registry = _search_worker_result_registry(runtime, attempt, performance, worker_stage, worker_plan)
     graph.all_rules = M.EmptyList
     graph.rule_order = M.EmptyList
     graph.derivations = M.EmptyList
@@ -695,6 +732,8 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     runtime.graph._search_probe_disable_applicable_cache = M.false_value
     runtime.graph._search_probe_disable_applicable_shards = M.truth_value
     runtime.graph._search_worker_timeout_seconds = float(timeout_seconds)
+    defer_derivation = os.environ.get("HYGE_SEARCH_WORKER_DEFER_DERIVATION", "") == "1"
+    runtime.graph._search_worker_defer_derivation_materialization = M.truth_value if defer_derivation else M.false_value
     mode_label = _search_worker_mode_label(worker_mode)
     mode_name = Smod.SearchModeText(mode_label)()
     P.DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE.value = M.truth_value

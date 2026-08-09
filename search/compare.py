@@ -854,9 +854,10 @@ class CompareSearchModes(M.Edge):
         mode = HeuristicSearchMode(SearchAttemptHeuristic(best_attempt)())()
         mode_text = SearchModeText(mode)()
         result_path = result_path_by_mode[mode_text]
-        prompt = mode_text + " found a plan. Proceed to derivation replay/save for " + result_path + "? "
+        prompt = mode_text + " found a plan. Proceed to derivation replay/save for " + result_path + "?"
+        _debug("SearchComparison: approval requested for " + mode_text + " result=" + result_path)
         try:
-            response = self._read_console_line(prompt)
+            response = input(prompt + " ")
         except Exception:
             response = ""
         answer = response.strip().lower()

@@ -2332,6 +2332,10 @@ class SearchStep(M.Edge):
             SearchMemoEntry(SearchSuccessLabel, plan)(),
         )
 
+        if M.IdentityCompare(self.graph._search_worker_defer_derivation_materialization, M.truth_value)() is M.truth_value:
+            _debug("search-step: skipping success derivation materialization for deferred worker")
+            return
+
         derivation_pair = BuildDerivation(start, plan, self.registry)()
         derivation = M.Head(derivation_pair)()
         self.registry = M.Head(M.Tail(derivation_pair)())()

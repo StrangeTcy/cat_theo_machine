@@ -30,6 +30,7 @@ class _SearchWorkerRuntime:
         self._search_disable_progress_ticker = M.truth_value
         self._search_stop_help_shown = M.truth_value
         self._search_worker_timeout_seconds = None
+        self._search_worker_defer_derivation_materialization = M.false_value
         self._search_comparison_prompt_guard = None
         self._search_compare_enable_shared_root_fast_paths = M.false_value
         self._search_compare_ignore_root_fast_paths = M.false_value
