@@ -830,7 +830,7 @@ class CompareSearchModes(M.Edge):
         package_name = os.path.basename(package_root)
         import_root = os.path.dirname(package_root)
         result_dir = tempfile.mkdtemp(prefix="hyge_compare_")
-        timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "600")
+        timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "6000")
         workers = ()
         reader_threads = ()
         modes = self._mode_chain()

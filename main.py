@@ -498,7 +498,7 @@ def _search_worker_store_result(runtime, result_path: str, attempt, performance)
     os.replace(temp_path, result_path)
 
 
-def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 600):
+def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
     P.SetDebugTrace(M.truth_value)()
     runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
     registry = M.FromContextGetConstructors(runtime.graph)()
