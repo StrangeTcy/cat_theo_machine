@@ -854,10 +854,16 @@ class CompareSearchModes(M.Edge):
         mode = HeuristicSearchMode(SearchAttemptHeuristic(best_attempt)())()
         mode_text = SearchModeText(mode)()
         result_path = result_path_by_mode[mode_text]
-        prompt = mode_text + " found a plan. Proceed to derivation replay/save for " + result_path + "?"
-        _debug("SearchComparison: approval requested for " + mode_text + " result=" + result_path)
+        display_path = result_path
         try:
-            response = input(prompt + " ")
+            display_path = os.path.relpath(result_path, package_root)
+        except Exception:
+            display_path = result_path
+        prompt = mode_text + " found a plan. Proceed to derivation replay/save for " + display_path + "?"
+        _debug("SearchComparison: approval requested for " + mode_text + " result=" + display_path)
+        print(prompt, flush=True)
+        try:
+            response = input("> ")
         except Exception:
             response = ""
         answer = response.strip().lower()
@@ -921,7 +927,8 @@ class CompareSearchModes(M.Edge):
         package_root = os.path.dirname(os.path.dirname(__file__))
         package_name = os.path.basename(package_root)
         import_root = os.path.dirname(package_root)
-        result_dir = tempfile.mkdtemp(prefix="hyge_compare_")
+        result_dir = os.path.join(package_root, "snapshots", "search_compare", "run-" + str(int(time.time() * 1000.0)))
+        os.makedirs(result_dir, exist_ok=True)
         timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "6000")
         timeout_units = 6000
         try:
