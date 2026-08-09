@@ -33,6 +33,7 @@ else:
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
+    from .persistence import SnapshotCodec
     from . import search as Smod
     from . import theorem_rules as T
     from .testsuite import install_default_tests
@@ -489,17 +490,142 @@ def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, reg
     return cases[0]
 
 
-def _search_worker_store_result(runtime, result_path: str, attempt, performance):
-    runtime.graph.add_search_attempt(attempt)
-    runtime.graph._replace_context(search_comparisons=M.Pair(performance, runtime.graph.search_comparisons))
+def _search_worker_store_result(runtime, result_path: str, attempt, performance, worker_stage=None, worker_plan=None):
+    if worker_stage is None:
+        worker_stage = _string_atom("")
+    if worker_plan is None:
+        worker_plan = M.EmptyList
+    runtime.graph._replace_context(
+        search_history=M.Pair(attempt, M.EmptyList),
+        search_comparisons=M.Pair(performance, M.EmptyList),
+    )
     os.makedirs(os.path.dirname(result_path) or ".", exist_ok=True)
+    codec = SnapshotCodec(_runtime_namespace())
+    snapshot = codec.capture(
+        runtime.graph,
+        extra_roots={
+            "worker_stage": worker_stage,
+            "worker_plan": worker_plan,
+        },
+    )
     temp_path = result_path + ".tmp"
-    save_runtime(runtime, temp_path, _runtime_namespace())
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(snapshot, handle, ensure_ascii=False, indent=2)
     os.replace(temp_path, result_path)
+
+
+def _search_worker_stage_text(value):
+    if value is None:
+        return ""
+    if M.Compare(value, M.EmptyList)() is M.truth_value:
+        return ""
+    try:
+        return str(value())
+    except Exception:
+        return ""
+
+
+def _search_worker_resume_state(result_path: str, start, goal, heuristic):
+    if os.path.exists(result_path) is False:
+        return M.EmptyList, M.EmptyList, 0, ""
+    try:
+        state = SnapshotCodec(_runtime_namespace()).load(result_path)
+    except Exception:
+        return M.EmptyList, M.EmptyList, 0, ""
+    attempts = state.roots.get("search_history", M.EmptyList)
+    if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    attempt = M.Head(attempts)()
+    if M.TermEqual(P.SearchAttemptStart(attempt)(), start)() is M.false_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    if M.TermEqual(P.SearchAttemptGoal(attempt)(), goal)() is M.false_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    if M.TermEqual(P.SearchAttemptHeuristic(attempt)(), heuristic)() is M.false_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    performances = state.roots.get("search_comparisons", M.EmptyList)
+    elapsed_milliseconds = 0
+    if M.IdentityCompare(performances, M.EmptyList)() is M.false_value:
+        performance = M.Head(performances)()
+        elapsed = Smod.HeuristicPerformanceElapsedMilliseconds(performance)()
+        try:
+            elapsed_milliseconds = int(M.GMPRepText(elapsed())())
+        except Exception:
+            elapsed_milliseconds = 0
+    worker_stage = state.roots.get("worker_stage", M.EmptyList)
+    worker_plan = state.roots.get("worker_plan", M.EmptyList)
+    worker_stage_text = _search_worker_stage_text(worker_stage)
+    if worker_stage_text == "success-plan-found":
+        return worker_plan, P.SearchAttemptSearchCost(attempt)(), elapsed_milliseconds, worker_stage_text
+    if worker_stage_text == "running-derivation":
+        return worker_plan, P.SearchAttemptSearchCost(attempt)(), elapsed_milliseconds, worker_stage_text
+    return M.EmptyList, M.EmptyList, elapsed_milliseconds, worker_stage_text
+
+
+def _search_worker_attempt(runtime, start, goal, heuristic, status, derivation, proof_cost, search_cost, elapsed_milliseconds, completion_reason):
+    registry = M.FromContextGetConstructors(runtime.graph)()
+    total_cost_pair = P.BuildTotalCost(proof_cost, search_cost, heuristic, registry)()
+    total_cost = M.Head(total_cost_pair)()
+    registry = M.Head(M.Tail(total_cost_pair)())()
+    runtime.graph._replace_context(constructors=registry)
+    attempt = P.SearchAttempt(start, goal, heuristic, status, derivation, proof_cost, search_cost, total_cost)()
+    performance = Smod.HeuristicPerformance(
+        attempt,
+        _gmp_atom_from_int(elapsed_milliseconds),
+        _gmp_atom_from_int(os.getpid()),
+        completion_reason,
+    )()
+    return attempt, performance
+
+
+def _search_worker_checkpoint(runtime, result_path, start, goal, heuristic, status, derivation, proof_cost, search_cost, elapsed_milliseconds, completion_reason_text, worker_plan=None):
+    completion_reason = _string_atom(completion_reason_text)
+    attempt, performance = _search_worker_attempt(
+        runtime,
+        start,
+        goal,
+        heuristic,
+        status,
+        derivation,
+        proof_cost,
+        search_cost,
+        elapsed_milliseconds,
+        completion_reason,
+    )
+    _search_worker_store_result(
+        runtime,
+        result_path,
+        attempt,
+        performance,
+        _string_atom(completion_reason_text),
+        worker_plan,
+    )
+    return attempt, performance
+
+
+def _maybe_set_search_worker_memory_limit():
+    memory_text = os.environ.get("HYGE_SEARCH_WORKER_MEMORY_MB", "")
+    if memory_text == "":
+        return
+    try:
+        memory_megabytes = int(memory_text)
+    except Exception:
+        return
+    if memory_megabytes <= 0:
+        return
+    try:
+        import resource
+    except Exception:
+        return
+    limit_bytes = memory_megabytes * 1024 * 1024
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+    except Exception:
+        pass
 
 
 def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
     P.SetDebugTrace(M.truth_value)()
+    _maybe_set_search_worker_memory_limit()
     runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
     registry = M.FromContextGetConstructors(runtime.graph)()
     runtime.graph._search_disable_console = M.truth_value
@@ -519,56 +645,165 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     runtime.graph._search_worker_timeout_seconds = float(timeout_seconds)
     mode_label = _search_worker_mode_label(worker_mode)
     mode_name = Smod.SearchModeText(mode_label)()
+    P.DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE.value = M.truth_value
     P._debug(mode_name + ": search-worker booted")
     P._debug(mode_name + ": search-worker problem=" + label)
     started_at = time.time()
+    base_elapsed_milliseconds = 0
     outcome = M.SearchFailureLabel
     derivation = M.EmptyList
     proof_cost = P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
-    search_cost = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, M.SearchFailureLabel, registry)()
-    search_cost = M.Head(search_cost)()
+    search_cost_pair = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, M.SearchRunningLabel, registry)()
+    search_cost = M.Head(search_cost_pair)()
+    resume_plan, resume_search_cost, resume_elapsed_milliseconds, resume_stage_text = _search_worker_resume_state(
+        result_path,
+        start,
+        goal,
+        worker_heuristic,
+    )
+    if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+        _search_worker_checkpoint(
+            runtime,
+            result_path,
+            start,
+            goal,
+            worker_heuristic,
+            M.SearchRunningLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            0,
+            "running-search",
+        )
+    else:
+        base_elapsed_milliseconds = resume_elapsed_milliseconds
+        search_cost = resume_search_cost
+        P._debug(mode_name + ": resuming derivation build from checkpoint stage=" + resume_stage_text)
     error_text = ""
+    plan = M.EmptyList
     try:
-        search_pair = Smod.Search(runtime.graph, start, goal, runtime.ordered_rules(), worker_heuristic, registry)()
-        plan = M.Head(search_pair)()
-        search_cost = M.Head(M.Tail(search_pair)())()
-        registry = M.FromContextGetConstructors(runtime.graph)()
-        outcome = Smod.SearchCostOutcome(search_cost)()
-        if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.truth_value:
-            derivation_pair = P.BuildDerivation(start, plan, registry)()
-            derivation = M.Head(derivation_pair)()
-            registry = M.Head(M.Tail(derivation_pair)())()
-            runtime.graph._replace_context(constructors=registry)
-            proof_cost_pair = P.DerivationCost(derivation, registry)()
-            proof_cost = M.Head(proof_cost_pair)()
-            registry = M.Head(M.Tail(proof_cost_pair)())()
-            runtime.graph._replace_context(constructors=registry)
-            runtime.graph.add_derivation(start, goal, derivation)
+        if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+            search_pair = Smod.Search(runtime.graph, start, goal, runtime.ordered_rules(), worker_heuristic, registry)()
+            plan = M.Head(search_pair)()
+            search_cost = M.Head(M.Tail(search_pair)())()
+            registry = M.FromContextGetConstructors(runtime.graph)()
+            outcome = Smod.SearchCostOutcome(search_cost)()
+            elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
+            if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.truth_value:
+                _search_worker_checkpoint(
+                    runtime,
+                    result_path,
+                    start,
+                    goal,
+                    worker_heuristic,
+                    M.SearchRunningLabel,
+                    M.EmptyList,
+                    proof_cost,
+                    search_cost,
+                    elapsed_milliseconds,
+                    "success-plan-found",
+                    plan,
+                )
+                _search_worker_checkpoint(
+                    runtime,
+                    result_path,
+                    start,
+                    goal,
+                    worker_heuristic,
+                    M.SearchRunningLabel,
+                    M.EmptyList,
+                    proof_cost,
+                    search_cost,
+                    elapsed_milliseconds,
+                    "running-derivation",
+                    plan,
+                )
+            if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.false_value:
+                final_reason = "failure-search"
+                if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
+                    final_reason = "timed_out"
+                _search_worker_checkpoint(
+                    runtime,
+                    result_path,
+                    start,
+                    goal,
+                    worker_heuristic,
+                    outcome,
+                    M.EmptyList,
+                    proof_cost,
+                    search_cost,
+                    elapsed_milliseconds,
+                    final_reason,
+                    M.EmptyList,
+                )
+                if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
+                    return 2
+                return 1
+        else:
+            plan = resume_plan
+            outcome = M.SearchSuccessLabel
+            elapsed_milliseconds = base_elapsed_milliseconds
+        derivation_pair = P.BuildDerivation(start, plan, registry)()
+        derivation = M.Head(derivation_pair)()
+        registry = M.Head(M.Tail(derivation_pair)())()
+        runtime.graph._replace_context(constructors=registry)
+        proof_cost_pair = P.DerivationCost(derivation, registry)()
+        proof_cost = M.Head(proof_cost_pair)()
+        registry = M.Head(M.Tail(proof_cost_pair)())()
+        runtime.graph._replace_context(constructors=registry)
+        runtime.graph.add_derivation(start, goal, derivation)
+        elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
+    except MemoryError:
+        error_text = "failure-memory-error"
+        P._debug(mode_name + ": worker error=" + error_text)
+        _search_worker_checkpoint(
+            runtime,
+            result_path,
+            start,
+            goal,
+            worker_heuristic,
+            M.SearchRunningLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0)),
+            "running-derivation",
+            plan,
+        )
+        return 1
     except Exception as error:
         error_text = error.__class__.__name__ + ": " + str(error)
         P._debug(mode_name + ": worker error=" + error_text)
-        outcome = M.SearchFailureLabel
-    elapsed_milliseconds = int(round((time.time() - started_at) * 1000.0))
-    total_cost_pair = P.BuildTotalCost(proof_cost, search_cost, worker_heuristic, registry)()
-    total_cost = M.Head(total_cost_pair)()
-    registry = M.Head(M.Tail(total_cost_pair)())()
-    runtime.graph._replace_context(constructors=registry)
-    attempt = P.SearchAttempt(start, goal, worker_heuristic, outcome, derivation, proof_cost, search_cost, total_cost)()
-    completion_reason = outcome
-    if error_text != "":
-        completion_reason = _string_atom(error_text)
-    performance = Smod.HeuristicPerformance(
-        attempt,
-        _gmp_atom_from_int(elapsed_milliseconds),
-        _gmp_atom_from_int(os.getpid()),
-        completion_reason,
-    )()
-    _search_worker_store_result(runtime, result_path, attempt, performance)
-    if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.truth_value:
-        return 0
-    if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
-        return 2
-    return 1
+        _search_worker_checkpoint(
+            runtime,
+            result_path,
+            start,
+            goal,
+            worker_heuristic,
+            M.SearchFailureLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0)),
+            error_text,
+            plan,
+        )
+        return 1
+    _search_worker_checkpoint(
+        runtime,
+        result_path,
+        start,
+        goal,
+        worker_heuristic,
+        M.SearchSuccessLabel,
+        derivation,
+        proof_cost,
+        search_cost,
+        elapsed_milliseconds,
+        "success-derivation-built",
+        plan,
+    )
+    return 0
 
 def run_cold_mode(debug: bool = False):
     if debug:

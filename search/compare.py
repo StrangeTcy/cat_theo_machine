@@ -680,8 +680,9 @@ class CompareSearchModes(M.Edge):
         atom.value = text
         return atom
 
-    def _fabricate_worker_failure_attempt(self, heuristic, status, elapsed_seconds, reason_text):
-        search_cost = self._zero_search_cost(status)
+    def _fabricate_worker_failure_attempt(self, heuristic, status, elapsed_seconds, reason_text, search_cost=None, worker_pid_text="0"):
+        if search_cost is None:
+            search_cost = self._zero_search_cost(status)
         proof_cost = self._zero_proof_cost()
         total_cost_pair = BuildTotalCost(proof_cost, search_cost, heuristic, self.registry)()
         total_cost = M.Head(total_cost_pair)()
@@ -702,7 +703,7 @@ class CompareSearchModes(M.Edge):
         performance = HeuristicPerformance(
             attempt,
             self._gmp_atom(str(elapsed_milliseconds)),
-            self._gmp_atom("0"),
+            self._gmp_atom(worker_pid_text),
             self._reason_atom(reason_text),
         )()
         return attempt, performance
@@ -729,6 +730,35 @@ class CompareSearchModes(M.Edge):
         if M.IsPair(value)() is M.false_value:
             return M.false_value
         return M.IdentityCompare(M.Head(value)(), HeuristicPerformanceLabel)()
+
+    def _loaded_worker_attempt_is_final(self, attempt):
+        status = SearchAttemptStatus(attempt)()
+        if M.IdentityCompare(status, SearchSuccessLabel)() is M.truth_value:
+            return M.truth_value
+        if M.IdentityCompare(status, SearchFailureLabel)() is M.truth_value:
+            return M.truth_value
+        if M.IdentityCompare(status, SearchTimedOutLabel)() is M.truth_value:
+            return M.truth_value
+        if M.IdentityCompare(status, SearchAbortedByUserLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _worker_failure_from_partial_attempt(self, heuristic, attempt, performance, elapsed_seconds, worker_pid_text, exit_code_text):
+        search_cost = SearchAttemptSearchCost(attempt)()
+        reason_text = self._performance_reason_text(performance)
+        failure_reason = "abnormal-exit-during-search exit=" + exit_code_text
+        if reason_text == "success-plan-found":
+            failure_reason = "abnormal-exit-after-plan-found exit=" + exit_code_text
+        if reason_text == "running-derivation":
+            failure_reason = "abnormal-exit-during-derivation exit=" + exit_code_text
+        return self._fabricate_worker_failure_attempt(
+            heuristic,
+            SearchFailureLabel,
+            elapsed_seconds,
+            failure_reason,
+            search_cost,
+            worker_pid_text,
+        )
 
     def _load_search_worker_snapshot(self, mode, heuristic, result_path):
         from ..main import _runtime_namespace
@@ -772,6 +802,8 @@ class CompareSearchModes(M.Edge):
             if text.startswith("DEBUG: "):
                 text = text[7:]
             if "build-derivation:" in text:
+                continue
+            if "apply-action:" in text:
                 continue
             if text.startswith(mode_text + ":") is False:
                 text = mode_text + ": " + text
@@ -831,6 +863,13 @@ class CompareSearchModes(M.Edge):
         import_root = os.path.dirname(package_root)
         result_dir = tempfile.mkdtemp(prefix="hyge_compare_")
         timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "6000")
+        timeout_units = 6000
+        try:
+            timeout_units = int(timeout_text)
+        except Exception:
+            timeout_units = 6000
+        comparison_timeout_seconds = timeout_units + 120
+        comparison_started_at = time.time()
         workers = ()
         reader_threads = ()
         modes = self._mode_chain()
@@ -855,38 +894,136 @@ class CompareSearchModes(M.Edge):
             _debug("SearchComparison: launched search-worker mode=" + SearchModeText(mode)() + " pid=" + str(process.pid))
             thread = threading.Thread(target=self._relay_search_worker_output, args=(SearchModeText(mode)(), process.stdout), daemon=True)
             thread.start()
-            workers = workers + ((mode, self._heuristic_for_mode(mode), process, result_path),)
+            workers = workers + ((mode, self._heuristic_for_mode(mode), process, result_path, time.time()),)
             reader_threads = reader_threads + (thread,)
             remaining_modes = M.Tail(remaining_modes)()
-        worker_index = 0
         attempts_by_mode = {}
         performances_by_mode = {}
         best_attempt = M.EmptyList
         best_elapsed_seconds = None
-        while worker_index != len(workers):
-            mode, heuristic, process, result_path = workers[worker_index]
-            worker_index = worker_index + 1
-            exit_code = process.wait()
-            attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
-            elapsed_seconds = self._performance_elapsed_seconds(performance)
-            reason_text = self._performance_reason_text(performance)
-            if exit_code == 2:
-                reason_text = "timed_out"
-            if exit_code not in (0, 1, 2):
-                attempt, performance = self._fabricate_worker_failure_attempt(
-                    heuristic,
-                    SearchFailureLabel,
-                    elapsed_seconds,
-                    "launch-error",
+        worker_total = len(workers)
+        finished_count = 0
+        while finished_count != worker_total:
+            if time.time() - comparison_started_at > comparison_timeout_seconds:
+                worker_index = 0
+                while worker_index != worker_total:
+                    mode, heuristic, process, result_path, launch_started_at = workers[worker_index]
+                    worker_index = worker_index + 1
+                    mode_text = SearchModeText(mode)()
+                    if mode_text in attempts_by_mode:
+                        continue
+                    if process.poll() is None:
+                        _debug("SearchComparison: worker timeout mode=" + mode_text + " pid=" + str(process.pid))
+                        try:
+                            process.terminate()
+                        except Exception:
+                            pass
+                        deadline = time.time() + 2.0
+                        while process.poll() is None:
+                            if time.time() > deadline:
+                                break
+                            time.sleep(0.1)
+                        if process.poll() is None:
+                            try:
+                                process.kill()
+                            except Exception:
+                                pass
+                    elapsed_seconds = time.time() - launch_started_at
+                    attempt, performance = self._fabricate_worker_failure_attempt(
+                        heuristic,
+                        SearchTimedOutLabel,
+                        elapsed_seconds,
+                        "comparison-timeout",
+                        None,
+                        str(process.pid),
+                    )
+                    attempts_by_mode[mode_text] = attempt
+                    performances_by_mode[mode_text] = performance
+                    self._log_independent_mode_finish(mode, SearchAttemptStatus(attempt)(), elapsed_seconds, SearchAttemptSearchCost(attempt)(), "comparison-timeout")
+                    if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
+                        best_attempt = attempt
+                        best_elapsed_seconds = elapsed_seconds
+                    finished_count = finished_count + 1
+                break
+            saw_update = M.false_value
+            worker_index = 0
+            while worker_index != worker_total:
+                mode, heuristic, process, result_path, launch_started_at = workers[worker_index]
+                worker_index = worker_index + 1
+                mode_text = SearchModeText(mode)()
+                if mode_text in attempts_by_mode:
+                    continue
+                exit_code = process.poll()
+                if exit_code is None:
+                    continue
+                saw_update = M.truth_value
+                elapsed_seconds = time.time() - launch_started_at
+                _debug(
+                    "SearchComparison: worker exited mode="
+                    + mode_text
+                    + " pid="
+                    + str(process.pid)
+                    + " exit_code="
+                    + str(exit_code)
+                    + " elapsed="
+                    + "{:.3f}".format(elapsed_seconds)
                 )
-                reason_text = "launch-error"
-                elapsed_seconds = self._performance_elapsed_seconds(performance)
-            attempts_by_mode[SearchModeText(mode)()] = attempt
-            performances_by_mode[SearchModeText(mode)()] = performance
-            self._log_independent_mode_finish(mode, SearchAttemptStatus(attempt)(), elapsed_seconds, SearchAttemptSearchCost(attempt)(), reason_text)
-            if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
-                best_attempt = attempt
-                best_elapsed_seconds = elapsed_seconds
+                load_ok = M.false_value
+                attempt = M.EmptyList
+                performance = M.EmptyList
+                if os.path.exists(result_path) is False:
+                    time.sleep(0.2)
+                if os.path.exists(result_path) is True:
+                    try:
+                        attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
+                        load_ok = M.truth_value
+                    except Exception as error:
+                        _debug("SearchComparison: load retry mode=" + mode_text + " error=" + str(error))
+                        time.sleep(0.2)
+                        try:
+                            attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
+                            load_ok = M.truth_value
+                        except Exception as second_error:
+                            _debug("SearchComparison: load failed mode=" + mode_text + " error=" + str(second_error))
+                if load_ok is M.false_value:
+                    attempt, performance = self._fabricate_worker_failure_attempt(
+                        heuristic,
+                        SearchFailureLabel,
+                        elapsed_seconds,
+                        "abnormal-exit-missing-result exit=" + str(exit_code),
+                        None,
+                        str(process.pid),
+                    )
+                else:
+                    if self._loaded_worker_attempt_is_final(attempt) is M.false_value:
+                        attempt, performance = self._worker_failure_from_partial_attempt(
+                            heuristic,
+                            attempt,
+                            performance,
+                            elapsed_seconds,
+                            str(process.pid),
+                            str(exit_code),
+                        )
+                    else:
+                        if exit_code == 2:
+                            if M.IdentityCompare(SearchAttemptStatus(attempt)(), SearchTimedOutLabel)() is M.false_value:
+                                attempt, performance = self._fabricate_worker_failure_attempt(
+                                    heuristic,
+                                    SearchTimedOutLabel,
+                                    elapsed_seconds,
+                                    "worker-timeout exit=2",
+                                    SearchAttemptSearchCost(attempt)(),
+                                    str(process.pid),
+                                )
+                attempts_by_mode[mode_text] = attempt
+                performances_by_mode[mode_text] = performance
+                self._log_independent_mode_finish(mode, SearchAttemptStatus(attempt)(), elapsed_seconds, SearchAttemptSearchCost(attempt)(), self._performance_reason_text(performance))
+                if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
+                    best_attempt = attempt
+                    best_elapsed_seconds = elapsed_seconds
+                finished_count = finished_count + 1
+            if saw_update is M.false_value:
+                time.sleep(0.2)
         thread_index = 0
         while thread_index != len(reader_threads):
             reader_threads[thread_index].join(timeout=1.0)

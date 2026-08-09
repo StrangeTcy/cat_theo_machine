@@ -47,6 +47,8 @@ from . import gmprep as Gmpmod
 
 DEBUG_TRACE_STATE = M.Atom()
 DEBUG_TRACE_STATE.value = M.false_value
+DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE = M.Atom()
+DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE.value = M.false_value
 _DEBUG_STATUS_LINE_STATE = M.Atom()
 _DEBUG_STATUS_LINE_STATE.value = ""
 _DEBUG_STATUS_WIDTH_STATE = M.Atom()
@@ -65,6 +67,14 @@ class SetDebugTrace(M.Edge):
 
     def __call__(self):
         return self.result
+
+
+def _derivation_replay_debug_enabled():
+    if M.IdentityCompare(DEBUG_TRACE_STATE(), M.false_value)() is M.truth_value:
+        return M.false_value
+    if M.IdentityCompare(DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE(), M.truth_value)() is M.truth_value:
+        return M.false_value
+    return M.truth_value
 
 
 def _debug_clear_status():
@@ -1956,8 +1966,10 @@ class BuildDerivation(M.Edge):
         self.registry = registry
         self._knowledge_head_index = M.EmptyList
         self._match_memo = M.EmptyTree
-        _debug("build-derivation: start=" + _debug_term(start, registry))
-        _debug("build-derivation: plan=" + PrettyPlanChain(plan, registry)())
+        if _derivation_replay_debug_enabled() is M.truth_value:
+            _debug("build-derivation: start=" + _debug_term(start, registry))
+        if _derivation_replay_debug_enabled() is M.truth_value:
+            _debug("build-derivation: plan=" + PrettyPlanChain(plan, registry)())
         if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
             self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
         else:
@@ -1969,7 +1981,8 @@ class BuildDerivation(M.Edge):
             new_registry = M.Head(M.Tail(cost_pair)())()
             deriv_pair = Derivation(steps, cost, new_registry)()
             self.result = deriv_pair
-        _debug("build-derivation: finished")
+        if _derivation_replay_debug_enabled() is M.truth_value:
+            _debug("build-derivation: finished")
         super().__init__(inputs=M.Pair(start, M.Pair(plan, M.Pair(bindings, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def _knowledge_has_fact(self, facts, target):
@@ -2078,14 +2091,16 @@ class BuildDerivation(M.Edge):
         return current
 
     def _apply_action(self, action, current, registry):
-        _debug("apply-action: current=" + _debug_term(current, registry))
-        if IsTheoremAction(action)() is M.truth_value:
-            if RuleIsUnary(ActionRule(action)())() is M.false_value:
-                _debug("apply-action: apply multi-premise theorem rule")
+        debug_replay = _derivation_replay_debug_enabled()
+        if debug_replay is M.truth_value:
+            _debug("apply-action: current=" + _debug_term(current, registry))
+            if IsTheoremAction(action)() is M.truth_value:
+                if RuleIsUnary(ActionRule(action)())() is M.false_value:
+                    _debug("apply-action: apply multi-premise theorem rule")
+                else:
+                    _debug("apply-action: " + PrettyAction(action, registry)())
             else:
                 _debug("apply-action: " + PrettyAction(action, registry)())
-        else:
-            _debug("apply-action: " + PrettyAction(action, registry)())
         if IsTheoremAction(action)() is M.truth_value:
             previous_bindings = self.bindings
             action_bindings = ActionBindings(action)()
@@ -2093,14 +2108,17 @@ class BuildDerivation(M.Edge):
                 self.bindings = action_bindings
             result = self._apply_theorem_rule_at_root(ActionRule(action)(), current, registry)
             self.bindings = previous_bindings
-            _debug("apply-action result=" + _debug_term(result, registry))
+            if debug_replay is M.truth_value:
+                _debug("apply-action result=" + _debug_term(result, registry))
             return result
         if IsRewriteAction(action)() is M.truth_value:
             result = RewriteAtPath(ActionRule(action)(), current, ActionPath(action)(), registry)()
-            _debug("apply-action result=" + _debug_term(result, registry))
+            if debug_replay is M.truth_value:
+                _debug("apply-action result=" + _debug_term(result, registry))
             return result
         result = self._apply_theorem_rule_at_root(action, current, registry)
-        _debug("apply-action result=" + _debug_term(result, registry))
+        if debug_replay is M.truth_value:
+            _debug("apply-action result=" + _debug_term(result, registry))
         return result
 
     def _build(self, current, plan, registry):
