@@ -26,6 +26,9 @@ from ..proof import *
 from ..proof import _debug, _debug_term
 from .chain_utils import *
 from .engine import *
+from .compare_console import _ComparisonConsoleMixin
+from .compare_nat import _ComparisonNatMixin
+from .compare_trees import _ComparisonTreeMixin
 from .engine import _SearchStepKernel
 from .model import *
 from .patricia import *
@@ -38,7 +41,7 @@ from .ui import _SearchComparisonPromptGuard, _SearchConsoleInput, _SearchStopCo
 
 
 
-class CompareSearchModes(M.Edge):
+class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _ComparisonTreeMixin, M.Edge):
     def __init__(self, graph, start, goal, rules, heuristic, registry):
         t0 = time.time()
         self.graph = graph
@@ -244,15 +247,6 @@ class CompareSearchModes(M.Edge):
         rest = self._comparison_total_completed_packets(M.Tail(states)())
         return self._nat_add_local(self._comparison_state_completed_packets(M.Head(states)()), rest)
 
-    def _seconds_text(self, total_seconds):
-        if total_seconds < 60.0:
-            return "{:.0f}s".format(total_seconds)
-        if total_seconds < 3600.0:
-            minutes = total_seconds / 60.0
-            return "{:.1f}m".format(minutes)
-        hours = total_seconds / 3600.0
-        return "{:.1f}h".format(hours)
-
     def _comparison_eta_text(self, states, workers):
         if self._comparison_prompt_guard is None:
             return "rough eta unknown"
@@ -319,122 +313,6 @@ class CompareSearchModes(M.Edge):
             + "{:.1f}".format(rate_per_minute)
             + " completed-packets/min if the backlog does not widen much"
         )
-
-    def _comparison_console_input(self):
-        console_input = self.graph._search_console_input
-        if console_input is None:
-            console_input = _SearchConsoleInput()
-            self.graph._search_console_input = console_input
-        return console_input
-
-    def _start_stop_listener(self):
-        if M.IdentityCompare(self.graph._search_disable_console, M.truth_value)() is M.truth_value:
-            self._stop_listener = None
-            return
-        self._stop_listener = _SearchStopConsole(self._comparison_console_input())
-        if M.IdentityCompare(self._stop_listener.start(), M.truth_value)() is M.false_value:
-            self._stop_listener = None
-            _debug("search-compare: console control unavailable in this environment")
-            return
-        if M.IdentityCompare(self.graph._search_stop_help_shown, M.truth_value)() is M.false_value:
-            print("Type 'pause', 'stop', 'stop <mode>', or 'only <modes>' and press Enter in the console to control the current comparison or search.")
-            self.graph._search_stop_help_shown = M.truth_value
-        _debug("search-compare: console control ready")
-
-    def _stop_stop_listener(self):
-        if self._stop_listener is None:
-            return
-        self._stop_listener.stop()
-        self._stop_listener = None
-
-    def _pause_requested(self):
-        if self._stop_listener is None:
-            return M.false_value
-        if M.IdentityCompare(self._stop_listener.requested(), M.truth_value)() is M.truth_value:
-            return M.truth_value
-        return M.false_value
-
-    def _consume_console_action(self):
-        if self._stop_listener is None:
-            return "none", M.EmptyList
-        command = self._stop_listener.take_command()
-        if command == "":
-            return "none", M.EmptyList
-        action, modes = self._comparison_prompt_action(command)
-        if action == "help" or action == "unknown":
-            _debug("search-compare: commands are continue | extend | stop | pause | stop <mode> | only <modes>")
-            return "none", M.EmptyList
-        return action, modes
-
-    def _read_console_line(self, prompt_text):
-        return self._comparison_console_input().read_prompt(prompt_text)
-
-    def _mode_from_token(self, token):
-        if token in ("dfs", "searchdfs"):
-            return DFSLabel
-        if token in ("bfs", "searchbfs"):
-            return BFSLabel
-        if token in ("astar", "a*", "searchastar"):
-            return AStarLabel
-        if token in ("beam", "searchbeam"):
-            return BeamLabel
-        if token in ("rewritedfs", "rewrite-dfs", "searchrewritedfs"):
-            return RewriteDFSLabel
-        return M.EmptyList
-
-    def _mode_selected(self, modes, mode):
-        if M.IdentityCompare(modes, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        if M.IdentityCompare(M.Head(modes)(), mode)() is M.truth_value:
-            return M.truth_value
-        return self._mode_selected(M.Tail(modes)(), mode)
-
-    def _selected_modes_from_tokens(self, tokens, index):
-        if index >= len(tokens):
-            return M.EmptyList
-        mode = self._mode_from_token(tokens[index])
-        rest = self._selected_modes_from_tokens(tokens, index + 1)
-        if M.Compare(mode, M.EmptyList)() is M.truth_value:
-            return rest
-        if self._mode_selected(rest, mode) is M.truth_value:
-            return rest
-        return M.Pair(mode, rest)
-
-    def _comparison_prompt_action(self, response):
-        answer = response.strip().lower()
-        if answer in ("", "y", "yes", "continue", "continue all", "proceed"):
-            return "continue", M.EmptyList
-        if answer in ("extend", "more", "continue longer"):
-            return "extend", M.EmptyList
-        if answer in ("stop", "abort", "quit", "stop comparison"):
-            return "stop", M.EmptyList
-        if answer == "pause":
-            return "pause", M.EmptyList
-        if answer in ("help", "?"):
-            return "help", M.EmptyList
-        tokens = answer.split()
-        if len(tokens) >= 2 and tokens[0] in ("stop", "kill"):
-            mode = self._mode_from_token(tokens[1])
-            if M.Compare(mode, M.EmptyList)() is M.false_value:
-                return "stop_mode", mode
-        if len(tokens) >= 2 and tokens[0] == "only":
-            modes = self._selected_modes_from_tokens(tokens, 1)
-            if M.IdentityCompare(modes, M.EmptyList)() is M.false_value:
-                return "only_modes", modes
-        return "unknown", M.EmptyList
-
-    def _comparison_read_action(self, summary_text):
-        prompt_text = summary_text + "; actions: continue | extend | stop | pause | stop <mode> | only <modes>"
-        while M.IdentityCompare(M.truth_value, M.truth_value)() is M.truth_value:
-            try:
-                response = self._read_console_line(prompt_text)
-            except (EOFError, KeyboardInterrupt):
-                response = "stop"
-            action, modes = self._comparison_prompt_action(response)
-            if action == "help" or action == "unknown":
-                _debug("search-compare: commands are continue | extend | stop | pause | stop <mode> | only <modes>")
-                continue
-            return action, modes
 
     def _beam_width(self, mode):
         width = HeuristicBeamWidth(self.heuristic)()
@@ -1145,18 +1023,6 @@ class CompareSearchModes(M.Edge):
 
     def _compare_all_modes_independent(self, paused_job=M.EmptyList):
         return self._compare_all_modes_independent_parallel(paused_job)
-
-    def _nat_text(self, value):
-        if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
-            return "0"
-        try:
-            return Gmpmod.GMPRepText(value())()
-        except Exception:
-            pass
-        rep = M.NatRepOf(value, self.registry)()
-        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-            return Gmpmod.GMPRepText(rep)()
-        return M.PrettyTerm(value, self.registry)()
 
     def _job_focus_text(self, job):
         frontier = SearchJobFrontier(job)()
@@ -2509,17 +2375,6 @@ class CompareSearchModes(M.Edge):
             return rest
         return self._succ_nat_local(rest)
 
-    def _search_mode_uses_global_visited(self, mode):
-        return M.OrAtom(
-            M.OrAtom(M.IdentityCompare(mode, BFSLabel)(), M.IdentityCompare(mode, BeamLabel)())(),
-            M.IdentityCompare(mode, AStarLabel)(),
-        )()
-
-    def _initial_compare_job_visited(self, mode):
-        if self._search_mode_uses_global_visited(mode) is M.false_value:
-            return M.EmptyList
-        return self._tree_insert(M.EmptyList, self.start)
-
     def _fresh_compare_job(self, mode):
         heuristic = self._heuristic_for_mode(mode)
         start_state = SearchState(self.start, M.EmptyList, M.EmptyList, self._comparison_rule_count)()
@@ -2872,212 +2727,6 @@ class CompareSearchModes(M.Edge):
             return M.false_value
         return self._comparison_all_finished(M.Tail(states)())
 
-    def _succ_nat_local(self, value):
-        if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
-            value = M.Zero
-        try:
-            succ_text = Gmpmod.GMPSuccText(Gmpmod.GMPRepText(value())())()
-            if Gmpmod.GMPEqualText(succ_text, "0")() is M.truth_value:
-                return M.Zero
-            if Gmpmod.GMPEqualText(succ_text, "1")() is M.truth_value:
-                return M.one
-            if Gmpmod.GMPEqualText(succ_text, "2")() is M.truth_value:
-                return M.two
-            if Gmpmod.GMPEqualText(succ_text, "3")() is M.truth_value:
-                return M.three
-            if Gmpmod.GMPEqualText(succ_text, "4")() is M.truth_value:
-                return M.four
-            if Gmpmod.GMPEqualText(succ_text, "5")() is M.truth_value:
-                return M.five
-            if Gmpmod.GMPEqualText(succ_text, "6")() is M.truth_value:
-                return M.six
-            if Gmpmod.GMPEqualText(succ_text, "7")() is M.truth_value:
-                return M.seven
-            if Gmpmod.GMPEqualText(succ_text, "8")() is M.truth_value:
-                return M.eight
-            if Gmpmod.GMPEqualText(succ_text, "9")() is M.truth_value:
-                return M.nine
-            succ = M.Atom()
-            succ.value = Gmpmod.GMPRep(succ_text)
-            return succ
-        except Exception:
-            pass
-        rep = M.NatRepOf(value, self.registry)()
-        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-            succ_text = Gmpmod.GMPSuccText(Gmpmod.GMPRepText(rep)())()
-            if Gmpmod.GMPEqualText(succ_text, "0")() is M.truth_value:
-                return M.Zero
-            if Gmpmod.GMPEqualText(succ_text, "1")() is M.truth_value:
-                return M.one
-            if Gmpmod.GMPEqualText(succ_text, "2")() is M.truth_value:
-                return M.two
-            if Gmpmod.GMPEqualText(succ_text, "3")() is M.truth_value:
-                return M.three
-            if Gmpmod.GMPEqualText(succ_text, "4")() is M.truth_value:
-                return M.four
-            if Gmpmod.GMPEqualText(succ_text, "5")() is M.truth_value:
-                return M.five
-            if Gmpmod.GMPEqualText(succ_text, "6")() is M.truth_value:
-                return M.six
-            if Gmpmod.GMPEqualText(succ_text, "7")() is M.truth_value:
-                return M.seven
-            if Gmpmod.GMPEqualText(succ_text, "8")() is M.truth_value:
-                return M.eight
-            if Gmpmod.GMPEqualText(succ_text, "9")() is M.truth_value:
-                return M.nine
-            succ = M.Atom()
-            succ.value = Gmpmod.GMPRep(succ_text)
-            return succ
-        pair = M.Succ(value, self.registry)()
-        self.registry = M.Head(M.Tail(pair)())()
-        return M.Head(pair)()
-
-    def _nat_add_local(self, left, right):
-        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
-            left = M.Zero
-        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
-            right = M.Zero
-        try:
-            sum_text = Gmpmod.GMPAddText(
-                Gmpmod.GMPRepText(left())(),
-                Gmpmod.GMPRepText(right())(),
-            )()
-            if Gmpmod.GMPEqualText(sum_text, "0")() is M.truth_value:
-                return M.Zero
-            if Gmpmod.GMPEqualText(sum_text, "1")() is M.truth_value:
-                return M.one
-            if Gmpmod.GMPEqualText(sum_text, "2")() is M.truth_value:
-                return M.two
-            if Gmpmod.GMPEqualText(sum_text, "3")() is M.truth_value:
-                return M.three
-            if Gmpmod.GMPEqualText(sum_text, "4")() is M.truth_value:
-                return M.four
-            if Gmpmod.GMPEqualText(sum_text, "5")() is M.truth_value:
-                return M.five
-            if Gmpmod.GMPEqualText(sum_text, "6")() is M.truth_value:
-                return M.six
-            if Gmpmod.GMPEqualText(sum_text, "7")() is M.truth_value:
-                return M.seven
-            if Gmpmod.GMPEqualText(sum_text, "8")() is M.truth_value:
-                return M.eight
-            if Gmpmod.GMPEqualText(sum_text, "9")() is M.truth_value:
-                return M.nine
-            total = M.Atom()
-            total.value = Gmpmod.GMPRep(sum_text)
-            return total
-        except Exception:
-            pass
-        left_rep = M.NatRepOf(left, self.registry)()
-        right_rep = M.NatRepOf(right, self.registry)()
-        if M.IdentityCompare(left_rep, M.EmptyList)() is M.false_value:
-            if M.IdentityCompare(right_rep, M.EmptyList)() is M.false_value:
-                sum_text = Gmpmod.GMPAddText(
-                    Gmpmod.GMPRepText(left_rep)(),
-                    Gmpmod.GMPRepText(right_rep)(),
-                )()
-                if Gmpmod.GMPEqualText(sum_text, "0")() is M.truth_value:
-                    return M.Zero
-                if Gmpmod.GMPEqualText(sum_text, "1")() is M.truth_value:
-                    return M.one
-                if Gmpmod.GMPEqualText(sum_text, "2")() is M.truth_value:
-                    return M.two
-                if Gmpmod.GMPEqualText(sum_text, "3")() is M.truth_value:
-                    return M.three
-                if Gmpmod.GMPEqualText(sum_text, "4")() is M.truth_value:
-                    return M.four
-                if Gmpmod.GMPEqualText(sum_text, "5")() is M.truth_value:
-                    return M.five
-                if Gmpmod.GMPEqualText(sum_text, "6")() is M.truth_value:
-                    return M.six
-                if Gmpmod.GMPEqualText(sum_text, "7")() is M.truth_value:
-                    return M.seven
-                if Gmpmod.GMPEqualText(sum_text, "8")() is M.truth_value:
-                    return M.eight
-                if Gmpmod.GMPEqualText(sum_text, "9")() is M.truth_value:
-                    return M.nine
-                total = M.Atom()
-                total.value = Gmpmod.GMPRep(sum_text)
-                return total
-        pair = M.Add(left, right, self.registry)()
-        self.registry = M.Head(M.Tail(pair)())()
-        return M.Head(pair)()
-
-    def _nat_max_local(self, left, right):
-        if M.NatLess(left, right, self.registry)() is M.truth_value:
-            return right
-        return left
-
-    def _nat_min_local(self, left, right):
-        if M.NatLess(left, right, self.registry)() is M.truth_value:
-            return left
-        return right
-
-    def _pred_nat_or_zero_local(self, value):
-        if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
-            return M.Zero
-        try:
-            pred_text = Gmpmod.GMPPredText(Gmpmod.GMPRepText(value())())()
-            if Gmpmod.GMPEqualText(pred_text, "0")() is M.truth_value:
-                return M.Zero
-            pred = M.Atom()
-            pred.value = Gmpmod.GMPRep(pred_text)
-            return pred
-        except Exception:
-            pass
-        rep = M.NatRepOf(value, self.registry)()
-        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-            pred_text = Gmpmod.GMPPredText(Gmpmod.GMPRepText(rep)())()
-            if Gmpmod.GMPEqualText(pred_text, "0")() is M.truth_value:
-                return M.Zero
-            pred = M.Atom()
-            pred.value = Gmpmod.GMPRep(pred_text)
-            return pred
-        if M.NatEq(value, M.Zero, self.registry)() is M.truth_value:
-            return M.Zero
-        pred_pair = M.NatPred(value, self.registry)()
-        pred = M.Head(pred_pair)()
-        self.registry = M.Head(M.Tail(pred_pair)())()
-        return pred
-
-    def _nat_sub_or_zero_local(self, left, right):
-        if M.NatEq(right, M.Zero, self.registry)() is M.truth_value:
-            return left
-        if M.NatEq(left, M.Zero, self.registry)() is M.truth_value:
-            return M.Zero
-        return self._nat_sub_or_zero_local(
-            self._pred_nat_or_zero_local(left),
-            self._pred_nat_or_zero_local(right),
-        )
-
-    def _mode_uses_global_visited(self, mode):
-        return M.OrAtom(
-            M.OrAtom(M.IdentityCompare(mode, BFSLabel)(), M.IdentityCompare(mode, BeamLabel)())(),
-            M.IdentityCompare(mode, AStarLabel)(),
-        )()
-
-    def _tree_contains(self, tree, key):
-        if M.IdentityCompare(tree, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        found = self._tree_lookup_fact(tree, key)
-        if M.IdentityCompare(found, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        return M.truth_value
-
-    def _tree_lookup_fact(self, tree, key):
-        return SearchPatriciaLookupByKey(tree, key, self.registry)()
-
-    def _tree_insert(self, tree, key):
-        return SearchPatriciaInsertByKey(tree, key, M.Pair(key, M.EmptyList), self.registry)()
-
-    def _comparison_filter_new_child(self, child, visited):
-        if M.IdentityCompare(child, M.EmptyList)() is M.truth_value:
-            return child, visited
-        child_current = SearchStateCurrent(child)()
-        if self._tree_contains(visited, child_current) is M.truth_value:
-            return M.EmptyList, visited
-        next_visited = self._tree_insert(visited, child_current)
-        return child, next_visited
-
     def _decode_parallel_worker_payload(self, payload, mode=M.EmptyList, packet_token=M.EmptyList):
         if payload is None:
             return SearchWorkerResult(
@@ -3172,61 +2821,6 @@ class CompareSearchModes(M.Edge):
             + " ready-packets="
             + self._nat_text(self._decoded_ready_packet_count(decoded))
         )
-
-    def _collect_map_entries(self, tree):
-        if M.IdentityCompare(tree, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        if SearchPatriciaIsTree(tree)() is M.truth_value:
-            return SearchPatriciaEntries(tree)()
-        return self._collect_legacy_map_entries(tree)
-
-    def _collect_legacy_map_entries(self, tree):
-        return Tmod.TreeEntries(tree)()
-
-    def _merge_tree_entries_legacy(self, dst_tree, entries):
-        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
-            return dst_tree
-        entry = M.Head(entries)()
-        key = M.Head(entry)()
-        fact = M.Head(M.Tail(entry)())()
-        if M.IdentityCompare(dst_tree, M.EmptyList)() is M.truth_value:
-            next_tree = M.TreeInsert(M.Tree(M.EmptyList), key, fact, self.registry)()
-        else:
-            next_tree = M.TreeInsert(dst_tree, key, fact, self.registry)()
-        return self._merge_tree_entries_legacy(next_tree, M.Tail(entries)())
-
-    def _merge_tree_entries_patricia(self, dst_tree, entries):
-        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
-            return dst_tree
-        entry = M.Head(entries)()
-        key = M.Head(entry)()
-        fact = M.Head(M.Tail(entry)())()
-        next_tree = SearchPatriciaInsertByKey(dst_tree, key, fact, self.registry)()
-        return self._merge_tree_entries_patricia(next_tree, M.Tail(entries)())
-
-    def _merge_legacy_entries_to_patricia(self, dst_tree, entries):
-        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
-            return dst_tree
-        entry = M.Head(entries)()
-        key = M.Head(entry)()
-        fact = M.Head(M.Tail(entry)())()
-        next_tree = SearchPatriciaInsertByKey(dst_tree, key, fact, self.registry)()
-        return self._merge_legacy_entries_to_patricia(next_tree, M.Tail(entries)())
-
-    def _merge_tree(self, left_tree, right_tree):
-        if M.IdentityCompare(right_tree, M.EmptyList)() is M.truth_value:
-            return left_tree
-        if SearchPatriciaIsTree(right_tree)() is M.truth_value:
-            base_tree = left_tree
-            if M.IdentityCompare(base_tree, M.EmptyList)() is M.truth_value:
-                return self._merge_tree_entries_patricia(M.EmptyList, SearchPatriciaEntries(right_tree)())
-            if SearchPatriciaIsTree(base_tree)() is M.truth_value:
-                return self._merge_tree_entries_patricia(base_tree, SearchPatriciaEntries(right_tree)())
-            base_tree = self._merge_legacy_entries_to_patricia(M.EmptyList, self._collect_legacy_map_entries(base_tree))
-            return self._merge_tree_entries_patricia(base_tree, SearchPatriciaEntries(right_tree)())
-        if M.IdentityCompare(left_tree, M.EmptyList)() is M.truth_value:
-            left_tree = M.Tree(M.EmptyList)
-        return self._merge_tree_entries_legacy(left_tree, self._collect_legacy_map_entries(right_tree))
 
     def _astar_goal_distance(self, current, goal):
         if M.TermEqual(current, goal)() is M.truth_value:

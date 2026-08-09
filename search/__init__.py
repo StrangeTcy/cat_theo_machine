@@ -12,6 +12,9 @@ _SEARCH_MODULES = (
     "patricia",
     "engine",
     "runtime",
+    "compare_console",
+    "compare_nat",
+    "compare_trees",
     "compare",
     "api",
 )
