@@ -2044,7 +2044,7 @@ class BuildDerivation(M.Edge):
                 _debug("apply-action: concrete theorem conclusion already known")
                 return current
             _debug("apply-action: concrete theorem conclusion added")
-            return NormalizeKnowledge(Knowledge(M.Pair(conclusion, facts))(), registry)()
+            return Knowledge(M.Pair(conclusion, facts))()
 
         bindings_pair = self._match_premises(rule, RulePremises(rule)(), facts, self.bindings)
         bindings_flag = M.Head(bindings_pair)()
