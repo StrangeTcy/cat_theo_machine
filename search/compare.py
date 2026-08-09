@@ -762,6 +762,16 @@ class CompareSearchModes(M.Edge):
             worker_pid_text,
         )
 
+    def _partial_worker_attempt_is_resume_ready(self, attempt, performance):
+        if M.IdentityCompare(SearchAttemptStatus(attempt)(), SearchSuccessLabel)() is M.false_value:
+            return M.false_value
+        reason_text = self._performance_reason_text(performance)
+        if reason_text == "success-plan-found":
+            return M.truth_value
+        if reason_text == "running-derivation":
+            return M.truth_value
+        return M.false_value
+
     def _load_search_worker_snapshot(self, mode, heuristic, result_path):
         from ..main import _runtime_namespace
         from ..persistence import SnapshotCodec
@@ -1048,14 +1058,15 @@ class CompareSearchModes(M.Edge):
                     )
                 else:
                     if self._loaded_worker_attempt_is_final(attempt) is M.false_value:
-                        attempt, performance = self._worker_failure_from_partial_attempt(
-                            heuristic,
-                            attempt,
-                            performance,
-                            elapsed_seconds,
-                            str(process.pid),
-                            str(exit_code),
-                        )
+                        if self._partial_worker_attempt_is_resume_ready(attempt, performance) is M.false_value:
+                            attempt, performance = self._worker_failure_from_partial_attempt(
+                                heuristic,
+                                attempt,
+                                performance,
+                                elapsed_seconds,
+                                str(process.pid),
+                                str(exit_code),
+                            )
                     else:
                         if exit_code == 2:
                             if M.IdentityCompare(SearchAttemptStatus(attempt)(), SearchTimedOutLabel)() is M.false_value:
