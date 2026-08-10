@@ -459,7 +459,6 @@ class Search(M.Edge):
         self.rule_order_mode = HeuristicRuleOrder(self.heuristic)()
         self._theorem_rule_cache = theorem_rule_cache
         self._theorem_applicable_rule_cache = M.EmptyList
-        self._theorem_applicable_rule_entries_cache = M.EmptyList
         self._rewrite_rules = rewrite_rules
         self._rewrite_rules_goal = goal
         self._goal_head_index = M.EmptyList
@@ -799,18 +798,15 @@ class Search(M.Edge):
         )
         shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)()
         if shard_disabled is M.truth_value:
-            applicable_filter = FilterApplicableRules(
+            applicable = FilterApplicableRulesWithIndex(
                 self.rules,
                 current,
-                self.registry,
                 knowledge_head_index,
+                self.registry,
                 knowledge_exact_trie,
-            )
-            applicable = applicable_filter()
-            self._theorem_applicable_rule_entries_cache = applicable_filter.prepared_entries
+            )()
         else:
             applicable = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
-            self._theorem_applicable_rule_entries_cache = M.EmptyList
         after_filter = time.time()
         self._stage_debug(
             "applicable theorem rules after filtering in "
@@ -842,15 +838,7 @@ class Search(M.Edge):
         )
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
             self._stage_debug("ordering theorem rules")
-            ordered = GoalHeadRuleOrdererWithIndex(
-                applicable_rules,
-                current,
-                goal,
-                knowledge_head_index,
-                knowledge_exact_trie,
-                self.registry,
-                self._theorem_applicable_rule_entries_cache,
-            )()
+            ordered = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
         else:
             ordered = applicable_rules
         after_orderer = time.time()
@@ -938,15 +926,7 @@ class Search(M.Edge):
             + M.GMPRepText(M.CountRep(applicable_rules)())()
         )
         if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
-            ordered_rules = GoalHeadRuleOrdererWithIndex(
-                applicable_rules,
-                current,
-                goal,
-                knowledge_head_index,
-                knowledge_exact_trie,
-                self.registry,
-                self._theorem_applicable_rule_entries_cache,
-            )()
+            ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
         else:
             ordered_rules = applicable_rules
         after_order = time.time()
