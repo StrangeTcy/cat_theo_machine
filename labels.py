@@ -823,6 +823,18 @@ class APLongSideLabel(ConstructorLabel):
     pass
 
 
+class APAlphaAngleValueLabel(ConstructorLabel):
+    pass
+
+
+class APBetaAngleValueLabel(ConstructorLabel):
+    pass
+
+
+class APGammaAngleValueLabel(ConstructorLabel):
+    pass
+
+
 class GoalDemandRewriteStrategyLabel(ConstructorLabel):
     pass
 
@@ -898,6 +910,9 @@ APSideOffsetLabel = APSideOffsetLabel()
 APShortSideLabel = APShortSideLabel()
 APMiddleSideLabel = APMiddleSideLabel()
 APLongSideLabel = APLongSideLabel()
+APAlphaAngleValueLabel = APAlphaAngleValueLabel()
+APBetaAngleValueLabel = APBetaAngleValueLabel()
+APGammaAngleValueLabel = APGammaAngleValueLabel()
 GoalDemandRewriteStrategyLabel = GoalDemandRewriteStrategyLabel()
 PremiseUnlockRewriteStrategyLabel = PremiseUnlockRewriteStrategyLabel()
 PlannerProblemLabel = PlannerProblemLabel()
@@ -1197,6 +1212,9 @@ def sync_from_namespace(namespace):
         "APShortSideLabel",
         "APMiddleSideLabel",
         "APLongSideLabel",
+        "APAlphaAngleValueLabel",
+        "APBetaAngleValueLabel",
+        "APGammaAngleValueLabel",
         "GoalDemandRewriteStrategyLabel",
         "PremiseUnlockRewriteStrategyLabel",
         "PlannerProblemLabel",
