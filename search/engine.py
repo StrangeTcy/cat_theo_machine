@@ -14,6 +14,7 @@ from .. import schemata as Smod
 from .. import gmprep as Gmpmod
 from .. import trees as Tmod
 from .. import logic as Logicmod
+from .. import rewrite_strategies as RewriteStrategymod
 from ..heuristics import *
 from ..labels import *
 from ..proof import *
@@ -461,6 +462,7 @@ class Search(M.Edge):
         self._theorem_applicable_rule_cache = M.EmptyList
         self._rewrite_rules = rewrite_rules
         self._rewrite_rules_goal = goal
+        self._rewrite_strategy = RewriteStrategymod.GoalDemandRewriteStrategy()()
         self._goal_head_index = M.EmptyList
         self._goal_head_index_ready = M.false_value
 
@@ -472,7 +474,12 @@ class Search(M.Edge):
         if self._goal_head_index_ready is M.false_value:
             self._goal_head_index = HeuristicGoalHeadNeighborhood(self._rewrite_rules_goal, self.rules, self.registry)()
             self._goal_head_index_ready = M.truth_value
-        return HeuristicGoalHeadAllowsSubterm(self._goal_head_index, subterm, self.registry)()
+        return RewriteStrategymod.RewriteStrategyAllowsSubterm(
+            self._rewrite_strategy,
+            self._goal_head_index,
+            subterm,
+            self.registry,
+        )()
 
     def _rewrite_rule_bundle(self, rules, index_tree, wildcards):
         return SearchRewriteRuleBundle(rules, index_tree, wildcards)()

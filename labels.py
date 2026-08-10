@@ -795,6 +795,42 @@ class ApplyLabel(ConstructorLabel):
     pass
 
 
+class DefinesLabel(ConstructorLabel):
+    pass
+
+
+class PerimeterThirdLabel(ConstructorLabel):
+    pass
+
+
+class APSideRadicandLabel(ConstructorLabel):
+    pass
+
+
+class APSideOffsetLabel(ConstructorLabel):
+    pass
+
+
+class APShortSideLabel(ConstructorLabel):
+    pass
+
+
+class APMiddleSideLabel(ConstructorLabel):
+    pass
+
+
+class APLongSideLabel(ConstructorLabel):
+    pass
+
+
+class GoalDemandRewriteStrategyLabel(ConstructorLabel):
+    pass
+
+
+class PremiseUnlockRewriteStrategyLabel(ConstructorLabel):
+    pass
+
+
 class PlannerProblemLabel(ConstructorLabel):
     pass
 
@@ -855,6 +891,15 @@ OppositeLabel = OppositeLabel()
 AngleMeasureLabel = AngleMeasureLabel()
 APNameLabel = APNameLabel()
 ApplyLabel = ApplyLabel()
+DefinesLabel = DefinesLabel()
+PerimeterThirdLabel = PerimeterThirdLabel()
+APSideRadicandLabel = APSideRadicandLabel()
+APSideOffsetLabel = APSideOffsetLabel()
+APShortSideLabel = APShortSideLabel()
+APMiddleSideLabel = APMiddleSideLabel()
+APLongSideLabel = APLongSideLabel()
+GoalDemandRewriteStrategyLabel = GoalDemandRewriteStrategyLabel()
+PremiseUnlockRewriteStrategyLabel = PremiseUnlockRewriteStrategyLabel()
 PlannerProblemLabel = PlannerProblemLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()
@@ -1145,6 +1190,15 @@ def sync_from_namespace(namespace):
         "AngleMeasureLabel",
         "APNameLabel",
         "ApplyLabel",
+        "DefinesLabel",
+        "PerimeterThirdLabel",
+        "APSideRadicandLabel",
+        "APSideOffsetLabel",
+        "APShortSideLabel",
+        "APMiddleSideLabel",
+        "APLongSideLabel",
+        "GoalDemandRewriteStrategyLabel",
+        "PremiseUnlockRewriteStrategyLabel",
         "PlannerProblemLabel",
         "PlannerObligationLabel",
         "PlannerDependencyLabel",

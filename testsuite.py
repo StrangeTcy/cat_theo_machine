@@ -15,6 +15,7 @@ from . import labels as Lmod
 from . import matching as Xmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
+from . import rewrite_strategies as RSmod
 from . import search as Smod
 from . import theorem_rules as Theoremmod
 from . import trees as Tmod
@@ -104,6 +105,32 @@ class IsNonZero(M.Edge):
         else:
             self.result = M.truth_value
         super().__init__(inputs=M.Pair(x, M.EmptyList), results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class RewriteStrategyGoalDemandAllowsGoalHeadTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        a = M.Char("a")
+        b = M.Char("b")
+        goal = M.Pair(M.ExprAddLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+        goal_head_index = Hmod.HeuristicGoalHeadNeighborhood(goal, M.EmptyList, registry)()
+        strategy = RSmod.GoalDemandRewriteStrategy()()
+        allowed = RSmod.RewriteStrategyAllowsSubterm(strategy, goal_head_index, goal, registry)()
+        denied = RSmod.RewriteStrategyAllowsSubterm(
+            strategy,
+            goal_head_index,
+            M.Pair(M.SqrtLabel, M.Pair(a, M.EmptyList)),
+            registry,
+        )()
+        self.result = M.truth_value
+        if M.IdentityCompare(allowed, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(denied, M.false_value)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
         return self.result
@@ -4470,6 +4497,13 @@ def install_default_tests(graph):
         "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
         empty,
         CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "rewrite_strategy_goal_demand_allows_goal_head_test",
+        empty,
+        RewriteStrategyGoalDemandAllowsGoalHeadTest(graph),
         M.truth_value,
     )
     _register_test(
