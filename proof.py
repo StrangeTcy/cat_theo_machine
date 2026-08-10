@@ -2917,11 +2917,20 @@ class Prove(M.Edge):
         return M.Head(comparison_pair)()
 
     def _recommended_search(self, comparison, registry):
-        from .search import SearchAdviceText, SearchComparisonBestHeuristic, SearchComparisonHasUniqueBestAttempt
+        from .search import SearchAdviceText, SearchComparisonBestAttempt, SearchComparisonBestHeuristic, SearchComparisonHasUniqueBestAttempt
 
-        if SearchComparisonHasUniqueBestAttempt(comparison)() is M.truth_value:
-            recommended_heuristic = SearchComparisonBestHeuristic(comparison)()
-            _debug("prove-stage: " + SearchAdviceText(comparison)())
+        best_attempt = SearchComparisonBestAttempt(comparison)()
+        if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
+            if SearchAttemptSucceeded(best_attempt)() is M.truth_value:
+                if SearchComparisonHasUniqueBestAttempt(comparison)() is M.truth_value:
+                    recommended_heuristic = SearchComparisonBestHeuristic(comparison)()
+                    _debug("prove-stage: " + SearchAdviceText(comparison)())
+                else:
+                    recommended_heuristic = self.heuristic
+                    _debug("prove-stage: comparison did not distinguish a unique best mode; keeping current heuristic")
+            else:
+                recommended_heuristic = self.heuristic
+                _debug("prove-stage: comparison found no successful mode; keeping current heuristic")
         else:
             recommended_heuristic = self.heuristic
             _debug("prove-stage: comparison did not distinguish a unique best mode; keeping current heuristic")
@@ -3355,6 +3364,9 @@ class Prove(M.Edge):
                         _debug("prove-stage: storing search attempt in context.search_history")
                         self.graph.add_search_attempt(best_attempt)
                         return comparison_derivation
+                else:
+                    _debug("prove-stage: comparison found no successful mode; not rerunning the same search immediately")
+                    return M.EmptyList
 
             recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
             search_pair = M.Head(recommended_search)()

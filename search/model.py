@@ -3160,7 +3160,12 @@ class SearchAdviceText(M.Edge):
     def __init__(self, comparison):
         heuristic = SearchComparisonBestHeuristic(comparison)()
         mode = HeuristicSearchMode(heuristic)()
-        if SearchComparisonHasUniqueBestAttempt(comparison)() is M.truth_value:
+        best_attempt = SearchComparisonBestAttempt(comparison)()
+        if M.Compare(best_attempt, M.EmptyList)() is M.truth_value:
+            self.result = "Comparison did not distinguish a unique best mode, so we are not claiming one."
+        elif M.IdentityCompare(SearchAttemptSucceeded(best_attempt)(), M.truth_value)() is M.false_value:
+            self.result = "Comparison found no successful mode, so we are not claiming one."
+        elif SearchComparisonHasUniqueBestAttempt(comparison)() is M.truth_value:
             self.result = "We've found evidence " + SearchModeText(mode)() + " is best for this, so we'll use it again."
         else:
             self.result = "Comparison did not distinguish a unique best mode, so we are not claiming one."
