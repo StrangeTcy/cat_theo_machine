@@ -78,6 +78,13 @@ from .labels import (
     AngleMeasureLabel,
     APNameLabel,
     ApplyLabel,
+    DefinesLabel,
+    PerimeterThirdLabel,
+    APSideRadicandLabel,
+    APSideOffsetLabel,
+    APShortSideLabel,
+    APMiddleSideLabel,
+    APLongSideLabel,
     PerimeterLabel,
     ArccosLabel,
     TaoProblem11PerimeterValueLabel,
@@ -504,6 +511,18 @@ class PrettyTerm(Edge):
             return "APName"
         if IdentityCompare(label, ApplyLabel)() is truth_value:
             return "Apply"
+        if IdentityCompare(label, PerimeterThirdLabel)() is truth_value:
+            return "PerimeterThird"
+        if IdentityCompare(label, APSideRadicandLabel)() is truth_value:
+            return "APSideRadicand"
+        if IdentityCompare(label, APSideOffsetLabel)() is truth_value:
+            return "APSideOffset"
+        if IdentityCompare(label, APShortSideLabel)() is truth_value:
+            return "APShortSide"
+        if IdentityCompare(label, APMiddleSideLabel)() is truth_value:
+            return "APMiddleSide"
+        if IdentityCompare(label, APLongSideLabel)() is truth_value:
+            return "APLongSide"
         if IdentityCompare(label, PerimeterLabel)() is truth_value:
             return "Perimeter"
         if IdentityCompare(label, ArccosLabel)() is truth_value:
@@ -735,6 +754,8 @@ class PrettyTerm(Edge):
             return "cos(" + self._show(Head(tail)()) + ")"
         if IdentityCompare(head, ArccosLabel)() is truth_value:
             return "arccos(" + self._show(Head(tail)()) + ")"
+        if IdentityCompare(head, DefinesLabel)() is truth_value:
+            return "Defines(" + self._show(Head(tail)()) + ", " + self._show(Head(Tail(tail)())()) + ")"
         if IdentityCompare(head, LimitLabel)() is truth_value:
             return "Limit(" + self._show(Head(tail)()) + ", " + self._show(Head(Tail(tail)())()) + ")"
         if IdentityCompare(head, ExprAddLabel)() is truth_value:

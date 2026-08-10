@@ -136,6 +136,20 @@ class RewriteStrategyGoalDemandAllowsGoalHeadTest(M.Edge):
         return self.result
 
 
+class PrettyPrintNamedTaoQuantityTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        term = M.Pair(Lmod.APShortSideLabel, M.Pair(Lmod.TaoProblem11TriangleLabel, M.EmptyList))
+        text = M.PrettyTerm(term, registry)()
+        self.result = M.truth_value
+        if text != "APShortSide(Tao Problem 1.1 triangle)":
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class _ComparisonPromptAbortGraph:
     def __init__(self):
         self._search_disable_console = M.false_value
@@ -4504,6 +4518,13 @@ def install_default_tests(graph):
         "rewrite_strategy_goal_demand_allows_goal_head_test",
         empty,
         RewriteStrategyGoalDemandAllowsGoalHeadTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "pretty_print_named_tao_quantity_test",
+        empty,
+        PrettyPrintNamedTaoQuantityTest(graph),
         M.truth_value,
     )
     _register_test(
