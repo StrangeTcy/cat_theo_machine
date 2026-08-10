@@ -2113,6 +2113,92 @@ class SnapshotPreservesMachineEdgeStructureTest(M.Edge):
         return self.result
 
 
+class SnapshotPreservesConstructorLabelsAndCharsTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        term = M.Pair(
+            Lmod.SideOfLabel,
+            M.Pair(
+                M.Pair(Lmod.SegmentLabel, M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))),
+                M.Pair(M.Char("t"), empty),
+            ),
+        )
+        snapshot = SnapshotCodec(namespace).capture_objects({"term": term})
+        loaded = SnapshotCodec(namespace).load_snapshot(snapshot).roots["term"]
+        self.result = RawTermEqual(loaded, term, M.AllConstructors)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SearchWorkerResumeStateRestoresSavedPlanTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import _search_worker_checkpoint, _search_worker_mode_heuristic, _search_worker_resume_state
+
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        registry = _registry(runtime.graph)
+        heuristic = _search_worker_mode_heuristic(runtime, "dfs", registry)
+        start = M.Pair(
+            Lmod.SideOfLabel,
+            M.Pair(
+                M.Pair(Lmod.SegmentLabel, M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))),
+                M.Pair(M.Char("t"), empty),
+            ),
+        )
+        goal = M.Pair(Lmod.LengthLabel, M.Pair(M.Char("v"), empty))
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            _search_worker_checkpoint(
+                runtime,
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+                Smod.SearchSuccessLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                1234,
+                "running-derivation",
+                plan,
+            )
+            resume_plan, resume_search_cost, elapsed_milliseconds, stage_text = _search_worker_resume_state(
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+            )
+            self.result = M.truth_value
+            if stage_text != "running-derivation":
+                self.result = M.false_value
+            elif M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+                self.result = M.false_value
+            elif RawTermEqual(resume_plan, plan, registry)() is M.false_value:
+                self.result = M.false_value
+            elif RawTermEqual(resume_search_cost, search_cost, registry)() is M.false_value:
+                self.result = M.false_value
+            elif elapsed_milliseconds != 1234:
+                self.result = M.false_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
     def __init__(self, _graph):
         empty = M.EmptyList
@@ -4321,6 +4407,20 @@ def install_default_tests(graph):
         "snapshot_preserves_machine_edge_structure_test",
         empty,
         SnapshotPreservesMachineEdgeStructureTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "snapshot_preserves_constructor_labels_and_chars_test",
+        empty,
+        SnapshotPreservesConstructorLabelsAndCharsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_worker_resume_state_restores_saved_plan_test",
+        empty,
+        SearchWorkerResumeStateRestoresSavedPlanTest(graph),
         M.truth_value,
     )
     _register_test(

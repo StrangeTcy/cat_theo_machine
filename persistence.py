@@ -949,6 +949,17 @@ class SnapshotCodec:
 
     def _record_for(self, obj):
         oid = self.obj_to_id[obj]
+        namespace_name = None
+        for name in self.namespace:
+            if self.namespace[name] is obj:
+                namespace_name = name
+                break
+        if namespace_name is not None:
+            return {
+                "id": oid,
+                "name": namespace_name,
+            }
+
         if self._is_pair_object(obj):
             return {
                 "id": oid,
@@ -961,6 +972,17 @@ class SnapshotCodec:
                 "id": oid,
                 "inputs": self._encode_field(obj.inputs),
                 "results": self._encode_field(obj.results),
+                "value": self._encode_field(obj.value),
+            }
+
+        try:
+            symbol = obj.symbol
+        except Exception:
+            symbol = None
+        if symbol is not None:
+            return {
+                "id": oid,
+                "symbol": symbol,
                 "value": self._encode_field(obj.value),
             }
 
@@ -1055,31 +1077,27 @@ class SnapshotCodec:
                     existing_symbol = self.namespace[symbol_name]
                     id_to_obj[record_id] = existing_symbol
                     continue
+            if "name" in record:
+                symbol_name = record["name"]
+                if symbol_name not in self.namespace:
+                    raise RuntimeError("Snapshot namespace missing symbol: " + symbol_name)
+                id_to_obj[record_id] = self.namespace[symbol_name]
+                continue
             if "head" in record:
-                cls = self.namespace["Pair"]
+                obj = self.namespace["Pair"](EmptyList, EmptyList)
             elif "inputs" in record:
-                cls = self.namespace["Edge"]
+                obj = self.namespace["Edge"](EmptyList, EmptyList)
             elif "symbol" in record:
-                cls = self.namespace["Char"]
+                obj = self.namespace["Char"](record["symbol"])
             else:
-                cls = self.namespace["Atom"]
-
-            obj = cls.__new__(cls)
-            Atom.__init__(obj)
-
-            if "head" in record:
-                obj.head = Atom()
-                obj.tail = Atom()
-            elif "inputs" in record:
-                obj.inputs = EmptyList
-                obj.results = EmptyList
-            elif "symbol" in record:
-                obj.symbol = ""
+                obj = self.namespace["Atom"]()
 
             id_to_obj[record["id"]] = obj
 
         for record in snapshot["objects"]:
             obj = id_to_obj[record["id"]]
+            if "name" in record:
+                continue
             if "head" in record:
                 obj.head.value = self._decode_field(record["head"], id_to_obj)
                 obj.tail.value = self._decode_field(record["tail"], id_to_obj)
