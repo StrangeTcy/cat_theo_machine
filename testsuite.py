@@ -22,7 +22,7 @@ from . import trees as Tmod
 from .graph import Test
 from .persistence import SnapshotCodec
 from .proof import BuildDerivation, CollectRules, Rule, RulePremises, RuleReplacement
-from .runtime import boot_from_snapshot, make_fresh_runtime, save_runtime
+from .runtime import boot_from_packs, boot_from_snapshot, make_fresh_runtime, save_runtime
 from .search import (
     SearchComparisonJobOutcome,
     SearchComparisonJobStates,
@@ -143,6 +143,32 @@ class PrettyPrintNamedTaoQuantityTest(M.Edge):
         text = M.PrettyTerm(term, registry)()
         self.result = M.truth_value
         if text != "APShortSide(Tao Problem 1.1 triangle)":
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class TaoGeometryExampleGoalsUseNamedQuantitiesTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        registry = _registry(runtime.graph)
+        examples = packs.by_name("geometry").examples
+        side_goal = examples["tao_problem_1_1_triangle"][1]
+        angle_goal = examples["tao_angle_alpha"][1]
+        positive_goal = examples["tao_positive_alpha_side"][1]
+        cosine_goal = examples["tao_cosine_alpha_identity"][1]
+        self.result = M.truth_value
+        if M.PrettyTerm(side_goal, registry)() != "Length(Segment(v, w), APShortSide(Tao Problem 1.1 triangle))":
+            self.result = M.false_value
+        elif M.PrettyTerm(angle_goal, registry)() != "AngleMeasure(Angle(v, u, w), APAlphaAngleValue(Tao Problem 1.1 triangle))":
+            self.result = M.false_value
+        elif M.PrettyTerm(positive_goal, registry)() != "Positive(APShortSide(Tao Problem 1.1 triangle))":
+            self.result = M.false_value
+        elif M.PrettyTerm(cosine_goal, registry)().find("APShortSide(Tao Problem 1.1 triangle)") == -1:
             self.result = M.false_value
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
@@ -4525,6 +4551,13 @@ def install_default_tests(graph):
         "pretty_print_named_tao_quantity_test",
         empty,
         PrettyPrintNamedTaoQuantityTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "tao_geometry_example_goals_use_named_quantities_test",
+        empty,
+        TaoGeometryExampleGoalsUseNamedQuantitiesTest(graph),
         M.truth_value,
     )
     _register_test(
