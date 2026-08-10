@@ -1,61 +1,0 @@
-Reading pack order-sign...
-Reading pack order-sign, done in 0.35s
-Reading pack sqrt-real...
-Reading pack sqrt-real, done in 0.52s
-Reading pack algebra-distribute...
-Reading pack algebra-distribute, done in 0.12s
-Reading pack real-closure...
-Reading pack real-closure, done in 0.25s
-Reading pack arithmetic...
-Reading pack arithmetic, done in 0.22s
-Reading pack geometry-ontology...
-Reading pack geometry-ontology, it's taken 1.1s already and countingReading pack geometry-ontology, done in 1.38s
-Reading pack trigonometry...
-Reading pack trigonometry, done in 0.46s
-Reading pack geometry...
-Reading pack geometry, it's taken 1.1s already and countingReading pack geometry, it's taken 2.1s already and countingReading pack geometry, done in 2.73s
-DEBUG: trying SearchDFS now
-DEBUG: SearchDFS: start=Knowledge([CommonDifference(SideLengths(Tao Problem 1.1 triangle)), SideLengths(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), Triangle(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Angles(Tao Problem 1.1 triangle)])
-DEBUG: SearchDFS: goal=Solved(Triangle(Tao Problem 1.1 triangle))
-DEBUG: SearchDFS: max-steps=68
-DEBUG: SearchDFS: 5s elapsed
-DEBUG: SearchDFS: 10s elapsed
-DEBUG: SearchDFS: 15s elapsed
-DEBUG: SearchDFS: 20s elapsed
-DEBUG: SearchDFS: 25s elapsed
-DEBUG: SearchDFS: 30s elapsed
-DEBUG: SearchDFS: 35s elapsed
-DEBUG: SearchDFS: 40s elapsed
-DEBUG: SearchDFS: 45s elapsed
-DEBUG: SearchDFS: 50s elapsed
-DEBUG: SearchDFS: 55s elapsed
-DEBUG: SearchDFS: 60s elapsed
-DEBUG: SearchDFS: 65s elapsed
-DEBUG: SearchDFS: 70s elapsed
-DEBUG: SearchDFS: 75s elapsed
-DEBUG: SearchDFS: 80s elapsed
-DEBUG: SearchDFS: 85s elapsed
-DEBUG: SearchDFS: 90s elapsed
-DEBUG: SearchDFS: 95s elapsed
-DEBUG: SearchDFS: 100s elapsed
-DEBUG: SearchDFS: 105s elapsed
-DEBUG: SearchDFS: 110s elapsed
-DEBUG: SearchDFS: 115s elapsed
-DEBUG: SearchDFS: 120s elapsed
-DEBUG: SearchDFS: 125s elapsed
-DEBUG: SearchDFS: 130s elapsed
-DEBUG: SearchDFS: 135s elapsed
-DEBUG: SearchDFS: 140s elapsed
-DEBUG: SearchDFS: 145s elapsed
-DEBUG: search-dfs-stage: current=Knowledge([CommonDifference(SideLengths(Tao Problem 1.1 triangle)), SideLengths(Tao Problem 1.1 triangle), Area(Tao Problem 1.1 triangle), Triangle(Tao Problem 1.1 triangle), ArithmeticProgression(SideLengths(Tao Problem 1.1 triangle)), Angles(Tao Problem 1.1 triangle)]) prefix=[] goal=Solved(Triangle(Tao Problem 1.1 triangle)) steps=68
-DEBUG: search-dfs: timeout requested
-DEBUG: SearchDFS: aborted
-DEBUG: SearchDFS: aborted after 159 seconds
-mode: SearchDFS
-elapsed-seconds: 160.37126779556274
-status: FAILURE
-expanded: 0
-generated: 0
-frontier-peak: 0
-found-depth: 0
-plan: EMPTY

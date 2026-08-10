@@ -1,18 +1,0 @@
-SEARCHDFS-TEST: pid 1439
-SEARCHDFS-TEST: boot start
-Reading pack order-sign...
-Reading pack order-sign, done in 0.24s
-Reading pack sqrt-real...
-Reading pack sqrt-real, done in 0.29s
-Reading pack algebra-distribute...
-Reading pack algebra-distribute, done in 0.07s
-Reading pack real-closure...
-Reading pack real-closure, done in 0.16s
-Reading pack arithmetic...
-Reading pack arithmetic, done in 0.33s
-Reading pack geometry-ontology...
-Reading pack geometry-ontology, done in 1.02s
-Reading pack trigonometry...
-Reading pack trigonometry, done in 0.29s
-Reading pack geometry...
-Reading pack geometry, done in 3.54s
