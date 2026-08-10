@@ -2221,6 +2221,59 @@ class SearchWorkerResumeStateRestoresSavedPlanTest(M.Edge):
         return self.result
 
 
+class SearchWorkerSnapshotBootWithRuntimeNamespaceTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import _runtime_namespace, _search_worker_checkpoint, _search_worker_mode_heuristic
+
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        registry = _registry(runtime.graph)
+        heuristic = _search_worker_mode_heuristic(runtime, "dfs", registry)
+        start = M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))
+        goal = M.Pair(M.Char("g"), empty)
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            _search_worker_checkpoint(
+                runtime,
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+                Smod.SearchSuccessLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                1234,
+                "running-derivation",
+                plan,
+            )
+            loaded_runtime = boot_from_snapshot(snapshot_path, _runtime_namespace())
+            loaded_attempts = loaded_runtime.graph.search_history
+            self.result = M.truth_value
+            if M.IdentityCompare(loaded_attempts, empty)() is M.truth_value:
+                self.result = M.false_value
+            else:
+                loaded_attempt = M.Head(loaded_attempts)()
+                if RawTermEqual(Pmod.SearchAttemptStart(loaded_attempt)(), start, _registry(loaded_runtime.graph))() is M.false_value:
+                    self.result = M.false_value
+                elif RawTermEqual(Pmod.SearchAttemptGoal(loaded_attempt)(), goal, _registry(loaded_runtime.graph))() is M.false_value:
+                    self.result = M.false_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
     def __init__(self, _graph):
         empty = M.EmptyList
@@ -4450,6 +4503,13 @@ def install_default_tests(graph):
         "search_worker_resume_state_restores_saved_plan_test",
         empty,
         SearchWorkerResumeStateRestoresSavedPlanTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_worker_snapshot_boot_with_runtime_namespace_test",
+        empty,
+        SearchWorkerSnapshotBootWithRuntimeNamespaceTest(graph),
         M.truth_value,
     )
     _register_test(

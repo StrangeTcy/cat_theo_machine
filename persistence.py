@@ -1267,6 +1267,8 @@ __all__ = [
 
 
 def _runtime_namespace_for_restore():
+    if "NatValueIndex" not in vars(M):
+        M.NatValueIndex = M.Tree(M.EmptyList)
     namespace = dict(vars(M))
     namespace.update(vars(Hmod))
     namespace.update(vars(Lmod))
@@ -1291,6 +1293,7 @@ def _runtime_namespace_for_restore():
         "SuccLabel",
         "PairLabel",
         "TreeLabel",
+        "NatValueIndex",
         "DIGIT_0",
         "DIGIT_1",
         "DIGIT_2",

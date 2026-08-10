@@ -302,6 +302,8 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
 
 
 def _runtime_namespace():
+    if "NatValueIndex" not in vars(M):
+        M.NatValueIndex = M.Tree(M.EmptyList)
     namespace = dict(vars(M))
     namespace.update(vars(Hmod))
     namespace.update(vars(Lmod))
@@ -326,6 +328,7 @@ def _runtime_namespace():
         "SuccLabel",
         "PairLabel",
         "TreeLabel",
+        "NatValueIndex",
     )
     for name in stable_machine_names:
         if name in vars(M):
