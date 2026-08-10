@@ -2134,6 +2134,28 @@ class SnapshotPreservesConstructorLabelsAndCharsTest(M.Edge):
         return self.result
 
 
+class SnapshotPreservesRuleEdgeInputsTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        namespace.update(vars(Pmod))
+        pattern = M.Pair(M.Char("x"), empty)
+        replacement = M.Pair(M.Char("y"), empty)
+        rule = Rule(pattern, replacement)
+        snapshot = SnapshotCodec(namespace).capture_objects({"rule": rule})
+        loaded = SnapshotCodec(namespace).load_snapshot(snapshot).roots["rule"]
+        self.result = M.truth_value
+        if M.Compare(RulePremises(loaded)(), M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.PrettyTerm(RuleReplacement(loaded)(), M.AllConstructors)() != M.PrettyTerm(replacement, M.AllConstructors)():
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchWorkerResumeStateRestoresSavedPlanTest(M.Edge):
     def __init__(self, _graph):
         from .main import _search_worker_checkpoint, _search_worker_mode_heuristic, _search_worker_resume_state
@@ -4414,6 +4436,13 @@ def install_default_tests(graph):
         "snapshot_preserves_constructor_labels_and_chars_test",
         empty,
         SnapshotPreservesConstructorLabelsAndCharsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "snapshot_preserves_rule_edge_inputs_test",
+        empty,
+        SnapshotPreservesRuleEdgeInputsTest(graph),
         M.truth_value,
     )
     _register_test(

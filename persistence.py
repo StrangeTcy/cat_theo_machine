@@ -417,7 +417,12 @@ class SnapshotCodec:
         try:
             marker = obj._snapshot_edge_marker
         except Exception:
-            return self._ns_get("false_value")
+            try:
+                obj.inputs
+                obj.results
+            except Exception:
+                return self._ns_get("false_value")
+            return self._ns_get("truth_value")
         return self._ns_get("IdentityCompare")(marker, obj)() is self._ns_get("truth_value")
 
     def _captured_object_id(self, target):
