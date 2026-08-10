@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import pickle
 import queue
+import shutil
 import sys
 import tempfile
 
@@ -469,6 +471,41 @@ class _CompareSearchModesProbe(M.CompareSearchModes):
         self._comparison_generation = self.signature
         self._comparison_packet_token = M.Zero
         self.result = M.EmptyList
+
+
+class CompareSearchModesFindsReusableWorkerSnapshotDirTest(M.Edge):
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = _registry(graph)
+        start = M.Pair(M.Char("s"), empty)
+        goal = M.Pair(M.Char("g"), empty)
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        rules = M.Pair(Rule(start, goal), empty)
+        probe = _CompareSearchModesProbe(graph, start, goal, rules, heuristic, registry)
+        temp_dir = tempfile.mkdtemp(prefix="hyge-compare-resume-")
+        try:
+            matching_dir = os.path.join(temp_dir, "snapshots", "search_compare", "run-1")
+            mismatching_dir = os.path.join(temp_dir, "snapshots", "search_compare", "run-2")
+            os.makedirs(matching_dir, exist_ok=True)
+            os.makedirs(mismatching_dir, exist_ok=True)
+            remaining_modes = probe._mode_chain()
+            while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
+                mode = M.Head(remaining_modes)()
+                token = probe._mode_worker_token(mode)
+                probe._write_search_worker_manifest(os.path.join(matching_dir, token + ".snapshot.json"))
+                with open(probe._search_worker_result_manifest_path(os.path.join(mismatching_dir, token + ".snapshot.json")), "w", encoding="utf-8") as handle:
+                    json.dump({"start_text": "wrong", "goal_text": "wrong"}, handle)
+                remaining_modes = M.Tail(remaining_modes)()
+            found = probe._existing_search_compare_result_dir(temp_dir)
+            self.result = M.truth_value
+            if found != matching_dir:
+                self.result = M.false_value
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
 
 
 class _TheoremCursorProbe(Smod.SearchBFS):
@@ -4405,6 +4442,13 @@ def install_default_tests(graph):
         "compare_search_modes_worker_entry_tracks_packet_job_test",
         empty,
         CompareSearchModesWorkerEntryTracksPacketJobTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
+        empty,
+        CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
         M.truth_value,
     )
     _register_test(

@@ -294,6 +294,55 @@ class _ComparisonSubprocessMixin:
         _debug("SearchComparison: resumed worker exited mode=" + mode_text + " exit_code=" + str(exit_code))
         return attempt, performances_by_mode
 
+    def _search_compare_result_root(self, package_root):
+        return os.path.join(package_root, "snapshots", "search_compare")
+
+    def _existing_search_compare_result_dir(self, package_root):
+        result_root = self._search_compare_result_root(package_root)
+        if os.path.isdir(result_root) is False:
+            return ""
+        expected_start_text = _debug_term(self.start, self.registry)
+        expected_goal_text = _debug_term(self.goal, self.registry)
+        run_names = os.listdir(result_root)
+        run_names.sort(reverse=True)
+        run_index = 0
+        while run_index != len(run_names):
+            run_name = run_names[run_index]
+            run_index = run_index + 1
+            run_dir = os.path.join(result_root, run_name)
+            if os.path.isdir(run_dir) is False:
+                continue
+            matches = M.truth_value
+            remaining_modes = self._mode_chain()
+            while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
+                mode = M.Head(remaining_modes)()
+                mode_token = self._mode_worker_token(mode)
+                result_path = os.path.join(run_dir, mode_token + ".snapshot.json")
+                manifest_path = self._search_worker_result_manifest_path(result_path)
+                if os.path.exists(manifest_path) is False:
+                    matches = M.false_value
+                    remaining_modes = M.EmptyList
+                    continue
+                try:
+                    with open(manifest_path, "r", encoding="utf-8") as handle:
+                        manifest = json.load(handle)
+                except Exception:
+                    matches = M.false_value
+                    remaining_modes = M.EmptyList
+                    continue
+                if manifest.get("start_text", "") != expected_start_text:
+                    matches = M.false_value
+                    remaining_modes = M.EmptyList
+                    continue
+                if manifest.get("goal_text", "") != expected_goal_text:
+                    matches = M.false_value
+                    remaining_modes = M.EmptyList
+                    continue
+                remaining_modes = M.Tail(remaining_modes)()
+            if matches is M.truth_value:
+                return run_dir
+        return ""
+
     def _finalize_independent_mode_attempts(self, attempts, best_attempt, performances):
         comparison_outcome = SearchFailureLabel
         if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
@@ -321,8 +370,12 @@ class _ComparisonSubprocessMixin:
         package_root = os.path.dirname(os.path.dirname(__file__))
         package_name = os.path.basename(package_root)
         import_root = os.path.dirname(package_root)
-        result_dir = os.path.join(package_root, "snapshots", "search_compare", "run-" + str(int(time.time() * 1000.0)))
-        os.makedirs(result_dir, exist_ok=True)
+        result_dir = self._existing_search_compare_result_dir(package_root)
+        if result_dir == "":
+            result_dir = os.path.join(self._search_compare_result_root(package_root), "run-" + str(int(time.time() * 1000.0)))
+            os.makedirs(result_dir, exist_ok=True)
+        else:
+            _debug("SearchComparison: reusing saved worker snapshots from " + os.path.relpath(result_dir, package_root))
         timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "6000")
         timeout_units = 6000
         try:
@@ -449,6 +502,10 @@ class _ComparisonSubprocessMixin:
                             load_ok = M.truth_value
                         except Exception as second_error:
                             _debug("SearchComparison: load failed mode=" + mode_text + " error=" + str(second_error))
+                if load_ok is M.truth_value:
+                    stored_elapsed_seconds = self._performance_elapsed_seconds(performance)
+                    if stored_elapsed_seconds > 0.0:
+                        elapsed_seconds = stored_elapsed_seconds
                 if load_ok is M.false_value:
                     attempt, performance = self._fabricate_worker_failure_attempt(
                         heuristic,

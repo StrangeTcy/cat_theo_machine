@@ -860,6 +860,27 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
             plan = resume_plan
             outcome = M.SearchSuccessLabel
             elapsed_milliseconds = base_elapsed_milliseconds
+            if resume_derivation_only is False:
+                if defer_derivation:
+                    if resume_stage_text == "success-plan-found":
+                        P._debug(mode_name + ": saving checkpoint stage=running-derivation")
+                        _search_worker_checkpoint(
+                            runtime,
+                            result_path,
+                            start,
+                            goal,
+                            worker_heuristic,
+                            M.SearchSuccessLabel,
+                            M.EmptyList,
+                            proof_cost,
+                            search_cost,
+                            elapsed_milliseconds,
+                            "running-derivation",
+                            plan,
+                        )
+                        P._debug(mode_name + ": checkpoint saved stage=running-derivation")
+                    P._debug(mode_name + ": awaiting approval before derivation replay")
+                    return 4
         derivation_lock_path = _search_worker_acquire_derivation_lock(result_path, timeout_seconds)
         P._debug(mode_name + ": acquired derivation lock")
         try:
