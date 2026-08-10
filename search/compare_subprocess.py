@@ -226,6 +226,7 @@ class _ComparisonSubprocessMixin:
         mode = HeuristicSearchMode(SearchAttemptHeuristic(best_attempt)())()
         mode_text = SearchModeText(mode)()
         result_path = result_path_by_mode[mode_text]
+        package_root = os.path.dirname(os.path.dirname(__file__))
         display_path = result_path
         try:
             display_path = os.path.relpath(result_path, package_root)
@@ -242,7 +243,6 @@ class _ComparisonSubprocessMixin:
         if answer not in ("y", "yes", "continue", "proceed"):
             _debug("SearchComparison: derivation replay declined for " + mode_text)
             return best_attempt, performances_by_mode
-        package_root = os.path.dirname(os.path.dirname(__file__))
         package_name = os.path.basename(package_root)
         import_root = os.path.dirname(package_root)
         mode_token = self._mode_worker_token(mode)
@@ -268,6 +268,28 @@ class _ComparisonSubprocessMixin:
         thread.join(timeout=1.0)
         heuristic = SearchAttemptHeuristic(best_attempt)()
         attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
+        reason_text = self._performance_reason_text(performance)
+        if exit_code != 0:
+            if M.IdentityCompare(SearchAttemptStatus(attempt)(), SearchSuccessLabel)() is M.truth_value:
+                if M.Compare(SearchAttemptDerivation(attempt)(), M.EmptyList)() is M.false_value:
+                    if reason_text != "success-derivation-built":
+                        attempt, performance = self._fabricate_worker_failure_attempt(
+                            heuristic,
+                            SearchFailureLabel,
+                            self._performance_elapsed_seconds(performance),
+                            "abnormal-exit-after-stale-success exit=" + str(exit_code),
+                            SearchAttemptSearchCost(attempt)(),
+                            str(process.pid),
+                        )
+                else:
+                    attempt, performance = self._fabricate_worker_failure_attempt(
+                        heuristic,
+                        SearchFailureLabel,
+                        self._performance_elapsed_seconds(performance),
+                        "abnormal-exit-during-derivation exit=" + str(exit_code),
+                        SearchAttemptSearchCost(attempt)(),
+                        str(process.pid),
+                    )
         performances_by_mode[mode_text] = performance
         _debug("SearchComparison: resumed worker exited mode=" + mode_text + " exit_code=" + str(exit_code))
         return attempt, performances_by_mode
@@ -513,6 +535,7 @@ class _ComparisonSubprocessMixin:
             remaining_modes = M.Tail(remaining_modes)()
         attempts = self._reverse(attempts_rev, M.EmptyList)
         performances = self._reverse(performances_rev, M.EmptyList)
+        best_attempt = self._best_attempt_in_attempts(attempts, M.EmptyList)
         return self._finalize_independent_mode_attempts(attempts, best_attempt, performances)
 
     def _compare_all_modes_independent(self, paused_job=M.EmptyList):
