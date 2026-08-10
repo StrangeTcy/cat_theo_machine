@@ -18,6 +18,7 @@ _SEARCH_MODULES = (
     "compare_state",
     "compare_attempts",
     "compare_rules",
+    "compare_semantics",
     "compare",
     "api",
 )
