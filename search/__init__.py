@@ -20,6 +20,8 @@ _SEARCH_MODULES = (
     "compare_rules",
     "compare_semantics",
     "compare_subprocess",
+    "compare_packets",
+    "compare_executors",
     "compare",
     "api",
 )
