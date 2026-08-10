@@ -88,6 +88,8 @@ from .labels import (
     APAlphaAngleValueLabel,
     APBetaAngleValueLabel,
     APGammaAngleValueLabel,
+    APAreaIdentityLabel,
+    CosineRuleRelatesLabel,
     PerimeterLabel,
     ArccosLabel,
     TaoProblem11PerimeterValueLabel,
@@ -532,6 +534,10 @@ class PrettyTerm(Edge):
             return "APBetaAngleValue"
         if IdentityCompare(label, APGammaAngleValueLabel)() is truth_value:
             return "APGammaAngleValue"
+        if IdentityCompare(label, APAreaIdentityLabel)() is truth_value:
+            return "APAreaIdentity"
+        if IdentityCompare(label, CosineRuleRelatesLabel)() is truth_value:
+            return "CosineRuleRelates"
         if IdentityCompare(label, PerimeterLabel)() is truth_value:
             return "Perimeter"
         if IdentityCompare(label, ArccosLabel)() is truth_value:

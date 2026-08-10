@@ -160,6 +160,7 @@ class TaoGeometryExampleGoalsUseNamedQuantitiesTest(M.Edge):
         side_goal = examples["tao_problem_1_1_triangle"][1]
         angle_goal = examples["tao_angle_alpha"][1]
         positive_goal = examples["tao_positive_alpha_side"][1]
+        area_goal = examples["tao_area_identity"][1]
         cosine_goal = examples["tao_cosine_alpha_identity"][1]
         self.result = M.truth_value
         if M.PrettyTerm(side_goal, registry)() != "Length(Segment(v, w), APShortSide(Tao Problem 1.1 triangle))":
@@ -168,7 +169,9 @@ class TaoGeometryExampleGoalsUseNamedQuantitiesTest(M.Edge):
             self.result = M.false_value
         elif M.PrettyTerm(positive_goal, registry)() != "Positive(APShortSide(Tao Problem 1.1 triangle))":
             self.result = M.false_value
-        elif M.PrettyTerm(cosine_goal, registry)().find("APShortSide(Tao Problem 1.1 triangle)") == -1:
+        elif M.PrettyTerm(area_goal, registry)() != "APAreaIdentity(Tao Problem 1.1 triangle)":
+            self.result = M.false_value
+        elif M.PrettyTerm(cosine_goal, registry)() != "CosineRuleRelates(APShortSide(Tao Problem 1.1 triangle), APMiddleSide(Tao Problem 1.1 triangle), APLongSide(Tao Problem 1.1 triangle), APAlphaAngleValue(Tao Problem 1.1 triangle))":
             self.result = M.false_value
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
