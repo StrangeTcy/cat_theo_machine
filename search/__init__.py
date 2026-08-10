@@ -15,6 +15,9 @@ _SEARCH_MODULES = (
     "compare_console",
     "compare_nat",
     "compare_trees",
+    "compare_state",
+    "compare_attempts",
+    "compare_rules",
     "compare",
     "api",
 )
