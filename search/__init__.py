@@ -19,6 +19,7 @@ _SEARCH_MODULES = (
     "compare_attempts",
     "compare_rules",
     "compare_semantics",
+    "compare_subprocess",
     "compare",
     "api",
 )
