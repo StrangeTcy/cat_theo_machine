@@ -885,6 +885,117 @@ class _ComparisonExecutorMixin:
         _debug("search-compare: pause requeued packets and signalled worker shutdown")
         return next_states
 
+    def _comparison_total_queued_packets(self, states):
+        if M.IdentityCompare(states, M.EmptyList)() is M.truth_value:
+            return M.Zero
+        rest = self._comparison_total_queued_packets(M.Tail(states)())
+        return self._nat_add_local(self._comparison_state_pending_packets_count(M.Head(states)()), rest)
+
+    def _comparison_best_finished_attempt_cost(self, states):
+        best_attempt = self._best_finished_attempt(states, M.EmptyList)
+        if M.Compare(best_attempt, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return self._attempt_total_value(best_attempt)
+
+    def _comparison_live_process_budget(self, states, workers):
+        active_workers = self._worker_entry_count(workers)
+        soft_target = self._nat_add_local(self._comparison_machine_parallelism, self._count_states(states))
+        if M.NatLess(soft_target, active_workers, self.registry)() is M.truth_value:
+            return active_workers
+        return soft_target
+
+    def _comparison_live_process_budget_text(self, states, workers):
+        active_workers = self._worker_entry_count(workers)
+        queued_packets = self._comparison_total_queued_packets(states)
+        soft_target = self._nat_add_local(self._comparison_machine_parallelism, self._count_states(states))
+        live_budget = self._comparison_live_process_budget(states, workers)
+        return (
+            "total-active-processes="
+            + self._nat_text(active_workers)
+            + " total-queued-packets="
+            + self._nat_text(queued_packets)
+            + " machine-target="
+            + self._nat_text(self._comparison_machine_parallelism)
+            + " soft-target="
+            + self._nat_text(soft_target)
+            + " live-budget="
+            + self._nat_text(live_budget)
+        )
+
+    def _comparison_total_completed_packets(self, states):
+        if M.IdentityCompare(states, M.EmptyList)() is M.truth_value:
+            return M.Zero
+        rest = self._comparison_total_completed_packets(M.Tail(states)())
+        return self._nat_add_local(self._comparison_state_completed_packets(M.Head(states)()), rest)
+
+    def _comparison_eta_text(self, states, workers):
+        if self._comparison_prompt_guard is None:
+            return "rough eta unknown"
+        elapsed_seconds = time.time() - self._comparison_prompt_guard.started_at
+        if elapsed_seconds <= 0.0:
+            return "rough eta unknown"
+        completed_packets = self._comparison_total_completed_packets(states)
+        completed_text = self._nat_text(completed_packets)
+        try:
+            completed_count = float(completed_text)
+        except Exception:
+            return "rough eta unknown"
+        if completed_count <= 0.0:
+            active_workers = self._worker_entry_count(workers)
+            queued_packets = self._comparison_total_queued_packets(states)
+            live_budget = self._nat_add_local(active_workers, queued_packets)
+            oldest_entry = self._oldest_active_worker_entry(workers)
+            if M.Compare(oldest_entry, M.EmptyList)() is M.false_value:
+                oldest_mode = self._worker_entry_mode(oldest_entry)
+                oldest_state = self._comparison_packet_state(oldest_mode, self._worker_entry_packet_job(oldest_entry))
+                return (
+                    "rough eta unavailable before first completion; oldest live packet "
+                    + SearchModeText(oldest_mode)()
+                    + " has run "
+                    + self._seconds_text(self._worker_entry_elapsed_seconds(oldest_entry))
+                    + " stage="
+                    + self._state_stage_text(oldest_state)
+                    + " "
+                    + self._state_next_action_text(oldest_state)
+                    + "; overall elapsed "
+                    + self._seconds_text(elapsed_seconds)
+                    + " with "
+                    + self._nat_text(active_workers)
+                    + " active processes, "
+                    + self._nat_text(queued_packets)
+                    + " queued packets, live-budget "
+                    + self._nat_text(live_budget)
+                )
+            return (
+                "rough eta unavailable before first completion; elapsed "
+                + self._seconds_text(elapsed_seconds)
+                + " with "
+                + self._nat_text(active_workers)
+                + " active processes, "
+                + self._nat_text(queued_packets)
+                + " queued packets, live-budget "
+                + self._nat_text(live_budget)
+            )
+        outstanding_packets = self._comparison_live_process_budget(states, workers)
+        outstanding_text = self._nat_text(outstanding_packets)
+        try:
+            outstanding_count = float(outstanding_text)
+        except Exception:
+            return "rough eta unknown"
+        packet_rate = completed_count / elapsed_seconds
+        if packet_rate <= 0.0:
+            return "rough eta unknown"
+        eta_seconds = outstanding_count / packet_rate
+        rate_per_minute = packet_rate * 60.0
+        return (
+            "rough eta "
+            + self._seconds_text(eta_seconds)
+            + " at about "
+            + "{:.1f}".format(rate_per_minute)
+            + " completed-packets/min if the backlog does not widen much"
+        )
+
+
 
 def sync_from_namespace(namespace):
     for name in (

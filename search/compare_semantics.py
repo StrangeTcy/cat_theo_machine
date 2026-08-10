@@ -725,6 +725,82 @@ class _ComparisonSemanticMixin:
         return self._first_goal_signal_in_packets(mode, M.Tail(packets)())
 
 
+    def _job_focus_text(self, job):
+        frontier = SearchJobFrontier(job)()
+        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+            return "empty"
+        current = SearchStateCurrent(M.Head(frontier)())()
+        return _debug_term(current, self.registry)
+
+    def _job_focus_state(self, job):
+        frontier = SearchJobFrontier(job)()
+        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Head(frontier)()
+
+    def _plan_prefix_text(self, plan_rev):
+        if M.IdentityCompare(plan_rev, M.EmptyList)() is M.truth_value:
+            return "[]"
+        return PrettyPlanChain(self._reverse(plan_rev, M.EmptyList), self.registry)()
+
+    def _state_prefix_text(self, state):
+        return self._plan_prefix_text(SearchStatePlan(state)())
+
+    def _state_prefix_length(self, state):
+        count_pair = M.Count(SearchStatePlan(state)(), self.registry)()
+        count = M.Head(count_pair)()
+        self.registry = M.Head(M.Tail(count_pair)())()
+        return count
+
+    def _job_prefix_text(self, job):
+        frontier = SearchJobFrontier(job)()
+        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+            return "[]"
+        return self._state_prefix_text(M.Head(frontier)())
+
+    def _job_progress_text(self, job):
+        return (
+            "frontier="
+            + self._nat_text(SearchJobFrontierSize(job)())
+            + " expanded="
+            + self._nat_text(SearchJobExpanded(job)())
+            + " generated="
+            + self._nat_text(SearchJobGenerated(job)())
+            + " peak="
+            + self._nat_text(SearchJobFrontierPeak(job)())
+            + " next="
+            + self._job_focus_text(job)
+            + " prefix="
+            + self._job_prefix_text(job)
+        )
+
+    def _state_scheduler_text(self, state):
+        job = self._comparison_state_job(state)
+        return (
+            SearchModeText(self._comparison_state_mode(state))()
+            + " phase="
+            + self._comparison_phase_text(state)
+            + " status="
+            + SearchStatusText(self._comparison_state_status(state))()
+            + " root="
+            + self._comparison_root_fast_path_result_text(state)
+            + " frontier="
+            + self._nat_text(SearchJobFrontierSize(job)())
+            + " expanded="
+            + self._nat_text(SearchJobExpanded(job)())
+            + " generated="
+            + self._nat_text(SearchJobGenerated(job)())
+            + " peak="
+            + self._nat_text(SearchJobFrontierPeak(job)())
+            + " mode-active-processes="
+            + self._nat_text(self._comparison_state_active_packets(state))
+            + " mode-queued-packets="
+            + self._nat_text(self._comparison_state_pending_packets_count(state))
+            + " mode-completed-packets="
+            + self._nat_text(self._comparison_state_completed_packets(state))
+        )
+
+
 
 def sync_from_namespace(namespace):
     for name in (

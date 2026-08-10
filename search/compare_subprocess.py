@@ -518,6 +518,122 @@ class _ComparisonSubprocessMixin:
     def _compare_all_modes_independent(self, paused_job=M.EmptyList):
         return self._compare_all_modes_independent_parallel(paused_job)
 
+    def _mode_chain(self):
+        return M.Pair(
+            DFSLabel,
+            M.Pair(
+                BFSLabel,
+                M.Pair(AStarLabel, M.Pair(BeamLabel, M.Pair(RewriteDFSLabel, M.EmptyList))),
+            ),
+        )
+
+    def _mode_chain_text(self, modes):
+        if M.IdentityCompare(modes, M.EmptyList)() is M.truth_value:
+            return ""
+        here = SearchModeText(M.Head(modes)())()
+        rest = self._mode_chain_text(M.Tail(modes)())
+        if rest == "":
+            return here
+        return here + ", " + rest
+
+    def _selected_modes_text(self, modes):
+        return self._mode_chain_text(modes)
+
+    def _fresh_independent_mode_runtime(self):
+        from .runtime import _SearchWorkerRuntime
+
+        runtime = _SearchWorkerRuntime(M.FromContextGetConstructors(self.graph)(), M.EmptyList)
+        runtime._search_disable_console = M.truth_value
+        runtime._search_disable_progress_ticker = M.truth_value
+        runtime._search_stop_help_shown = M.truth_value
+        runtime._search_compare_enable_shared_root_fast_paths = M.false_value
+        runtime._search_compare_ignore_root_fast_paths = M.truth_value
+        runtime._search_compare_root_start = self.start
+        runtime._search_compare_root_goal = self.goal
+        runtime._search_compare_discovery_mode = M.false_value
+        runtime._last_search_comparison_outcome = SearchSuccessLabel
+        return runtime
+
+    def _independent_mode_attempt(self, mode):
+        from .api import Search as SearchAPI
+
+        heuristic = self._heuristic_for_mode(mode)
+        mode_text = SearchModeText(mode)()
+        _debug("SearchComparison: " + mode_text + " started")
+        started_at = time.time()
+        try:
+            mode_runtime = self._fresh_independent_mode_runtime()
+            search_pair = SearchAPI(
+                mode_runtime,
+                self.start,
+                self.goal,
+                self.rules,
+                heuristic,
+                mode_runtime.constructor_registry,
+            )()
+            plan = M.Head(search_pair)()
+            search_cost = M.Head(M.Tail(search_pair)())()
+            status = SearchCostOutcome(search_cost)()
+
+            derivation = M.EmptyList
+            proof_cost = self._zero_proof_cost()
+            if M.IdentityCompare(status, SearchSuccessLabel)() is M.truth_value:
+                derivation_pair = BuildDerivation(self.start, plan, mode_runtime.constructor_registry)()
+                derivation = M.Head(derivation_pair)()
+                mode_runtime._replace_context(constructors=M.Head(M.Tail(derivation_pair)())())
+                if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                    proof_cost_pair = DerivationCost(derivation, mode_runtime.constructor_registry)()
+                    proof_cost = M.Head(proof_cost_pair)()
+                    mode_runtime._replace_context(constructors=M.Head(M.Tail(proof_cost_pair)())())
+
+            total_cost_pair = BuildTotalCost(proof_cost, search_cost, heuristic, mode_runtime.constructor_registry)()
+            total_cost = M.Head(total_cost_pair)()
+            mode_runtime._replace_context(constructors=M.Head(M.Tail(total_cost_pair)())())
+
+            attempt = SearchAttempt(self.start, self.goal, heuristic, status, derivation, proof_cost, search_cost, total_cost)()
+
+            elapsed_seconds = time.time() - started_at
+            _debug(
+                "SearchComparison: "
+                + mode_text
+                + " finished status="
+                + SearchStatusText(status)()
+                + " elapsed="
+                + "{:.3f}".format(elapsed_seconds)
+                + " expanded="
+                + self._nat_text(SearchCostExpanded(search_cost)())
+                + " generated="
+                + self._nat_text(SearchCostGenerated(search_cost)())
+                + " frontier_peak="
+                + self._nat_text(SearchCostFrontierPeak(search_cost)())
+            )
+            return attempt, elapsed_seconds
+        except Exception as error:
+            import traceback
+
+            elapsed_seconds = time.time() - started_at
+            _debug(
+                "SearchComparison: "
+                + mode_text
+                + " finished status=error elapsed="
+                + "{:.3f}".format(elapsed_seconds)
+                + " error="
+                + str(error)
+            )
+            traceback.print_exc()
+            failed_attempt = SearchAttempt(
+                self.start,
+                self.goal,
+                heuristic,
+                SearchFailureLabel,
+                M.EmptyList,
+                self._zero_proof_cost(),
+                self._zero_search_cost(SearchFailureLabel),
+                M.EmptyList,
+            )()
+            return failed_attempt, elapsed_seconds
+
+
 
 def sync_from_namespace(namespace):
     for name in (

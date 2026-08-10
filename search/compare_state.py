@@ -424,6 +424,49 @@ class _ComparisonStateMixin:
         return self._comparison_all_finished(M.Tail(states)())
 
 
+    def _fresh_compare_job(self, mode):
+        heuristic = self._heuristic_for_mode(mode)
+        start_state = SearchState(self.start, M.EmptyList, M.EmptyList, self._comparison_rule_count)()
+        frontier = M.Pair(start_state, M.EmptyList)
+        return SearchJob(
+            self.start,
+            self.goal,
+            self.rules,
+            heuristic,
+            SearchRunningLabel,
+            frontier,
+            M.Zero,
+            M.Zero,
+            M.Zero,
+            M.EmptyList,
+            self._initial_compare_job_visited(mode),
+            M.EmptyList,
+            M.EmptyList,
+            M.one,
+        )()
+
+    def _comparison_success_job(self, state, result_plan):
+        job = self._comparison_state_job(state)
+        return SearchJob(
+            SearchJobStart(job)(),
+            SearchJobGoal(job)(),
+            SearchJobRules(job)(),
+            SearchJobHeuristic(job)(),
+            SearchSuccessLabel,
+            M.EmptyList,
+            M.Zero,
+            M.Zero,
+            M.Zero,
+            result_plan,
+            SearchJobVisited(job)(),
+            SearchJobTheoremRuleCache(job)(),
+            SearchJobRewriteRules(job)(),
+            M.Zero,
+        )()
+
+
+
+
 
 def sync_from_namespace(namespace):
     for name in (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .. import machine as M
+from ..heuristics import *
 from ..proof import *
 from ..proof import _debug
 from .model import *
@@ -275,9 +276,60 @@ class _ComparisonAttemptMixin:
         return self._succ_nat_local(rest)
 
 
+    def _comparison_has_usable_best_attempt(self, comparison):
+        if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.Compare(SearchComparisonBestAttempt(comparison)(), M.EmptyList)() is M.truth_value:
+            return M.false_value
+        return M.truth_value
+
+    def _comparison_should_rerun(self, comparison):
+        if self._comparison_has_usable_best_attempt(comparison) is M.truth_value:
+            return M.false_value
+        best_attempt = SearchComparisonBestAttempt(comparison)()
+        outcome = SearchComparisonOutcome(comparison)()
+        if M.Compare(outcome, M.EmptyList)() is M.truth_value:
+            if M.Compare(best_attempt, M.EmptyList)() is M.truth_value:
+                outcome = SearchFailureLabel
+            else:
+                outcome = SearchAttemptStatus(best_attempt)()
+        if M.OrAtom(
+            M.OrAtom(M.IdentityCompare(outcome, SearchPausedLabel)(), M.IdentityCompare(outcome, SearchTimedOutLabel)())(),
+            M.IdentityCompare(outcome, SearchAbortedByUserLabel)(),
+        )() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _beam_width(self, mode):
+        width = HeuristicBeamWidth(self.heuristic)()
+        if M.IdentityCompare(mode, BeamLabel)() is M.false_value:
+            return width
+        if M.NatEq(width, M.Zero, self.registry)() is M.truth_value:
+            return M.three
+        return width
+
+    def _heuristic_for_mode(self, mode):
+        return Heuristic(
+            mode,
+            HeuristicRuleOrder(self.heuristic)(),
+            self._beam_width(mode),
+            HeuristicAlpha(self.heuristic)(),
+            HeuristicBeta(self.heuristic)(),
+            HeuristicCanonicalStrength(self.heuristic)(),
+        )()
+
+    def _plan_from_derivation_steps(self, steps):
+        if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        step = M.Head(steps)()
+        action = StepAction(step, self.registry)()
+        return M.Pair(action, self._plan_from_derivation_steps(M.Tail(steps)()))
+
+
 
 def sync_from_namespace(namespace):
     for name in (
+        "BeamLabel",
         "SearchSuccessLabel",
         "SearchFailureLabel",
         "SearchRunningLabel",
