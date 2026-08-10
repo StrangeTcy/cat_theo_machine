@@ -207,7 +207,7 @@ class MergeBindings(Edge):
         found_flag = Head(found)()
         found_val = Tail(found)()
         if Compare(found_flag, truth_value)() is truth_value:
-            if IdentityCompare(found_val, val)() is truth_value:
+            if TermEqual(found_val, val)() is truth_value:
                 return self._merge(base, Tail(extra)())
             return Pair(false_value, EmptyList)
         new_base = Pair(b, base)

@@ -823,6 +823,10 @@ class APLongSideLabel(ConstructorLabel):
     pass
 
 
+class APAngleValueLabel(ConstructorLabel):
+    pass
+
+
 class APAlphaAngleValueLabel(ConstructorLabel):
     pass
 
@@ -918,6 +922,7 @@ APSideOffsetLabel = APSideOffsetLabel()
 APShortSideLabel = APShortSideLabel()
 APMiddleSideLabel = APMiddleSideLabel()
 APLongSideLabel = APLongSideLabel()
+APAngleValueLabel = APAngleValueLabel()
 APAlphaAngleValueLabel = APAlphaAngleValueLabel()
 APBetaAngleValueLabel = APBetaAngleValueLabel()
 APGammaAngleValueLabel = APGammaAngleValueLabel()
@@ -1222,6 +1227,7 @@ def sync_from_namespace(namespace):
         "APShortSideLabel",
         "APMiddleSideLabel",
         "APLongSideLabel",
+        "APAngleValueLabel",
         "APAlphaAngleValueLabel",
         "APBetaAngleValueLabel",
         "APGammaAngleValueLabel",

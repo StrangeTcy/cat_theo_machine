@@ -158,22 +158,278 @@ class TaoGeometryExampleGoalsUseNamedQuantitiesTest(M.Edge):
         registry = _registry(runtime.graph)
         examples = packs.by_name("geometry").examples
         side_goal = examples["tao_problem_1_1_triangle"][1]
-        angle_goal = examples["tao_angle_alpha"][1]
+        angle_goal = examples["tao_angle_identity"][1]
         positive_goal = examples["tao_positive_alpha_side"][1]
         area_goal = examples["tao_area_identity"][1]
-        cosine_goal = examples["tao_cosine_alpha_identity"][1]
+        cosine_goal = examples["tao_cosine_angle_identity"][1]
         self.result = M.truth_value
         if M.PrettyTerm(side_goal, registry)() != "Length(Segment(v, w), APShortSide(Tao Problem 1.1 triangle))":
             self.result = M.false_value
-        elif M.PrettyTerm(angle_goal, registry)() != "AngleMeasure(Angle(v, u, w), APAlphaAngleValue(Tao Problem 1.1 triangle))":
+        elif M.PrettyTerm(angle_goal, registry)() != "AngleMeasure(Angle(v, u, w), APAngleValue(Tao Problem 1.1 triangle, Angle(v, u, w)))":
             self.result = M.false_value
         elif M.PrettyTerm(positive_goal, registry)() != "Positive(APShortSide(Tao Problem 1.1 triangle))":
             self.result = M.false_value
         elif M.PrettyTerm(area_goal, registry)() != "APAreaIdentity(Tao Problem 1.1 triangle)":
             self.result = M.false_value
-        elif M.PrettyTerm(cosine_goal, registry)() != "CosineRuleRelates(APShortSide(Tao Problem 1.1 triangle), APMiddleSide(Tao Problem 1.1 triangle), APLongSide(Tao Problem 1.1 triangle), APAlphaAngleValue(Tao Problem 1.1 triangle))":
+        elif M.PrettyTerm(cosine_goal, registry)() != "CosineRuleRelates(APShortSide(Tao Problem 1.1 triangle), APMiddleSide(Tao Problem 1.1 triangle), APLongSide(Tao Problem 1.1 triangle), APAngleValue(Tao Problem 1.1 triangle, Angle(v, u, w)))":
+            self.result = M.false_value
+        else:
+            checks = (
+                (examples["tao_problem_1_1_triangle"][0], M.one),
+                (examples["tao_angle_identity"][0], M.five),
+                (examples["tao_positive_alpha_side"][0], M.three),
+                (examples["tao_area_identity"][0], M.four),
+                (examples["tao_cosine_angle_identity"][0], M.nine),
+            )
+            index = 0
+            while index != len(checks):
+                start, expected_count = checks[index]
+                facts = Pmod.KnowledgeFacts(start)()
+                count_pair = M.Count(facts, registry)()
+                count = M.Head(count_pair)()
+                registry = M.Head(M.Tail(count_pair)())()
+                if M.NatEq(count, expected_count, registry)() is M.false_value:
+                    self.result = M.false_value
+                    index = len(checks)
+                else:
+                    index = index + 1
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class TaoCompactRulesUseShrunkPremiseSetsTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        registry = _registry(runtime.graph)
+        geometry = packs.by_name("geometry")
+        self.result = M.truth_value
+        checks = (
+            ("tao_define_perimeter_third", M.one),
+            ("tao_define_side_radicand", M.two),
+            ("tao_define_side_offset", M.one),
+            ("tao_define_short_side", M.one),
+            ("tao_define_middle_side", M.one),
+            ("tao_define_long_side", M.one),
+            ("tao_side_alpha_from_area_perimeter", M.one),
+            ("tao_side_beta_from_area_perimeter", M.one),
+            ("tao_side_gamma_from_area_perimeter", M.one),
+            ("tao_verify_area", M.four),
+        )
+        if "tao_angle_from_sides" not in geometry.rule_map:
+            self.result = M.false_value
+        elif "tao_angle_alpha_from_sides" in geometry.rule_map:
+            self.result = M.false_value
+        elif "tao_angle_beta_from_sides" in geometry.rule_map:
+            self.result = M.false_value
+        elif "tao_angle_gamma_from_sides" in geometry.rule_map:
+            self.result = M.false_value
+        if M.IdentityCompare(self.result, M.truth_value)() is M.false_value:
+            super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+            return
+        index = 0
+        while index != len(checks):
+            rule_id, expected_count = checks[index]
+            premises = Pmod.RulePremises(geometry.rule_map[rule_id])()
+            count_pair = M.Count(premises, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            if M.NatEq(count, expected_count, registry)() is M.false_value:
+                self.result = M.false_value
+                index = len(checks)
+            else:
+                index = index + 1
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MergeBindingsAcceptsStructurallyEqualValuesTest(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        var_name = M.Thingy()
+        var_x = M.Pair(M.VarTag, M.Pair(var_name, empty))
+        left_value = M.Pair(M.one, M.Pair(M.two, empty))
+        right_value = M.Pair(M.one, M.Pair(M.two, empty))
+        base_bindings = M.Pair(M.Pair(var_x, M.Pair(left_value, empty)), empty)
+        extra_bindings = M.Pair(M.Pair(var_x, M.Pair(right_value, empty)), empty)
+        merged = M.MergeBindings(base_bindings, extra_bindings)()
+        self.result = M.Head(merged)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(M.Edge):
+    def __init__(self, graph):
+        empty = M.EmptyList
+        var_name = M.Thingy()
+        var_x = M.Pair(M.VarTag, M.Pair(var_name, empty))
+        left_value = M.Pair(M.one, M.Pair(M.two, empty))
+        right_value = M.Pair(M.one, M.Pair(M.two, empty))
+        fact_one = M.Pair(M.four, M.Pair(left_value, empty))
+        fact_two = M.Pair(M.five, M.Pair(right_value, empty))
+        goal_fact = M.Pair(M.six, empty)
+        start = Pmod.Knowledge(M.Pair(fact_one, M.Pair(fact_two, empty)))()
+        rule = Pmod.MultiRule(
+            M.Pair(
+                M.Pair(M.four, M.Pair(var_x, empty)),
+                M.Pair(M.Pair(M.five, M.Pair(var_x, empty)), empty),
+            ),
+            goal_fact,
+        )
+        plan = M.Pair(M.TheoremAction(rule)(), empty)
+        derivation_pair = Pmod.BuildDerivation(start, plan, _registry(graph))()
+        derivation = M.Head(derivation_pair)()
+        registry = M.Head(M.Tail(derivation_pair)())()
+        end = Pmod.DerivationEnd(derivation, registry)()
+        facts = Pmod.KnowledgeFacts(end)()
+        self.result = M.false_value
+        while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+            if M.TermEqual(M.Head(facts)(), goal_fact)() is M.truth_value:
+                self.result = M.truth_value
+                facts = M.EmptyList
+            else:
+                facts = M.Tail(facts)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class TaoGenericCosineReplayCasesTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        geometry = packs.by_name("geometry")
+        ontology = packs.by_name("geometry-ontology")
+        trigonometry = packs.by_name("trigonometry")
+        registry = _registry(runtime.graph)
+        distinct_rule = ontology.rule_map["distinct_is_symmetric"]
+        side_alpha = M.Pair(Lmod.SegmentLabel, M.Pair(Lmod.TaoProblem11VertexVLabel, M.Pair(Lmod.TaoProblem11VertexWLabel, M.EmptyList)))
+        side_beta = M.Pair(Lmod.SegmentLabel, M.Pair(Lmod.TaoProblem11VertexWLabel, M.Pair(Lmod.TaoProblem11VertexULabel, M.EmptyList)))
+        side_gamma = M.Pair(Lmod.SegmentLabel, M.Pair(Lmod.TaoProblem11VertexULabel, M.Pair(Lmod.TaoProblem11VertexVLabel, M.EmptyList)))
+        cases = (
+            (
+                "tao_cosine_angle_identity",
+                M.nine,
+                (),
+            ),
+            (
+                "tao_cosine_beta_identity",
+                M.nine,
+                (M.Pair(side_alpha, M.Pair(side_beta, M.EmptyList)),),
+            ),
+            (
+                "tao_cosine_gamma_identity",
+                M.nine,
+                (
+                    M.Pair(side_alpha, M.Pair(side_gamma, M.EmptyList)),
+                    M.Pair(side_beta, M.Pair(side_gamma, M.EmptyList)),
+                ),
+            ),
+        )
+        self.result = M.truth_value
+        index = 0
+        while index != len(cases):
+            example_id, expected_count, symmetry_pairs = cases[index]
+            start, goal = geometry.examples[example_id]
+            facts = Pmod.KnowledgeFacts(start)()
+            count_pair = M.Count(facts, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            if M.NatEq(count, expected_count, registry)() is M.false_value:
+                self.result = M.false_value
+                index = len(cases)
+                continue
+            actions = ()
+            rule_ids = (
+                "tao_side_alpha_from_area_perimeter",
+                "tao_side_beta_from_area_perimeter",
+                "tao_side_gamma_from_area_perimeter",
+            )
+            rule_index = 0
+            while rule_index != len(rule_ids):
+                actions = actions + (M.TheoremAction(geometry.rule_map[rule_ids[rule_index]])(),)
+                rule_index = rule_index + 1
+            pair_index = 0
+            while pair_index != len(symmetry_pairs):
+                forward_fact = M.Pair(Lmod.DistinctLabel, symmetry_pairs[pair_index])
+                match = M.Match(Pmod.RulePattern(distinct_rule)(), forward_fact)()
+                if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.false_value:
+                    self.result = M.false_value
+                    pair_index = len(symmetry_pairs)
+                    index = len(cases)
+                    actions = ()
+                else:
+                    actions = actions + (M.TheoremAction(distinct_rule, M.Tail(match)())(),)
+                    pair_index = pair_index + 1
+            if M.IdentityCompare(self.result, M.truth_value)() is M.false_value:
+                continue
+            actions = actions + (M.TheoremAction(geometry.rule_map["tao_angle_from_sides"])(),)
+            actions = actions + (M.TheoremAction(trigonometry.rule_map["triangle_yields_generic_cosine_relation"])(),)
+            plan = M.EmptyList
+            action_index = len(actions)
+            while action_index != 0:
+                action_index = action_index - 1
+                plan = M.Pair(actions[action_index], plan)
+            derivation_pair = Pmod.BuildDerivation(start, plan, registry)()
+            derivation = M.Head(derivation_pair)()
+            registry = M.Head(M.Tail(derivation_pair)())()
+            end = Pmod.DerivationEnd(derivation, registry)()
+            facts = Pmod.KnowledgeFacts(end)()
+            found = M.false_value
+            while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+                if M.TermEqual(M.Head(facts)(), goal)() is M.truth_value:
+                    found = M.truth_value
+                    facts = M.EmptyList
+                else:
+                    facts = M.Tail(facts)()
+            if M.IdentityCompare(found, M.truth_value)() is M.false_value:
+                self.result = M.false_value
+                index = len(cases)
+            else:
+                index = index + 1
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class LegacyCosineRulesRemovedTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        trigonometry = packs.by_name("trigonometry")
+        geometry = packs.by_name("geometry")
+        self.result = M.truth_value
+        if self._pack_has_rule(trigonometry, "triangle_yields_cosine_rule_first_equation") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "triangle_yields_cosine_rule_second_equation") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "triangle_yields_cosine_rule_third_equation") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(geometry, "tao_expand_cosine_rule_relates") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "triangle_yields_generic_cosine_relation") is M.false_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "cosine_relation_expands_to_equation") is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def _pack_has_rule(self, pack, rule_id):
+        try:
+            pack.rule_map[rule_id]
+            return M.truth_value
+        except KeyError:
+            return M.false_value
 
     def __call__(self):
         return self.result
@@ -4561,6 +4817,41 @@ def install_default_tests(graph):
         "tao_geometry_example_goals_use_named_quantities_test",
         empty,
         TaoGeometryExampleGoalsUseNamedQuantitiesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "tao_compact_rules_use_shrunk_premise_sets_test",
+        empty,
+        TaoCompactRulesUseShrunkPremiseSetsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "merge_bindings_accepts_structurally_equal_values_test",
+        empty,
+        MergeBindingsAcceptsStructurallyEqualValuesTest(),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "build_derivation_replays_structurally_equal_repeated_bindings_test",
+        empty,
+        BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "tao_generic_cosine_replay_cases_test",
+        empty,
+        TaoGenericCosineReplayCasesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "legacy_cosine_rules_removed_test",
+        empty,
+        LegacyCosineRulesRemovedTest(graph),
         M.truth_value,
     )
     _register_test(

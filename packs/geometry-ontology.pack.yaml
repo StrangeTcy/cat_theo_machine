@@ -66,6 +66,20 @@ rules:
         args:
           - {var: shape}
 
+  - id: distinct_is_symmetric
+    pattern:
+      call:
+        head: {sym: DistinctLabel}
+        args:
+          - {var: left}
+          - {var: right}
+    replacement:
+      call:
+        head: {sym: DistinctLabel}
+        args:
+          - {var: right}
+          - {var: left}
+
   - id: triangle_has_first_edge
     pattern:
       call:
