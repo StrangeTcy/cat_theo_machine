@@ -351,6 +351,8 @@ class _ComparisonSubprocessMixin:
                 performance = M.Head(M.Tail(M.Tail(matched_pair)())())()
                 if self._loaded_worker_attempt_is_final(attempt) is M.truth_value:
                     reason_text = self._performance_reason_text(performance)
+                    if M.IdentityCompare(SearchAttemptStatus(attempt)(), SearchSuccessLabel)() is M.false_value:
+                        continue
                     rank = self._search_worker_resume_stage_rank(reason_text)
                     if rank < 3:
                         rank = 3
