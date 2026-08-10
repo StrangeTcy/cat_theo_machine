@@ -715,16 +715,29 @@ def _maybe_set_search_worker_memory_limit():
 def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
     P.SetDebugTrace(M.truth_value)()
     _maybe_set_search_worker_memory_limit()
-    runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
-    registry = M.FromContextGetConstructors(runtime.graph)()
+    resume_derivation_only = os.environ.get("HYGE_SEARCH_WORKER_RESUME_DERIVATION", "") == "1"
+    if resume_derivation_only:
+        runtime = boot_from_snapshot(result_path, _runtime_namespace())
+        registry = M.FromContextGetConstructors(runtime.graph)()
+        attempts = runtime.graph.search_history
+        if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
+            raise RuntimeError("search-worker resume missing-attempt")
+        attempt = M.Head(attempts)()
+        worker_heuristic = P.SearchAttemptHeuristic(attempt)()
+        start = P.SearchAttemptStart(attempt)()
+        goal = P.SearchAttemptGoal(attempt)()
+        label = "resumed derivation checkpoint"
+    else:
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        registry = M.FromContextGetConstructors(runtime.graph)()
+        worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
+        label, start, goal = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
+        start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
+        goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
     runtime.graph._search_disable_console = M.truth_value
     runtime.graph._search_disable_progress_ticker = M.false_value
     runtime.graph._search_stop_help_shown = M.truth_value
     runtime.graph._search_compare_enable_shared_root_fast_paths = M.false_value
-    worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
-    label, start, goal = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
-    start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
-    goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
     runtime.graph._search_compare_ignore_root_fast_paths = M.false_value
     runtime.graph._search_compare_root_start = M.EmptyList
     runtime.graph._search_compare_root_goal = M.EmptyList
