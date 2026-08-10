@@ -475,6 +475,8 @@ class _CompareSearchModesProbe(M.CompareSearchModes):
 
 class CompareSearchModesFindsReusableWorkerSnapshotDirTest(M.Edge):
     def __init__(self, graph):
+        from .main import _search_worker_checkpoint, _search_worker_mode_heuristic
+
         empty = M.EmptyList
         registry = _registry(graph)
         start = M.Pair(M.Char("s"), empty)
@@ -488,17 +490,36 @@ class CompareSearchModesFindsReusableWorkerSnapshotDirTest(M.Edge):
             mismatching_dir = os.path.join(temp_dir, "snapshots", "search_compare", "run-2")
             os.makedirs(matching_dir, exist_ok=True)
             os.makedirs(mismatching_dir, exist_ok=True)
-            remaining_modes = probe._mode_chain()
-            while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
-                mode = M.Head(remaining_modes)()
-                token = probe._mode_worker_token(mode)
-                probe._write_search_worker_manifest(os.path.join(matching_dir, token + ".snapshot.json"))
-                with open(probe._search_worker_result_manifest_path(os.path.join(mismatching_dir, token + ".snapshot.json")), "w", encoding="utf-8") as handle:
-                    json.dump({"start_text": "wrong", "goal_text": "wrong"}, handle)
-                remaining_modes = M.Tail(remaining_modes)()
-            found = probe._existing_search_compare_result_dir(temp_dir)
+            runtime = make_fresh_runtime()
+            worker_registry = _registry(runtime.graph)
+            worker_heuristic = _search_worker_mode_heuristic(runtime, "bfs", worker_registry)
+            proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+            plan = M.Pair(M.Atom(), empty)
+            search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, worker_registry)()
+            search_cost = M.Head(search_cost_pair)()
+            matching_path = os.path.join(matching_dir, "bfs.snapshot.json")
+            probe._write_search_worker_manifest(matching_path)
+            _search_worker_checkpoint(
+                runtime,
+                matching_path,
+                start,
+                goal,
+                worker_heuristic,
+                Smod.SearchSuccessLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                1234,
+                "running-derivation",
+                plan,
+            )
+            with open(probe._search_worker_result_manifest_path(os.path.join(mismatching_dir, "bfs.snapshot.json")), "w", encoding="utf-8") as handle:
+                json.dump({"start_text": "wrong", "goal_text": "wrong"}, handle)
+            found = probe._reusable_search_worker_result_paths(temp_dir)
             self.result = M.truth_value
-            if found != matching_dir:
+            if "SearchBFS" not in found:
+                self.result = M.false_value
+            elif found["SearchBFS"] != matching_path:
                 self.result = M.false_value
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)

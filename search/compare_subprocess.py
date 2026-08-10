@@ -297,51 +297,79 @@ class _ComparisonSubprocessMixin:
     def _search_compare_result_root(self, package_root):
         return os.path.join(package_root, "snapshots", "search_compare")
 
-    def _existing_search_compare_result_dir(self, package_root):
-        result_root = self._search_compare_result_root(package_root)
-        if os.path.isdir(result_root) is False:
-            return ""
+    def _search_worker_manifest_matches_current_problem(self, result_path):
+        manifest_path = self._search_worker_result_manifest_path(result_path)
+        if os.path.exists(manifest_path) is False:
+            return M.false_value
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as handle:
+                manifest = json.load(handle)
+        except Exception:
+            return M.false_value
         expected_start_text = _debug_term(self.start, self.registry)
         expected_goal_text = _debug_term(self.goal, self.registry)
+        if manifest.get("start_text", "") != expected_start_text:
+            return M.false_value
+        if manifest.get("goal_text", "") != expected_goal_text:
+            return M.false_value
+        return M.truth_value
+
+    def _search_worker_resume_stage_rank(self, reason_text):
+        if reason_text == "success-derivation-built":
+            return 3
+        if reason_text == "running-derivation":
+            return 2
+        if reason_text == "success-plan-found":
+            return 1
+        return 0
+
+    def _reusable_search_worker_result_paths(self, package_root):
+        result_root = self._search_compare_result_root(package_root)
+        reusable_paths = {}
+        if os.path.isdir(result_root) is False:
+            return reusable_paths
         run_names = os.listdir(result_root)
         run_names.sort(reverse=True)
-        run_index = 0
-        while run_index != len(run_names):
-            run_name = run_names[run_index]
-            run_index = run_index + 1
-            run_dir = os.path.join(result_root, run_name)
-            if os.path.isdir(run_dir) is False:
-                continue
-            matches = M.truth_value
-            remaining_modes = self._mode_chain()
-            while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
-                mode = M.Head(remaining_modes)()
-                mode_token = self._mode_worker_token(mode)
-                result_path = os.path.join(run_dir, mode_token + ".snapshot.json")
-                manifest_path = self._search_worker_result_manifest_path(result_path)
-                if os.path.exists(manifest_path) is False:
-                    matches = M.false_value
-                    remaining_modes = M.EmptyList
+        remaining_modes = self._mode_chain()
+        while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
+            mode = M.Head(remaining_modes)()
+            remaining_modes = M.Tail(remaining_modes)()
+            mode_text = SearchModeText(mode)()
+            heuristic = self._heuristic_for_mode(mode)
+            best_path = ""
+            best_rank = -1
+            run_index = 0
+            while run_index != len(run_names):
+                run_name = run_names[run_index]
+                run_index = run_index + 1
+                run_dir = os.path.join(result_root, run_name)
+                if os.path.isdir(run_dir) is False:
+                    continue
+                result_path = os.path.join(run_dir, self._mode_worker_token(mode) + ".snapshot.json")
+                if os.path.exists(result_path) is False:
+                    continue
+                if self._search_worker_manifest_matches_current_problem(result_path) is M.false_value:
                     continue
                 try:
-                    with open(manifest_path, "r", encoding="utf-8") as handle:
-                        manifest = json.load(handle)
+                    attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
                 except Exception:
-                    matches = M.false_value
-                    remaining_modes = M.EmptyList
                     continue
-                if manifest.get("start_text", "") != expected_start_text:
-                    matches = M.false_value
-                    remaining_modes = M.EmptyList
+                if self._loaded_worker_attempt_is_final(attempt) is M.truth_value:
+                    reason_text = self._performance_reason_text(performance)
+                    rank = self._search_worker_resume_stage_rank(reason_text)
+                    if rank < 3:
+                        rank = 3
+                elif self._partial_worker_attempt_is_resume_ready(attempt, performance) is M.truth_value:
+                    reason_text = self._performance_reason_text(performance)
+                    rank = self._search_worker_resume_stage_rank(reason_text)
+                else:
                     continue
-                if manifest.get("goal_text", "") != expected_goal_text:
-                    matches = M.false_value
-                    remaining_modes = M.EmptyList
-                    continue
-                remaining_modes = M.Tail(remaining_modes)()
-            if matches is M.truth_value:
-                return run_dir
-        return ""
+                if rank > best_rank:
+                    best_rank = rank
+                    best_path = result_path
+            if best_path != "":
+                reusable_paths[mode_text] = best_path
+        return reusable_paths
 
     def _finalize_independent_mode_attempts(self, attempts, best_attempt, performances):
         comparison_outcome = SearchFailureLabel
@@ -370,12 +398,9 @@ class _ComparisonSubprocessMixin:
         package_root = os.path.dirname(os.path.dirname(__file__))
         package_name = os.path.basename(package_root)
         import_root = os.path.dirname(package_root)
-        result_dir = self._existing_search_compare_result_dir(package_root)
-        if result_dir == "":
-            result_dir = os.path.join(self._search_compare_result_root(package_root), "run-" + str(int(time.time() * 1000.0)))
-            os.makedirs(result_dir, exist_ok=True)
-        else:
-            _debug("SearchComparison: reusing saved worker snapshots from " + os.path.relpath(result_dir, package_root))
+        result_dir = os.path.join(self._search_compare_result_root(package_root), "run-" + str(int(time.time() * 1000.0)))
+        os.makedirs(result_dir, exist_ok=True)
+        reusable_result_paths = self._reusable_search_worker_result_paths(package_root)
         timeout_text = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "6000")
         timeout_units = 6000
         try:
@@ -387,12 +412,38 @@ class _ComparisonSubprocessMixin:
         workers = ()
         reader_threads = ()
         result_path_by_mode = {}
+        attempts_by_mode = {}
+        performances_by_mode = {}
+        best_attempt = M.EmptyList
+        best_elapsed_seconds = None
         modes = self._mode_chain()
         remaining_modes = modes
         while M.IdentityCompare(remaining_modes, M.EmptyList)() is M.false_value:
             mode = M.Head(remaining_modes)()
+            mode_text = SearchModeText(mode)()
             mode_token = self._mode_worker_token(mode)
+            heuristic = self._heuristic_for_mode(mode)
             result_path = os.path.join(result_dir, mode_token + ".snapshot.json")
+            if mode_text in reusable_result_paths:
+                reusable_result_path = reusable_result_paths[mode_text]
+                try:
+                    attempt, performance = self._load_search_worker_snapshot(mode, heuristic, reusable_result_path)
+                    if M.OrAtom(
+                        self._loaded_worker_attempt_is_final(attempt),
+                        self._partial_worker_attempt_is_resume_ready(attempt, performance),
+                    )() is M.truth_value:
+                        attempts_by_mode[mode_text] = attempt
+                        performances_by_mode[mode_text] = performance
+                        result_path_by_mode[mode_text] = reusable_result_path
+                        elapsed_seconds = self._performance_elapsed_seconds(performance)
+                        if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
+                            best_attempt = attempt
+                            best_elapsed_seconds = elapsed_seconds
+                        _debug("SearchComparison: reusing saved worker snapshot mode=" + mode_text + " result=" + os.path.relpath(reusable_result_path, package_root) + " stage=" + self._performance_reason_text(performance))
+                        remaining_modes = M.Tail(remaining_modes)()
+                        continue
+                except Exception as error:
+                    _debug("SearchComparison: saved worker snapshot reuse failed mode=" + mode_text + " error=" + str(error))
             self._write_search_worker_manifest(result_path)
             cmd = [sys.executable, "-m", package_name + ".main", "search-worker", mode_token, result_path, timeout_text]
             child_env = os.environ.copy()
@@ -407,17 +458,13 @@ class _ComparisonSubprocessMixin:
                 cwd=import_root,
                 env=child_env,
             )
-            _debug("SearchComparison: launched search-worker mode=" + SearchModeText(mode)() + " pid=" + str(process.pid))
-            thread = threading.Thread(target=self._relay_search_worker_output, args=(SearchModeText(mode)(), process.stdout), daemon=True)
+            _debug("SearchComparison: launched search-worker mode=" + mode_text + " pid=" + str(process.pid))
+            thread = threading.Thread(target=self._relay_search_worker_output, args=(mode_text, process.stdout), daemon=True)
             thread.start()
-            workers = workers + ((mode, self._heuristic_for_mode(mode), process, result_path, time.time()),)
-            result_path_by_mode[SearchModeText(mode)()] = result_path
+            workers = workers + ((mode, heuristic, process, result_path, time.time()),)
+            result_path_by_mode[mode_text] = result_path
             reader_threads = reader_threads + (thread,)
             remaining_modes = M.Tail(remaining_modes)()
-        attempts_by_mode = {}
-        performances_by_mode = {}
-        best_attempt = M.EmptyList
-        best_elapsed_seconds = None
         worker_total = len(workers)
         finished_count = 0
         while finished_count != worker_total:
