@@ -297,22 +297,15 @@ class _ComparisonSubprocessMixin:
     def _search_compare_result_root(self, package_root):
         return os.path.join(package_root, "snapshots", "search_compare")
 
-    def _search_worker_manifest_matches_current_problem(self, result_path):
-        manifest_path = self._search_worker_result_manifest_path(result_path)
-        if os.path.exists(manifest_path) is False:
-            return M.false_value
-        try:
-            with open(manifest_path, "r", encoding="utf-8") as handle:
-                manifest = json.load(handle)
-        except Exception:
-            return M.false_value
-        expected_start_text = _debug_term(self.start, self.registry)
-        expected_goal_text = _debug_term(self.goal, self.registry)
-        if manifest.get("start_text", "") != expected_start_text:
-            return M.false_value
-        if manifest.get("goal_text", "") != expected_goal_text:
-            return M.false_value
-        return M.truth_value
+    def _search_worker_snapshot_matches_current_problem(self, mode, heuristic, result_path):
+        attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
+        if M.TermEqual(SearchAttemptStart(attempt)(), self.start)() is M.false_value:
+            return M.Pair(M.false_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
+        if M.TermEqual(SearchAttemptGoal(attempt)(), self.goal)() is M.false_value:
+            return M.Pair(M.false_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
+        if M.TermEqual(SearchAttemptHeuristic(attempt)(), heuristic)() is M.false_value:
+            return M.Pair(M.false_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
+        return M.Pair(M.truth_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
 
     def _search_worker_resume_stage_rank(self, reason_text):
         if reason_text == "success-derivation-built":
@@ -348,12 +341,14 @@ class _ComparisonSubprocessMixin:
                 result_path = os.path.join(run_dir, self._mode_worker_token(mode) + ".snapshot.json")
                 if os.path.exists(result_path) is False:
                     continue
-                if self._search_worker_manifest_matches_current_problem(result_path) is M.false_value:
-                    continue
                 try:
-                    attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
+                    matched_pair = self._search_worker_snapshot_matches_current_problem(mode, heuristic, result_path)
                 except Exception:
                     continue
+                if M.IdentityCompare(M.Head(matched_pair)(), M.truth_value)() is M.false_value:
+                    continue
+                attempt = M.Head(M.Tail(matched_pair)())()
+                performance = M.Head(M.Tail(M.Tail(matched_pair)())())()
                 if self._loaded_worker_attempt_is_final(attempt) is M.truth_value:
                     reason_text = self._performance_reason_text(performance)
                     rank = self._search_worker_resume_stage_rank(reason_text)
