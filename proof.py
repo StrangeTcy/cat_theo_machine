@@ -838,6 +838,8 @@ class FilterApplicableRules(M.Edge):
         self._knowledge_exact_trie = M.EmptyList
         self._knowledge_ground_fact_cache = M.EmptyList
         self._premise_bucket_cache = M.EmptyList
+        self._premise_ready_cache = M.EmptyList
+        self.prepared_entries = M.EmptyList
         if knowledge_head_index is None:
             if IsKnowledge(current)() is M.truth_value:
                 self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
@@ -966,6 +968,68 @@ class FilterApplicableRules(M.Edge):
             return M.truth_value
         return self._anchor_matches_facts(anchor, M.Tail(facts)())
 
+    def _premise_ready(self, premise):
+        premise_key = M.ExactKey(premise, self.registry)()
+        cache_cursor = self._premise_ready_cache
+        while M.IdentityCompare(cache_cursor, M.EmptyList)() is M.false_value:
+            cache_entry = M.Head(cache_cursor)()
+            if M.TermEqual(M.Head(cache_entry)(), premise_key)() is M.truth_value:
+                return M.Head(M.Tail(cache_entry)())()
+            cache_cursor = M.Tail(cache_cursor)()
+        current_facts = M.EmptyList
+        if IsKnowledge(self.current)() is M.truth_value:
+            current_facts = KnowledgeFacts(self.current)()
+        else:
+            current_facts = M.Pair(self.current, M.EmptyList)
+        result = M.false_value
+        if IsVarPattern(premise)() is M.truth_value:
+            if M.IdentityCompare(current_facts, M.EmptyList)() is M.false_value:
+                result = M.truth_value
+        elif ContainsVar(premise)() is M.false_value:
+            result = self._knowledge_has_ground_fact(premise)
+        else:
+            bucket = M.EmptyList
+            bucket_cursor = self._premise_bucket_cache
+            while M.IdentityCompare(bucket_cursor, M.EmptyList)() is M.false_value:
+                bucket_entry = M.Head(bucket_cursor)()
+                if M.TermEqual(M.Head(bucket_entry)(), premise_key)() is M.truth_value:
+                    bucket = M.Head(M.Tail(bucket_entry)())()
+                    bucket_cursor = M.EmptyList
+                else:
+                    bucket_cursor = M.Tail(bucket_cursor)()
+            if M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
+                bucket = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
+                self._premise_bucket_cache = M.Pair(
+                    M.Pair(premise_key, M.Pair(bucket, M.EmptyList)),
+                    self._premise_bucket_cache,
+                )
+            result = self._anchor_matches_facts(premise, bucket)
+        self._premise_ready_cache = M.Pair(
+            M.Pair(premise_key, M.Pair(result, M.EmptyList)),
+            self._premise_ready_cache,
+        )
+        return result
+
+    def _make_entry(self, rule):
+        premise_meta = CompiledRulePremiseMeta(rule)()
+        ready_count = 0
+        total_count = 0
+        while M.IdentityCompare(premise_meta, M.EmptyList)() is M.false_value:
+            entry = M.Head(premise_meta)()
+            premise = M.Head(entry)()
+            total_count = total_count + 1
+            if self._premise_ready(premise) is M.truth_value:
+                ready_count = ready_count + 1
+            premise_meta = M.Tail(premise_meta)()
+        if total_count == 0:
+            premises = RulePremises(rule)()
+            while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+                total_count = total_count + 1
+                if self._premise_ready(M.Head(premises)()) is M.truth_value:
+                    ready_count = ready_count + 1
+                premises = M.Tail(premises)()
+        return (rule, ready_count, total_count - ready_count, total_count)
+
     def _rule_head_applicable(self, rule, current):
         if IsKnowledge(current)() is M.truth_value:
             premises = RulePremises(rule)()
@@ -1023,9 +1087,11 @@ class FilterApplicableRules(M.Edge):
             return M.EmptyList
         r = M.Head(rules)()
         rest = M.Tail(rules)()
+        filtered_rest = self._filter(rest, current)
         if self._rule_head_applicable(r, current) is M.truth_value:
-            return M.Pair(r, self._filter(rest, current))
-        return self._filter(rest, current)
+            self.prepared_entries = M.Pair(self._make_entry(r), self.prepared_entries)
+            return M.Pair(r, filtered_rest)
+        return filtered_rest
 
     def __call__(self):
         return self.result
