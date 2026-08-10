@@ -836,6 +836,8 @@ class FilterApplicableRules(M.Edge):
         self._anchor_heuristic = DefaultAnchorPreferenceHeuristic()()
         self._knowledge_head_index = M.EmptyList
         self._knowledge_exact_trie = M.EmptyList
+        self._knowledge_ground_fact_cache = M.EmptyList
+        self._premise_bucket_cache = M.EmptyList
         if knowledge_head_index is None:
             if IsKnowledge(current)() is M.truth_value:
                 self._knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), self.registry)()
@@ -862,16 +864,65 @@ class FilterApplicableRules(M.Edge):
         return ChooseRuleAnchor(self._anchor_heuristic, rule, self.current, self.registry, self._knowledge_head_index)()
 
     def _knowledge_has_ground_fact(self, term):
+        term_key = M.ExactKey(term, self.registry)()
+        cache_cursor = self._knowledge_ground_fact_cache
+        while M.IdentityCompare(cache_cursor, M.EmptyList)() is M.false_value:
+            cache_entry = M.Head(cache_cursor)()
+            if M.TermEqual(M.Head(cache_entry)(), term_key)() is M.truth_value:
+                return M.Head(M.Tail(cache_entry)())()
+            cache_cursor = M.Tail(cache_cursor)()
+        result = M.false_value
         if M.IdentityCompare(self._knowledge_exact_trie, M.EmptyList)() is M.false_value:
-            return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, term, self.registry)()
-        facts = KnowledgeFacts(self.current)()
-        while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
-            if M.TermEqual(M.Head(facts)(), term)() is M.truth_value:
-                return M.truth_value
-            facts = M.Tail(facts)()
-        return M.false_value
+            result = K.KnowledgeTrieHasFact(self._knowledge_exact_trie, term, self.registry)()
+        else:
+            facts = KnowledgeFacts(self.current)()
+            while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+                if M.TermEqual(M.Head(facts)(), term)() is M.truth_value:
+                    result = M.truth_value
+                    facts = M.EmptyList
+                else:
+                    facts = M.Tail(facts)()
+        self._knowledge_ground_fact_cache = M.Pair(
+            M.Pair(term_key, M.Pair(result, M.EmptyList)),
+            self._knowledge_ground_fact_cache,
+        )
+        return result
 
     def _rule_has_missing_required_premise_head(self, rule):
+        premise_meta = CompiledRulePremiseMeta(rule)()
+        if M.IdentityCompare(premise_meta, M.EmptyList)() is M.false_value:
+            while M.IdentityCompare(premise_meta, M.EmptyList)() is M.false_value:
+                entry = M.Head(premise_meta)()
+                premise = M.Head(entry)()
+                contains_variable = M.Head(M.Tail(entry)())()
+                if IsVarPattern(premise)() is M.truth_value:
+                    premise_meta = M.Tail(premise_meta)()
+                    continue
+                if contains_variable is M.false_value:
+                    if self._knowledge_has_ground_fact(premise) is M.false_value:
+                        return M.truth_value
+                    premise_meta = M.Tail(premise_meta)()
+                    continue
+                premise_key = M.ExactKey(premise, self.registry)()
+                bucket = M.EmptyList
+                cache_cursor = self._premise_bucket_cache
+                while M.IdentityCompare(cache_cursor, M.EmptyList)() is M.false_value:
+                    cache_entry = M.Head(cache_cursor)()
+                    if M.TermEqual(M.Head(cache_entry)(), premise_key)() is M.truth_value:
+                        bucket = M.Head(M.Tail(cache_entry)())()
+                        cache_cursor = M.EmptyList
+                    else:
+                        cache_cursor = M.Tail(cache_cursor)()
+                if M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
+                    bucket = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
+                    self._premise_bucket_cache = M.Pair(
+                        M.Pair(premise_key, M.Pair(bucket, M.EmptyList)),
+                        self._premise_bucket_cache,
+                    )
+                if M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
+                    return M.truth_value
+                premise_meta = M.Tail(premise_meta)()
+            return M.false_value
         premises = RulePremises(rule)()
         while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
             premise = M.Head(premises)()
@@ -883,7 +934,23 @@ class FilterApplicableRules(M.Edge):
                     return M.truth_value
                 premises = M.Tail(premises)()
                 continue
-            if M.IdentityCompare(K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(), M.EmptyList)() is M.truth_value:
+            premise_key = M.ExactKey(premise, self.registry)()
+            bucket = M.EmptyList
+            cache_cursor = self._premise_bucket_cache
+            while M.IdentityCompare(cache_cursor, M.EmptyList)() is M.false_value:
+                cache_entry = M.Head(cache_cursor)()
+                if M.TermEqual(M.Head(cache_entry)(), premise_key)() is M.truth_value:
+                    bucket = M.Head(M.Tail(cache_entry)())()
+                    cache_cursor = M.EmptyList
+                else:
+                    cache_cursor = M.Tail(cache_cursor)()
+            if M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
+                bucket = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
+                self._premise_bucket_cache = M.Pair(
+                    M.Pair(premise_key, M.Pair(bucket, M.EmptyList)),
+                    self._premise_bucket_cache,
+                )
+            if M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
                 return M.truth_value
             premises = M.Tail(premises)()
         return M.false_value
@@ -910,7 +977,22 @@ class FilterApplicableRules(M.Edge):
             facts = KnowledgeFacts(current)()
             if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
                 if IsVarPattern(anchor)() is M.false_value:
-                    facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
+                    anchor_key = M.ExactKey(anchor, self.registry)()
+                    cache_cursor = self._premise_bucket_cache
+                    facts = M.EmptyList
+                    while M.IdentityCompare(cache_cursor, M.EmptyList)() is M.false_value:
+                        cache_entry = M.Head(cache_cursor)()
+                        if M.TermEqual(M.Head(cache_entry)(), anchor_key)() is M.truth_value:
+                            facts = M.Head(M.Tail(cache_entry)())()
+                            cache_cursor = M.EmptyList
+                        else:
+                            cache_cursor = M.Tail(cache_cursor)()
+                    if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+                        facts = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, anchor, self.registry)()
+                        self._premise_bucket_cache = M.Pair(
+                            M.Pair(anchor_key, M.Pair(facts, M.EmptyList)),
+                            self._premise_bucket_cache,
+                        )
             if ContainsVar(anchor)() is M.false_value:
                 return self._knowledge_has_ground_fact(anchor)
             return self._anchor_matches_facts(anchor, facts)
@@ -1223,6 +1305,9 @@ class GoalHeadRuleOrdererWithIndex(M.Edge):
         self.registry = registry
         self._knowledge_head_index = knowledge_head_index
         self._knowledge_exact_trie = knowledge_exact_trie
+        self._knowledge_ground_fact_cache = M.EmptyList
+        self._premise_bucket_cache = M.EmptyList
+        self._premise_ready_cache = M.EmptyList
         if IsKnowledge(current)() is M.truth_value:
             self._all_facts = KnowledgeFacts(current)()
         else:
@@ -1245,26 +1330,69 @@ class GoalHeadRuleOrdererWithIndex(M.Edge):
         return self._premise_matches_facts(premise, M.Tail(facts)())
 
     def _knowledge_has_ground_fact(self, term):
+        term_key = M.ExactKey(term, self.registry)()
+        cache_cursor = self._knowledge_ground_fact_cache
+        while M.IdentityCompare(cache_cursor, M.EmptyList)() is M.false_value:
+            cache_entry = M.Head(cache_cursor)()
+            if M.TermEqual(M.Head(cache_entry)(), term_key)() is M.truth_value:
+                return M.Head(M.Tail(cache_entry)())()
+            cache_cursor = M.Tail(cache_cursor)()
+        result = M.false_value
         if M.IdentityCompare(self._knowledge_exact_trie, M.EmptyList)() is M.false_value:
-            return K.KnowledgeTrieHasFact(self._knowledge_exact_trie, term, self.registry)()
-        facts = self._all_facts
-        while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
-            if M.TermEqual(M.Head(facts)(), term)() is M.truth_value:
-                return M.truth_value
-            facts = M.Tail(facts)()
-        return M.false_value
+            result = K.KnowledgeTrieHasFact(self._knowledge_exact_trie, term, self.registry)()
+        else:
+            facts = self._all_facts
+            while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+                if M.TermEqual(M.Head(facts)(), term)() is M.truth_value:
+                    result = M.truth_value
+                    facts = M.EmptyList
+                else:
+                    facts = M.Tail(facts)()
+        self._knowledge_ground_fact_cache = M.Pair(
+            M.Pair(term_key, M.Pair(result, M.EmptyList)),
+            self._knowledge_ground_fact_cache,
+        )
+        return result
 
     def _premise_ready(self, premise):
+        premise_key = M.ExactKey(premise, self.registry)()
+        cache_cursor = self._premise_ready_cache
+        while M.IdentityCompare(cache_cursor, M.EmptyList)() is M.false_value:
+            cache_entry = M.Head(cache_cursor)()
+            if M.TermEqual(M.Head(cache_entry)(), premise_key)() is M.truth_value:
+                return M.Head(M.Tail(cache_entry)())()
+            cache_cursor = M.Tail(cache_cursor)()
+        result = M.false_value
         if IsVarPattern(premise)() is M.truth_value:
-            if M.IdentityCompare(self._all_facts, M.EmptyList)() is M.truth_value:
-                return M.false_value
-            return M.truth_value
-        if ContainsVar(premise)() is M.false_value:
-            return self._knowledge_has_ground_fact(premise)
-        return self._premise_matches_facts(
-            premise,
-            K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(),
+            if M.IdentityCompare(self._all_facts, M.EmptyList)() is M.false_value:
+                result = M.truth_value
+        elif ContainsVar(premise)() is M.false_value:
+            result = self._knowledge_has_ground_fact(premise)
+        else:
+            bucket = M.EmptyList
+            bucket_cursor = self._premise_bucket_cache
+            while M.IdentityCompare(bucket_cursor, M.EmptyList)() is M.false_value:
+                bucket_entry = M.Head(bucket_cursor)()
+                if M.TermEqual(M.Head(bucket_entry)(), premise_key)() is M.truth_value:
+                    bucket = M.Head(M.Tail(bucket_entry)())()
+                    bucket_cursor = M.EmptyList
+                else:
+                    bucket_cursor = M.Tail(bucket_cursor)()
+            if M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
+                bucket = K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)()
+                self._premise_bucket_cache = M.Pair(
+                    M.Pair(premise_key, M.Pair(bucket, M.EmptyList)),
+                    self._premise_bucket_cache,
+                )
+            result = self._premise_matches_facts(
+                premise,
+                bucket,
+            )
+        self._premise_ready_cache = M.Pair(
+            M.Pair(premise_key, M.Pair(result, M.EmptyList)),
+            self._premise_ready_cache,
         )
+        return result
 
     def _entry_rule(self, entry):
         return entry[0]
@@ -1285,18 +1413,8 @@ class GoalHeadRuleOrdererWithIndex(M.Edge):
         while M.IdentityCompare(premise_meta, M.EmptyList)() is M.false_value:
             entry = M.Head(premise_meta)()
             premise = M.Head(entry)()
-            contains_variable = M.Head(M.Tail(entry)())()
             total_count = total_count + 1
-            if IsVarPattern(premise)() is M.truth_value:
-                if M.IdentityCompare(self._all_facts, M.EmptyList)() is M.false_value:
-                    ready_count = ready_count + 1
-            elif contains_variable is M.false_value:
-                if self._knowledge_has_ground_fact(premise) is M.truth_value:
-                    ready_count = ready_count + 1
-            elif self._premise_matches_facts(
-                premise,
-                K.KnowledgeHeadIndexBucket(self._knowledge_head_index, premise, self.registry)(),
-            ) is M.truth_value:
+            if self._premise_ready(premise) is M.truth_value:
                 ready_count = ready_count + 1
             premise_meta = M.Tail(premise_meta)()
         if total_count == 0:
