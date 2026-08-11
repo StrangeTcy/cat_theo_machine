@@ -223,6 +223,9 @@ class _ComparisonSubprocessMixin:
             return best_attempt, performances_by_mode
         if M.Compare(SearchAttemptDerivation(best_attempt)(), M.EmptyList)() is M.false_value:
             return best_attempt, performances_by_mode
+        if M.IdentityCompare(self.graph._search_disable_console, M.truth_value)() is M.truth_value:
+            _debug("SearchComparison: console disabled; leaving derivation replay deferred")
+            return best_attempt, performances_by_mode
         mode = HeuristicSearchMode(SearchAttemptHeuristic(best_attempt)())()
         mode_text = SearchModeText(mode)()
         result_path = result_path_by_mode[mode_text]

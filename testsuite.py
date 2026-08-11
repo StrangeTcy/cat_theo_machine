@@ -855,6 +855,46 @@ class CompareSearchModesFindsReusableWorkerSnapshotDirTest(M.Edge):
         return self.result
 
 
+class CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(M.Edge):
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = _registry(graph)
+        start = M.Pair(M.Char("s"), empty)
+        goal = M.Pair(M.Char("g"), empty)
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        rules = M.Pair(Rule(start, goal), empty)
+        probe = _CompareSearchModesProbe(graph, start, goal, rules, heuristic, registry)
+        graph._search_disable_console = M.truth_value
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        registry = M.Head(M.Tail(search_cost_pair)())()
+        total_cost_pair = Pmod.BuildTotalCost(proof_cost, search_cost, heuristic, registry)()
+        total_cost = M.Head(total_cost_pair)()
+        registry = M.Head(M.Tail(total_cost_pair)())()
+        best_attempt = Pmod.SearchAttempt(
+            start,
+            goal,
+            heuristic,
+            Smod.SearchSuccessLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            total_cost,
+        )()
+        returned_attempt, returned_performances = probe._approval_to_materialize_best_attempt(best_attempt, {}, {})
+        self.result = M.truth_value
+        if M.TermEqual(returned_attempt, best_attempt)() is M.false_value:
+            self.result = M.false_value
+        elif returned_performances != {}:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class _TheoremCursorProbe(Smod.SearchBFS):
     def __init__(self, graph, start, goal, rules, heuristic, registry):
         self.graph = graph
@@ -4796,6 +4836,13 @@ def install_default_tests(graph):
         "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
         empty,
         CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_console_disabled_skips_approval_replay_prompt_test",
+        empty,
+        CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(graph),
         M.truth_value,
     )
     _register_test(
