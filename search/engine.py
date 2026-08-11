@@ -1396,7 +1396,7 @@ class Search(M.Edge):
         duplicate_binding_count = M.Zero
         remaining_bindings = matching_bindings
         while M.IdentityCompare(remaining_bindings, M.EmptyList)() is M.false_value:
-            bindings = M.Head(remaining_bindings)()
+            bindings = self._canonical_term(M.Head(remaining_bindings)())
             if M.IdentityCompare(SearchPatriciaLookupByKey(seen_bindings, bindings, self.registry)(), M.EmptyList)() is M.truth_value:
                 seen_bindings = SearchPatriciaInsertByKey(seen_bindings, bindings, M.Pair(bindings, M.EmptyList), self.registry)()
                 unique_bindings_rev = M.Pair(bindings, unique_bindings_rev)
@@ -1429,7 +1429,7 @@ class Search(M.Edge):
             bindings = M.Head(remaining_bindings)()
             inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
             instantiate_count = self._succ_nat(instantiate_count)
-            conclusion = M.Head(inst)()
+            conclusion = self._canonical_term(M.Head(inst)())
             if M.IdentityCompare(knowledge_exact_trie, M.EmptyList)() is M.truth_value:
                 already_known = self._knowledge_has_fact(facts, conclusion)
             else:

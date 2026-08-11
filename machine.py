@@ -459,6 +459,237 @@ class IsAtom(Edge):
         return self.result
 
 
+class CanonicalArithmeticTerm(Edge):
+    def __init__(self, term, registry):
+        self.registry = registry
+        self.result = self._canonical(term)
+        super().__init__(inputs=Pair(term, Pair(registry, EmptyList)), results=self.result)
+
+    def _canonical(self, term):
+        if IsPair(term)() is truth_value:
+            label = Head(term)()
+            args = Tail(term)()
+            if IdentityCompare(label, ExprAddLabel)() is truth_value:
+                return self._canonical_ac(label, args)
+            if IdentityCompare(label, ExprMulLabel)() is truth_value:
+                return self._canonical_ac(label, args)
+            if IdentityCompare(label, ExprEqLabel)() is truth_value:
+                return self._canonical_eq(args)
+            return Pair(self._canonical(label), self._canonical(args))
+        constructor = GetConstructor(term, self.registry)()
+        if IdentityCompare(constructor, EmptyList)() is truth_value:
+            return term
+        label = Head(constructor)()
+        args = Tail(constructor)()
+        if IdentityCompare(label, ExprAddLabel)() is truth_value:
+            return self._canonical_ac(label, args)
+        if IdentityCompare(label, ExprMulLabel)() is truth_value:
+            return self._canonical_ac(label, args)
+        if IdentityCompare(label, ExprEqLabel)() is truth_value:
+            return self._canonical_eq(args)
+        canonical_args = self._canonical_arg_chain(args)
+        return self._rebuild_constructed(label, canonical_args)
+
+    def _canonical_arg_chain(self, args):
+        if IdentityCompare(args, EmptyList)() is truth_value:
+            return EmptyList
+        return Pair(self._canonical(Head(args)()), self._canonical_arg_chain(Tail(args)()))
+
+    def _rebuild_constructed(self, label, args):
+        key = Pair(label, args)
+        existing = TreeLookup(self.registry, key, self.registry)()
+        if IdentityCompare(existing, EmptyList)() is false_value:
+            return existing
+        node = Atom()
+        constructed = ConstructedBy(node, label, args, self.registry)()
+        self.registry = Head(Tail(constructed)())()
+        return node
+
+    def _reverse_chain(self, chain):
+        result = EmptyList
+        remaining = chain
+        while IdentityCompare(remaining, EmptyList)() is false_value:
+            result = Pair(Head(remaining)(), result)
+            remaining = Tail(remaining)()
+        return result
+
+    def _flatten_ac_rev(self, label, term, acc):
+        term = self._canonical(term)
+        if IsPair(term)() is truth_value:
+            if IdentityCompare(Head(term)(), label)() is truth_value:
+                args = Tail(term)()
+                left = Head(args)()
+                right = Head(Tail(args)())()
+                acc = self._flatten_ac_rev(label, right, acc)
+                return self._flatten_ac_rev(label, left, acc)
+        constructor = GetConstructor(term, self.registry)()
+        if IdentityCompare(constructor, EmptyList)() is truth_value:
+            return Pair(term, acc)
+        if IdentityCompare(Head(constructor)(), label)() is false_value:
+            return Pair(term, acc)
+        args = Tail(constructor)()
+        left = Head(args)()
+        right = Head(Tail(args)())()
+        acc = self._flatten_ac_rev(label, right, acc)
+        return self._flatten_ac_rev(label, left, acc)
+
+    def _exact_key_kind_rank(self, key):
+        label = Head(key)()
+        if IdentityCompare(label, ExactAtomKeyLabel)() is truth_value:
+            return Zero
+        if IdentityCompare(label, ExactCtorKeyLabel)() is truth_value:
+            return one
+        return two
+
+    def _exact_key_payload_head(self, key):
+        return Head(Tail(key)())()
+
+    def _exact_key_payload_tail_head(self, key):
+        return Head(Tail(Tail(key)())())()
+
+    def _exact_key_chain_less(self, left, right):
+        if IdentityCompare(left, EmptyList)() is truth_value:
+            if IdentityCompare(right, EmptyList)() is truth_value:
+                return false_value
+            return truth_value
+        if IdentityCompare(right, EmptyList)() is truth_value:
+            return false_value
+        left_head = Head(left)()
+        right_head = Head(right)()
+        if self._exact_key_less(left_head, right_head) is truth_value:
+            return truth_value
+        if self._exact_key_less(right_head, left_head) is truth_value:
+            return false_value
+        return self._exact_key_chain_less(Tail(left)(), Tail(right)())
+
+    def _exact_key_less(self, left, right):
+        if IdentityCompare(left, right)() is truth_value:
+            return false_value
+        left_label = Head(left)()
+        right_label = Head(right)()
+        if IdentityCompare(left_label, right_label)() is false_value:
+            return NatLess(self._exact_key_kind_rank(left), self._exact_key_kind_rank(right), self.registry)()
+        if IdentityCompare(left_label, ExactAtomKeyLabel)() is truth_value:
+            return IdentityLess(self._exact_key_payload_head(left), self._exact_key_payload_head(right))()
+        if IdentityCompare(left_label, ExactCtorKeyLabel)() is truth_value:
+            left_ctor_label = self._exact_key_payload_head(left)
+            right_ctor_label = self._exact_key_payload_head(right)
+            if IdentityCompare(left_ctor_label, right_ctor_label)() is false_value:
+                return IdentityLess(left_ctor_label, right_ctor_label)()
+            return self._exact_key_chain_less(
+                self._exact_key_payload_tail_head(left),
+                self._exact_key_payload_tail_head(right),
+            )
+        left_head = self._exact_key_payload_head(left)
+        right_head = self._exact_key_payload_head(right)
+        if self._exact_key_less(left_head, right_head) is truth_value:
+            return truth_value
+        if self._exact_key_less(right_head, left_head) is truth_value:
+            return false_value
+        return self._exact_key_less(
+            self._exact_key_payload_tail_head(left),
+            self._exact_key_payload_tail_head(right),
+        )
+
+    def _term_head_label(self, term):
+        if IsPair(term)() is truth_value:
+            return Head(term)()
+        constructor = GetConstructor(term, self.registry)()
+        if IdentityCompare(constructor, EmptyList)() is truth_value:
+            return term
+        return Head(constructor)()
+
+    def _term_arg_chain(self, term):
+        if IsPair(term)() is truth_value:
+            return Tail(term)()
+        constructor = GetConstructor(term, self.registry)()
+        if IdentityCompare(constructor, EmptyList)() is truth_value:
+            return EmptyList
+        return Tail(constructor)()
+
+    def _term_arg_chain_less(self, left, right):
+        if IdentityCompare(left, EmptyList)() is truth_value:
+            if IdentityCompare(right, EmptyList)() is truth_value:
+                return false_value
+            return truth_value
+        if IdentityCompare(right, EmptyList)() is truth_value:
+            return false_value
+        left_head = Head(left)()
+        right_head = Head(right)()
+        if self._canonical_term_less(left_head, right_head) is truth_value:
+            return truth_value
+        if self._canonical_term_less(right_head, left_head) is truth_value:
+            return false_value
+        return self._term_arg_chain_less(Tail(left)(), Tail(right)())
+
+    def _canonical_term_less(self, left, right):
+        if IdentityCompare(left, right)() is truth_value:
+            return false_value
+        if AndAtom(IsNat(left, self.registry)(), IsNat(right, self.registry)())() is truth_value:
+            return NatLess(left, right, self.registry)()
+        left_head = self._term_head_label(left)
+        right_head = self._term_head_label(right)
+        if IdentityCompare(left_head, right_head)() is false_value:
+            return IdentityLess(left_head, right_head)()
+        left_args = self._term_arg_chain(left)
+        right_args = self._term_arg_chain(right)
+        if IdentityCompare(left_args, EmptyList)() is truth_value:
+            if IdentityCompare(right_args, EmptyList)() is truth_value:
+                return IdentityLess(left, right)()
+            return truth_value
+        if IdentityCompare(right_args, EmptyList)() is truth_value:
+            return false_value
+        return self._term_arg_chain_less(left_args, right_args)
+
+    def _insert_sorted_term(self, term, ordered):
+        if IdentityCompare(ordered, EmptyList)() is truth_value:
+            return Pair(term, EmptyList)
+        head_term = Head(ordered)()
+        if self._canonical_term_less(term, head_term) is truth_value:
+            return Pair(term, ordered)
+        return Pair(head_term, self._insert_sorted_term(term, Tail(ordered)()))
+
+    def _sort_term_chain(self, chain):
+        ordered = EmptyList
+        remaining = chain
+        while IdentityCompare(remaining, EmptyList)() is false_value:
+            ordered = self._insert_sorted_term(Head(remaining)(), ordered)
+            remaining = Tail(remaining)()
+        return ordered
+
+    def _rebuild_application(self, label, args):
+        return Pair(label, args)
+
+    def _rebuild_ac(self, label, operands):
+        if IdentityCompare(operands, EmptyList)() is truth_value:
+            return EmptyList
+        left = Head(operands)()
+        rest = Tail(operands)()
+        if IdentityCompare(rest, EmptyList)() is truth_value:
+            return left
+        right = self._rebuild_ac(label, rest)
+        return self._rebuild_application(label, Pair(left, Pair(right, EmptyList)))
+
+    def _canonical_ac(self, label, args):
+        left = Head(args)()
+        right = Head(Tail(args)())()
+        operands = self._flatten_ac_rev(label, left, EmptyList)
+        operands = self._flatten_ac_rev(label, right, operands)
+        operands = self._reverse_chain(operands)
+        operands = self._sort_term_chain(operands)
+        return self._rebuild_ac(label, operands)
+
+    def _canonical_eq(self, args):
+        left = self._canonical(Head(args)())
+        right = self._canonical(Head(Tail(args)())())
+        if self._canonical_term_less(right, left) is truth_value:
+            return self._rebuild_application(ExprEqLabel, Pair(right, Pair(left, EmptyList)))
+        return self._rebuild_application(ExprEqLabel, Pair(left, Pair(right, EmptyList)))
+
+    def __call__(self):
+        return self.result
+
+
 class Fraction(Edge):
     def __init__(self, p, q, registry):
         p_ok = IsNat(p, registry)()

@@ -168,3 +168,69 @@ rules:
                 - call:
                     head: {sym: ExprNegLabel}
                     args: [{var: d}]
+
+  - id: arithmetic_add_commutes
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args: [{var: x}, {var: y}]
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args: [{var: y}, {var: x}]
+
+  - id: arithmetic_add_associates_right
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args: [{var: x}, {var: y}]
+          - {var: z}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - {var: x}
+          - call:
+              head: {sym: ExprAddLabel}
+              args: [{var: y}, {var: z}]
+
+  - id: arithmetic_mul_commutes
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args: [{var: x}, {var: y}]
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args: [{var: y}, {var: x}]
+
+  - id: arithmetic_mul_associates_right
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args: [{var: x}, {var: y}]
+          - {var: z}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: x}
+          - call:
+              head: {sym: ExprMulLabel}
+              args: [{var: y}, {var: z}]
+
+  - id: arithmetic_equation_is_symmetric
+    pattern:
+      call:
+        head: {sym: ExprEqLabel}
+        args: [{var: left}, {var: right}]
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args: [{var: right}, {var: left}]

@@ -665,6 +665,73 @@ class HeuristicCanonicalKnowledgeAgreementTest(M.Edge):
         return self.result
 
 
+class CanonicalArithmeticAddACNormalizesTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        left = M.Pair(M.ExprAddLabel, M.Pair(M.three, M.Pair(M.Pair(M.ExprAddLabel, M.Pair(M.one, M.Pair(M.two, empty))), empty)))
+        right = M.Pair(M.ExprAddLabel, M.Pair(M.Pair(M.ExprAddLabel, M.Pair(M.two, M.Pair(M.three, empty))), M.Pair(M.one, empty)))
+        left_canonical = M.CanonicalArithmeticTerm(left, registry)()
+        right_canonical = M.CanonicalArithmeticTerm(right, registry)()
+        self.result = RawTermEqual(left_canonical, right_canonical, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalArithmeticMulACNormalizesTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        left = M.Pair(M.ExprMulLabel, M.Pair(M.three, M.Pair(M.Pair(M.ExprMulLabel, M.Pair(M.one, M.Pair(M.two, empty))), empty)))
+        right = M.Pair(M.ExprMulLabel, M.Pair(M.Pair(M.ExprMulLabel, M.Pair(M.two, M.Pair(M.three, empty))), M.Pair(M.one, empty)))
+        left_canonical = M.CanonicalArithmeticTerm(left, registry)()
+        right_canonical = M.CanonicalArithmeticTerm(right, registry)()
+        self.result = RawTermEqual(left_canonical, right_canonical, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalArithmeticEquationSymmetryTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        left = M.Pair(M.ExprEqLabel, M.Pair(M.two, M.Pair(M.one, empty)))
+        right = M.Pair(M.ExprEqLabel, M.Pair(M.one, M.Pair(M.two, empty)))
+        left_canonical = M.CanonicalArithmeticTerm(left, registry)()
+        right_canonical = M.CanonicalArithmeticTerm(right, registry)()
+        self.result = RawTermEqual(left_canonical, right_canonical, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class ArithmeticCanonicalLawsDeclaredTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        arithmetic = packs.by_name("arithmetic")
+        self.result = M.truth_value
+        for rule_id in (
+            "arithmetic_add_commutes",
+            "arithmetic_add_associates_right",
+            "arithmetic_mul_commutes",
+            "arithmetic_mul_associates_right",
+            "arithmetic_equation_is_symmetric",
+        ):
+            if rule_id not in arithmetic.rule_map:
+                self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class TreeLookupUsesIndexBucketsTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -5317,6 +5384,34 @@ def install_default_tests(graph):
         "heuristic_canonical_knowledge_agreement_test",
         empty,
         HeuristicCanonicalKnowledgeAgreementTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "canonical_arithmetic_add_ac_normalizes_test",
+        empty,
+        CanonicalArithmeticAddACNormalizesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "canonical_arithmetic_mul_ac_normalizes_test",
+        empty,
+        CanonicalArithmeticMulACNormalizesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "canonical_arithmetic_equation_symmetry_test",
+        empty,
+        CanonicalArithmeticEquationSymmetryTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "arithmetic_canonical_laws_declared_test",
+        empty,
+        ArithmeticCanonicalLawsDeclaredTest(graph),
         M.truth_value,
     )
 

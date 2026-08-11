@@ -2277,7 +2277,7 @@ class BuildDerivation(M.Edge):
                 _debug("apply-action: concrete theorem premises missing")
                 return current
             inst = M.Instantiate(RuleReplacement(rule)(), self.bindings)()
-            conclusion = M.Head(inst)()
+            conclusion = M.CanonicalArithmeticTerm(M.Head(inst)(), registry)()
             if self._knowledge_has_fact(facts, conclusion) is M.truth_value:
                 _debug("apply-action: concrete theorem conclusion already known")
                 return current
@@ -2291,7 +2291,7 @@ class BuildDerivation(M.Edge):
             return current
 
         inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
-        conclusion = M.Head(inst)()
+        conclusion = M.CanonicalArithmeticTerm(M.Head(inst)(), registry)()
         if self._knowledge_has_fact(facts, conclusion) is M.truth_value:
             return current
         return NormalizeKnowledge(Knowledge(M.Pair(conclusion, facts))(), registry)()
@@ -2312,7 +2312,7 @@ class BuildDerivation(M.Edge):
             merged_bindings = M.Tail(merged)()
             if M.IdentityCompare(merged_flag, M.truth_value)() is M.truth_value:
                 inst = M.Instantiate(replacement, merged_bindings)()
-                return M.Head(inst)()
+                return M.CanonicalArithmeticTerm(M.Head(inst)(), registry)()
         return current
 
     def _apply_action(self, action, current, registry):
@@ -2769,7 +2769,7 @@ class Prove(M.Edge):
             if M.IdentityCompare(bindings_flag, M.truth_value)() is M.false_value:
                 return current
             inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
-            conclusion = M.Head(inst)()
+            conclusion = M.CanonicalArithmeticTerm(M.Head(inst)(), self.registry)()
             if self._knowledge_has_fact(facts, conclusion) is M.truth_value:
                 return current
             registry = M.FromContextGetConstructors(self.graph)()
@@ -2782,7 +2782,7 @@ class Prove(M.Edge):
         binds = M.Tail(match)()
         if M.IdentityCompare(flag, M.truth_value)() is M.truth_value:
             inst = M.Instantiate(RuleReplacement(rule)(), binds)()
-            return M.Head(inst)()
+            return M.CanonicalArithmeticTerm(M.Head(inst)(), self.registry)()
         return current
 
     def _find_goal_instantiating_plan(self, rule_list, current):
