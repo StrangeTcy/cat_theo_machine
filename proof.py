@@ -45,6 +45,10 @@ from .schemata import (
 )
 from . import gmprep as Gmpmod
 
+# Canonical zero as a GMP count text, so anchor metadata carries machine
+# numerals instead of host integers.
+ZeroCountText = M.GMPRepText(M.CountRep(M.EmptyList)())()
+
 DEBUG_TRACE_STATE = M.Atom()
 DEBUG_TRACE_STATE.value = M.false_value
 DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE = M.Atom()
@@ -230,7 +234,7 @@ class CompiledRuleAnchorMeta(M.Edge):
         if IsCompiledRule(rule)() is M.truth_value:
             self.result = M.Head(M.Tail(M.Tail(rule)())())()
         else:
-            self.result = ()
+            self.result = M.EmptyList
         super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -268,7 +272,6 @@ class CompiledRulePremiseMeta(M.Edge):
 class CompileRule(M.Edge):
     def __init__(self, rule, registry):
         anchor_meta = RuleAnchorStaticMeta(rule, registry)()
-        requires_variable_anchor = M.false_value
         premise_meta = M.EmptyList
         premise_meta_rev = M.EmptyList
         premises = RulePremises(rule)()
@@ -284,13 +287,7 @@ class CompileRule(M.Edge):
         while M.IdentityCompare(premise_meta_rev, M.EmptyList)() is M.false_value:
             premise_meta = M.Pair(M.Head(premise_meta_rev)(), premise_meta)
             premise_meta_rev = M.Tail(premise_meta_rev)()
-        index = 0
-        while index < len(anchor_meta):
-            entry = anchor_meta[index]
-            if entry[2] > 0:
-                requires_variable_anchor = M.truth_value
-                break
-            index = index + 1
+        requires_variable_anchor = AnchorMetaRequiresVariableAnchor(anchor_meta)()
         self.result = CompiledRule(rule, anchor_meta, requires_variable_anchor, premise_meta)()
         super().__init__(inputs=M.Pair(rule, M.Pair(registry, M.EmptyList)), results=self.result)
 
@@ -642,29 +639,84 @@ class ContainsVar(M.Edge):
         return self.result
 
 
+class AnchorEntryPremise(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(entry)()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorEntryIndex(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(entry)())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorEntryVarCount(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(M.Tail(entry)())())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorEntrySpecificity(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(entry)())())())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class RuleAnchorStaticEntry(M.Edge):
+    """Anchor metadata for one premise, as a machine list.
+
+    Shape: Pair(premise, Pair(index, Pair(var_count, Pair(specificity, []))))
+    where index, var_count and specificity are GMP count texts, so the
+    entry is an ordinary hypergraph structure rather than a host tuple.
+    """
+
     def __init__(self, premise, premise_index, registry):
-        self.result = (
+        self.result = M.Pair(
             premise,
-            premise_index,
-            self._var_count(premise),
-            self._specificity(premise),
+            M.Pair(
+                premise_index,
+                M.Pair(
+                    self._var_count(premise),
+                    M.Pair(self._specificity(premise), M.EmptyList),
+                ),
+            ),
         )
         super().__init__(inputs=M.Pair(premise, M.Pair(premise_index, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def _var_count(self, term):
         if IsVarPattern(term)() is M.truth_value:
-            return 1
+            return Gmpmod.GMPSuccText(ZeroCountText)()
         if M.IsPair(term)() is M.truth_value:
-            return self._var_count(M.Head(term)()) + self._var_count(M.Tail(term)())
-        return 0
+            return Gmpmod.GMPAddText(
+                self._var_count(M.Head(term)()),
+                self._var_count(M.Tail(term)()),
+            )()
+        return ZeroCountText
 
     def _specificity(self, term):
         if IsVarPattern(term)() is M.truth_value:
-            return 0
+            return ZeroCountText
         if M.IsPair(term)() is M.truth_value:
-            return 1 + self._specificity(M.Head(term)()) + self._specificity(M.Tail(term)())
-        return 1
+            return Gmpmod.GMPSuccText(
+                Gmpmod.GMPAddText(
+                    self._specificity(M.Head(term)()),
+                    self._specificity(M.Tail(term)()),
+                )()
+            )()
+        return Gmpmod.GMPSuccText(ZeroCountText)()
 
     def __call__(self):
         return self.result
@@ -673,14 +725,55 @@ class RuleAnchorStaticEntry(M.Edge):
 class RuleAnchorStaticMeta(M.Edge):
     def __init__(self, rule, registry):
         premises = RulePremises(rule)()
-        premise_index = 0
-        entries = ()
+        premise_index = ZeroCountText
+        entries_rev = M.EmptyList
         while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
-            entries = entries + (RuleAnchorStaticEntry(M.Head(premises)(), premise_index, registry)(),)
+            entries_rev = M.Pair(
+                RuleAnchorStaticEntry(M.Head(premises)(), premise_index, registry)(),
+                entries_rev,
+            )
             premises = M.Tail(premises)()
-            premise_index = premise_index + 1
+            premise_index = Gmpmod.GMPSuccText(premise_index)()
+        entries = M.EmptyList
+        while M.IdentityCompare(entries_rev, M.EmptyList)() is M.false_value:
+            entries = M.Pair(M.Head(entries_rev)(), entries)
+            entries_rev = M.Tail(entries_rev)()
         self.result = entries
         super().__init__(inputs=M.Pair(rule, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorMetaIsEmpty(M.Edge):
+    def __init__(self, meta):
+        if M.IdentityCompare(meta, M.EmptyList)() is M.truth_value:
+            self.result = M.truth_value
+        elif M.IsPair(meta)() is M.false_value:
+            self.result = M.truth_value
+        else:
+            self.result = M.false_value
+        super().__init__(inputs=M.Pair(meta, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AnchorMetaRequiresVariableAnchor(M.Edge):
+    """True when any entry anchors on a variable-bearing premise."""
+
+    def __init__(self, meta):
+        atom_result = M.false_value
+        remaining = meta
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            var_count = AnchorEntryVarCount(M.Head(remaining)())()
+            if Gmpmod.GMPLessText(ZeroCountText, var_count)() is M.truth_value:
+                atom_result = M.truth_value
+                remaining = M.EmptyList
+            else:
+                remaining = M.Tail(remaining)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(meta, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -705,16 +798,16 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         return M.Pair(self.current, M.EmptyList)
 
     def _entry_premise(self, entry):
-        return entry[0]
+        return AnchorEntryPremise(entry)()
 
     def _entry_index(self, entry):
-        return entry[1]
+        return AnchorEntryIndex(entry)()
 
     def _entry_var_count(self, entry):
-        return entry[2]
+        return AnchorEntryVarCount(entry)()
 
     def _entry_specificity(self, entry):
-        return entry[3]
+        return AnchorEntrySpecificity(entry)()
 
     def _fanout(self, premise):
         if M.IdentityCompare(self._knowledge_head_index, M.EmptyList)() is M.false_value:
@@ -733,23 +826,25 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         if M.IdentityCompare(criterion, PreferFewerVariablesLabel)() is M.truth_value:
             left_value = self._entry_var_count(left_entry)
             right_value = self._entry_var_count(right_entry)
-            if left_value < right_value:
+            if Gmpmod.GMPLessText(left_value, right_value)() is M.truth_value:
                 return M.truth_value
-            if right_value < left_value:
+            if Gmpmod.GMPLessText(right_value, left_value)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferGreaterSpecificityLabel)() is M.truth_value:
             left_value = self._entry_specificity(left_entry)
             right_value = self._entry_specificity(right_entry)
-            if right_value < left_value:
+            if Gmpmod.GMPLessText(right_value, left_value)() is M.truth_value:
                 return M.truth_value
-            if left_value < right_value:
+            if Gmpmod.GMPLessText(left_value, right_value)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         if M.IdentityCompare(criterion, PreferEarlierPremiseLabel)() is M.truth_value:
-            if self._entry_index(left_entry) < self._entry_index(right_entry):
+            left_value = self._entry_index(left_entry)
+            right_value = self._entry_index(right_entry)
+            if Gmpmod.GMPLessText(left_value, right_value)() is M.truth_value:
                 return M.truth_value
-            if self._entry_index(right_entry) < self._entry_index(left_entry):
+            if Gmpmod.GMPLessText(right_value, left_value)() is M.truth_value:
                 return M.false_value
             return M.EmptyList
         return M.EmptyList
@@ -774,20 +869,24 @@ class ChooseRuleAnchorWithMeta(M.Edge):
         return M.false_value
 
     def _choose(self, meta, best_entry):
-        index = 0
-        next_best = best_entry
-        while index < len(meta):
-            entry = meta[index]
+        next_best = M.EmptyList
+        if best_entry is not None:
+            next_best = best_entry
+        remaining = meta
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            skip = M.false_value
             if M.IdentityCompare(self._requires_variable_anchor, M.truth_value)() is M.truth_value:
-                if self._entry_var_count(entry) == 0:
-                    index = index + 1
-                    continue
-            if next_best is None:
-                next_best = entry
-            elif self._prefer(entry, next_best) is M.truth_value:
-                next_best = entry
-            index = index + 1
-        if next_best is None:
+                var_count = self._entry_var_count(entry)
+                if Gmpmod.GMPEqualText(var_count, ZeroCountText)() is M.truth_value:
+                    skip = M.truth_value
+            if M.IdentityCompare(skip, M.false_value)() is M.truth_value:
+                if M.IdentityCompare(next_best, M.EmptyList)() is M.truth_value:
+                    next_best = entry
+                elif self._prefer(entry, next_best) is M.truth_value:
+                    next_best = entry
+            remaining = M.Tail(remaining)()
+        if M.IdentityCompare(next_best, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         return self._entry_premise(next_best)
 
@@ -806,15 +905,9 @@ class ChooseRuleAnchor(M.Edge):
                     knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, KnowledgeFacts(current)(), registry)()
             anchor_meta = CompiledRuleAnchorMeta(rule)()
             requires_variable_anchor = CompiledRuleRequiresVariableAnchor(rule)()
-            if len(anchor_meta) == 0:
+            if AnchorMetaIsEmpty(anchor_meta)() is M.truth_value:
                 anchor_meta = RuleAnchorStaticMeta(rule, registry)()
-                index = 0
-                while index < len(anchor_meta):
-                    entry = anchor_meta[index]
-                    if entry[2] > 0:
-                        requires_variable_anchor = M.truth_value
-                        break
-                    index = index + 1
+                requires_variable_anchor = AnchorMetaRequiresVariableAnchor(anchor_meta)()
             self.result = ChooseRuleAnchorWithMeta(
                 heuristic,
                 anchor_meta,
