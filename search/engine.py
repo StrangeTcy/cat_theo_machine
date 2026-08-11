@@ -1387,22 +1387,48 @@ class Search(M.Edge):
                 M.Pair(premise_key, M.Pair(matching_bindings, M.EmptyList)),
                 self._premise_bindings_cache,
             )
-        self._stage_debug(
-            "theorem rule: matching bindings ready count="
-            + M.GMPRepText(M.CountRep(matching_bindings)())()
-            + " join="
-            + ("cached" if M.IdentityCompare(cache_found, M.truth_value)() is M.truth_value else "fresh")
-        )
+        raw_binding_count_pair = M.Count(matching_bindings, self.registry)()
+        raw_binding_count = M.Head(raw_binding_count_pair)()
+        self.registry = M.Head(M.Tail(raw_binding_count_pair)())()
+        unique_bindings_rev = M.EmptyList
+        unique_bindings = M.EmptyList
+        seen_bindings = M.EmptyList
+        duplicate_binding_count = M.Zero
         remaining_bindings = matching_bindings
         while M.IdentityCompare(remaining_bindings, M.EmptyList)() is M.false_value:
             bindings = M.Head(remaining_bindings)()
-            instantiate_started_at = time.time()
+            if M.IdentityCompare(SearchPatriciaLookupByKey(seen_bindings, bindings, self.registry)(), M.EmptyList)() is M.truth_value:
+                seen_bindings = SearchPatriciaInsertByKey(seen_bindings, bindings, M.Pair(bindings, M.EmptyList), self.registry)()
+                unique_bindings_rev = M.Pair(bindings, unique_bindings_rev)
+            else:
+                duplicate_binding_count = self._succ_nat(duplicate_binding_count)
+            remaining_bindings = M.Tail(remaining_bindings)()
+        unique_bindings = self._reverse(unique_bindings_rev, M.EmptyList)
+        unique_binding_count_pair = M.Count(unique_bindings, self.registry)()
+        unique_binding_count = M.Head(unique_binding_count_pair)()
+        self.registry = M.Head(M.Tail(unique_binding_count_pair)())()
+        self._stage_debug(
+            "theorem rule: matching bindings ready count="
+            + self._nat_text(raw_binding_count)
+            + " unique="
+            + self._nat_text(unique_binding_count)
+            + " duplicates="
+            + self._nat_text(duplicate_binding_count)
+            + " join="
+            + ("cached" if M.IdentityCompare(cache_found, M.truth_value)() is M.truth_value else "fresh")
+            + " rule="
+            + Pmod.PrettyRule(rule, self.registry)()
+        )
+        instantiation_started_at = time.time()
+        instantiate_count = M.Zero
+        already_known_count = M.Zero
+        already_pending_count = M.Zero
+        derived_count = M.Zero
+        remaining_bindings = unique_bindings
+        while M.IdentityCompare(remaining_bindings, M.EmptyList)() is M.false_value:
+            bindings = M.Head(remaining_bindings)()
             inst = M.Instantiate(RuleReplacement(rule)(), bindings)()
-            self._stage_debug(
-                "theorem rule: instantiate complete elapsed="
-                + "{:.3f}".format(time.time() - instantiate_started_at)
-                + "s"
-            )
+            instantiate_count = self._succ_nat(instantiate_count)
             conclusion = M.Head(inst)()
             if M.IdentityCompare(knowledge_exact_trie, M.EmptyList)() is M.truth_value:
                 already_known = self._knowledge_has_fact(facts, conclusion)
@@ -1415,7 +1441,27 @@ class Search(M.Edge):
                     next_delta = M.Pair(conclusion, next_delta)
                     rule_delta_facts = M.Pair(conclusion, rule_delta_facts)
                     actions_rev = M.Pair(action, actions_rev)
+                    derived_count = self._succ_nat(derived_count)
+                else:
+                    already_pending_count = self._succ_nat(already_pending_count)
+            else:
+                already_known_count = self._succ_nat(already_known_count)
             remaining_bindings = M.Tail(remaining_bindings)()
+        self._stage_debug(
+            "theorem rule: instantiation pass complete"
+            + " elapsed="
+            + "{:.3f}".format(time.time() - instantiation_started_at)
+            + "s bindings="
+            + self._nat_text(instantiate_count)
+            + " derived="
+            + self._nat_text(derived_count)
+            + " already-known="
+            + self._nat_text(already_known_count)
+            + " already-pending="
+            + self._nat_text(already_pending_count)
+            + " rule="
+            + Pmod.PrettyRule(rule, self.registry)()
+        )
         return M.Pair(next_delta, M.Pair(actions_rev, M.Pair(rule_delta_facts, M.EmptyList)))
 
     def _premises_satisfied_by_bindings(self, premises, facts, bindings):
