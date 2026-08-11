@@ -387,6 +387,50 @@ class _ComparisonSubprocessMixin:
         _debug("SearchComparison: provenance recorded")
         return M.Pair(comparison, M.Pair(best_attempt, M.EmptyList))
 
+    def _comparison_worker_launch_budget(self):
+        """How many search-worker subprocesses may be resident at once.
+
+        Each worker boots its own copy of the packs, so the resident set
+        scales with the number of live workers rather than with the number
+        of modes. Bound it by the machine parallelism derived from
+        cpu_count, and allow an explicit override for hosts that want to
+        trade memory for wall-clock.
+        """
+        budget = 1
+        try:
+            budget = int(Gmpmod.GMPRepText(self._comparison_machine_parallelism())())
+        except Exception:
+            budget = 1
+        override = os.environ.get("HYGE_SEARCH_WORKER_PARALLELISM", "")
+        if override != "":
+            try:
+                budget = int(override)
+            except Exception:
+                pass
+        if budget < 1:
+            budget = 1
+        return budget
+
+    def _launch_search_worker(self, package_name, import_root, mode_text, mode_token, result_path, timeout_text):
+        self._write_search_worker_manifest(result_path)
+        cmd = [sys.executable, "-m", package_name + ".main", "search-worker", mode_token, result_path, timeout_text]
+        child_env = os.environ.copy()
+        child_env["PYTHONPATH"] = import_root
+        child_env["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = "1"
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            cwd=import_root,
+            env=child_env,
+        )
+        _debug("SearchComparison: launched search-worker mode=" + mode_text + " pid=" + str(process.pid))
+        thread = threading.Thread(target=self._relay_search_worker_output, args=(mode_text, process.stdout), daemon=True)
+        thread.start()
+        return process, thread
+
     def _compare_all_modes_independent_parallel(self, paused_job=M.EmptyList):
         if M.Compare(paused_job, M.EmptyList)() is M.false_value:
             _debug("SearchComparison: paused legacy comparison ignored; restarting independent mode attempts")
@@ -408,6 +452,7 @@ class _ComparisonSubprocessMixin:
         comparison_started_at = time.time()
         workers = ()
         reader_threads = ()
+        pending_launches = ()
         result_path_by_mode = {}
         attempts_by_mode = {}
         performances_by_mode = {}
@@ -441,33 +486,46 @@ class _ComparisonSubprocessMixin:
                         continue
                 except Exception as error:
                     _debug("SearchComparison: saved worker snapshot reuse failed mode=" + mode_text + " error=" + str(error))
-            self._write_search_worker_manifest(result_path)
-            cmd = [sys.executable, "-m", package_name + ".main", "search-worker", mode_token, result_path, timeout_text]
-            child_env = os.environ.copy()
-            child_env["PYTHONPATH"] = import_root
-            child_env["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = "1"
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                cwd=import_root,
-                env=child_env,
-            )
-            _debug("SearchComparison: launched search-worker mode=" + mode_text + " pid=" + str(process.pid))
-            thread = threading.Thread(target=self._relay_search_worker_output, args=(mode_text, process.stdout), daemon=True)
-            thread.start()
-            workers = workers + ((mode, heuristic, process, result_path, time.time()),)
+            pending_launches = pending_launches + ((mode, heuristic, mode_text, mode_token, result_path),)
             result_path_by_mode[mode_text] = result_path
-            reader_threads = reader_threads + (thread,)
             remaining_modes = M.Tail(remaining_modes)()
-        worker_total = len(workers)
+        # Admit workers in waves bounded by the machine parallelism the
+        # comparison already computed from cpu_count. Launching every mode at
+        # once oversubscribes small hosts: each worker boots its own copy of
+        # the packs, so N modes cost N times the resident set even though only
+        # cpu_count of them can make progress. The remainder are held here and
+        # started as earlier workers retire.
+        launch_budget = self._comparison_worker_launch_budget()
+        pending_total = len(pending_launches)
+        worker_total = pending_total
+        pending_index = 0
+        _debug(
+            "SearchComparison: worker admission modes="
+            + str(pending_total)
+            + " launch-budget="
+            + str(launch_budget)
+        )
         finished_count = 0
         while finished_count != worker_total:
+            # Top up the live worker set whenever it drops below the budget.
+            while len(workers) - finished_count < launch_budget:
+                if pending_index == pending_total:
+                    break
+                mode, heuristic, mode_text, mode_token, result_path = pending_launches[pending_index]
+                pending_index = pending_index + 1
+                process, thread = self._launch_search_worker(
+                    package_name,
+                    import_root,
+                    mode_text,
+                    mode_token,
+                    result_path,
+                    timeout_text,
+                )
+                workers = workers + ((mode, heuristic, process, result_path, time.time()),)
+                reader_threads = reader_threads + (thread,)
             if time.time() - comparison_started_at > comparison_timeout_seconds:
                 worker_index = 0
-                while worker_index != worker_total:
+                while worker_index != len(workers):
                     mode, heuristic, process, result_path, launch_started_at = workers[worker_index]
                     worker_index = worker_index + 1
                     mode_text = SearchModeText(mode)()
@@ -505,10 +563,29 @@ class _ComparisonSubprocessMixin:
                         best_attempt = attempt
                         best_elapsed_seconds = elapsed_seconds
                     finished_count = finished_count + 1
+                # Modes still queued behind the launch budget never ran; record
+                # them as timed out rather than leaving the caller short.
+                while pending_index != pending_total:
+                    mode, heuristic, mode_text, mode_token, result_path = pending_launches[pending_index]
+                    pending_index = pending_index + 1
+                    if mode_text in attempts_by_mode:
+                        continue
+                    attempt, performance = self._fabricate_worker_failure_attempt(
+                        heuristic,
+                        SearchTimedOutLabel,
+                        0.0,
+                        "comparison-timeout-before-launch",
+                        None,
+                        "unlaunched",
+                    )
+                    attempts_by_mode[mode_text] = attempt
+                    performances_by_mode[mode_text] = performance
+                    self._log_independent_mode_finish(mode, SearchAttemptStatus(attempt)(), 0.0, SearchAttemptSearchCost(attempt)(), "comparison-timeout-before-launch")
+                    finished_count = finished_count + 1
                 break
             saw_update = M.false_value
             worker_index = 0
-            while worker_index != worker_total:
+            while worker_index != len(workers):
                 mode, heuristic, process, result_path, launch_started_at = workers[worker_index]
                 worker_index = worker_index + 1
                 mode_text = SearchModeText(mode)()
