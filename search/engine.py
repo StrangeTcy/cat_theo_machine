@@ -1316,36 +1316,37 @@ class Search(M.Edge):
         if actions_rev is None:
             actions_rev = M.EmptyList
         rule_delta_facts = M.EmptyList
-        premise_probe = RulePremises(rule)()
-        premise_index = 0
-        while M.IdentityCompare(premise_probe, M.EmptyList)() is M.false_value:
-            premise_term = M.Head(premise_probe)()
-            if ContainsVar(premise_term)() is M.false_value:
-                ground_present = self._knowledge_has_fact(facts, premise_term)
-                if ground_present is M.truth_value:
-                    ground_text = "yes"
+        if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+            premise_probe = RulePremises(rule)()
+            premise_index = M.Zero
+            while M.IdentityCompare(premise_probe, M.EmptyList)() is M.false_value:
+                premise_term = M.Head(premise_probe)()
+                if ContainsVar(premise_term)() is M.false_value:
+                    ground_present = self._knowledge_has_fact(facts, premise_term)
+                    if ground_present is M.truth_value:
+                        ground_text = "yes"
+                    else:
+                        ground_text = "no"
+                    self._stage_debug(
+                        "theorem rule premise "
+                        + M.GMPRepText(premise_index())()
+                        + " ground-present="
+                        + ground_text
+                        + " premise="
+                        + M.PrettyTerm(premise_term, self.registry)()
+                    )
                 else:
-                    ground_text = "no"
-                self._stage_debug(
-                    "theorem rule premise "
-                    + str(premise_index)
-                    + " ground-present="
-                    + ground_text
-                    + " premise="
-                    + M.PrettyTerm(premise_term, self.registry)()
-                )
-            else:
-                premise_bucket = K.KnowledgeHeadIndexBucket(knowledge_head_index, premise_term, self.registry)()
-                self._stage_debug(
-                    "theorem rule premise "
-                    + str(premise_index)
-                    + " bucket-size="
-                    + M.GMPRepText(M.CountRep(premise_bucket)())()
-                    + " premise="
-                    + M.PrettyTerm(premise_term, self.registry)()
-                )
-            premise_probe = M.Tail(premise_probe)()
-            premise_index = premise_index + 1
+                    premise_bucket = K.KnowledgeHeadIndexBucket(knowledge_head_index, premise_term, self.registry)()
+                    self._stage_debug(
+                        "theorem rule premise "
+                        + M.GMPRepText(premise_index())()
+                        + " bucket-size="
+                        + M.GMPRepText(M.CountRep(premise_bucket)())()
+                        + " premise="
+                        + M.PrettyTerm(premise_term, self.registry)()
+                    )
+                premise_probe = M.Tail(premise_probe)()
+                premise_index = self._succ_nat(premise_index)
         matching_bindings = M.EmptyList
         premise_key = M.ExactKey(RulePremises(rule)(), self.registry)()
         # The join result depends on the facts and the delta it was computed
