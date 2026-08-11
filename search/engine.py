@@ -460,6 +460,12 @@ class Search(M.Edge):
         self.rule_order_mode = HeuristicRuleOrder(self.heuristic)()
         self._theorem_rule_cache = theorem_rule_cache
         self._theorem_applicable_rule_cache = M.EmptyList
+        # Premise-join cache, plus the knowledge state it was computed
+        # against. Shared by every construction path, including kernels
+        # that bypass the Search constructor.
+        self._premise_bindings_cache = M.EmptyList
+        self._premise_bindings_cache_state_key = M.EmptyList
+        self._premise_bindings_cache_delta = M.EmptyList
         self._rewrite_rules = rewrite_rules
         self._rewrite_rules_goal = goal
         self._rewrite_strategy = RewriteStrategymod.GoalDemandRewriteStrategy()()
@@ -1106,19 +1112,15 @@ class Search(M.Edge):
         if used_delta is None:
             used_delta = M.false_value
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
-                _debug(
-                    "premise-join: premise "
-                    + str(premise_index)
-                    + " head=(premises-exhausted) elapsed=0.000s candidates=0 matched=yes"
-                )
             if M.IdentityCompare(used_delta, M.truth_value)() is M.truth_value:
                 return M.Pair(bindings, M.EmptyList)
             return M.EmptyList
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
+        premise_head_text = ""
+        if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+            premise_head_text = _debug_term(premise, self.registry)
         premise_started_at = time.time()
-        premise_head_text = _debug_term(premise, self.registry)
         match_premise = premise
         if M.IdentityCompare(bindings, M.EmptyList)() is M.false_value:
             instantiated_premise = M.Instantiate(premise, bindings)()
@@ -1346,6 +1348,19 @@ class Search(M.Edge):
             premise_index = premise_index + 1
         matching_bindings = M.EmptyList
         premise_key = M.ExactKey(RulePremises(rule)(), self.registry)()
+        # The join result depends on the facts and the delta it was computed
+        # against, not on the rule premises alone. Drop the cache whenever
+        # either changes; keep it across cursor advances that change neither.
+        cache_state_key = self._state_key(current)
+        cache_state_stale = M.false_value
+        if M.TermEqual(cache_state_key, self._premise_bindings_cache_state_key)() is M.false_value:
+            cache_state_stale = M.truth_value
+        elif M.IdentityCompare(delta, self._premise_bindings_cache_delta)() is M.false_value:
+            cache_state_stale = M.truth_value
+        if M.IdentityCompare(cache_state_stale, M.truth_value)() is M.truth_value:
+            self._premise_bindings_cache = M.EmptyList
+            self._premise_bindings_cache_state_key = cache_state_key
+            self._premise_bindings_cache_delta = delta
         cache_lookup = self._premise_bindings_cache
         cache_found = M.false_value
         while M.IdentityCompare(cache_lookup, M.EmptyList)() is M.false_value:
@@ -1574,7 +1589,6 @@ class SearchBFS(Search):
 
     def _advance_theorem_cursor(self, state, cursor, goal):
         current = self._state_current(state)
-        self._premise_bindings_cache = M.EmptyList
         cursor_current = SearchTheoremCursorCurrent(cursor)()
         if M.IdentityCompare(cursor_current, M.EmptyList)() is M.false_value:
             current = cursor_current

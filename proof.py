@@ -123,21 +123,29 @@ def _debug(message):
         sys.stdout.flush()
 
 
+class DebugTerm(M.Edge):
+    """Render a term for tracing without exception-driven discrimination."""
+
+    def __init__(self, x, registry):
+        if M.IdentityCompare(DEBUG_TRACE_STATE(), M.false_value)() is M.truth_value:
+            self.result = ""
+        elif M.IsPair(x)() is M.truth_value:
+            self.result = M.PrettyTerm(x, registry)()
+        elif x is M.EmptyList:
+            self.result = M.PrettyTerm(x, registry)()
+        else:
+            self.result = M.PrettyTerm(x, registry)()
+        super().__init__(
+            inputs=M.Pair(x, M.Pair(registry, M.EmptyList)),
+            results=M.EmptyList,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 def _debug_term(x, registry):
-    try:
-        return M.PrettyTerm(x, registry)()
-    except Exception:
-        pass
-    try:
-        return M.PrettyTerm(x, M.AllConstructors)()
-    except Exception:
-        constructor = M.GetConstructor(x, registry)()
-        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
-            try:
-                return M.PrettyTerm(M.Head(constructor)(), registry)() + "(...)"
-            except Exception:
-                pass
-        return "<opaque-term>"
+    return DebugTerm(x, registry)()
 
 
 class Rule(M.Edge):
