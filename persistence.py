@@ -459,6 +459,9 @@ class SnapshotCodec:
         # "Current tree" means a modern Patricia-backed tree, not a legacy TreeNode.
         # Support both the general Tree (`trees.IsTree`) and the search-specific
         # patricia tree (`search.SearchPatriciaIsTree`) representations.
+        # An empty tree or empty root (EmptyList) is also current.
+        if M.Compare(tree, self._ns_get("EmptyList"))() is M.truth_value:
+            return M.truth_value
         try:
             if "IsTree" in self.namespace:
                 if self.namespace["IsTree"](tree)() is self.namespace["truth_value"]:

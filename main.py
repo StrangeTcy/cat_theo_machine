@@ -601,7 +601,7 @@ def _search_worker_stage_text(value):
         return ""
 
 
-def _search_worker_resume_state(result_path: str, start, goal, heuristic):
+def _search_worker_resume_state(result_path: str, start, goal, heuristic, validate_problem: bool = True):
     if os.path.exists(result_path) is False:
         return M.EmptyList, M.EmptyList, 0, ""
     try:
@@ -612,12 +612,13 @@ def _search_worker_resume_state(result_path: str, start, goal, heuristic):
     if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
         return M.EmptyList, M.EmptyList, 0, ""
     attempt = M.Head(attempts)()
-    if M.TermEqual(P.SearchAttemptStart(attempt)(), start)() is M.false_value:
-        return M.EmptyList, M.EmptyList, 0, ""
-    if M.TermEqual(P.SearchAttemptGoal(attempt)(), goal)() is M.false_value:
-        return M.EmptyList, M.EmptyList, 0, ""
-    if M.TermEqual(P.SearchAttemptHeuristic(attempt)(), heuristic)() is M.false_value:
-        return M.EmptyList, M.EmptyList, 0, ""
+    if validate_problem:
+        if M.PrettyTerm(P.SearchAttemptStart(attempt)(), M.AllConstructors)() != M.PrettyTerm(start, M.AllConstructors)():
+            return M.EmptyList, M.EmptyList, 0, ""
+        if M.PrettyTerm(P.SearchAttemptGoal(attempt)(), M.AllConstructors)() != M.PrettyTerm(goal, M.AllConstructors)():
+            return M.EmptyList, M.EmptyList, 0, ""
+        if M.PrettyTerm(P.SearchAttemptHeuristic(attempt)(), M.AllConstructors)() != M.PrettyTerm(heuristic, M.AllConstructors)():
+            return M.EmptyList, M.EmptyList, 0, ""
     performances = state.roots.get("search_comparisons", M.EmptyList)
     elapsed_milliseconds = 0
     if M.IdentityCompare(performances, M.EmptyList)() is M.false_value:
@@ -752,6 +753,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         start,
         goal,
         worker_heuristic,
+        not resume_derivation_only,
     )
     if resume_derivation_only:
         if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:

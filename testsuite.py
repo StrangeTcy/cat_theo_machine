@@ -2853,9 +2853,9 @@ class SearchWorkerResumeStateRestoresSavedPlanTest(M.Edge):
                 self.result = M.false_value
             elif M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
                 self.result = M.false_value
-            elif RawTermEqual(resume_plan, plan, registry)() is M.false_value:
+            elif M.PrettyTerm(resume_plan, M.AllConstructors)() != M.PrettyTerm(plan, M.AllConstructors)():
                 self.result = M.false_value
-            elif RawTermEqual(resume_search_cost, search_cost, registry)() is M.false_value:
+            elif M.PrettyTerm(resume_search_cost, M.AllConstructors)() != M.PrettyTerm(search_cost, M.AllConstructors)():
                 self.result = M.false_value
             elif elapsed_milliseconds != 1234:
                 self.result = M.false_value
