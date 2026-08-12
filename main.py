@@ -370,8 +370,6 @@ def _make_real_closure_case(name: str, a, b, c):
 
 
 def _theorem_agenda(packs):
-    sqrt_pack = packs.by_name("sqrt-real")
-    closure_pack = packs.by_name("real-closure")
     geometry_pack = packs.by_name("geometry")
     cases = []
 
@@ -379,20 +377,6 @@ def _theorem_agenda(packs):
         start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
         cases.append(("Tao Problem 1.1 metric structure", start, goal))
 
-    if "branchy_real_closure_benchmark" in closure_pack.examples:
-        start, goal = closure_pack.examples["branchy_real_closure_benchmark"]
-        cases.append(("branchy real-closure proof", start, goal))
-
-    for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
-        if example_id in sqrt_pack.examples:
-            start, goal = sqrt_pack.examples[example_id]
-            label = example_id.replace("_real", "").replace("sqrt", "sqrt(") + ")"
-            cases.append((label, start, goal))
-
-    cases.append(_make_isreal_sqrt_case("sqrt(5)", M.five))
-    if "sqrt2_plus_sqrt3_times_sqrt5_real" in closure_pack.examples:
-        start, goal = closure_pack.examples["sqrt2_plus_sqrt3_times_sqrt5_real"]
-        cases.append(("sqrt(2) + sqrt(3)*sqrt(5) from real premises", start, goal))
     return cases
 
 
