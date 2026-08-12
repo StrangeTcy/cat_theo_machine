@@ -649,7 +649,11 @@ class _ComparisonSubprocessMixin:
             remaining_modes = M.Tail(remaining_modes)()
         attempts = self._reverse(attempts_rev, M.EmptyList)
         performances = self._reverse(performances_rev, M.EmptyList)
-        best_attempt = self._best_attempt_in_performances(performances, M.EmptyList, None)
+        if M.OrAtom(
+            M.Compare(best_attempt, M.EmptyList),
+            M.IdentityCompare(SearchAttemptStatus(best_attempt)(), SearchFailureLabel),
+        )() is M.truth_value:
+            best_attempt = self._best_attempt_in_performances(performances, M.EmptyList, None)
         return self._finalize_independent_mode_attempts(attempts, best_attempt, performances)
 
     def _compare_all_modes_independent(self, paused_job=M.EmptyList):
