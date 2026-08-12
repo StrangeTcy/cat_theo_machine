@@ -571,10 +571,19 @@ def _search_worker_release_derivation_lock(lock_path: str):
 
 
 def _search_worker_store_result(runtime, result_path: str, attempt, performance, worker_stage=None, worker_plan=None):
-    if worker_stage is None:
+    if worker_stage == None:
         worker_stage = _string_atom("")
-    if worker_plan is None:
+    if worker_plan == None:
         worker_plan = M.EmptyList
+    if M.Compare(worker_plan, M.EmptyList)() is M.truth_value:
+        if os.path.exists(result_path):
+            try:
+                state = SnapshotCodec(_runtime_namespace()).load(result_path)
+                existing_plan = state.roots.get("worker_plan", M.EmptyList)
+                if M.Compare(existing_plan, M.EmptyList)() is M.false_value:
+                    worker_plan = existing_plan
+            except Exception:
+                pass
     os.makedirs(os.path.dirname(result_path) or ".", exist_ok=True)
     codec = SnapshotCodec(_runtime_namespace())
     snapshot = codec.capture(
@@ -601,7 +610,9 @@ def _search_worker_stage_text(value):
         return ""
 
 
-def _search_worker_resume_state(result_path: str, start, goal, heuristic):
+def _search_worker_resume_state(result_path: str, start, goal, heuristic, registry=None):
+    if registry == None:
+        registry = M.AllConstructors
     if os.path.exists(result_path) is False:
         return M.EmptyList, M.EmptyList, 0, ""
     try:
@@ -612,11 +623,11 @@ def _search_worker_resume_state(result_path: str, start, goal, heuristic):
     if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
         return M.EmptyList, M.EmptyList, 0, ""
     attempt = M.Head(attempts)()
-    if M.IdentityCompare(M.CompareIn(P.SearchAttemptStart(attempt)(), start, M.AllConstructors)(), M.false_value)() is M.truth_value:
+    if M.IdentityCompare(M.CompareIn(P.SearchAttemptStart(attempt)(), start, registry)(), M.false_value)() is M.truth_value:
         return M.EmptyList, M.EmptyList, 0, ""
-    if M.IdentityCompare(M.CompareIn(P.SearchAttemptGoal(attempt)(), goal, M.AllConstructors)(), M.false_value)() is M.truth_value:
+    if M.IdentityCompare(M.CompareIn(P.SearchAttemptGoal(attempt)(), goal, registry)(), M.false_value)() is M.truth_value:
         return M.EmptyList, M.EmptyList, 0, ""
-    if M.IdentityCompare(M.CompareIn(P.SearchAttemptHeuristic(attempt)(), heuristic, M.AllConstructors)(), M.false_value)() is M.truth_value:
+    if M.IdentityCompare(M.CompareIn(P.SearchAttemptHeuristic(attempt)(), heuristic, registry)(), M.false_value)() is M.truth_value:
         return M.EmptyList, M.EmptyList, 0, ""
     performances = state.roots.get("search_comparisons", M.EmptyList)
     elapsed_milliseconds = 0
@@ -752,6 +763,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         start,
         goal,
         worker_heuristic,
+        registry,
     )
     if resume_derivation_only:
         if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:

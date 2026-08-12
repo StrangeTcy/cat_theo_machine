@@ -134,15 +134,25 @@ class _ComparisonSubprocessMixin:
             worker_pid_text,
         )
 
-    def _partial_worker_attempt_is_resume_ready(self, attempt, performance):
+    def _partial_worker_attempt_is_resume_ready(self, attempt, performance, result_path=None):
         if M.IdentityCompare(SearchAttemptStatus(attempt)(), SearchSuccessLabel)() is M.false_value:
             return M.false_value
         reason_text = self._performance_reason_text(performance)
-        if reason_text == "success-plan-found":
+        if (reason_text == "success-plan-found") is False:
+            if (reason_text == "running-derivation") is False:
+                return M.false_value
+        if result_path == None:
             return M.truth_value
-        if reason_text == "running-derivation":
-            return M.truth_value
-        return M.false_value
+        from ..main import _runtime_namespace
+        from ..persistence import SnapshotCodec
+        try:
+            state = SnapshotCodec(_runtime_namespace()).load(result_path)
+            worker_plan = state.roots.get("worker_plan", M.EmptyList)
+            if M.Compare(worker_plan, M.EmptyList)() is M.truth_value:
+                return M.false_value
+        except Exception:
+            return M.false_value
+        return M.truth_value
 
     def _load_search_worker_snapshot(self, mode, heuristic, result_path):
         from ..main import _runtime_namespace
@@ -359,7 +369,7 @@ class _ComparisonSubprocessMixin:
                     rank = self._search_worker_resume_stage_rank(reason_text)
                     if rank < 3:
                         rank = 3
-                elif self._partial_worker_attempt_is_resume_ready(attempt, performance) is M.truth_value:
+                elif self._partial_worker_attempt_is_resume_ready(attempt, performance, result_path) is M.truth_value:
                     reason_text = self._performance_reason_text(performance)
                     rank = self._search_worker_resume_stage_rank(reason_text)
                 else:
@@ -430,7 +440,7 @@ class _ComparisonSubprocessMixin:
                     attempt, performance = self._load_search_worker_snapshot(mode, heuristic, reusable_result_path)
                     if M.OrAtom(
                         self._loaded_worker_attempt_is_final(attempt),
-                        self._partial_worker_attempt_is_resume_ready(attempt, performance),
+                        self._partial_worker_attempt_is_resume_ready(attempt, performance, reusable_result_path),
                     )() is M.truth_value:
                         attempts_by_mode[mode_text] = attempt
                         performances_by_mode[mode_text] = performance
