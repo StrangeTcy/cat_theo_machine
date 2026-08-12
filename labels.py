@@ -887,6 +887,10 @@ class NextLabel(ConstructorLabel):
     pass
 
 
+class GraphVersionLabel(ConstructorLabel):
+    pass
+
+
 class PlannerProblemLabel(ConstructorLabel):
     pass
 
@@ -990,6 +994,7 @@ MissLabel = MissLabel()
 LawLabel = LawLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
+GraphVersionLabel = GraphVersionLabel()
 PlannerProblemLabel = PlannerProblemLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()

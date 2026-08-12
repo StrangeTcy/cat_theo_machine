@@ -343,6 +343,24 @@ class Next(M.Edge):
         return self.result
 
 
+class GraphVersion(M.Edge):
+    def __init__(self, node_store, edge_store, invariant_store):
+        self.node_store = node_store
+        self.edge_store = edge_store
+        self.invariant_store = invariant_store
+        self.result = M.Pair(
+            Lmod.GraphVersionLabel,
+            M.Pair(node_store, M.Pair(edge_store, M.Pair(invariant_store, M.EmptyList)))
+        )
+        super().__init__(
+            inputs=M.Pair(node_store, M.Pair(edge_store, M.Pair(invariant_store, M.EmptyList))),
+            results=self.result
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class MapExtendOneStep(M.Edge):
     def __init__(self, mapping, pat, host):
         self.mapping = mapping
@@ -356,6 +374,22 @@ class MapExtendOneStep(M.Edge):
         atom.value = text
         return atom
 
+    def _is_graph_version(self, graph):
+        if M.IsPair(graph)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(graph)(), Lmod.GraphVersionLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _graph_version_nodes(self, graph):
+        return M.Head(M.Tail(graph)())()
+
+    def _graph_version_edges(self, graph):
+        return M.Head(M.Tail(M.Tail(graph)())())()
+
+    def _graph_version_invariants(self, graph):
+        return M.Head(M.Tail(M.Tail(M.Tail(graph)())())())()
+
     def _mapping_pattern_graph(self):
         return M.Head(M.Tail(self.mapping)())()
 
@@ -366,6 +400,8 @@ class MapExtendOneStep(M.Edge):
         return M.Head(M.Tail(M.Tail(M.Tail(self.mapping)())())())()
 
     def _graph_nodes(self, graph):
+        if self._is_graph_version(graph) is M.truth_value:
+            return self._graph_version_nodes(graph)
         if M.IsPair(graph)() is M.truth_value:
             if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
                 return M.Head(M.Tail(graph)())()
@@ -378,6 +414,8 @@ class MapExtendOneStep(M.Edge):
         return M.Head(args)()
 
     def _graph_edges(self, graph):
+        if self._is_graph_version(graph) is M.truth_value:
+            return self._graph_version_edges(graph)
         if M.IsPair(graph)() is M.truth_value:
             if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
                 return M.Head(M.Tail(M.Tail(graph)())())()
