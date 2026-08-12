@@ -525,6 +525,64 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class MinimalGraphOneStepMapExtensionTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_left = M.Thingy()
+        p_right = M.Thingy()
+        pattern_edge = M.Pair(M.Char("p"), empty)
+        pattern.add_node(p_left)
+        pattern.add_node(p_right)
+        pattern.add_node(pattern_edge)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_left = M.Thingy()
+        h_right = M.Thingy()
+        host_edge = M.Pair(M.Char("h"), empty)
+        host.add_node(h_left)
+        host.add_node(h_right)
+        host.add_node(host_edge)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+        base_map = Gmod.Map(pattern_value, host_value, empty)()
+        success = Gmod.MapExtendOneStep(base_map, p_left, h_left)()
+        committed_root = M.Pair(Gmod.Apart(p_left, p_right)(), M.Pair(Gmod.Send(p_right, h_right)(), empty))
+        committed_map = Gmod.Map(pattern_value, host_value, committed_root)()
+        failure = Gmod.MapExtendOneStep(committed_map, p_left, h_right)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(success)(), Lmod.MapLabel)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(M.Tail(M.Tail(M.Tail(success)())())())(), M.Pair(Gmod.Send(p_left, h_left)(), empty), registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(failure)(), Lmod.MissLabel)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(M.Tail(failure)())(), p_left, registry)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MinimalGraphSourceConstraintTest(M.Edge):
+    def __init__(self, _graph):
+        base_dir = os.path.dirname(__file__)
+        self.result = M.truth_value
+        for name in ("graph.py", "labels.py"):
+            text = open(os.path.join(base_dir, name), "r", encoding="utf-8").read()
+            for forbidden in ("isinstance(", "hasattr(", "__class__", "__new__", "return True", "return False"):
+                if forbidden in text:
+                    self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchStructuralKeyEqualityTest(M.Edge):
     def __init__(self):
         head_atom = M.Thingy()
@@ -4601,6 +4659,21 @@ def install_default_tests(graph):
         M.Pair(pattern3, M.Pair(var_x, M.Pair(rewrite_target, empty))),
         M.Rewrite(rewrite_rule, rewrite_target, _registry(graph)),
         target_head,
+    )
+
+    _register_test(
+        graph,
+        "minimal_graph_one_step_map_extension_test",
+        empty,
+        MinimalGraphOneStepMapExtensionTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "minimal_graph_source_constraint_test",
+        empty,
+        MinimalGraphSourceConstraintTest(graph),
+        M.truth_value,
     )
 
     _register_test(

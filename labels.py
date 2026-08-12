@@ -855,6 +855,38 @@ class PremiseUnlockRewriteStrategyLabel(ConstructorLabel):
     pass
 
 
+class BoundaryLabel(ConstructorLabel):
+    pass
+
+
+class MapLabel(ConstructorLabel):
+    pass
+
+
+class SendLabel(ConstructorLabel):
+    pass
+
+
+class ApartLabel(ConstructorLabel):
+    pass
+
+
+class MissLabel(ConstructorLabel):
+    pass
+
+
+class LawLabel(ConstructorLabel):
+    pass
+
+
+class FireLabel(ConstructorLabel):
+    pass
+
+
+class NextLabel(ConstructorLabel):
+    pass
+
+
 class PlannerProblemLabel(ConstructorLabel):
     pass
 
@@ -930,6 +962,14 @@ APAreaIdentityLabel = APAreaIdentityLabel()
 CosineRuleRelatesLabel = CosineRuleRelatesLabel()
 GoalDemandRewriteStrategyLabel = GoalDemandRewriteStrategyLabel()
 PremiseUnlockRewriteStrategyLabel = PremiseUnlockRewriteStrategyLabel()
+BoundaryLabel = BoundaryLabel()
+MapLabel = MapLabel()
+SendLabel = SendLabel()
+ApartLabel = ApartLabel()
+MissLabel = MissLabel()
+LawLabel = LawLabel()
+FireLabel = FireLabel()
+NextLabel = NextLabel()
 PlannerProblemLabel = PlannerProblemLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()
@@ -1235,6 +1275,14 @@ def sync_from_namespace(namespace):
         "CosineRuleRelatesLabel",
         "GoalDemandRewriteStrategyLabel",
         "PremiseUnlockRewriteStrategyLabel",
+        "BoundaryLabel",
+        "MapLabel",
+        "SendLabel",
+        "ApartLabel",
+        "MissLabel",
+        "LawLabel",
+        "FireLabel",
+        "NextLabel",
         "PlannerProblemLabel",
         "PlannerObligationLabel",
         "PlannerDependencyLabel",

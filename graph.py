@@ -4,6 +4,7 @@ from . import context as Ctx
 from . import machine as M
 from . import proof as P
 from . import schemata as S
+from . import labels as Lmod
 
 
 class Hypergraph:
@@ -265,6 +266,223 @@ class Reverse(M.Edge):
         if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
             return acc
         return self._rev(M.Tail(chain)(), M.Pair(M.Head(chain)(), acc))
+
+    def __call__(self):
+        return self.result
+
+
+class Boundary(M.Edge):
+    def __init__(self, graph, end):
+        self.result = M.Pair(Lmod.BoundaryLabel, M.Pair(graph, M.Pair(end, M.EmptyList)))
+        super().__init__(inputs=M.Pair(graph, M.Pair(end, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Map(M.Edge):
+    def __init__(self, pattern_graph, host_graph, root):
+        self.result = M.Pair(Lmod.MapLabel, M.Pair(pattern_graph, M.Pair(host_graph, M.Pair(root, M.EmptyList))))
+        super().__init__(inputs=M.Pair(pattern_graph, M.Pair(host_graph, M.Pair(root, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Send(M.Edge):
+    def __init__(self, pat, host):
+        self.result = M.Pair(Lmod.SendLabel, M.Pair(pat, M.Pair(host, M.EmptyList)))
+        super().__init__(inputs=M.Pair(pat, M.Pair(host, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Apart(M.Edge):
+    def __init__(self, left, right):
+        self.result = M.Pair(Lmod.ApartLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Miss(M.Edge):
+    def __init__(self, pat, reason):
+        self.result = M.Pair(Lmod.MissLabel, M.Pair(pat, M.Pair(reason, M.EmptyList)))
+        super().__init__(inputs=M.Pair(pat, M.Pair(reason, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Law(M.Edge):
+    def __init__(self, left, interface, right):
+        self.result = M.Pair(Lmod.LawLabel, M.Pair(left, M.Pair(interface, M.Pair(right, M.EmptyList))))
+        super().__init__(inputs=M.Pair(left, M.Pair(interface, M.Pair(right, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Fire(M.Edge):
+    def __init__(self, law, mapping):
+        self.result = M.Pair(Lmod.FireLabel, M.Pair(law, M.Pair(mapping, M.EmptyList)))
+        super().__init__(inputs=M.Pair(law, M.Pair(mapping, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Next(M.Edge):
+    def __init__(self, g0, fire, g1):
+        self.result = M.Pair(Lmod.NextLabel, M.Pair(g0, M.Pair(fire, M.Pair(g1, M.EmptyList))))
+        super().__init__(inputs=M.Pair(g0, M.Pair(fire, M.Pair(g1, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MapExtendOneStep(M.Edge):
+    def __init__(self, mapping, pat, host):
+        self.mapping = mapping
+        self.pat = pat
+        self.host = host
+        self.result = self._step()
+        super().__init__(inputs=M.Pair(mapping, M.Pair(pat, M.Pair(host, M.EmptyList))), results=self.result)
+
+    def _reason(self, text):
+        atom = M.Atom()
+        atom.value = text
+        return atom
+
+    def _mapping_pattern_graph(self):
+        return M.Head(M.Tail(self.mapping)())()
+
+    def _mapping_host_graph(self):
+        return M.Head(M.Tail(M.Tail(self.mapping)())())()
+
+    def _mapping_root(self):
+        return M.Head(M.Tail(M.Tail(M.Tail(self.mapping)())())())()
+
+    def _graph_nodes(self, graph):
+        if M.IsPair(graph)() is M.truth_value:
+            if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
+                return M.Head(M.Tail(graph)())()
+        constructor = M.GetConstructor(graph)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(M.Head(constructor)(), M.HypergraphLabel)() is M.false_value:
+            return M.EmptyList
+        args = M.Tail(constructor)()
+        return M.Head(args)()
+
+    def _graph_edges(self, graph):
+        if M.IsPair(graph)() is M.truth_value:
+            if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
+                return M.Head(M.Tail(M.Tail(graph)())())()
+        constructor = M.GetConstructor(graph)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(M.Head(constructor)(), M.HypergraphLabel)() is M.false_value:
+            return M.EmptyList
+        args = M.Tail(constructor)()
+        return M.Head(M.Tail(args)())()
+
+    def _chain_has_term(self, chain, term):
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.TermEqual(M.Head(remaining)(), term)() is M.truth_value:
+                return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _graph_has_element(self, graph, term):
+        if self._chain_has_term(self._graph_nodes(graph), term) is M.truth_value:
+            return M.truth_value
+        return self._chain_has_term(self._graph_edges(graph), term)
+
+    def _is_send(self, term):
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(term)(), Lmod.SendLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _is_apart(self, term):
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(term)(), Lmod.ApartLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _send_pat(self, term):
+        return M.Head(M.Tail(term)())()
+
+    def _send_host(self, term):
+        return M.Head(M.Tail(M.Tail(term)())())()
+
+    def _apart_left(self, term):
+        return M.Head(M.Tail(term)())()
+
+    def _apart_right(self, term):
+        return M.Head(M.Tail(M.Tail(term)())())()
+
+    def _has_apart_commitment(self, root, left, right):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if self._is_apart(item) is M.truth_value:
+                apart_left = self._apart_left(item)
+                apart_right = self._apart_right(item)
+                if M.AndAtom(M.TermEqual(apart_left, left)(), M.TermEqual(apart_right, right)())() is M.truth_value:
+                    return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _mapped_host_for_pat(self, root, pat):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if self._is_send(item) is M.truth_value:
+                if M.TermEqual(self._send_pat(item), pat)() is M.truth_value:
+                    return M.Pair(M.truth_value, self._send_host(item))
+            remaining = M.Tail(remaining)()
+        return M.Pair(M.false_value, M.EmptyList)
+
+    def _violates_apart(self, root, pat, host):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if self._is_send(item) is M.truth_value:
+                other_pat = self._send_pat(item)
+                other_host = self._send_host(item)
+                if M.TermEqual(other_host, host)() is M.truth_value:
+                    if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
+                        return M.truth_value
+                    if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
+                        return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _step(self):
+        if M.IsPair(self.mapping)() is M.false_value:
+            return Miss(self.pat, self._reason("not-a-map"))()
+        if M.TermEqual(M.Head(self.mapping)(), Lmod.MapLabel)() is M.false_value:
+            return Miss(self.pat, self._reason("not-a-map"))()
+        pattern_graph = self._mapping_pattern_graph()
+        host_graph = self._mapping_host_graph()
+        root = self._mapping_root()
+        if self._graph_has_element(pattern_graph, self.pat) is M.false_value:
+            return Miss(self.pat, self._reason("pattern-miss"))()
+        if self._graph_has_element(host_graph, self.host) is M.false_value:
+            return Miss(self.pat, self._reason("host-miss"))()
+        existing = self._mapped_host_for_pat(root, self.pat)
+        if M.TermEqual(M.Head(existing)(), M.truth_value)() is M.truth_value:
+            return Miss(self.pat, self._reason("already-mapped"))()
+        if self._violates_apart(root, self.pat, self.host) is M.truth_value:
+            return Miss(self.pat, self._reason("apart-violation"))()
+        return Map(pattern_graph, host_graph, M.Pair(Send(self.pat, self.host)(), root))()
 
     def __call__(self):
         return self.result
