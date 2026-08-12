@@ -1710,7 +1710,7 @@ def boot_from_snapshot(snapshot_path, namespace, debug=M.false_value):
     _debug_log(debug, "DEBUG: boot_from_snapshot: activating snapshot state")
     _debug_log(debug, "DEBUG: boot_from_snapshot: restored snapshot roots, rebuilding graph context")
     codec.activate(state, runtime.graph, debug=debug)
-    M.AllConstructors = runtime.graph.constructor_registry
+    M.AllConstructors = M.set_all_constructors(runtime.graph.constructor_registry)
     _sync_live_namespace(namespace)
     _debug_log(debug, "DEBUG: boot_from_snapshot: snapshot state activated")
     if M.Compare(state.needs_upgrade, M.truth_value)() is M.truth_value:
