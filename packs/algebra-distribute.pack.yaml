@@ -5,6 +5,9 @@ name: algebra-distribute
 description: Tiny rewrite pack for distributivity and multiplication associativity
 requires: []
 
+phi:
+  list: []
+
 rules:
   - id: distribute_right
     pattern:

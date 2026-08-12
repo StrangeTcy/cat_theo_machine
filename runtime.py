@@ -76,11 +76,15 @@ class MachineRuntime:
         self.run_tests()
         return TestResultsReport(self.graph)()
 
-    def prove(self, start, goal, rules=None, heuristic=None):
+    def prove(self, start, goal, rules=None, heuristic=None, phi=None):
         if rules is None:
             rules = self.ordered_rules()
+        else:
+            rules = Pmod.CompileRuleChain(rules, M.FromContextGetConstructors(self.graph)())()
         if heuristic is None:
             heuristic = self.theorem_heuristic
+        if phi is None:
+            phi = M.EmptyList
 
         pair = Prove(
             self.graph,
@@ -89,6 +93,7 @@ class MachineRuntime:
             rules,
             heuristic,
             M.FromContextGetConstructors(self.graph)(),
+            phi,
         )()
         return M.Head(pair)()
 

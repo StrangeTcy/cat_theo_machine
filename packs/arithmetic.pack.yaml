@@ -4,6 +4,9 @@ version: 1
 name: arithmetic
 description: Generic arithmetic-progression knowledge
 
+phi:
+  list: []
+
 rules:
   - id: common_difference_becomes_parameter
     pattern:

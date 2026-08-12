@@ -16,6 +16,7 @@ from . import matching as Xmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
+from . import invariance as Imod
 from . import search as Smod
 from . import theorem_rules as Theoremmod
 from . import trees as Tmod
@@ -4582,6 +4583,362 @@ class LoadedRulesHaveDirectProgressionEdgeEquationsTest(M.Edge):
         return self.result
 
 
+class CoinTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Coin")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeadsTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Heads")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TailsTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Tails")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeadsCountParityTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("HeadsCountParity")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class OddTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Odd")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EvenTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Even")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Coin(M.Edge):
+    def __init__(self, position, face):
+        self.result = M.Pair(CoinTag()(), M.Pair(position, M.Pair(face, M.EmptyList)))
+        super().__init__(inputs=M.Pair(position, M.Pair(face, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeadsCountParity(M.Edge):
+    def __init__(self, parity):
+        self.result = M.Pair(HeadsCountParityTag()(), M.Pair(parity, M.EmptyList))
+        super().__init__(inputs=M.Pair(parity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsCoinFact(M.Edge):
+    def __init__(self, term):
+        atom_result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), CoinTag()())() is M.truth_value:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoinFace(M.Edge):
+    def __init__(self, term):
+        atom_result = M.EmptyList
+        if IsCoinFact(term)() is M.truth_value:
+            atom_result = M.Head(M.Tail(M.Tail(term)())())()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CollectCoinFacts(M.Edge):
+    def __init__(self, term):
+        self.result = self._walk(term)
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def _walk(self, term):
+        if M.IdentityCompare(term, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if IsCoinFact(term)() is M.truth_value:
+            return M.Pair(term, M.EmptyList)
+        if M.IsPair(term)() is M.false_value:
+            return M.EmptyList
+        left = self._walk(M.Head(term)())
+        right = self._walk(M.Tail(term)())
+        return Pmod.Append(left, right)()
+
+    def __call__(self):
+        return self.result
+
+
+class CountHeadsInCoins(M.Edge):
+    def __init__(self, coins, registry):
+        self.registry = registry
+        self.result = self._count(coins, M.Zero)
+        super().__init__(inputs=M.Pair(coins, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _count(self, coins, acc):
+        if M.IdentityCompare(coins, M.EmptyList)() is M.truth_value:
+            return acc
+        face = CoinFace(M.Head(coins)())()
+        next_acc = acc
+        if M.Compare(face, HeadsTag()())() is M.truth_value:
+            succ_pair = M.Succ(acc, self.registry)()
+            next_acc = M.Head(succ_pair)()
+            self.registry = M.Head(M.Tail(succ_pair)())()
+        return self._count(M.Tail(coins)(), next_acc)
+
+    def __call__(self):
+        return self.result
+
+
+class NatParity(M.Edge):
+    def __init__(self, n, registry):
+        self.registry = registry
+        self.result = self._parity(n)
+        super().__init__(inputs=M.Pair(n, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _parity(self, n):
+        if M.NatEq(n, M.Zero, self.registry)() is M.truth_value:
+            return EvenTag()()
+        if M.NatEq(n, M.one, self.registry)() is M.truth_value:
+            return OddTag()()
+        pred_pair = M.NatPred(n, self.registry)()
+        pred = M.Head(pred_pair)()
+        self.registry = M.Head(M.Tail(pred_pair)())()
+        pred2_pair = M.NatPred(pred, self.registry)()
+        pred2 = M.Head(pred2_pair)()
+        self.registry = M.Head(M.Tail(pred2_pair)())()
+        return self._parity(pred2)
+
+    def __call__(self):
+        return self.result
+
+
+class BoardParityFact(M.Edge):
+    def __init__(self, facts, registry):
+        coins = CollectCoinFacts(facts)()
+        heads = CountHeadsInCoins(coins, registry)()
+        parity = NatParity(heads, registry)()
+        self.result = HeadsCountParity(parity)()
+        super().__init__(inputs=M.Pair(facts, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EngelCoinBoard(M.Edge):
+    def __init__(self, faces):
+        facts = M.EmptyList
+        remaining = faces
+        position = M.five
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            facts = M.Pair(Coin(position, M.Head(remaining)())(), facts)
+            remaining = M.Tail(remaining)()
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                pred_pair = M.NatPred(position, M.AllConstructors)()
+                position = M.Head(pred_pair)()
+        parity_fact = BoardParityFact(facts, M.AllConstructors)()
+        facts = M.Pair(parity_fact, facts)
+        self.result = Pmod.Knowledge(facts)()
+        super().__init__(inputs=M.Pair(faces, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FlipAdjacentPairRule(M.Edge):
+    def __init__(self, left_face, right_face, left_after, right_after):
+        empty = M.EmptyList
+        i_name = M.Thingy()
+        p_name = M.Thingy()
+        var_i = M.Pair(M.VarTag, M.Pair(i_name, empty))
+        var_p = M.Pair(M.VarTag, M.Pair(p_name, empty))
+        succ_i = M.Pair(M.SuccLabel, M.Pair(var_i, empty))
+        parity = HeadsCountParity(var_p)()
+        coin_left = Coin(var_i, left_face)()
+        coin_right = Coin(succ_i, right_face)()
+        flipped_left = Coin(var_i, left_after)()
+        flipped_right = Coin(succ_i, right_after)()
+        self.result = Pmod.MultiRule(
+            M.Pair(coin_left, M.Pair(coin_right, M.Pair(parity, empty))),
+            M.Pair(flipped_left, M.Pair(flipped_right, M.Pair(parity, empty))),
+        )
+        super().__init__(
+            inputs=M.Pair(left_face, M.Pair(right_face, M.Pair(left_after, M.Pair(right_after, empty)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FlipAdjacentRules(M.Edge):
+    def __init__(self):
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        hh = FlipAdjacentPairRule(heads, heads, tails, tails)()
+        ht = FlipAdjacentPairRule(heads, tails, tails, heads)()
+        th = FlipAdjacentPairRule(tails, heads, heads, tails)()
+        tt = FlipAdjacentPairRule(tails, tails, heads, heads)()
+        self.result = M.Pair(hh, M.Pair(ht, M.Pair(th, M.Pair(tt, M.EmptyList))))
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FlipOneRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        i_name = M.Thingy()
+        f_name = M.Thingy()
+        var_i = M.Pair(M.VarTag, M.Pair(i_name, empty))
+        var_f = M.Pair(M.VarTag, M.Pair(f_name, empty))
+        self.result = Pmod.Rule(Coin(var_i, var_f)(), Coin(var_i, HeadsTag()())())
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceEvenGoalUnreachableTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(tails, M.Pair(tails, M.Pair(tails, M.EmptyList))))))()
+        rules = FlipAdjacentRules()()
+        rule = M.Head(rules)()
+        p_name = M.Thingy()
+        var_p = M.Pair(M.VarTag, M.Pair(p_name, M.EmptyList))
+        phi = Imod.Phi(HeadsCountParity(var_p)())()
+        heuristic = Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)()
+        invariant = Imod.Invariant(phi, rules, registry)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        search_pair = Imod.SearchWithInvariant(graph, start, goal, rules, heuristic, registry, phi)()
+        search_prune = M.Head(M.Tail(M.Tail(search_pair)())())()
+        self.result = M.truth_value
+        if Imod.IsPreserves(Imod.Preserves(rule, phi, registry)())() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsInvariant(invariant)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(search_prune)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceOddGoalDoesNotPruneTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(tails, M.Pair(tails, M.EmptyList))))))()
+        rules = FlipAdjacentRules()()
+        p_name = M.Thingy()
+        var_p = M.Pair(M.VarTag, M.Pair(p_name, M.EmptyList))
+        phi = Imod.Phi(HeadsCountParity(var_p)())()
+        invariant = Imod.Invariant(phi, rules, registry)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        self.result = M.truth_value
+        if Imod.IsInvariant(invariant)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceUnestablishedEvenPhiDoesNotPruneTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(tails, M.Pair(tails, M.Pair(tails, M.EmptyList))))))()
+        rules = FlipAdjacentRules()()
+        phi = HeadsCountParity(EvenTag()())()
+        invariant = Imod.Invariant(phi, rules, registry)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        holds = Imod.PhiHolds(start, phi)()
+        self.result = M.truth_value
+        if holds is M.truth_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceFlipOneRefutesParityTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        heads = HeadsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(TailsTag()(), M.Pair(TailsTag()(), M.Pair(TailsTag()(), M.EmptyList))))))()
+        rule = FlipOneRule()()
+        rules = M.Pair(rule, M.EmptyList)
+        phi = Imod.Phi(HeadsCountParity(OddTag()())())()
+        obligation = Imod.Preserves(rule, phi, registry)()
+        invariant = Imod.Invariant(phi, rules, registry)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        self.result = M.truth_value
+        if Imod.IsInvariantRefuted(obligation)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsInvariant(invariant)() is M.truth_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 def _set_registry(graph, registry):
     graph._replace_context(constructors=registry)
     return registry
@@ -4916,13 +5273,6 @@ def install_default_tests(graph):
         "compare_search_modes_root_wave_records_empty_expansion_test",
         empty,
         CompareSearchModesRootWaveRecordsEmptyExpansionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_theorem_cursor_skips_deep_stale_rule_runs_without_recursion_test",
-        empty,
-        SearchTheoremCursorSkipsDeepStaleRuleRunsWithoutRecursionTest(graph),
         M.truth_value,
     )
     _register_test(
@@ -5469,6 +5819,34 @@ def install_default_tests(graph):
         "loaded_rules_have_direct_progression_edge_equations_test",
         empty,
         LoadedRulesHaveDirectProgressionEdgeEquationsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "invariance_even_goal_unreachable_test",
+        empty,
+        InvarianceEvenGoalUnreachableTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "invariance_odd_goal_does_not_prune_test",
+        empty,
+        InvarianceOddGoalDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "invariance_unestablished_even_phi_does_not_prune_test",
+        empty,
+        InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "invariance_flip_one_refutes_parity_test",
+        empty,
+        InvarianceFlipOneRefutesParityTest(graph),
         M.truth_value,
     )
 

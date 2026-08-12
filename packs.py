@@ -73,7 +73,7 @@ class PackTreeMap:
 
 class LoadedPack:
 
-    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples):
+    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi):
         self.name = name
         self.description = description
         self.requires = requires
@@ -81,6 +81,7 @@ class LoadedPack:
         self.rule_chain = rule_chain
         self.schema_map = schema_map
         self.examples = examples
+        self.phi = phi
 
 
 class PackLoader:
@@ -296,6 +297,7 @@ class PackLoader:
             schema_map.store(sid, (start, goal, plan_chain))
 
         examples = PackTreeMap(self.string_table)
+        phi = self._compile_term(data["phi"], {})
 
         for e in example_specs:
             eid = e["id"]
@@ -325,6 +327,7 @@ class PackLoader:
             rule_chain=rule_chain,
             schema_map=schema_map,
             examples=examples,
+            phi=phi,
         )
 
     def load_pack_file(self, path, graph):

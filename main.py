@@ -34,6 +34,7 @@ else:
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
     from .persistence import SnapshotCodec
+    from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
     from .testsuite import install_default_tests
@@ -55,6 +56,8 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "geometry-ontology.pack.yaml"),
     os.path.join(PACK_DIR, "trigonometry.pack.yaml"),
     os.path.join(PACK_DIR, "geometry.pack.yaml"),
+    os.path.join(PACK_DIR, "engel-coins.pack.yaml"),
+    os.path.join(PACK_DIR, "engel-means.pack.yaml"),
 ]
 
 def _latest_snapshot_path():
@@ -343,13 +346,13 @@ def _print_summary(runtime, title: str):
     sys.stdout.flush()
 
 
-def _make_isreal_sqrt_case(name: str, nat_atom):
+def _make_isreal_sqrt_case(name, nat_atom):
     start = M.Pair(M.SqrtLabel, M.Pair(nat_atom, M.EmptyList))
     goal = M.Pair(M.IsRealLabel, M.Pair(start, M.EmptyList))
-    return name, start, goal
+    return name, start, goal, None, None
 
 
-def _make_real_closure_case(name: str, a, b, c):
+def _make_real_closure_case(name, a, b, c):
     sqrt_a = M.Pair(M.SqrtLabel, M.Pair(a, M.EmptyList))
     sqrt_b = M.Pair(M.SqrtLabel, M.Pair(b, M.EmptyList))
     sqrt_c = M.Pair(M.SqrtLabel, M.Pair(c, M.EmptyList))
@@ -366,7 +369,7 @@ def _make_real_closure_case(name: str, a, b, c):
     start = M.Knowledge(facts)()
     expr = M.Pair(M.ExprAddLabel, M.Pair(sqrt_a, M.Pair(M.Pair(M.ExprMulLabel, M.Pair(sqrt_b, M.Pair(sqrt_c, M.EmptyList))), M.EmptyList)))
     goal = M.Pair(M.IsRealLabel, M.Pair(expr, M.EmptyList))
-    return name, start, goal
+    return name, start, goal, None, None
 
 
 def _theorem_agenda(packs, filter_name=None):
@@ -377,7 +380,20 @@ def _theorem_agenda(packs, filter_name=None):
         geometry_pack = packs.by_name("geometry")
         if "tao_problem_1_1_triangle" in geometry_pack.examples:
             start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
-            cases.append(("Tao Problem 1.1 metric structure", start, goal))
+            cases.append(("Tao Problem 1.1 metric structure", start, goal, None, None))
+    if filter_name in ("coin", "coins", "engel", "all"):
+        coin_pack = packs.by_name("engel-coins")
+        if "engel_hhhhh_to_hhttt" in coin_pack.examples:
+            start, goal = coin_pack.examples["engel_hhhhh_to_hhttt"]
+            cases.append(("Engel coins HHHHH to HHTTT", start, goal, coin_pack.rule_chain, coin_pack.phi))
+        if "engel_hhhhh_to_hhhtt" in coin_pack.examples:
+            start, goal = coin_pack.examples["engel_hhhhh_to_hhhtt"]
+            cases.append(("Engel coins HHHHH to HHHTT", start, goal, coin_pack.rule_chain, coin_pack.phi))
+    if filter_name in ("means", "e1", "engel-means", "all"):
+        means_pack = packs.by_name("engel-means")
+        if "engel_e1" in means_pack.examples:
+            start, goal = means_pack.examples["engel_e1"]
+            cases.append(("engel_e1", start, goal, means_pack.rule_chain, means_pack.phi))
     if filter_name in ("sqrt", "isreal", "sqrt-real", "real", "isreal_sqrt", "isreal-sqrt", "isreal(sqrt())", "all", "sqrt2", "sqrt3", "sqrt4"):
         sqrt_pack = packs.by_name("sqrt-real")
         for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
@@ -386,19 +402,23 @@ def _theorem_agenda(packs, filter_name=None):
                     continue
             if example_id in sqrt_pack.examples:
                 start, goal = sqrt_pack.examples[example_id]
+<<<<<<< HEAD
                 cases.append((example_id, start, goal))
+=======
+                cases.append((example_id, start, goal, None, None))
+>>>>>>> 843917a (Prove Knowledge boards by pack phi: preserve, then prune.)
     return cases
 
 
-def _run_theorem_agenda(runtime, cases, title: str, debug: bool = False):
+def _run_theorem_agenda(runtime, cases, title, debug=None):
     print(f"\n--- {title} ---")
     results = []
 
-    for label, start, goal in cases:
+    for label, start, goal, rules, phi in cases:
         if debug:
             print(f"\nDEBUG: theorem-case start: {label}")
         start_time = time.time()
-        derivation = runtime.prove(start, goal)
+        derivation = runtime.prove(start, goal, rules, None, phi)
         elapsed = time.time() - start_time
         paused_comparison = _first_paused_search_comparison_job(runtime.graph)
         if M.Compare(paused_comparison, M.EmptyList)() is not M.truth_value:
@@ -406,13 +426,16 @@ def _run_theorem_agenda(runtime, cases, title: str, debug: bool = False):
         paused_job = _first_paused_search_job(runtime.graph)
         if M.Compare(paused_job, M.EmptyList)() is not M.truth_value:
             raise PausedSearchRequested(label, paused_job, elapsed)
-        proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
-        results.append((label, proved, elapsed, goal, derivation))
-
-        if proved:
-            print(f"{label}: proved in {elapsed} seconds")
+        if Imod.IsUnreachable(derivation)() is M.truth_value:
+            results.append((label, False, elapsed, goal, derivation))
+            print(f"{label}: Unreachable in {elapsed} seconds")
         else:
-            print(f"{label}: not proved after {elapsed} seconds")
+            proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
+            results.append((label, proved, elapsed, goal, derivation))
+            if proved:
+                print(f"{label}: proved in {elapsed} seconds")
+            else:
+                print(f"{label}: not proved after {elapsed} seconds")
 
     return results
 
@@ -477,7 +500,7 @@ def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, reg
     expected_goal_text = manifest.get("goal_text", "")
     case_index = 0
     while case_index != len(cases):
-        label, start, goal = cases[case_index]
+        label, start, goal, _rules, _phi = cases[case_index]
         candidate_start = Hmod.HeuristicCanonicalize(start, heuristic, registry)()
         candidate_goal = Hmod.HeuristicCanonicalize(goal, heuristic, registry)()
         if M.PrettyTerm(candidate_start, registry)() == expected_start_text:
@@ -739,7 +762,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
         registry = M.FromContextGetConstructors(runtime.graph)()
         worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
-        label, start, goal = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
+        label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
         start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
         goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
     runtime.graph._search_disable_console = M.truth_value

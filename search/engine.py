@@ -6,6 +6,7 @@ import threading
 import time
 
 from .. import machine as M
+from .. import knowledge as K
 from .. import heuristics as Hmod
 from .. import labels as Lmod
 from .. import proof as Pmod
@@ -877,9 +878,10 @@ class Search(M.Edge):
             + " rules="
             + rule_count_text
         )
+        if IsKnowledge(goal)() is M.truth_value:
+            knowledge_head_index = M.EmptyList
+            knowledge_exact_trie = M.EmptyList
         if knowledge_head_index is None or knowledge_exact_trie is None:
-            head_started_at = time.time()
-            self._stage_debug("cursor build: head index build start; facts=" + fact_count_text)
             knowledge_head_index = K.KnowledgeHeadIndexInsertChain(M.EmptyTree, facts, self.registry)()
             after_head_index = time.time()
             self._stage_debug(
@@ -920,25 +922,37 @@ class Search(M.Edge):
             + " rules="
             + rule_count_text
         )
-        shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)()
-        if shard_disabled is M.truth_value:
-            applicable_rules = FilterApplicableRulesWithIndex(
-                self.rules,
-                current,
-                knowledge_head_index,
-                self.registry,
-                knowledge_exact_trie,
-            )()
+        if IsKnowledge(goal)() is M.truth_value:
+            applicable_rules = self.rules
+            after_applicable = time.time()
+            self._stage_debug(
+                "cursor build: knowledge-board rewrite; all rules queued; elapsed="
+                + "{:.3f}".format(after_applicable - after_indexes)
+                + "s queued-rules="
+                + M.GMPRepText(M.CountRep(applicable_rules)())()
+            )
         else:
-            applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
-        after_applicable = time.time()
-        self._stage_debug(
-            "cursor build: applicability scan complete; elapsed="
-            + "{:.3f}".format(after_applicable - after_indexes)
-            + "s applicable-rules="
-            + M.GMPRepText(M.CountRep(applicable_rules)())()
-        )
-        if M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
+            shard_disabled = M.IdentityCompare(self.graph._search_probe_disable_applicable_shards, M.truth_value)()
+            if shard_disabled is M.truth_value:
+                applicable_rules = FilterApplicableRulesWithIndex(
+                    self.rules,
+                    current,
+                    knowledge_head_index,
+                    self.registry,
+                    knowledge_exact_trie,
+                )()
+            else:
+                applicable_rules = self._theorem_applicable_rules_sharded(current, knowledge_head_index, knowledge_exact_trie)
+            after_applicable = time.time()
+            self._stage_debug(
+                "cursor build: applicability scan complete; elapsed="
+                + "{:.3f}".format(after_applicable - after_indexes)
+                + "s applicable-rules="
+                + M.GMPRepText(M.CountRep(applicable_rules)())()
+            )
+        if IsKnowledge(goal)() is M.truth_value:
+            ordered_rules = applicable_rules
+        elif M.IdentityCompare(self.rule_order_mode, GoalHeadOrderLabel)() is M.truth_value:
             ordered_rules = GoalHeadRuleOrdererWithIndex(applicable_rules, current, goal, knowledge_head_index, knowledge_exact_trie, self.registry)()
         else:
             ordered_rules = applicable_rules
@@ -1081,7 +1095,10 @@ class Search(M.Edge):
         if M.IdentityCompare(seen, M.EmptyList)() is M.truth_value:
             return M.false_value
         h = M.Head(seen)()
-        if M.TermEqual(h, x)() is M.truth_value:
+        if IsKnowledge(x)() is M.truth_value:
+            if SameKnowledge(h, x)() is M.truth_value:
+                return M.truth_value
+        elif M.TermEqual(h, x)() is M.truth_value:
             return M.truth_value
         return self._seen_term(M.Tail(seen)(), x)
 
@@ -1094,6 +1111,8 @@ class Search(M.Edge):
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
     def _goal_reached(self, current, goal, knowledge_exact_trie=None):
+        if IsKnowledge(goal)() is M.truth_value:
+            return SameKnowledge(current, goal)()
         if IsKnowledge(current)() is M.truth_value:
             if knowledge_exact_trie is None:
                 return self._knowledge_has_fact(KnowledgeFacts(current)(), goal)
@@ -1656,6 +1675,60 @@ class SearchBFS(Search):
         next_delta = SearchTheoremCursorNextDelta(cursor)()
         actions_rev = SearchTheoremCursorActions(cursor)()
         if IsKnowledge(current)() is M.truth_value:
+            if IsKnowledge(goal)() is M.truth_value:
+                while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+                    active_cursor = SearchTheoremCursor(
+                        rules,
+                        generated,
+                        knowledge_head_index,
+                        knowledge_exact_trie,
+                        delta,
+                        next_delta,
+                        actions_rev,
+                        current,
+                    )()
+                    if self._checkpoint_state_cursor(state, active_cursor) is M.truth_value:
+                        return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
+                    rule = M.Head(rules)()
+                    rest_rules = M.Tail(rules)()
+                    successors = KnowledgeRewriteSuccessors(current, rule)()
+                    while M.IdentityCompare(successors, M.EmptyList)() is M.false_value:
+                        pair = M.Head(successors)()
+                        action = M.Head(pair)()
+                        next_term = self._canonical_term(M.Head(M.Tail(pair)())())
+                        successors = M.Tail(successors)()
+                        if self._seen_term(self._state_seen(state), next_term) is M.truth_value:
+                            continue
+                        if SameKnowledge(next_term, current)() is M.truth_value:
+                            continue
+                        next_plan_rev = M.Pair(action, self._state_plan(state))
+                        self._record_prompt_generated_one()
+                        if self._goal_reached(next_term, goal) is M.truth_value:
+                            return self._advance_result(self._reverse(next_plan_rev, M.EmptyList), M.EmptyList, M.EmptyList, M.one)
+                        next_steps = self._state_steps_remaining(state)
+                        if M.IdentityCompare(next_steps, M.EmptyList)() is M.false_value:
+                            next_steps_pair = M.NatPred(next_steps, self.registry)()
+                            next_steps = M.Head(next_steps_pair)()
+                            self.registry = M.Head(M.Tail(next_steps_pair)())()
+                            if M.NatEq(next_steps, M.Zero, self.registry)() is M.truth_value:
+                                continue
+                        child = self._make_state(next_term, next_plan_rev, M.Pair(current, self._state_seen(state)), next_steps)
+                        continuation = self._state_with_cursor(
+                            state,
+                            SearchTheoremCursor(
+                                rest_rules,
+                                generated,
+                                knowledge_head_index,
+                                knowledge_exact_trie,
+                                delta,
+                                next_delta,
+                                actions_rev,
+                                current,
+                            )(),
+                        )
+                        return self._advance_result(M.EmptyList, child, continuation, M.one)
+                    rules = rest_rules
+                return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
             while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
                 active_cursor = SearchTheoremCursor(
                     rules,

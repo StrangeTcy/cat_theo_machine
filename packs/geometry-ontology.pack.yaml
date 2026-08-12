@@ -5,6 +5,9 @@ name: geometry-ontology
 description: Reusable geometry ontology for polygons, triangles, and their attached quantities
 requires: []
 
+phi:
+  list: []
+
 rules:
   - id: triangle_is_a_polygon
     pattern:

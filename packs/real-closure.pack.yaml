@@ -5,6 +5,9 @@ name: real-closure
 description: Multi-premise real-closure theorems for addition and multiplication
 requires: []
 
+phi:
+  list: []
+
 rules:
   - id: real_add_mul_closed
     premises:

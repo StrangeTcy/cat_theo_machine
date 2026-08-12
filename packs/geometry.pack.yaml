@@ -8,6 +8,9 @@
     "trigonometry",
     "arithmetic"
   ],
+  "phi": {
+    "list": []
+  },
   "rules": [
     {
       "id": "area_becomes_parameter",

@@ -5,6 +5,9 @@ name: sqrt-real
 description: Newton-style theorem pack for proving IsReal(sqrt(a))
 requires: []
 
+phi:
+  list: []
+
 rules:
   - id: sqrt_unfold
     pattern:

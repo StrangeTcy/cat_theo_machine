@@ -915,6 +915,26 @@ class FailedLabel(ConstructorLabel):
     pass
 
 
+class PreservesLabel(ConstructorLabel):
+    pass
+
+
+class InvariantLabel(ConstructorLabel):
+    pass
+
+
+class UnreachableLabel(ConstructorLabel):
+    pass
+
+
+class InvariantCandidateLabel(ConstructorLabel):
+    pass
+
+
+class InvariantRefutedLabel(ConstructorLabel):
+    pass
+
+
 class PerimeterLabel(ConstructorLabel):
     pass
 
@@ -977,6 +997,11 @@ PlannerJobLabel = PlannerJobLabel()
 ProvedLabel = ProvedLabel()
 PendingLabel = PendingLabel()
 FailedLabel = FailedLabel()
+PreservesLabel = PreservesLabel()
+InvariantLabel = InvariantLabel()
+UnreachableLabel = UnreachableLabel()
+InvariantCandidateLabel = InvariantCandidateLabel()
+InvariantRefutedLabel = InvariantRefutedLabel()
 PerimeterLabel = PerimeterLabel()
 ArccosLabel = ArccosLabel()
 TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
@@ -1290,6 +1315,11 @@ def sync_from_namespace(namespace):
         "ProvedLabel",
         "PendingLabel",
         "FailedLabel",
+        "PreservesLabel",
+        "InvariantLabel",
+        "UnreachableLabel",
+        "InvariantCandidateLabel",
+        "InvariantRefutedLabel",
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",

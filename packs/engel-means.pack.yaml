@@ -1,0 +1,75 @@
+format: hyge-pack
+version: 1
+
+name: engel-means
+description: Engel E1. Point (x,y) with 0<y<x. The next point keeps the product. Phi is the Product fact.
+
+requires: []
+
+phi:
+  call: {head: {char: Product}, args: [{var: p}]}
+
+rules:
+  - id: engel_e1
+    premises:
+      - call: {head: {char: Point}, args: [{var: x}, {var: y}]}
+      - call: {head: {char: Product}, args: [{var: p}]}
+    replacement:
+      list:
+        - call:
+            head: {char: Point}
+            args:
+              - call:
+                  head: {sym: ExprFracLabel}
+                  args:
+                    - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+                    - {sym: two}
+              - call:
+                  head: {sym: ExprFracLabel}
+                  args:
+                    - call:
+                        head: {sym: ExprMulLabel}
+                        args:
+                          - {sym: two}
+                          - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+                    - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+        - call: {head: {char: Product}, args: [{var: p}]}
+
+examples:
+  - id: engel_e1
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {char: Point}, args: [{char: a}, {char: b}]}
+              - call:
+                  head: {char: Product}
+                  args:
+                    - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {char: Point}
+                  args:
+                    - call:
+                        head: {sym: ExprFracLabel}
+                        args:
+                          - call: {head: {sym: ExprAddLabel}, args: [{char: a}, {char: b}]}
+                          - {sym: two}
+                    - call:
+                        head: {sym: ExprFracLabel}
+                        args:
+                          - call:
+                              head: {sym: ExprMulLabel}
+                              args:
+                                - {sym: two}
+                                - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
+                          - call: {head: {sym: ExprAddLabel}, args: [{char: a}, {char: b}]}
+              - call:
+                  head: {char: Product}
+                  args:
+                    - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}

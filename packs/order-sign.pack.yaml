@@ -5,6 +5,9 @@ name: order-sign
 description: Generic sign and order knowledge for real expressions
 requires: []
 
+phi:
+  list: []
+
 rules:
   - id: zero_is_nonnegative
     pattern:

@@ -5,6 +5,9 @@ name: trigonometry
 description: Generic trigonometric triangle theorems stated as equations over edge-length terms
 requires: [geometry-ontology]
 
+phi:
+  list: []
+
 rules:
   - id: triangle_yields_sine_rule_equation
     premises:
