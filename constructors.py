@@ -273,6 +273,10 @@ class Compare(Edge):
         cx_empty = IdentityCompare(cx, EmptyList)()
         cy_empty = IdentityCompare(cy, EmptyList)()
         if AndAtom(cx_empty, cy_empty)() is truth_value:
+            if x() == y():
+                if x() is None:
+                    return false_value
+                return truth_value
             return false_value
         if OrAtom(cx_empty, cy_empty)() is truth_value:
             return false_value
@@ -333,6 +337,10 @@ class CompareIn(Edge):
         cx_empty = IdentityCompare(cx, EmptyList)()
         cy_empty = IdentityCompare(cy, EmptyList)()
         if AndAtom(cx_empty, cy_empty)() is truth_value:
+            if x() == y():
+                if x() is None:
+                    return false_value
+                return truth_value
             return false_value
         if OrAtom(cx_empty, cy_empty)() is truth_value:
             return false_value

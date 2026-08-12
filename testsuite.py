@@ -1059,7 +1059,7 @@ class SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(M.Edge):
                 if str(error) == "search-worker resume missing-plan":
                     self.result = M.truth_value
             finally:
-                if old_env is None:
+                if old_env == None:
                     os.environ.pop("HYGE_SEARCH_WORKER_RESUME_DERIVATION", None)
                 else:
                     os.environ["HYGE_SEARCH_WORKER_RESUME_DERIVATION"] = old_env
@@ -1111,9 +1111,7 @@ class CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(M.Edge
         probe = _CompareSearchModesProbe(graph, start, goal, empty, h_dfs, registry)
         best_by_perfs = probe._best_attempt_in_performances(performances, empty, None)
 
-        self.result = M.truth_value
-        if M.TermEqual(best_by_perfs, att_beam)() is M.false_value:
-            self.result = M.false_value
+        self.result = M.TermEqual(best_by_perfs, att_beam)()
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
@@ -2848,17 +2846,13 @@ class SearchWorkerResumeStateRestoresSavedPlanTest(M.Edge):
                 goal,
                 heuristic,
             )
-            self.result = M.truth_value
-            if stage_text != "running-derivation":
-                self.result = M.false_value
-            elif M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
-                self.result = M.false_value
-            elif M.PrettyTerm(resume_plan, M.AllConstructors)() != M.PrettyTerm(plan, M.AllConstructors)():
-                self.result = M.false_value
-            elif M.PrettyTerm(resume_search_cost, M.AllConstructors)() != M.PrettyTerm(search_cost, M.AllConstructors)():
-                self.result = M.false_value
-            elif elapsed_milliseconds != 1234:
-                self.result = M.false_value
+            self.result = M.false_value
+            if stage_text == "running-derivation":
+                if M.Compare(resume_plan, M.EmptyList)() is M.false_value:
+                    if M.PrettyTerm(resume_plan, M.AllConstructors)() == M.PrettyTerm(plan, M.AllConstructors)():
+                        if M.PrettyTerm(resume_search_cost, M.AllConstructors)() == M.PrettyTerm(search_cost, M.AllConstructors)():
+                            if elapsed_milliseconds == 1234:
+                                self.result = M.truth_value
         finally:
             try:
                 os.remove(snapshot_path)
