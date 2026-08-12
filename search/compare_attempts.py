@@ -199,6 +199,19 @@ class _ComparisonAttemptMixin:
             next_best = attempt
         return self._best_attempt_in_attempts(M.Tail(attempts)(), next_best)
 
+    def _best_attempt_in_performances(self, performances, best_attempt, best_elapsed_seconds=None):
+        if M.IdentityCompare(performances, M.EmptyList)() is M.truth_value:
+            return best_attempt
+        perf = M.Head(performances)()
+        attempt = HeuristicPerformanceAttempt(perf)()
+        elapsed_seconds = self._performance_elapsed_seconds(perf)
+        next_best = best_attempt
+        next_elapsed = best_elapsed_seconds
+        if self._attempt_better_with_elapsed(attempt, elapsed_seconds, best_attempt, best_elapsed_seconds) is M.truth_value:
+            next_best = attempt
+            next_elapsed = elapsed_seconds
+        return self._best_attempt_in_performances(M.Tail(performances)(), next_best, next_elapsed)
+
     def _best_finished_attempt(self, states, best_attempt):
         if M.IdentityCompare(states, M.EmptyList)() is M.truth_value:
             return best_attempt

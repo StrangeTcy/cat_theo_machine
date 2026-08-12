@@ -1020,6 +1020,106 @@ class CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(M.Edge):
         return self.result
 
 
+class SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import _search_worker_checkpoint, _search_worker_mode_heuristic, run_search_worker_mode
+
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        registry = _registry(runtime.graph)
+        heuristic = _search_worker_mode_heuristic(runtime, "dfs", registry)
+        start = M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))
+        goal = M.Pair(M.Char("g"), empty)
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        search_cost_pair = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, Smod.SearchRunningLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            _search_worker_checkpoint(
+                runtime,
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+                Smod.SearchRunningLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                0,
+                "running-search",
+                M.EmptyList,
+            )
+            old_env = os.environ.get("HYGE_SEARCH_WORKER_RESUME_DERIVATION")
+            os.environ["HYGE_SEARCH_WORKER_RESUME_DERIVATION"] = "1"
+            self.result = M.false_value
+            try:
+                run_search_worker_mode("dfs", snapshot_path)
+            except RuntimeError as error:
+                if str(error) == "search-worker resume missing-plan":
+                    self.result = M.truth_value
+            finally:
+                if old_env is None:
+                    os.environ.pop("HYGE_SEARCH_WORKER_RESUME_DERIVATION", None)
+                else:
+                    os.environ["HYGE_SEARCH_WORKER_RESUME_DERIVATION"] = old_env
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(M.Edge):
+    def __init__(self, graph):
+        from .main import _gmp_atom_from_int
+
+        empty = M.EmptyList
+        registry = _registry(graph)
+        start = M.Pair(M.Char("s"), empty)
+        goal = M.Pair(M.Char("g"), empty)
+        h_dfs = M.Heuristic(M.DFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        h_bfs = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        h_beam = M.Heuristic(M.BeamLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        sc_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        sc_success = M.Head(sc_pair)()
+        sc_pair_fail = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, Smod.SearchFailureLabel, registry)()
+        sc_fail = M.Head(sc_pair_fail)()
+
+        total_cost_pair = Pmod.BuildTotalCost(proof_cost, sc_success, h_bfs, registry)()
+        tc_success = M.Head(total_cost_pair)()
+        total_cost_pair_fail = Pmod.BuildTotalCost(proof_cost, sc_fail, h_dfs, registry)()
+        tc_fail = M.Head(total_cost_pair_fail)()
+
+        att_dfs = Pmod.SearchAttempt(start, goal, h_dfs, Smod.SearchFailureLabel, empty, proof_cost, sc_fail, tc_fail)()
+        att_bfs = Pmod.SearchAttempt(start, goal, h_bfs, Smod.SearchSuccessLabel, empty, proof_cost, sc_success, tc_success)()
+        att_beam = Pmod.SearchAttempt(start, goal, h_beam, Smod.SearchSuccessLabel, empty, proof_cost, sc_success, tc_success)()
+
+        perf_dfs = Smod.HeuristicPerformance(att_dfs, _gmp_atom_from_int(2000), _gmp_atom_from_int(100), M.EmptyList)()
+        perf_bfs = Smod.HeuristicPerformance(att_bfs, _gmp_atom_from_int(2000), _gmp_atom_from_int(101), M.EmptyList)()
+        perf_beam = Smod.HeuristicPerformance(att_beam, _gmp_atom_from_int(1000), _gmp_atom_from_int(102), M.EmptyList)()
+
+        performances = M.Pair(perf_dfs, M.Pair(perf_bfs, M.Pair(perf_beam, empty)))
+        attempts = M.Pair(att_dfs, M.Pair(att_bfs, M.Pair(att_beam, empty)))
+
+        probe = _CompareSearchModesProbe(graph, start, goal, empty, h_dfs, registry)
+        best_by_perfs = probe._best_attempt_in_performances(performances, empty, None)
+
+        self.result = M.truth_value
+        if M.TermEqual(best_by_perfs, att_beam)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class _TheoremCursorProbe(Smod.SearchBFS):
     def __init__(self, graph, start, goal, rules, heuristic, registry):
         self.graph = graph
@@ -4983,6 +5083,20 @@ def install_default_tests(graph):
         "compare_search_modes_console_disabled_skips_approval_replay_prompt_test",
         empty,
         CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_worker_resume_derivation_missing_plan_raises_runtime_error_test",
+        empty,
+        SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test",
+        empty,
+        CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(graph),
         M.truth_value,
     )
     _register_test(

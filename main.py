@@ -753,6 +753,9 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         goal,
         worker_heuristic,
     )
+    if resume_derivation_only:
+        if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+            raise RuntimeError("search-worker resume missing-plan")
     if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
         P._debug(mode_name + ": saving checkpoint stage=running-search")
         _search_worker_checkpoint(
@@ -777,6 +780,8 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     plan = M.EmptyList
     try:
         if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+            if resume_derivation_only:
+                raise RuntimeError("search-worker resume missing-plan")
             search_pair = Smod.Search(runtime.graph, start, goal, runtime.ordered_rules(), worker_heuristic, registry)()
             plan = M.Head(search_pair)()
             search_cost = M.Head(M.Tail(search_pair)())()
