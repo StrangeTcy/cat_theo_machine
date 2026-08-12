@@ -369,14 +369,24 @@ def _make_real_closure_case(name: str, a, b, c):
     return name, start, goal
 
 
-def _theorem_agenda(packs):
-    geometry_pack = packs.by_name("geometry")
+def _theorem_agenda(packs, filter_name=None):
     cases = []
-
-    if "tao_problem_1_1_triangle" in geometry_pack.examples:
-        start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
-        cases.append(("Tao Problem 1.1 metric structure", start, goal))
-
+    if filter_name == None:
+        filter_name = "tao"
+    if filter_name in ("tao", "all"):
+        geometry_pack = packs.by_name("geometry")
+        if "tao_problem_1_1_triangle" in geometry_pack.examples:
+            start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
+            cases.append(("Tao Problem 1.1 metric structure", start, goal))
+    if filter_name in ("sqrt", "isreal", "sqrt-real", "real", "isreal_sqrt", "isreal-sqrt", "isreal(sqrt())", "all", "sqrt2", "sqrt3", "sqrt4"):
+        sqrt_pack = packs.by_name("sqrt-real")
+        for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
+            if filter_name in ("sqrt2", "sqrt3", "sqrt4"):
+                if (filter_name + "_real" == example_id) is False:
+                    continue
+            if example_id in sqrt_pack.examples:
+                start, goal = sqrt_pack.examples[example_id]
+                cases.append((example_id, start, goal))
     return cases
 
 
@@ -955,7 +965,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
     return 0
 
-def run_cold_mode(debug: bool = False):
+def run_cold_mode(debug: bool = False, filter_name: str = "tao"):
     if debug:
         P.SetDebugTrace(M.truth_value)()
     else:
@@ -978,7 +988,7 @@ def run_cold_mode(debug: bool = False):
         print("loaded pack:", pack_info)
 
     try:
-        theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs), "Cold theorem agenda", debug=debug)
+        theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs, filter_name), "Cold theorem agenda", debug=debug)
     except PausedComparisonRequested as paused:
         print(paused.label + ": comparison paused after " + str(paused.elapsed) + " seconds")
         _save_snapshot_now(runtime, runtime_namespace)
@@ -1238,10 +1248,11 @@ def main():
     )
     args = parser.parse_args()
     debug_enabled = args.arg1 == "debug"
+    filter_name = args.arg2 if debug_enabled else args.arg1
 
     try:
         if args.mode == "cold":
-            run_cold_mode(debug_enabled)
+            run_cold_mode(debug_enabled, filter_name)
         elif args.mode == "warm":
             run_warm_mode(debug_enabled)
         elif args.mode == "inspect":
