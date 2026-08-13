@@ -2887,13 +2887,20 @@ class Prove(M.Edge):
         _debug("prove: goal=" + _debug_term(goal, registry))
         if M.IdentityCompare(phi, M.EmptyList)() is M.false_value:
             _debug("phi is " + M.PrettyTerm(Imod.PhiPattern(phi)(), registry)())
-            invariant = Imod.Invariant(phi, rules, registry, self.start)()
+            rewrite_rules = CollectRules(M.FromContextGetAllRules(graph)())()
+            if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+                self.rules = rewrite_rules
+            invariant = Imod.Invariant(phi, rules, registry, self.start, rewrite_rules)()
             if Imod.IsInvariant(invariant)() is M.truth_value:
                 _debug("invariant proven")
-                findings = Imod.TransformFindings(self.start, phi, registry)()
+                findings = Imod.TransformFindings(self.start, phi, registry, rewrite_rules)()
                 if M.IdentityCompare(findings, M.EmptyList)() is M.false_value:
                     self.start = Imod.AddFindings(self.start, findings)()
                     _debug("invariant findings added")
+                    formula = Imod.FormulaFromFindings(self.start, phi, registry, rewrite_rules)()
+                    if M.IdentityCompare(formula, M.EmptyList)() is M.false_value:
+                        self.start = Imod.AddFindings(self.start, M.Pair(formula, M.EmptyList))()
+                        _debug("formula from meet and product added")
             prune = Imod.ReachabilityPrune(self.start, self.goal, invariant, phi, registry)()
             if Imod.IsUnreachable(prune)() is M.truth_value:
                 self.result = M.Pair(prune, M.EmptyList)
@@ -2995,6 +3002,14 @@ class Prove(M.Edge):
             inst = M.Instantiate(RuleReplacement(rule)(), binds)()
             return M.CanonicalArithmeticTerm(M.Head(inst)(), self.registry)()
         return current
+
+    def _match_replacement_to_goal_facts(self, replacement, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
+        hit = M.Match(replacement, M.Head(facts)())()
+        if M.IdentityCompare(M.Head(hit)(), M.truth_value)() is M.truth_value:
+            return hit
+        return self._match_replacement_to_goal_facts(replacement, M.Tail(facts)())
 
     def _find_goal_instantiating_plan(self, rule_list, current):
         if M.IdentityCompare(rule_list, M.EmptyList)() is M.truth_value:
@@ -3585,6 +3600,36 @@ class Prove(M.Edge):
         start_has_var = ContainsVar(self.start)()
         goal_has_var = ContainsVar(self.goal)()
         schematic_proof = M.OrAtom(start_has_var, goal_has_var)()
+
+        if IsKnowledge(self.goal)() is M.truth_value:
+            if IsKnowledge(self.start)() is M.truth_value:
+                goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
+                if M.Compare(goal_instantiating_plan, M.EmptyList)() is M.false_value:
+                    _debug("prove-stage: goal-instantiating theorem on findings")
+                    action = M.Head(goal_instantiating_plan)()
+                    bindings = M.Head(M.Tail(goal_instantiating_plan)())()
+                    plan = M.Pair(action, M.EmptyList)
+                    derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+                    derivation = M.Head(derivation_pair)()
+                    new_registry = M.Head(M.Tail(derivation_pair)())()
+                    if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                        if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+                            zero_search_pair = self._zero_search_cost(new_registry)
+                            zero_search_cost = M.Head(zero_search_pair)()
+                            zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                            return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+            immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
+            if M.Compare(immediate_plan, M.EmptyList)() is M.false_value:
+                _debug("prove-stage: immediate theorem on findings")
+                derivation_pair = BuildDerivation(self.start, immediate_plan, M.FromContextGetConstructors(self.graph)())()
+                derivation = M.Head(derivation_pair)()
+                new_registry = M.Head(M.Tail(derivation_pair)())()
+                if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                    if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+                        zero_search_pair = self._zero_search_cost(new_registry)
+                        zero_search_cost = M.Head(zero_search_pair)()
+                        zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                        return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
 
         if schematic_proof is M.false_value:
             _debug("prove-stage: concrete proof path")

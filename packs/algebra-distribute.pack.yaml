@@ -57,6 +57,138 @@ rules:
                 - {var: b}
           - {var: c}
 
+  - id: mul_of_fracs
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprFracLabel}, args: [{var: c}, {var: d}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: d}]}
+
+  - id: mul_times_frac
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: a}
+          - call: {head: {sym: ExprFracLabel}, args: [{var: b}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - {var: c}
+
+  - id: frac_times_mul
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - {var: c}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+          - {var: b}
+
+  - id: cancel_mul_den_right
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - {var: b}
+    replacement: {var: a}
+
+  - id: cancel_mul_den_left
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - {var: a}
+    replacement: {var: b}
+
+  - id: cancel_shared_right
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+    replacement:
+      call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: c}]}
+
+  - id: cancel_shared_left
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+    replacement:
+      call: {head: {sym: ExprFracLabel}, args: [{var: b}, {var: c}]}
+
+  - id: cancel_cross
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: a}]}
+    replacement:
+      call: {head: {sym: ExprFracLabel}, args: [{var: b}, {var: c}]}
+
+  - id: mul_two_to_add
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {sym: two}
+          - {var: a}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - {var: a}
+          - {var: a}
+
+  - id: eq_clear_frac
+    pattern:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - {var: c}
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - {var: a}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: c}]}
+
+  - id: eq_add_cancel
+    pattern:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - {var: b}
+          - {var: c}
+
 examples:
   - id: distrib_assoc_demo
     start:

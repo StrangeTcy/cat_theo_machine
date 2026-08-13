@@ -293,23 +293,320 @@ class NameAmong(M.Edge):
         return self.result
 
 
-class ProductOfCurrentTerms(M.Edge):
-    def __init__(self, sequences, registry):
+class SequenceNextTerm(M.Edge):
+    def __init__(self, seq, registry):
+        args = SequenceTermArgs(seq, registry)()
+        nxt = M.EmptyList
+        if M.IdentityCompare(args, M.EmptyList)() is M.false_value:
+            rest = M.Tail(args)()
+            if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                rest = M.Tail(rest)()
+                if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                    rest = M.Tail(rest)()
+                    if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                        nxt = M.Head(rest)()
+        self.result = nxt
+        super().__init__(inputs=M.Pair(seq, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProductOfTerms(M.Edge):
+    def __init__(self, terms):
         product = M.EmptyList
-        remaining = sequences
+        remaining = terms
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            seq = M.Head(remaining)()
-            args = SequenceTermArgs(seq, registry)()
-            name = M.Head(args)()
-            index = SequenceIndex(seq, registry)()
-            term = M.Pair(L.ApplyLabel, M.Pair(name, M.Pair(index, M.EmptyList)))
+            term = M.Head(remaining)()
             if M.IdentityCompare(product, M.EmptyList)() is M.truth_value:
                 product = term
             else:
                 product = M.Pair(L.ExprMulLabel, M.Pair(product, M.Pair(term, M.EmptyList)))
             remaining = M.Tail(remaining)()
         self.result = product
+        super().__init__(inputs=M.Pair(terms, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProductOfCurrentTerms(M.Edge):
+    def __init__(self, sequences, registry):
+        terms = M.EmptyList
+        remaining = sequences
+        acc = M.EmptyList
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            seq = M.Head(remaining)()
+            args = SequenceTermArgs(seq, registry)()
+            name = M.Head(args)()
+            index = SequenceIndex(seq, registry)()
+            term = M.Pair(L.ApplyLabel, M.Pair(name, M.Pair(index, M.EmptyList)))
+            acc = M.Pair(term, acc)
+            remaining = M.Tail(remaining)()
+        rev = M.EmptyList
+        while M.IdentityCompare(acc, M.EmptyList)() is M.false_value:
+            rev = M.Pair(M.Head(acc)(), rev)
+            acc = M.Tail(acc)()
+        self.result = ProductOfTerms(rev)()
         super().__init__(inputs=M.Pair(sequences, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProductOfNextTerms(M.Edge):
+    def __init__(self, sequences, registry):
+        acc = M.EmptyList
+        remaining = sequences
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            nxt = SequenceNextTerm(M.Head(remaining)(), registry)()
+            if M.IdentityCompare(nxt, M.EmptyList)() is M.false_value:
+                acc = M.Pair(nxt, acc)
+            remaining = M.Tail(remaining)()
+        rev = M.EmptyList
+        while M.IdentityCompare(acc, M.EmptyList)() is M.false_value:
+            rev = M.Pair(M.Head(acc)(), rev)
+            acc = M.Tail(acc)()
+        self.result = ProductOfTerms(rev)()
+        super().__init__(inputs=M.Pair(sequences, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AppendFactors(M.Edge):
+    def __init__(self, left, right):
+        acc = right
+        remaining = left
+        rev = M.EmptyList
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            rev = M.Pair(M.Head(remaining)(), rev)
+            remaining = M.Tail(remaining)()
+        while M.IdentityCompare(rev, M.EmptyList)() is M.false_value:
+            acc = M.Pair(M.Head(rev)(), acc)
+            rev = M.Tail(rev)()
+        self.result = acc
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TermSeen(M.Edge):
+    def __init__(self, term, seen):
+        atom_result = M.false_value
+        remaining = seen
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.Compare(M.Head(remaining)(), term)() is M.truth_value:
+                atom_result = M.truth_value
+            remaining = M.Tail(remaining)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.Pair(seen, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReverseTermPath(M.Edge):
+    def __init__(self, path):
+        acc = M.EmptyList
+        remaining = path
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            acc = M.Pair(M.Head(remaining)(), acc)
+            remaining = M.Tail(remaining)()
+        self.result = acc
+        super().__init__(inputs=M.Pair(path, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LogTermPath(M.Edge):
+    def __init__(self, tag, path, registry):
+        remaining = ReverseTermPath(path)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            P._debug(tag + M.PrettyTerm(M.Head(remaining)(), registry)())
+            remaining = M.Tail(remaining)()
+        self.result = M.truth_value
+        super().__init__(inputs=M.Pair(tag, M.Pair(path, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RewriteEquals(M.Edge):
+    def __init__(self, start, goal, rules, registry):
+        self.goal = goal
+        self.registry = registry
+        self.rules = rules
+        start_item = M.Pair(start, M.Pair(start, M.EmptyList))
+        self.result = self._search(M.Pair(start_item, M.EmptyList), M.Pair(start, M.EmptyList), M.eight)
+        super().__init__(
+            inputs=M.Pair(start, M.Pair(goal, M.Pair(rules, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def _search(self, frontier, seen, fuel):
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        item = M.Head(frontier)()
+        current = M.Head(item)()
+        path = M.Tail(item)()
+        rest = M.Tail(frontier)()
+        if M.Compare(current, self.goal)() is M.truth_value:
+            LogTermPath("identity: ", path, self.registry)()
+            return M.truth_value
+        nxt_frontier = rest
+        nxt_seen = seen
+        rules = self.rules
+        while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+            rule = M.Head(rules)()
+            rewritten = P.RewriteHere(rule, current)()
+            if M.Compare(rewritten, current)() is M.false_value:
+                if TermSeen(rewritten, nxt_seen)() is M.false_value:
+                    nxt_path = M.Pair(rewritten, path)
+                    nxt_frontier = M.Pair(M.Pair(rewritten, nxt_path), nxt_frontier)
+                    nxt_seen = M.Pair(rewritten, nxt_seen)
+            rules = M.Tail(rules)()
+        pred = M.NatPred(fuel, self.registry)()
+        less = M.Head(pred)()
+        return self._search(nxt_frontier, nxt_seen, less)
+
+    def __call__(self):
+        return self.result
+
+
+class EquationRewriteEquals(M.Edge):
+    def __init__(self, start, goal, rules, registry):
+        self.goal = goal
+        self.registry = registry
+        self.rules = rules
+        self.result = self._search(M.Pair(start, M.EmptyList), M.Pair(start, M.EmptyList), M.eight)
+        super().__init__(
+            inputs=M.Pair(start, M.Pair(goal, M.Pair(rules, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def _search(self, frontier, seen, fuel):
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        current = M.Head(frontier)()
+        rest = M.Tail(frontier)()
+        if M.Compare(current, self.goal)() is M.truth_value:
+            P._debug("equation-rewrite: reached " + M.PrettyTerm(current, self.registry)())
+            return M.truth_value
+        nxt_frontier = rest
+        nxt_seen = seen
+        rules = self.rules
+        while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+            rule = M.Head(rules)()
+            rewritten = M.Head(M.Rewrite(rule, current, self.registry)())()
+            if M.Compare(rewritten, current)() is M.false_value:
+                if TermSeen(rewritten, nxt_seen)() is M.false_value:
+                    P._debug(
+                        "equation-rewrite: "
+                        + M.PrettyTerm(current, self.registry)()
+                        + " -> "
+                        + M.PrettyTerm(rewritten, self.registry)()
+                    )
+                    nxt_frontier = M.Pair(rewritten, nxt_frontier)
+                    nxt_seen = M.Pair(rewritten, nxt_seen)
+            rules = M.Tail(rules)()
+        pred = M.NatPred(fuel, self.registry)()
+        less = M.Head(pred)()
+        return self._search(nxt_frontier, nxt_seen, less)
+
+    def __call__(self):
+        return self.result
+
+
+class SequenceBases(M.Edge):
+    def __init__(self, sequences, registry):
+        acc = M.EmptyList
+        remaining = sequences
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            args = SequenceTermArgs(M.Head(remaining)(), registry)()
+            base = M.Head(M.Tail(args)())()
+            acc = M.Pair(base, acc)
+            remaining = M.Tail(remaining)()
+        rev = M.EmptyList
+        while M.IdentityCompare(acc, M.EmptyList)() is M.false_value:
+            rev = M.Pair(M.Head(acc)(), rev)
+            acc = M.Tail(acc)()
+        self.result = rev
+        super().__init__(inputs=M.Pair(sequences, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BaseAmong(M.Edge):
+    def __init__(self, term, bases):
+        atom_result = M.false_value
+        remaining = bases
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.Compare(M.Head(remaining)(), term)() is M.truth_value:
+                atom_result = M.truth_value
+            remaining = M.Tail(remaining)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.Pair(bases, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class OrderPremisesHold(M.Edge):
+    def __init__(self, facts, sequences, registry):
+        bases = SequenceBases(sequences, registry)()
+        zero_lt_base = M.false_value
+        base_lt_base = M.false_value
+        self.witnesses = M.EmptyList
+        remaining = facts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            fact = M.Head(remaining)()
+            if M.IsPair(fact)() is M.truth_value:
+                if M.IdentityCompare(M.Head(fact)(), L.ExprLtLabel)() is M.truth_value:
+                    args = M.Tail(fact)()
+                    if M.IsPair(args)() is M.truth_value:
+                        left = M.Head(args)()
+                        rest = M.Tail(args)()
+                        if M.IsPair(rest)() is M.truth_value:
+                            right = M.Head(rest)()
+                            if M.Compare(left, M.Zero)() is M.truth_value:
+                                if BaseAmong(right, bases)() is M.truth_value:
+                                    zero_lt_base = M.truth_value
+                                    self.witnesses = M.Pair(fact, self.witnesses)
+                            if BaseAmong(left, bases)() is M.truth_value:
+                                if BaseAmong(right, bases)() is M.truth_value:
+                                    base_lt_base = M.truth_value
+                                    self.witnesses = M.Pair(fact, self.witnesses)
+            remaining = M.Tail(remaining)()
+        if zero_lt_base is M.truth_value:
+            if base_lt_base is M.truth_value:
+                self.result = M.truth_value
+            else:
+                self.result = M.false_value
+        else:
+            self.result = M.false_value
+        super().__init__(inputs=M.Pair(facts, M.Pair(sequences, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LogOrderFacts(M.Edge):
+    def __init__(self, facts, sequences, registry):
+        held = OrderPremisesHold(facts, sequences, registry)
+        remaining = held.witnesses
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            P._debug("order: " + M.PrettyTerm(M.Head(remaining)(), registry)())
+            remaining = M.Tail(remaining)()
+        self.result = held()
+        super().__init__(inputs=M.Pair(facts, M.Pair(sequences, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def __call__(self):
         return self.result
@@ -387,9 +684,6 @@ class SolveFor(M.Edge):
         if M.IdentityCompare(head, L.ExprMulLabel)() is M.truth_value:
             if left_has is M.truth_value:
                 if right_has is M.truth_value:
-                    if M.IdentityCompare(left, self.unknown)() is M.truth_value:
-                        if M.IdentityCompare(right, self.unknown)() is M.truth_value:
-                            return M.Pair(L.SqrtLabel, M.Pair(value, M.EmptyList))
                     return M.EmptyList
                 quotient = M.Pair(L.ExprFracLabel, M.Pair(value, M.Pair(right, M.EmptyList)))
                 return self._solve(left, quotient)
@@ -426,15 +720,54 @@ class SolveFor(M.Edge):
         return self.result
 
 
+class CurrentApply(M.Edge):
+    def __init__(self, seq, registry):
+        args = SequenceTermArgs(seq, registry)()
+        name = M.Head(args)()
+        index = SequenceIndex(seq, registry)()
+        self.result = M.Pair(L.ApplyLabel, M.Pair(name, M.Pair(index, M.EmptyList)))
+        super().__init__(inputs=M.Pair(seq, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SequenceStepApply(M.Edge):
+    def __init__(self, seq, registry):
+        args = SequenceTermArgs(seq, registry)()
+        self.result = M.EmptyList
+        if M.IdentityCompare(args, M.EmptyList)() is M.false_value:
+            rest = M.Tail(args)()
+            if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                rest = M.Tail(rest)()
+                if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                    self.result = M.Head(rest)()
+        super().__init__(inputs=M.Pair(seq, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class FindLimit(M.Edge):
-    def __init__(self, sequences, product, registry):
-        unknown = TransformLimitUnknown()()
-        names = SequenceNames(sequences, registry)()
-        current = ProductOfCurrentTerms(sequences, registry)()
-        at_limit = SubstituteApplies(current, names, unknown)()
-        self.result = SolveFor(at_limit, product, unknown)()
+    def __init__(self, sequences, product, registry, rewrite_rules):
+        self.result = M.EmptyList
+        if M.IdentityCompare(sequences, M.EmptyList)() is M.false_value:
+            first = M.Head(sequences)()
+            rest = M.Tail(sequences)()
+            if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                second = M.Head(rest)()
+                x = CurrentApply(first, registry)()
+                y = CurrentApply(second, registry)()
+                nx = SequenceNextTerm(first, registry)()
+                ny = SequenceNextTerm(second, registry)()
+                same_next = M.Pair(L.ExprEqLabel, M.Pair(nx, M.Pair(ny, M.EmptyList)))
+                meet = M.Pair(L.ExprEqLabel, M.Pair(y, M.Pair(x, M.EmptyList)))
+                P._debug("limit: next terms equal is " + M.PrettyTerm(same_next, registry)())
+                if EquationRewriteEquals(same_next, meet, rewrite_rules, registry)() is M.truth_value:
+                    P._debug("limit: that equation rewrites to " + M.PrettyTerm(meet, registry)())
+                    self.result = meet
         super().__init__(
-            inputs=M.Pair(sequences, M.Pair(product, M.Pair(registry, M.EmptyList))),
+            inputs=M.Pair(sequences, M.Pair(product, M.Pair(registry, M.Pair(rewrite_rules, M.EmptyList)))),
             results=self.result,
         )
 
@@ -478,37 +811,38 @@ class PhiFromProduct(M.Edge):
 
 
 class ExamineTransforms(M.Edge):
-    def __init__(self, start, phi, registry):
+    def __init__(self, start, phi, registry, rewrite_rules):
         self.registry = registry
         self.phi = phi
+        self.start = start
+        self.rewrite_rules = rewrite_rules
         facts = StateFacts(start)()
         sequences = CollectSequenceFacts(facts, registry)()
         self.result = self._examine(sequences)
-        super().__init__(inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.EmptyList))), results=self.result)
+        super().__init__(inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.Pair(rewrite_rules, M.EmptyList)))), results=self.result)
 
     def _examine(self, sequences):
         if M.IdentityCompare(sequences, M.EmptyList)() is M.truth_value:
             return M.EmptyList
+        facts = StateFacts(self.start)()
+        if LogOrderFacts(facts, sequences, self.registry)() is M.false_value:
+            P._debug("order: start does not give 0 < smaller base and smaller base < larger base")
+            return M.EmptyList
+        current = ProductOfCurrentTerms(sequences, self.registry)()
+        nxt = ProductOfNextTerms(sequences, self.registry)()
+        P._debug("transform applied: current product " + M.PrettyTerm(current, self.registry)())
+        P._debug("transform applied: next product " + M.PrettyTerm(nxt, self.registry)())
+        if RewriteEquals(nxt, current, self.rewrite_rules, self.registry)() is M.false_value:
+            P._debug("identity: next product did not rewrite to current product")
+            return M.EmptyList
         product = ProductOfBases(sequences, self.registry)()
-        unknown = TransformLimitUnknown()()
-        applied = self._apply_limits(sequences, unknown)
-        if M.IdentityCompare(applied, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        limit_value = FindLimit(sequences, product, self.registry)()
+        reading = PhiFromProduct(self.phi, product)()
+        P._debug("invariant: identity holds, start bases give " + M.PrettyTerm(reading, self.registry)())
+        limit_value = FindLimit(sequences, product, self.registry, self.rewrite_rules)()
         if M.IdentityCompare(limit_value, M.EmptyList)() is M.truth_value:
+            P._debug("limit: next terms equal did not rewrite to a meet")
             return M.EmptyList
-        applied = self._apply_limits(sequences, limit_value)
-        return self._check_invariant(sequences, product, applied)
-
-    def _apply_limits(self, sequences, limit_value):
-        if M.IdentityCompare(sequences, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        seq = M.Head(sequences)()
-        if IsSequenceTerm(seq, self.registry)() is M.false_value:
-            return self._apply_limits(M.Tail(sequences)(), limit_value)
-        applied = ApplyLimit(seq, limit_value, self.registry)()
-        rest = self._apply_limits(M.Tail(sequences)(), limit_value)
-        return M.Pair(applied, rest)
+        return self._check_invariant(sequences, product, limit_value)
 
     def _check_invariant(self, sequences, product, applied):
         reading = PhiFromProduct(self.phi, product)()
@@ -523,29 +857,87 @@ class ExamineTransforms(M.Edge):
         return self.result
 
 
-class TransformFindings(M.Edge):
-    def __init__(self, start, phi, registry):
+class ReplaceTerm(M.Edge):
+    def __init__(self, term, old, new):
+        self.old = old
+        self.new = new
+        self.result = self._walk(term)
+        super().__init__(inputs=M.Pair(term, M.Pair(old, M.Pair(new, M.EmptyList))), results=self.result)
+
+    def _walk(self, term):
+        if M.Compare(term, self.old)() is M.truth_value:
+            return self.new
+        if M.IsPair(term)() is M.false_value:
+            return term
+        return M.Pair(self._walk(M.Head(term)()), self._walk(M.Tail(term)()))
+
+    def __call__(self):
+        return self.result
+
+
+class CombineMeetAndProduct(M.Edge):
+    def __init__(self, sequences, product, meet, registry):
+        self.result = M.EmptyList
+        if M.IdentityCompare(sequences, M.EmptyList)() is M.false_value:
+            first = M.Head(sequences)()
+            rest = M.Tail(sequences)()
+            if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                x = CurrentApply(first, registry)()
+                y = CurrentApply(M.Head(rest)(), registry)()
+                current = ProductOfCurrentTerms(sequences, registry)()
+                if M.IsPair(meet)() is M.truth_value:
+                    if M.IdentityCompare(M.Head(meet)(), L.ExprEqLabel)() is M.truth_value:
+                        meet_args = M.Tail(meet)()
+                        left = M.Head(meet_args)()
+                        right = M.Head(M.Tail(meet_args)())()
+                        after_meet = ReplaceTerm(current, left, right)()
+                        square = M.Pair(L.ExprMulLabel, M.Pair(x, M.Pair(x, M.EmptyList)))
+                        if M.Compare(after_meet, square)() is M.truth_value:
+                            sqrt_term = M.Pair(L.SqrtLabel, M.Pair(product, M.EmptyList))
+                            self.result = M.Pair(L.ExprEqLabel, M.Pair(x, M.Pair(sqrt_term, M.EmptyList)))
+                            P._debug("formula: meet in product gives " + M.PrettyTerm(self.result, registry)())
+        super().__init__(
+            inputs=M.Pair(sequences, M.Pair(product, M.Pair(meet, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FormulaFromFindings(M.Edge):
+    def __init__(self, start, phi, registry, rewrite_rules):
         facts = StateFacts(start)()
         sequences = CollectSequenceFacts(facts, registry)()
-        examined = ExamineTransforms(start, phi, registry)()
+        product = M.CanonicalArithmeticTerm(ProductOfBases(sequences, registry)(), registry)()
+        meet = FindLimit(sequences, product, registry, rewrite_rules)()
+        self.result = CombineMeetAndProduct(sequences, product, meet, registry)()
+        super().__init__(
+            inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.Pair(rewrite_rules, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TransformFindings(M.Edge):
+    def __init__(self, start, phi, registry, rewrite_rules):
+        facts = StateFacts(start)()
+        sequences = CollectSequenceFacts(facts, registry)()
+        examined = ExamineTransforms(start, phi, registry, rewrite_rules)()
         if IsPreserves(examined)() is M.false_value:
             self.result = M.EmptyList
         elif M.IdentityCompare(sequences, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         else:
-            product = ProductOfBases(sequences, registry)()
+            product = M.CanonicalArithmeticTerm(ProductOfBases(sequences, registry)(), registry)()
             product_fact = PhiFromProduct(phi, product)()
-            limit_value = FindLimit(sequences, product, registry)()
-            if M.IdentityCompare(limit_value, M.EmptyList)() is M.truth_value:
+            meet = FindLimit(sequences, product, registry, rewrite_rules)()
+            if M.IdentityCompare(meet, M.EmptyList)() is M.truth_value:
                 self.result = M.EmptyList
             else:
-                first = M.Head(sequences)()
-                first_args = SequenceTermArgs(first, registry)()
-                name = M.Head(first_args)()
-                index = SequenceIndex(first, registry)()
-                apply_term = M.Pair(L.ApplyLabel, M.Pair(name, M.Pair(index, M.EmptyList)))
-                equation = M.Pair(L.ExprEqLabel, M.Pair(apply_term, M.Pair(limit_value, M.EmptyList)))
-                self.result = M.Pair(product_fact, M.Pair(equation, M.EmptyList))
+                self.result = M.Pair(product_fact, M.Pair(meet, M.EmptyList))
         super().__init__(inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def __call__(self):
@@ -567,10 +959,10 @@ class AddFindings(M.Edge):
 
 
 class Invariant(M.Edge):
-    def __init__(self, phi, ruleset, registry, start):
+    def __init__(self, phi, ruleset, registry, start, rewrite_rules):
         self.phi = phi
         self.registry = registry
-        transform = ExamineTransforms(start, phi, registry)()
+        transform = ExamineTransforms(start, phi, registry, rewrite_rules)()
         walked = self._walk(ruleset)
         if IsInvariantRefuted(walked)() is M.truth_value:
             self.result = walked
@@ -875,10 +1267,10 @@ class RewriteSearch(M.Edge):
 
 class SearchWithInvariant(M.Edge):
     def __init__(self, graph, start, goal, rules, heuristic, registry, phi):
-        invariant = Invariant(phi, rules, registry, start)()
+        invariant = Invariant(phi, rules, registry, start, rules)()
         board = start
         if IsInvariant(invariant)() is M.truth_value:
-            findings = TransformFindings(start, phi, registry)()
+            findings = TransformFindings(start, phi, registry, rules)()
             if M.IdentityCompare(findings, M.EmptyList)() is M.false_value:
                 board = AddFindings(start, findings)()
         prune = ReachabilityPrune(board, goal, invariant, phi, registry)()
@@ -936,3 +1328,4 @@ class InvariantCandidate(M.Edge):
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
+

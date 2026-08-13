@@ -2,7 +2,7 @@ format: hyge-pack
 version: 1
 
 name: engel-means
-description: Engel E1. Sequence X, Sequence Y, b < a. Product is phi. Goal is Product and ExprEq(Apply(X, n), Sqrt(product)).
+description: Engel E1. Sequence X, Sequence Y, 0 < b < a. Product is phi. Goal is Product and ExprEq(Apply(X, n), Sqrt(product)).
 
 requires: []
 
@@ -65,6 +65,7 @@ examples:
                                 - call: {head: {sym: ApplyLabel}, args: [{char: X}, {var: n}]}
                                 - call: {head: {sym: ApplyLabel}, args: [{char: Y}, {var: n}]}
               - call: {head: {sym: ExprLtLabel}, args: [{char: b}, {char: a}]}
+              - call: {head: {sym: ExprLtLabel}, args: [{sym: Zero}, {char: b}]}
     goal:
       call:
         head: {sym: KnowledgeLabel}
