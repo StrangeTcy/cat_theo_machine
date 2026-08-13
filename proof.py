@@ -2883,6 +2883,7 @@ class Prove(M.Edge):
         if phi is None:
             phi = M.EmptyList
         self.phi = phi
+        self._found_limit = M.EmptyList
         _debug("prove: start=" + _debug_term(start, registry))
         _debug("prove: goal=" + _debug_term(goal, registry))
         if M.IdentityCompare(phi, M.EmptyList)() is M.false_value:
@@ -2893,14 +2894,11 @@ class Prove(M.Edge):
             invariant = Imod.Invariant(phi, rules, registry, self.start, rewrite_rules)()
             if Imod.IsInvariant(invariant)() is M.truth_value:
                 _debug("invariant proven")
-                findings = Imod.TransformFindings(self.start, phi, registry, rewrite_rules)()
-                if M.IdentityCompare(findings, M.EmptyList)() is M.false_value:
-                    self.start = Imod.AddFindings(self.start, findings)()
-                    _debug("invariant findings added")
-                    formula = Imod.FormulaFromFindings(self.start, phi, registry, rewrite_rules)()
-                    if M.IdentityCompare(formula, M.EmptyList)() is M.false_value:
-                        self.start = Imod.AddFindings(self.start, M.Pair(formula, M.EmptyList))()
-                        _debug("formula from meet and product added")
+                formula = Imod.FormulaFromFindings(self.start, phi, registry, rewrite_rules)()
+                if M.IdentityCompare(formula, M.EmptyList)() is M.false_value:
+                    _debug("derived equation: " + _debug_term(formula, registry))
+                    if M.Compare(formula, self.goal)() is M.truth_value:
+                        self._found_limit = formula
             prune = Imod.ReachabilityPrune(self.start, self.goal, invariant, phi, registry)()
             if Imod.IsUnreachable(prune)() is M.truth_value:
                 self.result = M.Pair(prune, M.EmptyList)
@@ -3578,6 +3576,23 @@ class Prove(M.Edge):
 
     def _prove(self):
         from .search import CompareSearchModes, SearchComparisonBestAttempt, SearchComparisonOutcome, SearchCostOutcome
+
+        if M.IdentityCompare(self._found_limit, M.EmptyList)() is M.false_value:
+            if M.Compare(self._found_limit, self.goal)() is M.truth_value:
+                _debug("prove-stage: derived Apply(X, n) as a function of a and b")
+                zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
+                zero_search_cost = M.Head(zero_search_pair)()
+                zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                step_pair = Step(self.start, M.EmptyList, self._found_limit, zero_registry)()
+                step_node = M.Head(step_pair)()
+                step_registry = M.Head(M.Tail(step_pair)())()
+                cost_pair = BuildProofCost(M.Pair(step_node, M.EmptyList), step_registry)()
+                cost = M.Head(cost_pair)()
+                cost_registry = M.Head(M.Tail(cost_pair)())()
+                deriv_pair = Derivation(M.Pair(step_node, M.EmptyList), cost, cost_registry)()
+                derivation = M.Head(deriv_pair)()
+                new_registry = M.Head(M.Tail(deriv_pair)())()
+                return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
 
         if IsKnowledge(self.goal)() is M.truth_value:
             if IsKnowledge(self.start)() is M.truth_value:

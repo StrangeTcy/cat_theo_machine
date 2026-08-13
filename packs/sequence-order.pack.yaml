@@ -1,0 +1,287 @@
+format: hyge-pack
+version: 1
+
+name: sequence-order
+description: Order, gap contraction, monotonicity, and convergence for paired sequences
+requires: []
+
+phi:
+  list: []
+
+rules:
+  - id: positive_base_lifts
+    premises:
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: name}
+            - {var: base}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: name}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - {var: nxt}
+      - call: {head: {sym: ExprLtLabel}, args: [{sym: Zero}, {var: base}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {sym: Zero}
+          - call: {head: {sym: ApplyLabel}, args: [{var: name}, {var: n}]}
+
+  - id: order_of_bases_lifts
+    premises:
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: xname}
+            - {var: a}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: xname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - {var: nx}
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: yname}
+            - {var: b}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: yname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - {var: ny}
+      - call: {head: {sym: ExprLtLabel}, args: [{var: b}, {var: a}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+          - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+
+  - id: closed_gap_lt_half_from_positive
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - {var: g}
+            - call:
+                head: {sym: ExprFracLabel}
+                args:
+                  - call: {head: {sym: ExprMulLabel}, args: [{var: d}, {var: d}]}
+                  - call:
+                      head: {sym: ExprMulLabel}
+                      args:
+                        - {sym: two}
+                        - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+      - call: {head: {sym: ExprLtLabel}, args: [{sym: Zero}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {var: g}
+          - call: {head: {sym: ExprFracLabel}, args: [{var: d}, {sym: two}]}
+
+  - id: gap_contracts_from_half
+    premises:
+      - call:
+          head: {sym: ExprLtLabel}
+          args:
+            - {var: g}
+            - call: {head: {sym: ExprFracLabel}, args: [{var: d}, {sym: two}]}
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: xname}
+            - {var: a}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: xname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - {var: nx}
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: yname}
+            - {var: b}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: yname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - {var: ny}
+    replacement:
+      call:
+        head: {sym: GapContractsLabel}
+        args:
+          - {var: xname}
+          - {var: yname}
+          - call: {head: {sym: ExprFracLabel}, args: [{sym: one}, {sym: two}]}
+
+  - id: midpoint_decreases
+    premises:
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: xname}
+            - {var: a}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: xname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - call:
+                head: {sym: ExprFracLabel}
+                args:
+                  - call:
+                      head: {sym: ExprAddLabel}
+                      args:
+                        - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+                        - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+                  - {sym: two}
+      - call:
+          head: {sym: ExprLtLabel}
+          args:
+            - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+            - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+    replacement:
+      call:
+        head: {sym: DecreasingLabel}
+        args:
+          - {var: xname}
+
+  - id: paired_product_increases
+    premises:
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: yname}
+            - {var: b}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: yname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - call:
+                head: {sym: ExprFracLabel}
+                args:
+                  - call:
+                      head: {sym: ExprMulLabel}
+                      args:
+                        - {sym: two}
+                        - call:
+                            head: {sym: ExprMulLabel}
+                            args:
+                              - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+                              - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+                  - call:
+                      head: {sym: ExprAddLabel}
+                      args:
+                        - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+                        - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+      - call:
+          head: {sym: ExprLtLabel}
+          args:
+            - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+            - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+    replacement:
+      call:
+        head: {sym: IncreasingLabel}
+        args:
+          - {var: yname}
+
+  - id: lesser_bounds_greater_below
+    premises:
+      - call:
+          head: {sym: ExprLtLabel}
+          args:
+            - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+            - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: xname}
+            - {var: a}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: xname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - {var: nx}
+    replacement:
+      call:
+        head: {sym: BoundedBelowLabel}
+        args:
+          - {var: xname}
+          - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+
+  - id: greater_bounds_lesser_above
+    premises:
+      - call:
+          head: {sym: ExprLtLabel}
+          args:
+            - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
+            - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: yname}
+            - {var: b}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: yname}
+                  - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+            - {var: ny}
+    replacement:
+      call:
+        head: {sym: BoundedAboveLabel}
+        args:
+          - {var: yname}
+          - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
+
+  - id: decreasing_bounded_converges
+    premises:
+      - call: {head: {sym: DecreasingLabel}, args: [{var: xname}]}
+      - call: {head: {sym: BoundedBelowLabel}, args: [{var: xname}, {var: bound}]}
+    replacement:
+      call:
+        head: {sym: ConvergesLabel}
+        args:
+          - {var: xname}
+          - call: {head: {sym: LimitValueLabel}, args: [{var: xname}]}
+
+  - id: increasing_bounded_converges
+    premises:
+      - call: {head: {sym: IncreasingLabel}, args: [{var: yname}]}
+      - call: {head: {sym: BoundedAboveLabel}, args: [{var: yname}, {var: bound}]}
+    replacement:
+      call:
+        head: {sym: ConvergesLabel}
+        args:
+          - {var: yname}
+          - call: {head: {sym: LimitValueLabel}, args: [{var: yname}]}
+
+  - id: contracted_gap_same_limit
+    premises:
+      - call: {head: {sym: GapContractsLabel}, args: [{var: xname}, {var: yname}, {var: k}]}
+      - call:
+          head: {sym: ConvergesLabel}
+          args:
+            - {var: xname}
+            - call: {head: {sym: LimitValueLabel}, args: [{var: xname}]}
+      - call:
+          head: {sym: ConvergesLabel}
+          args:
+            - {var: yname}
+            - call: {head: {sym: LimitValueLabel}, args: [{var: yname}]}
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - call: {head: {sym: LimitValueLabel}, args: [{var: xname}]}
+          - call: {head: {sym: LimitValueLabel}, args: [{var: yname}]}

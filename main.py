@@ -51,6 +51,7 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "order-sign.pack.yaml"),
     os.path.join(PACK_DIR, "sqrt-real.pack.yaml"),
     os.path.join(PACK_DIR, "algebra-distribute.pack.yaml"),
+    os.path.join(PACK_DIR, "sequence-order.pack.yaml"),
     os.path.join(PACK_DIR, "real-closure.pack.yaml"),
     os.path.join(PACK_DIR, "arithmetic.pack.yaml"),
     os.path.join(PACK_DIR, "geometry-ontology.pack.yaml"),

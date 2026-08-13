@@ -748,26 +748,162 @@ class SequenceStepApply(M.Edge):
         return self.result
 
 
+class SequenceNameOf(M.Edge):
+    def __init__(self, seq, registry):
+        args = SequenceTermArgs(seq, registry)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(seq, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TermGap(M.Edge):
+    def __init__(self, left, right):
+        neg = M.Pair(L.ExprNegLabel, M.Pair(right, M.EmptyList))
+        self.result = M.Pair(L.ExprAddLabel, M.Pair(left, M.Pair(neg, M.EmptyList)))
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ConclusionHeadAdmitted(M.Edge):
+    def __init__(self, head):
+        atom_result = M.false_value
+        if M.IdentityCompare(head, L.ExprLtLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        if M.IdentityCompare(head, L.GapContractsLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        if M.IdentityCompare(head, L.DecreasingLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        if M.IdentityCompare(head, L.IncreasingLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        if M.IdentityCompare(head, L.BoundedBelowLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        if M.IdentityCompare(head, L.BoundedAboveLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        if M.IdentityCompare(head, L.ConvergesLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        if M.IdentityCompare(head, L.ExprEqLabel)() is M.truth_value:
+            atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(head, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ApplySequenceTheorems(M.Edge):
+    def __init__(self, facts, rules, registry):
+        self.registry = registry
+        self.rules = rules
+        self.result = self._saturate(facts, M.nine)
+
+    def _has(self, facts, target):
+        remaining = facts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.Compare(M.Head(remaining)(), target)() is M.truth_value:
+                return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _saturate(self, facts, fuel):
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            return facts
+        added = M.false_value
+        acc = facts
+        rules = self.rules
+        while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+            rule = M.Head(rules)()
+            if P.RuleIsUnary(rule)() is M.false_value:
+                replacement = P.RuleReplacement(rule)()
+                if M.IsPair(replacement)() is M.truth_value:
+                    if ConclusionHeadAdmitted(M.Head(replacement)())() is M.truth_value:
+                        hits = JoinPremises(P.RulePremises(rule)(), acc, M.EmptyList)()
+                        if M.IdentityCompare(hits, M.EmptyList)() is M.false_value:
+                            bindings = M.Head(hits)()
+                            inst = M.Instantiate(replacement, bindings)()
+                            conclusion = M.Head(inst)()
+                            if self._has(acc, conclusion) is M.false_value:
+                                action = P.TheoremAction(rule, bindings)()
+                                P._debug("apply " + P.PrettyAction(action, self.registry)())
+                                P._debug("apply conclusion: " + M.PrettyTerm(conclusion, self.registry)())
+                                acc = M.Pair(conclusion, acc)
+                                added = M.truth_value
+            rules = M.Tail(rules)()
+        if added is M.truth_value:
+            pred = M.NatPred(fuel, self.registry)()
+            return self._saturate(acc, M.Head(pred)())
+        return acc
+
+    def __call__(self):
+        return self.result
+
+
 class FindLimit(M.Edge):
-    def __init__(self, sequences, product, registry, rewrite_rules):
+    def __init__(self, sequences, product, registry, rewrite_rules, facts):
         self.result = M.EmptyList
         if M.IdentityCompare(sequences, M.EmptyList)() is M.false_value:
             first = M.Head(sequences)()
             rest = M.Tail(sequences)()
             if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
                 second = M.Head(rest)()
+                x_name = SequenceNameOf(first, registry)()
+                y_name = SequenceNameOf(second, registry)()
                 x = CurrentApply(first, registry)()
                 y = CurrentApply(second, registry)()
                 nx = SequenceNextTerm(first, registry)()
                 ny = SequenceNextTerm(second, registry)()
-                same_next = M.Pair(L.ExprEqLabel, M.Pair(nx, M.Pair(ny, M.EmptyList)))
-                meet = M.Pair(L.ExprEqLabel, M.Pair(y, M.Pair(x, M.EmptyList)))
-                P._debug("limit: next terms equal is " + M.PrettyTerm(same_next, registry)())
-                if EquationRewriteEquals(same_next, meet, rewrite_rules, registry)() is M.truth_value:
-                    P._debug("limit: that equation rewrites to " + M.PrettyTerm(meet, registry)())
-                    self.result = meet
+                current_gap = TermGap(x, y)()
+                next_gap = TermGap(nx, ny)()
+                sum_xy = M.Pair(L.ExprAddLabel, M.Pair(x, M.Pair(y, M.EmptyList)))
+                closed_num = M.Pair(L.ExprMulLabel, M.Pair(current_gap, M.Pair(current_gap, M.EmptyList)))
+                closed_den = M.Pair(L.ExprMulLabel, M.Pair(M.two, M.Pair(sum_xy, M.EmptyList)))
+                closed_gap = M.Pair(L.ExprFracLabel, M.Pair(closed_num, M.Pair(closed_den, M.EmptyList)))
+                P._debug("chain-same-limit: current gap " + M.PrettyTerm(current_gap, registry)())
+                P._debug("chain-same-limit: next gap " + M.PrettyTerm(next_gap, registry)())
+                P._debug("chain-same-limit: exact gap " + M.PrettyTerm(closed_gap, registry)())
+                if RewriteEquals(next_gap, closed_gap, rewrite_rules, registry)() is M.false_value:
+                    P._debug("chain-same-limit: next-gap did not rewrite to exact gap")
+                else:
+                    gap_eq = M.Pair(L.ExprEqLabel, M.Pair(next_gap, M.Pair(closed_gap, M.EmptyList)))
+                    P._debug("chain-same-limit: " + M.PrettyTerm(gap_eq, registry)())
+                    seed = M.Pair(gap_eq, facts)
+                    derived = ApplySequenceTheorems(seed, rewrite_rules, registry)()
+                    half = M.Pair(L.ExprFracLabel, M.Pair(M.one, M.Pair(M.two, M.EmptyList)))
+                    contracts = M.Pair(L.GapContractsLabel, M.Pair(x_name, M.Pair(y_name, M.Pair(half, M.EmptyList))))
+                    dec_x = M.Pair(L.DecreasingLabel, M.Pair(x_name, M.EmptyList))
+                    inc_y = M.Pair(L.IncreasingLabel, M.Pair(y_name, M.EmptyList))
+                    below_x = M.Pair(L.BoundedBelowLabel, M.Pair(x_name, M.Pair(y, M.EmptyList)))
+                    above_y = M.Pair(L.BoundedAboveLabel, M.Pair(y_name, M.Pair(x, M.EmptyList)))
+                    lx = M.Pair(L.LimitValueLabel, M.Pair(x_name, M.EmptyList))
+                    ly = M.Pair(L.LimitValueLabel, M.Pair(y_name, M.EmptyList))
+                    conv_x = M.Pair(L.ConvergesLabel, M.Pair(x_name, M.Pair(lx, M.EmptyList)))
+                    conv_y = M.Pair(L.ConvergesLabel, M.Pair(y_name, M.Pair(ly, M.EmptyList)))
+                    common = M.Pair(L.ExprEqLabel, M.Pair(lx, M.Pair(ly, M.EmptyList)))
+                    needed = M.Pair(
+                        contracts,
+                        M.Pair(
+                            dec_x,
+                            M.Pair(
+                                inc_y,
+                                M.Pair(
+                                    below_x,
+                                    M.Pair(
+                                        above_y,
+                                        M.Pair(conv_x, M.Pair(conv_y, M.Pair(common, M.EmptyList))),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                    if FactsCover(needed, derived)() is M.truth_value:
+                        self.result = common
+                    else:
+                        P._debug("chain-same-limit: theorems did not discharge mono, bounds, Converges, GapContracts, Lx=Ly")
         super().__init__(
-            inputs=M.Pair(sequences, M.Pair(product, M.Pair(registry, M.Pair(rewrite_rules, M.EmptyList)))),
+            inputs=M.Pair(sequences, M.Pair(product, M.Pair(registry, M.Pair(rewrite_rules, M.Pair(facts, M.EmptyList))))),
             results=self.result,
         )
 
@@ -830,17 +966,17 @@ class ExamineTransforms(M.Edge):
             return M.EmptyList
         current = ProductOfCurrentTerms(sequences, self.registry)()
         nxt = ProductOfNextTerms(sequences, self.registry)()
-        P._debug("transform applied: current product " + M.PrettyTerm(current, self.registry)())
-        P._debug("transform applied: next product " + M.PrettyTerm(nxt, self.registry)())
+        P._debug("chain-product: current " + M.PrettyTerm(current, self.registry)())
+        P._debug("chain-product: next " + M.PrettyTerm(nxt, self.registry)())
         if RewriteEquals(nxt, current, self.rewrite_rules, self.registry)() is M.false_value:
-            P._debug("identity: next product did not rewrite to current product")
+            P._debug("chain-product: next did not rewrite to current")
             return M.EmptyList
         product = ProductOfBases(sequences, self.registry)()
-        reading = PhiFromProduct(self.phi, product)()
-        P._debug("invariant: identity holds, start bases give " + M.PrettyTerm(reading, self.registry)())
-        limit_value = FindLimit(sequences, product, self.registry, self.rewrite_rules)()
+        current_eq = M.Pair(L.ExprEqLabel, M.Pair(current, M.Pair(product, M.EmptyList)))
+        P._debug("chain-product: " + M.PrettyTerm(current_eq, self.registry)())
+        limit_value = FindLimit(sequences, product, self.registry, self.rewrite_rules, facts)()
         if M.IdentityCompare(limit_value, M.EmptyList)() is M.truth_value:
-            P._debug("limit: next terms equal did not rewrite to a meet")
+            P._debug("limit: sequences did not yield a common LimitValue")
             return M.EmptyList
         return self._check_invariant(sequences, product, limit_value)
 
@@ -876,28 +1012,32 @@ class ReplaceTerm(M.Edge):
 
 
 class CombineMeetAndProduct(M.Edge):
-    def __init__(self, sequences, product, meet, registry):
+    def __init__(self, sequences, product, common, registry):
         self.result = M.EmptyList
         if M.IdentityCompare(sequences, M.EmptyList)() is M.false_value:
             first = M.Head(sequences)()
             rest = M.Tail(sequences)()
             if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
-                x = CurrentApply(first, registry)()
-                y = CurrentApply(M.Head(rest)(), registry)()
-                current = ProductOfCurrentTerms(sequences, registry)()
-                if M.IsPair(meet)() is M.truth_value:
-                    if M.IdentityCompare(M.Head(meet)(), L.ExprEqLabel)() is M.truth_value:
-                        meet_args = M.Tail(meet)()
-                        left = M.Head(meet_args)()
-                        right = M.Head(M.Tail(meet_args)())()
-                        after_meet = ReplaceTerm(current, left, right)()
-                        square = M.Pair(L.ExprMulLabel, M.Pair(x, M.Pair(x, M.EmptyList)))
-                        if M.Compare(after_meet, square)() is M.truth_value:
-                            sqrt_term = M.Pair(L.SqrtLabel, M.Pair(product, M.EmptyList))
-                            self.result = M.Pair(L.ExprEqLabel, M.Pair(x, M.Pair(sqrt_term, M.EmptyList)))
-                            P._debug("formula: meet in product gives " + M.PrettyTerm(self.result, registry)())
+                x_name = SequenceNameOf(first, registry)()
+                y_name = SequenceNameOf(M.Head(rest)(), registry)()
+                lx = M.Pair(L.LimitValueLabel, M.Pair(x_name, M.EmptyList))
+                ly = M.Pair(L.LimitValueLabel, M.Pair(y_name, M.EmptyList))
+                if M.IsPair(common)() is M.truth_value:
+                    if M.IdentityCompare(M.Head(common)(), L.ExprEqLabel)() is M.truth_value:
+                        limit_product = M.Pair(L.ExprMulLabel, M.Pair(lx, M.Pair(ly, M.EmptyList)))
+                        square = M.Pair(L.ExprMulLabel, M.Pair(lx, M.Pair(lx, M.EmptyList)))
+                        after = ReplaceTerm(limit_product, ly, lx)()
+                        P._debug("union: Limit(X*Y) is " + M.PrettyTerm(after, registry)())
+                        square_eq = M.Pair(L.ExprEqLabel, M.Pair(square, M.Pair(product, M.EmptyList)))
+                        P._debug("union: " + M.PrettyTerm(square_eq, registry)())
+                        nn = M.Pair(L.NonNegativeLabel, M.Pair(lx, M.EmptyList))
+                        P._debug("union: " + M.PrettyTerm(nn, registry)())
+                        sqrt_term = M.Pair(L.SqrtLabel, M.Pair(product, M.EmptyList))
+                        x = CurrentApply(first, registry)()
+                        self.result = M.Pair(L.ExprEqLabel, M.Pair(x, M.Pair(sqrt_term, M.EmptyList)))
+                        P._debug("union: " + M.PrettyTerm(self.result, registry)())
         super().__init__(
-            inputs=M.Pair(sequences, M.Pair(product, M.Pair(meet, M.Pair(registry, M.EmptyList)))),
+            inputs=M.Pair(sequences, M.Pair(product, M.Pair(common, M.Pair(registry, M.EmptyList)))),
             results=self.result,
         )
 
@@ -909,8 +1049,8 @@ class FormulaFromFindings(M.Edge):
     def __init__(self, start, phi, registry, rewrite_rules):
         facts = StateFacts(start)()
         sequences = CollectSequenceFacts(facts, registry)()
-        product = M.CanonicalArithmeticTerm(ProductOfBases(sequences, registry)(), registry)()
-        meet = FindLimit(sequences, product, registry, rewrite_rules)()
+        product = ProductOfBases(sequences, registry)()
+        meet = FindLimit(sequences, product, registry, rewrite_rules, facts)()
         self.result = CombineMeetAndProduct(sequences, product, meet, registry)()
         super().__init__(
             inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.Pair(rewrite_rules, M.EmptyList)))),
@@ -931,13 +1071,21 @@ class TransformFindings(M.Edge):
         elif M.IdentityCompare(sequences, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         else:
-            product = M.CanonicalArithmeticTerm(ProductOfBases(sequences, registry)(), registry)()
-            product_fact = PhiFromProduct(phi, product)()
-            meet = FindLimit(sequences, product, registry, rewrite_rules)()
-            if M.IdentityCompare(meet, M.EmptyList)() is M.truth_value:
+            product = ProductOfBases(sequences, registry)()
+            common = FindLimit(sequences, product, registry, rewrite_rules)()
+            formula = CombineMeetAndProduct(sequences, product, common, registry)()
+            if M.IdentityCompare(common, M.EmptyList)() is M.truth_value:
+                self.result = M.EmptyList
+            elif M.IdentityCompare(formula, M.EmptyList)() is M.truth_value:
                 self.result = M.EmptyList
             else:
-                self.result = M.Pair(product_fact, M.Pair(meet, M.EmptyList))
+                current = ProductOfCurrentTerms(sequences, registry)()
+                current_eq = M.Pair(L.ExprEqLabel, M.Pair(current, M.Pair(product, M.EmptyList)))
+                first = M.Head(sequences)()
+                x_name = SequenceNameOf(first, registry)()
+                lx = M.Pair(L.LimitValueLabel, M.Pair(x_name, M.EmptyList))
+                nn = M.Pair(L.NonNegativeLabel, M.Pair(lx, M.EmptyList))
+                self.result = M.Pair(current_eq, M.Pair(common, M.Pair(nn, M.EmptyList)))
         super().__init__(inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def __call__(self):
@@ -1328,4 +1476,3 @@ class InvariantCandidate(M.Edge):
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
-

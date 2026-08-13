@@ -189,6 +189,127 @@ rules:
           - {var: b}
           - {var: c}
 
+  - id: neg_of_frac
+    pattern:
+      call:
+        head: {sym: ExprNegLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprNegLabel}, args: [{var: a}]}
+          - {var: b}
+
+  - id: add_frac_neg_frac
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - call:
+              head: {sym: ExprNegLabel}
+              args:
+                - call: {head: {sym: ExprFracLabel}, args: [{var: c}, {var: d}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: d}]}
+                - call:
+                    head: {sym: ExprNegLabel}
+                    args:
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: d}]}
+
+  - id: expand_sum_square
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {sym: two}
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
+
+  - id: square_of_difference
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                - call:
+                    head: {sym: ExprNegLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprMulLabel}
+                          args:
+                            - {sym: two}
+                            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
+
+  - id: next_minus_terms_to_square_over_twice_sum
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprFracLabel}
+              args:
+                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+                - {sym: two}
+          - call:
+              head: {sym: ExprNegLabel}
+              args:
+                - call:
+                    head: {sym: ExprFracLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprMulLabel}
+                          args:
+                            - {sym: two}
+                            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+                      - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
+                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
+          - call:
+              head: {sym: ExprMulLabel}
+              args:
+                - {sym: two}
+                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+
 examples:
   - id: distrib_assoc_demo
     start:
