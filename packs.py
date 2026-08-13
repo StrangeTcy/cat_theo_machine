@@ -124,7 +124,7 @@ class PackLoader:
             return var_env[key]
 
         if "char" in spec:
-            return M.Char(str(spec["char"]))
+            return self.string_table._char_atom(str(spec["char"]))
 
         if "pair" in spec:
             pair_items = spec["pair"]

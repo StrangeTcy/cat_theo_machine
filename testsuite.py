@@ -4846,7 +4846,7 @@ class InvarianceEvenGoalUnreachableTest(M.Edge):
         var_p = M.Pair(M.VarTag, M.Pair(p_name, M.EmptyList))
         phi = Imod.Phi(HeadsCountParity(var_p)())()
         heuristic = Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)()
-        invariant = Imod.Invariant(phi, rules, registry)()
+        invariant = Imod.Invariant(phi, rules, registry, start)()
         prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
         search_pair = Imod.SearchWithInvariant(graph, start, goal, rules, heuristic, registry, phi)()
         search_prune = M.Head(M.Tail(M.Tail(search_pair)())())()
@@ -4878,7 +4878,7 @@ class InvarianceOddGoalDoesNotPruneTest(M.Edge):
         p_name = M.Thingy()
         var_p = M.Pair(M.VarTag, M.Pair(p_name, M.EmptyList))
         phi = Imod.Phi(HeadsCountParity(var_p)())()
-        invariant = Imod.Invariant(phi, rules, registry)()
+        invariant = Imod.Invariant(phi, rules, registry, start)()
         prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
         self.result = M.truth_value
         if Imod.IsInvariant(invariant)() is M.false_value:
@@ -4900,7 +4900,7 @@ class InvarianceUnestablishedEvenPhiDoesNotPruneTest(M.Edge):
         goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(tails, M.Pair(tails, M.Pair(tails, M.EmptyList))))))()
         rules = FlipAdjacentRules()()
         phi = HeadsCountParity(EvenTag()())()
-        invariant = Imod.Invariant(phi, rules, registry)()
+        invariant = Imod.Invariant(phi, rules, registry, start)()
         prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
         holds = Imod.PhiHolds(start, phi)()
         self.result = M.truth_value
@@ -4924,7 +4924,7 @@ class InvarianceFlipOneRefutesParityTest(M.Edge):
         rules = M.Pair(rule, M.EmptyList)
         phi = Imod.Phi(HeadsCountParity(OddTag()())())()
         obligation = Imod.Preserves(rule, phi, registry)()
-        invariant = Imod.Invariant(phi, rules, registry)()
+        invariant = Imod.Invariant(phi, rules, registry, start)()
         prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
         self.result = M.truth_value
         if Imod.IsInvariantRefuted(obligation)() is M.false_value:

@@ -2887,9 +2887,13 @@ class Prove(M.Edge):
         _debug("prove: goal=" + _debug_term(goal, registry))
         if M.IdentityCompare(phi, M.EmptyList)() is M.false_value:
             _debug("phi is " + M.PrettyTerm(Imod.PhiPattern(phi)(), registry)())
-            invariant = Imod.Invariant(phi, rules, registry)()
+            invariant = Imod.Invariant(phi, rules, registry, self.start)()
             if Imod.IsInvariant(invariant)() is M.truth_value:
                 _debug("invariant proven")
+                findings = Imod.TransformFindings(self.start, phi, registry)()
+                if M.IdentityCompare(findings, M.EmptyList)() is M.false_value:
+                    self.start = Imod.AddFindings(self.start, findings)()
+                    _debug("invariant findings added")
             prune = Imod.ReachabilityPrune(self.start, self.goal, invariant, phi, registry)()
             if Imod.IsUnreachable(prune)() is M.truth_value:
                 self.result = M.Pair(prune, M.EmptyList)
@@ -3046,7 +3050,9 @@ class Prove(M.Edge):
     def _derivation_reaches_goal(self, derivation, registry):
         end = DerivationEnd(derivation, registry)()
         if IsKnowledge(self.goal)() is M.truth_value:
-            return SameKnowledge(end, self.goal)()
+            if IsKnowledge(end)() is M.false_value:
+                return M.false_value
+            return FactsCover(KnowledgeFacts(self.goal)(), KnowledgeFacts(end)())()
         if IsKnowledge(end)() is M.truth_value:
             return self._knowledge_has_fact(KnowledgeFacts(end)(), self.goal)
         return M.TermEqual(end, self.goal)()
@@ -3557,6 +3563,24 @@ class Prove(M.Edge):
 
     def _prove(self):
         from .search import CompareSearchModes, SearchComparisonBestAttempt, SearchComparisonOutcome, SearchCostOutcome
+
+        if IsKnowledge(self.goal)() is M.truth_value:
+            if IsKnowledge(self.start)() is M.truth_value:
+                if FactsCover(KnowledgeFacts(self.goal)(), KnowledgeFacts(self.start)())() is M.truth_value:
+                    _debug("prove-stage: findings already cover the goal")
+                    zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
+                    zero_search_cost = M.Head(zero_search_pair)()
+                    zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                    step_pair = Step(self.start, M.EmptyList, self.start, zero_registry)()
+                    step_node = M.Head(step_pair)()
+                    step_registry = M.Head(M.Tail(step_pair)())()
+                    cost_pair = BuildProofCost(M.Pair(step_node, M.EmptyList), step_registry)()
+                    cost = M.Head(cost_pair)()
+                    cost_registry = M.Head(M.Tail(cost_pair)())()
+                    deriv_pair = Derivation(M.Pair(step_node, M.EmptyList), cost, cost_registry)()
+                    derivation = M.Head(deriv_pair)()
+                    new_registry = M.Head(M.Tail(deriv_pair)())()
+                    return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
 
         start_has_var = ContainsVar(self.start)()
         goal_has_var = ContainsVar(self.goal)()

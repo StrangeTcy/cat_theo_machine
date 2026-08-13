@@ -1112,7 +1112,9 @@ class Search(M.Edge):
 
     def _goal_reached(self, current, goal, knowledge_exact_trie=None):
         if IsKnowledge(goal)() is M.truth_value:
-            return SameKnowledge(current, goal)()
+            if IsKnowledge(current)() is M.false_value:
+                return M.false_value
+            return FactsCover(KnowledgeFacts(goal)(), KnowledgeFacts(current)())()
         if IsKnowledge(current)() is M.truth_value:
             if knowledge_exact_trie is None:
                 return self._knowledge_has_fact(KnowledgeFacts(current)(), goal)

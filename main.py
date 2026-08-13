@@ -402,11 +402,7 @@ def _theorem_agenda(packs, filter_name=None):
                     continue
             if example_id in sqrt_pack.examples:
                 start, goal = sqrt_pack.examples[example_id]
-<<<<<<< HEAD
-                cases.append((example_id, start, goal))
-=======
                 cases.append((example_id, start, goal, None, None))
->>>>>>> 843917a (Prove Knowledge boards by pack phi: preserve, then prune.)
     return cases
 
 

@@ -147,16 +147,447 @@ class IsInvariantRefuted(M.Edge):
         return self.result
 
 
+class IsSequenceTerm(M.Edge):
+    def __init__(self, term, registry):
+        atom_result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.IdentityCompare(M.Head(term)(), L.SequenceLabel)() is M.truth_value:
+                atom_result = M.truth_value
+        if atom_result is M.false_value:
+            constructor = M.GetConstructor(term, registry)()
+            if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(M.Head(constructor)(), L.SequenceLabel)() is M.truth_value:
+                    atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SequenceTermArgs(M.Edge):
+    def __init__(self, term, registry):
+        args = M.EmptyList
+        if M.IsPair(term)() is M.truth_value:
+            if M.IdentityCompare(M.Head(term)(), L.SequenceLabel)() is M.truth_value:
+                args = M.Tail(term)()
+        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            constructor = M.GetConstructor(term, registry)()
+            if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(M.Head(constructor)(), L.SequenceLabel)() is M.truth_value:
+                    args = M.Tail(constructor)()
+        self.result = args
+        super().__init__(inputs=M.Pair(term, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CollectSequenceFacts(M.Edge):
+    def __init__(self, facts, registry):
+        self.registry = registry
+        acc = M.EmptyList
+        remaining = facts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            fact = M.Head(remaining)()
+            if IsSequenceTerm(fact, registry)() is M.truth_value:
+                acc = M.Pair(fact, acc)
+            remaining = M.Tail(remaining)()
+        rev = M.EmptyList
+        while M.IdentityCompare(acc, M.EmptyList)() is M.false_value:
+            rev = M.Pair(M.Head(acc)(), rev)
+            acc = M.Tail(acc)()
+        self.result = rev
+        super().__init__(inputs=M.Pair(facts, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SequenceIndex(M.Edge):
+    def __init__(self, seq, registry):
+        args = SequenceTermArgs(seq, registry)()
+        pattern = M.Head(M.Tail(M.Tail(args)())())()
+        index = M.EmptyList
+        if M.IsPair(pattern)() is M.truth_value:
+            if M.IdentityCompare(M.Head(pattern)(), L.ApplyLabel)() is M.truth_value:
+                apply_args = M.Tail(pattern)()
+                if M.IsPair(M.Tail(apply_args)())() is M.truth_value:
+                    step = M.Head(M.Tail(apply_args)())()
+                    if M.IsPair(step)() is M.truth_value:
+                        if M.IdentityCompare(M.Head(step)(), L.SuccLabel)() is M.truth_value:
+                            index = M.Head(M.Tail(step)())()
+                        else:
+                            index = step
+        self.result = index
+        super().__init__(inputs=M.Pair(seq, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TransformLimit(M.Edge):
+    def __init__(self, seq, limit_value, registry):
+        limit_pair = M.Limit(seq, limit_value, registry)()
+        self.result = M.Head(limit_pair)()
+        super().__init__(
+            inputs=M.Pair(seq, M.Pair(limit_value, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ApplyLimit(M.Edge):
+    def __init__(self, seq, limit_value, registry):
+        limit_term = TransformLimit(seq, limit_value, registry)()
+        self.result = M.Pair(L.ApplyLabel, M.Pair(limit_term, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(seq, M.Pair(limit_value, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TransformLimitUnknown(M.Edge):
+    def __init__(self):
+        name = M.Thingy()
+        self.result = M.Pair(M.VarTag, M.Pair(name, M.EmptyList))
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SequenceNames(M.Edge):
+    def __init__(self, sequences, registry):
+        names = M.EmptyList
+        remaining = sequences
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            seq = M.Head(remaining)()
+            name = M.Head(SequenceTermArgs(seq, registry)())()
+            names = M.Pair(name, names)
+            remaining = M.Tail(remaining)()
+        self.result = names
+        super().__init__(inputs=M.Pair(sequences, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NameAmong(M.Edge):
+    def __init__(self, name, names):
+        atom_result = M.false_value
+        remaining = names
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Head(remaining)(), name)() is M.truth_value:
+                atom_result = M.truth_value
+            remaining = M.Tail(remaining)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(name, M.Pair(names, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProductOfCurrentTerms(M.Edge):
+    def __init__(self, sequences, registry):
+        product = M.EmptyList
+        remaining = sequences
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            seq = M.Head(remaining)()
+            args = SequenceTermArgs(seq, registry)()
+            name = M.Head(args)()
+            index = SequenceIndex(seq, registry)()
+            term = M.Pair(L.ApplyLabel, M.Pair(name, M.Pair(index, M.EmptyList)))
+            if M.IdentityCompare(product, M.EmptyList)() is M.truth_value:
+                product = term
+            else:
+                product = M.Pair(L.ExprMulLabel, M.Pair(product, M.Pair(term, M.EmptyList)))
+            remaining = M.Tail(remaining)()
+        self.result = product
+        super().__init__(inputs=M.Pair(sequences, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubstituteApplies(M.Edge):
+    def __init__(self, term, names, unknown):
+        self.names = names
+        self.unknown = unknown
+        self.result = self._walk(term)
+        super().__init__(inputs=M.Pair(term, M.Pair(names, M.Pair(unknown, M.EmptyList))), results=self.result)
+
+    def _walk(self, term):
+        if M.IsPair(term)() is M.false_value:
+            return term
+        if M.IdentityCompare(M.Head(term)(), L.ApplyLabel)() is M.truth_value:
+            args = M.Tail(term)()
+            if M.IsPair(args)() is M.truth_value:
+                if NameAmong(M.Head(args)(), self.names)() is M.truth_value:
+                    return self.unknown
+        return M.Pair(self._walk(M.Head(term)()), self._walk(M.Tail(term)()))
+
+    def __call__(self):
+        return self.result
+
+
+class TermContains(M.Edge):
+    def __init__(self, term, needle):
+        self.needle = needle
+        self.result = self._walk(term)
+        super().__init__(inputs=M.Pair(term, M.Pair(needle, M.EmptyList)), results=self.result)
+
+    def _walk(self, term):
+        if M.IdentityCompare(term, self.needle)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if self._walk(M.Head(term)()) is M.truth_value:
+            return M.truth_value
+        return self._walk(M.Tail(term)())
+
+    def __call__(self):
+        return self.result
+
+
+class SolveFor(M.Edge):
+    def __init__(self, expr, value, unknown):
+        self.unknown = unknown
+        self.result = self._solve(expr, value)
+        super().__init__(inputs=M.Pair(expr, M.Pair(value, M.Pair(unknown, M.EmptyList))), results=self.result)
+
+    def _solve(self, expr, value):
+        if M.IdentityCompare(expr, self.unknown)() is M.truth_value:
+            if TermContains(value, self.unknown)() is M.false_value:
+                return value
+            return M.EmptyList
+        if M.IdentityCompare(value, self.unknown)() is M.truth_value:
+            return self._solve(value, expr)
+        if M.IsPair(expr)() is M.false_value:
+            return M.EmptyList
+        head = M.Head(expr)()
+        args = M.Tail(expr)()
+        if M.IsPair(args)() is M.false_value:
+            return M.EmptyList
+        left = M.Head(args)()
+        rest = M.Tail(args)()
+        if M.IdentityCompare(head, L.SqrtLabel)() is M.truth_value:
+            squared = M.Pair(L.ExprMulLabel, M.Pair(value, M.Pair(value, M.EmptyList)))
+            return self._solve(left, squared)
+        if M.IsPair(rest)() is M.false_value:
+            return M.EmptyList
+        right = M.Head(rest)()
+        left_has = TermContains(left, self.unknown)()
+        right_has = TermContains(right, self.unknown)()
+        if M.IdentityCompare(head, L.ExprMulLabel)() is M.truth_value:
+            if left_has is M.truth_value:
+                if right_has is M.truth_value:
+                    if M.IdentityCompare(left, self.unknown)() is M.truth_value:
+                        if M.IdentityCompare(right, self.unknown)() is M.truth_value:
+                            return M.Pair(L.SqrtLabel, M.Pair(value, M.EmptyList))
+                    return M.EmptyList
+                quotient = M.Pair(L.ExprFracLabel, M.Pair(value, M.Pair(right, M.EmptyList)))
+                return self._solve(left, quotient)
+            if right_has is M.truth_value:
+                quotient = M.Pair(L.ExprFracLabel, M.Pair(value, M.Pair(left, M.EmptyList)))
+                return self._solve(right, quotient)
+            return M.EmptyList
+        if M.IdentityCompare(head, L.ExprAddLabel)() is M.truth_value:
+            if left_has is M.truth_value:
+                if right_has is M.false_value:
+                    neg = M.Pair(L.ExprNegLabel, M.Pair(right, M.EmptyList))
+                    shifted = M.Pair(L.ExprAddLabel, M.Pair(value, M.Pair(neg, M.EmptyList)))
+                    return self._solve(left, shifted)
+            if right_has is M.truth_value:
+                if left_has is M.false_value:
+                    neg = M.Pair(L.ExprNegLabel, M.Pair(left, M.EmptyList))
+                    shifted = M.Pair(L.ExprAddLabel, M.Pair(value, M.Pair(neg, M.EmptyList)))
+                    return self._solve(right, shifted)
+            return M.EmptyList
+        if M.IdentityCompare(head, L.ExprFracLabel)() is M.truth_value:
+            if left_has is M.truth_value:
+                if right_has is M.false_value:
+                    scaled = M.Pair(L.ExprMulLabel, M.Pair(value, M.Pair(right, M.EmptyList)))
+                    return self._solve(left, scaled)
+            if right_has is M.truth_value:
+                if left_has is M.false_value:
+                    if TermContains(value, self.unknown)() is M.false_value:
+                        inv = M.Pair(L.ExprFracLabel, M.Pair(left, M.Pair(value, M.EmptyList)))
+                        return self._solve(right, inv)
+            return M.EmptyList
+        return M.EmptyList
+
+    def __call__(self):
+        return self.result
+
+
+class FindLimit(M.Edge):
+    def __init__(self, sequences, product, registry):
+        unknown = TransformLimitUnknown()()
+        names = SequenceNames(sequences, registry)()
+        current = ProductOfCurrentTerms(sequences, registry)()
+        at_limit = SubstituteApplies(current, names, unknown)()
+        self.result = SolveFor(at_limit, product, unknown)()
+        super().__init__(
+            inputs=M.Pair(sequences, M.Pair(product, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProductOfBases(M.Edge):
+    def __init__(self, sequences, registry):
+        self.registry = registry
+        product = M.EmptyList
+        remaining = sequences
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            seq = M.Head(remaining)()
+            base = M.Head(M.Tail(SequenceTermArgs(seq, registry)())())()
+            if M.IdentityCompare(product, M.EmptyList)() is M.truth_value:
+                product = base
+            else:
+                product = M.Pair(L.ExprMulLabel, M.Pair(product, M.Pair(base, M.EmptyList)))
+            remaining = M.Tail(remaining)()
+        self.result = product
+        super().__init__(inputs=M.Pair(sequences, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PhiFromProduct(M.Edge):
+    def __init__(self, phi, product):
+        pattern = PhiPattern(phi)()
+        hit = M.Match(pattern, M.Pair(M.Head(pattern)(), M.Pair(product, M.EmptyList)))()
+        if M.IdentityCompare(M.Head(hit)(), M.truth_value)() is M.truth_value:
+            inst = M.Instantiate(pattern, M.Tail(hit)())()
+            self.result = M.Head(inst)()
+        else:
+            self.result = M.Pair(M.Head(pattern)(), M.Pair(product, M.EmptyList))
+        super().__init__(inputs=M.Pair(phi, M.Pair(product, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExamineTransforms(M.Edge):
+    def __init__(self, start, phi, registry):
+        self.registry = registry
+        self.phi = phi
+        facts = StateFacts(start)()
+        sequences = CollectSequenceFacts(facts, registry)()
+        self.result = self._examine(sequences)
+        super().__init__(inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _examine(self, sequences):
+        if M.IdentityCompare(sequences, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        product = ProductOfBases(sequences, self.registry)()
+        unknown = TransformLimitUnknown()()
+        applied = self._apply_limits(sequences, unknown)
+        if M.IdentityCompare(applied, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        limit_value = FindLimit(sequences, product, self.registry)()
+        if M.IdentityCompare(limit_value, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        applied = self._apply_limits(sequences, limit_value)
+        return self._check_invariant(sequences, product, applied)
+
+    def _apply_limits(self, sequences, limit_value):
+        if M.IdentityCompare(sequences, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        seq = M.Head(sequences)()
+        if IsSequenceTerm(seq, self.registry)() is M.false_value:
+            return self._apply_limits(M.Tail(sequences)(), limit_value)
+        applied = ApplyLimit(seq, limit_value, self.registry)()
+        rest = self._apply_limits(M.Tail(sequences)(), limit_value)
+        return M.Pair(applied, rest)
+
+    def _check_invariant(self, sequences, product, applied):
+        reading = PhiFromProduct(self.phi, product)()
+        if M.IdentityCompare(reading, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(
+            L.PreservesLabel,
+            M.Pair(sequences, M.Pair(self.phi, M.Pair(reading, M.Pair(applied, M.EmptyList)))),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TransformFindings(M.Edge):
+    def __init__(self, start, phi, registry):
+        facts = StateFacts(start)()
+        sequences = CollectSequenceFacts(facts, registry)()
+        examined = ExamineTransforms(start, phi, registry)()
+        if IsPreserves(examined)() is M.false_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(sequences, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            product = ProductOfBases(sequences, registry)()
+            product_fact = PhiFromProduct(phi, product)()
+            limit_value = FindLimit(sequences, product, registry)()
+            if M.IdentityCompare(limit_value, M.EmptyList)() is M.truth_value:
+                self.result = M.EmptyList
+            else:
+                first = M.Head(sequences)()
+                first_args = SequenceTermArgs(first, registry)()
+                name = M.Head(first_args)()
+                index = SequenceIndex(first, registry)()
+                apply_term = M.Pair(L.ApplyLabel, M.Pair(name, M.Pair(index, M.EmptyList)))
+                equation = M.Pair(L.ExprEqLabel, M.Pair(apply_term, M.Pair(limit_value, M.EmptyList)))
+                self.result = M.Pair(product_fact, M.Pair(equation, M.EmptyList))
+        super().__init__(inputs=M.Pair(start, M.Pair(phi, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AddFindings(M.Edge):
+    def __init__(self, state, findings):
+        facts = StateFacts(state)()
+        extra = findings
+        while M.IdentityCompare(extra, M.EmptyList)() is M.false_value:
+            facts = M.Pair(M.Head(extra)(), facts)
+            extra = M.Tail(extra)()
+        self.result = P.Knowledge(facts)()
+        super().__init__(inputs=M.Pair(state, M.Pair(findings, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class Invariant(M.Edge):
-    def __init__(self, phi, ruleset, registry):
+    def __init__(self, phi, ruleset, registry, start):
         self.phi = phi
         self.registry = registry
-        self.result = self._walk(ruleset)
-        super().__init__(inputs=M.Pair(phi, M.Pair(ruleset, M.Pair(registry, M.EmptyList))), results=self.result)
+        transform = ExamineTransforms(start, phi, registry)()
+        walked = self._walk(ruleset)
+        if IsInvariantRefuted(walked)() is M.truth_value:
+            self.result = walked
+        elif IsPreserves(transform)() is M.truth_value:
+            self.result = M.Pair(L.InvariantLabel, M.Pair(self.phi, M.Pair(ruleset, M.Pair(transform, M.EmptyList))))
+        elif M.IdentityCompare(ruleset, M.EmptyList)() is M.truth_value:
+            self.result = InvariantCandidate(phi, ruleset)()
+        else:
+            self.result = walked
+        super().__init__(
+            inputs=M.Pair(phi, M.Pair(ruleset, M.Pair(registry, M.Pair(start, M.EmptyList)))),
+            results=self.result,
+        )
 
     def _walk(self, ruleset):
         if M.IdentityCompare(ruleset, M.EmptyList)() is M.truth_value:
-            return M.Pair(L.InvariantLabel, M.Pair(self.phi, M.Pair(M.EmptyList, M.EmptyList)))
+            return InvariantCandidate(self.phi, ruleset)()
         rule = M.Head(ruleset)()
         rest = M.Tail(ruleset)()
         obligation = Preserves(rule, self.phi, self.registry)()
@@ -219,7 +650,7 @@ class ReachabilityPrune(M.Edge):
             if PhiHolds(start, phi)() is M.truth_value:
                 start_value = PhiReading(start, phi)()
                 goal_value = PhiReading(goal, phi)()
-                if M.IdentityCompare(start_value, goal_value)() is M.false_value:
+                if M.Compare(start_value, goal_value)() is M.false_value:
                     witness = M.Pair(start_value, M.Pair(goal_value, M.EmptyList))
                     atom_result = Unreachable(start, goal, invariant, witness)()
         self.result = atom_result
@@ -414,6 +845,15 @@ class RewriteSearch(M.Edge):
         return M.EmptyList
 
     def _dfs(self, current, plan, seen):
+        if P.IsKnowledge(self.goal)() is M.truth_value:
+            if P.IsKnowledge(current)() is M.truth_value:
+                if FactsCover(P.KnowledgeFacts(self.goal)(), P.KnowledgeFacts(current)())() is M.truth_value:
+                    acc = M.EmptyList
+                    remaining = plan
+                    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                        acc = M.Pair(M.Head(remaining)(), acc)
+                        remaining = M.Tail(remaining)()
+                    return acc
         if M.Compare(current, self.goal)() is M.truth_value:
             acc = M.EmptyList
             remaining = plan
@@ -435,8 +875,13 @@ class RewriteSearch(M.Edge):
 
 class SearchWithInvariant(M.Edge):
     def __init__(self, graph, start, goal, rules, heuristic, registry, phi):
-        invariant = Invariant(phi, rules, registry)()
-        prune = ReachabilityPrune(start, goal, invariant, phi, registry)()
+        invariant = Invariant(phi, rules, registry, start)()
+        board = start
+        if IsInvariant(invariant)() is M.truth_value:
+            findings = TransformFindings(start, phi, registry)()
+            if M.IdentityCompare(findings, M.EmptyList)() is M.false_value:
+                board = AddFindings(start, findings)()
+        prune = ReachabilityPrune(board, goal, invariant, phi, registry)()
         if IsUnreachable(prune)() is M.truth_value:
             cost_pair = S.BuildSearchCost(
                 M.EmptyList,
@@ -449,9 +894,15 @@ class SearchWithInvariant(M.Edge):
             search_cost = M.Head(cost_pair)()
             self.result = M.Pair(M.EmptyList, M.Pair(search_cost, M.Pair(prune, M.EmptyList)))
         else:
-            plan = RewriteSearch(start, goal, rules, registry)()
+            plan = RewriteSearch(board, goal, rules, registry)()
             outcome = S.SearchFailureLabel
+            covered = M.false_value
+            if P.IsKnowledge(goal)() is M.truth_value:
+                if P.IsKnowledge(board)() is M.truth_value:
+                    covered = FactsCover(P.KnowledgeFacts(goal)(), P.KnowledgeFacts(board)())()
             if M.IdentityCompare(plan, M.EmptyList)() is M.false_value:
+                outcome = S.SearchSuccessLabel
+            elif covered is M.truth_value:
                 outcome = S.SearchSuccessLabel
             cost_pair = S.BuildSearchCost(
                 plan,

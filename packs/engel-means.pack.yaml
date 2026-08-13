@@ -2,35 +2,14 @@ format: hyge-pack
 version: 1
 
 name: engel-means
-description: Engel E1. Point (x,y) with 0<y<x. The next point keeps the product. Phi is the Product fact.
+description: Engel E1. Sequence X, Sequence Y, b < a. Product is phi. Goal is Product and ExprEq(Apply(X, n), Sqrt(product)).
 
 requires: []
 
 phi:
-  call: {head: {char: Point}, args: [{var: x}, {var: y}]}
+  call: {head: {char: Product}, args: [{var: p}]}
 
-rules:
-  - id: engel_e1_next_point
-    premises:
-      - call: {head: {char: Point}, args: [{var: x}, {var: y}]}
-    replacement:
-      call:
-        head: {char: Point}
-        args:
-          - call:
-              head: {sym: ExprFracLabel}
-              args:
-                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
-                - {sym: two}
-          - call:
-              head: {sym: ExprFracLabel}
-              args:
-                - call:
-                    head: {sym: ExprMulLabel}
-                    args:
-                      - {sym: two}
-                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
-                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+rules: []
 
 examples:
   - id: engel_e1
@@ -39,20 +18,35 @@ examples:
         head: {sym: KnowledgeLabel}
         args:
           - list:
-              - call: {head: {char: Point}, args: [{char: a}, {char: b}]}
-    goal:
-      call:
-        head: {sym: KnowledgeLabel}
-        args:
-          - list:
               - call:
-                  head: {char: Point}
+                  head: {sym: SequenceLabel}
                   args:
+                    - {char: X}
+                    - {char: a}
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args:
+                          - {char: X}
+                          - call: {head: {sym: SuccLabel}, args: [{var: n}]}
                     - call:
                         head: {sym: ExprFracLabel}
                         args:
-                          - call: {head: {sym: ExprAddLabel}, args: [{char: a}, {char: b}]}
+                          - call:
+                              head: {sym: ExprAddLabel}
+                              args:
+                                - call: {head: {sym: ApplyLabel}, args: [{char: X}, {var: n}]}
+                                - call: {head: {sym: ApplyLabel}, args: [{char: Y}, {var: n}]}
                           - {sym: two}
+              - call:
+                  head: {sym: SequenceLabel}
+                  args:
+                    - {char: Y}
+                    - {char: b}
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args:
+                          - {char: Y}
+                          - call: {head: {sym: SuccLabel}, args: [{var: n}]}
                     - call:
                         head: {sym: ExprFracLabel}
                         args:
@@ -60,5 +54,31 @@ examples:
                               head: {sym: ExprMulLabel}
                               args:
                                 - {sym: two}
-                                - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
-                          - call: {head: {sym: ExprAddLabel}, args: [{char: a}, {char: b}]}
+                                - call:
+                                    head: {sym: ExprMulLabel}
+                                    args:
+                                      - call: {head: {sym: ApplyLabel}, args: [{char: X}, {var: n}]}
+                                      - call: {head: {sym: ApplyLabel}, args: [{char: Y}, {var: n}]}
+                          - call:
+                              head: {sym: ExprAddLabel}
+                              args:
+                                - call: {head: {sym: ApplyLabel}, args: [{char: X}, {var: n}]}
+                                - call: {head: {sym: ApplyLabel}, args: [{char: Y}, {var: n}]}
+              - call: {head: {sym: ExprLtLabel}, args: [{char: b}, {char: a}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {char: Product}
+                  args:
+                    - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
+              - call:
+                  head: {sym: ExprEqLabel}
+                  args:
+                    - call: {head: {sym: ApplyLabel}, args: [{char: X}, {var: n}]}
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args:
+                          - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
