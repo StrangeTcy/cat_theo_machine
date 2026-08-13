@@ -273,42 +273,175 @@ rules:
           - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
           - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
 
-  - id: next_minus_terms_to_square_over_twice_sum
+  - id: mul_trailing_two
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: a}]}
+          - {sym: two}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {sym: two}]}
+          - {var: a}
+
+  - id: mul_swap_two_right
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: a}
+          - {sym: two}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {sym: two}
+          - {var: a}
+
+  - id: mul_pull_two
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: a}
+          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: b}]}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {sym: two}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+
+  - id: num_xx_2xy_yy_minus_4xy
     pattern:
       call:
         head: {sym: ExprAddLabel}
         args:
           - call:
-              head: {sym: ExprFracLabel}
+              head: {sym: ExprAddLabel}
               args:
-                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
-                - {sym: two}
+                - call:
+                    head: {sym: ExprAddLabel}
+                    args:
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                      - call:
+                          head: {sym: ExprMulLabel}
+                          args:
+                            - {sym: two}
+                            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+                - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
           - call:
               head: {sym: ExprNegLabel}
               args:
                 - call:
-                    head: {sym: ExprFracLabel}
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {sym: two}]}
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                - call:
+                    head: {sym: ExprNegLabel}
                     args:
                       - call:
                           head: {sym: ExprMulLabel}
                           args:
                             - {sym: two}
                             - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
-                      - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
+
+  - id: lt_cross_mul
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprFracLabel}, args: [{var: c}, {var: d}]}
     replacement:
       call:
-        head: {sym: ExprFracLabel}
+        head: {sym: ExprLtLabel}
         args:
-          - call:
-              head: {sym: ExprMulLabel}
-              args:
-                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
-                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
-          - call:
-              head: {sym: ExprMulLabel}
-              args:
-                - {sym: two}
-                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: d}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+
+  - id: lt_cancel_left_factor
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: a}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {var: a}
+          - {var: b}
+
+  - id: lt_cancel_right_factor
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {var: a}
+          - {var: b}
+
+  - id: lt_add_cancel_left
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {var: b}
+          - {var: c}
+
+  - id: lt_neg_vs_self
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprNegLabel}, args: [{var: a}]}
+          - {var: a}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {sym: Zero}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: a}]}
+
+  - id: lt_zero_double
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {sym: Zero}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: a}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {sym: Zero}
+          - {var: a}
 
 examples:
   - id: distrib_assoc_demo

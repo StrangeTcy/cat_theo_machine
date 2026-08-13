@@ -434,45 +434,125 @@ class LogTermPath(M.Edge):
         return self.result
 
 
+class AlgebraRewriteRule(M.Edge):
+    def __init__(self, rule):
+        atom_result = M.false_value
+        if P.RuleIsUnary(rule)() is M.truth_value:
+            pattern = P.RulePattern(rule)()
+            if M.IsPair(pattern)() is M.truth_value:
+                head = M.Head(pattern)()
+                if M.IdentityCompare(head, L.ExprFracLabel)() is M.truth_value:
+                    atom_result = M.truth_value
+                if M.IdentityCompare(head, L.ExprNegLabel)() is M.truth_value:
+                    atom_result = M.truth_value
+                if M.IdentityCompare(head, L.ExprLtLabel)() is M.truth_value:
+                    atom_result = M.truth_value
+                if M.IdentityCompare(head, L.ExprMulLabel)() is M.truth_value:
+                    args = M.Tail(pattern)()
+                    left = M.Head(args)()
+                    right = M.Head(M.Tail(args)())()
+                    if M.IdentityCompare(left, M.two)() is M.false_value:
+                        if P.IsVarPattern(left)() is M.false_value:
+                            atom_result = M.truth_value
+                        else:
+                            if P.IsVarPattern(right)() is M.false_value:
+                                if M.IsPair(right)() is M.truth_value:
+                                    inner = M.Head(right)()
+                                    if M.IdentityCompare(inner, L.ExprAddLabel)() is M.false_value:
+                                        if M.IdentityCompare(inner, L.ExprMulLabel)() is M.false_value:
+                                            atom_result = M.truth_value
+                                        else:
+                                            inner_args = M.Tail(right)()
+                                            if P.IsVarPattern(M.Head(inner_args)())() is M.false_value:
+                                                atom_result = M.truth_value
+                                else:
+                                    atom_result = M.truth_value
+                if M.IdentityCompare(head, L.ExprAddLabel)() is M.truth_value:
+                    args = M.Tail(pattern)()
+                    left = M.Head(args)()
+                    if P.IsVarPattern(left)() is M.false_value:
+                        atom_result = M.truth_value
+                    else:
+                        right = M.Head(M.Tail(args)())()
+                        if P.IsVarPattern(right)() is M.false_value:
+                            atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class RewriteEquals(M.Edge):
     def __init__(self, start, goal, rules, registry):
         self.goal = goal
         self.registry = registry
-        self.rules = rules
-        start_item = M.Pair(start, M.Pair(start, M.EmptyList))
-        self.result = self._search(M.Pair(start_item, M.EmptyList), M.Pair(start, M.EmptyList), M.eight)
+        kept = M.EmptyList
+        remaining = rules
+        want_lt = M.false_value
+        if M.IsPair(start)() is M.truth_value:
+            if M.IdentityCompare(M.Head(start)(), L.ExprLtLabel)() is M.truth_value:
+                want_lt = M.truth_value
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            rule = M.Head(remaining)()
+            if AlgebraRewriteRule(rule)() is M.truth_value:
+                if want_lt is M.truth_value:
+                    pattern = P.RulePattern(rule)()
+                    if M.IsPair(pattern)() is M.truth_value:
+                        ph = M.Head(pattern)()
+                        if M.IdentityCompare(ph, L.ExprLtLabel)() is M.truth_value:
+                            kept = M.Pair(rule, kept)
+                        if M.IdentityCompare(ph, L.ExprMulLabel)() is M.truth_value:
+                            args = M.Tail(pattern)()
+                            left = M.Head(args)()
+                            right = M.Head(M.Tail(args)())()
+                            if M.IdentityCompare(right, M.two)() is M.truth_value:
+                                kept = M.Pair(rule, kept)
+                            if M.IsPair(right)() is M.truth_value:
+                                if M.IdentityCompare(M.Head(right)(), L.ExprMulLabel)() is M.truth_value:
+                                    if M.IdentityCompare(M.Head(M.Tail(right)())(), M.two)() is M.truth_value:
+                                        kept = M.Pair(rule, kept)
+                else:
+                    kept = M.Pair(rule, kept)
+            remaining = M.Tail(remaining)()
+        self.rules = kept
+        self.result = self._walk(start, M.Pair(start, M.EmptyList), M.nine)
         super().__init__(
             inputs=M.Pair(start, M.Pair(goal, M.Pair(rules, M.Pair(registry, M.EmptyList)))),
             results=self.result,
         )
 
-    def _search(self, frontier, seen, fuel):
-        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
-            return M.false_value
-        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        item = M.Head(frontier)()
-        current = M.Head(item)()
-        path = M.Tail(item)()
-        rest = M.Tail(frontier)()
+    def _walk(self, current, path, fuel):
         if M.Compare(current, self.goal)() is M.truth_value:
             LogTermPath("identity: ", path, self.registry)()
             return M.truth_value
-        nxt_frontier = rest
-        nxt_seen = seen
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            P._debug("identity-stuck: " + M.PrettyTerm(current, self.registry)())
+            return M.false_value
+        nxt = current
         rules = self.rules
         while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
-            rule = M.Head(rules)()
-            rewritten = P.RewriteHere(rule, current)()
-            if M.Compare(rewritten, current)() is M.false_value:
-                if TermSeen(rewritten, nxt_seen)() is M.false_value:
-                    nxt_path = M.Pair(rewritten, path)
-                    nxt_frontier = M.Pair(M.Pair(rewritten, nxt_path), nxt_frontier)
-                    nxt_seen = M.Pair(rewritten, nxt_seen)
-            rules = M.Tail(rules)()
+            here = P.RewriteHere(M.Head(rules)(), current)()
+            if M.Compare(here, current)() is M.false_value:
+                nxt = here
+                rules = M.EmptyList
+            else:
+                rules = M.Tail(rules)()
+        if M.Compare(nxt, current)() is M.truth_value:
+            rules = self.rules
+            while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+                deep = M.Head(M.Rewrite(M.Head(rules)(), current, self.registry)())()
+                if M.Compare(deep, current)() is M.false_value:
+                    nxt = deep
+                    rules = M.EmptyList
+                else:
+                    rules = M.Tail(rules)()
+        if M.Compare(nxt, current)() is M.truth_value:
+            P._debug("identity-stuck: " + M.PrettyTerm(current, self.registry)())
+            return M.false_value
+        P._debug("identity: " + M.PrettyTerm(nxt, self.registry)())
         pred = M.NatPred(fuel, self.registry)()
-        less = M.Head(pred)()
-        return self._search(nxt_frontier, nxt_seen, less)
+        return self._walk(nxt, M.Pair(nxt, path), M.Head(pred)())
 
     def __call__(self):
         return self.result
@@ -864,12 +944,22 @@ class FindLimit(M.Edge):
                 P._debug("chain-same-limit: current gap " + M.PrettyTerm(current_gap, registry)())
                 P._debug("chain-same-limit: next gap " + M.PrettyTerm(next_gap, registry)())
                 P._debug("chain-same-limit: exact gap " + M.PrettyTerm(closed_gap, registry)())
+                seed = M.EmptyList
                 if RewriteEquals(next_gap, closed_gap, rewrite_rules, registry)() is M.false_value:
                     P._debug("chain-same-limit: next-gap did not rewrite to exact gap")
                 else:
                     gap_eq = M.Pair(L.ExprEqLabel, M.Pair(next_gap, M.Pair(closed_gap, M.EmptyList)))
                     P._debug("chain-same-limit: " + M.PrettyTerm(gap_eq, registry)())
-                    seed = M.Pair(gap_eq, facts)
+                    half_gap = M.Pair(L.ExprFracLabel, M.Pair(current_gap, M.Pair(M.two, M.EmptyList)))
+                    closed_lt_half = M.Pair(L.ExprLtLabel, M.Pair(closed_gap, M.Pair(half_gap, M.EmptyList)))
+                    y_pos = M.Pair(L.ExprLtLabel, M.Pair(M.Zero, M.Pair(y, M.EmptyList)))
+                    P._debug("chain-same-limit: rewrite " + M.PrettyTerm(closed_lt_half, registry)())
+                    if RewriteEquals(closed_lt_half, y_pos, rewrite_rules, registry)() is M.false_value:
+                        P._debug("chain-same-limit: closed < half did not rewrite to 0 < Y")
+                        seed = M.EmptyList
+                    else:
+                        seed = M.Pair(closed_lt_half, M.Pair(gap_eq, facts))
+                if M.IdentityCompare(seed, M.EmptyList)() is M.false_value:
                     derived = ApplySequenceTheorems(seed, rewrite_rules, registry)()
                     half = M.Pair(L.ExprFracLabel, M.Pair(M.one, M.Pair(M.two, M.EmptyList)))
                     contracts = M.Pair(L.GapContractsLabel, M.Pair(x_name, M.Pair(y_name, M.Pair(half, M.EmptyList))))

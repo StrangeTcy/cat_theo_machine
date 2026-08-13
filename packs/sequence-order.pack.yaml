@@ -62,28 +62,12 @@ rules:
           - call: {head: {sym: ApplyLabel}, args: [{var: yname}, {var: n}]}
           - call: {head: {sym: ApplyLabel}, args: [{var: xname}, {var: n}]}
 
-  - id: closed_gap_lt_half_from_positive
+  - id: lt_replace_left
     premises:
-      - call:
-          head: {sym: ExprEqLabel}
-          args:
-            - {var: g}
-            - call:
-                head: {sym: ExprFracLabel}
-                args:
-                  - call: {head: {sym: ExprMulLabel}, args: [{var: d}, {var: d}]}
-                  - call:
-                      head: {sym: ExprMulLabel}
-                      args:
-                        - {sym: two}
-                        - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
-      - call: {head: {sym: ExprLtLabel}, args: [{sym: Zero}, {var: y}]}
+      - call: {head: {sym: ExprEqLabel}, args: [{var: a}, {var: b}]}
+      - call: {head: {sym: ExprLtLabel}, args: [{var: b}, {var: c}]}
     replacement:
-      call:
-        head: {sym: ExprLtLabel}
-        args:
-          - {var: g}
-          - call: {head: {sym: ExprFracLabel}, args: [{var: d}, {sym: two}]}
+      call: {head: {sym: ExprLtLabel}, args: [{var: a}, {var: c}]}
 
   - id: gap_contracts_from_half
     premises:
