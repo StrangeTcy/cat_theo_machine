@@ -891,6 +891,10 @@ class GraphVersionLabel(ConstructorLabel):
     pass
 
 
+class KObligationLabel(ConstructorLabel):
+    pass
+
+
 class PlannerProblemLabel(ConstructorLabel):
     pass
 
@@ -995,6 +999,7 @@ LawLabel = LawLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
+KObligationLabel = KObligationLabel()
 PlannerProblemLabel = PlannerProblemLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()

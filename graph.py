@@ -5,6 +5,7 @@ from . import machine as M
 from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
+from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
 
 
 class Hypergraph:
@@ -317,9 +318,24 @@ class Miss(M.Edge):
 
 
 class Law(M.Edge):
-    def __init__(self, left, interface, right):
-        self.result = M.Pair(Lmod.LawLabel, M.Pair(left, M.Pair(interface, M.Pair(right, M.EmptyList))))
-        super().__init__(inputs=M.Pair(left, M.Pair(interface, M.Pair(right, M.EmptyList))), results=self.result)
+    def __init__(self, left, interface, right, k_to_left_map, k_to_right_map, obligations):
+        self.result = M.Pair(
+            Lmod.LawLabel,
+            M.Pair(left, M.Pair(interface, M.Pair(right, M.Pair(k_to_left_map, M.Pair(k_to_right_map, M.Pair(obligations, M.EmptyList))))))
+        )
+        super().__init__(
+            inputs=M.Pair(left, M.Pair(interface, M.Pair(right, M.Pair(k_to_left_map, M.Pair(k_to_right_map, M.Pair(obligations, M.EmptyList)))))),
+            results=self.result
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class KObligation(M.Edge):
+    def __init__(self, obligation_name, structure):
+        self.result = M.Pair(Lmod.KObligationLabel, M.Pair(obligation_name, M.Pair(structure, M.EmptyList)))
+        super().__init__(inputs=M.Pair(obligation_name, M.Pair(structure, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
@@ -399,6 +415,70 @@ class MapExtendOneStep(M.Edge):
     def _mapping_root(self):
         return M.Head(M.Tail(M.Tail(M.Tail(self.mapping)())())())()
 
+    def _is_patricia_tree(self, store):
+        return SearchPatriciaIsTree(store)()
+
+    def _flatten_patricia_to_values(self, tree):
+        entries = SearchPatriciaEntries(tree)()
+        values = M.EmptyList
+        remaining = entries
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            value = M.Head(M.Tail(entry)())()
+            values = M.Pair(value, values)
+            remaining = M.Tail(remaining)()
+        return values
+
+    def _normalize_store(self, store):
+        if M.IdentityCompare(store, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if self._is_patricia_tree(store) is M.truth_value:
+            return self._flatten_patricia_to_values(store)
+        return store
+
+    def _is_law(self, term):
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(term)(), Lmod.LawLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _law_left(self, law):
+        return M.Head(M.Tail(law)())()
+
+    def _law_interface(self, law):
+        return M.Head(M.Tail(M.Tail(law)())())()
+
+    def _law_right(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(law)())())())()
+
+    def _law_k_to_left(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())()
+
+    def _law_k_to_right(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())()
+
+    def _law_obligations(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())())()
+
+    def _is_valid_map(self, potential_map):
+        if M.IsPair(potential_map)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(potential_map)(), Lmod.MapLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _law_is_well_formed(self, law):
+        if self._is_law(law) is M.false_value:
+            return M.false_value
+        k_to_left = self._law_k_to_left(law)
+        k_to_right = self._law_k_to_right(law)
+        if self._is_valid_map(k_to_left) is M.false_value:
+            return M.false_value
+        if self._is_valid_map(k_to_right) is M.false_value:
+            return M.false_value
+        return M.truth_value
+
     def _graph_nodes(self, graph):
         if self._is_graph_version(graph) is M.truth_value:
             return self._graph_version_nodes(graph)
@@ -436,9 +516,11 @@ class MapExtendOneStep(M.Edge):
         return M.false_value
 
     def _graph_has_element(self, graph, term):
-        if self._chain_has_term(self._graph_nodes(graph), term) is M.truth_value:
+        nodes = self._normalize_store(self._graph_nodes(graph))
+        if self._chain_has_term(nodes, term) is M.truth_value:
             return M.truth_value
-        return self._chain_has_term(self._graph_edges(graph), term)
+        edges = self._normalize_store(self._graph_edges(graph))
+        return self._chain_has_term(edges, term)
 
     def _is_send(self, term):
         if M.IsPair(term)() is M.false_value:

@@ -7,33 +7,30 @@ description: Engel E1. Point (x,y) with 0<y<x. The next point keeps the product.
 requires: []
 
 phi:
-  call: {head: {char: Product}, args: [{var: p}]}
+  call: {head: {char: Point}, args: [{var: x}, {var: y}]}
 
 rules:
-  - id: engel_e1
+  - id: engel_e1_next_point
     premises:
       - call: {head: {char: Point}, args: [{var: x}, {var: y}]}
-      - call: {head: {char: Product}, args: [{var: p}]}
     replacement:
-      list:
-        - call:
-            head: {char: Point}
-            args:
-              - call:
-                  head: {sym: ExprFracLabel}
-                  args:
-                    - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
-                    - {sym: two}
-              - call:
-                  head: {sym: ExprFracLabel}
-                  args:
-                    - call:
-                        head: {sym: ExprMulLabel}
-                        args:
-                          - {sym: two}
-                          - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
-                    - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
-        - call: {head: {char: Product}, args: [{var: p}]}
+      call:
+        head: {char: Point}
+        args:
+          - call:
+              head: {sym: ExprFracLabel}
+              args:
+                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+                - {sym: two}
+          - call:
+              head: {sym: ExprFracLabel}
+              args:
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {sym: two}
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+                - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
 
 examples:
   - id: engel_e1
@@ -43,10 +40,6 @@ examples:
         args:
           - list:
               - call: {head: {char: Point}, args: [{char: a}, {char: b}]}
-              - call:
-                  head: {char: Product}
-                  args:
-                    - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
     goal:
       call:
         head: {sym: KnowledgeLabel}
@@ -69,7 +62,3 @@ examples:
                                 - {sym: two}
                                 - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
                           - call: {head: {sym: ExprAddLabel}, args: [{char: a}, {char: b}]}
-              - call:
-                  head: {char: Product}
-                  args:
-                    - call: {head: {sym: ExprMulLabel}, args: [{char: a}, {char: b}]}
