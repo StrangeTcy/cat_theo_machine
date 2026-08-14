@@ -57,6 +57,127 @@ class PlannerObligation(M.Edge):
         return self.result
 
 
+class ExtremalMin(M.Edge):
+    """Direction atom for an extremal method. Distinct from the Min(a, b) term."""
+
+    def __init__(self):
+        self.result = M.Pair(L.ExtremalMinLabel, M.EmptyList)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExtremalMax(M.Edge):
+    def __init__(self):
+        self.result = M.Pair(L.ExtremalMaxLabel, M.EmptyList)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Extremal(M.Edge):
+    """
+    Extremal method: pick the element of `family` that optimises `measure`
+    in `direction`, then rule out the permitted local `variation`.
+
+    Planner data only. Never inserted into mathematical Knowledge.
+    """
+
+    def __init__(self, family, measure, direction, variation):
+        self.result = M.Pair(
+            L.ExtremalLabel,
+            M.Pair(family, M.Pair(measure, M.Pair(direction, M.Pair(variation, M.EmptyList)))),
+        )
+        super().__init__(
+            inputs=M.Pair(family, M.Pair(measure, M.Pair(direction, M.Pair(variation, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Symmetry(M.Edge):
+    """Declared transformation on a domain. No automorphism group is computed."""
+
+    def __init__(self, transformation, domain):
+        self.result = M.Pair(L.SymmetryLabel, M.Pair(transformation, M.Pair(domain, M.EmptyList)))
+        super().__init__(
+            inputs=M.Pair(transformation, M.Pair(domain, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Pigeonhole(M.Edge):
+    """`assignment` sends every element of `domain` to one of `codomain`."""
+
+    def __init__(self, domain, codomain, assignment):
+        self.result = M.Pair(
+            L.PigeonholeLabel,
+            M.Pair(domain, M.Pair(codomain, M.Pair(assignment, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(domain, M.Pair(codomain, M.Pair(assignment, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Divide(M.Edge):
+    """`rank` is the termination measure that must strictly decrease on parts."""
+
+    def __init__(self, parts, combine, rank):
+        self.result = M.Pair(L.DivideLabel, M.Pair(parts, M.Pair(combine, M.Pair(rank, M.EmptyList))))
+        super().__init__(
+            inputs=M.Pair(parts, M.Pair(combine, M.Pair(rank, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Bijection(M.Edge):
+    """Explicit forward and backward maps, so the inverse equations can be proved."""
+
+    def __init__(self, domain, codomain, forward, backward):
+        self.result = M.Pair(
+            L.BijectionLabel,
+            M.Pair(domain, M.Pair(codomain, M.Pair(forward, M.Pair(backward, M.EmptyList)))),
+        )
+        super().__init__(
+            inputs=M.Pair(domain, M.Pair(codomain, M.Pair(forward, M.Pair(backward, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DoubleCount(M.Edge):
+    """One finite relation counted along its left fibres and its right fibres."""
+
+    def __init__(self, relation, left_domain, right_domain):
+        self.result = M.Pair(
+            L.DoubleCountLabel,
+            M.Pair(relation, M.Pair(left_domain, M.Pair(right_domain, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(relation, M.Pair(left_domain, M.Pair(right_domain, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class PlannerAlternative(M.Edge):
     """
     One competing way of discharging a parent obligation.
@@ -1018,6 +1139,14 @@ class PlannerRun(M.Edge):
 
 __all__ = (
     "PlannerProblem",
+    "Extremal",
+    "ExtremalMin",
+    "ExtremalMax",
+    "Symmetry",
+    "Pigeonhole",
+    "Divide",
+    "Bijection",
+    "DoubleCount",
     "PlannerAlternative",
     "PlannerAlternativeParent",
     "PlannerAlternativeMethod",

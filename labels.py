@@ -979,6 +979,38 @@ class PlannerProblemLabel(ConstructorLabel):
     pass
 
 
+class ExtremalLabel(ConstructorLabel):
+    pass
+
+
+class SymmetryLabel(ConstructorLabel):
+    pass
+
+
+class PigeonholeLabel(ConstructorLabel):
+    pass
+
+
+class DivideLabel(ConstructorLabel):
+    pass
+
+
+class BijectionLabel(ConstructorLabel):
+    pass
+
+
+class DoubleCountLabel(ConstructorLabel):
+    pass
+
+
+class ExtremalMinLabel(ConstructorLabel):
+    pass
+
+
+class ExtremalMaxLabel(ConstructorLabel):
+    pass
+
+
 class PlannerAlternativeLabel(ConstructorLabel):
     pass
 
@@ -1085,6 +1117,14 @@ NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
 PlannerProblemLabel = PlannerProblemLabel()
+ExtremalLabel = ExtremalLabel()
+SymmetryLabel = SymmetryLabel()
+PigeonholeLabel = PigeonholeLabel()
+DivideLabel = DivideLabel()
+BijectionLabel = BijectionLabel()
+DoubleCountLabel = DoubleCountLabel()
+ExtremalMinLabel = ExtremalMinLabel()
+ExtremalMaxLabel = ExtremalMaxLabel()
 PlannerAlternativeLabel = PlannerAlternativeLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()
@@ -1444,6 +1484,14 @@ def sync_from_namespace(namespace):
         "FireLabel",
         "NextLabel",
         "PlannerProblemLabel",
+        "ExtremalLabel",
+        "SymmetryLabel",
+        "PigeonholeLabel",
+        "DivideLabel",
+        "BijectionLabel",
+        "DoubleCountLabel",
+        "ExtremalMinLabel",
+        "ExtremalMaxLabel",
         "PlannerAlternativeLabel",
         "PlannerObligationLabel",
         "PlannerDependencyLabel",
