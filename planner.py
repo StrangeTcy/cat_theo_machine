@@ -7,24 +7,62 @@ from . import search as S
 
 
 class PlannerProblem(M.Edge):
-    def __init__(self, mathematical_state, goal, rules, heuristic):
+    """
+    A planning problem.
+
+    `methods` is an optional Pair-chain of trainer-supplied Engel method terms
+    for this problem. It is supplied by the trainer or a problem pack; there is
+    no automatic strategy recognition. Problem terms written without the field
+    still construct and still read through every existing positional accessor.
+    """
+
+    def __init__(self, mathematical_state, goal, rules, heuristic, methods=None):
+        if methods is None:
+            methods = M.EmptyList
         self.result = M.Pair(
             L.PlannerProblemLabel,
             M.Pair(
                 M.Zero,
                 M.Pair(
                     mathematical_state,
-                    M.Pair(goal, M.Pair(rules, M.Pair(heuristic, M.Pair(M.Zero, M.EmptyList)))),
+                    M.Pair(
+                        goal,
+                        M.Pair(
+                            rules,
+                            M.Pair(heuristic, M.Pair(M.Zero, M.Pair(methods, M.EmptyList))),
+                        ),
+                    ),
                 ),
             ),
         )
         super().__init__(
             inputs=M.Pair(
                 mathematical_state,
-                M.Pair(goal, M.Pair(rules, M.Pair(heuristic, M.EmptyList))),
+                M.Pair(goal, M.Pair(rules, M.Pair(heuristic, M.Pair(methods, M.EmptyList)))),
             ),
             results=self.result,
         )
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerProblemMethods(M.Edge):
+    """
+    Trainer-supplied method chain of a problem term.
+
+    Problems written before methods existed stop after the root obligation id,
+    and read back as an empty method chain.
+    """
+
+    def __init__(self, problem):
+        fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(problem)())())())())())()
+        trailing = M.Tail(fields)()
+        atom_result = M.EmptyList
+        if M.IdentityCompare(trailing, M.EmptyList)() is M.false_value:
+            atom_result = M.Head(trailing)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(problem, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -372,6 +410,7 @@ class PlannerState(M.Edge):
         fields = M.Tail(fields)()
         heuristic = M.Head(fields)()
         root_id = M.Head(M.Tail(fields)())()
+        methods = PlannerProblemMethods(problem)()
         root = PlannerObligation(
             root_id,
             problem_id,
@@ -389,7 +428,13 @@ class PlannerState(M.Edge):
                 problem_id,
                 M.Pair(
                     mathematical_state,
-                    M.Pair(goal, M.Pair(rules, M.Pair(heuristic, M.Pair(root_id, M.EmptyList)))),
+                    M.Pair(
+                        goal,
+                        M.Pair(
+                            rules,
+                            M.Pair(heuristic, M.Pair(root_id, M.Pair(methods, M.EmptyList))),
+                        ),
+                    ),
                 ),
             ),
         )
@@ -523,6 +568,7 @@ class PlannerStep(M.Edge):
                                     S.SearchJobGoal(selected_search_job)(),
                                     derivation,
                                 )
+                        problem_methods = PlannerProblemMethods(selected_problem)()
                         updated_problem = M.Pair(
                             L.PlannerProblemLabel,
                             M.Pair(
@@ -531,7 +577,13 @@ class PlannerStep(M.Edge):
                                     mathematical_state,
                                     M.Pair(
                                         problem_goal,
-                                        M.Pair(problem_rules, M.Pair(problem_heuristic, M.Pair(problem_root, M.EmptyList))),
+                                        M.Pair(
+                                            problem_rules,
+                                            M.Pair(
+                                                problem_heuristic,
+                                                M.Pair(problem_root, M.Pair(problem_methods, M.EmptyList)),
+                                            ),
+                                        ),
                                     ),
                                 ),
                             ),
@@ -1139,6 +1191,7 @@ class PlannerRun(M.Edge):
 
 __all__ = (
     "PlannerProblem",
+    "PlannerProblemMethods",
     "Extremal",
     "ExtremalMin",
     "ExtremalMax",
