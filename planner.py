@@ -57,6 +57,108 @@ class PlannerObligation(M.Edge):
         return self.result
 
 
+class PlannerAlternative(M.Edge):
+    """
+    One competing way of discharging a parent obligation.
+
+    `method` is the decomposition that proposed it. For ordinary theorem
+    decomposition the method is the rule itself; Engel-style methods carry
+    their own strategy terms here. Alternatives are planner data and are never
+    inserted into mathematical Knowledge.
+    """
+
+    def __init__(self, parent_obligation_id, method, child_obligation_ids, status, evidence):
+        self.result = M.Pair(
+            L.PlannerAlternativeLabel,
+            M.Pair(
+                parent_obligation_id,
+                M.Pair(
+                    method,
+                    M.Pair(child_obligation_ids, M.Pair(status, M.Pair(evidence, M.EmptyList))),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                parent_obligation_id,
+                M.Pair(
+                    method,
+                    M.Pair(child_obligation_ids, M.Pair(status, M.Pair(evidence, M.EmptyList))),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerAlternativeParent(M.Edge):
+    def __init__(self, alternative):
+        self.result = M.Head(M.Tail(alternative)())()
+        super().__init__(inputs=M.Pair(alternative, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerAlternativeMethod(M.Edge):
+    def __init__(self, alternative):
+        self.result = M.Head(M.Tail(M.Tail(alternative)())())()
+        super().__init__(inputs=M.Pair(alternative, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerAlternativeChildren(M.Edge):
+    def __init__(self, alternative):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(alternative)())())())()
+        super().__init__(inputs=M.Pair(alternative, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerAlternativeStatus(M.Edge):
+    def __init__(self, alternative):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(alternative)())())())())()
+        super().__init__(inputs=M.Pair(alternative, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerAlternativeEvidence(M.Edge):
+    def __init__(self, alternative):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(alternative)())())())())())()
+        super().__init__(inputs=M.Pair(alternative, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerStateAlternatives(M.Edge):
+    """
+    Alternatives chain of a planner state record.
+
+    Records written before alternatives existed stop after the registry field,
+    and read back as an empty alternatives chain.
+    """
+
+    def __init__(self, state):
+        fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(state)())())())())()
+        trailing = M.Tail(fields)()
+        atom_result = M.EmptyList
+        if M.IdentityCompare(trailing, M.EmptyList)() is M.false_value:
+            atom_result = M.Head(trailing)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(state, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class PlannerDependency(M.Edge):
     def __init__(self, parent_id, child_id):
         self.result = M.Pair(
@@ -85,14 +187,30 @@ class PlannerJob(M.Edge):
 
 
 class PlannerStateRecord(M.Edge):
-    def __init__(self, problems, obligations, dependencies, jobs, next_obligation_id, registry):
+    """
+    Planner state.
+
+    The trailing `alternatives` field is optional so that state records built
+    by older callers, which pass six arguments, still construct and still read
+    back through every existing positional accessor.
+    """
+
+    def __init__(self, problems, obligations, dependencies, jobs, next_obligation_id, registry, alternatives=None):
+        if alternatives is None:
+            alternatives = M.EmptyList
         self.result = M.Pair(
             problems,
             M.Pair(
                 obligations,
                 M.Pair(
                     dependencies,
-                    M.Pair(jobs, M.Pair(next_obligation_id, M.Pair(registry, M.EmptyList))),
+                    M.Pair(
+                        jobs,
+                        M.Pair(
+                            next_obligation_id,
+                            M.Pair(registry, M.Pair(alternatives, M.EmptyList)),
+                        ),
+                    ),
                 ),
             ),
         )
@@ -103,7 +221,13 @@ class PlannerStateRecord(M.Edge):
                     obligations,
                     M.Pair(
                         dependencies,
-                        M.Pair(jobs, M.Pair(next_obligation_id, M.Pair(registry, M.EmptyList))),
+                        M.Pair(
+                            jobs,
+                            M.Pair(
+                                next_obligation_id,
+                                M.Pair(registry, M.Pair(alternatives, M.EmptyList)),
+                            ),
+                        ),
                     ),
                 ),
             ),
@@ -174,7 +298,12 @@ class PlannerStep(M.Edge):
         jobs = M.Head(fields)()
         fields = M.Tail(fields)()
         next_obligation_id = M.Head(fields)()
-        registry = M.Head(M.Tail(fields)())()
+        fields = M.Tail(fields)()
+        registry = M.Head(fields)()
+        alternatives = M.EmptyList
+        trailing_fields = M.Tail(fields)()
+        if M.IdentityCompare(trailing_fields, M.EmptyList)() is M.false_value:
+            alternatives = M.Head(trailing_fields)()
         changed = M.false_value
 
         current_jobs = jobs
@@ -346,6 +475,88 @@ class PlannerStep(M.Edge):
                 changed = M.truth_value
 
         if M.IdentityCompare(selected_planner_job, M.EmptyList)() is M.truth_value:
+            # Refresh every pending alternative against its children. An
+            # alternative dies as soon as one of its own children fails; it
+            # becomes proved only when all of them are proved.
+            refreshed_alternatives = M.EmptyList
+            remaining_alternatives = alternatives
+            while M.IdentityCompare(remaining_alternatives, M.EmptyList)() is M.false_value:
+                alternative = M.Head(remaining_alternatives)()
+                alternative_status = PlannerAlternativeStatus(alternative)()
+                if M.IdentityCompare(alternative_status, L.PendingLabel)() is M.truth_value:
+                    alternative_children = PlannerAlternativeChildren(alternative)()
+                    any_child_failed = M.false_value
+                    all_children_proved = M.truth_value
+                    children_to_check = alternative_children
+                    while M.IdentityCompare(children_to_check, M.EmptyList)() is M.false_value:
+                        checked_child_id = M.Head(children_to_check)()
+                        checked_child_status = L.PendingLabel
+                        status_obligations = obligations
+                        while M.IdentityCompare(status_obligations, M.EmptyList)() is M.false_value:
+                            status_fields = M.Tail(M.Head(status_obligations)())()
+                            status_id = M.Head(status_fields)()
+                            if M.TermEqual(status_id, checked_child_id)() is M.truth_value:
+                                status_fields = M.Tail(status_fields)()
+                                status_fields = M.Tail(status_fields)()
+                                status_fields = M.Tail(status_fields)()
+                                checked_child_status = M.Head(status_fields)()
+                                break
+                            status_obligations = M.Tail(status_obligations)()
+                        if M.IdentityCompare(checked_child_status, L.FailedLabel)() is M.truth_value:
+                            any_child_failed = M.truth_value
+                        if M.IdentityCompare(checked_child_status, L.ProvedLabel)() is M.false_value:
+                            all_children_proved = M.false_value
+                        children_to_check = M.Tail(children_to_check)()
+                    if M.IdentityCompare(any_child_failed, M.truth_value)() is M.truth_value:
+                        alternative = PlannerAlternative(
+                            PlannerAlternativeParent(alternative)(),
+                            PlannerAlternativeMethod(alternative)(),
+                            alternative_children,
+                            L.FailedLabel,
+                            PlannerAlternativeEvidence(alternative)(),
+                        )()
+                        changed = M.truth_value
+                    elif M.IdentityCompare(all_children_proved, M.truth_value)() is M.truth_value:
+                        alternative_parent_id = PlannerAlternativeParent(alternative)()
+                        alternative_parent_status = L.PendingLabel
+                        status_obligations = obligations
+                        while M.IdentityCompare(status_obligations, M.EmptyList)() is M.false_value:
+                            status_fields = M.Tail(M.Head(status_obligations)())()
+                            status_id = M.Head(status_fields)()
+                            if M.TermEqual(status_id, alternative_parent_id)() is M.truth_value:
+                                status_fields = M.Tail(status_fields)()
+                                status_fields = M.Tail(status_fields)()
+                                status_fields = M.Tail(status_fields)()
+                                alternative_parent_status = M.Head(status_fields)()
+                                break
+                            status_obligations = M.Tail(status_obligations)()
+                        if M.IdentityCompare(alternative_parent_status, L.ProvedLabel)() is M.truth_value:
+                            # The assembly theorem is the parent's own
+                            # discharge. Record the proved parent obligation as
+                            # this alternative's evidence.
+                            assembly_evidence = M.EmptyList
+                            status_obligations = obligations
+                            while M.IdentityCompare(status_obligations, M.EmptyList)() is M.false_value:
+                                candidate_obligation = M.Head(status_obligations)()
+                                if M.TermEqual(M.Head(M.Tail(candidate_obligation)())(), alternative_parent_id)() is M.truth_value:
+                                    assembly_evidence = candidate_obligation
+                                    break
+                                status_obligations = M.Tail(status_obligations)()
+                            alternative = PlannerAlternative(
+                                alternative_parent_id,
+                                PlannerAlternativeMethod(alternative)(),
+                                alternative_children,
+                                L.ProvedLabel,
+                                assembly_evidence,
+                            )()
+                            changed = M.truth_value
+                refreshed_alternatives = M.Pair(alternative, refreshed_alternatives)
+                remaining_alternatives = M.Tail(remaining_alternatives)()
+            alternatives = M.EmptyList
+            while M.IdentityCompare(refreshed_alternatives, M.EmptyList)() is M.false_value:
+                alternatives = M.Pair(M.Head(refreshed_alternatives)(), alternatives)
+                refreshed_alternatives = M.Tail(refreshed_alternatives)()
+
             propagated_parent_id = M.EmptyList
             remaining_dependencies = dependencies
             while M.IdentityCompare(remaining_dependencies, M.EmptyList)() is M.false_value:
@@ -366,9 +577,29 @@ class PlannerStep(M.Edge):
                     if M.TermEqual(status_id, child_id)() is M.truth_value:
                         child_status = M.Head(status_fields)()
                     status_obligations = M.Tail(status_obligations)()
+                # A parent that owns alternatives only fails once every one of
+                # them has failed. While any alternative is still pending or
+                # already proved, the parent survives this child's failure.
+                parent_has_alternatives = M.false_value
+                parent_alternative_survives = M.false_value
+                remaining_alternatives = alternatives
+                while M.IdentityCompare(remaining_alternatives, M.EmptyList)() is M.false_value:
+                    alternative = M.Head(remaining_alternatives)()
+                    if M.TermEqual(PlannerAlternativeParent(alternative)(), parent_id)() is M.truth_value:
+                        parent_has_alternatives = M.truth_value
+                        if M.IdentityCompare(PlannerAlternativeStatus(alternative)(), L.FailedLabel)() is M.false_value:
+                            parent_alternative_survives = M.truth_value
+                    remaining_alternatives = M.Tail(remaining_alternatives)()
+                parent_may_fail = M.truth_value
+                if M.IdentityCompare(parent_has_alternatives, M.truth_value)() is M.truth_value:
+                    if M.IdentityCompare(parent_alternative_survives, M.truth_value)() is M.truth_value:
+                        parent_may_fail = M.false_value
                 if M.AndAtom(
-                    M.IdentityCompare(parent_status, L.PendingLabel)(),
-                    M.IdentityCompare(child_status, L.FailedLabel)(),
+                    M.IdentityCompare(parent_may_fail, M.truth_value)(),
+                    M.AndAtom(
+                        M.IdentityCompare(parent_status, L.PendingLabel)(),
+                        M.IdentityCompare(child_status, L.FailedLabel)(),
+                    )(),
                 )() is M.truth_value:
                     propagated_parent_id = parent_id
                     break
@@ -454,6 +685,13 @@ class PlannerStep(M.Edge):
                         remaining_rules = problem_rules
                         matched_rule = M.EmptyList
                         matched_bindings = M.EmptyList
+                        # Every admissible rule becomes its own alternative.
+                        # The first one still drives this obligation's own
+                        # rule/bindings fields, so existing behaviour is
+                        # unchanged; the rest are retained as competitors
+                        # instead of being discarded.
+                        admissible_rules = M.EmptyList
+                        admissible_bindings = M.EmptyList
                         while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
                             candidate_rule = M.Head(remaining_rules)()
                             candidate_replacement = P.RuleReplacement(candidate_rule)()
@@ -493,10 +731,21 @@ class PlannerStep(M.Edge):
                                     M.IdentityCompare(candidate_admissible, M.truth_value)(),
                                 )() is M.false_value:
                                     if M.IdentityCompare(candidate_admissible, M.truth_value)() is M.truth_value:
-                                        matched_rule = candidate_rule
-                                        matched_bindings = candidate_bindings
-                                        break
+                                        if M.IdentityCompare(matched_rule, M.EmptyList)() is M.truth_value:
+                                            matched_rule = candidate_rule
+                                            matched_bindings = candidate_bindings
+                                        admissible_rules = M.Pair(candidate_rule, admissible_rules)
+                                        admissible_bindings = M.Pair(candidate_bindings, admissible_bindings)
                             remaining_rules = M.Tail(remaining_rules)()
+                        reversed_admissible_rules = M.EmptyList
+                        reversed_admissible_bindings = M.EmptyList
+                        while M.IdentityCompare(admissible_rules, M.EmptyList)() is M.false_value:
+                            reversed_admissible_rules = M.Pair(M.Head(admissible_rules)(), reversed_admissible_rules)
+                            reversed_admissible_bindings = M.Pair(M.Head(admissible_bindings)(), reversed_admissible_bindings)
+                            admissible_rules = M.Tail(admissible_rules)()
+                            admissible_bindings = M.Tail(admissible_bindings)()
+                        admissible_rules = reversed_admissible_rules
+                        admissible_bindings = reversed_admissible_bindings
                         if M.IdentityCompare(matched_rule, M.EmptyList)() is M.false_value:
                             reversed_obligations = M.EmptyList
                             obligations_to_rebuild = obligations
@@ -525,28 +774,54 @@ class PlannerStep(M.Edge):
                             while M.IdentityCompare(reversed_obligations, M.EmptyList)() is M.false_value:
                                 obligations = M.Pair(M.Head(reversed_obligations)(), obligations)
                                 reversed_obligations = M.Tail(reversed_obligations)()
-                            remaining_premises = P.RulePremises(matched_rule)()
-                            while M.IdentityCompare(remaining_premises, M.EmptyList)() is M.false_value:
-                                instantiated = M.Instantiate(M.Head(remaining_premises)(), matched_bindings)()
-                                premise_goal = M.Head(instantiated)()
-                                child_id = next_obligation_id
-                                next_pair = M.Succ(next_obligation_id, registry)()
-                                next_obligation_id = M.Head(next_pair)()
-                                registry = M.Head(M.Tail(next_pair)())()
-                                child = PlannerObligation(
-                                    child_id,
-                                    problem_id,
-                                    premise_goal,
-                                    L.PendingLabel,
-                                    M.EmptyList,
-                                    M.EmptyList,
-                                )()
-                                obligations = M.Pair(child, obligations)
-                                dependencies = M.Pair(
-                                    PlannerDependency(obligation_id, child_id)(),
-                                    dependencies,
+                            # One PlannerAlternative per admissible rule. The
+                            # method of an ordinary theorem decomposition is
+                            # the rule itself.
+                            alternative_rules = admissible_rules
+                            alternative_bindings_chain = admissible_bindings
+                            while M.IdentityCompare(alternative_rules, M.EmptyList)() is M.false_value:
+                                alternative_rule = M.Head(alternative_rules)()
+                                alternative_rule_bindings = M.Head(alternative_bindings_chain)()
+                                alternative_children = M.EmptyList
+                                remaining_premises = P.RulePremises(alternative_rule)()
+                                while M.IdentityCompare(remaining_premises, M.EmptyList)() is M.false_value:
+                                    instantiated = M.Instantiate(M.Head(remaining_premises)(), alternative_rule_bindings)()
+                                    premise_goal = M.Head(instantiated)()
+                                    child_id = next_obligation_id
+                                    next_pair = M.Succ(next_obligation_id, registry)()
+                                    next_obligation_id = M.Head(next_pair)()
+                                    registry = M.Head(M.Tail(next_pair)())()
+                                    child = PlannerObligation(
+                                        child_id,
+                                        problem_id,
+                                        premise_goal,
+                                        L.PendingLabel,
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                    )()
+                                    obligations = M.Pair(child, obligations)
+                                    dependencies = M.Pair(
+                                        PlannerDependency(obligation_id, child_id)(),
+                                        dependencies,
+                                    )
+                                    alternative_children = M.Pair(child_id, alternative_children)
+                                    remaining_premises = M.Tail(remaining_premises)()
+                                reversed_children = M.EmptyList
+                                while M.IdentityCompare(alternative_children, M.EmptyList)() is M.false_value:
+                                    reversed_children = M.Pair(M.Head(alternative_children)(), reversed_children)
+                                    alternative_children = M.Tail(alternative_children)()
+                                alternatives = M.Pair(
+                                    PlannerAlternative(
+                                        obligation_id,
+                                        alternative_rule,
+                                        reversed_children,
+                                        L.PendingLabel,
+                                        M.EmptyList,
+                                    )(),
+                                    alternatives,
                                 )
-                                remaining_premises = M.Tail(remaining_premises)()
+                                alternative_rules = M.Tail(alternative_rules)()
+                                alternative_bindings_chain = M.Tail(alternative_bindings_chain)()
                             decomposed_id = obligation_id
                             changed = M.truth_value
                             break
@@ -594,6 +869,42 @@ class PlannerStep(M.Edge):
                                 dependencies_ready = M.false_value
                                 break
                         remaining_dependencies = M.Tail(remaining_dependencies)()
+                    # When the obligation owns alternatives, it is ready as
+                    # soon as any single alternative has all of its own
+                    # children proved. Children belonging to a competing
+                    # alternative must not hold it back.
+                    parent_has_alternatives = M.false_value
+                    some_alternative_ready = M.false_value
+                    remaining_alternatives = alternatives
+                    while M.IdentityCompare(remaining_alternatives, M.EmptyList)() is M.false_value:
+                        alternative = M.Head(remaining_alternatives)()
+                        if M.TermEqual(PlannerAlternativeParent(alternative)(), obligation_id)() is M.truth_value:
+                            parent_has_alternatives = M.truth_value
+                            if M.IdentityCompare(PlannerAlternativeStatus(alternative)(), L.FailedLabel)() is M.false_value:
+                                alternative_ready = M.truth_value
+                                children_to_check = PlannerAlternativeChildren(alternative)()
+                                while M.IdentityCompare(children_to_check, M.EmptyList)() is M.false_value:
+                                    checked_child_id = M.Head(children_to_check)()
+                                    checked_child_status = L.PendingLabel
+                                    child_obligations = obligations
+                                    while M.IdentityCompare(child_obligations, M.EmptyList)() is M.false_value:
+                                        child_fields = M.Tail(M.Head(child_obligations)())()
+                                        if M.TermEqual(M.Head(child_fields)(), checked_child_id)() is M.truth_value:
+                                            child_fields = M.Tail(child_fields)()
+                                            child_fields = M.Tail(child_fields)()
+                                            child_fields = M.Tail(child_fields)()
+                                            checked_child_status = M.Head(child_fields)()
+                                            break
+                                        child_obligations = M.Tail(child_obligations)()
+                                    if M.IdentityCompare(checked_child_status, L.ProvedLabel)() is M.false_value:
+                                        alternative_ready = M.false_value
+                                        break
+                                    children_to_check = M.Tail(children_to_check)()
+                                if M.IdentityCompare(alternative_ready, M.truth_value)() is M.truth_value:
+                                    some_alternative_ready = M.truth_value
+                        remaining_alternatives = M.Tail(remaining_alternatives)()
+                    if M.IdentityCompare(parent_has_alternatives, M.truth_value)() is M.truth_value:
+                        dependencies_ready = some_alternative_ready
                     if M.AndAtom(
                         M.IdentityCompare(obligation_status, L.PendingLabel)(),
                         M.AndAtom(
@@ -652,6 +963,7 @@ class PlannerStep(M.Edge):
             jobs,
             next_obligation_id,
             registry,
+            alternatives,
         )()
         self.result = M.Pair(next_state, M.Pair(changed, M.EmptyList))
         super().__init__(
@@ -706,6 +1018,13 @@ class PlannerRun(M.Edge):
 
 __all__ = (
     "PlannerProblem",
+    "PlannerAlternative",
+    "PlannerAlternativeParent",
+    "PlannerAlternativeMethod",
+    "PlannerAlternativeChildren",
+    "PlannerAlternativeStatus",
+    "PlannerAlternativeEvidence",
+    "PlannerStateAlternatives",
     "PlannerObligation",
     "PlannerDependency",
     "PlannerJob",

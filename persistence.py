@@ -56,6 +56,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ContextSearchJobsLabel",
     "ContextSearchMemoLabel",
     "ContextNatValueIndexLabel",
+    "PlannerAlternativeLabel",
     "ProofCostLabel",
     "NewtonErrorIdentityLabel",
     "NewtonErrorShrinksLabel",

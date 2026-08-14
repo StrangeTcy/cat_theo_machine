@@ -979,6 +979,10 @@ class PlannerProblemLabel(ConstructorLabel):
     pass
 
 
+class PlannerAlternativeLabel(ConstructorLabel):
+    pass
+
+
 class PlannerObligationLabel(ConstructorLabel):
     pass
 
@@ -1081,6 +1085,7 @@ NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
 PlannerProblemLabel = PlannerProblemLabel()
+PlannerAlternativeLabel = PlannerAlternativeLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()
 PlannerJobLabel = PlannerJobLabel()
@@ -1439,6 +1444,7 @@ def sync_from_namespace(namespace):
         "FireLabel",
         "NextLabel",
         "PlannerProblemLabel",
+        "PlannerAlternativeLabel",
         "PlannerObligationLabel",
         "PlannerDependencyLabel",
         "PlannerJobLabel",
