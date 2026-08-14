@@ -143,6 +143,8 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SearchWorkerLaunchDispatchLabel",
     "SearchWorkerMetricsLabel",
     "SearchWorkerPayloadLabel",
+    "SearchMatchAlternativesCursorLabel",
+    "SearchMatchCursorLabel",
     "SearchRewriteCursorLabel",
     "SearchRewritePathFrameLabel",
     "SearchRewriteRuleBundleLabel",

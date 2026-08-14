@@ -526,6 +526,76 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class SearchMatchStatesTest(M.Edge):
+    """Step 10: a pattern with two candidate matches yields two completed matches."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+
+        pat_node = M.Thingy()
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(pat_node, empty), M.Pair(empty, empty)),
+        )
+        host_left = M.Thingy()
+        host_right = M.Thingy()
+        host = Gmod.GraphVersion(
+            M.Pair(host_left, M.Pair(host_right, empty)),
+            empty,
+            empty,
+        )()
+
+        kernel = Smod._SearchStepKernel(
+            graph,
+            empty,
+            empty,
+            Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)(),
+            empty,
+            registry,
+            None,
+            None,
+        )
+        start_cursor = Smod.SearchMatchCursor(empty, pattern, host, M.Pair(pat_node, empty))()
+        start_state = Smod.SearchState(empty, empty, empty, M.three, start_cursor)()
+
+        completed = M.Zero
+        frontier = M.Pair(start_state, empty)
+        fuel = M.nine
+        while M.IdentityCompare(frontier, empty)() is M.false_value:
+            if M.NatEq(fuel, M.Zero, registry)() is M.truth_value:
+                frontier = empty
+            else:
+                fuel_pair = M.NatPred(fuel, registry)()
+                fuel = M.Head(fuel_pair)()
+                registry = M.Head(M.Tail(fuel_pair)())()
+                state = M.Head(frontier)()
+                frontier = M.Tail(frontier)()
+                cursor = kernel._state_cursor(state)
+                if Smod.SearchMatchCursorComplete(cursor)() is M.truth_value:
+                    completed_pair = M.Succ(completed, registry)()
+                    completed = M.Head(completed_pair)()
+                    registry = M.Head(M.Tail(completed_pair)())()
+                else:
+                    outcome = kernel._advance_state(state, empty)
+                    child = kernel._advance_result_child(outcome)
+                    continuation = kernel._advance_result_continuation(outcome)
+                    if M.IdentityCompare(continuation, empty)() is M.false_value:
+                        frontier = M.Pair(continuation, frontier)
+                    if M.IdentityCompare(child, empty)() is M.false_value:
+                        frontier = M.Pair(child, frontier)
+
+        self.result = M.truth_value
+        if M.NatEq(completed, M.two, registry)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class FireLawSurgeryTest(M.Edge):
     """Step 8: L = a,b,e(a,b); K = a; R = a,c,f(a,c). Fires over a match."""
 
@@ -6928,6 +6998,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_match_states_test",
+        empty,
+        SearchMatchStatesTest(graph),
         M.truth_value,
     )
     _register_test(

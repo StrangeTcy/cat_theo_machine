@@ -439,6 +439,14 @@ class SearchTheoremCursorLabel(ConstructorLabel):
     pass
 
 
+class SearchMatchAlternativesCursorLabel(ConstructorLabel):
+    pass
+
+
+class SearchMatchCursorLabel(ConstructorLabel):
+    pass
+
+
 class SearchRewriteCursorLabel(ConstructorLabel):
     pass
 
@@ -1367,6 +1375,8 @@ SearchJobProgressLabel = SearchJobProgressLabel()
 SearchJobStoresLabel = SearchJobStoresLabel()
 SearchStateLabel = SearchStateLabel()
 SearchTheoremCursorLabel = SearchTheoremCursorLabel()
+SearchMatchAlternativesCursorLabel = SearchMatchAlternativesCursorLabel()
+SearchMatchCursorLabel = SearchMatchCursorLabel()
 SearchRewriteCursorLabel = SearchRewriteCursorLabel()
 SearchRewritePathFrameLabel = SearchRewritePathFrameLabel()
 SearchRewriteRuleBundleLabel = SearchRewriteRuleBundleLabel()
@@ -1578,6 +1588,8 @@ def sync_from_namespace(namespace):
         "SearchJobStoresLabel",
         "SearchStateLabel",
         "SearchTheoremCursorLabel",
+        "SearchMatchAlternativesCursorLabel",
+        "SearchMatchCursorLabel",
         "SearchRewriteCursorLabel",
         "SearchRewritePathFrameLabel",
         "SearchRewriteRuleBundleLabel",
