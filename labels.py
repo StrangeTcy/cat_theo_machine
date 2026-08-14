@@ -967,6 +967,38 @@ class ReasonPositionalLabel(ConstructorLabel):
     pass
 
 
+class MatchPreparedLabel(ConstructorLabel):
+    pass
+
+
+class DeletionAdmittedLabel(ConstructorLabel):
+    pass
+
+
+class ComplementProducedLabel(ConstructorLabel):
+    pass
+
+
+class InsertionPreparedLabel(ConstructorLabel):
+    pass
+
+
+class GraphVersionCommittedLabel(ConstructorLabel):
+    pass
+
+
+class DanglingForbidLabel(ConstructorLabel):
+    pass
+
+
+class DanglingDeleteLabel(ConstructorLabel):
+    pass
+
+
+class FireRejectedLabel(ConstructorLabel):
+    pass
+
+
 class MissLabel(ConstructorLabel):
     pass
 
@@ -1186,6 +1218,14 @@ ReasonApartLabel = ReasonApartLabel()
 ReasonAlreadyMappedLabel = ReasonAlreadyMappedLabel()
 ReasonShapeLabel = ReasonShapeLabel()
 ReasonPositionalLabel = ReasonPositionalLabel()
+MatchPreparedLabel = MatchPreparedLabel()
+DeletionAdmittedLabel = DeletionAdmittedLabel()
+ComplementProducedLabel = ComplementProducedLabel()
+InsertionPreparedLabel = InsertionPreparedLabel()
+GraphVersionCommittedLabel = GraphVersionCommittedLabel()
+DanglingForbidLabel = DanglingForbidLabel()
+DanglingDeleteLabel = DanglingDeleteLabel()
+FireRejectedLabel = FireRejectedLabel()
 MissLabel = MissLabel()
 LawLabel = LawLabel()
 FireLabel = FireLabel()
@@ -1573,6 +1613,14 @@ def sync_from_namespace(namespace):
         "ReasonAlreadyMappedLabel",
         "ReasonShapeLabel",
         "ReasonPositionalLabel",
+        "MatchPreparedLabel",
+        "DeletionAdmittedLabel",
+        "ComplementProducedLabel",
+        "InsertionPreparedLabel",
+        "GraphVersionCommittedLabel",
+        "DanglingForbidLabel",
+        "DanglingDeleteLabel",
+        "FireRejectedLabel",
         "MissLabel",
         "LawLabel",
         "FireLabel",

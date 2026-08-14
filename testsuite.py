@@ -526,6 +526,147 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class FireLawSurgeryTest(M.Edge):
+    """Step 8: L = a,b,e(a,b); K = a; R = a,c,f(a,c). Fires over a match."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        edge_e = M.Pair(M.Char("e"), M.Pair(node_a, M.Pair(node_b, empty)))
+        edge_f = M.Pair(M.Char("f"), M.Pair(node_a, M.Pair(node_c, empty)))
+        left = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_b, empty)), M.Pair(M.Pair(edge_e, empty), empty)),
+        )
+        interface = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(node_a, empty), M.Pair(empty, empty)))
+        right = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_c, empty)), M.Pair(M.Pair(edge_f, empty), empty)),
+        )
+        k_to_left = Gmod.Map(interface, left, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        k_to_right = Gmod.Map(interface, right, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        law = Gmod.Law(left, interface, right, k_to_left, k_to_right, empty)()
+
+        host_a = M.Thingy()
+        host_b = M.Thingy()
+        host_e = M.Pair(M.Char("e"), M.Pair(host_a, M.Pair(host_b, empty)))
+        host = Gmod.GraphVersion(
+            M.Pair(host_a, M.Pair(host_b, empty)),
+            M.Pair(host_e, empty),
+            empty,
+        )()
+        match_root = M.Pair(
+            Gmod.Send(node_a, host_a)(),
+            M.Pair(Gmod.Send(node_b, host_b)(), M.Pair(Gmod.Send(edge_e, host_e)(), empty)),
+        )
+        mapping = Gmod.Map(left, host, match_root)()
+
+        fired = Gmod.FireLaw(host, law, mapping, Gmod.DanglingForbid()())()
+        committed = M.Head(fired)()
+        trace = M.Head(M.Tail(fired)())()
+        last = empty
+        remaining = trace
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            last = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if Gmod.LawMapsComplete(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(committed, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(committed)(), host_b)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(committed)(), node_c)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(committed)(), host_a)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(last)(), Lmod.NextLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(host)(), host_b)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class FireLawDanglingModeTest(M.Edge):
+    """Step 8: an extra edge on the deleted node; forbid refuses, delete sweeps."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        edge_e = M.Pair(M.Char("e"), M.Pair(node_a, M.Pair(node_b, empty)))
+        edge_f = M.Pair(M.Char("f"), M.Pair(node_a, M.Pair(node_c, empty)))
+        left = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_b, empty)), M.Pair(M.Pair(edge_e, empty), empty)),
+        )
+        interface = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(node_a, empty), M.Pair(empty, empty)))
+        right = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_c, empty)), M.Pair(M.Pair(edge_f, empty), empty)),
+        )
+        k_to_left = Gmod.Map(interface, left, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        k_to_right = Gmod.Map(interface, right, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        law = Gmod.Law(left, interface, right, k_to_left, k_to_right, empty)()
+
+        host_a = M.Thingy()
+        host_b = M.Thingy()
+        host_x = M.Thingy()
+        host_e = M.Pair(M.Char("e"), M.Pair(host_a, M.Pair(host_b, empty)))
+        extra = M.Pair(M.Char("x"), M.Pair(host_b, M.Pair(host_x, empty)))
+        host = Gmod.GraphVersion(
+            M.Pair(host_a, M.Pair(host_b, M.Pair(host_x, empty))),
+            M.Pair(host_e, M.Pair(extra, empty)),
+            empty,
+        )()
+        match_root = M.Pair(
+            Gmod.Send(node_a, host_a)(),
+            M.Pair(Gmod.Send(node_b, host_b)(), M.Pair(Gmod.Send(edge_e, host_e)(), empty)),
+        )
+        mapping = Gmod.Map(left, host, match_root)()
+
+        forbidden = Gmod.FireLaw(host, law, mapping, Gmod.DanglingForbid()())()
+        forbidden_trace = M.Head(M.Tail(forbidden)())()
+        refusal = empty
+        remaining = forbidden_trace
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            refusal = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+
+        swept = Gmod.FireLaw(host, law, mapping, Gmod.DanglingDelete()())()
+        swept_version = M.Head(swept)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(forbidden)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(refusal)(), Lmod.FireRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Head(M.Tail(refusal)())())(),
+            Lmod.DeletionAdmittedLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(swept_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphEdges(swept_version)(), extra)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(swept_version)(), host_b)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class LawMapsCompleteTest(M.Edge):
     """Step 7: both K-maps must send every interface element."""
 
@@ -6787,6 +6928,20 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "fire_law_surgery_test",
+        empty,
+        FireLawSurgeryTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "fire_law_dangling_mode_test",
+        empty,
+        FireLawDanglingModeTest(graph),
         M.truth_value,
     )
     _register_test(

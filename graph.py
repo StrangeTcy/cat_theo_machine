@@ -784,6 +784,263 @@ class LawMapsComplete(M.Edge):
         return self.result
 
 
+class DanglingForbid(M.Edge):
+    """Dangling mode atom: refuse to fire if the deletion would strand an edge."""
+
+    def __init__(self):
+        self.result = M.Pair(Lmod.DanglingForbidLabel, M.EmptyList)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DanglingDelete(M.Edge):
+    """Dangling mode atom: sweep stranded edges into the delete set."""
+
+    def __init__(self):
+        self.result = M.Pair(Lmod.DanglingDeleteLabel, M.EmptyList)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ChainHasTerm(M.Edge):
+    def __init__(self, chain, term):
+        atom_result = M.false_value
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.TermEqual(M.Head(remaining)(), term)() is M.truth_value:
+                atom_result = M.truth_value
+                remaining = M.EmptyList
+            else:
+                remaining = M.Tail(remaining)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(chain, M.Pair(term, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ChainWithout(M.Edge):
+    """`chain` minus every element appearing in `removals`, order preserved."""
+
+    def __init__(self, chain, removals):
+        reversed_kept = M.EmptyList
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if ChainHasTerm(removals, item)() is M.false_value:
+                reversed_kept = M.Pair(item, reversed_kept)
+            remaining = M.Tail(remaining)()
+        kept = M.EmptyList
+        while M.IdentityCompare(reversed_kept, M.EmptyList)() is M.false_value:
+            kept = M.Pair(M.Head(reversed_kept)(), kept)
+            reversed_kept = M.Tail(reversed_kept)()
+        self.result = kept
+        super().__init__(inputs=M.Pair(chain, M.Pair(removals, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MappedImages(M.Edge):
+    """
+    Host images, under `root`, of every element of `source` that the interface
+    `keep` does not preserve. Elements with no Send contribute nothing.
+    """
+
+    def __init__(self, root, source, keep):
+        self.result = self._images(root, source, keep)
+        super().__init__(
+            inputs=M.Pair(root, M.Pair(source, M.Pair(keep, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _images(self, root, source, keep):
+        reversed_hits = M.EmptyList
+        remaining = source
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining)()
+            if ChainHasTerm(keep, element)() is M.false_value:
+                found = MappedHostForPat(root, element)()
+                if M.TermEqual(M.Head(found)(), M.truth_value)() is M.truth_value:
+                    reversed_hits = M.Pair(M.Tail(found)(), reversed_hits)
+            remaining = M.Tail(remaining)()
+        ordered = M.EmptyList
+        while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(reversed_hits)(), ordered)
+            reversed_hits = M.Tail(reversed_hits)()
+        return ordered
+
+    def __call__(self):
+        return self.result
+
+
+class InterfacePreimages(M.Edge):
+    """
+    The elements of a side graph that the interface pins down: for each K
+    element, its image under `k_to_side`.
+    """
+
+    def __init__(self, interface, k_to_side):
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        root = M.EmptyList
+        if M.IsPair(k_to_side)() is M.truth_value:
+            if M.TermEqual(M.Head(k_to_side)(), Lmod.MapLabel)() is M.truth_value:
+                root = M.Head(M.Tail(M.Tail(M.Tail(k_to_side)())())())()
+        reversed_hits = M.EmptyList
+        for store in (GraphNodes(interface)(), GraphEdges(interface)()):
+            remaining = probe._normalize_store(store)
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                found = MappedHostForPat(root, M.Head(remaining)())()
+                if M.TermEqual(M.Head(found)(), M.truth_value)() is M.truth_value:
+                    reversed_hits = M.Pair(M.Tail(found)(), reversed_hits)
+                remaining = M.Tail(remaining)()
+        ordered = M.EmptyList
+        while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(reversed_hits)(), ordered)
+            reversed_hits = M.Tail(reversed_hits)()
+        self.result = ordered
+        super().__init__(
+            inputs=M.Pair(interface, M.Pair(k_to_side, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FireLaw(M.Edge):
+    """
+    Step 8. Staged double-pushout surgery over a GraphVersion.
+
+    Stages, each appended to the returned trace as a labeled term:
+    MatchPrepared, DeletionAdmitted, ComplementProduced, InsertionPrepared,
+    GraphVersionCommitted. `dangling_mode` is DanglingForbid or DanglingDelete.
+
+    Returns Pair(committed_version_or_EmptyList, Pair(trace, EmptyList)); a
+    refused firing yields M.EmptyList for the version and a trace whose last
+    entry says which stage refused. Version history is append-only: g0 is
+    never mutated.
+    """
+
+    def __init__(self, graph_version, law, mapping, dangling_mode):
+        self.probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        self.result = self._fire(graph_version, law, mapping, dangling_mode)
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(law, M.Pair(mapping, M.Pair(dangling_mode, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def _append(self, trace, entry):
+        reversed_trace = M.EmptyList
+        remaining = trace
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            reversed_trace = M.Pair(M.Head(remaining)(), reversed_trace)
+            remaining = M.Tail(remaining)()
+        grown = M.Pair(entry, reversed_trace)
+        ordered = M.EmptyList
+        while M.IdentityCompare(grown, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(grown)(), ordered)
+            grown = M.Tail(grown)()
+        return ordered
+
+    def _reject(self, trace, stage):
+        rejected = M.Pair(Lmod.FireRejectedLabel, M.Pair(stage, M.EmptyList))
+        return M.Pair(M.EmptyList, M.Pair(self._append(trace, rejected), M.EmptyList))
+
+    def _fire(self, graph_version, law, mapping, dangling_mode):
+        trace = M.EmptyList
+
+        # --- MatchPrepared -------------------------------------------------
+        prepared = M.Pair(Lmod.MatchPreparedLabel, M.Pair(law, M.Pair(mapping, M.EmptyList)))
+        if LawMapsComplete(law)() is M.false_value:
+            return self._reject(trace, prepared)
+        left = LawLeft(law)()
+        if MapSendsEveryElement(mapping, left)() is M.false_value:
+            return self._reject(trace, prepared)
+        trace = self._append(trace, prepared)
+        root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+
+        # --- DeletionAdmitted ----------------------------------------------
+        interface = LawInterface(law)()
+        kept_left = InterfacePreimages(interface, LawKToLeft(law)())()
+        left_nodes = self.probe._normalize_store(GraphNodes(left)())
+        left_edges = self.probe._normalize_store(GraphEdges(left)())
+        deleted_nodes = MappedImages(root, left_nodes, kept_left)()
+        deleted_edges = MappedImages(root, left_edges, kept_left)()
+        stranded = ChainWithout(DanglingEdges(graph_version, deleted_nodes)(), deleted_edges)()
+        if M.IdentityCompare(stranded, M.EmptyList)() is M.false_value:
+            if M.TermEqual(dangling_mode, DanglingForbid()())() is M.truth_value:
+                admitted = M.Pair(
+                    Lmod.DeletionAdmittedLabel,
+                    M.Pair(deleted_nodes, M.Pair(deleted_edges, M.Pair(stranded, M.EmptyList))),
+                )
+                return self._reject(trace, admitted)
+            remaining = stranded
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                deleted_edges = M.Pair(M.Head(remaining)(), deleted_edges)
+                remaining = M.Tail(remaining)()
+        trace = self._append(
+            trace,
+            M.Pair(
+                Lmod.DeletionAdmittedLabel,
+                M.Pair(deleted_nodes, M.Pair(deleted_edges, M.Pair(stranded, M.EmptyList))),
+            ),
+        )
+
+        # --- ComplementProduced --------------------------------------------
+        host_nodes = self.probe._normalize_store(GraphNodes(graph_version)())
+        host_edges = self.probe._normalize_store(GraphEdges(graph_version)())
+        new_nodes = ChainWithout(host_nodes, deleted_nodes)()
+        new_edges = ChainWithout(host_edges, deleted_edges)()
+        trace = self._append(
+            trace,
+            M.Pair(Lmod.ComplementProducedLabel, M.Pair(new_nodes, M.Pair(new_edges, M.EmptyList))),
+        )
+
+        # --- InsertionPrepared ----------------------------------------------
+        right = LawRight(law)()
+        kept_right = InterfacePreimages(interface, LawKToRight(law)())()
+        right_nodes = self.probe._normalize_store(GraphNodes(right)())
+        right_edges = self.probe._normalize_store(GraphEdges(right)())
+        inserted_nodes = ChainWithout(right_nodes, kept_right)()
+        inserted_edges = ChainWithout(right_edges, kept_right)()
+        remaining = inserted_nodes
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            new_nodes = M.Pair(M.Head(remaining)(), new_nodes)
+            remaining = M.Tail(remaining)()
+        remaining = inserted_edges
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            new_edges = M.Pair(M.Head(remaining)(), new_edges)
+            remaining = M.Tail(remaining)()
+        trace = self._append(
+            trace,
+            M.Pair(
+                Lmod.InsertionPreparedLabel,
+                M.Pair(inserted_nodes, M.Pair(inserted_edges, M.EmptyList)),
+            ),
+        )
+
+        # --- GraphVersionCommitted ------------------------------------------
+        committed = GraphVersion(new_nodes, new_edges, GraphVersionInvariants(graph_version)())()
+        fire = Fire(law, mapping)()
+        trace = self._append(
+            trace,
+            M.Pair(Lmod.GraphVersionCommittedLabel, M.Pair(LawObligations(law)(), M.EmptyList)),
+        )
+        trace = self._append(trace, Next(graph_version, fire, committed)())
+        return M.Pair(committed, M.Pair(trace, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class DanglingEdges(M.Edge):
     """
     Edges of `graph_version` that touch a deleted node.
