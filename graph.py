@@ -377,6 +377,103 @@ class GraphVersion(M.Edge):
         return self.result
 
 
+class IsGraphVersion(M.Edge):
+    def __init__(self, graph):
+        atom_result = M.false_value
+        if M.IsPair(graph)() is M.truth_value:
+            if M.TermEqual(M.Head(graph)(), Lmod.GraphVersionLabel)() is M.truth_value:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GraphVersionNodes(M.Edge):
+    def __init__(self, graph):
+        self.result = M.Head(M.Tail(graph)())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GraphVersionEdges(M.Edge):
+    def __init__(self, graph):
+        self.result = M.Head(M.Tail(M.Tail(graph)())())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GraphVersionInvariants(M.Edge):
+    def __init__(self, graph):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(graph)())())())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GraphNodes(M.Edge):
+    """
+    The one canonical way to read a graph's node store.
+
+    Accepts every graph shape the matcher already handled: a GraphVersion
+    term, a Pair-shaped Hypergraph term, and a Hypergraph constructor. The
+    branches are the ones lifted out of MapExtendOneStep._graph_nodes and
+    behave identically.
+    """
+
+    def __init__(self, graph):
+        self.result = self._nodes(graph)
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def _nodes(self, graph):
+        if IsGraphVersion(graph)() is M.truth_value:
+            return GraphVersionNodes(graph)()
+        if M.IsPair(graph)() is M.truth_value:
+            if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
+                return M.Head(M.Tail(graph)())()
+        constructor = M.GetConstructor(graph)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(M.Head(constructor)(), M.HypergraphLabel)() is M.false_value:
+            return M.EmptyList
+        args = M.Tail(constructor)()
+        return M.Head(args)()
+
+    def __call__(self):
+        return self.result
+
+
+class GraphEdges(M.Edge):
+    """The one canonical way to read a graph's edge store. See GraphNodes."""
+
+    def __init__(self, graph):
+        self.result = self._edges(graph)
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def _edges(self, graph):
+        if IsGraphVersion(graph)() is M.truth_value:
+            return GraphVersionEdges(graph)()
+        if M.IsPair(graph)() is M.truth_value:
+            if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
+                return M.Head(M.Tail(M.Tail(graph)())())()
+        constructor = M.GetConstructor(graph)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(M.Head(constructor)(), M.HypergraphLabel)() is M.false_value:
+            return M.EmptyList
+        args = M.Tail(constructor)()
+        return M.Head(M.Tail(args)())()
+
+    def __call__(self):
+        return self.result
+
+
 class MapExtendOneStep(M.Edge):
     def __init__(self, mapping, pat, host):
         self.mapping = mapping
@@ -391,20 +488,16 @@ class MapExtendOneStep(M.Edge):
         return atom
 
     def _is_graph_version(self, graph):
-        if M.IsPair(graph)() is M.false_value:
-            return M.false_value
-        if M.TermEqual(M.Head(graph)(), Lmod.GraphVersionLabel)() is M.truth_value:
-            return M.truth_value
-        return M.false_value
+        return IsGraphVersion(graph)()
 
     def _graph_version_nodes(self, graph):
-        return M.Head(M.Tail(graph)())()
+        return GraphVersionNodes(graph)()
 
     def _graph_version_edges(self, graph):
-        return M.Head(M.Tail(M.Tail(graph)())())()
+        return GraphVersionEdges(graph)()
 
     def _graph_version_invariants(self, graph):
-        return M.Head(M.Tail(M.Tail(M.Tail(graph)())())())()
+        return GraphVersionInvariants(graph)()
 
     def _mapping_pattern_graph(self):
         return M.Head(M.Tail(self.mapping)())()
@@ -480,32 +573,10 @@ class MapExtendOneStep(M.Edge):
         return M.truth_value
 
     def _graph_nodes(self, graph):
-        if self._is_graph_version(graph) is M.truth_value:
-            return self._graph_version_nodes(graph)
-        if M.IsPair(graph)() is M.truth_value:
-            if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
-                return M.Head(M.Tail(graph)())()
-        constructor = M.GetConstructor(graph)()
-        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        if M.IdentityCompare(M.Head(constructor)(), M.HypergraphLabel)() is M.false_value:
-            return M.EmptyList
-        args = M.Tail(constructor)()
-        return M.Head(args)()
+        return GraphNodes(graph)()
 
     def _graph_edges(self, graph):
-        if self._is_graph_version(graph) is M.truth_value:
-            return self._graph_version_edges(graph)
-        if M.IsPair(graph)() is M.truth_value:
-            if M.IdentityCompare(M.Head(graph)(), M.HypergraphLabel)() is M.truth_value:
-                return M.Head(M.Tail(M.Tail(graph)())())()
-        constructor = M.GetConstructor(graph)()
-        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        if M.IdentityCompare(M.Head(constructor)(), M.HypergraphLabel)() is M.false_value:
-            return M.EmptyList
-        args = M.Tail(constructor)()
-        return M.Head(M.Tail(args)())()
+        return GraphEdges(graph)()
 
     def _chain_has_term(self, chain, term):
         remaining = chain
