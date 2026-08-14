@@ -648,6 +648,142 @@ class ReasonPositional(M.Edge):
         return self.result
 
 
+class IsLawTerm(M.Edge):
+    def __init__(self, term):
+        atom_result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.LawLabel)() is M.truth_value:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawLeft(M.Edge):
+    def __init__(self, law):
+        self.result = M.Head(M.Tail(law)())()
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawInterface(M.Edge):
+    def __init__(self, law):
+        self.result = M.Head(M.Tail(M.Tail(law)())())()
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawRight(M.Edge):
+    def __init__(self, law):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(law)())())())()
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawKToLeft(M.Edge):
+    def __init__(self, law):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())()
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawKToRight(M.Edge):
+    def __init__(self, law):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())()
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawObligations(M.Edge):
+    def __init__(self, law):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())())()
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MapSendsEveryElement(M.Edge):
+    """
+    True when `mapping` has a Send for every node and edge of `source_graph`,
+    and every edge Send is positionally consistent under Step 3.
+    """
+
+    def __init__(self, mapping, source_graph):
+        self.result = self._complete(mapping, source_graph)
+        super().__init__(
+            inputs=M.Pair(mapping, M.Pair(source_graph, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _complete(self, mapping, source_graph):
+        if M.IsPair(mapping)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(mapping)(), Lmod.MapLabel)() is M.false_value:
+            return M.false_value
+        root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        remaining = probe._normalize_store(GraphNodes(source_graph)())
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            found = MappedHostForPat(root, M.Head(remaining)())()
+            if M.TermEqual(M.Head(found)(), M.truth_value)() is M.false_value:
+                return M.false_value
+            remaining = M.Tail(remaining)()
+        remaining = probe._normalize_store(GraphEdges(source_graph)())
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            pat_edge = M.Head(remaining)()
+            found = MappedHostForPat(root, pat_edge)()
+            if M.TermEqual(M.Head(found)(), M.truth_value)() is M.false_value:
+                return M.false_value
+            if EdgeSendConsistent(root, pat_edge, M.Tail(found)())() is M.false_value:
+                return M.false_value
+            remaining = M.Tail(remaining)()
+        return M.truth_value
+
+    def __call__(self):
+        return self.result
+
+
+class LawMapsComplete(M.Edge):
+    """
+    Step 7. Every interface element must be sent by both K-maps, and every
+    edge Send in them must be positionally consistent.
+
+    _law_is_well_formed is deliberately left alone: it only checks the slots
+    are Map-shaped, and tightening it would break laws built with incomplete
+    K-maps.
+    """
+
+    def __init__(self, law):
+        self.result = self._complete(law)
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def _complete(self, law):
+        if IsLawTerm(law)() is M.false_value:
+            return M.false_value
+        interface = LawInterface(law)()
+        if MapSendsEveryElement(LawKToLeft(law)(), interface)() is M.false_value:
+            return M.false_value
+        if MapSendsEveryElement(LawKToRight(law)(), interface)() is M.false_value:
+            return M.false_value
+        return M.truth_value
+
+    def __call__(self):
+        return self.result
+
+
 class DanglingEdges(M.Edge):
     """
     Edges of `graph_version` that touch a deleted node.

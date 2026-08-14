@@ -526,6 +526,42 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class LawMapsCompleteTest(M.Edge):
+    """Step 7: both K-maps must send every interface element."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        k_node = M.Thingy()
+        left_node = M.Thingy()
+        right_node = M.Thingy()
+        interface = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(k_node, empty), M.Pair(empty, empty)))
+        left = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(left_node, empty), M.Pair(empty, empty)))
+        right = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(right_node, empty), M.Pair(empty, empty)))
+        k_to_left = Gmod.Map(interface, left, M.Pair(Gmod.Send(k_node, left_node)(), empty))()
+        k_to_right = Gmod.Map(interface, right, M.Pair(Gmod.Send(k_node, right_node)(), empty))()
+        complete_law = Gmod.Law(left, interface, right, k_to_left, k_to_right, empty)()
+
+        stray = M.Thingy()
+        wider_interface = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(k_node, M.Pair(stray, empty)), M.Pair(empty, empty)),
+        )
+        incomplete_law = Gmod.Law(left, wider_interface, right, k_to_left, k_to_right, empty)()
+
+        self.result = M.truth_value
+        if Gmod.LawMapsComplete(complete_law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(incomplete_law)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class DanglingEdgesTest(M.Edge):
     """Step 6: derived boundary scan; nothing stored, Boundary untouched."""
 
@@ -6751,6 +6787,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "law_maps_complete_test",
+        empty,
+        LawMapsCompleteTest(graph),
         M.truth_value,
     )
     _register_test(
