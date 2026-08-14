@@ -648,6 +648,54 @@ class ReasonPositional(M.Edge):
         return self.result
 
 
+class DanglingEdges(M.Edge):
+    """
+    Edges of `graph_version` that touch a deleted node.
+
+    Derived on demand by scanning the edge store: nothing is stored, no term
+    records the result, and class Boundary is untouched. `deleted_nodes` and
+    the answer are both Pair chains.
+    """
+
+    def __init__(self, graph_version, deleted_nodes):
+        self.result = self._scan(graph_version, deleted_nodes)
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(deleted_nodes, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _touches_deleted(self, endpoints, deleted_nodes):
+        remaining = endpoints
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            endpoint = M.Head(remaining)()
+            candidates = deleted_nodes
+            while M.IdentityCompare(candidates, M.EmptyList)() is M.false_value:
+                if M.TermEqual(M.Head(candidates)(), endpoint)() is M.truth_value:
+                    return M.truth_value
+                candidates = M.Tail(candidates)()
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _scan(self, graph_version, deleted_nodes):
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        edges = probe._normalize_store(GraphEdges(graph_version)())
+        reversed_hits = M.EmptyList
+        remaining = edges
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            edge = M.Head(remaining)()
+            if self._touches_deleted(EdgeEndpoints(edge)(), deleted_nodes) is M.truth_value:
+                reversed_hits = M.Pair(edge, reversed_hits)
+            remaining = M.Tail(remaining)()
+        ordered = M.EmptyList
+        while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(reversed_hits)(), ordered)
+            reversed_hits = M.Tail(reversed_hits)()
+        return ordered
+
+    def __call__(self):
+        return self.result
+
+
 class MapExtensionAlternatives(M.Edge):
     """
     Every one-step extension of `mapping` that sends `pat` somewhere legal.

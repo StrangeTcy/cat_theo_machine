@@ -526,6 +526,45 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class DanglingEdgesTest(M.Edge):
+    """Step 6: derived boundary scan; nothing stored, Boundary untouched."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        edge_one = M.Pair(M.Char("e1"), M.Pair(node_a, M.Pair(node_b, empty)))
+        edge_two = M.Pair(M.Char("e2"), M.Pair(node_b, M.Pair(node_c, empty)))
+        nodes = M.Pair(node_a, M.Pair(node_b, M.Pair(node_c, empty)))
+        edges = M.Pair(edge_one, M.Pair(edge_two, empty))
+        version = Gmod.GraphVersion(nodes, edges, empty)()
+
+        hits = Gmod.DanglingEdges(version, M.Pair(node_a, empty))()
+        count = M.Zero
+        remaining = hits
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            count_pair = M.Succ(count, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            remaining = M.Tail(remaining)()
+
+        none_deleted = Gmod.DanglingEdges(version, empty)()
+
+        self.result = M.truth_value
+        if M.NatEq(count, M.one, registry)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(hits)(), edge_one, registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(none_deleted, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class MapExtensionAlternativesTest(M.Edge):
     """Step 5: enumerate every legal one-step extension, not just the first."""
 
@@ -6712,6 +6751,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "dangling_edges_test",
+        empty,
+        DanglingEdgesTest(graph),
         M.truth_value,
     )
     _register_test(
