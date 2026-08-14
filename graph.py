@@ -113,6 +113,9 @@ class Hypergraph:
     def refresh_context(self):
         return self._sync_from_context()
 
+    def current_version(self):
+        return GraphVersion(self.nodes, self.edges, M.EmptyList)()
+
     def add_node(self, x):
         registry = Ctx.ContextConstructors(self.context)()
         atom_ok = M.IsAtom(x, registry)()

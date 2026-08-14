@@ -526,6 +526,37 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class GraphCurrentVersionTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        host = Gmod.Hypergraph(registry)
+        added = M.Thingy()
+        host.add_node(added)
+        version = host.current_version()
+        nodes = Gmod.GraphNodes(version)()
+        contains = M.false_value
+        remaining = nodes
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            if M.TermEqual(M.Head(remaining)(), added)() is M.truth_value:
+                contains = M.truth_value
+            remaining = M.Tail(remaining)()
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(version)(), Lmod.GraphVersionLabel)() is M.false_value:
+            self.result = M.false_value
+        elif contains is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(M.Tail(version)())())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class MinimalGraphOneStepMapExtensionTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -6525,6 +6556,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "graph_current_version_test",
+        empty,
+        GraphCurrentVersionTest(graph),
         M.truth_value,
     )
     _register_test(
