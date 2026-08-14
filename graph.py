@@ -582,6 +582,72 @@ class EdgeSendConsistent(M.Edge):
         return self.result
 
 
+class ReasonShape(M.Edge):
+    """
+    A mapping step rejected on shape: the mapping was not a Map, or the
+    pattern or host element was absent from its graph. Carries the term that
+    was wrong instead of a string.
+    """
+
+    def __init__(self, subject):
+        self.result = M.Pair(Lmod.ReasonShapeLabel, M.Pair(subject, M.EmptyList))
+        super().__init__(inputs=M.Pair(subject, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReasonAlreadyMapped(M.Edge):
+    """The pattern element already had a Send; carries it and its host image."""
+
+    def __init__(self, pat, existing_host):
+        self.result = M.Pair(
+            Lmod.ReasonAlreadyMappedLabel,
+            M.Pair(pat, M.Pair(existing_host, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(pat, M.Pair(existing_host, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReasonApart(M.Edge):
+    """An Apart commitment forbade this Send; carries the Apart term itself."""
+
+    def __init__(self, apart, pat, host):
+        self.result = M.Pair(
+            Lmod.ReasonApartLabel,
+            M.Pair(apart, M.Pair(pat, M.Pair(host, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(apart, M.Pair(pat, M.Pair(host, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReasonPositional(M.Edge):
+    """Edge endpoints disagreed positionally; carries both edges."""
+
+    def __init__(self, pat_edge, host_edge):
+        self.result = M.Pair(
+            Lmod.ReasonPositionalLabel,
+            M.Pair(pat_edge, M.Pair(host_edge, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(pat_edge, M.Pair(host_edge, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class MapExtendOneStep(M.Edge):
     def __init__(self, mapping, pat, host):
         self.mapping = mapping
@@ -753,26 +819,42 @@ class MapExtendOneStep(M.Edge):
             remaining = M.Tail(remaining)()
         return M.false_value
 
+    def _violating_apart(self, root, pat, host):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if self._is_send(item) is M.truth_value:
+                other_pat = self._send_pat(item)
+                other_host = self._send_host(item)
+                if M.TermEqual(other_host, host)() is M.truth_value:
+                    if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
+                        return Apart(pat, other_pat)()
+                    if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
+                        return Apart(other_pat, pat)()
+            remaining = M.Tail(remaining)()
+        return M.EmptyList
+
     def _step(self):
         if M.IsPair(self.mapping)() is M.false_value:
-            return Miss(self.pat, self._reason("not-a-map"))()
+            return Miss(self.pat, ReasonShape(self.mapping)())()
         if M.TermEqual(M.Head(self.mapping)(), Lmod.MapLabel)() is M.false_value:
-            return Miss(self.pat, self._reason("not-a-map"))()
+            return Miss(self.pat, ReasonShape(self.mapping)())()
         pattern_graph = self._mapping_pattern_graph()
         host_graph = self._mapping_host_graph()
         root = self._mapping_root()
         if self._graph_has_element(pattern_graph, self.pat) is M.false_value:
-            return Miss(self.pat, self._reason("pattern-miss"))()
+            return Miss(self.pat, ReasonShape(self.pat)())()
         if self._graph_has_element(host_graph, self.host) is M.false_value:
-            return Miss(self.pat, self._reason("host-miss"))()
+            return Miss(self.pat, ReasonShape(self.host)())()
         existing = self._mapped_host_for_pat(root, self.pat)
         if M.TermEqual(M.Head(existing)(), M.truth_value)() is M.truth_value:
-            return Miss(self.pat, self._reason("already-mapped"))()
-        if self._violates_apart(root, self.pat, self.host) is M.truth_value:
-            return Miss(self.pat, self._reason("apart-violation"))()
+            return Miss(self.pat, ReasonAlreadyMapped(self.pat, M.Tail(existing)())())()
+        violating_apart = self._violating_apart(root, self.pat, self.host)
+        if M.IdentityCompare(violating_apart, M.EmptyList)() is M.false_value:
+            return Miss(self.pat, ReasonApart(violating_apart, self.pat, self.host)())()
         if self._both_are_edges(pattern_graph, host_graph) is M.truth_value:
             if EdgeSendConsistent(root, self.pat, self.host)() is M.false_value:
-                return Miss(self.pat, self._reason("positional-mismatch"))()
+                return Miss(self.pat, ReasonPositional(self.pat, self.host)())()
         return Map(pattern_graph, host_graph, M.Pair(Send(self.pat, self.host)(), root))()
 
     def _both_are_edges(self, pattern_graph, host_graph):

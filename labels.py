@@ -951,6 +951,22 @@ class ApartLabel(ConstructorLabel):
     pass
 
 
+class ReasonApartLabel(ConstructorLabel):
+    pass
+
+
+class ReasonAlreadyMappedLabel(ConstructorLabel):
+    pass
+
+
+class ReasonShapeLabel(ConstructorLabel):
+    pass
+
+
+class ReasonPositionalLabel(ConstructorLabel):
+    pass
+
+
 class MissLabel(ConstructorLabel):
     pass
 
@@ -1166,6 +1182,10 @@ BoundaryLabel = BoundaryLabel()
 MapLabel = MapLabel()
 SendLabel = SendLabel()
 ApartLabel = ApartLabel()
+ReasonApartLabel = ReasonApartLabel()
+ReasonAlreadyMappedLabel = ReasonAlreadyMappedLabel()
+ReasonShapeLabel = ReasonShapeLabel()
+ReasonPositionalLabel = ReasonPositionalLabel()
 MissLabel = MissLabel()
 LawLabel = LawLabel()
 FireLabel = FireLabel()
@@ -1549,6 +1569,10 @@ def sync_from_namespace(namespace):
         "MapLabel",
         "SendLabel",
         "ApartLabel",
+        "ReasonApartLabel",
+        "ReasonAlreadyMappedLabel",
+        "ReasonShapeLabel",
+        "ReasonPositionalLabel",
         "MissLabel",
         "LawLabel",
         "FireLabel",

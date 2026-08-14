@@ -526,6 +526,68 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class StructuredMissReasonTest(M.Edge):
+    """Step 4: Miss reasons are labeled terms carrying the terms involved."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_left = M.Thingy()
+        p_right = M.Thingy()
+        pattern.add_node(p_left)
+        pattern.add_node(p_right)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_left = M.Thingy()
+        h_right = M.Thingy()
+        host.add_node(h_left)
+        host.add_node(h_right)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+
+        not_a_map = Gmod.MapExtendOneStep(empty, p_left, h_left)()
+
+        stranger = M.Thingy()
+        base_map = Gmod.Map(pattern_value, host_value, empty)()
+        pattern_miss = Gmod.MapExtendOneStep(base_map, stranger, h_left)()
+        host_miss = Gmod.MapExtendOneStep(base_map, p_left, stranger)()
+
+        mapped_root = M.Pair(Gmod.Send(p_left, h_left)(), empty)
+        mapped_map = Gmod.Map(pattern_value, host_value, mapped_root)()
+        already = Gmod.MapExtendOneStep(mapped_map, p_left, h_right)()
+
+        apart_root = M.Pair(Gmod.Apart(p_left, p_right)(), M.Pair(Gmod.Send(p_right, h_right)(), empty))
+        apart_map = Gmod.Map(pattern_value, host_value, apart_root)()
+        apart_miss = Gmod.MapExtendOneStep(apart_map, p_left, h_right)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(not_a_map)())())())(), Lmod.ReasonShapeLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(pattern_miss)())())())(), Lmod.ReasonShapeLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(host_miss)())())())(), Lmod.ReasonShapeLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(already)())())())(), Lmod.ReasonAlreadyMappedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(apart_miss)())())())(), Lmod.ReasonApartLabel)() is M.false_value:
+            self.result = M.false_value
+        else:
+            already_reason = M.Head(M.Tail(M.Tail(already)())())()
+            if RawTermEqual(M.Head(M.Tail(M.Tail(already_reason)())())(), h_left, registry)() is M.false_value:
+                self.result = M.false_value
+            else:
+                apart_reason = M.Head(M.Tail(M.Tail(apart_miss)())())()
+                carried = M.Head(M.Tail(apart_reason)())()
+                if M.IdentityCompare(M.Head(carried)(), Lmod.ApartLabel)() is M.false_value:
+                    self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class EdgeSendPositionalConsistencyTest(M.Edge):
     """Step 3: sending a pattern edge to a host edge must respect endpoint order."""
 
@@ -6602,6 +6664,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "structured_miss_reason_test",
+        empty,
+        StructuredMissReasonTest(graph),
         M.truth_value,
     )
     _register_test(
