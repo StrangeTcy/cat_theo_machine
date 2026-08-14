@@ -648,6 +648,71 @@ class ReasonPositional(M.Edge):
         return self.result
 
 
+class MapExtensionAlternatives(M.Edge):
+    """
+    Every one-step extension of `mapping` that sends `pat` somewhere legal.
+
+    `host_graph` is the graph to draw candidates from; pass M.EmptyList to use
+    the mapping's own host graph. Each candidate is put through
+    MapExtendOneStep, so the admitted extensions are exactly those the matcher
+    would accept -- including the Step 3 positional check -- with no logic
+    duplicated here.
+
+    Returns a Pair chain of Map terms, in host-store order. MapExtendOneStep
+    keeps its single-result behaviour: its answer is the Head of this chain.
+    """
+
+    def __init__(self, mapping, pat, host_graph):
+        self.result = self._alternatives(mapping, pat, host_graph)
+        super().__init__(
+            inputs=M.Pair(mapping, M.Pair(pat, M.Pair(host_graph, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _candidates(self, mapping, host_graph):
+        source = host_graph
+        if M.IdentityCompare(source, M.EmptyList)() is M.truth_value:
+            if M.IsPair(mapping)() is M.truth_value:
+                if M.TermEqual(M.Head(mapping)(), Lmod.MapLabel)() is M.truth_value:
+                    source = M.Head(M.Tail(M.Tail(mapping)())())()
+        if M.IdentityCompare(source, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        reversed_collected = M.EmptyList
+        remaining = probe._normalize_store(GraphNodes(source)())
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
+            remaining = M.Tail(remaining)()
+        remaining = probe._normalize_store(GraphEdges(source)())
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
+            remaining = M.Tail(remaining)()
+        collected = M.EmptyList
+        while M.IdentityCompare(reversed_collected, M.EmptyList)() is M.false_value:
+            collected = M.Pair(M.Head(reversed_collected)(), collected)
+            reversed_collected = M.Tail(reversed_collected)()
+        return collected
+
+    def _alternatives(self, mapping, pat, host_graph):
+        reversed_hits = M.EmptyList
+        remaining = self._candidates(mapping, host_graph)
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            candidate = M.Head(remaining)()
+            extended = MapExtendOneStep(mapping, pat, candidate)()
+            if M.IsPair(extended)() is M.truth_value:
+                if M.TermEqual(M.Head(extended)(), Lmod.MapLabel)() is M.truth_value:
+                    reversed_hits = M.Pair(extended, reversed_hits)
+            remaining = M.Tail(remaining)()
+        ordered = M.EmptyList
+        while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(reversed_hits)(), ordered)
+            reversed_hits = M.Tail(reversed_hits)()
+        return ordered
+
+    def __call__(self):
+        return self.result
+
+
 class MapExtendOneStep(M.Edge):
     def __init__(self, mapping, pat, host):
         self.mapping = mapping

@@ -526,6 +526,54 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class MapExtensionAlternativesTest(M.Edge):
+    """Step 5: enumerate every legal one-step extension, not just the first."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_node = M.Thingy()
+        pattern.add_node(p_node)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_left = M.Thingy()
+        h_right = M.Thingy()
+        host.add_node(h_left)
+        host.add_node(h_right)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+        base_map = Gmod.Map(pattern_value, host_value, empty)()
+
+        alternatives = Gmod.MapExtensionAlternatives(base_map, p_node, empty)()
+        count = M.Zero
+        remaining = alternatives
+        all_maps = M.truth_value
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            entry = M.Head(remaining)()
+            if M.IdentityCompare(M.Head(entry)(), Lmod.MapLabel)() is M.false_value:
+                all_maps = M.false_value
+            count_pair = M.Succ(count, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            remaining = M.Tail(remaining)()
+
+        single = Gmod.MapExtendOneStep(base_map, p_node, h_left)()
+
+        self.result = M.truth_value
+        if M.NatEq(count, M.two, registry)() is M.false_value:
+            self.result = M.false_value
+        elif all_maps is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(single)(), Lmod.MapLabel)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class StructuredMissReasonTest(M.Edge):
     """Step 4: Miss reasons are labeled terms carrying the terms involved."""
 
@@ -6664,6 +6712,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "map_extension_alternatives_test",
+        empty,
+        MapExtensionAlternativesTest(graph),
         M.truth_value,
     )
     _register_test(
