@@ -24,6 +24,7 @@ from .math import peano as Peanomod
 from .math import arithmetic as Arithmod
 from . import prettyprinting as Prettymod
 from . import proof as Pmod
+from . import planner as Plannermod
 from . import search as Searchmod
 from . import trees as T
 from .graph import Hypergraph, Reverse, RunTests, TestResultsReport
@@ -39,9 +40,13 @@ class MachineRuntime:
         self.rewrite_heuristic = rewrite_heuristic
         self.loaded_packs = loaded_packs if loaded_packs is not None else ()
         self.snapshot_upgraded = M.false_value
+        self._compiled_ordered_rules = None
 
     def ordered_rules(self):
-        return Reverse(M.FromContextGetRuleOrder(self.graph)())()
+        if self._compiled_ordered_rules is None:
+            raw_rules = Reverse(M.FromContextGetRuleOrder(self.graph)())()
+            self._compiled_ordered_rules = Pmod.CompileRuleChain(raw_rules, M.FromContextGetConstructors(self.graph)())()
+        return self._compiled_ordered_rules
 
     def flat_rules(self):
         return CollectRules(M.FromContextGetAllRules(self.graph)())()
@@ -51,6 +56,7 @@ class MachineRuntime:
         loader = PackLoader(namespace)
         pack = loader.load_pack_file(path, self.graph)
         self.loaded_packs = self.loaded_packs + (pack,)
+        self._compiled_ordered_rules = None
         return pack
 
     def save_snapshot(self, path, namespace):
@@ -70,11 +76,15 @@ class MachineRuntime:
         self.run_tests()
         return TestResultsReport(self.graph)()
 
-    def prove(self, start, goal, rules=None, heuristic=None):
+    def prove(self, start, goal, rules=None, heuristic=None, phi=None):
         if rules is None:
             rules = self.ordered_rules()
+        else:
+            rules = Pmod.CompileRuleChain(rules, M.FromContextGetConstructors(self.graph)())()
         if heuristic is None:
             heuristic = self.theorem_heuristic
+        if phi is None:
+            phi = M.EmptyList
 
         pair = Prove(
             self.graph,
@@ -83,8 +93,20 @@ class MachineRuntime:
             rules,
             heuristic,
             M.FromContextGetConstructors(self.graph)(),
+            phi,
         )()
         return M.Head(pair)()
+
+    def evaluate(self, start, goal, rules=None, heuristic=None, step_budget=None):
+        if rules is None:
+            rules = self.ordered_rules()
+        if heuristic is None:
+            heuristic = self.theorem_heuristic
+        if step_budget is None:
+            step_budget = M.nine
+        problem = Plannermod.PlannerProblem(start, goal, rules, heuristic)()
+        state = Plannermod.PlannerState(problem, M.FromContextGetConstructors(self.graph)())()
+        return Plannermod.PlannerRun(self.graph, state, step_budget)()
 
     def explain(self, derivation, goal):
         return ExplainDerivation(derivation, goal, M.FromContextGetConstructors(self.graph)())()
@@ -285,8 +307,8 @@ class MachineRuntime:
         for rule_index, rule in enumerate(visible_rule_edges, 1):
             hyperedge_id = "rule-edge:" + str(rule_index)
             rule_text = Pmod.PrettyRule(rule, registry)()
-            inputs = self._chain_items(M.EdgeInputs(rule)())
-            results = self._chain_items(M.EdgeResults(rule)())
+            inputs = self._chain_items(Pmod.RulePremises(rule)())
+            results = (Pmod.RuleReplacement(rule)(),)
             nodes = nodes + (
                 {
                     "data": {
@@ -996,7 +1018,7 @@ class MachineRuntime:
                 cy_nodes += 1
 
                 input_index = 0
-                inputs = M.EdgeInputs(rule)()
+                inputs = Pmod.RulePremises(rule)()
                 while M.IdentityCompare(inputs, M.EmptyList)() is M.false_value:
                     input_index += 1
                     input_term = M.Head(inputs)()
@@ -1019,7 +1041,7 @@ class MachineRuntime:
                     inputs = M.Tail(inputs)()
 
                 result_index = 0
-                results = M.EdgeResults(rule)()
+                results = M.Pair(Pmod.RuleReplacement(rule)(), M.EmptyList)
                 while M.IdentityCompare(results, M.EmptyList)() is M.false_value:
                     result_index += 1
                     result_term = M.Head(results)()
@@ -1693,6 +1715,7 @@ def boot_from_snapshot(snapshot_path, namespace, debug=M.false_value):
     _debug_log(debug, "DEBUG: boot_from_snapshot: activating snapshot state")
     _debug_log(debug, "DEBUG: boot_from_snapshot: restored snapshot roots, rebuilding graph context")
     codec.activate(state, runtime.graph, debug=debug)
+    M.AllConstructors = M.set_all_constructors(runtime.graph.constructor_registry)
     _sync_live_namespace(namespace)
     _debug_log(debug, "DEBUG: boot_from_snapshot: snapshot state activated")
     if M.Compare(state.needs_upgrade, M.truth_value)() is M.truth_value:

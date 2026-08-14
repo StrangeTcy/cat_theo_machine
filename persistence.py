@@ -56,6 +56,29 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ContextSearchJobsLabel",
     "ContextSearchMemoLabel",
     "ContextNatValueIndexLabel",
+    "FiniteLabel",
+    "TotalMapLabel",
+    "CardinalityLabel",
+    "NatLessLabel",
+    "InLabel",
+    "NonEmptyLabel",
+    "AttainsLabel",
+    "ExtremalAtLabel",
+    "VariationLabel",
+    "BetterLabel",
+    "ExistsLabel",
+    "NotLabel",
+    "ContradictionLabel",
+    "CollisionLabel",
+    "ExtremalLabel",
+    "SymmetryLabel",
+    "PigeonholeLabel",
+    "DivideLabel",
+    "BijectionLabel",
+    "DoubleCountLabel",
+    "ExtremalMinLabel",
+    "ExtremalMaxLabel",
+    "PlannerAlternativeLabel",
     "ProofCostLabel",
     "NewtonErrorIdentityLabel",
     "NewtonErrorShrinksLabel",
@@ -71,6 +94,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SearchComparisonSummaryLabel",
     "SearchSignatureLabel",
     "SearchAttemptLabel",
+    "HeuristicPerformanceLabel",
     "SearchCostLabel",
     "SearchSuccessLabel",
     "SearchFailureLabel",
@@ -146,6 +170,26 @@ SNAPSHOT_SYMBOL_NAMES = [
     "TotalCostLabel",
     "TreeLabel",
     "WholeLabel",
+    "IncreasingLabel",
+    "DecreasingLabel",
+    "BoundedAboveLabel",
+    "BoundedBelowLabel",
+    "ConvergesLabel",
+    "GapContractsLabel",
+    "LimitValueLabel",
+    "MoveErasesLabel",
+    "TerminalLabel",
+    "BoardSumObservableLabel",
+    "BoardSumLabel",
+    "ParityLabel",
+    "IsEvenLabel",
+    "AbsDiffLabel",
+    "MinLabel",
+    "InitialBoardLabel",
+    "FinalNumberLabel",
+    "BlackboardProblemLabel",
+    "OddLabel",
+    "EvenLabel",
     "FractionLabel",
     "ExprAddLabel",
     "ExprMulLabel",
@@ -413,7 +457,16 @@ class SnapshotCodec:
         return self._ns_get("IsPair")(obj)() is self._ns_get("truth_value")
 
     def _is_edge_object(self, obj):
-        return self._ns_get("IdentityCompare")(obj._snapshot_edge_marker, obj)() is self._ns_get("truth_value")
+        try:
+            marker = obj._snapshot_edge_marker
+        except Exception:
+            try:
+                obj.inputs
+                obj.results
+            except Exception:
+                return self._ns_get("false_value")
+            return self._ns_get("truth_value")
+        return self._ns_get("IdentityCompare")(marker, obj)() is self._ns_get("truth_value")
 
     def _captured_object_id(self, target):
         for obj in self.obj_to_id:
@@ -449,6 +502,9 @@ class SnapshotCodec:
         # "Current tree" means a modern Patricia-backed tree, not a legacy TreeNode.
         # Support both the general Tree (`trees.IsTree`) and the search-specific
         # patricia tree (`search.SearchPatriciaIsTree`) representations.
+        # An empty tree or empty root (EmptyList) is also current.
+        if M.Compare(tree, self._ns_get("EmptyList"))() is M.truth_value:
+            return M.truth_value
         try:
             if "IsTree" in self.namespace:
                 if self.namespace["IsTree"](tree)() is self.namespace["truth_value"]:
@@ -944,6 +1000,17 @@ class SnapshotCodec:
 
     def _record_for(self, obj):
         oid = self.obj_to_id[obj]
+        namespace_name = None
+        for name in self.namespace:
+            if self.namespace[name] is obj:
+                namespace_name = name
+                break
+        if namespace_name is not None:
+            return {
+                "id": oid,
+                "name": namespace_name,
+            }
+
         if self._is_pair_object(obj):
             return {
                 "id": oid,
@@ -956,6 +1023,17 @@ class SnapshotCodec:
                 "id": oid,
                 "inputs": self._encode_field(obj.inputs),
                 "results": self._encode_field(obj.results),
+                "value": self._encode_field(obj.value),
+            }
+
+        try:
+            symbol = obj.symbol
+        except Exception:
+            symbol = None
+        if symbol is not None:
+            return {
+                "id": oid,
+                "symbol": symbol,
                 "value": self._encode_field(obj.value),
             }
 
@@ -1050,31 +1128,27 @@ class SnapshotCodec:
                     existing_symbol = self.namespace[symbol_name]
                     id_to_obj[record_id] = existing_symbol
                     continue
+            if "name" in record:
+                symbol_name = record["name"]
+                if symbol_name not in self.namespace:
+                    raise RuntimeError("Snapshot namespace missing symbol: " + symbol_name)
+                id_to_obj[record_id] = self.namespace[symbol_name]
+                continue
             if "head" in record:
-                cls = self.namespace["Pair"]
+                obj = self.namespace["Pair"](EmptyList, EmptyList)
             elif "inputs" in record:
-                cls = self.namespace["Edge"]
+                obj = self.namespace["Edge"](EmptyList, EmptyList)
             elif "symbol" in record:
-                cls = self.namespace["Char"]
+                obj = self.namespace["Char"](record["symbol"])
             else:
-                cls = self.namespace["Atom"]
-
-            obj = cls.__new__(cls)
-            Atom.__init__(obj)
-
-            if "head" in record:
-                obj.head = Atom()
-                obj.tail = Atom()
-            elif "inputs" in record:
-                obj.inputs = EmptyList
-                obj.results = EmptyList
-            elif "symbol" in record:
-                obj.symbol = ""
+                obj = self.namespace["Atom"]()
 
             id_to_obj[record["id"]] = obj
 
         for record in snapshot["objects"]:
             obj = id_to_obj[record["id"]]
+            if "name" in record:
+                continue
             if "head" in record:
                 obj.head.value = self._decode_field(record["head"], id_to_obj)
                 obj.tail.value = self._decode_field(record["tail"], id_to_obj)
@@ -1239,6 +1313,8 @@ __all__ = [
 
 
 def _runtime_namespace_for_restore():
+    if "NatValueIndex" not in vars(M):
+        M.NatValueIndex = M.Tree(M.EmptyList)
     namespace = dict(vars(M))
     namespace.update(vars(Hmod))
     namespace.update(vars(Lmod))
@@ -1263,6 +1339,7 @@ def _runtime_namespace_for_restore():
         "SuccLabel",
         "PairLabel",
         "TreeLabel",
+        "NatValueIndex",
         "DIGIT_0",
         "DIGIT_1",
         "DIGIT_2",

@@ -1,0 +1,104 @@
+format: hyge-pack
+version: 1
+
+name: engel-coins
+description: Engel adjacent-flip coin row. Flip both coins of an adjacent pair. Heads-count parity is the Phi pattern.
+
+requires: []
+
+phi:
+  call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+
+rules:
+  - id: flip_adjacent_hh
+    premises:
+      - call: {head: {char: Coin}, args: [{var: i}, {char: Heads}]}
+      - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Heads}]}
+      - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+    replacement:
+      list:
+        - call: {head: {char: Coin}, args: [{var: i}, {char: Tails}]}
+        - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Tails}]}
+        - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+
+  - id: flip_adjacent_ht
+    premises:
+      - call: {head: {char: Coin}, args: [{var: i}, {char: Heads}]}
+      - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Tails}]}
+      - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+    replacement:
+      list:
+        - call: {head: {char: Coin}, args: [{var: i}, {char: Tails}]}
+        - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Heads}]}
+        - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+
+  - id: flip_adjacent_th
+    premises:
+      - call: {head: {char: Coin}, args: [{var: i}, {char: Tails}]}
+      - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Heads}]}
+      - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+    replacement:
+      list:
+        - call: {head: {char: Coin}, args: [{var: i}, {char: Heads}]}
+        - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Tails}]}
+        - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+
+  - id: flip_adjacent_tt
+    premises:
+      - call: {head: {char: Coin}, args: [{var: i}, {char: Tails}]}
+      - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Tails}]}
+      - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+    replacement:
+      list:
+        - call: {head: {char: Coin}, args: [{var: i}, {char: Heads}]}
+        - call: {head: {char: Coin}, args: [{call: {head: {sym: SuccLabel}, args: [{var: i}]}}, {char: Heads}]}
+        - call: {head: {char: HeadsCountParity}, args: [{var: p}]}
+
+examples:
+  - id: engel_hhhhh_to_hhttt
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {char: HeadsCountParity}, args: [{char: Odd}]}
+              - call: {head: {char: Coin}, args: [{sym: one}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: two}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: three}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: four}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: five}, {char: Heads}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {char: HeadsCountParity}, args: [{char: Even}]}
+              - call: {head: {char: Coin}, args: [{sym: one}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: two}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: three}, {char: Tails}]}
+              - call: {head: {char: Coin}, args: [{sym: four}, {char: Tails}]}
+              - call: {head: {char: Coin}, args: [{sym: five}, {char: Tails}]}
+
+  - id: engel_hhhhh_to_hhhtt
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {char: HeadsCountParity}, args: [{char: Odd}]}
+              - call: {head: {char: Coin}, args: [{sym: one}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: two}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: three}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: four}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: five}, {char: Heads}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {char: HeadsCountParity}, args: [{char: Odd}]}
+              - call: {head: {char: Coin}, args: [{sym: one}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: two}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: three}, {char: Heads}]}
+              - call: {head: {char: Coin}, args: [{sym: four}, {char: Tails}]}
+              - call: {head: {char: Coin}, args: [{sym: five}, {char: Tails}]}

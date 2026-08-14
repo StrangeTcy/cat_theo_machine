@@ -5,6 +5,9 @@ name: geometry-ontology
 description: Reusable geometry ontology for polygons, triangles, and their attached quantities
 requires: []
 
+phi:
+  list: []
+
 rules:
   - id: triangle_is_a_polygon
     pattern:
@@ -65,6 +68,20 @@ rules:
         head: {sym: AnglesLabel}
         args:
           - {var: shape}
+
+  - id: distinct_is_symmetric
+    pattern:
+      call:
+        head: {sym: DistinctLabel}
+        args:
+          - {var: left}
+          - {var: right}
+    replacement:
+      call:
+        head: {sym: DistinctLabel}
+        args:
+          - {var: right}
+          - {var: left}
 
   - id: triangle_has_first_edge
     pattern:

@@ -247,20 +247,10 @@ class HeuristicCanonicalTerm(Edge):
         self.result = self._canonical(term)
         super().__init__(inputs=Pair(term, Pair(registry, EmptyList)), results=self.result)
 
-    def _canonical_facts(self, facts):
-        if M.IdentityCompare(facts, EmptyList)() is M.truth_value:
-            return EmptyList
-        here = self._canonical(Head(facts)())
-        rest = self._canonical_facts(Tail(facts)())
-        return Pair(here, rest)
-
     def _canonical(self, term):
         if Pmod.IsKnowledge(term)() is M.truth_value:
-            facts = self._canonical_facts(Pmod.KnowledgeFacts(term)())
-            return Pmod.NormalizeKnowledge(Pmod.Knowledge(facts)(), self.registry)()
-        if M.IsPair(term)() is M.truth_value:
-            return Pair(self._canonical(Head(term)()), self._canonical(Tail(term)()))
-        return term
+            return Pmod.NormalizeKnowledge(term, self.registry)()
+        return M.CanonicalArithmeticTerm(term, self.registry)()
 
     def __call__(self):
         return self.result

@@ -73,7 +73,7 @@ class PackTreeMap:
 
 class LoadedPack:
 
-    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples):
+    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi):
         self.name = name
         self.description = description
         self.requires = requires
@@ -81,6 +81,7 @@ class LoadedPack:
         self.rule_chain = rule_chain
         self.schema_map = schema_map
         self.examples = examples
+        self.phi = phi
 
 
 class PackLoader:
@@ -123,7 +124,7 @@ class PackLoader:
             return var_env[key]
 
         if "char" in spec:
-            return M.Char(str(spec["char"]))
+            return self.string_table._char_atom(str(spec["char"]))
 
         if "pair" in spec:
             pair_items = spec["pair"]
@@ -237,16 +238,6 @@ class PackLoader:
         sys.stdout.write(f"Reading pack {name}...\n")
         sys.stdout.flush()
         pack_start = time.monotonic()
-        last_report = pack_start
-
-        def _report_loading():
-            nonlocal last_report
-            now = time.monotonic()
-            if now - last_report >= 1.0:
-                elapsed = now - pack_start
-                sys.stdout.write(f"\rReading pack {name}, it's taken {elapsed:.1f}s already and counting")
-                sys.stdout.flush()
-                last_report = now
 
         rule_specs = tuple(data.get("rules", ()))
         schema_specs = tuple(data.get("schemata", ()))
@@ -282,7 +273,6 @@ class PackLoader:
 
             rule_map.store(rid, canonical_rule)
             rule_order = rule_order + (canonical_rule,)
-            _report_loading()
 
         rule_chain = self._chain(rule_order)
 
@@ -305,9 +295,9 @@ class PackLoader:
             key = M.Atom()
             derivation_schemata = M.TreeInsert(derivation_schemata, key, entry, M.AllConstructors)()
             schema_map.store(sid, (start, goal, plan_chain))
-            _report_loading()
 
         examples = PackTreeMap(self.string_table)
+        phi = self._compile_term(data["phi"], {})
 
         for e in example_specs:
             eid = e["id"]
@@ -315,7 +305,6 @@ class PackLoader:
             start = self._compile_term(e["start"], var_env)
             goal = self._compile_term(e["goal"], var_env)
             examples.store(eid, (start, goal))
-            _report_loading()
 
         elapsed = time.monotonic() - pack_start
         sys.stdout.write(f"\rReading pack {name}, done in {elapsed:.2f}s\n")
@@ -338,6 +327,7 @@ class PackLoader:
             rule_chain=rule_chain,
             schema_map=schema_map,
             examples=examples,
+            phi=phi,
         )
 
     def load_pack_file(self, path, graph):

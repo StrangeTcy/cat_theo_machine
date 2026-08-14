@@ -4,6 +4,9 @@ version: 1
 name: arithmetic
 description: Generic arithmetic-progression knowledge
 
+phi:
+  list: []
+
 rules:
   - id: common_difference_becomes_parameter
     pattern:
@@ -31,3 +34,206 @@ rules:
         head: {sym: MiddleTermAverageLabel}
         args:
           - {var: object}
+
+  - id: ap_to_sequence
+    premises:
+      - call:
+          head: {sym: ArithmeticProgressionLabel}
+          args: [{var: q_obj}, {var: d}]
+      - call:
+          head: {sym: LengthLabel}
+          args: [{var: q_obj}, {var: x}]
+    replacement:
+      call:
+        head: {sym: SequenceLabel}
+        args:
+          - call:
+              head: {sym: APNameLabel}
+              args: [{var: q_obj}]
+          - {var: x}
+          - call:
+              head: {sym: ApplyLabel}
+              args:
+                - call:
+                    head: {sym: APNameLabel}
+                    args: [{var: q_obj}]
+                - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call:
+                    head: {sym: ApplyLabel}
+                    args:
+                      - call:
+                          head: {sym: APNameLabel}
+                          args: [{var: q_obj}]
+                      - {var: n}
+                - {var: d}
+
+  - id: ap_unfold_base
+    premises:
+      - call:
+          head: {sym: SequenceLabel}
+          args: [{var: q_name}, {var: base_val}, {var: p}, {var: r}]
+      - call:
+          head: {sym: ApplyLabel}
+          args: [{var: q_name}, {sym: Zero}]
+    replacement: {var: base_val}
+
+  - id: ap_unfold_succ
+    premises:
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: q_name}
+            - {var: base_val}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: q_name}
+                  - call: {head: {sym: SuccLabel}, args: [{var: recurrence_index}]}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - call:
+                      head: {sym: ApplyLabel}
+                      args: [{var: q_name}, {var: recurrence_index}]
+                  - {var: d}
+      - call:
+          head: {sym: ApplyLabel}
+          args:
+            - {var: q_name}
+            - call: {head: {sym: SuccLabel}, args: [{var: n}]}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ApplyLabel}
+              args: [{var: q_name}, {var: n}]
+          - {var: d}
+
+  - id: ap_normalize
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args: [{var: x}, {var: d}]
+          - {var: d}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - {var: x}
+          - call:
+              head: {sym: ExprMulLabel}
+              args: [{sym: two}, {var: d}]
+
+  - id: ap_center
+    premises:
+      - call:
+          head: {sym: SequenceLabel}
+          args:
+            - {var: q_name}
+            - {var: x}
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: q_name}
+                  - call: {head: {sym: SuccLabel}, args: [{var: recurrence_index}]}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - call:
+                      head: {sym: ApplyLabel}
+                      args: [{var: q_name}, {var: recurrence_index}]
+                  - {var: d}
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: q_name}
+                  - call: {head: {sym: SuccLabel}, args: [{sym: Zero}]}
+            - {var: b}
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - {var: x}
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - {var: b}
+                - call:
+                    head: {sym: ExprNegLabel}
+                    args: [{var: d}]
+
+  - id: arithmetic_add_commutes
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args: [{var: x}, {var: y}]
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args: [{var: y}, {var: x}]
+
+  - id: arithmetic_add_associates_right
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args: [{var: x}, {var: y}]
+          - {var: z}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - {var: x}
+          - call:
+              head: {sym: ExprAddLabel}
+              args: [{var: y}, {var: z}]
+
+  - id: arithmetic_mul_commutes
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args: [{var: x}, {var: y}]
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args: [{var: y}, {var: x}]
+
+  - id: arithmetic_mul_associates_right
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call:
+              head: {sym: ExprMulLabel}
+              args: [{var: x}, {var: y}]
+          - {var: z}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: x}
+          - call:
+              head: {sym: ExprMulLabel}
+              args: [{var: y}, {var: z}]
+
+  - id: arithmetic_equation_is_symmetric
+    pattern:
+      call:
+        head: {sym: ExprEqLabel}
+        args: [{var: left}, {var: right}]
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args: [{var: right}, {var: left}]

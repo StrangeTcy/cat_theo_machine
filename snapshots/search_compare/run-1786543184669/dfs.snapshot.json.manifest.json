@@ -1,0 +1,1 @@
+{"start_text": "Knowledge([SideOf(Segment(v, w), Tao Problem 1.1 triangle)])", "goal_text": "Length(Segment(v, w), APShortSide(Tao Problem 1.1 triangle))"}

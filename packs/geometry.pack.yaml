@@ -8,6 +8,9 @@
     "trigonometry",
     "arithmetic"
   ],
+  "phi": {
+    "list": []
+  },
   "rules": [
     {
       "id": "area_becomes_parameter",
@@ -650,6 +653,113 @@
               "var": "triangle"
             }
           ]
+        }
+      }
+    },
+    {
+      "id": "structural_heron",
+      "premises": [
+        { "call": { "head": { "sym": "TriangleLabel" }, "args": [ { "var": "T" } ] } },
+        { "call": { "head": { "sym": "SideOfLabel" }, "args": [ { "var": "s1" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "SideOfLabel" }, "args": [ { "var": "s2" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "SideOfLabel" }, "args": [ { "var": "s3" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "LengthLabel" }, "args": [ { "var": "s1" }, { "var": "a" } ] } },
+        { "call": { "head": { "sym": "LengthLabel" }, "args": [ { "var": "s2" }, { "var": "b" } ] } },
+        { "call": { "head": { "sym": "LengthLabel" }, "args": [ { "var": "s3" }, { "var": "c" } ] } },
+        { "call": { "head": { "sym": "AreaLabel" }, "args": [ { "var": "T" }, { "var": "t" } ] } }
+      ],
+      "replacement": {
+        "call": {
+          "head": { "sym": "ExprEqLabel" },
+          "args": [
+            { "call": { "head": { "sym": "ExprMulLabel" }, "args": [
+              { "call": { "head": { "sym": "ExprPowLabel" }, "args": [ { "sym": "four" }, { "sym": "two" } ] } },
+              { "call": { "head": { "sym": "ExprPowLabel" }, "args": [ { "var": "t" }, { "sym": "two" } ] } }
+            ] } },
+            { "call": { "head": { "sym": "ExprMulLabel" }, "args": [
+              { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+                { "var": "a" },
+                { "call": { "head": { "sym": "ExprAddLabel" }, "args": [ { "var": "b" }, { "var": "c" } ] } }
+              ] } },
+              { "call": { "head": { "sym": "ExprMulLabel" }, "args": [
+                { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+                  { "var": "a" },
+                  { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+                    { "var": "b" },
+                    { "call": { "head": { "sym": "ExprNegLabel" }, "args": [ { "var": "c" } ] } }
+                  ] } }
+                ] } },
+                { "call": { "head": { "sym": "ExprMulLabel" }, "args": [
+                  { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+                    { "var": "a" },
+                    { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+                      { "call": { "head": { "sym": "ExprNegLabel" }, "args": [ { "var": "b" } ] } },
+                      { "var": "c" }
+                    ] } }
+                  ] } },
+                  { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+                    { "call": { "head": { "sym": "ExprNegLabel" }, "args": [ { "var": "a" } ] } },
+                    { "call": { "head": { "sym": "ExprAddLabel" }, "args": [ { "var": "b" }, { "var": "c" } ] } }
+                  ] } }
+                ] } }
+              ] } }
+            ] } }
+          ]
+        }
+      }
+    },
+    {
+      "id": "structural_cosine_law",
+      "premises": [
+        { "call": { "head": { "sym": "TriangleLabel" }, "args": [ { "var": "T" } ] } },
+        { "call": { "head": { "sym": "SideOfLabel" }, "args": [ { "var": "opposite_side" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "SideOfLabel" }, "args": [ { "var": "adjacent_side_one" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "SideOfLabel" }, "args": [ { "var": "adjacent_side_two" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "AngleOfLabel" }, "args": [ { "var": "angle" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "OppositeLabel" }, "args": [ { "var": "opposite_side" }, { "var": "angle" } ] } },
+        { "call": { "head": { "sym": "LengthLabel" }, "args": [ { "var": "opposite_side" }, { "var": "a" } ] } },
+        { "call": { "head": { "sym": "LengthLabel" }, "args": [ { "var": "adjacent_side_one" }, { "var": "b" } ] } },
+        { "call": { "head": { "sym": "LengthLabel" }, "args": [ { "var": "adjacent_side_two" }, { "var": "c" } ] } }
+      ],
+      "replacement": {
+        "call": {
+          "head": { "sym": "ExprEqLabel" },
+          "args": [
+            { "call": { "head": { "sym": "ExprPowLabel" }, "args": [ { "var": "a" }, { "sym": "two" } ] } },
+            { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+              { "call": { "head": { "sym": "ExprAddLabel" }, "args": [
+                { "call": { "head": { "sym": "ExprPowLabel" }, "args": [ { "var": "b" }, { "sym": "two" } ] } },
+                { "call": { "head": { "sym": "ExprPowLabel" }, "args": [ { "var": "c" }, { "sym": "two" } ] } }
+              ] } },
+              { "call": { "head": { "sym": "ExprNegLabel" }, "args": [
+                { "call": { "head": { "sym": "ExprMulLabel" }, "args": [
+                  { "sym": "two" },
+                  { "call": { "head": { "sym": "ExprMulLabel" }, "args": [
+                    { "var": "b" },
+                    { "call": { "head": { "sym": "ExprMulLabel" }, "args": [
+                      { "var": "c" },
+                      { "call": { "head": { "sym": "CosineLabel" }, "args": [ { "var": "angle" } ] } }
+                    ] } }
+                  ] } }
+                ] } }
+              ] } }
+            ] } }
+          ]
+        }
+      }
+    },
+    {
+      "id": "vertex_incidence",
+      "premises": [
+        { "call": { "head": { "sym": "TriangleLabel" }, "args": [ { "var": "T" } ] } },
+        { "call": { "head": { "sym": "VertexOfLabel" }, "args": [ { "var": "u" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "VertexOfLabel" }, "args": [ { "var": "v" }, { "var": "T" } ] } },
+        { "call": { "head": { "sym": "SegmentLabel" }, "args": [ { "var": "u" }, { "var": "v" } ] } }
+      ],
+      "replacement": {
+        "call": {
+          "head": { "sym": "SideOfLabel" },
+          "args": [ { "call": { "head": { "sym": "SegmentLabel" }, "args": [ { "var": "u" }, { "var": "v" } ] } }, { "var": "T" } ]
         }
       }
     },
@@ -3898,214 +4008,52 @@
         }
       }
     },
-    {
-      "id": "solved_sides_and_angles_finish_tao_problem",
-      "premises": [
-        {
-          "call": {
-            "head": {
-              "sym": "TriangleLabel"
-            },
-            "args": [
-              {
-                "var": "triangle"
-              }
-            ]
-          }
-        },
-        {
-          "call": {
-            "head": {
-              "sym": "SolvedLabel"
-            },
-            "args": [
-              {
-                "call": {
-                  "head": {
-                    "sym": "SideLengthsLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "call": {
-            "head": {
-              "sym": "SolvedLabel"
-            },
-            "args": [
-              {
-                "call": {
-                  "head": {
-                    "sym": "AnglesLabel"
-                  },
-                  "args": [
-                    {
-                      "var": "triangle"
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        }
-      ],
-      "replacement": {
-        "call": {
-          "head": {
-            "sym": "SolvedLabel"
-          },
-          "args": [
-            {
-              "call": {
-                "head": {
-                  "sym": "TriangleLabel"
-                },
-                "args": [
-                  {
-                    "var": "triangle"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      }
-    }
+    {"id": "tao_define_perimeter_third", "premises": [{"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}], "replacement": {"call": {"head": {"sym": "DefinesLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}, {"sym": "three"}]}}]}}},
+    {"id": "tao_define_side_radicand", "premises": &tao_area_perimeter_premises [{"call": {"head": {"sym": "AreaLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11AreaValueLabel"}]}}, {"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}], "replacement": {"call": {"head": {"sym": "DefinesLabel"}, "args": [{"call": {"head": {"sym": "APSideRadicandLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "six"}, {"sym": "two"}]}}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"sym": "three"}, {"sym": "four"}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "TaoProblem11AreaValueLabel"}, {"sym": "two"}]}}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}, {"sym": "two"}]}}]}}]}}]}}]}}},
+    {"id": "tao_define_side_offset", "premises": &tao_triangle_premises [{ "call": { "head": { "sym": "TriangleLabel" }, "args": [ { "sym": "TaoProblem11TriangleLabel" } ] } }], "replacement": {"call": {"head": {"sym": "DefinesLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SqrtLabel"}, "args": [{"call": {"head": {"sym": "APSideRadicandLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}},
+    {"id": "tao_define_short_side", "premises": *tao_triangle_premises, "replacement": {"call": {"head": {"sym": "DefinesLabel"}, "args": [&tao_short_side_term {"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}]}}},
+    {"id": "tao_define_middle_side", "premises": *tao_triangle_premises, "replacement": {"call": {"head": {"sym": "DefinesLabel"}, "args": [&tao_middle_side_term {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_define_long_side", "premises": *tao_triangle_premises, "replacement": {"call": {"head": {"sym": "DefinesLabel"}, "args": [&tao_long_side_term {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}},
+    {"id": "tao_side_alpha_from_area_perimeter", "premises": [{"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}], "replacement": {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_side_beta_from_area_perimeter", "premises": [{"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}], "replacement": {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_side_gamma_from_area_perimeter", "premises": [{"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}], "replacement": {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_expand_short_side", "pattern": {"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, "replacement": {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}},
+    {"id": "tao_expand_middle_side", "pattern": {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, "replacement": {"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}},
+    {"id": "tao_expand_long_side", "pattern": {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, "replacement": {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_expand_side_offset", "pattern": {"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, "replacement": {"call": {"head": {"sym": "SqrtLabel"}, "args": [{"call": {"head": {"sym": "APSideRadicandLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_expand_perimeter_third", "pattern": {"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, "replacement": {"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}, {"sym": "three"}]}}},
+    {"id": "tao_expand_side_radicand", "pattern": {"call": {"head": {"sym": "APSideRadicandLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, "replacement": {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "six"}, {"sym": "two"}]}}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"sym": "three"}, {"sym": "four"}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "TaoProblem11AreaValueLabel"}, {"sym": "two"}]}}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}, {"sym": "two"}]}}]}}]}}]}}},
+    {"id": "tao_perimeter_third_positive", "premises": [{"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}]}}], "replacement": {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_side_offset_nonnegative", "premises": [{"call": {"head": {"sym": "NonNegativeLabel"}, "args": [{"call": {"head": {"sym": "APSideRadicandLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}], "replacement": {"call": {"head": {"sym": "NonNegativeLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_angle_from_sides", "premises": [{"call": {"head": {"sym": "TriangleLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"var": "angle"}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"var": "opposite_side"}, {"var": "angle"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"var": "opposite_side"}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"var": "adjacent_side_one"}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"var": "adjacent_side_two"}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "LengthLabel"}, "args": [{"var": "opposite_side"}, {"var": "opposite_length"}]}}, {"call": {"head": {"sym": "LengthLabel"}, "args": [{"var": "adjacent_side_one"}, {"var": "adjacent_length_one"}]}}, {"call": {"head": {"sym": "LengthLabel"}, "args": [{"var": "adjacent_side_two"}, {"var": "adjacent_length_two"}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"var": "opposite_side"}, {"var": "adjacent_side_one"}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"var": "opposite_side"}, {"var": "adjacent_side_two"}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"var": "adjacent_side_one"}, {"var": "adjacent_side_two"}]}}], "replacement": {"call": {"head": {"sym": "AngleMeasureLabel"}, "args": [{"var": "angle"}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"var": "angle"}]}}]}}},
+    {"id": "tao_verify_perimeter", "premises": [{"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}, {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}, {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}, {"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}], "replacement": {"call": {"head": {"sym": "ExprEqLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}},
+    {"id": "tao_verify_area", "premises": [{"call": {"head": {"sym": "TriangleLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "AreaLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11AreaValueLabel"}]}}, {"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "ArithmeticProgressionLabel"}, "args": [{"call": {"head": {"sym": "SideLengthsLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}], "replacement": {"call": {"head": {"sym": "APAreaIdentityLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}},
+    {"id": "tao_verify_positive_alpha_side", "premises": [{"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}, {"call": {"head": {"sym": "ExprLtLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}], "replacement": {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_verify_positive_beta_side", "premises": [{"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}], "replacement": {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_verify_positive_gamma_side", "premises": [{"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}, {"call": {"head": {"sym": "NonNegativeLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}], "replacement": {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_verify_strict_triangle_inequality", "premises": [{"call": {"head": {"sym": "ExprLtLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}], "replacement": {"call": {"head": {"sym": "ExprLtLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}},
+    {"id": "tao_expand_alpha_angle_value", "pattern": {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}, "replacement": {"call": {"head": {"sym": "ArccosLabel"}, "args": [{"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}]}}, {"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"sym": "two"}, {"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}]}}]}}},
+    {"id": "tao_expand_beta_angle_value", "pattern": {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}, "replacement": {"call": {"head": {"sym": "ArccosLabel"}, "args": [{"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}]}}, {"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"sym": "two"}, {"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}]}}]}}},
+    {"id": "tao_expand_gamma_angle_value", "pattern": {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}, "replacement": {"call": {"head": {"sym": "ArccosLabel"}, "args": [{"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}]}}, {"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"sym": "two"}, {"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}]}}]}}},
+    {"id": "tao_expand_area_identity", "pattern": {"call": {"head": {"sym": "APAreaIdentityLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, "replacement": {"call": {"head": {"sym": "ExprEqLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "TaoProblem11AreaValueLabel"}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"sym": "three"}, {"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}, {"call": {"head": {"sym": "ExprNegLabel"}, "args": [{"call": {"head": {"sym": "ExprMulLabel"}, "args": [{"sym": "four"}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}]}}]}}]}}]}}, {"call": {"head": {"sym": "ExprPowLabel"}, "args": [{"sym": "four"}, {"sym": "two"}]}}]}}]}}},
   ],
   "examples": [
-    {
-      "id": "tao_problem_1_1_triangle",
-      "start": {
-        "call": {
-          "head": {
-            "sym": "KnowledgeLabel"
-          },
-          "args": [
-            {
-              "list": [
-                {
-                  "call": {
-                    "head": {
-                      "sym": "TriangleLabel"
-                    },
-                    "args": [
-                      {
-                        "sym": "TaoProblem11TriangleLabel"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "call": {
-                    "head": {
-                      "sym": "SideLengthsLabel"
-                    },
-                    "args": [
-                      {
-                        "sym": "TaoProblem11TriangleLabel"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "call": {
-                    "head": {
-                      "sym": "AnglesLabel"
-                    },
-                    "args": [
-                      {
-                        "sym": "TaoProblem11TriangleLabel"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "call": {
-                    "head": {
-                      "sym": "ArithmeticProgressionLabel"
-                    },
-                    "args": [
-                      {
-                        "call": {
-                          "head": {
-                            "sym": "SideLengthsLabel"
-                          },
-                          "args": [
-                            {
-                              "sym": "TaoProblem11TriangleLabel"
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "call": {
-                    "head": {
-                      "sym": "CommonDifferenceLabel"
-                    },
-                    "args": [
-                      {
-                        "call": {
-                          "head": {
-                            "sym": "SideLengthsLabel"
-                          },
-                          "args": [
-                            {
-                              "sym": "TaoProblem11TriangleLabel"
-                            }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "call": {
-                    "head": {
-                      "sym": "AreaLabel"
-                    },
-                    "args": [
-                      {
-                        "sym": "TaoProblem11TriangleLabel"
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      },
-      "goal": {
-        "call": {
-          "head": {
-            "sym": "SolvedLabel"
-          },
-          "args": [
-            {
-              "call": {
-                "head": {
-                  "sym": "TriangleLabel"
-                },
-                "args": [
-                  {
-                    "sym": "TaoProblem11TriangleLabel"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      }
-    }
+    {"id": "tao_problem_1_1_triangle", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_side_beta", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_side_gamma", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "LengthLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_angle_alpha", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "AngleMeasureLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}]}}},
+    {"id": "tao_angle_identity", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "AngleMeasureLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}]}}},
+    {"id": "tao_angle_beta", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "AngleMeasureLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}]}}},
+    {"id": "tao_angle_gamma", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "AngleMeasureLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}]}}},
+    {"id": "tao_perimeter_identity", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "ExprEqLabel"}, "args": [{"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}},
+    {"id": "tao_area_identity", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "TriangleLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "AreaLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11AreaValueLabel"}]}}, {"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "ArithmeticProgressionLabel"}, "args": [{"call": {"head": {"sym": "SideLengthsLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "APAreaIdentityLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}},
+    {"id": "tao_positive_alpha_side", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "ExprLtLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_positive_beta_side", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}]}}]}]}}, "goal": {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_positive_gamma_side", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "PerimeterLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"sym": "TaoProblem11PerimeterValueLabel"}]}}, {"call": {"head": {"sym": "NonNegativeLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "PositiveLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}},
+    {"id": "tao_strict_triangle_inequality", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "ExprLtLabel"}, "args": [{"call": {"head": {"sym": "APSideOffsetLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprFracLabel"}, "args": [{"call": {"head": {"sym": "PerimeterThirdLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"sym": "two"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "ExprLtLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "ExprAddLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}]}}]}}},
+    {"id": "tao_cosine_alpha_identity", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "TriangleLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "CosineRuleRelatesLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}]}}},
+    {"id": "tao_cosine_angle_identity", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "TriangleLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "CosineRuleRelatesLabel"}, "args": [{"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}]}}]}}},
+    {"id": "tao_cosine_beta_identity", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "TriangleLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "CosineRuleRelatesLabel"}, "args": [{"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}]}}},
+    {"id": "tao_cosine_gamma_identity", "start": {"call": {"head": {"sym": "KnowledgeLabel"}, "args": [{"list": [{"call": {"head": {"sym": "TriangleLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "SideOfLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "AngleOfLabel"}, "args": [{"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "OppositeLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexVLabel"}, {"sym": "TaoProblem11VertexWLabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}, {"call": {"head": {"sym": "DistinctLabel"}, "args": [{"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexULabel"}]}}, {"call": {"head": {"sym": "SegmentLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}]}]}}, "goal": {"call": {"head": {"sym": "CosineRuleRelatesLabel"}, "args": [{"call": {"head": {"sym": "APLongSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APShortSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APMiddleSideLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}]}}, {"call": {"head": {"sym": "APAngleValueLabel"}, "args": [{"sym": "TaoProblem11TriangleLabel"}, {"call": {"head": {"sym": "AngleLabel"}, "args": [{"sym": "TaoProblem11VertexULabel"}, {"sym": "TaoProblem11VertexWLabel"}, {"sym": "TaoProblem11VertexVLabel"}]}}]}}]}}},
   ]
 }

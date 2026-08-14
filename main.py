@@ -5,6 +5,7 @@ import http.server
 import json
 import multiprocessing
 import os
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -12,21 +13,16 @@ import webbrowser
 
 if __package__ in (None, ""):
     IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if IMPORT_ROOT not in sys.path:
-        sys.path.insert(0, IMPORT_ROOT)
-
-    from hyge.math import arithmetic as A
-    from hyge import graph as G
-    from hyge import heuristics as Hmod
-    from hyge import labels as Lmod
-    from hyge import machine as M
-    from hyge import matching as X
-    from hyge import proof as P
-    from hyge import rewrite_rules as R
-    from hyge.runtime import boot_from_packs, boot_from_snapshot, save_runtime
-    from hyge import search as Smod
-    from hyge import theorem_rules as T
-    from hyge.testsuite import install_default_tests
+    PACKAGE_NAME = os.path.basename(os.path.abspath(os.path.dirname(__file__)))
+    CHILD_ARGS = [sys.executable, "-m", PACKAGE_NAME + ".main"]
+    ARG_INDEX = 1
+    while ARG_INDEX != len(sys.argv):
+        CHILD_ARGS.append(sys.argv[ARG_INDEX])
+        ARG_INDEX = ARG_INDEX + 1
+    CHILD_ENV = os.environ.copy()
+    CHILD_ENV["PYTHONPATH"] = IMPORT_ROOT
+    CHILD = subprocess.run(CHILD_ARGS, cwd=IMPORT_ROOT, env=CHILD_ENV)
+    raise SystemExit(CHILD.returncode)
 else:
     from .math import arithmetic as A
     from . import graph as G
@@ -37,6 +33,8 @@ else:
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
+    from .persistence import SnapshotCodec
+    from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
     from .testsuite import install_default_tests
@@ -53,11 +51,15 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "order-sign.pack.yaml"),
     os.path.join(PACK_DIR, "sqrt-real.pack.yaml"),
     os.path.join(PACK_DIR, "algebra-distribute.pack.yaml"),
+    os.path.join(PACK_DIR, "sequence-order.pack.yaml"),
     os.path.join(PACK_DIR, "real-closure.pack.yaml"),
     os.path.join(PACK_DIR, "arithmetic.pack.yaml"),
     os.path.join(PACK_DIR, "geometry-ontology.pack.yaml"),
     os.path.join(PACK_DIR, "trigonometry.pack.yaml"),
     os.path.join(PACK_DIR, "geometry.pack.yaml"),
+    os.path.join(PACK_DIR, "engel-coins.pack.yaml"),
+    os.path.join(PACK_DIR, "engel-means.pack.yaml"),
+    os.path.join(PACK_DIR, "engel-blackboard.pack.yaml"),
 ]
 
 def _latest_snapshot_path():
@@ -305,6 +307,8 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
 
 
 def _runtime_namespace():
+    if "NatValueIndex" not in vars(M):
+        M.NatValueIndex = M.Tree(M.EmptyList)
     namespace = dict(vars(M))
     namespace.update(vars(Hmod))
     namespace.update(vars(Lmod))
@@ -329,6 +333,7 @@ def _runtime_namespace():
         "SuccLabel",
         "PairLabel",
         "TreeLabel",
+        "NatValueIndex",
     )
     for name in stable_machine_names:
         if name in vars(M):
@@ -343,13 +348,13 @@ def _print_summary(runtime, title: str):
     sys.stdout.flush()
 
 
-def _make_isreal_sqrt_case(name: str, nat_atom):
+def _make_isreal_sqrt_case(name, nat_atom):
     start = M.Pair(M.SqrtLabel, M.Pair(nat_atom, M.EmptyList))
     goal = M.Pair(M.IsRealLabel, M.Pair(start, M.EmptyList))
-    return name, start, goal
+    return name, start, goal, None, None
 
 
-def _make_real_closure_case(name: str, a, b, c):
+def _make_real_closure_case(name, a, b, c):
     sqrt_a = M.Pair(M.SqrtLabel, M.Pair(a, M.EmptyList))
     sqrt_b = M.Pair(M.SqrtLabel, M.Pair(b, M.EmptyList))
     sqrt_c = M.Pair(M.SqrtLabel, M.Pair(c, M.EmptyList))
@@ -366,127 +371,57 @@ def _make_real_closure_case(name: str, a, b, c):
     start = M.Knowledge(facts)()
     expr = M.Pair(M.ExprAddLabel, M.Pair(sqrt_a, M.Pair(M.Pair(M.ExprMulLabel, M.Pair(sqrt_b, M.Pair(sqrt_c, M.EmptyList))), M.EmptyList)))
     goal = M.Pair(M.IsRealLabel, M.Pair(expr, M.EmptyList))
-    return name, start, goal
+    return name, start, goal, None, None
 
 
-def _make_tao_problem_1_1_case(name: str):
-    triangle = Lmod.TaoProblem11TriangleLabel
-    facts = M.Pair(
-        M.Pair(
-            Lmod.GivenLabel,
-            M.Pair(
-                M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
-                M.EmptyList,
-            ),
-        ),
-        M.Pair(
-            M.Pair(
-                Lmod.NeedLabel,
-                M.Pair(
-                    M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                    M.EmptyList,
-                ),
-            ),
-            M.Pair(
-                M.Pair(
-                    Lmod.NeedLabel,
-                    M.Pair(
-                        M.Pair(Lmod.AnglesLabel, M.Pair(triangle, M.EmptyList)),
-                        M.EmptyList,
-                    ),
-                ),
-                M.Pair(
-                    M.Pair(
-                        Lmod.GivenLabel,
-                        M.Pair(
-                            M.Pair(
-                                Lmod.ArithmeticProgressionLabel,
-                                M.Pair(
-                                    M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                                    M.EmptyList,
-                                ),
-                            ),
-                            M.EmptyList,
-                        ),
-                    ),
-                    M.Pair(
-                        M.Pair(
-                            Lmod.GivenLabel,
-                            M.Pair(
-                                M.Pair(
-                                    Lmod.CommonDifferenceLabel,
-                                    M.Pair(
-                                        M.Pair(Lmod.SideLengthsLabel, M.Pair(triangle, M.EmptyList)),
-                                        M.EmptyList,
-                                    ),
-                                ),
-                                M.EmptyList,
-                            ),
-                        ),
-                        M.Pair(
-                            M.Pair(
-                                Lmod.GivenLabel,
-                                M.Pair(
-                                    M.Pair(Lmod.AreaLabel, M.Pair(triangle, M.EmptyList)),
-                                    M.EmptyList,
-                                ),
-                            ),
-                            M.EmptyList,
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    )
-    start = M.Knowledge(facts)()
-    goal = M.Pair(
-        Lmod.SolvedLabel,
-        M.Pair(
-            M.Pair(Lmod.TriangleLabel, M.Pair(triangle, M.EmptyList)),
-            M.EmptyList,
-        ),
-    )
-    return name, start, goal
-
-
-def _theorem_agenda(packs):
-    sqrt_pack = packs.by_name("sqrt-real")
-    closure_pack = packs.by_name("real-closure")
-    geometry_pack = packs.by_name("geometry")
+def _theorem_agenda(packs, filter_name=None):
     cases = []
-
-    if "tao_problem_1_1_triangle" in geometry_pack.examples:
-        start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
-        cases.append(("Tao Problem 1.1 AP triangle", start, goal))
-    else:
-        cases.append(_make_tao_problem_1_1_case("Tao Problem 1.1 AP triangle"))
-
-    if "branchy_real_closure_benchmark" in closure_pack.examples:
-        start, goal = closure_pack.examples["branchy_real_closure_benchmark"]
-        cases.append(("branchy real-closure proof", start, goal))
-
-    for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
-        if example_id in sqrt_pack.examples:
-            start, goal = sqrt_pack.examples[example_id]
-            label = example_id.replace("_real", "").replace("sqrt", "sqrt(") + ")"
-            cases.append((label, start, goal))
-
-    cases.append(_make_isreal_sqrt_case("sqrt(5)", M.five))
-    if "sqrt2_plus_sqrt3_times_sqrt5_real" in closure_pack.examples:
-        start, goal = closure_pack.examples["sqrt2_plus_sqrt3_times_sqrt5_real"]
-        cases.append(("sqrt(2) + sqrt(3)*sqrt(5) from real premises", start, goal))
+    if filter_name == None:
+        filter_name = "tao"
+    if filter_name in ("tao", "all"):
+        geometry_pack = packs.by_name("geometry")
+        if "tao_problem_1_1_triangle" in geometry_pack.examples:
+            start, goal = geometry_pack.examples["tao_problem_1_1_triangle"]
+            cases.append(("Tao Problem 1.1 metric structure", start, goal, None, None))
+    if filter_name in ("coin", "coins", "engel", "all"):
+        coin_pack = packs.by_name("engel-coins")
+        if "engel_hhhhh_to_hhttt" in coin_pack.examples:
+            start, goal = coin_pack.examples["engel_hhhhh_to_hhttt"]
+            cases.append(("Engel coins HHHHH to HHTTT", start, goal, coin_pack.rule_chain, coin_pack.phi))
+        if "engel_hhhhh_to_hhhtt" in coin_pack.examples:
+            start, goal = coin_pack.examples["engel_hhhhh_to_hhhtt"]
+            cases.append(("Engel coins HHHHH to HHHTT", start, goal, coin_pack.rule_chain, coin_pack.phi))
+    if filter_name in ("means", "e1", "engel-means", "all"):
+        means_pack = packs.by_name("engel-means")
+        if "engel_e1" in means_pack.examples:
+            start, goal = means_pack.examples["engel_e1"]
+            cases.append(("engel_e1", start, goal, means_pack.rule_chain, means_pack.phi))
+    if filter_name in ("blackboard", "e2", "engel-blackboard", "all"):
+        blackboard_pack = packs.by_name("engel-blackboard")
+        if "engel_e2_final_number_is_odd" in blackboard_pack.examples:
+            start, goal = blackboard_pack.examples["engel_e2_final_number_is_odd"]
+            cases.append(("engel_e2", start, goal, blackboard_pack.rule_chain, blackboard_pack.phi))
+    if filter_name in ("sqrt", "isreal", "sqrt-real", "real", "isreal_sqrt", "isreal-sqrt", "isreal(sqrt())", "all", "sqrt2", "sqrt3", "sqrt4"):
+        sqrt_pack = packs.by_name("sqrt-real")
+        for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
+            if filter_name in ("sqrt2", "sqrt3", "sqrt4"):
+                if (filter_name + "_real" == example_id) is False:
+                    continue
+            if example_id in sqrt_pack.examples:
+                start, goal = sqrt_pack.examples[example_id]
+                cases.append((example_id, start, goal, None, None))
     return cases
 
 
-def _run_theorem_agenda(runtime, cases, title: str, debug: bool = False):
+def _run_theorem_agenda(runtime, cases, title, debug=None):
     print(f"\n--- {title} ---")
     results = []
 
-    for label, start, goal in cases:
+    for label, start, goal, rules, phi in cases:
         if debug:
             print(f"\nDEBUG: theorem-case start: {label}")
         start_time = time.time()
-        derivation = runtime.prove(start, goal)
+        derivation = runtime.prove(start, goal, rules, None, phi)
         elapsed = time.time() - start_time
         paused_comparison = _first_paused_search_comparison_job(runtime.graph)
         if M.Compare(paused_comparison, M.EmptyList)() is not M.truth_value:
@@ -494,18 +429,569 @@ def _run_theorem_agenda(runtime, cases, title: str, debug: bool = False):
         paused_job = _first_paused_search_job(runtime.graph)
         if M.Compare(paused_job, M.EmptyList)() is not M.truth_value:
             raise PausedSearchRequested(label, paused_job, elapsed)
-        proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
-        results.append((label, proved, elapsed, goal, derivation))
-
-        if proved:
-            print(f"{label}: proved in {elapsed} seconds")
+        if Imod.IsUnreachable(derivation)() is M.truth_value:
+            results.append((label, False, elapsed, goal, derivation))
+            print(f"{label}: Unreachable in {elapsed} seconds")
         else:
-            print(f"{label}: not proved after {elapsed} seconds")
+            proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
+            results.append((label, proved, elapsed, goal, derivation))
+            if proved:
+                print(f"{label}: proved in {elapsed} seconds")
+            else:
+                print(f"{label}: not proved after {elapsed} seconds")
 
     return results
 
 
-def run_cold_mode(debug: bool = False):
+
+
+def _search_worker_result_manifest_path(result_path: str):
+    return result_path + ".manifest.json"
+
+
+def _search_worker_mode_label(mode_text: str):
+    if mode_text == "dfs":
+        return M.DFSLabel
+    if mode_text == "bfs":
+        return M.BFSLabel
+    if mode_text == "astar":
+        return M.AStarLabel
+    if mode_text == "beam":
+        return M.BeamLabel
+    if mode_text == "rewritedfs":
+        return M.RewriteDFSLabel
+    raise RuntimeError("unknown search-worker mode: " + mode_text)
+
+
+def _search_worker_mode_heuristic(runtime, mode_text: str, registry):
+    base = runtime.theorem_heuristic
+    mode = _search_worker_mode_label(mode_text)
+    beam_width = Hmod.HeuristicBeamWidth(base)()
+    if M.IdentityCompare(mode, M.BeamLabel)() is M.truth_value:
+        if M.NatEq(beam_width, M.Zero, registry)() is M.truth_value:
+            beam_width = M.three
+    return Hmod.Heuristic(
+        mode,
+        Hmod.HeuristicRuleOrder(base)(),
+        beam_width,
+        Hmod.HeuristicAlpha(base)(),
+        Hmod.HeuristicBeta(base)(),
+        Hmod.HeuristicCanonicalStrength(base)(),
+    )()
+
+
+def _gmp_atom_from_int(value: int):
+    atom = M.Atom()
+    atom.value = M.GMPRep(str(value))
+    return atom
+
+
+def _string_atom(text: str):
+    atom = M.Atom()
+    atom.value = text
+    return atom
+
+
+def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, registry):
+    cases = _theorem_agenda(packs)
+    manifest_path = _search_worker_result_manifest_path(result_path)
+    if os.path.exists(manifest_path) is False:
+        return cases[0]
+    with open(manifest_path, "r", encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    expected_start_text = manifest.get("start_text", "")
+    expected_goal_text = manifest.get("goal_text", "")
+    case_index = 0
+    while case_index != len(cases):
+        label, start, goal, _rules, _phi = cases[case_index]
+        candidate_start = Hmod.HeuristicCanonicalize(start, heuristic, registry)()
+        candidate_goal = Hmod.HeuristicCanonicalize(goal, heuristic, registry)()
+        if M.PrettyTerm(candidate_start, registry)() == expected_start_text:
+            if M.PrettyTerm(candidate_goal, registry)() == expected_goal_text:
+                return label, start, goal
+        case_index = case_index + 1
+    return cases[0]
+
+
+class _SearchWorkerResultGraph:
+    pass
+
+
+
+
+def _search_worker_result_registry(runtime, attempt, performance, worker_stage=None, worker_plan=None):
+    base_registry = runtime.graph.constructor_registry
+    pruned_registry = M.Tree(M.EmptyList)
+    seen = set()
+    stack = [attempt, performance]
+    if worker_stage is not None:
+        stack.append(worker_stage)
+    if worker_plan is not None:
+        stack.append(worker_plan)
+    while stack:
+        current = stack.pop()
+        if current is None:
+            continue
+        current_identity = id(current)
+        if current_identity in seen:
+            continue
+        seen.add(current_identity)
+        try:
+            if M.IsPair(current)() is M.truth_value:
+                stack.append(M.Head(current)())
+                stack.append(M.Tail(current)())
+                continue
+        except Exception:
+            pass
+        try:
+            constructor = M.GetConstructor(current, base_registry)()
+        except Exception:
+            constructor = M.EmptyList
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.TreeLookup(pruned_registry, current, base_registry)(), M.EmptyList)() is M.truth_value:
+                pruned_registry = M.TreeInsert(pruned_registry, current, constructor, base_registry)()
+            stack.append(M.Head(constructor)())
+            stack.append(M.Tail(constructor)())
+    return pruned_registry
+
+def _search_worker_result_graph(runtime, attempt, performance, worker_stage=None, worker_plan=None):
+    graph = _SearchWorkerResultGraph()
+    graph.constructor_registry = _search_worker_result_registry(runtime, attempt, performance, worker_stage, worker_plan)
+    graph.all_rules = M.EmptyList
+    graph.rule_order = M.EmptyList
+    graph.derivations = M.EmptyList
+    graph.derivation_schemata = M.EmptyList
+    graph.search_history = M.Pair(attempt, M.EmptyList)
+    graph.search_comparisons = M.Pair(performance, M.EmptyList)
+    graph.search_comparison_jobs = M.EmptyList
+    graph.search_jobs = M.EmptyList
+    graph.search_memo = M.EmptyList
+    graph.nat_value_index = runtime.graph.nat_value_index
+    return graph
+
+
+def _search_worker_derivation_lock_path(result_path: str):
+    return os.path.join(os.path.dirname(result_path) or ".", "search_worker_derivation.lock")
+
+
+def _search_worker_acquire_derivation_lock(result_path: str, timeout_seconds: int):
+    lock_path = _search_worker_derivation_lock_path(result_path)
+    stale_after_seconds = timeout_seconds + 60
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            try:
+                os.write(fd, str(os.getpid()).encode("utf-8"))
+            finally:
+                os.close(fd)
+            return lock_path
+        except FileExistsError:
+            try:
+                lock_age = time.time() - os.path.getmtime(lock_path)
+            except OSError:
+                lock_age = 0.0
+            if lock_age > stale_after_seconds:
+                try:
+                    os.remove(lock_path)
+                    continue
+                except OSError:
+                    pass
+            time.sleep(0.2)
+
+
+def _search_worker_release_derivation_lock(lock_path: str):
+    try:
+        os.remove(lock_path)
+    except OSError:
+        pass
+
+
+def _search_worker_store_result(runtime, result_path: str, attempt, performance, worker_stage=None, worker_plan=None):
+    if worker_stage == None:
+        worker_stage = _string_atom("")
+    if worker_plan == None:
+        worker_plan = M.EmptyList
+    if M.Compare(worker_plan, M.EmptyList)() is M.truth_value:
+        if os.path.exists(result_path):
+            try:
+                state = SnapshotCodec(_runtime_namespace()).load(result_path)
+                existing_plan = state.roots.get("worker_plan", M.EmptyList)
+                if M.Compare(existing_plan, M.EmptyList)() is M.false_value:
+                    worker_plan = existing_plan
+            except Exception:
+                pass
+    os.makedirs(os.path.dirname(result_path) or ".", exist_ok=True)
+    codec = SnapshotCodec(_runtime_namespace())
+    snapshot = codec.capture(
+        _search_worker_result_graph(runtime, attempt, performance),
+        extra_roots={
+            "worker_stage": worker_stage,
+            "worker_plan": worker_plan,
+        },
+    )
+    temp_path = result_path + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(snapshot, handle, ensure_ascii=False, indent=2)
+    os.replace(temp_path, result_path)
+
+
+def _search_worker_stage_text(value):
+    if value is None:
+        return ""
+    if M.Compare(value, M.EmptyList)() is M.truth_value:
+        return ""
+    try:
+        return str(value())
+    except Exception:
+        return ""
+
+
+def _search_worker_resume_state(result_path: str, start, goal, heuristic, registry=None):
+    if registry == None:
+        registry = M.AllConstructors
+    if os.path.exists(result_path) is False:
+        return M.EmptyList, M.EmptyList, 0, ""
+    try:
+        state = SnapshotCodec(_runtime_namespace()).load(result_path)
+    except Exception:
+        return M.EmptyList, M.EmptyList, 0, ""
+    attempts = state.roots.get("search_history", M.EmptyList)
+    if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    attempt = M.Head(attempts)()
+    if M.IdentityCompare(M.CompareIn(P.SearchAttemptStart(attempt)(), start, registry)(), M.false_value)() is M.truth_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    if M.IdentityCompare(M.CompareIn(P.SearchAttemptGoal(attempt)(), goal, registry)(), M.false_value)() is M.truth_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    if M.IdentityCompare(M.CompareIn(P.SearchAttemptHeuristic(attempt)(), heuristic, registry)(), M.false_value)() is M.truth_value:
+        return M.EmptyList, M.EmptyList, 0, ""
+    performances = state.roots.get("search_comparisons", M.EmptyList)
+    elapsed_milliseconds = 0
+    if M.IdentityCompare(performances, M.EmptyList)() is M.false_value:
+        performance = M.Head(performances)()
+        elapsed = Smod.HeuristicPerformanceElapsedMilliseconds(performance)()
+        try:
+            elapsed_milliseconds = int(M.GMPRepText(elapsed())())
+        except Exception:
+            elapsed_milliseconds = 0
+    worker_stage = state.roots.get("worker_stage", M.EmptyList)
+    worker_plan = state.roots.get("worker_plan", M.EmptyList)
+    worker_stage_text = _search_worker_stage_text(worker_stage)
+    if worker_stage_text == "success-plan-found":
+        return worker_plan, P.SearchAttemptSearchCost(attempt)(), elapsed_milliseconds, worker_stage_text
+    if worker_stage_text == "running-derivation":
+        return worker_plan, P.SearchAttemptSearchCost(attempt)(), elapsed_milliseconds, worker_stage_text
+    return M.EmptyList, M.EmptyList, elapsed_milliseconds, worker_stage_text
+
+
+def _search_worker_attempt(runtime, start, goal, heuristic, status, derivation, proof_cost, search_cost, elapsed_milliseconds, completion_reason):
+    registry = M.FromContextGetConstructors(runtime.graph)()
+    total_cost_pair = P.BuildTotalCost(proof_cost, search_cost, heuristic, registry)()
+    total_cost = M.Head(total_cost_pair)()
+    registry = M.Head(M.Tail(total_cost_pair)())()
+    runtime.graph._replace_context(constructors=registry)
+    attempt = P.SearchAttempt(start, goal, heuristic, status, derivation, proof_cost, search_cost, total_cost)()
+    performance = Smod.HeuristicPerformance(
+        attempt,
+        _gmp_atom_from_int(elapsed_milliseconds),
+        _gmp_atom_from_int(os.getpid()),
+        completion_reason,
+    )()
+    return attempt, performance
+
+
+def _search_worker_checkpoint(runtime, result_path, start, goal, heuristic, status, derivation, proof_cost, search_cost, elapsed_milliseconds, completion_reason_text, worker_plan=None):
+    completion_reason = _string_atom(completion_reason_text)
+    attempt, performance = _search_worker_attempt(
+        runtime,
+        start,
+        goal,
+        heuristic,
+        status,
+        derivation,
+        proof_cost,
+        search_cost,
+        elapsed_milliseconds,
+        completion_reason,
+    )
+    _search_worker_store_result(
+        runtime,
+        result_path,
+        attempt,
+        performance,
+        _string_atom(completion_reason_text),
+        worker_plan,
+    )
+    return attempt, performance
+
+
+def _maybe_set_search_worker_memory_limit():
+    memory_text = os.environ.get("HYGE_SEARCH_WORKER_MEMORY_MB", "")
+    if memory_text == "":
+        return
+    try:
+        memory_megabytes = int(memory_text)
+    except Exception:
+        return
+    if memory_megabytes <= 0:
+        return
+    try:
+        import resource
+    except Exception:
+        return
+    limit_bytes = memory_megabytes * 1024 * 1024
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+    except Exception:
+        pass
+
+
+def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
+    P.SetDebugTrace(M.truth_value)()
+    _maybe_set_search_worker_memory_limit()
+    resume_derivation_only = os.environ.get("HYGE_SEARCH_WORKER_RESUME_DERIVATION", "") == "1"
+    if resume_derivation_only:
+        runtime = boot_from_snapshot(result_path, _runtime_namespace())
+        registry = M.FromContextGetConstructors(runtime.graph)()
+        attempts = runtime.graph.search_history
+        if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
+            raise RuntimeError("search-worker resume missing-attempt")
+        attempt = M.Head(attempts)()
+        worker_heuristic = P.SearchAttemptHeuristic(attempt)()
+        start = P.SearchAttemptStart(attempt)()
+        goal = P.SearchAttemptGoal(attempt)()
+        label = "resumed derivation checkpoint"
+    else:
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        registry = M.FromContextGetConstructors(runtime.graph)()
+        worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
+        label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
+        start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
+        goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+    runtime.graph._search_disable_console = M.truth_value
+    runtime.graph._search_disable_progress_ticker = M.false_value
+    runtime.graph._search_stop_help_shown = M.truth_value
+    runtime.graph._search_compare_enable_shared_root_fast_paths = M.false_value
+    runtime.graph._search_compare_ignore_root_fast_paths = M.false_value
+    runtime.graph._search_compare_root_start = M.EmptyList
+    runtime.graph._search_compare_root_goal = M.EmptyList
+    runtime.graph._search_compare_discovery_mode = M.false_value
+    runtime.graph._search_probe_disable_applicable_cache = M.false_value
+    runtime.graph._search_probe_disable_applicable_shards = M.truth_value
+    runtime.graph._search_worker_timeout_seconds = float(timeout_seconds)
+    defer_derivation = os.environ.get("HYGE_SEARCH_WORKER_DEFER_DERIVATION", "") == "1"
+    runtime.graph._search_worker_defer_derivation_materialization = M.truth_value if defer_derivation else M.false_value
+    mode_label = _search_worker_mode_label(worker_mode)
+    mode_name = Smod.SearchModeText(mode_label)()
+    P.DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE.value = M.truth_value
+    P._debug(mode_name + ": search-worker booted")
+    P._debug(mode_name + ": search-worker problem=" + label)
+    defer_derivation = os.environ.get("HYGE_SEARCH_WORKER_DEFER_DERIVATION", "") == "1"
+    started_at = time.time()
+    base_elapsed_milliseconds = 0
+    outcome = M.SearchFailureLabel
+    derivation = M.EmptyList
+    proof_cost = P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+    search_cost_pair = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, M.SearchRunningLabel, registry)()
+    search_cost = M.Head(search_cost_pair)()
+    resume_plan, resume_search_cost, resume_elapsed_milliseconds, resume_stage_text = _search_worker_resume_state(
+        result_path,
+        start,
+        goal,
+        worker_heuristic,
+        registry,
+    )
+    if resume_derivation_only:
+        if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+            raise RuntimeError("search-worker resume missing-plan")
+    if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+        P._debug(mode_name + ": saving checkpoint stage=running-search")
+        _search_worker_checkpoint(
+            runtime,
+            result_path,
+            start,
+            goal,
+            worker_heuristic,
+            M.SearchRunningLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            0,
+            "running-search",
+        )
+        P._debug(mode_name + ": checkpoint saved stage=running-search")
+    else:
+        base_elapsed_milliseconds = resume_elapsed_milliseconds
+        search_cost = resume_search_cost
+        P._debug(mode_name + ": resuming derivation build from checkpoint stage=" + resume_stage_text)
+    error_text = ""
+    plan = M.EmptyList
+    try:
+        if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
+            if resume_derivation_only:
+                raise RuntimeError("search-worker resume missing-plan")
+            search_pair = Smod.Search(runtime.graph, start, goal, runtime.ordered_rules(), worker_heuristic, registry)()
+            plan = M.Head(search_pair)()
+            search_cost = M.Head(M.Tail(search_pair)())()
+            registry = M.FromContextGetConstructors(runtime.graph)()
+            outcome = Smod.SearchCostOutcome(search_cost)()
+            elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
+            if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.truth_value:
+                P._debug(mode_name + ": goal reached; saving checkpoint stage=success-plan-found")
+                _search_worker_checkpoint(
+                    runtime,
+                    result_path,
+                    start,
+                    goal,
+                    worker_heuristic,
+                    M.SearchSuccessLabel,
+                    M.EmptyList,
+                    proof_cost,
+                    search_cost,
+                    elapsed_milliseconds,
+                    "success-plan-found",
+                    plan,
+                )
+                P._debug(mode_name + ": checkpoint saved stage=success-plan-found")
+                P._debug(mode_name + ": saving checkpoint stage=running-derivation")
+                _search_worker_checkpoint(
+                    runtime,
+                    result_path,
+                    start,
+                    goal,
+                    worker_heuristic,
+                    M.SearchSuccessLabel,
+                    M.EmptyList,
+                    proof_cost,
+                    search_cost,
+                    elapsed_milliseconds,
+                    "running-derivation",
+                    plan,
+                )
+                P._debug(mode_name + ": checkpoint saved stage=running-derivation")
+                if defer_derivation:
+                    P._debug(mode_name + ": awaiting approval before derivation replay")
+                    return 4
+            if M.IdentityCompare(outcome, M.SearchSuccessLabel)() is M.false_value:
+                final_reason = "failure-search"
+                if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
+                    final_reason = "timed_out"
+                _search_worker_checkpoint(
+                    runtime,
+                    result_path,
+                    start,
+                    goal,
+                    worker_heuristic,
+                    outcome,
+                    M.EmptyList,
+                    proof_cost,
+                    search_cost,
+                    elapsed_milliseconds,
+                    final_reason,
+                    M.EmptyList,
+                )
+                if M.IdentityCompare(outcome, M.SearchTimedOutLabel)() is M.truth_value:
+                    return 2
+                return 1
+        else:
+            plan = resume_plan
+            outcome = M.SearchSuccessLabel
+            elapsed_milliseconds = base_elapsed_milliseconds
+            if resume_derivation_only:
+                pass
+            else:
+                if defer_derivation:
+                    if resume_stage_text == "success-plan-found":
+                        P._debug(mode_name + ": saving checkpoint stage=running-derivation")
+                        _search_worker_checkpoint(
+                            runtime,
+                            result_path,
+                            start,
+                            goal,
+                            worker_heuristic,
+                            M.SearchSuccessLabel,
+                            M.EmptyList,
+                            proof_cost,
+                            search_cost,
+                            elapsed_milliseconds,
+                            "running-derivation",
+                            plan,
+                        )
+                        P._debug(mode_name + ": checkpoint saved stage=running-derivation")
+                    P._debug(mode_name + ": awaiting approval before derivation replay")
+                    return 4
+        derivation_lock_path = _search_worker_acquire_derivation_lock(result_path, timeout_seconds)
+        P._debug(mode_name + ": acquired derivation lock")
+        try:
+            P._debug(mode_name + ": starting derivation replay")
+            derivation_pair = P.BuildDerivation(start, plan, registry)()
+            derivation = M.Head(derivation_pair)()
+            registry = M.Head(M.Tail(derivation_pair)())()
+            runtime.graph._replace_context(constructors=registry)
+            proof_cost_pair = P.DerivationCost(derivation, registry)()
+            proof_cost = M.Head(proof_cost_pair)()
+            registry = M.Head(M.Tail(proof_cost_pair)())()
+            runtime.graph._replace_context(constructors=registry)
+            runtime.graph.add_derivation(start, goal, derivation)
+            elapsed_milliseconds = base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0))
+        finally:
+            _search_worker_release_derivation_lock(derivation_lock_path)
+            P._debug(mode_name + ": released derivation lock")
+    except MemoryError:
+        error_text = "failure-memory-error"
+        P._debug(mode_name + ": worker error=" + error_text)
+        _search_worker_checkpoint(
+            runtime,
+            result_path,
+            start,
+            goal,
+            worker_heuristic,
+            M.SearchSuccessLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0)),
+            "running-derivation",
+            plan,
+        )
+        return 1
+    except Exception as error:
+        error_text = error.__class__.__name__ + ": " + str(error)
+        P._debug(mode_name + ": worker error=" + error_text)
+        _search_worker_checkpoint(
+            runtime,
+            result_path,
+            start,
+            goal,
+            worker_heuristic,
+            M.SearchFailureLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            base_elapsed_milliseconds + int(round((time.time() - started_at) * 1000.0)),
+            error_text,
+            plan,
+        )
+        return 1
+    P._debug(mode_name + ": saving checkpoint stage=success-derivation-built")
+    _search_worker_checkpoint(
+        runtime,
+        result_path,
+        start,
+        goal,
+        worker_heuristic,
+        M.SearchSuccessLabel,
+        derivation,
+        proof_cost,
+        search_cost,
+        elapsed_milliseconds,
+        "success-derivation-built",
+        plan,
+    )
+    P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
+    return 0
+
+def run_cold_mode(debug: bool = False, filter_name: str = "tao"):
     if debug:
         P.SetDebugTrace(M.truth_value)()
     else:
@@ -528,7 +1014,7 @@ def run_cold_mode(debug: bool = False):
         print("loaded pack:", pack_info)
 
     try:
-        theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs), "Cold theorem agenda", debug=debug)
+        theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs, filter_name), "Cold theorem agenda", debug=debug)
     except PausedComparisonRequested as paused:
         print(paused.label + ": comparison paused after " + str(paused.elapsed) + " seconds")
         _save_snapshot_now(runtime, runtime_namespace)
@@ -607,7 +1093,6 @@ def run_warm_mode(debug: bool = False):
         theorem_results = _run_theorem_agenda(
             runtime,
             [
-                _make_tao_problem_1_1_case("Tao Problem 1.1 AP triangle"),
                 ("branchy real-closure proof", branchy_start, branchy_goal),
                 _make_isreal_sqrt_case("sqrt(3)", M.three),
                 _make_isreal_sqrt_case("sqrt(4)", M.four),
@@ -764,16 +1249,12 @@ def main():
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, or inspect",
+        choices=["cold", "warm", "test", "inspect", "search-worker"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, or search-worker",
     )
-    parser.add_argument(
-        "debug",
-        nargs="?",
-        default=None,
-        choices=["debug"],
-        help="Pass 'debug' as a second argument to enable debug output.",
-    )
+    parser.add_argument("arg1", nargs="?", default=None)
+    parser.add_argument("arg2", nargs="?", default=None)
+    parser.add_argument("arg3", nargs="?", default=None)
     parser.add_argument("--port", type=int, default=INSPECTOR_DEFAULT_PORT, help="Inspector port for inspect mode.")
     parser.add_argument(
         "--max-rule-edges",
@@ -792,11 +1273,12 @@ def main():
         help="For inspect mode, boot from packs even if a snapshot exists.",
     )
     args = parser.parse_args()
-    debug_enabled = args.debug == "debug"
+    debug_enabled = args.arg1 == "debug"
+    filter_name = args.arg2 if debug_enabled else args.arg1
 
     try:
         if args.mode == "cold":
-            run_cold_mode(debug_enabled)
+            run_cold_mode(debug_enabled, filter_name)
         elif args.mode == "warm":
             run_warm_mode(debug_enabled)
         elif args.mode == "inspect":
@@ -807,6 +1289,13 @@ def main():
                 max_rule_edges=args.max_rule_edges,
                 open_browser=not args.no_browser,
             )
+        elif args.mode == "search-worker":
+            if args.arg1 is None or args.arg2 is None:
+                raise RuntimeError("search-worker requires MODE and RESULT_PATH")
+            timeout_seconds = 600
+            if args.arg3 is not None:
+                timeout_seconds = int(args.arg3)
+            raise SystemExit(run_search_worker_mode(args.arg1, args.arg2, timeout_seconds))
         else:
             run_test_mode(debug_enabled)
     except KeyboardInterrupt:

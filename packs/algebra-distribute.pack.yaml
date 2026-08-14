@@ -5,6 +5,9 @@ name: algebra-distribute
 description: Tiny rewrite pack for distributivity and multiplication associativity
 requires: []
 
+phi:
+  list: []
+
 rules:
   - id: distribute_right
     pattern:
@@ -53,6 +56,392 @@ rules:
                 - {var: a}
                 - {var: b}
           - {var: c}
+
+  - id: mul_of_fracs
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprFracLabel}, args: [{var: c}, {var: d}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: d}]}
+
+  - id: mul_times_frac
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: a}
+          - call: {head: {sym: ExprFracLabel}, args: [{var: b}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - {var: c}
+
+  - id: frac_times_mul
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - {var: c}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+          - {var: b}
+
+  - id: cancel_mul_den_right
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - {var: b}
+    replacement: {var: a}
+
+  - id: cancel_mul_den_left
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - {var: a}
+    replacement: {var: b}
+
+  - id: cancel_shared_right
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+    replacement:
+      call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: c}]}
+
+  - id: cancel_shared_left
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+    replacement:
+      call: {head: {sym: ExprFracLabel}, args: [{var: b}, {var: c}]}
+
+  - id: cancel_cross
+    pattern:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: a}]}
+    replacement:
+      call: {head: {sym: ExprFracLabel}, args: [{var: b}, {var: c}]}
+
+  - id: mul_two_to_add
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {sym: two}
+          - {var: a}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - {var: a}
+          - {var: a}
+
+  - id: eq_clear_frac
+    pattern:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - {var: c}
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - {var: a}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: c}]}
+
+  - id: eq_add_cancel
+    pattern:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - {var: b}
+          - {var: c}
+
+  - id: neg_of_frac
+    pattern:
+      call:
+        head: {sym: ExprNegLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call: {head: {sym: ExprNegLabel}, args: [{var: a}]}
+          - {var: b}
+
+  - id: add_frac_neg_frac
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - call:
+              head: {sym: ExprNegLabel}
+              args:
+                - call: {head: {sym: ExprFracLabel}, args: [{var: c}, {var: d}]}
+    replacement:
+      call:
+        head: {sym: ExprFracLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: d}]}
+                - call:
+                    head: {sym: ExprNegLabel}
+                    args:
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: d}]}
+
+  - id: expand_sum_square
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {sym: two}
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
+
+  - id: square_of_difference
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                - call:
+                    head: {sym: ExprNegLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprMulLabel}
+                          args:
+                            - {sym: two}
+                            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: x}, {call: {head: {sym: ExprNegLabel}, args: [{var: y}]}}]}
+
+  - id: mul_trailing_two
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: a}]}
+          - {sym: two}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {sym: two}]}
+          - {var: a}
+
+  - id: mul_swap_two_right
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: a}
+          - {sym: two}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {sym: two}
+          - {var: a}
+
+  - id: mul_pull_two
+    pattern:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {var: a}
+          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: b}]}
+    replacement:
+      call:
+        head: {sym: ExprMulLabel}
+        args:
+          - {sym: two}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: b}]}
+
+  - id: num_xx_2xy_yy_minus_4xy
+    pattern:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call:
+                    head: {sym: ExprAddLabel}
+                    args:
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                      - call:
+                          head: {sym: ExprMulLabel}
+                          args:
+                            - {sym: two}
+                            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+                - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
+          - call:
+              head: {sym: ExprNegLabel}
+              args:
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {sym: two}]}
+                      - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: x}]}
+                - call:
+                    head: {sym: ExprNegLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprMulLabel}
+                          args:
+                            - {sym: two}
+                            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: y}, {var: y}]}
+
+  - id: lt_cross_mul
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprFracLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprFracLabel}, args: [{var: c}, {var: d}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: d}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+
+  - id: lt_cancel_left_factor
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: a}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: c}, {var: b}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {var: a}
+          - {var: b}
+
+  - id: lt_cancel_right_factor
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprMulLabel}, args: [{var: a}, {var: c}]}
+          - call: {head: {sym: ExprMulLabel}, args: [{var: b}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {var: a}
+          - {var: b}
+
+  - id: lt_add_cancel_left
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: b}]}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: c}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {var: b}
+          - {var: c}
+
+  - id: lt_neg_vs_self
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - call: {head: {sym: ExprNegLabel}, args: [{var: a}]}
+          - {var: a}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {sym: Zero}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: a}]}
+
+  - id: lt_zero_double
+    pattern:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {sym: Zero}
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: a}]}
+    replacement:
+      call:
+        head: {sym: ExprLtLabel}
+        args:
+          - {sym: Zero}
+          - {var: a}
 
 examples:
   - id: distrib_assoc_demo

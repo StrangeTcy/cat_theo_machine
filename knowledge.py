@@ -18,6 +18,59 @@ class HeadBucketKey(M.Edge):
         return self.result
 
 
+class KnowledgeHeadBucket(M.Edge):
+    def __init__(self, size, facts):
+        self.result = M.Pair(L.KnowledgeHeadBucketLabel, M.Pair(size, M.Pair(facts, M.EmptyList)))
+        super().__init__(inputs=M.Pair(size, M.Pair(facts, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsKnowledgeHeadBucket(M.Edge):
+    def __init__(self, bucket):
+        if M.IsPair(bucket)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(bucket)(), L.KnowledgeHeadBucketLabel)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = M.false_value
+        super().__init__(inputs=M.Pair(bucket, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class KnowledgeHeadBucketSize(M.Edge):
+    def __init__(self, bucket, registry):
+        self.registry = registry
+        if IsKnowledgeHeadBucket(bucket)() is M.truth_value:
+            self.result = M.Head(M.Tail(bucket)())()
+        elif M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
+            self.result = M.Zero
+        else:
+            count_pair = M.Count(bucket, registry)()
+            self.result = M.Head(count_pair)()
+        super().__init__(inputs=M.Pair(bucket, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class KnowledgeHeadBucketFacts(M.Edge):
+    def __init__(self, bucket):
+        if IsKnowledgeHeadBucket(bucket)() is M.truth_value:
+            self.result = M.Head(M.Tail(M.Tail(bucket)())())()
+        elif M.IdentityCompare(bucket, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = bucket
+        super().__init__(inputs=M.Pair(bucket, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class KnowledgeHeadIndexConsistent(M.Edge):
     def __init__(self, index, facts, registry):
         self.registry = registry
@@ -162,11 +215,13 @@ class KnowledgeHeadIndexInsert(M.Edge):
         self.registry = registry
         head = HeadBucketKey(fact, registry)()
         existing = M.TreeLookup(index, head, registry)()
-        if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
-            bucket = M.Pair(fact, M.EmptyList)
-        else:
-            bucket = M.Pair(fact, existing)
-        self.result = M.TreeInsert(index, head, bucket, registry)()
+        existing_facts = KnowledgeHeadBucketFacts(existing)()
+        existing_size = KnowledgeHeadBucketSize(existing, registry)()
+        next_size_pair = M.Succ(existing_size, registry)()
+        next_size = M.Head(next_size_pair)()
+        self.registry = M.Head(M.Tail(next_size_pair)())()
+        bucket = KnowledgeHeadBucket(next_size, M.Pair(fact, existing_facts))()
+        self.result = M.TreeInsert(index, head, bucket, self.registry)()
         super().__init__(inputs=M.Pair(index, M.Pair(fact, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def __call__(self):
@@ -194,10 +249,19 @@ class KnowledgeHeadIndexBucket(M.Edge):
         self.registry = registry
         key = HeadBucketKey(term, registry)()
         found = M.TreeLookup(index, key, registry)()
-        if M.IdentityCompare(found, M.EmptyList)() is M.truth_value:
-            self.result = M.EmptyList
-        else:
-            self.result = found
+        self.result = KnowledgeHeadBucketFacts(found)()
+        super().__init__(inputs=M.Pair(index, M.Pair(term, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class KnowledgeHeadIndexBucketSize(M.Edge):
+    def __init__(self, index, term, registry):
+        self.registry = registry
+        key = HeadBucketKey(term, registry)()
+        found = M.TreeLookup(index, key, registry)()
+        self.result = KnowledgeHeadBucketSize(found, registry)()
         super().__init__(inputs=M.Pair(index, M.Pair(term, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def __call__(self):
@@ -206,7 +270,11 @@ class KnowledgeHeadIndexBucket(M.Edge):
 
 class RuleReplacementHead(M.Edge):
     def __init__(self, rule):
-        replacement = M.Head(M.Tail(M.EdgeInputs(rule)())())()
+        raw_rule = rule
+        if M.IsPair(rule)() is M.truth_value:
+            if M.IdentityCompare(M.Head(rule)(), L.CompiledRuleLabel)() is M.truth_value:
+                raw_rule = M.Head(M.Tail(rule)())()
+        replacement = M.Head(M.Tail(M.EdgeInputs(raw_rule)())())()
         if M.IsPair(replacement)() is M.truth_value:
             self.result = M.Head(replacement)()
         else:
@@ -219,7 +287,11 @@ class RuleReplacementHead(M.Edge):
 
 class RulePremiseHead(M.Edge):
     def __init__(self, rule):
-        premises = M.Head(M.EdgeInputs(rule)())()
+        raw_rule = rule
+        if M.IsPair(rule)() is M.truth_value:
+            if M.IdentityCompare(M.Head(rule)(), L.CompiledRuleLabel)() is M.truth_value:
+                raw_rule = M.Head(M.Tail(rule)())()
+        premises = M.Head(M.EdgeInputs(raw_rule)())()
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         else:
@@ -260,10 +332,14 @@ class RulesByHeadInsertChain(M.Edge):
         if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
             return index
         rule = M.Head(rules)()
+        raw_rule = rule
+        if M.IsPair(rule)() is M.truth_value:
+            if M.IdentityCompare(M.Head(rule)(), L.CompiledRuleLabel)() is M.truth_value:
+                raw_rule = M.Head(M.Tail(rule)())()
         if self._by_replacement is M.truth_value:
-            head = HeadBucketKey(M.Head(M.Tail(M.EdgeInputs(rule)())())(), self.registry)()
+            head = HeadBucketKey(M.Head(M.Tail(M.EdgeInputs(raw_rule)())())(), self.registry)()
         else:
-            premises = M.Head(M.EdgeInputs(rule)())()
+            premises = M.Head(M.EdgeInputs(raw_rule)())()
             if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
                 head = HeadBucketKey(M.EmptyList, self.registry)()
             else:
@@ -311,8 +387,12 @@ class RulesByHeadBucket(M.Edge):
 
 class MatchMemoKey(M.Edge):
     def __init__(self, rule, remaining_premises, bucket_root, registry):
+        raw_rule = rule
+        if M.IsPair(rule)() is M.truth_value:
+            if M.IdentityCompare(M.Head(rule)(), L.CompiledRuleLabel)() is M.truth_value:
+                raw_rule = M.Head(M.Tail(rule)())()
         bucket_key = M.ExactKey(bucket_root, registry)()
-        self.result = M.Pair(rule, M.Pair(remaining_premises, M.Pair(bucket_key, M.EmptyList)))
+        self.result = M.Pair(raw_rule, M.Pair(remaining_premises, M.Pair(bucket_key, M.EmptyList)))
         super().__init__(inputs=M.Pair(rule, M.Pair(remaining_premises, M.Pair(bucket_root, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):

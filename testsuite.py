@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import pickle
 import queue
+import shutil
 import sys
 import tempfile
 
@@ -13,13 +15,15 @@ from . import labels as Lmod
 from . import matching as Xmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
+from . import rewrite_strategies as RSmod
+from . import invariance as Imod
 from . import search as Smod
 from . import theorem_rules as Theoremmod
 from . import trees as Tmod
 from .graph import Test
 from .persistence import SnapshotCodec
 from .proof import BuildDerivation, CollectRules, Rule, RulePremises, RuleReplacement
-from .runtime import boot_from_snapshot, make_fresh_runtime, save_runtime
+from .runtime import boot_from_packs, boot_from_snapshot, make_fresh_runtime, save_runtime
 from .search import (
     SearchComparisonJobOutcome,
     SearchComparisonJobStates,
@@ -102,6 +106,331 @@ class IsNonZero(M.Edge):
         else:
             self.result = M.truth_value
         super().__init__(inputs=M.Pair(x, M.EmptyList), results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class RewriteStrategyGoalDemandAllowsGoalHeadTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        a = M.Char("a")
+        b = M.Char("b")
+        goal = M.Pair(M.ExprAddLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+        goal_head_index = Hmod.HeuristicGoalHeadNeighborhood(goal, M.EmptyList, registry)()
+        strategy = RSmod.GoalDemandRewriteStrategy()()
+        allowed = RSmod.RewriteStrategyAllowsSubterm(strategy, goal_head_index, goal, registry)()
+        denied = RSmod.RewriteStrategyAllowsSubterm(
+            strategy,
+            goal_head_index,
+            M.Pair(M.SqrtLabel, M.Pair(a, M.EmptyList)),
+            registry,
+        )()
+        self.result = M.truth_value
+        if M.IdentityCompare(allowed, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(denied, M.false_value)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class PrettyPrintNamedTaoQuantityTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        term = M.Pair(Lmod.APShortSideLabel, M.Pair(Lmod.TaoProblem11TriangleLabel, M.EmptyList))
+        text = M.PrettyTerm(term, registry)()
+        self.result = M.truth_value
+        if text != "APShortSide(Tao Problem 1.1 triangle)":
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class TaoGeometryExampleGoalsUseNamedQuantitiesTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        registry = _registry(runtime.graph)
+        examples = packs.by_name("geometry").examples
+        side_goal = examples["tao_problem_1_1_triangle"][1]
+        angle_goal = examples["tao_angle_identity"][1]
+        positive_goal = examples["tao_positive_alpha_side"][1]
+        area_goal = examples["tao_area_identity"][1]
+        cosine_goal = examples["tao_cosine_angle_identity"][1]
+        self.result = M.truth_value
+        if M.PrettyTerm(side_goal, registry)() != "Length(Segment(v, w), APShortSide(Tao Problem 1.1 triangle))":
+            self.result = M.false_value
+        elif M.PrettyTerm(angle_goal, registry)() != "AngleMeasure(Angle(v, u, w), APAngleValue(Tao Problem 1.1 triangle, Angle(v, u, w)))":
+            self.result = M.false_value
+        elif M.PrettyTerm(positive_goal, registry)() != "Positive(APShortSide(Tao Problem 1.1 triangle))":
+            self.result = M.false_value
+        elif M.PrettyTerm(area_goal, registry)() != "APAreaIdentity(Tao Problem 1.1 triangle)":
+            self.result = M.false_value
+        elif M.PrettyTerm(cosine_goal, registry)() != "CosineRuleRelates(APShortSide(Tao Problem 1.1 triangle), APMiddleSide(Tao Problem 1.1 triangle), APLongSide(Tao Problem 1.1 triangle), APAngleValue(Tao Problem 1.1 triangle, Angle(v, u, w)))":
+            self.result = M.false_value
+        else:
+            checks = (
+                (examples["tao_problem_1_1_triangle"][0], M.one),
+                (examples["tao_angle_identity"][0], M.five),
+                (examples["tao_positive_alpha_side"][0], M.three),
+                (examples["tao_area_identity"][0], M.four),
+                (examples["tao_cosine_angle_identity"][0], M.nine),
+            )
+            index = 0
+            while index != len(checks):
+                start, expected_count = checks[index]
+                facts = Pmod.KnowledgeFacts(start)()
+                count_pair = M.Count(facts, registry)()
+                count = M.Head(count_pair)()
+                registry = M.Head(M.Tail(count_pair)())()
+                if M.NatEq(count, expected_count, registry)() is M.false_value:
+                    self.result = M.false_value
+                    index = len(checks)
+                else:
+                    index = index + 1
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class TaoCompactRulesUseShrunkPremiseSetsTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        registry = _registry(runtime.graph)
+        geometry = packs.by_name("geometry")
+        self.result = M.truth_value
+        checks = (
+            ("tao_define_perimeter_third", M.one),
+            ("tao_define_side_radicand", M.two),
+            ("tao_define_side_offset", M.one),
+            ("tao_define_short_side", M.one),
+            ("tao_define_middle_side", M.one),
+            ("tao_define_long_side", M.one),
+            ("tao_side_alpha_from_area_perimeter", M.one),
+            ("tao_side_beta_from_area_perimeter", M.one),
+            ("tao_side_gamma_from_area_perimeter", M.one),
+            ("tao_verify_area", M.four),
+        )
+        if "tao_angle_from_sides" not in geometry.rule_map:
+            self.result = M.false_value
+        elif "tao_angle_alpha_from_sides" in geometry.rule_map:
+            self.result = M.false_value
+        elif "tao_angle_beta_from_sides" in geometry.rule_map:
+            self.result = M.false_value
+        elif "tao_angle_gamma_from_sides" in geometry.rule_map:
+            self.result = M.false_value
+        if M.IdentityCompare(self.result, M.truth_value)() is M.false_value:
+            super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+            return
+        index = 0
+        while index != len(checks):
+            rule_id, expected_count = checks[index]
+            premises = Pmod.RulePremises(geometry.rule_map[rule_id])()
+            count_pair = M.Count(premises, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            if M.NatEq(count, expected_count, registry)() is M.false_value:
+                self.result = M.false_value
+                index = len(checks)
+            else:
+                index = index + 1
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MergeBindingsAcceptsStructurallyEqualValuesTest(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        var_name = M.Thingy()
+        var_x = M.Pair(M.VarTag, M.Pair(var_name, empty))
+        left_value = M.Pair(M.one, M.Pair(M.two, empty))
+        right_value = M.Pair(M.one, M.Pair(M.two, empty))
+        base_bindings = M.Pair(M.Pair(var_x, M.Pair(left_value, empty)), empty)
+        extra_bindings = M.Pair(M.Pair(var_x, M.Pair(right_value, empty)), empty)
+        merged = M.MergeBindings(base_bindings, extra_bindings)()
+        self.result = M.Head(merged)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(M.Edge):
+    def __init__(self, graph):
+        empty = M.EmptyList
+        var_name = M.Thingy()
+        var_x = M.Pair(M.VarTag, M.Pair(var_name, empty))
+        left_value = M.Pair(M.one, M.Pair(M.two, empty))
+        right_value = M.Pair(M.one, M.Pair(M.two, empty))
+        fact_one = M.Pair(M.four, M.Pair(left_value, empty))
+        fact_two = M.Pair(M.five, M.Pair(right_value, empty))
+        goal_fact = M.Pair(M.six, empty)
+        start = Pmod.Knowledge(M.Pair(fact_one, M.Pair(fact_two, empty)))()
+        rule = Pmod.MultiRule(
+            M.Pair(
+                M.Pair(M.four, M.Pair(var_x, empty)),
+                M.Pair(M.Pair(M.five, M.Pair(var_x, empty)), empty),
+            ),
+            goal_fact,
+        )
+        plan = M.Pair(M.TheoremAction(rule)(), empty)
+        derivation_pair = Pmod.BuildDerivation(start, plan, _registry(graph))()
+        derivation = M.Head(derivation_pair)()
+        registry = M.Head(M.Tail(derivation_pair)())()
+        end = Pmod.DerivationEnd(derivation, registry)()
+        facts = Pmod.KnowledgeFacts(end)()
+        self.result = M.false_value
+        while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+            if M.TermEqual(M.Head(facts)(), goal_fact)() is M.truth_value:
+                self.result = M.truth_value
+                facts = M.EmptyList
+            else:
+                facts = M.Tail(facts)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class TaoGenericCosineReplayCasesTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        geometry = packs.by_name("geometry")
+        ontology = packs.by_name("geometry-ontology")
+        trigonometry = packs.by_name("trigonometry")
+        registry = _registry(runtime.graph)
+        distinct_rule = ontology.rule_map["distinct_is_symmetric"]
+        side_alpha = M.Pair(Lmod.SegmentLabel, M.Pair(Lmod.TaoProblem11VertexVLabel, M.Pair(Lmod.TaoProblem11VertexWLabel, M.EmptyList)))
+        side_beta = M.Pair(Lmod.SegmentLabel, M.Pair(Lmod.TaoProblem11VertexWLabel, M.Pair(Lmod.TaoProblem11VertexULabel, M.EmptyList)))
+        side_gamma = M.Pair(Lmod.SegmentLabel, M.Pair(Lmod.TaoProblem11VertexULabel, M.Pair(Lmod.TaoProblem11VertexVLabel, M.EmptyList)))
+        cases = (
+            (
+                "tao_cosine_angle_identity",
+                M.nine,
+                (),
+            ),
+            (
+                "tao_cosine_beta_identity",
+                M.nine,
+                (M.Pair(side_alpha, M.Pair(side_beta, M.EmptyList)),),
+            ),
+            (
+                "tao_cosine_gamma_identity",
+                M.nine,
+                (
+                    M.Pair(side_alpha, M.Pair(side_gamma, M.EmptyList)),
+                    M.Pair(side_beta, M.Pair(side_gamma, M.EmptyList)),
+                ),
+            ),
+        )
+        self.result = M.truth_value
+        index = 0
+        while index != len(cases):
+            example_id, expected_count, symmetry_pairs = cases[index]
+            start, goal = geometry.examples[example_id]
+            facts = Pmod.KnowledgeFacts(start)()
+            count_pair = M.Count(facts, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            if M.NatEq(count, expected_count, registry)() is M.false_value:
+                self.result = M.false_value
+                index = len(cases)
+                continue
+            actions = ()
+            rule_ids = (
+                "tao_side_alpha_from_area_perimeter",
+                "tao_side_beta_from_area_perimeter",
+                "tao_side_gamma_from_area_perimeter",
+            )
+            rule_index = 0
+            while rule_index != len(rule_ids):
+                actions = actions + (M.TheoremAction(geometry.rule_map[rule_ids[rule_index]])(),)
+                rule_index = rule_index + 1
+            pair_index = 0
+            while pair_index != len(symmetry_pairs):
+                forward_fact = M.Pair(Lmod.DistinctLabel, symmetry_pairs[pair_index])
+                match = M.Match(Pmod.RulePattern(distinct_rule)(), forward_fact)()
+                if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.false_value:
+                    self.result = M.false_value
+                    pair_index = len(symmetry_pairs)
+                    index = len(cases)
+                    actions = ()
+                else:
+                    actions = actions + (M.TheoremAction(distinct_rule, M.Tail(match)())(),)
+                    pair_index = pair_index + 1
+            if M.IdentityCompare(self.result, M.truth_value)() is M.false_value:
+                continue
+            actions = actions + (M.TheoremAction(geometry.rule_map["tao_angle_from_sides"])(),)
+            actions = actions + (M.TheoremAction(trigonometry.rule_map["triangle_yields_generic_cosine_relation"])(),)
+            plan = M.EmptyList
+            action_index = len(actions)
+            while action_index != 0:
+                action_index = action_index - 1
+                plan = M.Pair(actions[action_index], plan)
+            derivation_pair = Pmod.BuildDerivation(start, plan, registry)()
+            derivation = M.Head(derivation_pair)()
+            registry = M.Head(M.Tail(derivation_pair)())()
+            end = Pmod.DerivationEnd(derivation, registry)()
+            facts = Pmod.KnowledgeFacts(end)()
+            found = M.false_value
+            while M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+                if M.TermEqual(M.Head(facts)(), goal)() is M.truth_value:
+                    found = M.truth_value
+                    facts = M.EmptyList
+                else:
+                    facts = M.Tail(facts)()
+            if M.IdentityCompare(found, M.truth_value)() is M.false_value:
+                self.result = M.false_value
+                index = len(cases)
+            else:
+                index = index + 1
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class LegacyCosineRulesRemovedTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        trigonometry = packs.by_name("trigonometry")
+        geometry = packs.by_name("geometry")
+        self.result = M.truth_value
+        if self._pack_has_rule(trigonometry, "triangle_yields_cosine_rule_first_equation") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "triangle_yields_cosine_rule_second_equation") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "triangle_yields_cosine_rule_third_equation") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(geometry, "tao_expand_cosine_rule_relates") is M.truth_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "triangle_yields_generic_cosine_relation") is M.false_value:
+            self.result = M.false_value
+        elif self._pack_has_rule(trigonometry, "cosine_relation_expands_to_equation") is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def _pack_has_rule(self, pack, rule_id):
+        try:
+            pack.rule_map[rule_id]
+            return M.truth_value
+        except KeyError:
+            return M.false_value
 
     def __call__(self):
         return self.result
@@ -192,6 +521,467 @@ class ComputedRawTermEqual(M.Edge):
         self.registry = registry
         self.result = RawTermEqual(self.computation_edge(), self.expected, self.registry)()
         super().__init__(inputs=M.Pair(expected, M.Pair(registry, M.EmptyList)), results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class FireLawSurgeryTest(M.Edge):
+    """Step 8: L = a,b,e(a,b); K = a; R = a,c,f(a,c). Fires over a match."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        edge_e = M.Pair(M.Char("e"), M.Pair(node_a, M.Pair(node_b, empty)))
+        edge_f = M.Pair(M.Char("f"), M.Pair(node_a, M.Pair(node_c, empty)))
+        left = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_b, empty)), M.Pair(M.Pair(edge_e, empty), empty)),
+        )
+        interface = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(node_a, empty), M.Pair(empty, empty)))
+        right = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_c, empty)), M.Pair(M.Pair(edge_f, empty), empty)),
+        )
+        k_to_left = Gmod.Map(interface, left, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        k_to_right = Gmod.Map(interface, right, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        law = Gmod.Law(left, interface, right, k_to_left, k_to_right, empty)()
+
+        host_a = M.Thingy()
+        host_b = M.Thingy()
+        host_e = M.Pair(M.Char("e"), M.Pair(host_a, M.Pair(host_b, empty)))
+        host = Gmod.GraphVersion(
+            M.Pair(host_a, M.Pair(host_b, empty)),
+            M.Pair(host_e, empty),
+            empty,
+        )()
+        match_root = M.Pair(
+            Gmod.Send(node_a, host_a)(),
+            M.Pair(Gmod.Send(node_b, host_b)(), M.Pair(Gmod.Send(edge_e, host_e)(), empty)),
+        )
+        mapping = Gmod.Map(left, host, match_root)()
+
+        fired = Gmod.FireLaw(host, law, mapping, Gmod.DanglingForbid()())()
+        committed = M.Head(fired)()
+        trace = M.Head(M.Tail(fired)())()
+        last = empty
+        remaining = trace
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            last = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if Gmod.LawMapsComplete(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(committed, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(committed)(), host_b)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(committed)(), node_c)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(committed)(), host_a)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(last)(), Lmod.NextLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(host)(), host_b)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class FireLawDanglingModeTest(M.Edge):
+    """Step 8: an extra edge on the deleted node; forbid refuses, delete sweeps."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        edge_e = M.Pair(M.Char("e"), M.Pair(node_a, M.Pair(node_b, empty)))
+        edge_f = M.Pair(M.Char("f"), M.Pair(node_a, M.Pair(node_c, empty)))
+        left = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_b, empty)), M.Pair(M.Pair(edge_e, empty), empty)),
+        )
+        interface = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(node_a, empty), M.Pair(empty, empty)))
+        right = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(node_a, M.Pair(node_c, empty)), M.Pair(M.Pair(edge_f, empty), empty)),
+        )
+        k_to_left = Gmod.Map(interface, left, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        k_to_right = Gmod.Map(interface, right, M.Pair(Gmod.Send(node_a, node_a)(), empty))()
+        law = Gmod.Law(left, interface, right, k_to_left, k_to_right, empty)()
+
+        host_a = M.Thingy()
+        host_b = M.Thingy()
+        host_x = M.Thingy()
+        host_e = M.Pair(M.Char("e"), M.Pair(host_a, M.Pair(host_b, empty)))
+        extra = M.Pair(M.Char("x"), M.Pair(host_b, M.Pair(host_x, empty)))
+        host = Gmod.GraphVersion(
+            M.Pair(host_a, M.Pair(host_b, M.Pair(host_x, empty))),
+            M.Pair(host_e, M.Pair(extra, empty)),
+            empty,
+        )()
+        match_root = M.Pair(
+            Gmod.Send(node_a, host_a)(),
+            M.Pair(Gmod.Send(node_b, host_b)(), M.Pair(Gmod.Send(edge_e, host_e)(), empty)),
+        )
+        mapping = Gmod.Map(left, host, match_root)()
+
+        forbidden = Gmod.FireLaw(host, law, mapping, Gmod.DanglingForbid()())()
+        forbidden_trace = M.Head(M.Tail(forbidden)())()
+        refusal = empty
+        remaining = forbidden_trace
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            refusal = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+
+        swept = Gmod.FireLaw(host, law, mapping, Gmod.DanglingDelete()())()
+        swept_version = M.Head(swept)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(forbidden)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(refusal)(), Lmod.FireRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Head(M.Tail(refusal)())())(),
+            Lmod.DeletionAdmittedLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(swept_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphEdges(swept_version)(), extra)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(swept_version)(), host_b)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class LawMapsCompleteTest(M.Edge):
+    """Step 7: both K-maps must send every interface element."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        k_node = M.Thingy()
+        left_node = M.Thingy()
+        right_node = M.Thingy()
+        interface = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(k_node, empty), M.Pair(empty, empty)))
+        left = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(left_node, empty), M.Pair(empty, empty)))
+        right = M.Pair(M.HypergraphLabel, M.Pair(M.Pair(right_node, empty), M.Pair(empty, empty)))
+        k_to_left = Gmod.Map(interface, left, M.Pair(Gmod.Send(k_node, left_node)(), empty))()
+        k_to_right = Gmod.Map(interface, right, M.Pair(Gmod.Send(k_node, right_node)(), empty))()
+        complete_law = Gmod.Law(left, interface, right, k_to_left, k_to_right, empty)()
+
+        stray = M.Thingy()
+        wider_interface = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(k_node, M.Pair(stray, empty)), M.Pair(empty, empty)),
+        )
+        incomplete_law = Gmod.Law(left, wider_interface, right, k_to_left, k_to_right, empty)()
+
+        self.result = M.truth_value
+        if Gmod.LawMapsComplete(complete_law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(incomplete_law)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class DanglingEdgesTest(M.Edge):
+    """Step 6: derived boundary scan; nothing stored, Boundary untouched."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        edge_one = M.Pair(M.Char("e1"), M.Pair(node_a, M.Pair(node_b, empty)))
+        edge_two = M.Pair(M.Char("e2"), M.Pair(node_b, M.Pair(node_c, empty)))
+        nodes = M.Pair(node_a, M.Pair(node_b, M.Pair(node_c, empty)))
+        edges = M.Pair(edge_one, M.Pair(edge_two, empty))
+        version = Gmod.GraphVersion(nodes, edges, empty)()
+
+        hits = Gmod.DanglingEdges(version, M.Pair(node_a, empty))()
+        count = M.Zero
+        remaining = hits
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            count_pair = M.Succ(count, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            remaining = M.Tail(remaining)()
+
+        none_deleted = Gmod.DanglingEdges(version, empty)()
+
+        self.result = M.truth_value
+        if M.NatEq(count, M.one, registry)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(hits)(), edge_one, registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(none_deleted, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MapExtensionAlternativesTest(M.Edge):
+    """Step 5: enumerate every legal one-step extension, not just the first."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_node = M.Thingy()
+        pattern.add_node(p_node)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_left = M.Thingy()
+        h_right = M.Thingy()
+        host.add_node(h_left)
+        host.add_node(h_right)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+        base_map = Gmod.Map(pattern_value, host_value, empty)()
+
+        alternatives = Gmod.MapExtensionAlternatives(base_map, p_node, empty)()
+        count = M.Zero
+        remaining = alternatives
+        all_maps = M.truth_value
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            entry = M.Head(remaining)()
+            if M.IdentityCompare(M.Head(entry)(), Lmod.MapLabel)() is M.false_value:
+                all_maps = M.false_value
+            count_pair = M.Succ(count, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            remaining = M.Tail(remaining)()
+
+        single = Gmod.MapExtendOneStep(base_map, p_node, h_left)()
+
+        self.result = M.truth_value
+        if M.NatEq(count, M.two, registry)() is M.false_value:
+            self.result = M.false_value
+        elif all_maps is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(single)(), Lmod.MapLabel)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class StructuredMissReasonTest(M.Edge):
+    """Step 4: Miss reasons are labeled terms carrying the terms involved."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_left = M.Thingy()
+        p_right = M.Thingy()
+        pattern.add_node(p_left)
+        pattern.add_node(p_right)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_left = M.Thingy()
+        h_right = M.Thingy()
+        host.add_node(h_left)
+        host.add_node(h_right)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+
+        not_a_map = Gmod.MapExtendOneStep(empty, p_left, h_left)()
+
+        stranger = M.Thingy()
+        base_map = Gmod.Map(pattern_value, host_value, empty)()
+        pattern_miss = Gmod.MapExtendOneStep(base_map, stranger, h_left)()
+        host_miss = Gmod.MapExtendOneStep(base_map, p_left, stranger)()
+
+        mapped_root = M.Pair(Gmod.Send(p_left, h_left)(), empty)
+        mapped_map = Gmod.Map(pattern_value, host_value, mapped_root)()
+        already = Gmod.MapExtendOneStep(mapped_map, p_left, h_right)()
+
+        apart_root = M.Pair(Gmod.Apart(p_left, p_right)(), M.Pair(Gmod.Send(p_right, h_right)(), empty))
+        apart_map = Gmod.Map(pattern_value, host_value, apart_root)()
+        apart_miss = Gmod.MapExtendOneStep(apart_map, p_left, h_right)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(not_a_map)())())())(), Lmod.ReasonShapeLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(pattern_miss)())())())(), Lmod.ReasonShapeLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(host_miss)())())())(), Lmod.ReasonShapeLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(already)())())())(), Lmod.ReasonAlreadyMappedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Head(M.Tail(M.Tail(apart_miss)())())())(), Lmod.ReasonApartLabel)() is M.false_value:
+            self.result = M.false_value
+        else:
+            already_reason = M.Head(M.Tail(M.Tail(already)())())()
+            if RawTermEqual(M.Head(M.Tail(M.Tail(already_reason)())())(), h_left, registry)() is M.false_value:
+                self.result = M.false_value
+            else:
+                apart_reason = M.Head(M.Tail(M.Tail(apart_miss)())())()
+                carried = M.Head(M.Tail(apart_reason)())()
+                if M.IdentityCompare(M.Head(carried)(), Lmod.ApartLabel)() is M.false_value:
+                    self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class EdgeSendPositionalConsistencyTest(M.Edge):
+    """Step 3: sending a pattern edge to a host edge must respect endpoint order."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_a = M.Thingy()
+        p_b = M.Thingy()
+        pattern_edge = M.Pair(M.Char("p"), M.Pair(p_a, M.Pair(p_b, empty)))
+        pattern.add_node(p_a)
+        pattern.add_node(p_b)
+        pattern.add_edge(pattern_edge)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_x = M.Thingy()
+        h_y = M.Thingy()
+        host_edge = M.Pair(M.Char("h"), M.Pair(h_x, M.Pair(h_y, empty)))
+        host.add_node(h_x)
+        host.add_node(h_y)
+        host.add_edge(host_edge)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+
+        aligned_root = M.Pair(Gmod.Send(p_a, h_x)(), empty)
+        aligned_map = Gmod.Map(pattern_value, host_value, aligned_root)()
+        aligned = Gmod.MapExtendOneStep(aligned_map, pattern_edge, host_edge)()
+
+        crossed_root = M.Pair(Gmod.Send(p_a, h_y)(), empty)
+        crossed_map = Gmod.Map(pattern_value, host_value, crossed_root)()
+        crossed = Gmod.MapExtendOneStep(crossed_map, pattern_edge, host_edge)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(aligned)(), Lmod.MapLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(crossed)(), Lmod.MissLabel)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(M.Tail(crossed)())(), pattern_edge, registry)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class GraphCurrentVersionTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        host = Gmod.Hypergraph(registry)
+        added = M.Thingy()
+        host.add_node(added)
+        version = host.current_version()
+        nodes = Gmod.GraphNodes(version)()
+        contains = M.false_value
+        remaining = nodes
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            if M.TermEqual(M.Head(remaining)(), added)() is M.truth_value:
+                contains = M.truth_value
+            remaining = M.Tail(remaining)()
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(version)(), Lmod.GraphVersionLabel)() is M.false_value:
+            self.result = M.false_value
+        elif contains is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(M.Tail(version)())())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MinimalGraphOneStepMapExtensionTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_left = M.Thingy()
+        p_right = M.Thingy()
+        pattern_edge = M.Pair(M.Char("p"), empty)
+        pattern.add_node(p_left)
+        pattern.add_node(p_right)
+        pattern.add_node(pattern_edge)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_left = M.Thingy()
+        h_right = M.Thingy()
+        host_edge = M.Pair(M.Char("h"), empty)
+        host.add_node(h_left)
+        host.add_node(h_right)
+        host.add_node(host_edge)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+        base_map = Gmod.Map(pattern_value, host_value, empty)()
+        success = Gmod.MapExtendOneStep(base_map, p_left, h_left)()
+        committed_root = M.Pair(Gmod.Apart(p_left, p_right)(), M.Pair(Gmod.Send(p_right, h_right)(), empty))
+        committed_map = Gmod.Map(pattern_value, host_value, committed_root)()
+        failure = Gmod.MapExtendOneStep(committed_map, p_left, h_right)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(success)(), Lmod.MapLabel)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(M.Tail(M.Tail(M.Tail(success)())())())(), M.Pair(Gmod.Send(p_left, h_left)(), empty), registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(failure)(), Lmod.MissLabel)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(M.Tail(failure)())(), p_left, registry)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MinimalGraphSourceConstraintTest(M.Edge):
+    def __init__(self, _graph):
+        base_dir = os.path.dirname(__file__)
+        self.result = M.truth_value
+        for name in ("graph.py", "labels.py"):
+            text = open(os.path.join(base_dir, name), "r", encoding="utf-8").read()
+            for forbidden in ("isinstance(", "hasattr(", "__class__", "__new__", "return True", "return False"):
+                if forbidden in text:
+                    self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
         return self.result
@@ -337,6 +1127,73 @@ class HeuristicCanonicalKnowledgeAgreementTest(M.Edge):
         return self.result
 
 
+class CanonicalArithmeticAddACNormalizesTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        left = M.Pair(M.ExprAddLabel, M.Pair(M.three, M.Pair(M.Pair(M.ExprAddLabel, M.Pair(M.one, M.Pair(M.two, empty))), empty)))
+        right = M.Pair(M.ExprAddLabel, M.Pair(M.Pair(M.ExprAddLabel, M.Pair(M.two, M.Pair(M.three, empty))), M.Pair(M.one, empty)))
+        left_canonical = M.CanonicalArithmeticTerm(left, registry)()
+        right_canonical = M.CanonicalArithmeticTerm(right, registry)()
+        self.result = RawTermEqual(left_canonical, right_canonical, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalArithmeticMulACNormalizesTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        left = M.Pair(M.ExprMulLabel, M.Pair(M.three, M.Pair(M.Pair(M.ExprMulLabel, M.Pair(M.one, M.Pair(M.two, empty))), empty)))
+        right = M.Pair(M.ExprMulLabel, M.Pair(M.Pair(M.ExprMulLabel, M.Pair(M.two, M.Pair(M.three, empty))), M.Pair(M.one, empty)))
+        left_canonical = M.CanonicalArithmeticTerm(left, registry)()
+        right_canonical = M.CanonicalArithmeticTerm(right, registry)()
+        self.result = RawTermEqual(left_canonical, right_canonical, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalArithmeticEquationSymmetryTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        left = M.Pair(M.ExprEqLabel, M.Pair(M.two, M.Pair(M.one, empty)))
+        right = M.Pair(M.ExprEqLabel, M.Pair(M.one, M.Pair(M.two, empty)))
+        left_canonical = M.CanonicalArithmeticTerm(left, registry)()
+        right_canonical = M.CanonicalArithmeticTerm(right, registry)()
+        self.result = RawTermEqual(left_canonical, right_canonical, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class ArithmeticCanonicalLawsDeclaredTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        arithmetic = packs.by_name("arithmetic")
+        self.result = M.truth_value
+        for rule_id in (
+            "arithmetic_add_commutes",
+            "arithmetic_add_associates_right",
+            "arithmetic_mul_commutes",
+            "arithmetic_mul_associates_right",
+            "arithmetic_equation_is_symmetric",
+        ):
+            if rule_id not in arithmetic.rule_map:
+                self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class TreeLookupUsesIndexBucketsTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -469,6 +1326,200 @@ class _CompareSearchModesProbe(M.CompareSearchModes):
         self._comparison_generation = self.signature
         self._comparison_packet_token = M.Zero
         self.result = M.EmptyList
+
+
+class CompareSearchModesFindsReusableWorkerSnapshotDirTest(M.Edge):
+    def __init__(self, graph):
+        from .main import _search_worker_checkpoint, _search_worker_mode_heuristic
+
+        empty = M.EmptyList
+        registry = _registry(graph)
+        start = M.Pair(M.Char("s"), empty)
+        goal = M.Pair(M.Char("g"), empty)
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        rules = M.Pair(Rule(start, goal), empty)
+        probe = _CompareSearchModesProbe(graph, start, goal, rules, heuristic, registry)
+        temp_dir = tempfile.mkdtemp(prefix="hyge-compare-resume-")
+        try:
+            matching_dir = os.path.join(temp_dir, "snapshots", "search_compare", "run-1")
+            mismatching_dir = os.path.join(temp_dir, "snapshots", "search_compare", "run-2")
+            os.makedirs(matching_dir, exist_ok=True)
+            os.makedirs(mismatching_dir, exist_ok=True)
+            runtime = make_fresh_runtime()
+            worker_registry = _registry(runtime.graph)
+            worker_heuristic = _search_worker_mode_heuristic(runtime, "bfs", worker_registry)
+            proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+            plan = M.Pair(M.Atom(), empty)
+            search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, worker_registry)()
+            search_cost = M.Head(search_cost_pair)()
+            matching_path = os.path.join(matching_dir, "bfs.snapshot.json")
+            probe._write_search_worker_manifest(matching_path)
+            _search_worker_checkpoint(
+                runtime,
+                matching_path,
+                start,
+                goal,
+                worker_heuristic,
+                Smod.SearchSuccessLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                1234,
+                "running-derivation",
+                plan,
+            )
+            with open(probe._search_worker_result_manifest_path(os.path.join(mismatching_dir, "bfs.snapshot.json")), "w", encoding="utf-8") as handle:
+                json.dump({"start_text": "wrong", "goal_text": "wrong"}, handle)
+            found = probe._reusable_search_worker_result_paths(temp_dir)
+            self.result = M.truth_value
+            if "SearchBFS" not in found:
+                self.result = M.false_value
+            elif found["SearchBFS"] != matching_path:
+                self.result = M.false_value
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(M.Edge):
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = _registry(graph)
+        start = M.Pair(M.Char("s"), empty)
+        goal = M.Pair(M.Char("g"), empty)
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        rules = M.Pair(Rule(start, goal), empty)
+        probe = _CompareSearchModesProbe(graph, start, goal, rules, heuristic, registry)
+        graph._search_disable_console = M.truth_value
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        registry = M.Head(M.Tail(search_cost_pair)())()
+        total_cost_pair = Pmod.BuildTotalCost(proof_cost, search_cost, heuristic, registry)()
+        total_cost = M.Head(total_cost_pair)()
+        registry = M.Head(M.Tail(total_cost_pair)())()
+        best_attempt = Pmod.SearchAttempt(
+            start,
+            goal,
+            heuristic,
+            Smod.SearchSuccessLabel,
+            M.EmptyList,
+            proof_cost,
+            search_cost,
+            total_cost,
+        )()
+        returned_attempt, returned_performances = probe._approval_to_materialize_best_attempt(best_attempt, {}, {})
+        self.result = M.truth_value
+        if M.TermEqual(returned_attempt, best_attempt)() is M.false_value:
+            self.result = M.false_value
+        elif returned_performances != {}:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import _search_worker_checkpoint, _search_worker_mode_heuristic, run_search_worker_mode
+
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        registry = _registry(runtime.graph)
+        heuristic = _search_worker_mode_heuristic(runtime, "dfs", registry)
+        start = M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))
+        goal = M.Pair(M.Char("g"), empty)
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        search_cost_pair = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, Smod.SearchRunningLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            _search_worker_checkpoint(
+                runtime,
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+                Smod.SearchRunningLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                0,
+                "running-search",
+                M.EmptyList,
+            )
+            old_env = os.environ.get("HYGE_SEARCH_WORKER_RESUME_DERIVATION")
+            os.environ["HYGE_SEARCH_WORKER_RESUME_DERIVATION"] = "1"
+            self.result = M.false_value
+            try:
+                run_search_worker_mode("dfs", snapshot_path)
+            except RuntimeError as error:
+                if str(error) == "search-worker resume missing-plan":
+                    self.result = M.truth_value
+            finally:
+                if old_env == None:
+                    os.environ.pop("HYGE_SEARCH_WORKER_RESUME_DERIVATION", None)
+                else:
+                    os.environ["HYGE_SEARCH_WORKER_RESUME_DERIVATION"] = old_env
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(M.Edge):
+    def __init__(self, graph):
+        from .main import _gmp_atom_from_int
+
+        empty = M.EmptyList
+        registry = _registry(graph)
+        start = M.Pair(M.Char("s"), empty)
+        goal = M.Pair(M.Char("g"), empty)
+        h_dfs = M.Heuristic(M.DFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        h_bfs = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        h_beam = M.Heuristic(M.BeamLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        sc_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        sc_success = M.Head(sc_pair)()
+        sc_pair_fail = Smod.BuildSearchCost(M.EmptyList, M.Zero, M.Zero, M.Zero, Smod.SearchFailureLabel, registry)()
+        sc_fail = M.Head(sc_pair_fail)()
+
+        total_cost_pair = Pmod.BuildTotalCost(proof_cost, sc_success, h_bfs, registry)()
+        tc_success = M.Head(total_cost_pair)()
+        total_cost_pair_fail = Pmod.BuildTotalCost(proof_cost, sc_fail, h_dfs, registry)()
+        tc_fail = M.Head(total_cost_pair_fail)()
+
+        att_dfs = Pmod.SearchAttempt(start, goal, h_dfs, Smod.SearchFailureLabel, empty, proof_cost, sc_fail, tc_fail)()
+        att_bfs = Pmod.SearchAttempt(start, goal, h_bfs, Smod.SearchSuccessLabel, empty, proof_cost, sc_success, tc_success)()
+        att_beam = Pmod.SearchAttempt(start, goal, h_beam, Smod.SearchSuccessLabel, empty, proof_cost, sc_success, tc_success)()
+
+        perf_dfs = Smod.HeuristicPerformance(att_dfs, _gmp_atom_from_int(2000), _gmp_atom_from_int(100), M.EmptyList)()
+        perf_bfs = Smod.HeuristicPerformance(att_bfs, _gmp_atom_from_int(2000), _gmp_atom_from_int(101), M.EmptyList)()
+        perf_beam = Smod.HeuristicPerformance(att_beam, _gmp_atom_from_int(1000), _gmp_atom_from_int(102), M.EmptyList)()
+
+        performances = M.Pair(perf_dfs, M.Pair(perf_bfs, M.Pair(perf_beam, empty)))
+        attempts = M.Pair(att_dfs, M.Pair(att_bfs, M.Pair(att_beam, empty)))
+
+        probe = _CompareSearchModesProbe(graph, start, goal, empty, h_dfs, registry)
+        best_by_perfs = probe._best_attempt_in_performances(performances, empty, None)
+
+        self.result = M.TermEqual(best_by_perfs, att_beam)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
 
 
 class _TheoremCursorProbe(Smod.SearchBFS):
@@ -2113,6 +3164,163 @@ class SnapshotPreservesMachineEdgeStructureTest(M.Edge):
         return self.result
 
 
+class SnapshotPreservesConstructorLabelsAndCharsTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        term = M.Pair(
+            Lmod.SideOfLabel,
+            M.Pair(
+                M.Pair(Lmod.SegmentLabel, M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))),
+                M.Pair(M.Char("t"), empty),
+            ),
+        )
+        snapshot = SnapshotCodec(namespace).capture_objects({"term": term})
+        loaded = SnapshotCodec(namespace).load_snapshot(snapshot).roots["term"]
+        self.result = RawTermEqual(loaded, term, M.AllConstructors)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SnapshotPreservesRuleEdgeInputsTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        namespace.update(vars(Pmod))
+        pattern = M.Pair(M.Char("x"), empty)
+        replacement = M.Pair(M.Char("y"), empty)
+        rule = Rule(pattern, replacement)
+        snapshot = SnapshotCodec(namespace).capture_objects({"rule": rule})
+        loaded = SnapshotCodec(namespace).load_snapshot(snapshot).roots["rule"]
+        self.result = M.truth_value
+        if M.Compare(RulePremises(loaded)(), M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.PrettyTerm(RuleReplacement(loaded)(), M.AllConstructors)() != M.PrettyTerm(replacement, M.AllConstructors)():
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SearchWorkerResumeStateRestoresSavedPlanTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import _search_worker_checkpoint, _search_worker_mode_heuristic, _search_worker_resume_state
+
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        registry = _registry(runtime.graph)
+        heuristic = _search_worker_mode_heuristic(runtime, "dfs", registry)
+        start = M.Pair(
+            Lmod.SideOfLabel,
+            M.Pair(
+                M.Pair(Lmod.SegmentLabel, M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))),
+                M.Pair(M.Char("t"), empty),
+            ),
+        )
+        goal = M.Pair(Lmod.LengthLabel, M.Pair(M.Char("v"), empty))
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            _search_worker_checkpoint(
+                runtime,
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+                Smod.SearchSuccessLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                1234,
+                "running-derivation",
+                plan,
+            )
+            resume_plan, resume_search_cost, elapsed_milliseconds, stage_text = _search_worker_resume_state(
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+            )
+            self.result = M.false_value
+            if stage_text == "running-derivation":
+                if M.Compare(resume_plan, M.EmptyList)() is M.false_value:
+                    if M.PrettyTerm(resume_plan, M.AllConstructors)() == M.PrettyTerm(plan, M.AllConstructors)():
+                        if M.PrettyTerm(resume_search_cost, M.AllConstructors)() == M.PrettyTerm(search_cost, M.AllConstructors)():
+                            if elapsed_milliseconds == 1234:
+                                self.result = M.truth_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SearchWorkerSnapshotBootWithRuntimeNamespaceTest(M.Edge):
+    def __init__(self, _graph):
+        from .main import _runtime_namespace, _search_worker_checkpoint, _search_worker_mode_heuristic
+
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        registry = _registry(runtime.graph)
+        heuristic = _search_worker_mode_heuristic(runtime, "dfs", registry)
+        start = M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))
+        goal = M.Pair(M.Char("g"), empty)
+        proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        plan = M.Pair(M.Atom(), empty)
+        search_cost_pair = Smod.BuildSearchCost(plan, M.one, M.Zero, M.one, Smod.SearchSuccessLabel, registry)()
+        search_cost = M.Head(search_cost_pair)()
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            _search_worker_checkpoint(
+                runtime,
+                snapshot_path,
+                start,
+                goal,
+                heuristic,
+                Smod.SearchSuccessLabel,
+                M.EmptyList,
+                proof_cost,
+                search_cost,
+                1234,
+                "running-derivation",
+                plan,
+            )
+            loaded_runtime = boot_from_snapshot(snapshot_path, _runtime_namespace())
+            loaded_attempts = loaded_runtime.graph.search_history
+            self.result = M.truth_value
+            if M.IdentityCompare(loaded_attempts, empty)() is M.truth_value:
+                self.result = M.false_value
+            else:
+                loaded_attempt = M.Head(loaded_attempts)()
+                if RawTermEqual(Pmod.SearchAttemptStart(loaded_attempt)(), start, _registry(loaded_runtime.graph))() is M.false_value:
+                    self.result = M.false_value
+                elif RawTermEqual(Pmod.SearchAttemptGoal(loaded_attempt)(), goal, _registry(loaded_runtime.graph))() is M.false_value:
+                    self.result = M.false_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
     def __init__(self, _graph):
         empty = M.EmptyList
@@ -2171,7 +3379,7 @@ class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
             elif M.IdentityCompare(loaded_probe._comparison_state_pending_packets(loaded_state), empty)() is M.truth_value:
                 self.result = M.false_value
             elif M.IdentityCompare(
-                M.Head(M.Head(loaded_probe._comparison_state_pending_packets(loaded_state))()),
+                M.Head(M.Head(loaded_probe._comparison_state_pending_packets(loaded_state))())(),
                 Lmod.SearchFrontierStatePacketLabel,
             )() is M.false_value:
                 self.result = M.false_value
@@ -3778,6 +4986,1047 @@ class LoadedRulesHaveDirectProgressionEdgeEquationsTest(M.Edge):
         return self.result
 
 
+class CoinTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Coin")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeadsTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Heads")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TailsTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Tails")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeadsCountParityTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("HeadsCountParity")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class OddTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Odd")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EvenTag(M.Edge):
+    def __init__(self):
+        self.result = M.Char("Even")
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Coin(M.Edge):
+    def __init__(self, position, face):
+        self.result = M.Pair(CoinTag()(), M.Pair(position, M.Pair(face, M.EmptyList)))
+        super().__init__(inputs=M.Pair(position, M.Pair(face, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HeadsCountParity(M.Edge):
+    def __init__(self, parity):
+        self.result = M.Pair(HeadsCountParityTag()(), M.Pair(parity, M.EmptyList))
+        super().__init__(inputs=M.Pair(parity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsCoinFact(M.Edge):
+    def __init__(self, term):
+        atom_result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), CoinTag()())() is M.truth_value:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoinFace(M.Edge):
+    def __init__(self, term):
+        atom_result = M.EmptyList
+        if IsCoinFact(term)() is M.truth_value:
+            atom_result = M.Head(M.Tail(M.Tail(term)())())()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CollectCoinFacts(M.Edge):
+    def __init__(self, term):
+        self.result = self._walk(term)
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def _walk(self, term):
+        if M.IdentityCompare(term, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if IsCoinFact(term)() is M.truth_value:
+            return M.Pair(term, M.EmptyList)
+        if M.IsPair(term)() is M.false_value:
+            return M.EmptyList
+        left = self._walk(M.Head(term)())
+        right = self._walk(M.Tail(term)())
+        return Pmod.Append(left, right)()
+
+    def __call__(self):
+        return self.result
+
+
+class CountHeadsInCoins(M.Edge):
+    def __init__(self, coins, registry):
+        self.registry = registry
+        self.result = self._count(coins, M.Zero)
+        super().__init__(inputs=M.Pair(coins, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _count(self, coins, acc):
+        if M.IdentityCompare(coins, M.EmptyList)() is M.truth_value:
+            return acc
+        face = CoinFace(M.Head(coins)())()
+        next_acc = acc
+        if M.Compare(face, HeadsTag()())() is M.truth_value:
+            succ_pair = M.Succ(acc, self.registry)()
+            next_acc = M.Head(succ_pair)()
+            self.registry = M.Head(M.Tail(succ_pair)())()
+        return self._count(M.Tail(coins)(), next_acc)
+
+    def __call__(self):
+        return self.result
+
+
+class NatParity(M.Edge):
+    def __init__(self, n, registry):
+        self.registry = registry
+        self.result = self._parity(n)
+        super().__init__(inputs=M.Pair(n, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _parity(self, n):
+        if M.NatEq(n, M.Zero, self.registry)() is M.truth_value:
+            return EvenTag()()
+        if M.NatEq(n, M.one, self.registry)() is M.truth_value:
+            return OddTag()()
+        pred_pair = M.NatPred(n, self.registry)()
+        pred = M.Head(pred_pair)()
+        self.registry = M.Head(M.Tail(pred_pair)())()
+        pred2_pair = M.NatPred(pred, self.registry)()
+        pred2 = M.Head(pred2_pair)()
+        self.registry = M.Head(M.Tail(pred2_pair)())()
+        return self._parity(pred2)
+
+    def __call__(self):
+        return self.result
+
+
+class BoardParityFact(M.Edge):
+    def __init__(self, facts, registry):
+        coins = CollectCoinFacts(facts)()
+        heads = CountHeadsInCoins(coins, registry)()
+        parity = NatParity(heads, registry)()
+        self.result = HeadsCountParity(parity)()
+        super().__init__(inputs=M.Pair(facts, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EngelCoinBoard(M.Edge):
+    def __init__(self, faces):
+        facts = M.EmptyList
+        remaining = faces
+        position = M.five
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            facts = M.Pair(Coin(position, M.Head(remaining)())(), facts)
+            remaining = M.Tail(remaining)()
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                pred_pair = M.NatPred(position, M.AllConstructors)()
+                position = M.Head(pred_pair)()
+        parity_fact = BoardParityFact(facts, M.AllConstructors)()
+        facts = M.Pair(parity_fact, facts)
+        self.result = Pmod.Knowledge(facts)()
+        super().__init__(inputs=M.Pair(faces, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FlipAdjacentPairRule(M.Edge):
+    def __init__(self, left_face, right_face, left_after, right_after):
+        empty = M.EmptyList
+        i_name = M.Thingy()
+        p_name = M.Thingy()
+        var_i = M.Pair(M.VarTag, M.Pair(i_name, empty))
+        var_p = M.Pair(M.VarTag, M.Pair(p_name, empty))
+        succ_i = M.Pair(M.SuccLabel, M.Pair(var_i, empty))
+        parity = HeadsCountParity(var_p)()
+        coin_left = Coin(var_i, left_face)()
+        coin_right = Coin(succ_i, right_face)()
+        flipped_left = Coin(var_i, left_after)()
+        flipped_right = Coin(succ_i, right_after)()
+        self.result = Pmod.MultiRule(
+            M.Pair(coin_left, M.Pair(coin_right, M.Pair(parity, empty))),
+            M.Pair(flipped_left, M.Pair(flipped_right, M.Pair(parity, empty))),
+        )
+        super().__init__(
+            inputs=M.Pair(left_face, M.Pair(right_face, M.Pair(left_after, M.Pair(right_after, empty)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FlipAdjacentRules(M.Edge):
+    def __init__(self):
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        hh = FlipAdjacentPairRule(heads, heads, tails, tails)()
+        ht = FlipAdjacentPairRule(heads, tails, tails, heads)()
+        th = FlipAdjacentPairRule(tails, heads, heads, tails)()
+        tt = FlipAdjacentPairRule(tails, tails, heads, heads)()
+        self.result = M.Pair(hh, M.Pair(ht, M.Pair(th, M.Pair(tt, M.EmptyList))))
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FlipOneRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        i_name = M.Thingy()
+        f_name = M.Thingy()
+        var_i = M.Pair(M.VarTag, M.Pair(i_name, empty))
+        var_f = M.Pair(M.VarTag, M.Pair(f_name, empty))
+        self.result = Pmod.Rule(Coin(var_i, var_f)(), Coin(var_i, HeadsTag()())())
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceEvenGoalUnreachableTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(tails, M.Pair(tails, M.Pair(tails, M.EmptyList))))))()
+        rules = FlipAdjacentRules()()
+        rule = M.Head(rules)()
+        p_name = M.Thingy()
+        var_p = M.Pair(M.VarTag, M.Pair(p_name, M.EmptyList))
+        phi = Imod.Phi(HeadsCountParity(var_p)())()
+        heuristic = Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)()
+        invariant = Imod.Invariant(phi, rules, registry, start, rules)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        search_pair = Imod.SearchWithInvariant(graph, start, goal, rules, heuristic, registry, phi)()
+        search_prune = M.Head(M.Tail(M.Tail(search_pair)())())()
+        self.result = M.truth_value
+        if Imod.IsPreserves(Imod.Preserves(rule, phi, registry)())() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsInvariant(invariant)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(search_prune)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceOddGoalDoesNotPruneTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(tails, M.Pair(tails, M.EmptyList))))))()
+        rules = FlipAdjacentRules()()
+        p_name = M.Thingy()
+        var_p = M.Pair(M.VarTag, M.Pair(p_name, M.EmptyList))
+        phi = Imod.Phi(HeadsCountParity(var_p)())()
+        invariant = Imod.Invariant(phi, rules, registry, start, rules)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        self.result = M.truth_value
+        if Imod.IsInvariant(invariant)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceUnestablishedEvenPhiDoesNotPruneTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        heads = HeadsTag()()
+        tails = TailsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(tails, M.Pair(tails, M.Pair(tails, M.EmptyList))))))()
+        rules = FlipAdjacentRules()()
+        phi = HeadsCountParity(EvenTag()())()
+        invariant = Imod.Invariant(phi, rules, registry, start, rules)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        holds = Imod.PhiHolds(start, phi)()
+        self.result = M.truth_value
+        if holds is M.truth_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardTerms(M.Edge):
+    """Symbolic vocabulary for Engel E2. Nothing here holds a concrete board."""
+
+    def __init__(self, name):
+        empty = M.EmptyList
+        self.result = M.Pair(M.VarTag, M.Pair(M.Char(name), empty))
+        super().__init__(inputs=M.Pair(M.Char(name), empty), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoardSumFact(M.Edge):
+    def __init__(self, state, value):
+        self.result = M.Pair(Lmod.BoardSumLabel, M.Pair(state, M.Pair(value, M.EmptyList)))
+        super().__init__(inputs=M.Pair(state, M.Pair(value, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParityFact(M.Edge):
+    def __init__(self, value, bit):
+        self.result = M.Pair(Lmod.ParityLabel, M.Pair(value, M.Pair(bit, M.EmptyList)))
+        super().__init__(inputs=M.Pair(value, M.Pair(bit, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsEvenFact(M.Edge):
+    def __init__(self, value):
+        self.result = M.Pair(Lmod.IsEvenLabel, M.Pair(value, M.EmptyList))
+        super().__init__(inputs=M.Pair(value, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MoveErasesFact(M.Edge):
+    def __init__(self, before, a, b, after):
+        self.result = M.Pair(
+            Lmod.MoveErasesLabel,
+            M.Pair(before, M.Pair(a, M.Pair(b, M.Pair(after, M.EmptyList)))),
+        )
+        super().__init__(
+            inputs=M.Pair(before, M.Pair(a, M.Pair(b, M.Pair(after, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TerminalFact(M.Edge):
+    def __init__(self, state):
+        self.result = M.Pair(Lmod.TerminalLabel, M.Pair(state, M.EmptyList))
+        super().__init__(inputs=M.Pair(state, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InitialBoardTerm(M.Edge):
+    def __init__(self, n):
+        self.result = M.Pair(Lmod.InitialBoardLabel, M.Pair(n, M.EmptyList))
+        super().__init__(inputs=M.Pair(n, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MinTerm(M.Edge):
+    def __init__(self, a, b):
+        self.result = M.Pair(Lmod.MinLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AbsDiffTerm(M.Edge):
+    def __init__(self, a, b):
+        self.result = M.Pair(Lmod.AbsDiffLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AddTerm(M.Edge):
+    def __init__(self, left, right):
+        self.result = M.Pair(M.ExprAddLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MulTerm(M.Edge):
+    def __init__(self, left, right):
+        self.result = M.Pair(M.ExprMulLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NegTerm(M.Edge):
+    def __init__(self, value):
+        self.result = M.Pair(M.ExprNegLabel, M.Pair(value, M.EmptyList))
+        super().__init__(inputs=M.Pair(value, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TwiceMinTerm(M.Edge):
+    def __init__(self, a, b):
+        self.result = MulTerm(M.two, MinTerm(a, b)())()
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SumAfterMoveTerm(M.Edge):
+    """S - a - b + AbsDiff(a, b), written with Add and Neg only."""
+
+    def __init__(self, s, a, b):
+        dropped = AddTerm(AddTerm(s, NegTerm(a)())(), NegTerm(b)())()
+        self.result = AddTerm(dropped, AbsDiffTerm(a, b)())()
+        super().__init__(inputs=M.Pair(s, M.Pair(a, M.Pair(b, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SumMinusTwiceMinTerm(M.Edge):
+    """S - 2*Min(a, b)."""
+
+    def __init__(self, s, a, b):
+        self.result = AddTerm(s, NegTerm(TwiceMinTerm(a, b)())())()
+        super().__init__(inputs=M.Pair(s, M.Pair(a, M.Pair(b, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InitialBoardSumTerm(M.Edge):
+    """n * (2n + 1), taken as the sum lemma for 1 + 2 + ... + 2n."""
+
+    def __init__(self, n):
+        self.result = MulTerm(n, AddTerm(MulTerm(M.two, n)(), M.one)())()
+        super().__init__(inputs=M.Pair(n, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardPhiPattern(M.Edge):
+    def __init__(self, bit):
+        self.result = ParityFact(Lmod.BoardSumObservableLabel, bit)()
+        super().__init__(inputs=M.Pair(bit, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardInvariantFact(M.Edge):
+    def __init__(self):
+        observable = M.Pair(Lmod.ParityLabel, M.Pair(Lmod.BoardSumObservableLabel, M.EmptyList))
+        self.result = M.Pair(
+            Lmod.InvariantLabel,
+            M.Pair(Lmod.BlackboardProblemLabel, M.Pair(observable, M.EmptyList)),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EraseAndReplaceRule(M.Edge):
+    """The move, stated over arbitrary a and b at the level of the observable."""
+
+    def __init__(self):
+        empty = M.EmptyList
+        before = BlackboardTerms("before")()
+        after = BlackboardTerms("after")()
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        p = BlackboardTerms("p")()
+        premises = M.Pair(
+            BoardSumFact(before, s)(),
+            M.Pair(
+                ParityFact(s, p)(),
+                M.Pair(
+                    BlackboardPhiPattern(p)(),
+                    M.Pair(MoveErasesFact(before, a, b, after)(), empty),
+                ),
+            ),
+        )
+        moved = SumMinusTwiceMinTerm(s, a, b)()
+        replacement = M.Pair(
+            BoardSumFact(after, moved)(),
+            M.Pair(ParityFact(moved, p)(), M.Pair(BlackboardPhiPattern(p)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SumAfterMoveRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        before = BlackboardTerms("before")()
+        after = BlackboardTerms("after")()
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        premises = M.Pair(
+            BoardSumFact(before, s)(),
+            M.Pair(MoveErasesFact(before, a, b, after)(), empty),
+        )
+        replacement = M.Pair(BoardSumFact(after, SumAfterMoveTerm(s, a, b)())(), empty)
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AbsDiffRewriteRule(M.Edge):
+    """AbsDiff(a, b) = (a + b) - 2*Min(a, b)."""
+
+    def __init__(self):
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        pattern = AbsDiffTerm(a, b)()
+        replacement = AddTerm(AddTerm(a, b)(), NegTerm(TwiceMinTerm(a, b)())())()
+        self.result = Pmod.Rule(pattern, replacement)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CancelErasedNumbersRule(M.Edge):
+    """((S - a) - b) + ((a + b) - d) rewrites to S - d."""
+
+    def __init__(self):
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        d = BlackboardTerms("d")()
+        dropped = AddTerm(AddTerm(s, NegTerm(a)())(), NegTerm(b)())()
+        restored = AddTerm(AddTerm(a, b)(), NegTerm(d)())()
+        pattern = AddTerm(dropped, restored)()
+        replacement = AddTerm(s, NegTerm(d)())()
+        self.result = Pmod.Rule(pattern, replacement)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DoublingIsEvenRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        k = BlackboardTerms("k")()
+        doubled = MulTerm(M.two, k)()
+        state = BlackboardTerms("state")()
+        s = BlackboardTerms("S")()
+        p = BlackboardTerms("p")()
+        witness = BoardSumFact(state, AddTerm(s, NegTerm(doubled)())())()
+        parity_of_s = ParityFact(s, p)()
+        premises = M.Pair(witness, M.Pair(parity_of_s, empty))
+        replacement = M.Pair(
+            witness,
+            M.Pair(parity_of_s, M.Pair(IsEvenFact(doubled)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubtractEvenPreservesParityRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        x = BlackboardTerms("x")()
+        d = BlackboardTerms("d")()
+        p = BlackboardTerms("p")()
+        state = BlackboardTerms("state")()
+        difference = AddTerm(x, NegTerm(d)())()
+        sum_fact = BoardSumFact(state, difference)()
+        premises = M.Pair(
+            ParityFact(x, p)(),
+            M.Pair(IsEvenFact(d)(), M.Pair(sum_fact, empty)),
+        )
+        replacement = M.Pair(
+            ParityFact(x, p)(),
+            M.Pair(
+                IsEvenFact(d)(),
+                M.Pair(sum_fact, M.Pair(ParityFact(difference, p)(), empty)),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoardParityReadoutRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        state = BlackboardTerms("state")()
+        v = BlackboardTerms("v")()
+        p = BlackboardTerms("p")()
+        sum_fact = BoardSumFact(state, v)()
+        parity_fact = ParityFact(v, p)()
+        premises = M.Pair(sum_fact, M.Pair(parity_fact, empty))
+        replacement = M.Pair(
+            sum_fact,
+            M.Pair(parity_fact, M.Pair(BlackboardPhiPattern(p)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InitialBoardSumRule(M.Edge):
+    """The named sum lemma: 1 + 2 + ... + 2n = n(2n+1). Never unfolded."""
+
+    def __init__(self):
+        empty = M.EmptyList
+        n = BlackboardTerms("n")()
+        p = BlackboardTerms("p")()
+        board = InitialBoardTerm(n)()
+        board_fact = M.Pair(Lmod.InitialBoardLabel, M.Pair(n, empty))
+        parity_of_n = ParityFact(n, p)()
+        premises = M.Pair(board_fact, M.Pair(parity_of_n, empty))
+        replacement = M.Pair(
+            board_fact,
+            M.Pair(
+                parity_of_n,
+                M.Pair(BoardSumFact(board, InitialBoardSumTerm(n)())(), empty),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TwoKPlusOneIsOddRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        k = BlackboardTerms("k")()
+        x = BlackboardTerms("x")()
+        p = BlackboardTerms("p")()
+        state = BlackboardTerms("state")()
+        odd_term = AddTerm(MulTerm(M.two, k)(), M.one)()
+        witness = BoardSumFact(state, MulTerm(x, odd_term)())()
+        parity_of_k = ParityFact(k, p)()
+        premises = M.Pair(witness, M.Pair(parity_of_k, empty))
+        replacement = M.Pair(
+            witness,
+            M.Pair(parity_of_k, M.Pair(ParityFact(odd_term, Lmod.OddLabel)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParityOfProductRule(M.Edge):
+    """Parity of a product, anchored to the board sum so it forms no stray products."""
+
+    def __init__(self, left_bit, right_bit, product_bit):
+        empty = M.EmptyList
+        x = BlackboardTerms("x")()
+        y = BlackboardTerms("y")()
+        state = BlackboardTerms("state")()
+        product = MulTerm(x, y)()
+        witness = BoardSumFact(state, product)()
+        left = ParityFact(x, left_bit)()
+        right = ParityFact(y, right_bit)()
+        premises = M.Pair(witness, M.Pair(left, M.Pair(right, empty)))
+        replacement = M.Pair(
+            witness,
+            M.Pair(
+                left,
+                M.Pair(right, M.Pair(ParityFact(product, product_bit)(), empty)),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(
+            inputs=M.Pair(left_bit, M.Pair(right_bit, M.Pair(product_bit, empty))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TerminalReadoutRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        p = BlackboardTerms("p")()
+        state = BlackboardTerms("state")()
+        invariant = BlackboardInvariantFact()()
+        reading = BlackboardPhiPattern(p)()
+        terminal = TerminalFact(state)()
+        premises = M.Pair(invariant, M.Pair(reading, M.Pair(terminal, empty)))
+        replacement = M.Pair(
+            invariant,
+            M.Pair(
+                reading,
+                M.Pair(terminal, M.Pair(ParityFact(Lmod.FinalNumberLabel, p)(), empty)),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardRules(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        odd_odd = ParityOfProductRule(Lmod.OddLabel, Lmod.OddLabel, Lmod.OddLabel)()
+        even_odd = ParityOfProductRule(Lmod.EvenLabel, Lmod.OddLabel, Lmod.EvenLabel)()
+        self.result = M.Pair(
+            InitialBoardSumRule()(),
+            M.Pair(
+                TwoKPlusOneIsOddRule()(),
+                M.Pair(
+                    odd_odd,
+                    M.Pair(
+                        even_odd,
+                        M.Pair(
+                            BoardParityReadoutRule()(),
+                            M.Pair(
+                                EraseAndReplaceRule()(),
+                                M.Pair(TerminalReadoutRule()(), empty),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardStart(M.Edge):
+    """Givens for E2: the initial board, the parity of n, terminality, invariance."""
+
+    def __init__(self, n_parity):
+        empty = M.EmptyList
+        n = M.Char("n")
+        facts = M.Pair(
+            M.Pair(Lmod.InitialBoardLabel, M.Pair(n, empty)),
+            M.Pair(
+                ParityFact(n, n_parity)(),
+                M.Pair(
+                    TerminalFact(M.Char("final"))(),
+                    M.Pair(BlackboardInvariantFact()(), empty),
+                ),
+            ),
+        )
+        self.result = Pmod.Knowledge(facts)()
+        super().__init__(inputs=M.Pair(n_parity, empty), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardParityPreservedTest(M.Edge):
+    """Test 1: the move preserves the parity of BoardSum, over symbolic a and b."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rule = EraseAndReplaceRule()()
+        p = BlackboardTerms("p")()
+        phi = Imod.Phi(BlackboardPhiPattern(p)())()
+        obligation = Imod.Preserves(rule, phi, registry)()
+        rules = M.Pair(rule, M.EmptyList)
+        start = BlackboardStart(Lmod.OddLabel)()
+        invariant = Imod.Invariant(phi, rules, registry, start, rules)()
+        self.result = M.truth_value
+        if Imod.IsPreserves(obligation)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsInvariant(invariant)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardMoveSumIsSumMinusTwiceMinTest(M.Edge):
+    """Test 1b: S - a - b + AbsDiff(a, b) rewrites to S - 2*Min(a, b)."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        rules = M.Pair(AbsDiffRewriteRule()(), M.Pair(CancelErasedNumbersRule()(), M.EmptyList))
+        start = SumAfterMoveTerm(s, a, b)()
+        goal = SumMinusTwiceMinTerm(s, a, b)()
+        self.result = Imod.EquationRewriteEquals(start, goal, rules, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardInitialParityIsOddTest(M.Edge):
+    """Test 2: from Odd(n), derive Parity(n(2n+1), Odd)."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rules = BlackboardRules()()
+        heuristic = Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)()
+        start = BlackboardStart(Lmod.OddLabel)()
+        n = M.Char("n")
+        goal = Pmod.Knowledge(
+            M.Pair(ParityFact(InitialBoardSumTerm(n)(), Lmod.OddLabel)(), M.EmptyList)
+        )()
+        plan = Imod.RewriteSearch(start, goal, rules, registry)()
+        self.result = M.truth_value
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardFinalNumberIsOddTest(M.Edge):
+    """Test 3: Parity(FinalNumber, Odd), through the invariant."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rules = BlackboardRules()()
+        start = BlackboardStart(Lmod.OddLabel)()
+        goal = Pmod.Knowledge(
+            M.Pair(ParityFact(Lmod.FinalNumberLabel, Lmod.OddLabel)(), M.EmptyList)
+        )()
+        plan = Imod.RewriteSearch(start, goal, rules, registry)()
+        self.result = M.truth_value
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            invariant_used = M.false_value
+            remaining = plan
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                action = M.Head(remaining)()
+                if BlackboardActionMentionsInvariant(action)() is M.truth_value:
+                    invariant_used = M.truth_value
+                remaining = M.Tail(remaining)()
+            if invariant_used is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardActionMentionsInvariant(M.Edge):
+    """True when the step applied a rule whose premises include the Invariant fact."""
+
+    def __init__(self, action):
+        rule = M.Head(M.Tail(action)())()
+        self.result = self._walk(Pmod.RulePremises(rule)())
+        super().__init__(inputs=M.Pair(action, M.EmptyList), results=self.result)
+
+    def _walk(self, term):
+        if M.IdentityCompare(term, Lmod.InvariantLabel)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if self._walk(M.Head(term)()) is M.truth_value:
+            return M.truth_value
+        return self._walk(M.Tail(term)())
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardEvenNRefusesOddConclusionTest(M.Edge):
+    """Test 4: with Even(n) the machine gets Even, and never Odd."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rules = BlackboardRules()()
+        start = BlackboardStart(Lmod.EvenLabel)()
+        odd_goal = Pmod.Knowledge(
+            M.Pair(ParityFact(Lmod.FinalNumberLabel, Lmod.OddLabel)(), M.EmptyList)
+        )()
+        even_goal = Pmod.Knowledge(
+            M.Pair(ParityFact(Lmod.FinalNumberLabel, Lmod.EvenLabel)(), M.EmptyList)
+        )()
+        odd_plan = Imod.RewriteSearch(start, odd_goal, rules, registry)()
+        even_plan = Imod.RewriteSearch(start, even_goal, rules, registry)()
+        self.result = M.truth_value
+        if M.IdentityCompare(odd_plan, M.EmptyList)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(even_plan, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardProofExpandsNoBoardsTest(M.Edge):
+    """Test 5: the preservation obligation is discharged without any search."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        rule = EraseAndReplaceRule()()
+        rules = M.Pair(rule, M.EmptyList)
+        p = BlackboardTerms("p")()
+        phi = Imod.Phi(BlackboardPhiPattern(p)())()
+        start = BlackboardStart(Lmod.OddLabel)()
+        goal = Pmod.Knowledge(M.Pair(BlackboardPhiPattern(Lmod.EvenLabel)(), M.EmptyList))()
+        heuristic = Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)()
+        search_pair = Imod.SearchWithInvariant(graph, start, goal, rules, heuristic, registry, phi)()
+        search_cost = M.Head(M.Tail(search_pair)())()
+        expanded = Smod.SearchCostExpanded(search_cost)()
+        self.result = M.truth_value
+        if M.NatEq(expanded, M.Zero, registry)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardStartHasNoBoardCellsTest(M.Edge):
+    """Test 5b: the encoding never names a board cell or a move order."""
+
+    def __init__(self, graph):
+        start = BlackboardStart(Lmod.OddLabel)()
+        facts = Imod.StateFacts(start)()
+        self.result = M.truth_value
+        remaining = facts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            fact = M.Head(remaining)()
+            head = M.Head(fact)()
+            if M.IdentityCompare(head, Lmod.InitialBoardLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            elif M.IdentityCompare(head, Lmod.ParityLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            elif M.IdentityCompare(head, Lmod.TerminalLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            elif M.IdentityCompare(head, Lmod.InvariantLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            else:
+                self.result = M.false_value
+                remaining = M.EmptyList
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class InvarianceFlipOneRefutesParityTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        heads = HeadsTag()()
+        start = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.Pair(heads, M.EmptyList))))))()
+        goal = EngelCoinBoard(M.Pair(heads, M.Pair(heads, M.Pair(TailsTag()(), M.Pair(TailsTag()(), M.Pair(TailsTag()(), M.EmptyList))))))()
+        rule = FlipOneRule()()
+        rules = M.Pair(rule, M.EmptyList)
+        phi = Imod.Phi(HeadsCountParity(OddTag()())())()
+        obligation = Imod.Preserves(rule, phi, registry)()
+        invariant = Imod.Invariant(phi, rules, registry, start, rules)()
+        prune = Imod.ReachabilityPrune(start, goal, invariant, phi, registry)()
+        self.result = M.truth_value
+        if Imod.IsInvariantRefuted(obligation)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsInvariant(invariant)() is M.truth_value:
+            self.result = M.false_value
+        elif Imod.IsUnreachable(prune)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 def _set_registry(graph, registry):
     graph._replace_context(constructors=registry)
     return registry
@@ -3953,6 +6202,21 @@ def install_default_tests(graph):
 
     _register_test(
         graph,
+        "minimal_graph_one_step_map_extension_test",
+        empty,
+        MinimalGraphOneStepMapExtensionTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "minimal_graph_source_constraint_test",
+        empty,
+        MinimalGraphSourceConstraintTest(graph),
+        M.truth_value,
+    )
+
+    _register_test(
+        graph,
         "comparison_prompt_abort_test",
         empty,
         ComparisonPromptAbortTest(),
@@ -4101,13 +6365,6 @@ def install_default_tests(graph):
     )
     _register_test(
         graph,
-        "search_theorem_cursor_skips_deep_stale_rule_runs_without_recursion_test",
-        empty,
-        SearchTheoremCursorSkipsDeepStaleRuleRunsWithoutRecursionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
         "compare_search_modes_packetizes_non_root_frontier_test",
         empty,
         CompareSearchModesPacketizesNonRootFrontierTest(graph),
@@ -4248,6 +6505,90 @@ def install_default_tests(graph):
     )
     _register_test(
         graph,
+        "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
+        empty,
+        CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_console_disabled_skips_approval_replay_prompt_test",
+        empty,
+        CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_worker_resume_derivation_missing_plan_raises_runtime_error_test",
+        empty,
+        SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test",
+        empty,
+        CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "rewrite_strategy_goal_demand_allows_goal_head_test",
+        empty,
+        RewriteStrategyGoalDemandAllowsGoalHeadTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "pretty_print_named_tao_quantity_test",
+        empty,
+        PrettyPrintNamedTaoQuantityTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "tao_geometry_example_goals_use_named_quantities_test",
+        empty,
+        TaoGeometryExampleGoalsUseNamedQuantitiesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "tao_compact_rules_use_shrunk_premise_sets_test",
+        empty,
+        TaoCompactRulesUseShrunkPremiseSetsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "merge_bindings_accepts_structurally_equal_values_test",
+        empty,
+        MergeBindingsAcceptsStructurallyEqualValuesTest(),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "build_derivation_replays_structurally_equal_repeated_bindings_test",
+        empty,
+        BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "tao_generic_cosine_replay_cases_test",
+        empty,
+        TaoGenericCosineReplayCasesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "legacy_cosine_rules_removed_test",
+        empty,
+        LegacyCosineRulesRemovedTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
         "search_comparison_outcome_field_test",
         empty,
         SearchComparisonOutcomeFieldTest(graph),
@@ -4321,6 +6662,34 @@ def install_default_tests(graph):
         "snapshot_preserves_machine_edge_structure_test",
         empty,
         SnapshotPreservesMachineEdgeStructureTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "snapshot_preserves_constructor_labels_and_chars_test",
+        empty,
+        SnapshotPreservesConstructorLabelsAndCharsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "snapshot_preserves_rule_edge_inputs_test",
+        empty,
+        SnapshotPreservesRuleEdgeInputsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_worker_resume_state_restores_saved_plan_test",
+        empty,
+        SearchWorkerResumeStateRestoresSavedPlanTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_worker_snapshot_boot_with_runtime_namespace_test",
+        empty,
+        SearchWorkerSnapshotBootWithRuntimeNamespaceTest(graph),
         M.truth_value,
     )
     _register_test(
@@ -4540,16 +6909,199 @@ def install_default_tests(graph):
         LoadedRulesHaveDirectProgressionEdgeEquationsTest(graph),
         M.truth_value,
     )
+    _register_test(
+        graph,
+        "invariance_even_goal_unreachable_test",
+        empty,
+        InvarianceEvenGoalUnreachableTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "invariance_odd_goal_does_not_prune_test",
+        empty,
+        InvarianceOddGoalDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "invariance_unestablished_even_phi_does_not_prune_test",
+        empty,
+        InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "fire_law_surgery_test",
+        empty,
+        FireLawSurgeryTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "fire_law_dangling_mode_test",
+        empty,
+        FireLawDanglingModeTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "law_maps_complete_test",
+        empty,
+        LawMapsCompleteTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "dangling_edges_test",
+        empty,
+        DanglingEdgesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "map_extension_alternatives_test",
+        empty,
+        MapExtensionAlternativesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "structured_miss_reason_test",
+        empty,
+        StructuredMissReasonTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "edge_send_positional_consistency_test",
+        empty,
+        EdgeSendPositionalConsistencyTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "graph_current_version_test",
+        empty,
+        GraphCurrentVersionTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "invariance_flip_one_refutes_parity_test",
+        empty,
+        InvarianceFlipOneRefutesParityTest(graph),
+        M.truth_value,
+    )
+
+    _register_test(
+        graph,
+        "blackboard_parity_preserved_test",
+        empty,
+        BlackboardParityPreservedTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_move_sum_is_sum_minus_twice_min_test",
+        empty,
+        BlackboardMoveSumIsSumMinusTwiceMinTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_initial_parity_is_odd_test",
+        empty,
+        BlackboardInitialParityIsOddTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_final_number_is_odd_test",
+        empty,
+        BlackboardFinalNumberIsOddTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_even_n_refuses_odd_conclusion_test",
+        empty,
+        BlackboardEvenNRefusesOddConclusionTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_proof_expands_no_boards_test",
+        empty,
+        BlackboardProofExpandsNoBoardsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_start_has_no_board_cells_test",
+        empty,
+        BlackboardStartHasNoBoardCellsTest(graph),
+        M.truth_value,
+    )
+
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()
-    theorem_cursor = M.SearchTheoremCursor(theorem_cursor_rules, theorem_cursor_generated)()
+    theorem_cursor_head_index = M.Pair(M.Zero, empty)
+    theorem_cursor_exact_trie = M.Pair(M.one, empty)
+    theorem_cursor_delta = M.Pair(M.two, empty)
+    theorem_cursor_next_delta = M.Pair(M.three, empty)
+    theorem_cursor_actions = M.Pair(b, empty)
+    theorem_cursor = M.SearchTheoremCursor(
+        theorem_cursor_rules,
+        theorem_cursor_generated,
+        theorem_cursor_head_index,
+        theorem_cursor_exact_trie,
+        theorem_cursor_delta,
+        theorem_cursor_next_delta,
+        theorem_cursor_actions,
+    )()
     cursor_state = M.SearchState(a, empty, empty, M.one, theorem_cursor)()
     _register_test(
         graph,
         "search_state_cursor_roundtrip_test",
         M.Pair(cursor_state, empty),
         ComputedRawTermEqual(M.SearchStateCursor(cursor_state), theorem_cursor, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_head_index_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorHeadIndex(theorem_cursor), theorem_cursor_head_index, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_exact_trie_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorExactTrie(theorem_cursor), theorem_cursor_exact_trie, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_delta_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorDelta(theorem_cursor), theorem_cursor_delta, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_next_delta_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorNextDelta(theorem_cursor), theorem_cursor_next_delta, _registry(graph)),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "search_theorem_cursor_actions_roundtrip_test",
+        M.Pair(theorem_cursor, empty),
+        ComputedRawTermEqual(M.SearchTheoremCursorActions(theorem_cursor), theorem_cursor_actions, _registry(graph)),
         M.truth_value,
     )
 
@@ -4586,6 +7138,34 @@ def install_default_tests(graph):
         "heuristic_canonical_knowledge_agreement_test",
         empty,
         HeuristicCanonicalKnowledgeAgreementTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "canonical_arithmetic_add_ac_normalizes_test",
+        empty,
+        CanonicalArithmeticAddACNormalizesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "canonical_arithmetic_mul_ac_normalizes_test",
+        empty,
+        CanonicalArithmeticMulACNormalizesTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "canonical_arithmetic_equation_symmetry_test",
+        empty,
+        CanonicalArithmeticEquationSymmetryTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "arithmetic_canonical_laws_declared_test",
+        empty,
+        ArithmeticCanonicalLawsDeclaredTest(graph),
         M.truth_value,
     )
 

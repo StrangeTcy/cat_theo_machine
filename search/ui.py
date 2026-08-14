@@ -25,11 +25,8 @@ class _SearchProgressTicker:
         self.mode_text = mode_text
         self.progress_owner = progress_owner
         self.started_at = time.time()
-        self._stop_event = threading.Event()
         self._pause_event = threading.Event()
         self._paused_at = None
-        self._report_interval_seconds = 5
-        self._thread = threading.Thread(target=self._run, name="hyge-search-progress", daemon=True)
 
     def _elapsed_seconds(self):
         elapsed = int(time.time() - self.started_at)
@@ -37,28 +34,11 @@ class _SearchProgressTicker:
             return 0
         return elapsed
 
-    def _progress_text(self):
-        if self.progress_owner is not None:
-            return self.progress_owner._ticker_progress_text()
-        return self.mode_text + ": " + str(self._elapsed_seconds()) + "s elapsed"
-
-    def _run(self):
-        while True:
-            stop_requested = M.truth_value if self._stop_event.wait(self._report_interval_seconds) else M.false_value
-            if stop_requested is M.truth_value:
-                return
-            if self._pause_event.is_set():
-                continue
-            _debug(self._progress_text())
-
     def start(self):
         self.started_at = time.time()
         _debug("trying " + self.mode_text + " now")
-        self._thread.start()
 
     def stop(self):
-        self._stop_event.set()
-        self._thread.join(0.2)
         return self._elapsed_seconds()
 
     def pause(self):

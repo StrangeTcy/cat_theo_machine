@@ -103,6 +103,86 @@ class SqrtSeqCauchyLabel(ConstructorLabel):
     pass
 
 
+class IncreasingLabel(ConstructorLabel):
+    pass
+
+
+class DecreasingLabel(ConstructorLabel):
+    pass
+
+
+class BoundedAboveLabel(ConstructorLabel):
+    pass
+
+
+class BoundedBelowLabel(ConstructorLabel):
+    pass
+
+
+class ConvergesLabel(ConstructorLabel):
+    pass
+
+
+class GapContractsLabel(ConstructorLabel):
+    pass
+
+
+class LimitValueLabel(ConstructorLabel):
+    pass
+
+
+class MoveErasesLabel(ConstructorLabel):
+    pass
+
+
+class TerminalLabel(ConstructorLabel):
+    pass
+
+
+class BoardSumObservableLabel(ConstructorLabel):
+    pass
+
+
+class BoardSumLabel(ConstructorLabel):
+    pass
+
+
+class ParityLabel(ConstructorLabel):
+    pass
+
+
+class IsEvenLabel(ConstructorLabel):
+    pass
+
+
+class AbsDiffLabel(ConstructorLabel):
+    pass
+
+
+class MinLabel(ConstructorLabel):
+    pass
+
+
+class InitialBoardLabel(ConstructorLabel):
+    pass
+
+
+class FinalNumberLabel(ConstructorLabel):
+    pass
+
+
+class BlackboardProblemLabel(ConstructorLabel):
+    pass
+
+
+class OddLabel(ConstructorLabel):
+    pass
+
+
+class EvenLabel(ConstructorLabel):
+    pass
+
+
 class FractionLabel(ConstructorLabel):
     pass
 
@@ -195,11 +275,19 @@ class HeadBucketKeyLabel(ConstructorLabel):
     pass
 
 
+class KnowledgeHeadBucketLabel(ConstructorLabel):
+    pass
+
+
 class ResidualHeadBucketLabel(ConstructorLabel):
     pass
 
 
 class KnowledgeLabel(ConstructorLabel):
+    pass
+
+
+class CompiledRuleLabel(ConstructorLabel):
     pass
 
 
@@ -300,6 +388,10 @@ class TotalCostLabel(ConstructorLabel):
 
 
 class SearchAttemptLabel(ConstructorLabel):
+    pass
+
+
+class HeuristicPerformanceLabel(ConstructorLabel):
     pass
 
 
@@ -707,6 +799,382 @@ class TaoProblem11TriangleLabel(ConstructorLabel):
     pass
 
 
+class TaoProblem11VertexULabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11VertexVLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11VertexWLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11BaseValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11DifferenceValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11AreaValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11AlphaValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11BetaValueLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11GammaValueLabel(ConstructorLabel):
+    pass
+
+
+class DistinctLabel(ConstructorLabel):
+    pass
+
+
+class VertexOfLabel(ConstructorLabel):
+    pass
+
+
+class SegmentLabel(ConstructorLabel):
+    pass
+
+
+class AngleLabel(ConstructorLabel):
+    pass
+
+
+class SideOfLabel(ConstructorLabel):
+    pass
+
+
+class AngleOfLabel(ConstructorLabel):
+    pass
+
+
+class OppositeLabel(ConstructorLabel):
+    pass
+
+
+class AngleMeasureLabel(ConstructorLabel):
+    pass
+
+
+class APNameLabel(ConstructorLabel):
+    pass
+
+
+class ApplyLabel(ConstructorLabel):
+    pass
+
+
+class DefinesLabel(ConstructorLabel):
+    pass
+
+
+class PerimeterThirdLabel(ConstructorLabel):
+    pass
+
+
+class APSideRadicandLabel(ConstructorLabel):
+    pass
+
+
+class APSideOffsetLabel(ConstructorLabel):
+    pass
+
+
+class APShortSideLabel(ConstructorLabel):
+    pass
+
+
+class APMiddleSideLabel(ConstructorLabel):
+    pass
+
+
+class APLongSideLabel(ConstructorLabel):
+    pass
+
+
+class APAngleValueLabel(ConstructorLabel):
+    pass
+
+
+class APAlphaAngleValueLabel(ConstructorLabel):
+    pass
+
+
+class APBetaAngleValueLabel(ConstructorLabel):
+    pass
+
+
+class APGammaAngleValueLabel(ConstructorLabel):
+    pass
+
+
+class APAreaIdentityLabel(ConstructorLabel):
+    pass
+
+
+class CosineRuleRelatesLabel(ConstructorLabel):
+    pass
+
+
+class GoalDemandRewriteStrategyLabel(ConstructorLabel):
+    pass
+
+
+class PremiseUnlockRewriteStrategyLabel(ConstructorLabel):
+    pass
+
+
+class BoundaryLabel(ConstructorLabel):
+    pass
+
+
+class MapLabel(ConstructorLabel):
+    pass
+
+
+class SendLabel(ConstructorLabel):
+    pass
+
+
+class ApartLabel(ConstructorLabel):
+    pass
+
+
+class ReasonApartLabel(ConstructorLabel):
+    pass
+
+
+class ReasonAlreadyMappedLabel(ConstructorLabel):
+    pass
+
+
+class ReasonShapeLabel(ConstructorLabel):
+    pass
+
+
+class ReasonPositionalLabel(ConstructorLabel):
+    pass
+
+
+class MatchPreparedLabel(ConstructorLabel):
+    pass
+
+
+class DeletionAdmittedLabel(ConstructorLabel):
+    pass
+
+
+class ComplementProducedLabel(ConstructorLabel):
+    pass
+
+
+class InsertionPreparedLabel(ConstructorLabel):
+    pass
+
+
+class GraphVersionCommittedLabel(ConstructorLabel):
+    pass
+
+
+class DanglingForbidLabel(ConstructorLabel):
+    pass
+
+
+class DanglingDeleteLabel(ConstructorLabel):
+    pass
+
+
+class FireRejectedLabel(ConstructorLabel):
+    pass
+
+
+class MissLabel(ConstructorLabel):
+    pass
+
+
+class LawLabel(ConstructorLabel):
+    pass
+
+
+class FireLabel(ConstructorLabel):
+    pass
+
+
+class NextLabel(ConstructorLabel):
+    pass
+
+
+class GraphVersionLabel(ConstructorLabel):
+    pass
+
+
+class KObligationLabel(ConstructorLabel):
+    pass
+
+
+class PlannerProblemLabel(ConstructorLabel):
+    pass
+
+
+class FiniteLabel(ConstructorLabel):
+    pass
+
+
+class TotalMapLabel(ConstructorLabel):
+    pass
+
+
+class CardinalityLabel(ConstructorLabel):
+    pass
+
+
+class NatLessLabel(ConstructorLabel):
+    pass
+
+
+class InLabel(ConstructorLabel):
+    pass
+
+
+class NonEmptyLabel(ConstructorLabel):
+    pass
+
+
+class AttainsLabel(ConstructorLabel):
+    pass
+
+
+class ExtremalAtLabel(ConstructorLabel):
+    pass
+
+
+class VariationLabel(ConstructorLabel):
+    pass
+
+
+class BetterLabel(ConstructorLabel):
+    pass
+
+
+class ExistsLabel(ConstructorLabel):
+    pass
+
+
+class NotLabel(ConstructorLabel):
+    pass
+
+
+class ContradictionLabel(ConstructorLabel):
+    pass
+
+
+class CollisionLabel(ConstructorLabel):
+    pass
+
+
+class ExtremalLabel(ConstructorLabel):
+    pass
+
+
+class SymmetryLabel(ConstructorLabel):
+    pass
+
+
+class PigeonholeLabel(ConstructorLabel):
+    pass
+
+
+class DivideLabel(ConstructorLabel):
+    pass
+
+
+class BijectionLabel(ConstructorLabel):
+    pass
+
+
+class DoubleCountLabel(ConstructorLabel):
+    pass
+
+
+class ExtremalMinLabel(ConstructorLabel):
+    pass
+
+
+class ExtremalMaxLabel(ConstructorLabel):
+    pass
+
+
+class PlannerAlternativeLabel(ConstructorLabel):
+    pass
+
+
+class PlannerObligationLabel(ConstructorLabel):
+    pass
+
+
+class PlannerDependencyLabel(ConstructorLabel):
+    pass
+
+
+class PlannerJobLabel(ConstructorLabel):
+    pass
+
+
+class ProvedLabel(ConstructorLabel):
+    pass
+
+
+class PendingLabel(ConstructorLabel):
+    pass
+
+
+class FailedLabel(ConstructorLabel):
+    pass
+
+
+class PreservesLabel(ConstructorLabel):
+    pass
+
+
+class InvariantLabel(ConstructorLabel):
+    pass
+
+
+class UnreachableLabel(ConstructorLabel):
+    pass
+
+
+class InvariantCandidateLabel(ConstructorLabel):
+    pass
+
+
+class InvariantRefutedLabel(ConstructorLabel):
+    pass
+
+
+class PerimeterLabel(ConstructorLabel):
+    pass
+
+
+class ArccosLabel(ConstructorLabel):
+    pass
+
+
+class TaoProblem11PerimeterValueLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -718,6 +1186,90 @@ TestOKLabel = TestOKLabel()
 TestFailLabel = TestFailLabel()
 TestNameLabel = TestNameLabel()
 SequenceLabel = SequenceLabel()
+VertexOfLabel = VertexOfLabel()
+SegmentLabel = SegmentLabel()
+AngleLabel = AngleLabel()
+SideOfLabel = SideOfLabel()
+AngleOfLabel = AngleOfLabel()
+OppositeLabel = OppositeLabel()
+AngleMeasureLabel = AngleMeasureLabel()
+APNameLabel = APNameLabel()
+ApplyLabel = ApplyLabel()
+DefinesLabel = DefinesLabel()
+PerimeterThirdLabel = PerimeterThirdLabel()
+APSideRadicandLabel = APSideRadicandLabel()
+APSideOffsetLabel = APSideOffsetLabel()
+APShortSideLabel = APShortSideLabel()
+APMiddleSideLabel = APMiddleSideLabel()
+APLongSideLabel = APLongSideLabel()
+APAngleValueLabel = APAngleValueLabel()
+APAlphaAngleValueLabel = APAlphaAngleValueLabel()
+APBetaAngleValueLabel = APBetaAngleValueLabel()
+APGammaAngleValueLabel = APGammaAngleValueLabel()
+APAreaIdentityLabel = APAreaIdentityLabel()
+CosineRuleRelatesLabel = CosineRuleRelatesLabel()
+GoalDemandRewriteStrategyLabel = GoalDemandRewriteStrategyLabel()
+PremiseUnlockRewriteStrategyLabel = PremiseUnlockRewriteStrategyLabel()
+BoundaryLabel = BoundaryLabel()
+MapLabel = MapLabel()
+SendLabel = SendLabel()
+ApartLabel = ApartLabel()
+ReasonApartLabel = ReasonApartLabel()
+ReasonAlreadyMappedLabel = ReasonAlreadyMappedLabel()
+ReasonShapeLabel = ReasonShapeLabel()
+ReasonPositionalLabel = ReasonPositionalLabel()
+MatchPreparedLabel = MatchPreparedLabel()
+DeletionAdmittedLabel = DeletionAdmittedLabel()
+ComplementProducedLabel = ComplementProducedLabel()
+InsertionPreparedLabel = InsertionPreparedLabel()
+GraphVersionCommittedLabel = GraphVersionCommittedLabel()
+DanglingForbidLabel = DanglingForbidLabel()
+DanglingDeleteLabel = DanglingDeleteLabel()
+FireRejectedLabel = FireRejectedLabel()
+MissLabel = MissLabel()
+LawLabel = LawLabel()
+FireLabel = FireLabel()
+NextLabel = NextLabel()
+GraphVersionLabel = GraphVersionLabel()
+KObligationLabel = KObligationLabel()
+PlannerProblemLabel = PlannerProblemLabel()
+FiniteLabel = FiniteLabel()
+TotalMapLabel = TotalMapLabel()
+CardinalityLabel = CardinalityLabel()
+NatLessLabel = NatLessLabel()
+InLabel = InLabel()
+NonEmptyLabel = NonEmptyLabel()
+AttainsLabel = AttainsLabel()
+ExtremalAtLabel = ExtremalAtLabel()
+VariationLabel = VariationLabel()
+BetterLabel = BetterLabel()
+ExistsLabel = ExistsLabel()
+NotLabel = NotLabel()
+ContradictionLabel = ContradictionLabel()
+CollisionLabel = CollisionLabel()
+ExtremalLabel = ExtremalLabel()
+SymmetryLabel = SymmetryLabel()
+PigeonholeLabel = PigeonholeLabel()
+DivideLabel = DivideLabel()
+BijectionLabel = BijectionLabel()
+DoubleCountLabel = DoubleCountLabel()
+ExtremalMinLabel = ExtremalMinLabel()
+ExtremalMaxLabel = ExtremalMaxLabel()
+PlannerAlternativeLabel = PlannerAlternativeLabel()
+PlannerObligationLabel = PlannerObligationLabel()
+PlannerDependencyLabel = PlannerDependencyLabel()
+PlannerJobLabel = PlannerJobLabel()
+ProvedLabel = ProvedLabel()
+PendingLabel = PendingLabel()
+FailedLabel = FailedLabel()
+PreservesLabel = PreservesLabel()
+InvariantLabel = InvariantLabel()
+UnreachableLabel = UnreachableLabel()
+InvariantCandidateLabel = InvariantCandidateLabel()
+InvariantRefutedLabel = InvariantRefutedLabel()
+PerimeterLabel = PerimeterLabel()
+ArccosLabel = ArccosLabel()
+TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -731,6 +1283,26 @@ NewtonPositiveLabel = NewtonPositiveLabel()
 NewtonErrorIdentityLabel = NewtonErrorIdentityLabel()
 NewtonErrorShrinksLabel = NewtonErrorShrinksLabel()
 SqrtSeqCauchyLabel = SqrtSeqCauchyLabel()
+IncreasingLabel = IncreasingLabel()
+DecreasingLabel = DecreasingLabel()
+BoundedAboveLabel = BoundedAboveLabel()
+BoundedBelowLabel = BoundedBelowLabel()
+ConvergesLabel = ConvergesLabel()
+GapContractsLabel = GapContractsLabel()
+LimitValueLabel = LimitValueLabel()
+MoveErasesLabel = MoveErasesLabel()
+TerminalLabel = TerminalLabel()
+BoardSumObservableLabel = BoardSumObservableLabel()
+BoardSumLabel = BoardSumLabel()
+ParityLabel = ParityLabel()
+IsEvenLabel = IsEvenLabel()
+AbsDiffLabel = AbsDiffLabel()
+MinLabel = MinLabel()
+InitialBoardLabel = InitialBoardLabel()
+FinalNumberLabel = FinalNumberLabel()
+BlackboardProblemLabel = BlackboardProblemLabel()
+OddLabel = OddLabel()
+EvenLabel = EvenLabel()
 FractionLabel = FractionLabel()
 WholeLabel = WholeLabel()
 ExprAddLabel = ExprAddLabel()
@@ -754,8 +1326,10 @@ PreferFewerVariablesLabel = PreferFewerVariablesLabel()
 PreferGreaterSpecificityLabel = PreferGreaterSpecificityLabel()
 PreferEarlierPremiseLabel = PreferEarlierPremiseLabel()
 HeadBucketKeyLabel = HeadBucketKeyLabel()
+KnowledgeHeadBucketLabel = KnowledgeHeadBucketLabel()
 ResidualHeadBucketLabel = ResidualHeadBucketLabel()
 KnowledgeLabel = KnowledgeLabel()
+CompiledRuleLabel = CompiledRuleLabel()
 StepLabel = StepLabel()
 DerivationLabel = DerivationLabel()
 TheoremActionLabel = TheoremActionLabel()
@@ -781,6 +1355,7 @@ ProofCostLabel = ProofCostLabel()
 SearchCostLabel = SearchCostLabel()
 TotalCostLabel = TotalCostLabel()
 SearchAttemptLabel = SearchAttemptLabel()
+HeuristicPerformanceLabel = HeuristicPerformanceLabel()
 SearchSignatureLabel = SearchSignatureLabel()
 SearchComparisonLabel = SearchComparisonLabel()
 SearchComparisonJobLabel = SearchComparisonJobLabel()
@@ -882,6 +1457,16 @@ CommonDifferenceParameterLabel = CommonDifferenceParameterLabel()
 SymmetricProgressionNotationLabel = SymmetricProgressionNotationLabel()
 MiddleTermAverageLabel = MiddleTermAverageLabel()
 TaoProblem11TriangleLabel = TaoProblem11TriangleLabel()
+TaoProblem11VertexULabel = TaoProblem11VertexULabel()
+TaoProblem11VertexVLabel = TaoProblem11VertexVLabel()
+TaoProblem11VertexWLabel = TaoProblem11VertexWLabel()
+TaoProblem11BaseValueLabel = TaoProblem11BaseValueLabel()
+TaoProblem11DifferenceValueLabel = TaoProblem11DifferenceValueLabel()
+TaoProblem11AreaValueLabel = TaoProblem11AreaValueLabel()
+TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
+TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
+TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
+DistinctLabel = DistinctLabel()
 
 
 def sync_from_namespace(namespace):
@@ -910,6 +1495,26 @@ def sync_from_namespace(namespace):
         "NewtonErrorIdentityLabel",
         "NewtonErrorShrinksLabel",
         "SqrtSeqCauchyLabel",
+        "IncreasingLabel",
+        "DecreasingLabel",
+        "BoundedAboveLabel",
+        "BoundedBelowLabel",
+        "ConvergesLabel",
+        "GapContractsLabel",
+        "LimitValueLabel",
+        "MoveErasesLabel",
+        "TerminalLabel",
+        "BoardSumObservableLabel",
+        "BoardSumLabel",
+        "ParityLabel",
+        "IsEvenLabel",
+        "AbsDiffLabel",
+        "MinLabel",
+        "InitialBoardLabel",
+        "FinalNumberLabel",
+        "BlackboardProblemLabel",
+        "OddLabel",
+        "EvenLabel",
         "FractionLabel",
         "WholeLabel",
         "ExprAddLabel",
@@ -933,8 +1538,10 @@ def sync_from_namespace(namespace):
         "PreferGreaterSpecificityLabel",
         "PreferEarlierPremiseLabel",
         "HeadBucketKeyLabel",
+        "KnowledgeHeadBucketLabel",
         "ResidualHeadBucketLabel",
         "KnowledgeLabel",
+        "CompiledRuleLabel",
         "StepLabel",
         "DerivationLabel",
         "TheoremActionLabel",
@@ -974,6 +1581,88 @@ def sync_from_namespace(namespace):
         "SearchRewriteCursorLabel",
         "SearchRewritePathFrameLabel",
         "SearchRewriteRuleBundleLabel",
+        "VertexOfLabel",
+        "SegmentLabel",
+        "AngleLabel",
+        "SideOfLabel",
+        "AngleOfLabel",
+        "OppositeLabel",
+        "AngleMeasureLabel",
+        "APNameLabel",
+        "ApplyLabel",
+        "DefinesLabel",
+        "PerimeterThirdLabel",
+        "APSideRadicandLabel",
+        "APSideOffsetLabel",
+        "APShortSideLabel",
+        "APMiddleSideLabel",
+        "APLongSideLabel",
+        "APAngleValueLabel",
+        "APAlphaAngleValueLabel",
+        "APBetaAngleValueLabel",
+        "APGammaAngleValueLabel",
+        "APAreaIdentityLabel",
+        "CosineRuleRelatesLabel",
+        "GoalDemandRewriteStrategyLabel",
+        "PremiseUnlockRewriteStrategyLabel",
+        "BoundaryLabel",
+        "MapLabel",
+        "SendLabel",
+        "ApartLabel",
+        "ReasonApartLabel",
+        "ReasonAlreadyMappedLabel",
+        "ReasonShapeLabel",
+        "ReasonPositionalLabel",
+        "MatchPreparedLabel",
+        "DeletionAdmittedLabel",
+        "ComplementProducedLabel",
+        "InsertionPreparedLabel",
+        "GraphVersionCommittedLabel",
+        "DanglingForbidLabel",
+        "DanglingDeleteLabel",
+        "FireRejectedLabel",
+        "MissLabel",
+        "LawLabel",
+        "FireLabel",
+        "NextLabel",
+        "PlannerProblemLabel",
+        "FiniteLabel",
+        "TotalMapLabel",
+        "CardinalityLabel",
+        "NatLessLabel",
+        "InLabel",
+        "NonEmptyLabel",
+        "AttainsLabel",
+        "ExtremalAtLabel",
+        "VariationLabel",
+        "BetterLabel",
+        "ExistsLabel",
+        "NotLabel",
+        "ContradictionLabel",
+        "CollisionLabel",
+        "ExtremalLabel",
+        "SymmetryLabel",
+        "PigeonholeLabel",
+        "DivideLabel",
+        "BijectionLabel",
+        "DoubleCountLabel",
+        "ExtremalMinLabel",
+        "ExtremalMaxLabel",
+        "PlannerAlternativeLabel",
+        "PlannerObligationLabel",
+        "PlannerDependencyLabel",
+        "PlannerJobLabel",
+        "ProvedLabel",
+        "PendingLabel",
+        "FailedLabel",
+        "PreservesLabel",
+        "InvariantLabel",
+        "UnreachableLabel",
+        "InvariantCandidateLabel",
+        "InvariantRefutedLabel",
+        "PerimeterLabel",
+        "ArccosLabel",
+        "TaoProblem11PerimeterValueLabel",
         "SearchPairKeyLabel",
         "SearchCtorKeyLabel",
         "ExactAtomKeyLabel",
@@ -1061,6 +1750,19 @@ def sync_from_namespace(namespace):
         "SymmetricProgressionNotationLabel",
         "MiddleTermAverageLabel",
         "TaoProblem11TriangleLabel",
+        "TaoProblem11VertexULabel",
+        "TaoProblem11VertexVLabel",
+        "TaoProblem11VertexWLabel",
+        "TaoProblem11BaseValueLabel",
+        "TaoProblem11DifferenceValueLabel",
+        "TaoProblem11AreaValueLabel",
+        "TaoProblem11AlphaValueLabel",
+        "TaoProblem11BetaValueLabel",
+        "TaoProblem11GammaValueLabel",
+        "DistinctLabel",
+        "PerimeterLabel",
+        "ArccosLabel",
+        "TaoProblem11PerimeterValueLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

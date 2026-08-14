@@ -5,6 +5,9 @@ name: trigonometry
 description: Generic trigonometric triangle theorems stated as equations over edge-length terms
 requires: [geometry-ontology]
 
+phi:
+  list: []
+
 rules:
   - id: triangle_yields_sine_rule_equation
     premises:
@@ -88,410 +91,135 @@ rules:
                                 args:
                                   - {var: triangle}
 
-  - id: triangle_yields_cosine_rule_first_equation
-    premises:
-      - call:
-          head: {sym: TriangleLabel}
-          args:
-            - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: FirstEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: SecondEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: ThirdEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: FirstAngleLabel}
-          args:
-            - {var: triangle}
-    replacement:
-      call:
-        head: {sym: SolvedLabel}
-        args:
-          - call:
-              head: {sym: ExprEqLabel}
-              args:
-                - call:
-                    head: {sym: ExprPowLabel}
-                    args:
-                      - call:
-                          head: {sym: LengthLabel}
-                          args:
-                            - call:
-                                head: {sym: FirstEdgeLabel}
-                                args:
-                                  - call:
-                                      head: {sym: EdgesLabel}
-                                      args:
-                                        - {var: triangle}
-                      - {sym: two}
-                - call:
-                    head: {sym: ExprAddLabel}
-                    args:
-                      - call:
-                          head: {sym: ExprAddLabel}
-                          args:
-                            - call:
-                                head: {sym: ExprPowLabel}
-                                args:
-                                  - call:
-                                      head: {sym: LengthLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: SecondEdgeLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: EdgesLabel}
-                                                  args:
-                                                    - {var: triangle}
-                                  - {sym: two}
-                            - call:
-                                head: {sym: ExprPowLabel}
-                                args:
-                                  - call:
-                                      head: {sym: LengthLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: ThirdEdgeLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: EdgesLabel}
-                                                  args:
-                                                    - {var: triangle}
-                                  - {sym: two}
-                      - call:
-                          head: {sym: ExprNegLabel}
-                          args:
-                            - call:
-                                head: {sym: ExprMulLabel}
-                                args:
-                                  - {sym: two}
-                                  - call:
-                                      head: {sym: ExprMulLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: LengthLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: SecondEdgeLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: EdgesLabel}
-                                                        args:
-                                                          - {var: triangle}
-                                        - call:
-                                            head: {sym: ExprMulLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: LengthLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: ThirdEdgeLabel}
-                                                        args:
-                                                          - call:
-                                                              head: {sym: EdgesLabel}
-                                                              args:
-                                                                - {var: triangle}
-                                              - call:
-                                                  head: {sym: CosineLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: FirstAngleLabel}
-                                                        args:
-                                                          - {var: triangle}
 
-  - id: triangle_yields_cosine_rule_second_equation
-    premises:
-      - call:
-          head: {sym: TriangleLabel}
-          args:
-            - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: FirstEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: SecondEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: ThirdEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: SecondAngleLabel}
-          args:
-            - {var: triangle}
-    replacement:
-      call:
-        head: {sym: SolvedLabel}
-        args:
-          - call:
-              head: {sym: ExprEqLabel}
-              args:
-                - call:
-                    head: {sym: ExprPowLabel}
-                    args:
-                      - call:
-                          head: {sym: LengthLabel}
-                          args:
-                            - call:
-                                head: {sym: SecondEdgeLabel}
-                                args:
-                                  - call:
-                                      head: {sym: EdgesLabel}
-                                      args:
-                                        - {var: triangle}
-                      - {sym: two}
-                - call:
-                    head: {sym: ExprAddLabel}
-                    args:
-                      - call:
-                          head: {sym: ExprAddLabel}
-                          args:
-                            - call:
-                                head: {sym: ExprPowLabel}
-                                args:
-                                  - call:
-                                      head: {sym: LengthLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: FirstEdgeLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: EdgesLabel}
-                                                  args:
-                                                    - {var: triangle}
-                                  - {sym: two}
-                            - call:
-                                head: {sym: ExprPowLabel}
-                                args:
-                                  - call:
-                                      head: {sym: LengthLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: ThirdEdgeLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: EdgesLabel}
-                                                  args:
-                                                    - {var: triangle}
-                                  - {sym: two}
-                      - call:
-                          head: {sym: ExprNegLabel}
-                          args:
-                            - call:
-                                head: {sym: ExprMulLabel}
-                                args:
-                                  - {sym: two}
-                                  - call:
-                                      head: {sym: ExprMulLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: LengthLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: FirstEdgeLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: EdgesLabel}
-                                                        args:
-                                                          - {var: triangle}
-                                        - call:
-                                            head: {sym: ExprMulLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: LengthLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: ThirdEdgeLabel}
-                                                        args:
-                                                          - call:
-                                                              head: {sym: EdgesLabel}
-                                                              args:
-                                                                - {var: triangle}
-                                              - call:
-                                                  head: {sym: CosineLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: SecondAngleLabel}
-                                                        args:
-                                                          - {var: triangle}
 
-  - id: triangle_yields_cosine_rule_third_equation
+
+  - id: cosine_relation_expands_to_equation
+    pattern:
+      call:
+        head: {sym: CosineRuleRelatesLabel}
+        args:
+          - {var: opposite}
+          - {var: adjacent1}
+          - {var: adjacent2}
+          - {var: angle}
+    replacement:
+      call:
+        head: {sym: ExprEqLabel}
+        args:
+          - call:
+              head: {sym: ExprPowLabel}
+              args:
+                - {var: opposite}
+                - {sym: two}
+          - call:
+              head: {sym: ExprAddLabel}
+              args:
+                - call:
+                    head: {sym: ExprAddLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprPowLabel}
+                          args:
+                            - {var: adjacent1}
+                            - {sym: two}
+                      - call:
+                          head: {sym: ExprPowLabel}
+                          args:
+                            - {var: adjacent2}
+                            - {sym: two}
+                - call:
+                    head: {sym: ExprNegLabel}
+                    args:
+                      - call:
+                          head: {sym: ExprMulLabel}
+                          args:
+                            - {sym: two}
+                            - call:
+                                head: {sym: ExprMulLabel}
+                                args:
+                                  - {var: adjacent1}
+                                  - call:
+                                      head: {sym: ExprMulLabel}
+                                      args:
+                                        - {var: adjacent2}
+                                        - call:
+                                            head: {sym: CosineLabel}
+                                            args:
+                                              - {var: angle}
+
+  - id: triangle_yields_generic_cosine_relation
     premises:
       - call:
           head: {sym: TriangleLabel}
           args:
             - {var: triangle}
       - call:
-          head: {sym: LengthLabel}
+          head: {sym: SideOfLabel}
           args:
-            - call:
-                head: {sym: FirstEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: SecondEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: LengthLabel}
-          args:
-            - call:
-                head: {sym: ThirdEdgeLabel}
-                args:
-                  - call:
-                      head: {sym: EdgesLabel}
-                      args:
-                        - {var: triangle}
-      - call:
-          head: {sym: ThirdAngleLabel}
-          args:
+            - {var: opposite_side}
             - {var: triangle}
+      - call:
+          head: {sym: SideOfLabel}
+          args:
+            - {var: adjacent_side_one}
+            - {var: triangle}
+      - call:
+          head: {sym: SideOfLabel}
+          args:
+            - {var: adjacent_side_two}
+            - {var: triangle}
+      - call:
+          head: {sym: LengthLabel}
+          args:
+            - {var: opposite_side}
+            - {var: opposite_length}
+      - call:
+          head: {sym: LengthLabel}
+          args:
+            - {var: adjacent_side_one}
+            - {var: adjacent_length_one}
+      - call:
+          head: {sym: LengthLabel}
+          args:
+            - {var: adjacent_side_two}
+            - {var: adjacent_length_two}
+      - call:
+          head: {sym: AngleOfLabel}
+          args:
+            - {var: angle}
+            - {var: triangle}
+      - call:
+          head: {sym: AngleMeasureLabel}
+          args:
+            - {var: angle}
+            - {var: angle_value}
+      - call:
+          head: {sym: OppositeLabel}
+          args:
+            - {var: opposite_side}
+            - {var: angle}
+      - call:
+          head: {sym: DistinctLabel}
+          args:
+            - {var: opposite_side}
+            - {var: adjacent_side_one}
+      - call:
+          head: {sym: DistinctLabel}
+          args:
+            - {var: opposite_side}
+            - {var: adjacent_side_two}
+      - call:
+          head: {sym: DistinctLabel}
+          args:
+            - {var: adjacent_side_one}
+            - {var: adjacent_side_two}
     replacement:
       call:
-        head: {sym: SolvedLabel}
+        head: {sym: CosineRuleRelatesLabel}
         args:
-          - call:
-              head: {sym: ExprEqLabel}
-              args:
-                - call:
-                    head: {sym: ExprPowLabel}
-                    args:
-                      - call:
-                          head: {sym: LengthLabel}
-                          args:
-                            - call:
-                                head: {sym: ThirdEdgeLabel}
-                                args:
-                                  - call:
-                                      head: {sym: EdgesLabel}
-                                      args:
-                                        - {var: triangle}
-                      - {sym: two}
-                - call:
-                    head: {sym: ExprAddLabel}
-                    args:
-                      - call:
-                          head: {sym: ExprAddLabel}
-                          args:
-                            - call:
-                                head: {sym: ExprPowLabel}
-                                args:
-                                  - call:
-                                      head: {sym: LengthLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: FirstEdgeLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: EdgesLabel}
-                                                  args:
-                                                    - {var: triangle}
-                                  - {sym: two}
-                            - call:
-                                head: {sym: ExprPowLabel}
-                                args:
-                                  - call:
-                                      head: {sym: LengthLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: SecondEdgeLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: EdgesLabel}
-                                                  args:
-                                                    - {var: triangle}
-                                  - {sym: two}
-                      - call:
-                          head: {sym: ExprNegLabel}
-                          args:
-                            - call:
-                                head: {sym: ExprMulLabel}
-                                args:
-                                  - {sym: two}
-                                  - call:
-                                      head: {sym: ExprMulLabel}
-                                      args:
-                                        - call:
-                                            head: {sym: LengthLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: FirstEdgeLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: EdgesLabel}
-                                                        args:
-                                                          - {var: triangle}
-                                        - call:
-                                            head: {sym: ExprMulLabel}
-                                            args:
-                                              - call:
-                                                  head: {sym: LengthLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: SecondEdgeLabel}
-                                                        args:
-                                                          - call:
-                                                              head: {sym: EdgesLabel}
-                                                              args:
-                                                                - {var: triangle}
-                                              - call:
-                                                  head: {sym: CosineLabel}
-                                                  args:
-                                                    - call:
-                                                        head: {sym: ThirdAngleLabel}
-                                                        args:
-                                                          - {var: triangle}
+          - {var: opposite_length}
+          - {var: adjacent_length_one}
+          - {var: adjacent_length_two}
+          - {var: angle_value}
+
