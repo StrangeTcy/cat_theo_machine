@@ -886,7 +886,7 @@ class Search(M.Edge):
             after_head_index = time.time()
             self._stage_debug(
                 "cursor build: head index build complete; elapsed="
-                + "{:.3f}".format(after_head_index - head_started_at)
+                + "{:.3f}".format(after_head_index - started_at)
                 + "s facts="
                 + fact_count_text
             )
@@ -894,7 +894,7 @@ class Search(M.Edge):
             after_exact_trie = time.time()
             self._stage_debug(
                 "cursor build: exact trie built; elapsed="
-                + "{:.3f}".format(after_exact_trie - head_started_at)
+                + "{:.3f}".format(after_exact_trie - started_at)
                 + "s facts=" + fact_count_text
             )
         else:

@@ -979,6 +979,62 @@ class PlannerProblemLabel(ConstructorLabel):
     pass
 
 
+class FiniteLabel(ConstructorLabel):
+    pass
+
+
+class TotalMapLabel(ConstructorLabel):
+    pass
+
+
+class CardinalityLabel(ConstructorLabel):
+    pass
+
+
+class NatLessLabel(ConstructorLabel):
+    pass
+
+
+class InLabel(ConstructorLabel):
+    pass
+
+
+class NonEmptyLabel(ConstructorLabel):
+    pass
+
+
+class AttainsLabel(ConstructorLabel):
+    pass
+
+
+class ExtremalAtLabel(ConstructorLabel):
+    pass
+
+
+class VariationLabel(ConstructorLabel):
+    pass
+
+
+class BetterLabel(ConstructorLabel):
+    pass
+
+
+class ExistsLabel(ConstructorLabel):
+    pass
+
+
+class NotLabel(ConstructorLabel):
+    pass
+
+
+class ContradictionLabel(ConstructorLabel):
+    pass
+
+
+class CollisionLabel(ConstructorLabel):
+    pass
+
+
 class ExtremalLabel(ConstructorLabel):
     pass
 
@@ -1117,6 +1173,20 @@ NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
 PlannerProblemLabel = PlannerProblemLabel()
+FiniteLabel = FiniteLabel()
+TotalMapLabel = TotalMapLabel()
+CardinalityLabel = CardinalityLabel()
+NatLessLabel = NatLessLabel()
+InLabel = InLabel()
+NonEmptyLabel = NonEmptyLabel()
+AttainsLabel = AttainsLabel()
+ExtremalAtLabel = ExtremalAtLabel()
+VariationLabel = VariationLabel()
+BetterLabel = BetterLabel()
+ExistsLabel = ExistsLabel()
+NotLabel = NotLabel()
+ContradictionLabel = ContradictionLabel()
+CollisionLabel = CollisionLabel()
 ExtremalLabel = ExtremalLabel()
 SymmetryLabel = SymmetryLabel()
 PigeonholeLabel = PigeonholeLabel()
@@ -1484,6 +1554,20 @@ def sync_from_namespace(namespace):
         "FireLabel",
         "NextLabel",
         "PlannerProblemLabel",
+        "FiniteLabel",
+        "TotalMapLabel",
+        "CardinalityLabel",
+        "NatLessLabel",
+        "InLabel",
+        "NonEmptyLabel",
+        "AttainsLabel",
+        "ExtremalAtLabel",
+        "VariationLabel",
+        "BetterLabel",
+        "ExistsLabel",
+        "NotLabel",
+        "ContradictionLabel",
+        "CollisionLabel",
         "ExtremalLabel",
         "SymmetryLabel",
         "PigeonholeLabel",
