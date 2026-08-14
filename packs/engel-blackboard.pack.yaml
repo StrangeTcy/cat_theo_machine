@@ -1,0 +1,414 @@
+format: hyge-pack
+version: 1
+
+name: engel-blackboard
+description: >
+  Engel E2. Numbers 1..2n on a blackboard, a move erases a and b and writes AbsDiff(a, b).
+  The observable is BoardSum, the invariant is the parity of that sum, and the move changes
+  the sum by -2*Min(a, b). Nothing here simulates a board or enumerates a move order.
+
+requires: []
+
+phi:
+  call:
+    head: {sym: ParityLabel}
+    args:
+      - {sym: BoardSumObservableLabel}
+      - {var: p}
+
+rules:
+  # --- the algebraic content of the move, as term rewrites -------------------
+  - id: absdiff_is_sum_minus_twice_min
+    pattern:
+      call: {head: {sym: AbsDiffLabel}, args: [{var: a}, {var: b}]}
+    replacement:
+      call:
+        head: {sym: ExprAddLabel}
+        args:
+          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: b}]}
+          - call:
+              head: {sym: ExprNegLabel}
+              args:
+                - call:
+                    head: {sym: ExprMulLabel}
+                    args:
+                      - {sym: two}
+                      - call: {head: {sym: MinLabel}, args: [{var: a}, {var: b}]}
+
+  # --- how a move moves the observable ---------------------------------------
+  - id: sum_after_move
+    premises:
+      - call: {head: {sym: BoardSumLabel}, args: [{var: before}, {var: s}]}
+      - call:
+          head: {sym: MoveErasesLabel}
+          args: [{var: before}, {var: a}, {var: b}, {var: after}]
+    replacement:
+      list:
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: after}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - call:
+                        head: {sym: ExprAddLabel}
+                        args:
+                          - call:
+                              head: {sym: ExprAddLabel}
+                              args:
+                                - {var: s}
+                                - call: {head: {sym: ExprNegLabel}, args: [{var: a}]}
+                          - call: {head: {sym: ExprNegLabel}, args: [{var: b}]}
+                    - call: {head: {sym: AbsDiffLabel}, args: [{var: a}, {var: b}]}
+
+  - id: board_sum_expand_absdiff
+    premises:
+      - call:
+          head: {sym: BoardSumLabel}
+          args:
+            - {var: state}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - {var: x}
+                  - call: {head: {sym: AbsDiffLabel}, args: [{var: a}, {var: b}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: state}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: x}
+                    - call:
+                        head: {sym: ExprAddLabel}
+                        args:
+                          - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: b}]}
+                          - call:
+                              head: {sym: ExprNegLabel}
+                              args:
+                                - call:
+                                    head: {sym: ExprMulLabel}
+                                    args:
+                                      - {sym: two}
+                                      - call: {head: {sym: MinLabel}, args: [{var: a}, {var: b}]}
+
+  - id: board_sum_cancel_erased_numbers
+    premises:
+      - call:
+          head: {sym: BoardSumLabel}
+          args:
+            - {var: state}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - call:
+                      head: {sym: ExprAddLabel}
+                      args:
+                        - call:
+                            head: {sym: ExprAddLabel}
+                            args:
+                              - {var: s}
+                              - call: {head: {sym: ExprNegLabel}, args: [{var: a}]}
+                        - call: {head: {sym: ExprNegLabel}, args: [{var: b}]}
+                  - call:
+                      head: {sym: ExprAddLabel}
+                      args:
+                        - call: {head: {sym: ExprAddLabel}, args: [{var: a}, {var: b}]}
+                        - call: {head: {sym: ExprNegLabel}, args: [{var: d}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: state}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: s}
+                    - call: {head: {sym: ExprNegLabel}, args: [{var: d}]}
+
+  # --- parity lemmas ----------------------------------------------------------
+  - id: doubling_is_even
+    premises:
+      - call:
+          head: {sym: BoardSumLabel}
+          args:
+            - {var: state}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - {var: s}
+                  - call:
+                      head: {sym: ExprNegLabel}
+                      args:
+                        - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: k}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: s}, {var: p}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: state}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: s}
+                    - call:
+                        head: {sym: ExprNegLabel}
+                        args:
+                          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: k}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: s}, {var: p}]}
+        - call:
+            head: {sym: IsEvenLabel}
+            args:
+              - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: k}]}
+
+  - id: subtracting_even_preserves_parity
+    premises:
+      - call: {head: {sym: ParityLabel}, args: [{var: x}, {var: p}]}
+      - call: {head: {sym: IsEvenLabel}, args: [{var: d}]}
+      - call:
+          head: {sym: BoardSumLabel}
+          args:
+            - {var: state}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - {var: x}
+                  - call: {head: {sym: ExprNegLabel}, args: [{var: d}]}
+    replacement:
+      list:
+        - call: {head: {sym: ParityLabel}, args: [{var: x}, {var: p}]}
+        - call: {head: {sym: IsEvenLabel}, args: [{var: d}]}
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: state}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: x}
+                    - call: {head: {sym: ExprNegLabel}, args: [{var: d}]}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: x}
+                    - call: {head: {sym: ExprNegLabel}, args: [{var: d}]}
+              - {var: p}
+
+  - id: board_parity_readout
+    premises:
+      - call: {head: {sym: BoardSumLabel}, args: [{var: state}, {var: v}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: v}, {var: p}]}
+    replacement:
+      list:
+        - call: {head: {sym: BoardSumLabel}, args: [{var: state}, {var: v}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: v}, {var: p}]}
+        - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}, {var: p}]}
+
+  # --- the initial board ------------------------------------------------------
+  - id: initial_board_sum
+    premises:
+      - call: {head: {sym: InitialBoardLabel}, args: [{var: n}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: n}, {var: p}]}
+    replacement:
+      list:
+        - call: {head: {sym: InitialBoardLabel}, args: [{var: n}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: n}, {var: p}]}
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - call: {head: {sym: InitialBoardLabel}, args: [{var: n}]}
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args:
+                    - {var: n}
+                    - call:
+                        head: {sym: ExprAddLabel}
+                        args:
+                          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: n}]}
+                          - {sym: one}
+
+  - id: two_k_plus_one_is_odd
+    premises:
+      - call:
+          head: {sym: BoardSumLabel}
+          args:
+            - {var: state}
+            - call:
+                head: {sym: ExprMulLabel}
+                args:
+                  - {var: x}
+                  - call:
+                      head: {sym: ExprAddLabel}
+                      args:
+                        - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: k}]}
+                        - {sym: one}
+      - call: {head: {sym: ParityLabel}, args: [{var: k}, {var: p}]}
+    replacement:
+      list:
+        - call: {head: {sym: ParityLabel}, args: [{var: k}, {var: p}]}
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: state}
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args:
+                    - {var: x}
+                    - call:
+                        head: {sym: ExprAddLabel}
+                        args:
+                          - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: k}]}
+                          - {sym: one}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {var: k}]}
+                    - {sym: one}
+              - {sym: OddLabel}
+
+  - id: odd_times_odd_is_odd
+    premises:
+      - call:
+          head: {sym: BoardSumLabel}
+          args:
+            - {var: state}
+            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: x}, {sym: OddLabel}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: y}, {sym: OddLabel}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: state}
+              - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: x}, {sym: OddLabel}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: y}, {sym: OddLabel}]}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+              - {sym: OddLabel}
+
+  - id: even_times_odd_is_even
+    premises:
+      - call:
+          head: {sym: BoardSumLabel}
+          args:
+            - {var: state}
+            - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: x}, {sym: EvenLabel}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: y}, {sym: OddLabel}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: state}
+              - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: x}, {sym: EvenLabel}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: y}, {sym: OddLabel}]}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call: {head: {sym: ExprMulLabel}, args: [{var: x}, {var: y}]}
+              - {sym: EvenLabel}
+
+  # --- the move at the level of the observable, and the terminal readout ------
+  - id: erase_and_replace
+    premises:
+      - call: {head: {sym: BoardSumLabel}, args: [{var: before}, {var: s}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: s}, {var: p}]}
+      - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}, {var: p}]}
+      - call:
+          head: {sym: MoveErasesLabel}
+          args: [{var: before}, {var: a}, {var: b}, {var: after}]
+    replacement:
+      list:
+        - call:
+            head: {sym: BoardSumLabel}
+            args:
+              - {var: after}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: s}
+                    - call:
+                        head: {sym: ExprNegLabel}
+                        args:
+                          - call:
+                              head: {sym: ExprMulLabel}
+                              args:
+                                - {sym: two}
+                                - call: {head: {sym: MinLabel}, args: [{var: a}, {var: b}]}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: s}
+                    - call:
+                        head: {sym: ExprNegLabel}
+                        args:
+                          - call:
+                              head: {sym: ExprMulLabel}
+                              args:
+                                - {sym: two}
+                                - call: {head: {sym: MinLabel}, args: [{var: a}, {var: b}]}
+              - {var: p}
+        - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}, {var: p}]}
+
+  - id: invariant_carries_parity_to_final_number
+    premises:
+      - call:
+          head: {sym: InvariantLabel}
+          args:
+            - {sym: BlackboardProblemLabel}
+            - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}]}
+      - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}, {var: p}]}
+      - call: {head: {sym: TerminalLabel}, args: [{var: state}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: InvariantLabel}
+            args:
+              - {sym: BlackboardProblemLabel}
+              - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}]}
+        - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}, {var: p}]}
+        - call: {head: {sym: TerminalLabel}, args: [{var: state}]}
+        - call: {head: {sym: ParityLabel}, args: [{sym: FinalNumberLabel}, {var: p}]}
+
+examples:
+  - id: engel_e2_final_number_is_odd
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: InitialBoardLabel}, args: [{char: n}]}
+              - call: {head: {sym: ParityLabel}, args: [{char: n}, {sym: OddLabel}]}
+              - call: {head: {sym: TerminalLabel}, args: [{char: final}]}
+              - call:
+                  head: {sym: InvariantLabel}
+                  args:
+                    - {sym: BlackboardProblemLabel}
+                    - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: ParityLabel}, args: [{sym: FinalNumberLabel}, {sym: OddLabel}]}

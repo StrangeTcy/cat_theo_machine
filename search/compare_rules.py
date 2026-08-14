@@ -4,6 +4,7 @@ from .. import machine as M
 from ..heuristics import *
 from ..proof import *
 from ..proof import _debug
+from .model import *
 
 
 class _ComparisonRuleMatchMixin:

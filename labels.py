@@ -103,6 +103,86 @@ class SqrtSeqCauchyLabel(ConstructorLabel):
     pass
 
 
+class IncreasingLabel(ConstructorLabel):
+    pass
+
+
+class DecreasingLabel(ConstructorLabel):
+    pass
+
+
+class BoundedAboveLabel(ConstructorLabel):
+    pass
+
+
+class BoundedBelowLabel(ConstructorLabel):
+    pass
+
+
+class ConvergesLabel(ConstructorLabel):
+    pass
+
+
+class GapContractsLabel(ConstructorLabel):
+    pass
+
+
+class LimitValueLabel(ConstructorLabel):
+    pass
+
+
+class MoveErasesLabel(ConstructorLabel):
+    pass
+
+
+class TerminalLabel(ConstructorLabel):
+    pass
+
+
+class BoardSumObservableLabel(ConstructorLabel):
+    pass
+
+
+class BoardSumLabel(ConstructorLabel):
+    pass
+
+
+class ParityLabel(ConstructorLabel):
+    pass
+
+
+class IsEvenLabel(ConstructorLabel):
+    pass
+
+
+class AbsDiffLabel(ConstructorLabel):
+    pass
+
+
+class MinLabel(ConstructorLabel):
+    pass
+
+
+class InitialBoardLabel(ConstructorLabel):
+    pass
+
+
+class FinalNumberLabel(ConstructorLabel):
+    pass
+
+
+class BlackboardProblemLabel(ConstructorLabel):
+    pass
+
+
+class OddLabel(ConstructorLabel):
+    pass
+
+
+class EvenLabel(ConstructorLabel):
+    pass
+
+
 class FractionLabel(ConstructorLabel):
     pass
 
@@ -1028,6 +1108,26 @@ NewtonPositiveLabel = NewtonPositiveLabel()
 NewtonErrorIdentityLabel = NewtonErrorIdentityLabel()
 NewtonErrorShrinksLabel = NewtonErrorShrinksLabel()
 SqrtSeqCauchyLabel = SqrtSeqCauchyLabel()
+IncreasingLabel = IncreasingLabel()
+DecreasingLabel = DecreasingLabel()
+BoundedAboveLabel = BoundedAboveLabel()
+BoundedBelowLabel = BoundedBelowLabel()
+ConvergesLabel = ConvergesLabel()
+GapContractsLabel = GapContractsLabel()
+LimitValueLabel = LimitValueLabel()
+MoveErasesLabel = MoveErasesLabel()
+TerminalLabel = TerminalLabel()
+BoardSumObservableLabel = BoardSumObservableLabel()
+BoardSumLabel = BoardSumLabel()
+ParityLabel = ParityLabel()
+IsEvenLabel = IsEvenLabel()
+AbsDiffLabel = AbsDiffLabel()
+MinLabel = MinLabel()
+InitialBoardLabel = InitialBoardLabel()
+FinalNumberLabel = FinalNumberLabel()
+BlackboardProblemLabel = BlackboardProblemLabel()
+OddLabel = OddLabel()
+EvenLabel = EvenLabel()
 FractionLabel = FractionLabel()
 WholeLabel = WholeLabel()
 ExprAddLabel = ExprAddLabel()
@@ -1220,6 +1320,26 @@ def sync_from_namespace(namespace):
         "NewtonErrorIdentityLabel",
         "NewtonErrorShrinksLabel",
         "SqrtSeqCauchyLabel",
+        "IncreasingLabel",
+        "DecreasingLabel",
+        "BoundedAboveLabel",
+        "BoundedBelowLabel",
+        "ConvergesLabel",
+        "GapContractsLabel",
+        "LimitValueLabel",
+        "MoveErasesLabel",
+        "TerminalLabel",
+        "BoardSumObservableLabel",
+        "BoardSumLabel",
+        "ParityLabel",
+        "IsEvenLabel",
+        "AbsDiffLabel",
+        "MinLabel",
+        "InitialBoardLabel",
+        "FinalNumberLabel",
+        "BlackboardProblemLabel",
+        "OddLabel",
+        "EvenLabel",
         "FractionLabel",
         "WholeLabel",
         "ExprAddLabel",

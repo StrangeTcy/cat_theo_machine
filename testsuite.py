@@ -2976,7 +2976,7 @@ class PausedComparisonJobSnapshotRoundtripTest(M.Edge):
             elif M.IdentityCompare(loaded_probe._comparison_state_pending_packets(loaded_state), empty)() is M.truth_value:
                 self.result = M.false_value
             elif M.IdentityCompare(
-                M.Head(M.Head(loaded_probe._comparison_state_pending_packets(loaded_state))()),
+                M.Head(M.Head(loaded_probe._comparison_state_pending_packets(loaded_state))())(),
                 Lmod.SearchFrontierStatePacketLabel,
             )() is M.false_value:
                 self.result = M.false_value
@@ -4914,6 +4914,691 @@ class InvarianceUnestablishedEvenPhiDoesNotPruneTest(M.Edge):
         return self.result
 
 
+class BlackboardTerms(M.Edge):
+    """Symbolic vocabulary for Engel E2. Nothing here holds a concrete board."""
+
+    def __init__(self, name):
+        empty = M.EmptyList
+        self.result = M.Pair(M.VarTag, M.Pair(M.Char(name), empty))
+        super().__init__(inputs=M.Pair(M.Char(name), empty), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoardSumFact(M.Edge):
+    def __init__(self, state, value):
+        self.result = M.Pair(Lmod.BoardSumLabel, M.Pair(state, M.Pair(value, M.EmptyList)))
+        super().__init__(inputs=M.Pair(state, M.Pair(value, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParityFact(M.Edge):
+    def __init__(self, value, bit):
+        self.result = M.Pair(Lmod.ParityLabel, M.Pair(value, M.Pair(bit, M.EmptyList)))
+        super().__init__(inputs=M.Pair(value, M.Pair(bit, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsEvenFact(M.Edge):
+    def __init__(self, value):
+        self.result = M.Pair(Lmod.IsEvenLabel, M.Pair(value, M.EmptyList))
+        super().__init__(inputs=M.Pair(value, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MoveErasesFact(M.Edge):
+    def __init__(self, before, a, b, after):
+        self.result = M.Pair(
+            Lmod.MoveErasesLabel,
+            M.Pair(before, M.Pair(a, M.Pair(b, M.Pair(after, M.EmptyList)))),
+        )
+        super().__init__(
+            inputs=M.Pair(before, M.Pair(a, M.Pair(b, M.Pair(after, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TerminalFact(M.Edge):
+    def __init__(self, state):
+        self.result = M.Pair(Lmod.TerminalLabel, M.Pair(state, M.EmptyList))
+        super().__init__(inputs=M.Pair(state, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InitialBoardTerm(M.Edge):
+    def __init__(self, n):
+        self.result = M.Pair(Lmod.InitialBoardLabel, M.Pair(n, M.EmptyList))
+        super().__init__(inputs=M.Pair(n, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MinTerm(M.Edge):
+    def __init__(self, a, b):
+        self.result = M.Pair(Lmod.MinLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AbsDiffTerm(M.Edge):
+    def __init__(self, a, b):
+        self.result = M.Pair(Lmod.AbsDiffLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AddTerm(M.Edge):
+    def __init__(self, left, right):
+        self.result = M.Pair(M.ExprAddLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MulTerm(M.Edge):
+    def __init__(self, left, right):
+        self.result = M.Pair(M.ExprMulLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NegTerm(M.Edge):
+    def __init__(self, value):
+        self.result = M.Pair(M.ExprNegLabel, M.Pair(value, M.EmptyList))
+        super().__init__(inputs=M.Pair(value, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TwiceMinTerm(M.Edge):
+    def __init__(self, a, b):
+        self.result = MulTerm(M.two, MinTerm(a, b)())()
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SumAfterMoveTerm(M.Edge):
+    """S - a - b + AbsDiff(a, b), written with Add and Neg only."""
+
+    def __init__(self, s, a, b):
+        dropped = AddTerm(AddTerm(s, NegTerm(a)())(), NegTerm(b)())()
+        self.result = AddTerm(dropped, AbsDiffTerm(a, b)())()
+        super().__init__(inputs=M.Pair(s, M.Pair(a, M.Pair(b, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SumMinusTwiceMinTerm(M.Edge):
+    """S - 2*Min(a, b)."""
+
+    def __init__(self, s, a, b):
+        self.result = AddTerm(s, NegTerm(TwiceMinTerm(a, b)())())()
+        super().__init__(inputs=M.Pair(s, M.Pair(a, M.Pair(b, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InitialBoardSumTerm(M.Edge):
+    """n * (2n + 1), taken as the sum lemma for 1 + 2 + ... + 2n."""
+
+    def __init__(self, n):
+        self.result = MulTerm(n, AddTerm(MulTerm(M.two, n)(), M.one)())()
+        super().__init__(inputs=M.Pair(n, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardPhiPattern(M.Edge):
+    def __init__(self, bit):
+        self.result = ParityFact(Lmod.BoardSumObservableLabel, bit)()
+        super().__init__(inputs=M.Pair(bit, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardInvariantFact(M.Edge):
+    def __init__(self):
+        observable = M.Pair(Lmod.ParityLabel, M.Pair(Lmod.BoardSumObservableLabel, M.EmptyList))
+        self.result = M.Pair(
+            Lmod.InvariantLabel,
+            M.Pair(Lmod.BlackboardProblemLabel, M.Pair(observable, M.EmptyList)),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EraseAndReplaceRule(M.Edge):
+    """The move, stated over arbitrary a and b at the level of the observable."""
+
+    def __init__(self):
+        empty = M.EmptyList
+        before = BlackboardTerms("before")()
+        after = BlackboardTerms("after")()
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        p = BlackboardTerms("p")()
+        premises = M.Pair(
+            BoardSumFact(before, s)(),
+            M.Pair(
+                ParityFact(s, p)(),
+                M.Pair(
+                    BlackboardPhiPattern(p)(),
+                    M.Pair(MoveErasesFact(before, a, b, after)(), empty),
+                ),
+            ),
+        )
+        moved = SumMinusTwiceMinTerm(s, a, b)()
+        replacement = M.Pair(
+            BoardSumFact(after, moved)(),
+            M.Pair(ParityFact(moved, p)(), M.Pair(BlackboardPhiPattern(p)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SumAfterMoveRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        before = BlackboardTerms("before")()
+        after = BlackboardTerms("after")()
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        premises = M.Pair(
+            BoardSumFact(before, s)(),
+            M.Pair(MoveErasesFact(before, a, b, after)(), empty),
+        )
+        replacement = M.Pair(BoardSumFact(after, SumAfterMoveTerm(s, a, b)())(), empty)
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AbsDiffRewriteRule(M.Edge):
+    """AbsDiff(a, b) = (a + b) - 2*Min(a, b)."""
+
+    def __init__(self):
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        pattern = AbsDiffTerm(a, b)()
+        replacement = AddTerm(AddTerm(a, b)(), NegTerm(TwiceMinTerm(a, b)())())()
+        self.result = Pmod.Rule(pattern, replacement)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CancelErasedNumbersRule(M.Edge):
+    """((S - a) - b) + ((a + b) - d) rewrites to S - d."""
+
+    def __init__(self):
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        d = BlackboardTerms("d")()
+        dropped = AddTerm(AddTerm(s, NegTerm(a)())(), NegTerm(b)())()
+        restored = AddTerm(AddTerm(a, b)(), NegTerm(d)())()
+        pattern = AddTerm(dropped, restored)()
+        replacement = AddTerm(s, NegTerm(d)())()
+        self.result = Pmod.Rule(pattern, replacement)
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DoublingIsEvenRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        k = BlackboardTerms("k")()
+        doubled = MulTerm(M.two, k)()
+        state = BlackboardTerms("state")()
+        s = BlackboardTerms("S")()
+        p = BlackboardTerms("p")()
+        witness = BoardSumFact(state, AddTerm(s, NegTerm(doubled)())())()
+        parity_of_s = ParityFact(s, p)()
+        premises = M.Pair(witness, M.Pair(parity_of_s, empty))
+        replacement = M.Pair(
+            witness,
+            M.Pair(parity_of_s, M.Pair(IsEvenFact(doubled)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubtractEvenPreservesParityRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        x = BlackboardTerms("x")()
+        d = BlackboardTerms("d")()
+        p = BlackboardTerms("p")()
+        state = BlackboardTerms("state")()
+        difference = AddTerm(x, NegTerm(d)())()
+        sum_fact = BoardSumFact(state, difference)()
+        premises = M.Pair(
+            ParityFact(x, p)(),
+            M.Pair(IsEvenFact(d)(), M.Pair(sum_fact, empty)),
+        )
+        replacement = M.Pair(
+            ParityFact(x, p)(),
+            M.Pair(
+                IsEvenFact(d)(),
+                M.Pair(sum_fact, M.Pair(ParityFact(difference, p)(), empty)),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoardParityReadoutRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        state = BlackboardTerms("state")()
+        v = BlackboardTerms("v")()
+        p = BlackboardTerms("p")()
+        sum_fact = BoardSumFact(state, v)()
+        parity_fact = ParityFact(v, p)()
+        premises = M.Pair(sum_fact, M.Pair(parity_fact, empty))
+        replacement = M.Pair(
+            sum_fact,
+            M.Pair(parity_fact, M.Pair(BlackboardPhiPattern(p)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InitialBoardSumRule(M.Edge):
+    """The named sum lemma: 1 + 2 + ... + 2n = n(2n+1). Never unfolded."""
+
+    def __init__(self):
+        empty = M.EmptyList
+        n = BlackboardTerms("n")()
+        p = BlackboardTerms("p")()
+        board = InitialBoardTerm(n)()
+        board_fact = M.Pair(Lmod.InitialBoardLabel, M.Pair(n, empty))
+        parity_of_n = ParityFact(n, p)()
+        premises = M.Pair(board_fact, M.Pair(parity_of_n, empty))
+        replacement = M.Pair(
+            board_fact,
+            M.Pair(
+                parity_of_n,
+                M.Pair(BoardSumFact(board, InitialBoardSumTerm(n)())(), empty),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TwoKPlusOneIsOddRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        k = BlackboardTerms("k")()
+        x = BlackboardTerms("x")()
+        p = BlackboardTerms("p")()
+        state = BlackboardTerms("state")()
+        odd_term = AddTerm(MulTerm(M.two, k)(), M.one)()
+        witness = BoardSumFact(state, MulTerm(x, odd_term)())()
+        parity_of_k = ParityFact(k, p)()
+        premises = M.Pair(witness, M.Pair(parity_of_k, empty))
+        replacement = M.Pair(
+            witness,
+            M.Pair(parity_of_k, M.Pair(ParityFact(odd_term, Lmod.OddLabel)(), empty)),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParityOfProductRule(M.Edge):
+    """Parity of a product, anchored to the board sum so it forms no stray products."""
+
+    def __init__(self, left_bit, right_bit, product_bit):
+        empty = M.EmptyList
+        x = BlackboardTerms("x")()
+        y = BlackboardTerms("y")()
+        state = BlackboardTerms("state")()
+        product = MulTerm(x, y)()
+        witness = BoardSumFact(state, product)()
+        left = ParityFact(x, left_bit)()
+        right = ParityFact(y, right_bit)()
+        premises = M.Pair(witness, M.Pair(left, M.Pair(right, empty)))
+        replacement = M.Pair(
+            witness,
+            M.Pair(
+                left,
+                M.Pair(right, M.Pair(ParityFact(product, product_bit)(), empty)),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(
+            inputs=M.Pair(left_bit, M.Pair(right_bit, M.Pair(product_bit, empty))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TerminalReadoutRule(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        p = BlackboardTerms("p")()
+        state = BlackboardTerms("state")()
+        invariant = BlackboardInvariantFact()()
+        reading = BlackboardPhiPattern(p)()
+        terminal = TerminalFact(state)()
+        premises = M.Pair(invariant, M.Pair(reading, M.Pair(terminal, empty)))
+        replacement = M.Pair(
+            invariant,
+            M.Pair(
+                reading,
+                M.Pair(terminal, M.Pair(ParityFact(Lmod.FinalNumberLabel, p)(), empty)),
+            ),
+        )
+        self.result = Pmod.MultiRule(premises, replacement)
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardRules(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        odd_odd = ParityOfProductRule(Lmod.OddLabel, Lmod.OddLabel, Lmod.OddLabel)()
+        even_odd = ParityOfProductRule(Lmod.EvenLabel, Lmod.OddLabel, Lmod.EvenLabel)()
+        self.result = M.Pair(
+            InitialBoardSumRule()(),
+            M.Pair(
+                TwoKPlusOneIsOddRule()(),
+                M.Pair(
+                    odd_odd,
+                    M.Pair(
+                        even_odd,
+                        M.Pair(
+                            BoardParityReadoutRule()(),
+                            M.Pair(
+                                EraseAndReplaceRule()(),
+                                M.Pair(TerminalReadoutRule()(), empty),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardStart(M.Edge):
+    """Givens for E2: the initial board, the parity of n, terminality, invariance."""
+
+    def __init__(self, n_parity):
+        empty = M.EmptyList
+        n = M.Char("n")
+        facts = M.Pair(
+            M.Pair(Lmod.InitialBoardLabel, M.Pair(n, empty)),
+            M.Pair(
+                ParityFact(n, n_parity)(),
+                M.Pair(
+                    TerminalFact(M.Char("final"))(),
+                    M.Pair(BlackboardInvariantFact()(), empty),
+                ),
+            ),
+        )
+        self.result = Pmod.Knowledge(facts)()
+        super().__init__(inputs=M.Pair(n_parity, empty), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardParityPreservedTest(M.Edge):
+    """Test 1: the move preserves the parity of BoardSum, over symbolic a and b."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rule = EraseAndReplaceRule()()
+        p = BlackboardTerms("p")()
+        phi = Imod.Phi(BlackboardPhiPattern(p)())()
+        obligation = Imod.Preserves(rule, phi, registry)()
+        rules = M.Pair(rule, M.EmptyList)
+        start = BlackboardStart(Lmod.OddLabel)()
+        invariant = Imod.Invariant(phi, rules, registry, start, rules)()
+        self.result = M.truth_value
+        if Imod.IsPreserves(obligation)() is M.false_value:
+            self.result = M.false_value
+        elif Imod.IsInvariant(invariant)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardMoveSumIsSumMinusTwiceMinTest(M.Edge):
+    """Test 1b: S - a - b + AbsDiff(a, b) rewrites to S - 2*Min(a, b)."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        a = BlackboardTerms("a")()
+        b = BlackboardTerms("b")()
+        s = BlackboardTerms("S")()
+        rules = M.Pair(AbsDiffRewriteRule()(), M.Pair(CancelErasedNumbersRule()(), M.EmptyList))
+        start = SumAfterMoveTerm(s, a, b)()
+        goal = SumMinusTwiceMinTerm(s, a, b)()
+        self.result = Imod.EquationRewriteEquals(start, goal, rules, registry)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardInitialParityIsOddTest(M.Edge):
+    """Test 2: from Odd(n), derive Parity(n(2n+1), Odd)."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rules = BlackboardRules()()
+        heuristic = Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)()
+        start = BlackboardStart(Lmod.OddLabel)()
+        n = M.Char("n")
+        goal = Pmod.Knowledge(
+            M.Pair(ParityFact(InitialBoardSumTerm(n)(), Lmod.OddLabel)(), M.EmptyList)
+        )()
+        plan = Imod.RewriteSearch(start, goal, rules, registry)()
+        self.result = M.truth_value
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardFinalNumberIsOddTest(M.Edge):
+    """Test 3: Parity(FinalNumber, Odd), through the invariant."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rules = BlackboardRules()()
+        start = BlackboardStart(Lmod.OddLabel)()
+        goal = Pmod.Knowledge(
+            M.Pair(ParityFact(Lmod.FinalNumberLabel, Lmod.OddLabel)(), M.EmptyList)
+        )()
+        plan = Imod.RewriteSearch(start, goal, rules, registry)()
+        self.result = M.truth_value
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            invariant_used = M.false_value
+            remaining = plan
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                action = M.Head(remaining)()
+                if BlackboardActionMentionsInvariant(action)() is M.truth_value:
+                    invariant_used = M.truth_value
+                remaining = M.Tail(remaining)()
+            if invariant_used is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardActionMentionsInvariant(M.Edge):
+    """True when the step applied a rule whose premises include the Invariant fact."""
+
+    def __init__(self, action):
+        rule = M.Head(M.Tail(action)())()
+        self.result = self._walk(Pmod.RulePremises(rule)())
+        super().__init__(inputs=M.Pair(action, M.EmptyList), results=self.result)
+
+    def _walk(self, term):
+        if M.IdentityCompare(term, Lmod.InvariantLabel)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if self._walk(M.Head(term)()) is M.truth_value:
+            return M.truth_value
+        return self._walk(M.Tail(term)())
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardEvenNRefusesOddConclusionTest(M.Edge):
+    """Test 4: with Even(n) the machine gets Even, and never Odd."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        rules = BlackboardRules()()
+        start = BlackboardStart(Lmod.EvenLabel)()
+        odd_goal = Pmod.Knowledge(
+            M.Pair(ParityFact(Lmod.FinalNumberLabel, Lmod.OddLabel)(), M.EmptyList)
+        )()
+        even_goal = Pmod.Knowledge(
+            M.Pair(ParityFact(Lmod.FinalNumberLabel, Lmod.EvenLabel)(), M.EmptyList)
+        )()
+        odd_plan = Imod.RewriteSearch(start, odd_goal, rules, registry)()
+        even_plan = Imod.RewriteSearch(start, even_goal, rules, registry)()
+        self.result = M.truth_value
+        if M.IdentityCompare(odd_plan, M.EmptyList)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(even_plan, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardProofExpandsNoBoardsTest(M.Edge):
+    """Test 5: the preservation obligation is discharged without any search."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        rule = EraseAndReplaceRule()()
+        rules = M.Pair(rule, M.EmptyList)
+        p = BlackboardTerms("p")()
+        phi = Imod.Phi(BlackboardPhiPattern(p)())()
+        start = BlackboardStart(Lmod.OddLabel)()
+        goal = Pmod.Knowledge(M.Pair(BlackboardPhiPattern(Lmod.EvenLabel)(), M.EmptyList))()
+        heuristic = Hmod.Heuristic(M.DFSLabel, M.InsertionOrderLabel, M.three, M.one, M.one, M.one)()
+        search_pair = Imod.SearchWithInvariant(graph, start, goal, rules, heuristic, registry, phi)()
+        search_cost = M.Head(M.Tail(search_pair)())()
+        expanded = Smod.SearchCostExpanded(search_cost)()
+        self.result = M.truth_value
+        if M.NatEq(expanded, M.Zero, registry)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class BlackboardStartHasNoBoardCellsTest(M.Edge):
+    """Test 5b: the encoding never names a board cell or a move order."""
+
+    def __init__(self, graph):
+        start = BlackboardStart(Lmod.OddLabel)()
+        facts = Imod.StateFacts(start)()
+        self.result = M.truth_value
+        remaining = facts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            fact = M.Head(remaining)()
+            head = M.Head(fact)()
+            if M.IdentityCompare(head, Lmod.InitialBoardLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            elif M.IdentityCompare(head, Lmod.ParityLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            elif M.IdentityCompare(head, Lmod.TerminalLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            elif M.IdentityCompare(head, Lmod.InvariantLabel)() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            else:
+                self.result = M.false_value
+                remaining = M.EmptyList
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class InvarianceFlipOneRefutesParityTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -5849,6 +6534,57 @@ def install_default_tests(graph):
         InvarianceFlipOneRefutesParityTest(graph),
         M.truth_value,
     )
+
+    _register_test(
+        graph,
+        "blackboard_parity_preserved_test",
+        empty,
+        BlackboardParityPreservedTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_move_sum_is_sum_minus_twice_min_test",
+        empty,
+        BlackboardMoveSumIsSumMinusTwiceMinTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_initial_parity_is_odd_test",
+        empty,
+        BlackboardInitialParityIsOddTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_final_number_is_odd_test",
+        empty,
+        BlackboardFinalNumberIsOddTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_even_n_refuses_odd_conclusion_test",
+        empty,
+        BlackboardEvenNRefusesOddConclusionTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_proof_expands_no_boards_test",
+        empty,
+        BlackboardProofExpandsNoBoardsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "blackboard_start_has_no_board_cells_test",
+        empty,
+        BlackboardStartHasNoBoardCellsTest(graph),
+        M.truth_value,
+    )
+
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()
