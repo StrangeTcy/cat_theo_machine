@@ -526,6 +526,52 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class EdgeSendPositionalConsistencyTest(M.Edge):
+    """Step 3: sending a pattern edge to a host edge must respect endpoint order."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        pattern = Gmod.Hypergraph(registry)
+        p_a = M.Thingy()
+        p_b = M.Thingy()
+        pattern_edge = M.Pair(M.Char("p"), M.Pair(p_a, M.Pair(p_b, empty)))
+        pattern.add_node(p_a)
+        pattern.add_node(p_b)
+        pattern.add_edge(pattern_edge)
+
+        host = Gmod.Hypergraph(_registry(pattern))
+        h_x = M.Thingy()
+        h_y = M.Thingy()
+        host_edge = M.Pair(M.Char("h"), M.Pair(h_x, M.Pair(h_y, empty)))
+        host.add_node(h_x)
+        host.add_node(h_y)
+        host.add_edge(host_edge)
+
+        pattern_value = M.Pair(M.HypergraphLabel, M.Pair(pattern.nodes, M.Pair(pattern.edges, empty)))
+        host_value = M.Pair(M.HypergraphLabel, M.Pair(host.nodes, M.Pair(host.edges, empty)))
+
+        aligned_root = M.Pair(Gmod.Send(p_a, h_x)(), empty)
+        aligned_map = Gmod.Map(pattern_value, host_value, aligned_root)()
+        aligned = Gmod.MapExtendOneStep(aligned_map, pattern_edge, host_edge)()
+
+        crossed_root = M.Pair(Gmod.Send(p_a, h_y)(), empty)
+        crossed_map = Gmod.Map(pattern_value, host_value, crossed_root)()
+        crossed = Gmod.MapExtendOneStep(crossed_map, pattern_edge, host_edge)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(aligned)(), Lmod.MapLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(crossed)(), Lmod.MissLabel)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(M.Head(M.Tail(crossed)())(), pattern_edge, registry)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class GraphCurrentVersionTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -6556,6 +6602,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "edge_send_positional_consistency_test",
+        empty,
+        EdgeSendPositionalConsistencyTest(graph),
         M.truth_value,
     )
     _register_test(

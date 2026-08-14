@@ -477,6 +477,111 @@ class GraphEdges(M.Edge):
         return self.result
 
 
+class IsSend(M.Edge):
+    def __init__(self, term):
+        atom_result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.SendLabel)() is M.truth_value:
+                atom_result = M.truth_value
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SendPat(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SendHost(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MappedHostForPat(M.Edge):
+    """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList)."""
+
+    def __init__(self, root, pat):
+        self.result = self._lookup(root, pat)
+        super().__init__(inputs=M.Pair(root, M.Pair(pat, M.EmptyList)), results=self.result)
+
+    def _lookup(self, root, pat):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if IsSend(item)() is M.truth_value:
+                if M.TermEqual(SendPat(item)(), pat)() is M.truth_value:
+                    return M.Pair(M.truth_value, SendHost(item)())
+            remaining = M.Tail(remaining)()
+        return M.Pair(M.false_value, M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class EdgeEndpoints(M.Edge):
+    """The ordered endpoint chain an edge term references."""
+
+    def __init__(self, edge_term):
+        atom_result = M.EmptyList
+        if M.IsPair(edge_term)() is M.truth_value:
+            atom_result = M.Tail(edge_term)()
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(edge_term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EdgeSendConsistent(M.Edge):
+    """
+    Positional agreement between a pattern edge and a host edge.
+
+    The endpoints are ordered, so sending a pattern edge to a host edge only
+    makes sense when the two carry the same number of endpoints and every
+    already-mapped pattern endpoint lands on the host endpoint in the same
+    position. Endpoints the mapping has not committed to yet impose nothing.
+    """
+
+    def __init__(self, mapping_root, pat_edge, host_edge):
+        self.result = self._consistent(mapping_root, pat_edge, host_edge)
+        super().__init__(
+            inputs=M.Pair(mapping_root, M.Pair(pat_edge, M.Pair(host_edge, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _consistent(self, mapping_root, pat_edge, host_edge):
+        pat_remaining = EdgeEndpoints(pat_edge)()
+        host_remaining = EdgeEndpoints(host_edge)()
+        while M.IdentityCompare(pat_remaining, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(host_remaining, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            pat_endpoint = M.Head(pat_remaining)()
+            host_endpoint = M.Head(host_remaining)()
+            existing = MappedHostForPat(mapping_root, pat_endpoint)()
+            if M.IdentityCompare(M.Head(existing)(), M.truth_value)() is M.truth_value:
+                if M.TermEqual(M.Tail(existing)(), host_endpoint)() is M.false_value:
+                    return M.false_value
+            pat_remaining = M.Tail(pat_remaining)()
+            host_remaining = M.Tail(host_remaining)()
+        if M.IdentityCompare(host_remaining, M.EmptyList)() is M.false_value:
+            return M.false_value
+        return M.truth_value
+
+    def __call__(self):
+        return self.result
+
+
 class MapExtendOneStep(M.Edge):
     def __init__(self, mapping, pat, host):
         self.mapping = mapping
@@ -597,11 +702,7 @@ class MapExtendOneStep(M.Edge):
         return self._chain_has_term(edges, term)
 
     def _is_send(self, term):
-        if M.IsPair(term)() is M.false_value:
-            return M.false_value
-        if M.TermEqual(M.Head(term)(), Lmod.SendLabel)() is M.truth_value:
-            return M.truth_value
-        return M.false_value
+        return IsSend(term)()
 
     def _is_apart(self, term):
         if M.IsPair(term)() is M.false_value:
@@ -611,10 +712,10 @@ class MapExtendOneStep(M.Edge):
         return M.false_value
 
     def _send_pat(self, term):
-        return M.Head(M.Tail(term)())()
+        return SendPat(term)()
 
     def _send_host(self, term):
-        return M.Head(M.Tail(M.Tail(term)())())()
+        return SendHost(term)()
 
     def _apart_left(self, term):
         return M.Head(M.Tail(term)())()
@@ -635,14 +736,7 @@ class MapExtendOneStep(M.Edge):
         return M.false_value
 
     def _mapped_host_for_pat(self, root, pat):
-        remaining = root
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            item = M.Head(remaining)()
-            if self._is_send(item) is M.truth_value:
-                if M.TermEqual(self._send_pat(item), pat)() is M.truth_value:
-                    return M.Pair(M.truth_value, self._send_host(item))
-            remaining = M.Tail(remaining)()
-        return M.Pair(M.false_value, M.EmptyList)
+        return MappedHostForPat(root, pat)()
 
     def _violates_apart(self, root, pat, host):
         remaining = root
@@ -676,7 +770,17 @@ class MapExtendOneStep(M.Edge):
             return Miss(self.pat, self._reason("already-mapped"))()
         if self._violates_apart(root, self.pat, self.host) is M.truth_value:
             return Miss(self.pat, self._reason("apart-violation"))()
+        if self._both_are_edges(pattern_graph, host_graph) is M.truth_value:
+            if EdgeSendConsistent(root, self.pat, self.host)() is M.false_value:
+                return Miss(self.pat, self._reason("positional-mismatch"))()
         return Map(pattern_graph, host_graph, M.Pair(Send(self.pat, self.host)(), root))()
+
+    def _both_are_edges(self, pattern_graph, host_graph):
+        pattern_edges = self._normalize_store(self._graph_edges(pattern_graph))
+        if self._chain_has_term(pattern_edges, self.pat) is M.false_value:
+            return M.false_value
+        host_edges = self._normalize_store(self._graph_edges(host_graph))
+        return self._chain_has_term(host_edges, self.host)
 
     def __call__(self):
         return self.result
