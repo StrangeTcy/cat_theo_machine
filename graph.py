@@ -1069,6 +1069,110 @@ class CompileRuleToLaw(M.Edge):
         return self.result
 
 
+class UncompiledRules(M.Edge):
+    """Step 12 term-native record of rules skipped from the trigonometry pack."""
+
+    def __init__(self):
+        # Multiple premises cannot be represented by the Step 11 term encoder.
+        sine_rule = M.Pair(
+            M.Char("triangle_yields_sine_rule_equation"),
+            M.Pair(M.Char("multiple premises"), M.EmptyList),
+        )
+        # Multiple premises cannot be represented by the Step 11 term encoder.
+        cosine_rule = M.Pair(
+            M.Char("triangle_yields_generic_cosine_relation"),
+            M.Pair(M.Char("multiple premises"), M.EmptyList),
+        )
+        self.result = M.Pair(sine_rule, M.Pair(cosine_rule, M.EmptyList))
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompileRulePackToLaws(M.Edge):
+    """Compile a Pair chain of rules, retaining compiled Laws and skipped rules."""
+
+    def __init__(self, rules):
+        reversed_laws = M.EmptyList
+        reversed_uncompiled = M.EmptyList
+        remaining = rules
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            rule = M.Head(remaining)()
+            law = CompileRuleToLaw(rule)()
+            if M.IdentityCompare(law, M.EmptyList)() is M.truth_value:
+                reversed_uncompiled = M.Pair(rule, reversed_uncompiled)
+            else:
+                reversed_laws = M.Pair(law, reversed_laws)
+            remaining = M.Tail(remaining)()
+        laws = Reverse(reversed_laws)()
+        uncompiled = Reverse(reversed_uncompiled)()
+        self.result = M.Pair(laws, M.Pair(uncompiled, M.EmptyList))
+        super().__init__(inputs=M.Pair(rules, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstantiateLaw(M.Edge):
+    """Instantiate a compiled term Law with bindings from its legacy Rule match."""
+
+    def __init__(self, law, bindings):
+        self.result = M.EmptyList
+        if IsLawTerm(law)() is M.truth_value:
+            left_nodes = GraphNodes(LawLeft(law)())()
+            right_nodes = GraphNodes(LawRight(law)())()
+            if M.IdentityCompare(left_nodes, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(right_nodes, M.EmptyList)() is M.false_value:
+                    left_term = M.Head(M.Instantiate(M.Head(left_nodes)(), bindings)())()
+                    right_term = M.Head(M.Instantiate(M.Head(right_nodes)(), bindings)())()
+                    self.result = CompileRuleToLaw(P.Rule(left_term, right_term))()
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(bindings, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChainSetEqual(M.Edge):
+    """Structural set equality of two Pair-chain graph stores."""
+
+    def __init__(self, left, right):
+        self.result = self._equal(left, right)
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def _covered(self, source, target):
+        remaining = source
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if ChainHasTerm(target, M.Head(remaining)())() is M.false_value:
+                return M.false_value
+            remaining = M.Tail(remaining)()
+        return M.truth_value
+
+    def _equal(self, left, right):
+        left_covered = self._covered(left, right)
+        right_covered = self._covered(right, left)
+        return M.AndAtom(left_covered, right_covered)()
+
+    def __call__(self):
+        return self.result
+
+
+class GraphStoresEqual(M.Edge):
+    """Order-independent structural set equality of graph node and edge stores."""
+
+    def __init__(self, left, right):
+        nodes_equal = ChainSetEqual(GraphNodes(left)(), GraphNodes(right)())()
+        edges_equal = ChainSetEqual(GraphEdges(left)(), GraphEdges(right)())()
+        self.result = M.AndAtom(nodes_equal, edges_equal)()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class FireLaw(M.Edge):
     """
     Step 8. Staged double-pushout surgery over a GraphVersion.

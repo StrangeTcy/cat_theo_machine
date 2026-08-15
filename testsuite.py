@@ -588,6 +588,86 @@ class CompileRuleToLawTest(M.Edge):
         return self.result
 
 
+class ShadowPackTest(M.Edge):
+    """Step 12: trigonometry rules run through legacy and Law paths in shadow."""
+
+    def __init__(self, _graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        registry = _registry(runtime.graph)
+        trigonometry = packs.by_name("trigonometry")
+        geometry = packs.by_name("geometry")
+        compiled = Gmod.CompileRulePackToLaws(trigonometry.rule_chain)()
+        laws = M.Head(compiled)()
+        skipped = M.Head(M.Tail(compiled)())()
+        declared_skips = Gmod.UncompiledRules()()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(laws, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(laws)(), M.EmptyList)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(skipped, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(skipped)(), M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(M.Tail(skipped)())(), M.EmptyList)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(declared_skips, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(declared_skips)(), M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(M.Tail(declared_skips)())(), M.EmptyList)() is M.false_value:
+            self.result = M.false_value
+        else:
+            rule = M.Head(M.Tail(trigonometry.rule_chain)())()
+            law = M.Head(laws)()
+            redex = geometry.examples["tao_cosine_angle_identity"][1]
+            match = M.Match(Pmod.RulePattern(rule)(), redex)()
+            if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.false_value:
+                self.result = M.false_value
+            elif Gmod.LawMapsComplete(law)() is M.false_value:
+                self.result = M.false_value
+            else:
+                legacy = M.Head(M.Rewrite(rule, redex, registry)())()
+                instantiated_law = Gmod.InstantiateLaw(law, M.Tail(match)())()
+                if M.IdentityCompare(instantiated_law, M.EmptyList)() is M.truth_value:
+                    self.result = M.false_value
+                elif Gmod.LawMapsComplete(instantiated_law)() is M.false_value:
+                    self.result = M.false_value
+                else:
+                    left = Gmod.LawLeft(instantiated_law)()
+                    host = Gmod.GraphVersion(
+                        Gmod.GraphNodes(left)(),
+                        Gmod.GraphEdges(left)(),
+                        M.EmptyList,
+                    )()
+                    sends = Gmod.IdentitySendsFor(Gmod.GraphNodes(left)())()
+                    remaining = Gmod.GraphEdges(left)()
+                    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                        edge = M.Head(remaining)()
+                        sends = M.Pair(Gmod.Send(edge, edge)(), sends)
+                        remaining = M.Tail(remaining)()
+                    mapping = Gmod.Map(left, host, sends)()
+                    fired = Gmod.FireLaw(
+                        host,
+                        instantiated_law,
+                        mapping,
+                        Gmod.DanglingForbid()(),
+                    )()
+                    committed = M.Head(fired)()
+                    expected = Gmod.EncodeTermAsGraph(legacy)()
+                    if M.IdentityCompare(committed, M.EmptyList)() is M.truth_value:
+                        self.result = M.false_value
+                    elif Gmod.GraphStoresEqual(committed, expected)() is M.false_value:
+                        self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchMatchStatesTest(M.Edge):
     """Step 10: a pattern with two candidate matches yields two completed matches."""
 
@@ -7067,6 +7147,13 @@ def install_default_tests(graph):
         "compile_rule_to_law_test",
         empty,
         CompileRuleToLawTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "shadow_pack_test",
+        empty,
+        ShadowPackTest(graph),
         M.truth_value,
     )
     _register_test(
