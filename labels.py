@@ -1051,6 +1051,10 @@ class ReasonUnapprovedLabel(ConstructorLabel):
     pass
 
 
+class ReasonObligationLabel(ConstructorLabel):
+    pass
+
+
 class FireLabel(ConstructorLabel):
     pass
 
@@ -1281,6 +1285,7 @@ ProposalStoreLabel = ProposalStoreLabel()
 ProposalEntryLabel = ProposalEntryLabel()
 ActivationLabel = ActivationLabel()
 ReasonUnapprovedLabel = ReasonUnapprovedLabel()
+ReasonObligationLabel = ReasonObligationLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
@@ -1689,6 +1694,7 @@ def sync_from_namespace(namespace):
         "ProposalEntryLabel",
         "ActivationLabel",
         "ReasonUnapprovedLabel",
+        "ReasonObligationLabel",
         "FireLabel",
         "NextLabel",
         "PlannerProblemLabel",

@@ -937,6 +937,120 @@ class ActivateProposalTest(M.Edge):
         return self.result
 
 
+class ObligationCommitGateTest(M.Edge):
+    """Step 17: node-count-max is enforced immediately before Law commit."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        base_law = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_term))()
+
+        tight_obligation = Gmod.KObligation(
+            M.Char("node-count-max"),
+            M.one,
+        )()
+        tight_law = Gmod.Law(
+            Gmod.LawLeft(base_law)(),
+            Gmod.LawInterface(base_law)(),
+            Gmod.LawRight(base_law)(),
+            Gmod.LawKToLeft(base_law)(),
+            Gmod.LawKToRight(base_law)(),
+            M.Pair(tight_obligation, empty),
+        )()
+
+        generous_obligation = Gmod.KObligation(
+            M.Char("node-count-max"),
+            M.two,
+        )()
+        generous_law = Gmod.Law(
+            Gmod.LawLeft(base_law)(),
+            Gmod.LawInterface(base_law)(),
+            Gmod.LawRight(base_law)(),
+            Gmod.LawKToLeft(base_law)(),
+            Gmod.LawKToRight(base_law)(),
+            M.Pair(generous_obligation, empty),
+        )()
+
+        left = Gmod.LawLeft(base_law)()
+        host = Gmod.GraphVersion(
+            Gmod.GraphNodes(left)(),
+            Gmod.GraphEdges(left)(),
+            empty,
+        )()
+        sends = Gmod.IdentitySendsFor(Gmod.GraphNodes(left)())()
+        remaining_edges = Gmod.GraphEdges(left)()
+        while M.IdentityCompare(remaining_edges, empty)() is M.false_value:
+            edge = M.Head(remaining_edges)()
+            sends = M.Pair(Gmod.Send(edge, edge)(), sends)
+            remaining_edges = M.Tail(remaining_edges)()
+        mapping = Gmod.Map(left, host, sends)()
+
+        refused = Gmod.FireLaw(
+            host,
+            tight_law,
+            mapping,
+            Gmod.DanglingForbid()(),
+        )()
+        refused_trace = M.Head(M.Tail(refused)())()
+        refusal = empty
+        remaining_trace = refused_trace
+        while M.IdentityCompare(remaining_trace, empty)() is M.false_value:
+            refusal = M.Head(remaining_trace)()
+            remaining_trace = M.Tail(remaining_trace)()
+
+        committed = Gmod.FireLaw(
+            host,
+            generous_law,
+            mapping,
+            Gmod.DanglingForbid()(),
+        )()
+
+        unknown_one = Gmod.KObligation(M.Char("future-check"), empty)()
+        checked_one = Gmod.CheckObligation(
+            host,
+            unknown_one,
+            Gmod.UncheckedObligations()(),
+        )()
+        unchecked_once = Gmod.CheckObligationUnchecked(checked_one)()
+        unknown_two = Gmod.KObligation(M.Char("future-check"), empty)()
+        checked_two = Gmod.CheckObligation(
+            host,
+            unknown_two,
+            unchecked_once,
+        )()
+        unchecked_twice = Gmod.CheckObligationUnchecked(checked_two)()
+
+        self.result = M.truth_value
+        if Gmod.LawMapsComplete(tight_law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(generous_law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(refused)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(refusal, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(refusal)(),
+            Lmod.ReasonObligationLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(committed)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.CheckObligationVerdict(checked_one)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.CheckObligationVerdict(checked_two)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unchecked_twice, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(unchecked_twice)(), empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchMatchStatesTest(M.Edge):
     """Step 10: a pattern with two candidate matches yields two completed matches."""
 
@@ -7451,6 +7565,13 @@ def install_default_tests(graph):
         "activate_proposal_test",
         empty,
         ActivateProposalTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "obligation_commit_gate_test",
+        empty,
+        ObligationCommitGateTest(graph),
         M.truth_value,
     )
     _register_test(

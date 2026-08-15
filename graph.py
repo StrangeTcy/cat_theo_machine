@@ -697,6 +697,109 @@ class KObligation(M.Edge):
         return self.result
 
 
+class KObligationName(M.Edge):
+    def __init__(self, obligation):
+        self.result = M.Head(M.Tail(obligation)())()
+        super().__init__(inputs=M.Pair(obligation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class KObligationStructure(M.Edge):
+    def __init__(self, obligation):
+        self.result = M.Head(M.Tail(M.Tail(obligation)())())()
+        super().__init__(inputs=M.Pair(obligation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class UncheckedObligations(M.Edge):
+    """Initial immutable state for unknown obligation names."""
+
+    def __init__(self):
+        self.result = M.EmptyList
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReasonObligation(M.Edge):
+    def __init__(self, obligation):
+        self.result = M.Pair(
+            Lmod.ReasonObligationLabel,
+            M.Pair(obligation, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(obligation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CheckObligation(M.Edge):
+    """Check one commit obligation and thread unknown-name state."""
+
+    def __init__(self, graph_version, obligation, unchecked_obligations):
+        name = KObligationName(obligation)()
+        updated_unchecked = unchecked_obligations
+        if M.Compare(name, M.Char("node-count-max"))() is M.truth_value:
+            count_pair = M.Count(GraphNodes(graph_version)(), M.AllConstructors)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            bound = KObligationStructure(obligation)()
+            too_many = M.NatLess(bound, count, registry)()
+            verdict = M.NotAtom(too_many)()
+        else:
+            verdict = M.truth_value
+            seen = M.false_value
+            remaining = unchecked_obligations
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if M.Compare(M.Head(remaining)(), name)() is M.truth_value:
+                    seen = M.truth_value
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+            if M.IdentityCompare(seen, M.false_value)() is M.truth_value:
+                updated_unchecked = M.Pair(name, updated_unchecked)
+        self.result = M.Pair(
+            verdict,
+            M.Pair(updated_unchecked, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(
+                    obligation,
+                    M.Pair(unchecked_obligations, M.EmptyList),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CheckObligationVerdict(M.Edge):
+    def __init__(self, checked):
+        self.result = M.Head(checked)()
+        super().__init__(inputs=M.Pair(checked, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CheckObligationUnchecked(M.Edge):
+    def __init__(self, checked):
+        self.result = M.Head(M.Tail(checked)())()
+        super().__init__(inputs=M.Pair(checked, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class Fire(M.Edge):
     def __init__(self, law, mapping):
         self.result = M.Pair(Lmod.FireLabel, M.Pair(law, M.Pair(mapping, M.EmptyList)))
@@ -1879,6 +1982,16 @@ class FireLaw(M.Edge):
 
         # --- GraphVersionCommitted ------------------------------------------
         committed = GraphVersion(new_nodes, new_edges, GraphVersionInvariants(graph_version)())()
+        unchecked = UncheckedObligations()()
+        remaining_obligations = LawObligations(law)()
+        while M.IdentityCompare(remaining_obligations, M.EmptyList)() is M.false_value:
+            obligation = M.Head(remaining_obligations)()
+            checked = CheckObligation(committed, obligation, unchecked)()
+            unchecked = CheckObligationUnchecked(checked)()
+            if CheckObligationVerdict(checked)() is M.false_value:
+                trace = self._append(trace, ReasonObligation(obligation)())
+                return M.Pair(M.EmptyList, M.Pair(trace, M.EmptyList))
+            remaining_obligations = M.Tail(remaining_obligations)()
         fire = Fire(law, mapping)()
         trace = self._append(
             trace,
