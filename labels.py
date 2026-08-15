@@ -1043,6 +1043,14 @@ class ProposalEntryLabel(ConstructorLabel):
     pass
 
 
+class ActivationLabel(ConstructorLabel):
+    pass
+
+
+class ReasonUnapprovedLabel(ConstructorLabel):
+    pass
+
+
 class FireLabel(ConstructorLabel):
     pass
 
@@ -1271,6 +1279,8 @@ ApprovedLabel = ApprovedLabel()
 RejectedLabel = RejectedLabel()
 ProposalStoreLabel = ProposalStoreLabel()
 ProposalEntryLabel = ProposalEntryLabel()
+ActivationLabel = ActivationLabel()
+ReasonUnapprovedLabel = ReasonUnapprovedLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
@@ -1677,6 +1687,8 @@ def sync_from_namespace(namespace):
         "RejectedLabel",
         "ProposalStoreLabel",
         "ProposalEntryLabel",
+        "ActivationLabel",
+        "ReasonUnapprovedLabel",
         "FireLabel",
         "NextLabel",
         "PlannerProblemLabel",

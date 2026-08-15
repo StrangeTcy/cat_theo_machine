@@ -633,6 +633,61 @@ class ProposalStoreApproved(M.Edge):
         return self.result
 
 
+class Activation(M.Edge):
+    def __init__(self, proposal):
+        self.result = M.Pair(
+            Lmod.ActivationLabel,
+            M.Pair(proposal, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReasonUnapproved(M.Edge):
+    def __init__(self, proposal):
+        self.result = M.Pair(
+            Lmod.ReasonUnapprovedLabel,
+            M.Pair(proposal, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ActivateProposal(M.Edge):
+    """Install an approved proposal and return its recorded Next splice."""
+
+    def __init__(self, graph_version, proposal_entry):
+        proposal = ProposalEntryProposal(proposal_entry)()
+        if ProposalEntryIsApproved(proposal_entry)() is M.false_value:
+            self.result = M.Pair(
+                M.EmptyList,
+                M.Pair(ReasonUnapproved(proposal)(), M.EmptyList),
+            )
+        else:
+            installed = InstallLaw(graph_version, ProposalLaw(proposal)())()
+            activation = Activation(proposal)()
+            fire = Fire(activation, M.EmptyList)()
+            lineage = Next(graph_version, fire, installed)()
+            self.result = M.Pair(
+                installed,
+                M.Pair(lineage, M.EmptyList),
+            )
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(proposal_entry, M.EmptyList),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class KObligation(M.Edge):
     def __init__(self, obligation_name, structure):
         self.result = M.Pair(Lmod.KObligationLabel, M.Pair(obligation_name, M.Pair(structure, M.EmptyList)))

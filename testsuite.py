@@ -865,6 +865,78 @@ class ProposalStoreInertTest(M.Edge):
         return self.result
 
 
+class ActivateProposalTest(M.Edge):
+    """Step 16: activation requires approval and records an Activation splice."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        law = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_term))()
+        proposal = Gmod.Proposal(law, M.Char("curated-origin"))()
+
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(store, proposal)()
+        unapproved_entry = M.Head(Gmod.ProposalStoreAll(store)())()
+
+        encoded_left = Gmod.EncodeTermAsGraph(left_term)()
+        version = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded_left)(),
+            Gmod.GraphEdges(encoded_left)(),
+            empty,
+        )()
+        refused = Gmod.ActivateProposal(version, unapproved_entry)()
+        refused_reason = M.Head(M.Tail(refused)())()
+
+        approval = Gmod.Approved(proposal, M.Char("curator"))()
+        approved_store = Gmod.ProposalStoreAttach(
+            store,
+            proposal,
+            approval,
+        )()
+        approved_entry = M.Head(Gmod.ProposalStoreApproved(approved_store)())()
+        activated = Gmod.ActivateProposal(version, approved_entry)()
+        next_version = M.Head(activated)()
+        lineage = M.Head(M.Tail(activated)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(refused)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(refused_reason)(),
+            Lmod.ReasonUnapprovedLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(next_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(next_version)(), law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(lineage)(), Lmod.NextLabel)() is M.false_value:
+            self.result = M.false_value
+        else:
+            fire = M.Head(M.Tail(M.Tail(lineage)())())()
+            activation = M.Head(M.Tail(fire)())()
+            mapping_placeholder = M.Head(M.Tail(M.Tail(fire)())())()
+            lineage_version = M.Head(M.Tail(M.Tail(M.Tail(lineage)())())())()
+            if M.IdentityCompare(M.Head(fire)(), Lmod.FireLabel)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(activation)(),
+                Lmod.ActivationLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(M.Head(M.Tail(activation)())(), proposal)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(mapping_placeholder, empty)() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(lineage_version, next_version)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchMatchStatesTest(M.Edge):
     """Step 10: a pattern with two candidate matches yields two completed matches."""
 
@@ -7372,6 +7444,13 @@ def install_default_tests(graph):
         "proposal_store_inert_test",
         empty,
         ProposalStoreInertTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "activate_proposal_test",
+        empty,
+        ActivateProposalTest(graph),
         M.truth_value,
     )
     _register_test(
