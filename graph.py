@@ -373,6 +373,266 @@ class InstalledLawValue(M.Edge):
         return self.result
 
 
+class Proposal(M.Edge):
+    def __init__(self, law, origin):
+        self.result = M.Pair(
+            Lmod.ProposalLabel,
+            M.Pair(law, M.Pair(origin, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(origin, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsProposal(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.ProposalLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalLaw(M.Edge):
+    def __init__(self, proposal):
+        self.result = M.Head(M.Tail(proposal)())()
+        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalOrigin(M.Edge):
+    def __init__(self, proposal):
+        self.result = M.Head(M.Tail(M.Tail(proposal)())())()
+        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class JustifiedBy(M.Edge):
+    def __init__(self, proposal, evidence):
+        self.result = M.Pair(
+            Lmod.JustifiedByLabel,
+            M.Pair(proposal, M.Pair(evidence, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal, M.Pair(evidence, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Approved(M.Edge):
+    def __init__(self, proposal, authority):
+        self.result = M.Pair(
+            Lmod.ApprovedLabel,
+            M.Pair(proposal, M.Pair(authority, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal, M.Pair(authority, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsApproved(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.ApprovedLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ApprovedProposal(M.Edge):
+    def __init__(self, approved):
+        self.result = M.Head(M.Tail(approved)())()
+        super().__init__(inputs=M.Pair(approved, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Rejected(M.Edge):
+    def __init__(self, proposal, authority, reason):
+        self.result = M.Pair(
+            Lmod.RejectedLabel,
+            M.Pair(proposal, M.Pair(authority, M.Pair(reason, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal,
+                M.Pair(authority, M.Pair(reason, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalEntry(M.Edge):
+    def __init__(self, proposal, annotations):
+        self.result = M.Pair(
+            Lmod.ProposalEntryLabel,
+            M.Pair(proposal, M.Pair(annotations, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal, M.Pair(annotations, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalEntryProposal(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(entry)())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalEntryAnnotations(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(M.Tail(entry)())())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalEntryIsApproved(M.Edge):
+    def __init__(self, entry):
+        proposal = ProposalEntryProposal(entry)()
+        annotations = ProposalEntryAnnotations(entry)()
+        self.result = M.false_value
+        remaining = annotations
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            annotation = M.Head(remaining)()
+            if IsApproved(annotation)() is M.truth_value:
+                if M.TermEqual(ApprovedProposal(annotation)(), proposal)() is M.truth_value:
+                    self.result = M.truth_value
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+            else:
+                remaining = M.Tail(remaining)()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStore(M.Edge):
+    """Immutable proposal-entry chain wrapped as a machine term."""
+
+    def __init__(self, entries):
+        self.result = M.Pair(
+            Lmod.ProposalStoreLabel,
+            M.Pair(entries, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(entries, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStoreEntries(M.Edge):
+    def __init__(self, store):
+        self.result = M.Head(M.Tail(store)())()
+        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStoreSubmit(M.Edge):
+    def __init__(self, store, proposal):
+        reversed_entries = Reverse(ProposalStoreEntries(store)())()
+        entries = Reverse(
+            M.Pair(ProposalEntry(proposal, M.EmptyList)(), reversed_entries)
+        )()
+        self.result = ProposalStore(entries)()
+        super().__init__(
+            inputs=M.Pair(store, M.Pair(proposal, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStoreAll(M.Edge):
+    def __init__(self, store):
+        self.result = ProposalStoreEntries(store)()
+        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStoreAttach(M.Edge):
+    def __init__(self, store, proposal, annotation):
+        reversed_entries = M.EmptyList
+        remaining = ProposalStoreEntries(store)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            if M.TermEqual(ProposalEntryProposal(entry)(), proposal)() is M.truth_value:
+                annotations = ChainAddMissing(
+                    ProposalEntryAnnotations(entry)(),
+                    M.Pair(annotation, M.EmptyList),
+                )()
+                entry = ProposalEntry(proposal, annotations)()
+            reversed_entries = M.Pair(entry, reversed_entries)
+            remaining = M.Tail(remaining)()
+        self.result = ProposalStore(Reverse(reversed_entries)())()
+        super().__init__(
+            inputs=M.Pair(
+                store,
+                M.Pair(proposal, M.Pair(annotation, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStoreApproved(M.Edge):
+    def __init__(self, store):
+        reversed_entries = M.EmptyList
+        remaining = ProposalStoreEntries(store)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            if ProposalEntryIsApproved(entry)() is M.truth_value:
+                reversed_entries = M.Pair(entry, reversed_entries)
+            remaining = M.Tail(remaining)()
+        self.result = Reverse(reversed_entries)()
+        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class KObligation(M.Edge):
     def __init__(self, obligation_name, structure):
         self.result = M.Pair(Lmod.KObligationLabel, M.Pair(obligation_name, M.Pair(structure, M.EmptyList)))

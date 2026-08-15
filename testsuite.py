@@ -801,6 +801,70 @@ class MetaRewriteKnownGapTest(M.Edge):
         return self.result
 
 
+class ProposalStoreInertTest(M.Edge):
+    """Step 15: submitted and approved proposals remain unreachable from FireAny."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        law = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_term))()
+        proposal = Gmod.Proposal(law, M.Char("shadow-origin"))()
+        justification = Gmod.JustifiedBy(proposal, M.Char("evidence"))()
+        approval = Gmod.Approved(proposal, M.Char("curator"))()
+        rejection = Gmod.Rejected(
+            proposal,
+            M.Char("curator"),
+            M.Char("reason"),
+        )()
+
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(store, proposal)()
+        all_entries = Gmod.ProposalStoreAll(store)()
+        approved_before = Gmod.ProposalStoreApproved(store)()
+        approved_store = Gmod.ProposalStoreAttach(store, proposal, approval)()
+        approved_after = Gmod.ProposalStoreApproved(approved_store)()
+
+        encoded_left = Gmod.EncodeTermAsGraph(left_term)()
+        version = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded_left)(),
+            Gmod.GraphEdges(encoded_left)(),
+            empty,
+        )()
+        fired = Gmod.FireAny(version, Gmod.DanglingForbid()())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(justification)(), Lmod.JustifiedByLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(rejection)(), Lmod.RejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(all_entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(all_entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.ProposalEntryProposal(M.Head(all_entries)())(),
+            proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(approved_before, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(approved_after, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(approved_after)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(fired)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(M.Tail(fired)())(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(version)(), left_term)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchMatchStatesTest(M.Edge):
     """Step 10: a pattern with two candidate matches yields two completed matches."""
 
@@ -7301,6 +7365,13 @@ def install_default_tests(graph):
         "test_meta_rewrite_KNOWN_GAP",
         empty,
         MetaRewriteKnownGapTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "proposal_store_inert_test",
+        empty,
+        ProposalStoreInertTest(graph),
         M.truth_value,
     )
     _register_test(

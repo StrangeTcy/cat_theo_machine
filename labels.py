@@ -1019,6 +1019,30 @@ class InstalledLawLabel(ConstructorLabel):
     pass
 
 
+class ProposalLabel(ConstructorLabel):
+    pass
+
+
+class JustifiedByLabel(ConstructorLabel):
+    pass
+
+
+class ApprovedLabel(ConstructorLabel):
+    pass
+
+
+class RejectedLabel(ConstructorLabel):
+    pass
+
+
+class ProposalStoreLabel(ConstructorLabel):
+    pass
+
+
+class ProposalEntryLabel(ConstructorLabel):
+    pass
+
+
 class FireLabel(ConstructorLabel):
     pass
 
@@ -1241,6 +1265,12 @@ FireRejectedLabel = FireRejectedLabel()
 MissLabel = MissLabel()
 LawLabel = LawLabel()
 InstalledLawLabel = InstalledLawLabel()
+ProposalLabel = ProposalLabel()
+JustifiedByLabel = JustifiedByLabel()
+ApprovedLabel = ApprovedLabel()
+RejectedLabel = RejectedLabel()
+ProposalStoreLabel = ProposalStoreLabel()
+ProposalEntryLabel = ProposalEntryLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
@@ -1641,6 +1671,12 @@ def sync_from_namespace(namespace):
         "MissLabel",
         "LawLabel",
         "InstalledLawLabel",
+        "ProposalLabel",
+        "JustifiedByLabel",
+        "ApprovedLabel",
+        "RejectedLabel",
+        "ProposalStoreLabel",
+        "ProposalEntryLabel",
         "FireLabel",
         "NextLabel",
         "PlannerProblemLabel",
