@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import multiprocessing
+
 from . import context as Ctx
 from . import machine as M
 from . import proof as P
@@ -23,6 +25,9 @@ class Hypergraph:
             M.AllConstructors = M.set_all_constructors(constructor_registry)
         self.rep = M.HypergraphRep()
         self.default_tests_installed = M.false_value
+        self._test_shard_index = M.Zero
+        self._test_shard_count = M.one
+        self._test_shard_cursor = M.Zero
         self._search_console_input = None
         self._search_disable_console = M.false_value
         self._search_disable_progress_ticker = M.false_value
@@ -1861,7 +1866,7 @@ class LawMatchBindings(M.Edge):
 class FireAny(M.Edge):
     """Fire the first installed Law having a completed Step-10 match."""
 
-    def __init__(self, graph_version, dangling_mode):
+    def __init__(self, graph_version, dangling_mode, ledger=M.EmptyList):
         self.result = M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
         laws = InstalledLaws(graph_version)()
         remaining = laws
@@ -1877,7 +1882,13 @@ class FireAny(M.Edge):
                         mapping = FirstCompletedMatch(LawLeft(active_law)(), graph_version)()
                 if M.IdentityCompare(active_law, M.EmptyList)() is M.false_value:
                     if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
-                        fired = FireLaw(graph_version, active_law, mapping, dangling_mode)()
+                        fired = FireLaw(
+                            graph_version,
+                            active_law,
+                            mapping,
+                            dangling_mode,
+                            ledger,
+                        )()
                         if M.IdentityCompare(M.Head(fired)(), M.EmptyList)() is M.false_value:
                             self.result = fired
                             remaining = M.EmptyList
@@ -1890,12 +1901,582 @@ class FireAny(M.Edge):
             else:
                 remaining = M.Tail(remaining)()
         super().__init__(
-            inputs=M.Pair(graph_version, M.Pair(dangling_mode, M.EmptyList)),
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(dangling_mode, M.Pair(ledger, M.EmptyList)),
+            ),
             results=self.result,
         )
 
     def __call__(self):
         return self.result
+
+
+class FiringRecord(M.Edge):
+    """A committed firing together with its exact graph and trace counts."""
+
+    def __init__(
+        self,
+        law,
+        g0,
+        g1,
+        trace,
+        nodes_before,
+        nodes_after,
+        edges_before,
+        edges_after,
+        trace_steps,
+    ):
+        self.result = M.Pair(
+            Lmod.FiringRecordLabel,
+            M.Pair(
+                law,
+                M.Pair(
+                    g0,
+                    M.Pair(
+                        g1,
+                        M.Pair(
+                            trace,
+                            M.Pair(
+                                nodes_before,
+                                M.Pair(
+                                    nodes_after,
+                                    M.Pair(
+                                        edges_before,
+                                        M.Pair(
+                                            edges_after,
+                                            M.Pair(trace_steps, M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                law,
+                M.Pair(
+                    g0,
+                    M.Pair(
+                        g1,
+                        M.Pair(
+                            trace,
+                            M.Pair(
+                                nodes_before,
+                                M.Pair(
+                                    nodes_after,
+                                    M.Pair(
+                                        edges_before,
+                                        M.Pair(
+                                            edges_after,
+                                            M.Pair(trace_steps, M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordLaw(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(record)())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordG0(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordG1(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordTrace(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordNodesBefore(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordNodesAfter(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordEdgesBefore(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordEdgesAfter(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordTraceSteps(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRational(M.Edge):
+    """Exact signed rational (positive_total - negative_total) / samples."""
+
+    def __init__(self, positive_total, negative_total, samples):
+        self.result = M.Pair(
+            Lmod.SignedRationalLabel,
+            M.Pair(
+                positive_total,
+                M.Pair(negative_total, M.Pair(samples, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                positive_total,
+                M.Pair(negative_total, M.Pair(samples, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalPositive(M.Edge):
+    def __init__(self, signed_rational):
+        self.result = M.Head(M.Tail(signed_rational)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalNegative(M.Edge):
+    def __init__(self, signed_rational):
+        args = M.Tail(signed_rational)()
+        self.result = M.Head(M.Tail(args)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalSamples(M.Edge):
+    def __init__(self, signed_rational):
+        args = M.Tail(signed_rational)()
+        args = M.Tail(args)()
+        self.result = M.Head(M.Tail(args)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerByLaw(M.Edge):
+    """Group a chronological record shard into Pair law associations."""
+
+    def __init__(self, records):
+        groups = M.EmptyList
+        remaining_records = records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record = M.Head(remaining_records)()
+            law = FiringRecordLaw(record)()
+            remaining_groups = groups
+            reversed_groups = M.EmptyList
+            found = M.false_value
+            while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+                group = M.Head(remaining_groups)()
+                group_law = M.Head(group)()
+                if M.TermEqual(group_law, law)() is M.truth_value:
+                    group_records = M.Head(M.Tail(group)())()
+                    reversed_group_records = M.Reverse(group_records)()
+                    group_records = M.Reverse(M.Pair(record, reversed_group_records))()
+                    group = M.Pair(law, M.Pair(group_records, M.EmptyList))
+                    found = M.truth_value
+                reversed_groups = M.Pair(group, reversed_groups)
+                remaining_groups = M.Tail(remaining_groups)()
+            groups = M.Reverse(reversed_groups)()
+            if M.IdentityCompare(found, M.false_value)() is M.truth_value:
+                reversed_groups = M.Reverse(groups)()
+                groups = M.Reverse(
+                    M.Pair(
+                        M.Pair(law, M.Pair(M.Pair(record, M.EmptyList), M.EmptyList)),
+                        reversed_groups,
+                    )
+                )()
+            remaining_records = M.Tail(remaining_records)()
+        self.result = groups
+        super().__init__(inputs=M.Pair(records, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerByLawShard(M.Edge):
+    """Spawn-safe worker edge for one by-law record shard."""
+
+    def __init__(self, records, result_queue):
+        self.result = FiringLedgerByLaw(records)()
+        result_queue.put(self.result)
+        super().__init__(inputs=M.Pair(records, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerDelta(M.Edge):
+    """Exact node totals for one law over one chronological record shard."""
+
+    def __init__(self, records, law, registry):
+        positive_total = M.Zero
+        negative_total = M.Zero
+        samples = M.Zero
+        remaining_records = records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record = M.Head(remaining_records)()
+            if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                positive_pair = M.Add(
+                    positive_total,
+                    FiringRecordNodesAfter(record)(),
+                    registry,
+                )()
+                positive_total = M.Head(positive_pair)()
+                registry = M.Head(M.Tail(positive_pair)())()
+                negative_pair = M.Add(
+                    negative_total,
+                    FiringRecordNodesBefore(record)(),
+                    registry,
+                )()
+                negative_total = M.Head(negative_pair)()
+                registry = M.Head(M.Tail(negative_pair)())()
+                samples_pair = M.Succ(samples, registry)()
+                samples = M.Head(samples_pair)()
+                registry = M.Head(M.Tail(samples_pair)())()
+            remaining_records = M.Tail(remaining_records)()
+        signed_rational = SignedRational(positive_total, negative_total, samples)()
+        self.result = M.Pair(signed_rational, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(records, M.Pair(law, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerDeltaShard(M.Edge):
+    """Spawn-safe worker edge for one exact-delta record shard."""
+
+    def __init__(self, records, law, result_queue):
+        registry = M.Tree(M.EmptyList)
+        self.result = FiringLedgerDelta(records, law, registry)()
+        result_queue.put(self.result)
+        super().__init__(
+            inputs=M.Pair(records, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedger(M.Edge):
+    """Mutable chronological ledger of committed firing records."""
+
+    def __init__(self, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        self.records = M.EmptyList
+        self.registry = registry
+        super().__init__(inputs=M.Pair(registry, M.EmptyList), results=self.records)
+
+    def append(self, record):
+        reversed_records = M.Reverse(self.records)()
+        self.records = M.Reverse(M.Pair(record, reversed_records))()
+        self.results = self.records
+        return self.records
+
+    def all(self):
+        return self.records
+
+    def by_law(self):
+        record_count = 0
+        remaining_records = self.records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record_count = record_count + 1
+            remaining_records = M.Tail(remaining_records)()
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            return FiringLedgerByLaw(self.records)()
+        if worker_capacity > record_count:
+            worker_capacity = record_count
+        if worker_capacity < 2:
+            return FiringLedgerByLaw(self.records)()
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        shard_width = record_count // worker_capacity
+        wide_shards = record_count % worker_capacity
+        workers = M.EmptyList
+        remaining_records = self.records
+        slot = 0
+        while slot != worker_capacity:
+            active_width = shard_width
+            if slot < wide_shards:
+                active_width = active_width + 1
+            reversed_shard = M.EmptyList
+            copied = 0
+            while copied != active_width:
+                reversed_shard = M.Pair(M.Head(remaining_records)(), reversed_shard)
+                remaining_records = M.Tail(remaining_records)()
+                copied = copied + 1
+            shard = M.Reverse(reversed_shard)()
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=FiringLedgerByLawShard,
+                args=(shard, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        groups = M.EmptyList
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            shard_groups = result_queue.get()
+            process.join()
+            result_queue.close()
+            remaining_shard_groups = shard_groups
+            while M.IdentityCompare(remaining_shard_groups, M.EmptyList)() is M.false_value:
+                shard_group = M.Head(remaining_shard_groups)()
+                shard_law = M.Head(shard_group)()
+                shard_records = M.Head(M.Tail(shard_group)())()
+                remaining_groups = groups
+                reversed_groups = M.EmptyList
+                found = M.false_value
+                while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+                    group = M.Head(remaining_groups)()
+                    group_law = M.Head(group)()
+                    if M.TermEqual(group_law, shard_law)() is M.truth_value:
+                        group_records = M.Head(M.Tail(group)())()
+                        reversed_group_records = M.Reverse(group_records)()
+                        remaining_shard_records = shard_records
+                        while M.IdentityCompare(
+                            remaining_shard_records,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reversed_group_records = M.Pair(
+                                M.Head(remaining_shard_records)(),
+                                reversed_group_records,
+                            )
+                            remaining_shard_records = M.Tail(remaining_shard_records)()
+                        group = M.Pair(
+                            shard_law,
+                            M.Pair(M.Reverse(reversed_group_records)(), M.EmptyList),
+                        )
+                        found = M.truth_value
+                    reversed_groups = M.Pair(group, reversed_groups)
+                    remaining_groups = M.Tail(remaining_groups)()
+                groups = M.Reverse(reversed_groups)()
+                if M.IdentityCompare(found, M.false_value)() is M.truth_value:
+                    reversed_groups = M.Reverse(groups)()
+                    groups = M.Reverse(M.Pair(shard_group, reversed_groups))()
+                remaining_shard_groups = M.Tail(remaining_shard_groups)()
+            remaining_workers = M.Tail(remaining_workers)()
+        return groups
+
+    def size_delta(self, law):
+        record_count = 0
+        remaining_records = self.records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record_count = record_count + 1
+            remaining_records = M.Tail(remaining_records)()
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            delta_pair = FiringLedgerDelta(self.records, law, self.registry)()
+            self.registry = M.Head(M.Tail(delta_pair)())()
+            return M.Head(delta_pair)()
+        if worker_capacity > record_count:
+            worker_capacity = record_count
+        if worker_capacity < 2:
+            delta_pair = FiringLedgerDelta(self.records, law, self.registry)()
+            self.registry = M.Head(M.Tail(delta_pair)())()
+            return M.Head(delta_pair)()
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        shard_width = record_count // worker_capacity
+        wide_shards = record_count % worker_capacity
+        workers = M.EmptyList
+        remaining_records = self.records
+        slot = 0
+        while slot != worker_capacity:
+            active_width = shard_width
+            if slot < wide_shards:
+                active_width = active_width + 1
+            reversed_shard = M.EmptyList
+            copied = 0
+            while copied != active_width:
+                reversed_shard = M.Pair(M.Head(remaining_records)(), reversed_shard)
+                remaining_records = M.Tail(remaining_records)()
+                copied = copied + 1
+            shard = M.Reverse(reversed_shard)()
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=FiringLedgerDeltaShard,
+                args=(shard, law, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        positive_total = M.Zero
+        negative_total = M.Zero
+        samples = M.Zero
+        registry = self.registry
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            partial_pair = result_queue.get()
+            process.join()
+            result_queue.close()
+            partial = M.Head(partial_pair)()
+            positive_pair = M.Add(
+                positive_total,
+                SignedRationalPositive(partial)(),
+                registry,
+            )()
+            positive_total = M.Head(positive_pair)()
+            registry = M.Head(M.Tail(positive_pair)())()
+            negative_pair = M.Add(
+                negative_total,
+                SignedRationalNegative(partial)(),
+                registry,
+            )()
+            negative_total = M.Head(negative_pair)()
+            registry = M.Head(M.Tail(negative_pair)())()
+            samples_pair = M.Add(
+                samples,
+                SignedRationalSamples(partial)(),
+                registry,
+            )()
+            samples = M.Head(samples_pair)()
+            registry = M.Head(M.Tail(samples_pair)())()
+            remaining_workers = M.Tail(remaining_workers)()
+        self.registry = registry
+        return SignedRational(positive_total, negative_total, samples)()
+
+    def __call__(self):
+        return self.records
 
 
 class FireLaw(M.Edge):
@@ -1912,13 +2493,26 @@ class FireLaw(M.Edge):
     never mutated.
     """
 
-    def __init__(self, graph_version, law, mapping, dangling_mode):
+    def __init__(
+        self,
+        graph_version,
+        law,
+        mapping,
+        dangling_mode,
+        ledger=M.EmptyList,
+    ):
         self.probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
-        self.result = self._fire(graph_version, law, mapping, dangling_mode)
+        self.result = self._fire(graph_version, law, mapping, dangling_mode, ledger)
         super().__init__(
             inputs=M.Pair(
                 graph_version,
-                M.Pair(law, M.Pair(mapping, M.Pair(dangling_mode, M.EmptyList))),
+                M.Pair(
+                    law,
+                    M.Pair(
+                        mapping,
+                        M.Pair(dangling_mode, M.Pair(ledger, M.EmptyList)),
+                    ),
+                ),
             ),
             results=self.result,
         )
@@ -1940,7 +2534,7 @@ class FireLaw(M.Edge):
         rejected = M.Pair(Lmod.FireRejectedLabel, M.Pair(stage, M.EmptyList))
         return M.Pair(M.EmptyList, M.Pair(self._append(trace, rejected), M.EmptyList))
 
-    def _fire(self, graph_version, law, mapping, dangling_mode):
+    def _fire(self, graph_version, law, mapping, dangling_mode, ledger):
         trace = M.EmptyList
 
         # --- MatchPrepared -------------------------------------------------
@@ -2031,6 +2625,36 @@ class FireLaw(M.Edge):
             M.Pair(Lmod.GraphVersionCommittedLabel, M.Pair(LawObligations(law)(), M.EmptyList)),
         )
         trace = self._append(trace, Next(graph_version, fire, committed)())
+        if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+            registry = ledger.registry
+            nodes_before_pair = M.Count(GraphNodes(graph_version)(), registry)()
+            nodes_before = M.Head(nodes_before_pair)()
+            registry = M.Head(M.Tail(nodes_before_pair)())()
+            nodes_after_pair = M.Count(GraphNodes(committed)(), registry)()
+            nodes_after = M.Head(nodes_after_pair)()
+            registry = M.Head(M.Tail(nodes_after_pair)())()
+            edges_before_pair = M.Count(GraphEdges(graph_version)(), registry)()
+            edges_before = M.Head(edges_before_pair)()
+            registry = M.Head(M.Tail(edges_before_pair)())()
+            edges_after_pair = M.Count(GraphEdges(committed)(), registry)()
+            edges_after = M.Head(edges_after_pair)()
+            registry = M.Head(M.Tail(edges_after_pair)())()
+            trace_steps_pair = M.Count(trace, registry)()
+            trace_steps = M.Head(trace_steps_pair)()
+            ledger.registry = M.Head(M.Tail(trace_steps_pair)())()
+            ledger.append(
+                FiringRecord(
+                    law,
+                    graph_version,
+                    committed,
+                    trace,
+                    nodes_before,
+                    nodes_after,
+                    edges_before,
+                    edges_after,
+                    trace_steps,
+                )()
+            )
         return M.Pair(committed, M.Pair(trace, M.EmptyList))
 
     def __call__(self):
@@ -2370,6 +2994,72 @@ class MapExtendOneStep(M.Edge):
         return self.result
 
 
+class TestShardConfigure(M.Edge):
+    """Select one deterministic round-robin shard of default tests."""
+
+    def __init__(self, graph, shard_index, shard_count):
+        graph._test_shard_index = shard_index
+        graph._test_shard_count = shard_count
+        graph._test_shard_cursor = M.Zero
+        self.result = graph
+        super().__init__(
+            inputs=M.Pair(
+                graph,
+                M.Pair(shard_index, M.Pair(shard_count, M.EmptyList)),
+            ),
+            results=M.Pair(graph, M.EmptyList),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TestShardAccept(M.Edge):
+    """Advance the test ordinal and admit it only to the configured shard."""
+
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        self.result = M.NatEq(
+            graph._test_shard_cursor,
+            graph._test_shard_index,
+            registry,
+        )()
+        next_pair = M.Succ(graph._test_shard_cursor, registry)()
+        next_cursor = M.Head(next_pair)()
+        registry = M.Head(M.Tail(next_pair)())()
+        if M.NatEq(next_cursor, graph._test_shard_count, registry)() is M.truth_value:
+            next_cursor = M.Zero
+        graph._test_shard_cursor = next_cursor
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RunDefaultTestShard(M.Edge):
+    """Spawn-safe isolated installation and execution of one test shard."""
+
+    def __init__(self, graph, shard_index, shard_count, result_queue):
+        from . import testsuite
+
+        TestShardConfigure(graph, shard_index, shard_count)()
+        testsuite.install_default_tests(graph)
+        RunTests(graph)()
+        self.result = M.FromContextGetTestResults(graph)()
+        result_queue.put(self.result)
+        super().__init__(
+            inputs=M.Pair(
+                graph,
+                M.Pair(shard_index, M.Pair(shard_count, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class Test(Hypergraph):
     def __init__(self, graph, name, input_nodes, computation_edge, expected):
         self.graph = graph
@@ -2441,6 +3131,97 @@ class RunTests(M.Edge):
         result = test.run()
         rest = self._run(M.Tail(chain)())
         return M.Pair(result, rest)
+
+    def __call__(self):
+        return self.result
+
+
+class RunDefaultTestsParallel(M.Edge):
+    """Install and run default tests in isolated shards with Pair reduction."""
+
+    def __init__(self, graph):
+        from . import testsuite
+
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            worker_capacity = 1
+        if worker_capacity > 8:
+            worker_capacity = 8
+        if worker_capacity < 2:
+            testsuite.install_default_tests(graph)
+            self.result = RunTests(graph)()
+            super().__init__(
+                inputs=M.Pair(graph, M.EmptyList),
+                results=self.result,
+            )
+            return
+
+        registry = M.FromContextGetConstructors(graph)()
+        shard_count = M.Zero
+        built_count = 0
+        while built_count != worker_capacity:
+            count_pair = M.Succ(shard_count, registry)()
+            shard_count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            built_count = built_count + 1
+        graph._replace_context(constructors=registry)
+
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        workers = M.EmptyList
+        shard_index = M.Zero
+        slot = 0
+        while slot != worker_capacity:
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=RunDefaultTestShard,
+                args=(graph, shard_index, shard_count, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            next_pair = M.Succ(shard_index, registry)()
+            shard_index = M.Head(next_pair)()
+            registry = M.Head(M.Tail(next_pair)())()
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        combined_results = M.EmptyList
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            process.join()
+            if process.exitcode != 0:
+                result_queue.close()
+                raise RuntimeError("default test shard failed")
+            shard_results = result_queue.get()
+            result_queue.close()
+            reversed_combined = M.Reverse(combined_results)()
+            combined_results = shard_results
+            while M.IdentityCompare(reversed_combined, M.EmptyList)() is M.false_value:
+                combined_results = M.Pair(
+                    M.Head(reversed_combined)(),
+                    combined_results,
+                )
+                reversed_combined = M.Tail(reversed_combined)()
+            remaining_workers = M.Tail(remaining_workers)()
+
+        graph._replace_context(
+            constructors=registry,
+            test_results=combined_results,
+        )
+        graph.default_tests_installed = M.truth_value
+        self.result = combined_results
+        super().__init__(
+            inputs=M.Pair(graph, M.EmptyList),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result

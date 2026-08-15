@@ -1063,6 +1063,14 @@ class NextLabel(ConstructorLabel):
     pass
 
 
+class FiringRecordLabel(ConstructorLabel):
+    pass
+
+
+class SignedRationalLabel(ConstructorLabel):
+    pass
+
+
 class GraphVersionLabel(ConstructorLabel):
     pass
 
@@ -1288,6 +1296,8 @@ ReasonUnapprovedLabel = ReasonUnapprovedLabel()
 ReasonObligationLabel = ReasonObligationLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
+FiringRecordLabel = FiringRecordLabel()
+SignedRationalLabel = SignedRationalLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
 PlannerProblemLabel = PlannerProblemLabel()
@@ -1697,6 +1707,8 @@ def sync_from_namespace(namespace):
         "ReasonObligationLabel",
         "FireLabel",
         "NextLabel",
+        "FiringRecordLabel",
+        "SignedRationalLabel",
         "PlannerProblemLabel",
         "FiniteLabel",
         "TotalMapLabel",

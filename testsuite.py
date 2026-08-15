@@ -1023,6 +1023,299 @@ class ProposalStoreHistoryTest(M.Edge):
         return self.result
 
 
+class FiringLedgerTest(M.Edge):
+    """Step 19: committed firings retain exact counts and signed means."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        ledger = Gmod.FiringLedger()
+
+        left_one_node = M.Thingy()
+        right_one_node = M.Thingy()
+        right_two_node = M.Thingy()
+        left_one = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(left_one_node, empty), M.Pair(empty, empty)),
+        )
+        interface_one = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(empty, M.Pair(empty, empty)),
+        )
+        right_one = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                M.Pair(right_one_node, M.Pair(right_two_node, empty)),
+                M.Pair(empty, empty),
+            ),
+        )
+        law_one = Gmod.Law(
+            left_one,
+            interface_one,
+            right_one,
+            Gmod.Map(interface_one, left_one, empty)(),
+            Gmod.Map(interface_one, right_one, empty)(),
+            empty,
+        )()
+        host_one = Gmod.GraphVersion(M.Pair(left_one_node, empty), empty, empty)()
+        map_one = Gmod.Map(
+            left_one,
+            host_one,
+            M.Pair(Gmod.Send(left_one_node, left_one_node)(), empty),
+        )()
+        fired_one = Gmod.FireLaw(
+            host_one,
+            law_one,
+            map_one,
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+
+        left_two_first = M.Thingy()
+        left_two_second = M.Thingy()
+        right_two_only = M.Thingy()
+        left_two = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                M.Pair(left_two_first, M.Pair(left_two_second, empty)),
+                M.Pair(empty, empty),
+            ),
+        )
+        interface_two = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(empty, M.Pair(empty, empty)),
+        )
+        right_two = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(right_two_only, empty), M.Pair(empty, empty)),
+        )
+        law_two = Gmod.Law(
+            left_two,
+            interface_two,
+            right_two,
+            Gmod.Map(interface_two, left_two, empty)(),
+            Gmod.Map(interface_two, right_two, empty)(),
+            empty,
+        )()
+        host_two = Gmod.GraphVersion(
+            M.Pair(left_two_first, M.Pair(left_two_second, empty)),
+            empty,
+            empty,
+        )()
+        map_two = Gmod.Map(
+            left_two,
+            host_two,
+            M.Pair(
+                Gmod.Send(left_two_first, left_two_first)(),
+                M.Pair(Gmod.Send(left_two_second, left_two_second)(), empty),
+            ),
+        )()
+        fired_two = Gmod.FireLaw(
+            host_two,
+            law_two,
+            map_two,
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        fired_one_again = Gmod.FireLaw(
+            host_one,
+            law_one,
+            map_one,
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        rejected = Gmod.FireLaw(
+            host_one,
+            law_one,
+            Gmod.Map(left_one, host_one, empty)(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+
+        records = ledger.all()
+        first_record = M.Head(records)()
+        second_record = M.Head(M.Tail(records)())()
+        third_record = M.Head(M.Tail(M.Tail(records)())())()
+        groups = ledger.by_law()
+        first_group = M.Head(groups)()
+        second_group = M.Head(M.Tail(groups)())()
+        first_group_records = M.Head(M.Tail(first_group)())()
+        second_group_records = M.Head(M.Tail(second_group)())()
+        delta_one = ledger.size_delta(law_one)
+        delta_two = ledger.size_delta(law_two)
+
+        any_left_term = M.Pair(Lmod.ZeroLabel, empty)
+        any_right_term = M.Pair(
+            Lmod.SuccLabel,
+            M.Pair(any_left_term, empty),
+        )
+        any_law = Gmod.CompileRuleToLaw(
+            Pmod.Rule(any_left_term, any_right_term)
+        )()
+        any_encoded = Gmod.EncodeTermAsGraph(any_left_term)()
+        any_version = Gmod.GraphVersion(
+            Gmod.GraphNodes(any_encoded)(),
+            Gmod.GraphEdges(any_encoded)(),
+            empty,
+        )()
+        any_version = Gmod.InstallLaw(any_version, any_law)()
+        any_ledger = Gmod.FiringLedger()
+        fired_any = Gmod.FireAny(
+            any_version,
+            Gmod.DanglingForbid()(),
+            any_ledger,
+        )()
+        any_records = any_ledger.all()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(fired_one)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(fired_two)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(fired_one_again)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(fired_any)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(any_records, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(any_records)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordLaw(M.Head(any_records)())(),
+            any_law,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(rejected)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(records)())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(Gmod.FiringRecordLaw(first_record)(), law_one)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(Gmod.FiringRecordLaw(second_record)(), law_two)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(Gmod.FiringRecordLaw(third_record)(), law_one)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(Gmod.FiringRecordG0(first_record)(), host_one)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordG1(first_record)(),
+            M.Head(fired_one)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordTrace(first_record)(),
+            M.Head(M.Tail(fired_one)())(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.FiringRecordEdgesBefore(first_record)(),
+            M.Zero,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.FiringRecordEdgesAfter(first_record)(),
+            M.Zero,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.FiringRecordTraceSteps(first_record)(),
+            M.six,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.FiringRecordNodesBefore(first_record)(),
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.FiringRecordNodesAfter(first_record)(),
+            M.two,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.FiringRecordNodesBefore(second_record)(),
+            M.two,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.FiringRecordNodesAfter(second_record)(),
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(M.Tail(groups)())(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(M.Head(first_group)(), law_one)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(M.Head(second_group)(), law_two)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(first_group_records)())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(M.Head(first_group_records)(), first_record)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Tail(first_group_records)())(),
+            third_record,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(second_group_records)(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalPositive(delta_one)(),
+            M.four,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalNegative(delta_one)(),
+            M.two,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalSamples(delta_one)(),
+            M.two,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalPositive(delta_two)(),
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalNegative(delta_two)(),
+            M.two,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalSamples(delta_two)(),
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -6734,60 +7027,76 @@ def install_default_tests(graph):
     b = M.Thingy()
     empty = M.EmptyList
 
-    _register_test(graph, "cmp1_test", M.Pair(a, M.Pair(a, empty)), M.Compare(a, a), M.truth_value)
-    _register_test(graph, "cmp2_test", M.Pair(a, M.Pair(b, empty)), M.Compare(a, b), M.false_value)
-    _register_test(graph, "cmp3_test", M.Pair(empty, empty), M.Compare(empty, M.EmptyList), M.truth_value)
-    _register_test(graph, "cmp4_test", M.Pair(a, M.Pair(empty, empty)), M.Compare(a, empty), M.false_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "cmp1_test", M.Pair(a, M.Pair(a, empty)), M.Compare(a, a), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "cmp2_test", M.Pair(a, M.Pair(b, empty)), M.Compare(a, b), M.false_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "cmp3_test", M.Pair(empty, empty), M.Compare(empty, M.EmptyList), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "cmp4_test", M.Pair(a, M.Pair(empty, empty)), M.Compare(a, empty), M.false_value)
 
-    _register_test(
-        graph,
-        "nand_test",
-        M.Pair(M.truth_value, M.Pair(M.truth_value, empty)),
-        M.NandAtom(M.truth_value, M.truth_value),
-        M.false_value,
-    )
-    _register_test(
-        graph,
-        "nat_test",
-        M.Pair(M.one, M.Pair(M.two, empty)),
-        M.NatLess(M.one, M.two, _registry(graph)),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nand_test",
+            M.Pair(M.truth_value, M.Pair(M.truth_value, empty)),
+            M.NandAtom(M.truth_value, M.truth_value),
+            M.false_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_test",
+            M.Pair(M.one, M.Pair(M.two, empty)),
+            M.NatLess(M.one, M.two, _registry(graph)),
+            M.truth_value,
+        )
 
     pair1_input = M.Pair(a, empty)
     pair2_input = M.Pair(a, M.Pair(b, empty))
-    _register_test(graph, "count1_test", pair1_input, M.Count(pair1_input, _registry(graph)), M.one)
-    _register_test(graph, "count2_test", pair2_input, M.Count(pair2_input, _registry(graph)), M.two)
-    _register_test(graph, "thingy1_test", a, M.IsAtom(a, _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "count1_test", pair1_input, M.Count(pair1_input, _registry(graph)), M.one)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "count2_test", pair2_input, M.Count(pair2_input, _registry(graph)), M.two)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "thingy1_test", a, M.IsAtom(a, _registry(graph)), M.truth_value)
 
     numbers = M.Pair(M.one, M.Pair(M.two, M.Pair(M.three, empty)))
     numbers_with_zero = M.Pair(M.Zero, numbers)
-    _register_test(graph, "exists_test_1", numbers, Exists(numbers, IsNonZero), M.truth_value)
-    _register_test(graph, "forall_test_1", numbers, ForAll(numbers, IsNonZero), M.truth_value)
-    _register_test(graph, "exists_test_2", numbers_with_zero, Exists(numbers_with_zero, IsNonZero), M.truth_value)
-    _register_test(graph, "forall_test_2", numbers_with_zero, ForAll(numbers_with_zero, IsNonZero), M.false_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "exists_test_1", numbers, Exists(numbers, IsNonZero), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "forall_test_1", numbers, ForAll(numbers, IsNonZero), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "exists_test_2", numbers_with_zero, Exists(numbers_with_zero, IsNonZero), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "forall_test_2", numbers_with_zero, ForAll(numbers_with_zero, IsNonZero), M.false_value)
 
-    _register_test(
-        graph,
-        "id_comp_test",
-        M.Pair(a, M.Pair(b, empty)),
-        M.IdentityCompare(a, b),
-        M.false_value,
-    )
-    _register_test(
-        graph,
-        "is_one_two_test",
-        M.Pair(M.one, M.Pair(M.two, empty)),
-        M.NatEq(M.one, M.two, _registry(graph)),
-        M.false_value,
-    )
-    _register_test(
-        graph,
-        "is_two_two_test",
-        M.Pair(M.two, M.Pair(M.two, empty)),
-        M.NatEq(M.two, M.two, _registry(graph)),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "id_comp_test",
+            M.Pair(a, M.Pair(b, empty)),
+            M.IdentityCompare(a, b),
+            M.false_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "is_one_two_test",
+            M.Pair(M.one, M.Pair(M.two, empty)),
+            M.NatEq(M.one, M.two, _registry(graph)),
+            M.false_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "is_two_two_test",
+            M.Pair(M.two, M.Pair(M.two, empty)),
+            M.NatEq(M.two, M.two, _registry(graph)),
+            M.truth_value,
+        )
 
     pair3_input = M.Pair(b, empty)
     sim_count1_pair = M.Count(pair1_input, _registry(graph))()
@@ -6800,16 +7109,19 @@ def install_default_tests(graph):
     reg2 = M.Head(M.Tail(sim_count2_pair)())()
     _set_registry(graph, reg2)
 
-    _register_test(
-        graph,
-        "sim_pairs_test",
-        M.Pair(pair1_input, M.Pair(pair3_input, empty)),
-        M.CompareIn(sim_count1, sim_count2, _registry(graph)),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "sim_pairs_test",
+            M.Pair(pair1_input, M.Pair(pair3_input, empty)),
+            M.CompareIn(sim_count1, sim_count2, _registry(graph)),
+            M.truth_value,
+        )
 
-    _register_test(graph, "is_zero0", M.Pair(M.Zero, M.Pair(M.Zero, empty)), M.Compare(M.Zero, M.Zero), M.truth_value)
-    _register_test(graph, "is_zero1", M.Pair(M.Zero, M.Pair(M.one, empty)), M.Compare(M.Zero, M.one), M.false_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_zero0", M.Pair(M.Zero, M.Pair(M.Zero, empty)), M.Compare(M.Zero, M.Zero), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_zero1", M.Pair(M.Zero, M.Pair(M.one, empty)), M.Compare(M.Zero, M.one), M.false_value)
     succ_one_pair = M.Succ(M.one, _registry(graph))()
     succ_one = M.Head(succ_one_pair)()
     _set_registry(graph, M.Head(M.Tail(succ_one_pair)())())
@@ -6818,33 +7130,37 @@ def install_default_tests(graph):
     pred_succ = M.Head(pred_succ_pair)()
     _set_registry(graph, M.Head(M.Tail(pred_succ_pair)())())
 
-    _register_test(
-        graph,
-        "pred_succ_test",
-        M.Pair(pred_succ, M.Pair(M.one, empty)),
-        M.CompareIn(pred_succ, M.one, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "zero_less_zero",
-        M.Pair(M.Zero, M.Pair(M.Zero, empty)),
-        M.NatLess(M.Zero, M.Zero, _registry(graph)),
-        M.false_value,
-    )
-    _register_test(graph, "is_two_nat", M.Pair(M.two, empty), M.IsNat(M.two, _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "pred_succ_test",
+            M.Pair(pred_succ, M.Pair(M.one, empty)),
+            M.CompareIn(pred_succ, M.one, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "zero_less_zero",
+            M.Pair(M.Zero, M.Pair(M.Zero, empty)),
+            M.NatLess(M.Zero, M.Zero, _registry(graph)),
+            M.false_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_two_nat", M.Pair(M.two, empty), M.IsNat(M.two, _registry(graph)), M.truth_value)
 
     name_x = M.Thingy()
     var_x = M.Pair(M.VarTag, M.Pair(name_x, empty))
     pattern1 = M.Pair(var_x, empty)
     target1 = M.Pair(M.Thingy(), empty)
-    _register_test(
-        graph,
-        "match1_test",
-        M.Pair(pattern1, M.Pair(target1, empty)),
-        M.Match(pattern1, target1),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "match1_test",
+            M.Pair(pattern1, M.Pair(target1, empty)),
+            M.Match(pattern1, target1),
+            M.truth_value,
+        )
 
     name_a = M.Thingy()
     name_b = M.Atom()
@@ -6852,941 +7168,1081 @@ def install_default_tests(graph):
     var_b = M.Pair(M.VarTag, M.Pair(name_b, empty))
     pattern2 = M.Pair(var_a, M.Pair(var_b, empty))
     target2 = M.Pair(M.Pair(M.Thingy(), empty), M.Pair(M.one, empty))
-    _register_test(
-        graph,
-        "match2_test",
-        M.Pair(pattern2, M.Pair(target2, empty)),
-        M.Match(pattern2, target2),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "match2_test",
+            M.Pair(pattern2, M.Pair(target2, empty)),
+            M.Match(pattern2, target2),
+            M.truth_value,
+        )
 
     pattern3 = M.Pair(var_x, empty)
     target3 = M.Pair(M.Pair(M.Thingy(), empty), empty)
-    _register_test(
-        graph,
-        "match3_test",
-        M.Pair(pattern3, M.Pair(target3, empty)),
-        M.Match(pattern3, target3),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "match3_test",
+            M.Pair(pattern3, M.Pair(target3, empty)),
+            M.Match(pattern3, target3),
+            M.truth_value,
+        )
 
     rewrite_rule = Rule(pattern3, var_x)
     target_head = M.Thingy()
     rewrite_target = M.Pair(target_head, empty)
-    _register_test(
-        graph,
-        "rewrite_test",
-        M.Pair(pattern3, M.Pair(var_x, M.Pair(rewrite_target, empty))),
-        M.Rewrite(rewrite_rule, rewrite_target, _registry(graph)),
-        target_head,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "rewrite_test",
+            M.Pair(pattern3, M.Pair(var_x, M.Pair(rewrite_target, empty))),
+            M.Rewrite(rewrite_rule, rewrite_target, _registry(graph)),
+            target_head,
+        )
 
-    _register_test(
-        graph,
-        "minimal_graph_one_step_map_extension_test",
-        empty,
-        MinimalGraphOneStepMapExtensionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "minimal_graph_source_constraint_test",
-        empty,
-        MinimalGraphSourceConstraintTest(graph),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "minimal_graph_one_step_map_extension_test",
+            empty,
+            MinimalGraphOneStepMapExtensionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "minimal_graph_source_constraint_test",
+            empty,
+            MinimalGraphSourceConstraintTest(graph),
+            M.truth_value,
+        )
 
-    _register_test(
-        graph,
-        "comparison_prompt_abort_test",
-        empty,
-        ComparisonPromptAbortTest(),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "comparison_prompt_abort_test",
+            empty,
+            ComparisonPromptAbortTest(),
+            M.truth_value,
+        )
 
-    _register_test(
-        graph,
-        "search_structural_key_equality_test",
-        empty,
-        SearchStructuralKeyEqualityTest(),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "shared_exact_key_vocabulary_test",
-        empty,
-        SharedExactKeyVocabularyTest(),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "opaque_exact_key_uses_atom_key_test",
-        empty,
-        OpaqueExactKeyUsesAtomKeyTest(),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "tree_lookup_uses_structural_keys_test",
-        empty,
-        TreeLookupUsesStructuralKeysTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "tree_lookup_uses_index_buckets_test",
-        empty,
-        TreeLookupUsesIndexBucketsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "legacy_tree_lookup_remains_readable_test",
-        empty,
-        LegacyTreeLookupRemainsReadableTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "tree_insert_migrates_legacy_tree_test",
-        empty,
-        TreeInsertMigratesLegacyTreeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "getconstructor_sees_patricia_tree_terms_test",
-        empty,
-        GetConstructorSeesPatriciaTreeTermsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "comparein_sees_patricia_tree_terms_test",
-        empty,
-        CompareInSeesPatriciaTreeTermsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "comparein_sees_tree_wrapper_test",
-        empty,
-        CompareInSeesTreeWrapperTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_prompt_cost_step_builds_hundred_test",
-        empty,
-        SearchPromptCostStepBuildsHundredTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_builds_deep_root_wave_shards_without_recursion_test",
-        empty,
-        CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_resident_executor_ready_handshake_test",
-        empty,
-        CompareSearchModesResidentExecutorReadyHandshakeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_root_wave_uses_resident_executor_test",
-        empty,
-        CompareSearchModesRootWaveUsesResidentExecutorTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_root_wave_requires_resident_executor_test",
-        empty,
-        CompareSearchModesRootWaveRequiresResidentExecutorTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_fill_warms_resident_pool_before_root_wave_test",
-        empty,
-        CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_root_wave_retries_failed_shard_on_resident_test",
-        empty,
-        CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_root_wave_replaces_exhausted_resident_test",
-        empty,
-        CompareSearchModesRootWaveReplacesExhaustedResidentTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_root_wave_seeds_single_rewrite_handoff_test",
-        empty,
-        CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_root_wave_records_empty_expansion_test",
-        empty,
-        CompareSearchModesRootWaveRecordsEmptyExpansionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_packetizes_non_root_frontier_test",
-        empty,
-        CompareSearchModesPacketizesNonRootFrontierTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_packetizes_wide_frontier_in_chunks_test",
-        empty,
-        CompareSearchModesPacketizesWideFrontierInChunksTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_prunes_packets_after_best_attempt_test",
-        empty,
-        CompareSearchModesPrunesPacketsAfterBestAttemptTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_fresh_root_jobs_packetize_whole_state_test",
-        empty,
-        CompareSearchModesFreshRootJobsPacketizeWholeStateTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_merges_packet_job_test",
-        empty,
-        CompareSearchModesMergesPacketJobTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_tree_delta_skips_structurally_equal_trees_test",
-        empty,
-        SearchTreeDeltaSkipsStructurallyEqualTreesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_patricia_lookup_uses_structural_keys_test",
-        empty,
-        SearchPatriciaLookupUsesStructuralKeysTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_tree_delta_skips_structurally_equal_patricia_trees_test",
-        empty,
-        SearchTreeDeltaSkipsStructurallyEqualPatriciaTreesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_tree_delta_skips_equal_content_different_shape_trees_test",
-        empty,
-        SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "tree_insert_deep_pair_lookup_avoids_recursion_test",
-        empty,
-        TreeInsertDeepPairLookupAvoidsRecursionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_drops_exhausted_pending_packets_test",
-        empty,
-        CompareSearchModesDropsExhaustedPendingPacketsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_enqueue_all_packets_after_exhausted_backlog_test",
-        empty,
-        CompareSearchModesEnqueueAllPacketsAfterExhaustedBacklogTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_refill_widens_pending_packets_test",
-        empty,
-        CompareSearchModesRefillWidensPendingPacketsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_live_budget_uses_soft_window_test",
-        empty,
-        CompareSearchModesLiveBudgetUsesSoftWindowTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_packet_budget_uses_quantum_test",
-        empty,
-        CompareSearchModesPacketBudgetUsesQuantumTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_packet_budget_zero_beam_uses_packet_width_fallback_test",
-        empty,
-        CompareSearchModesPacketBudgetZeroBeamUsesPacketWidthFallbackTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_skips_root_cache_during_raw_benchmark_test",
-        empty,
-        CompareSearchModesSkipsRootCacheDuringRawBenchmarkTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_skips_shared_root_schema_during_raw_benchmark_test",
-        empty,
-        CompareSearchModesSkipsSharedRootSchemaDuringRawBenchmarkTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_stores_derivation_backed_attempt_test",
-        empty,
-        CompareSearchModesStoresDerivationBackedAttemptTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_worker_entry_tracks_packet_job_test",
-        empty,
-        CompareSearchModesWorkerEntryTracksPacketJobTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
-        empty,
-        CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_console_disabled_skips_approval_replay_prompt_test",
-        empty,
-        CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_resume_derivation_missing_plan_raises_runtime_error_test",
-        empty,
-        SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test",
-        empty,
-        CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "rewrite_strategy_goal_demand_allows_goal_head_test",
-        empty,
-        RewriteStrategyGoalDemandAllowsGoalHeadTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "pretty_print_named_tao_quantity_test",
-        empty,
-        PrettyPrintNamedTaoQuantityTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "tao_geometry_example_goals_use_named_quantities_test",
-        empty,
-        TaoGeometryExampleGoalsUseNamedQuantitiesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "tao_compact_rules_use_shrunk_premise_sets_test",
-        empty,
-        TaoCompactRulesUseShrunkPremiseSetsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "merge_bindings_accepts_structurally_equal_values_test",
-        empty,
-        MergeBindingsAcceptsStructurallyEqualValuesTest(),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "build_derivation_replays_structurally_equal_repeated_bindings_test",
-        empty,
-        BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "tao_generic_cosine_replay_cases_test",
-        empty,
-        TaoGenericCosineReplayCasesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "legacy_cosine_rules_removed_test",
-        empty,
-        LegacyCosineRulesRemovedTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_comparison_outcome_field_test",
-        empty,
-        SearchComparisonOutcomeFieldTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_comparison_job_roundtrip_test",
-        empty,
-        SearchComparisonJobRoundtripTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_comparison_job_uses_grouped_blocks_test",
-        empty,
-        SearchComparisonJobUsesGroupedBlocksTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_baseline_uses_grouped_problem_block_test",
-        empty,
-        SearchWorkerBaselineUsesGroupedProblemBlockTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_packet_uses_grouped_blocks_test",
-        empty,
-        SearchWorkerPacketUsesGroupedBlocksTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_launch_uses_grouped_dispatch_test",
-        empty,
-        SearchWorkerLaunchUsesGroupedDispatchTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_launch_pickle_roundtrip_test",
-        empty,
-        SearchWorkerLaunchPickleRoundtripTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_result_pickle_roundtrip_test",
-        empty,
-        SearchWorkerResultPickleRoundtripTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "paused_search_job_snapshot_roundtrip_test",
-        empty,
-        PausedSearchJobSnapshotRoundtripTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "nat_value_index_snapshot_roundtrip_test",
-        empty,
-        NatValueIndexSnapshotRoundtripTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "snapshot_preserves_machine_edge_structure_test",
-        empty,
-        SnapshotPreservesMachineEdgeStructureTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "snapshot_preserves_constructor_labels_and_chars_test",
-        empty,
-        SnapshotPreservesConstructorLabelsAndCharsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "snapshot_preserves_rule_edge_inputs_test",
-        empty,
-        SnapshotPreservesRuleEdgeInputsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_resume_state_restores_saved_plan_test",
-        empty,
-        SearchWorkerResumeStateRestoresSavedPlanTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_snapshot_boot_with_runtime_namespace_test",
-        empty,
-        SearchWorkerSnapshotBootWithRuntimeNamespaceTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "paused_comparison_job_snapshot_roundtrip_test",
-        empty,
-        PausedComparisonJobSnapshotRoundtripTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "paused_comparison_job_snapshot_resume_test",
-        empty,
-        PausedComparisonJobSnapshotResumeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_stop_mode_marks_only_requested_mode_test",
-        empty,
-        CompareSearchModesStopModeMarksOnlyRequestedModeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_stop_outcome_clears_pending_packet_count_test",
-        empty,
-        CompareSearchModesStopOutcomeClearsPendingPacketCountTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_stopped_state_does_not_enqueue_job_frontier_test",
-        empty,
-        CompareSearchModesStoppedStateDoesNotEnqueueJobFrontierTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_pause_state_preserves_backlog_test",
-        empty,
-        CompareSearchModesPauseStatePreservesBacklogTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_pause_requeues_active_packet_into_job_test",
-        empty,
-        CompareSearchModesPauseRequeuesActivePacketIntoJobTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_integrates_returned_ready_packets_test",
-        empty,
-        CompareSearchModesIntegratesReturnedReadyPacketsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_empty_ready_result_refills_job_frontier_test",
-        empty,
-        CompareSearchModesEmptyReadyResultRefillsJobFrontierTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_returned_ready_packet_count_follows_packet_shape_test",
-        empty,
-        CompareSearchModesReturnedReadyPacketCountFollowsPacketShapeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_returned_ready_overreported_count_keeps_packet_shape_test",
-        empty,
-        CompareSearchModesReturnedReadyOverreportedCountKeepsPacketShapeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_resident_unavailable_leaves_packet_queued_test",
-        empty,
-        CompareSearchModesResidentUnavailableLeavesPacketQueuedTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_batches_large_returned_ready_packet_wave_test",
-        empty,
-        CompareSearchModesBatchesLargeReturnedReadyPacketWaveTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_success_clears_pending_packets_test",
-        empty,
-        CompareSearchModesSuccessClearsPendingPacketsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_ignores_stopped_mode_result_test",
-        empty,
-        CompareSearchModesIgnoresStoppedModeResultTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_ignores_mismatched_packet_token_result_test",
-        empty,
-        CompareSearchModesIgnoresMismatchedPacketTokenResultTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_stale_token_retry_requeues_original_packet_test",
-        empty,
-        CompareSearchModesStaleTokenRetryRequeuesOriginalPacketTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_ignores_missing_packet_token_result_test",
-        empty,
-        CompareSearchModesIgnoresMissingPacketTokenResultTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_decode_missing_payload_uses_expected_token_test",
-        empty,
-        CompareSearchModesDecodeMissingPayloadUsesExpectedTokenTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_missing_payload_retry_requeues_original_packet_test",
-        empty,
-        CompareSearchModesMissingPayloadRetryRequeuesOriginalPacketTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_empty_cursor_theorem_fanout_test",
-        empty,
-        CompareSearchModesEmptyCursorTheoremFanoutTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_theorem_fanout_preserves_generated_test",
-        empty,
-        CompareSearchModesTheoremFanoutPreservesGeneratedTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_theorem_fanout_adds_single_rewrite_handoff_test",
-        empty,
-        CompareSearchModesTheoremFanoutAddsSingleRewriteHandoffTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_empty_cursor_theorem_fanout_seeds_generated_tree_test",
-        empty,
-        CompareSearchModesEmptyCursorTheoremFanoutSeedsGeneratedTreeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_rewrite_fanout_produces_one_rule_packets_test",
-        empty,
-        CompareSearchModesRewriteFanoutProducesOneRulePacketsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_packet_delta_uses_resident_baseline_test",
-        empty,
-        SearchWorkerPacketDeltaUsesResidentBaselineTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_worker_filters_seeded_theorem_continuation_test",
-        empty,
-        SearchWorkerFiltersSeededTheoremContinuationTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_resident_executor_refreshes_baseline_on_generation_change_test",
-        empty,
-        CompareSearchModesResidentExecutorRefreshesBaselineOnGenerationChangeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compare_search_modes_batched_wave_matches_sequential_success_test",
-        empty,
-        CompareSearchModesBatchedWaveMatchesSequentialSuccessTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "loaded_rules_avoid_symmetric_notation_fact_test",
-        empty,
-        LoadedRulesAvoidSymmetricNotationFactTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "loaded_rules_have_direct_progression_edge_equations_test",
-        empty,
-        LoadedRulesHaveDirectProgressionEdgeEquationsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "invariance_even_goal_unreachable_test",
-        empty,
-        InvarianceEvenGoalUnreachableTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "invariance_odd_goal_does_not_prune_test",
-        empty,
-        InvarianceOddGoalDoesNotPruneTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "invariance_unestablished_even_phi_does_not_prune_test",
-        empty,
-        InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "compile_rule_to_law_test",
-        empty,
-        CompileRuleToLawTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "shadow_pack_test",
-        empty,
-        ShadowPackTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "laws_inside_graph_versions_test",
-        empty,
-        LawsInsideGraphVersionsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "test_meta_rewrite_KNOWN_GAP",
-        empty,
-        MetaRewriteKnownGapTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "proposal_store_inert_test",
-        empty,
-        ProposalStoreInertTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "activate_proposal_test",
-        empty,
-        ActivateProposalTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "obligation_commit_gate_test",
-        empty,
-        ObligationCommitGateTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "proposal_store_history_test",
-        empty,
-        ProposalStoreHistoryTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_match_states_test",
-        empty,
-        SearchMatchStatesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "fire_law_surgery_test",
-        empty,
-        FireLawSurgeryTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "fire_law_dangling_mode_test",
-        empty,
-        FireLawDanglingModeTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "law_maps_complete_test",
-        empty,
-        LawMapsCompleteTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "dangling_edges_test",
-        empty,
-        DanglingEdgesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "map_extension_alternatives_test",
-        empty,
-        MapExtensionAlternativesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "structured_miss_reason_test",
-        empty,
-        StructuredMissReasonTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "edge_send_positional_consistency_test",
-        empty,
-        EdgeSendPositionalConsistencyTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "graph_current_version_test",
-        empty,
-        GraphCurrentVersionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "invariance_flip_one_refutes_parity_test",
-        empty,
-        InvarianceFlipOneRefutesParityTest(graph),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_structural_key_equality_test",
+            empty,
+            SearchStructuralKeyEqualityTest(),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_exact_key_vocabulary_test",
+            empty,
+            SharedExactKeyVocabularyTest(),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "opaque_exact_key_uses_atom_key_test",
+            empty,
+            OpaqueExactKeyUsesAtomKeyTest(),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "tree_lookup_uses_structural_keys_test",
+            empty,
+            TreeLookupUsesStructuralKeysTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "tree_lookup_uses_index_buckets_test",
+            empty,
+            TreeLookupUsesIndexBucketsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "legacy_tree_lookup_remains_readable_test",
+            empty,
+            LegacyTreeLookupRemainsReadableTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "tree_insert_migrates_legacy_tree_test",
+            empty,
+            TreeInsertMigratesLegacyTreeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "getconstructor_sees_patricia_tree_terms_test",
+            empty,
+            GetConstructorSeesPatriciaTreeTermsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "comparein_sees_patricia_tree_terms_test",
+            empty,
+            CompareInSeesPatriciaTreeTermsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "comparein_sees_tree_wrapper_test",
+            empty,
+            CompareInSeesTreeWrapperTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_prompt_cost_step_builds_hundred_test",
+            empty,
+            SearchPromptCostStepBuildsHundredTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_builds_deep_root_wave_shards_without_recursion_test",
+            empty,
+            CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_resident_executor_ready_handshake_test",
+            empty,
+            CompareSearchModesResidentExecutorReadyHandshakeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_root_wave_uses_resident_executor_test",
+            empty,
+            CompareSearchModesRootWaveUsesResidentExecutorTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_root_wave_requires_resident_executor_test",
+            empty,
+            CompareSearchModesRootWaveRequiresResidentExecutorTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_fill_warms_resident_pool_before_root_wave_test",
+            empty,
+            CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_root_wave_retries_failed_shard_on_resident_test",
+            empty,
+            CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_root_wave_replaces_exhausted_resident_test",
+            empty,
+            CompareSearchModesRootWaveReplacesExhaustedResidentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_root_wave_seeds_single_rewrite_handoff_test",
+            empty,
+            CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_root_wave_records_empty_expansion_test",
+            empty,
+            CompareSearchModesRootWaveRecordsEmptyExpansionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_packetizes_non_root_frontier_test",
+            empty,
+            CompareSearchModesPacketizesNonRootFrontierTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_packetizes_wide_frontier_in_chunks_test",
+            empty,
+            CompareSearchModesPacketizesWideFrontierInChunksTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_prunes_packets_after_best_attempt_test",
+            empty,
+            CompareSearchModesPrunesPacketsAfterBestAttemptTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_fresh_root_jobs_packetize_whole_state_test",
+            empty,
+            CompareSearchModesFreshRootJobsPacketizeWholeStateTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_merges_packet_job_test",
+            empty,
+            CompareSearchModesMergesPacketJobTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_tree_delta_skips_structurally_equal_trees_test",
+            empty,
+            SearchTreeDeltaSkipsStructurallyEqualTreesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_patricia_lookup_uses_structural_keys_test",
+            empty,
+            SearchPatriciaLookupUsesStructuralKeysTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_tree_delta_skips_structurally_equal_patricia_trees_test",
+            empty,
+            SearchTreeDeltaSkipsStructurallyEqualPatriciaTreesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_tree_delta_skips_equal_content_different_shape_trees_test",
+            empty,
+            SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "tree_insert_deep_pair_lookup_avoids_recursion_test",
+            empty,
+            TreeInsertDeepPairLookupAvoidsRecursionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_drops_exhausted_pending_packets_test",
+            empty,
+            CompareSearchModesDropsExhaustedPendingPacketsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_enqueue_all_packets_after_exhausted_backlog_test",
+            empty,
+            CompareSearchModesEnqueueAllPacketsAfterExhaustedBacklogTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_refill_widens_pending_packets_test",
+            empty,
+            CompareSearchModesRefillWidensPendingPacketsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_live_budget_uses_soft_window_test",
+            empty,
+            CompareSearchModesLiveBudgetUsesSoftWindowTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_packet_budget_uses_quantum_test",
+            empty,
+            CompareSearchModesPacketBudgetUsesQuantumTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_packet_budget_zero_beam_uses_packet_width_fallback_test",
+            empty,
+            CompareSearchModesPacketBudgetZeroBeamUsesPacketWidthFallbackTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_skips_root_cache_during_raw_benchmark_test",
+            empty,
+            CompareSearchModesSkipsRootCacheDuringRawBenchmarkTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_skips_shared_root_schema_during_raw_benchmark_test",
+            empty,
+            CompareSearchModesSkipsSharedRootSchemaDuringRawBenchmarkTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_stores_derivation_backed_attempt_test",
+            empty,
+            CompareSearchModesStoresDerivationBackedAttemptTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_worker_entry_tracks_packet_job_test",
+            empty,
+            CompareSearchModesWorkerEntryTracksPacketJobTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
+            empty,
+            CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_console_disabled_skips_approval_replay_prompt_test",
+            empty,
+            CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_resume_derivation_missing_plan_raises_runtime_error_test",
+            empty,
+            SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test",
+            empty,
+            CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "rewrite_strategy_goal_demand_allows_goal_head_test",
+            empty,
+            RewriteStrategyGoalDemandAllowsGoalHeadTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "pretty_print_named_tao_quantity_test",
+            empty,
+            PrettyPrintNamedTaoQuantityTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "tao_geometry_example_goals_use_named_quantities_test",
+            empty,
+            TaoGeometryExampleGoalsUseNamedQuantitiesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "tao_compact_rules_use_shrunk_premise_sets_test",
+            empty,
+            TaoCompactRulesUseShrunkPremiseSetsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "merge_bindings_accepts_structurally_equal_values_test",
+            empty,
+            MergeBindingsAcceptsStructurallyEqualValuesTest(),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "build_derivation_replays_structurally_equal_repeated_bindings_test",
+            empty,
+            BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "tao_generic_cosine_replay_cases_test",
+            empty,
+            TaoGenericCosineReplayCasesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "legacy_cosine_rules_removed_test",
+            empty,
+            LegacyCosineRulesRemovedTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_comparison_outcome_field_test",
+            empty,
+            SearchComparisonOutcomeFieldTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_comparison_job_roundtrip_test",
+            empty,
+            SearchComparisonJobRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_comparison_job_uses_grouped_blocks_test",
+            empty,
+            SearchComparisonJobUsesGroupedBlocksTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_baseline_uses_grouped_problem_block_test",
+            empty,
+            SearchWorkerBaselineUsesGroupedProblemBlockTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_packet_uses_grouped_blocks_test",
+            empty,
+            SearchWorkerPacketUsesGroupedBlocksTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_launch_uses_grouped_dispatch_test",
+            empty,
+            SearchWorkerLaunchUsesGroupedDispatchTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_launch_pickle_roundtrip_test",
+            empty,
+            SearchWorkerLaunchPickleRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_result_pickle_roundtrip_test",
+            empty,
+            SearchWorkerResultPickleRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "paused_search_job_snapshot_roundtrip_test",
+            empty,
+            PausedSearchJobSnapshotRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_value_index_snapshot_roundtrip_test",
+            empty,
+            NatValueIndexSnapshotRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_preserves_machine_edge_structure_test",
+            empty,
+            SnapshotPreservesMachineEdgeStructureTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_preserves_constructor_labels_and_chars_test",
+            empty,
+            SnapshotPreservesConstructorLabelsAndCharsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_preserves_rule_edge_inputs_test",
+            empty,
+            SnapshotPreservesRuleEdgeInputsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_resume_state_restores_saved_plan_test",
+            empty,
+            SearchWorkerResumeStateRestoresSavedPlanTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_snapshot_boot_with_runtime_namespace_test",
+            empty,
+            SearchWorkerSnapshotBootWithRuntimeNamespaceTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "paused_comparison_job_snapshot_roundtrip_test",
+            empty,
+            PausedComparisonJobSnapshotRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "paused_comparison_job_snapshot_resume_test",
+            empty,
+            PausedComparisonJobSnapshotResumeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_stop_mode_marks_only_requested_mode_test",
+            empty,
+            CompareSearchModesStopModeMarksOnlyRequestedModeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_stop_outcome_clears_pending_packet_count_test",
+            empty,
+            CompareSearchModesStopOutcomeClearsPendingPacketCountTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_stopped_state_does_not_enqueue_job_frontier_test",
+            empty,
+            CompareSearchModesStoppedStateDoesNotEnqueueJobFrontierTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_pause_state_preserves_backlog_test",
+            empty,
+            CompareSearchModesPauseStatePreservesBacklogTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_pause_requeues_active_packet_into_job_test",
+            empty,
+            CompareSearchModesPauseRequeuesActivePacketIntoJobTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_integrates_returned_ready_packets_test",
+            empty,
+            CompareSearchModesIntegratesReturnedReadyPacketsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_empty_ready_result_refills_job_frontier_test",
+            empty,
+            CompareSearchModesEmptyReadyResultRefillsJobFrontierTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_returned_ready_packet_count_follows_packet_shape_test",
+            empty,
+            CompareSearchModesReturnedReadyPacketCountFollowsPacketShapeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_returned_ready_overreported_count_keeps_packet_shape_test",
+            empty,
+            CompareSearchModesReturnedReadyOverreportedCountKeepsPacketShapeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_resident_unavailable_leaves_packet_queued_test",
+            empty,
+            CompareSearchModesResidentUnavailableLeavesPacketQueuedTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_batches_large_returned_ready_packet_wave_test",
+            empty,
+            CompareSearchModesBatchesLargeReturnedReadyPacketWaveTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_success_clears_pending_packets_test",
+            empty,
+            CompareSearchModesSuccessClearsPendingPacketsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_ignores_stopped_mode_result_test",
+            empty,
+            CompareSearchModesIgnoresStoppedModeResultTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_ignores_mismatched_packet_token_result_test",
+            empty,
+            CompareSearchModesIgnoresMismatchedPacketTokenResultTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_stale_token_retry_requeues_original_packet_test",
+            empty,
+            CompareSearchModesStaleTokenRetryRequeuesOriginalPacketTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_ignores_missing_packet_token_result_test",
+            empty,
+            CompareSearchModesIgnoresMissingPacketTokenResultTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_decode_missing_payload_uses_expected_token_test",
+            empty,
+            CompareSearchModesDecodeMissingPayloadUsesExpectedTokenTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_missing_payload_retry_requeues_original_packet_test",
+            empty,
+            CompareSearchModesMissingPayloadRetryRequeuesOriginalPacketTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_empty_cursor_theorem_fanout_test",
+            empty,
+            CompareSearchModesEmptyCursorTheoremFanoutTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_theorem_fanout_preserves_generated_test",
+            empty,
+            CompareSearchModesTheoremFanoutPreservesGeneratedTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_theorem_fanout_adds_single_rewrite_handoff_test",
+            empty,
+            CompareSearchModesTheoremFanoutAddsSingleRewriteHandoffTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_empty_cursor_theorem_fanout_seeds_generated_tree_test",
+            empty,
+            CompareSearchModesEmptyCursorTheoremFanoutSeedsGeneratedTreeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_rewrite_fanout_produces_one_rule_packets_test",
+            empty,
+            CompareSearchModesRewriteFanoutProducesOneRulePacketsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_packet_delta_uses_resident_baseline_test",
+            empty,
+            SearchWorkerPacketDeltaUsesResidentBaselineTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_filters_seeded_theorem_continuation_test",
+            empty,
+            SearchWorkerFiltersSeededTheoremContinuationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_resident_executor_refreshes_baseline_on_generation_change_test",
+            empty,
+            CompareSearchModesResidentExecutorRefreshesBaselineOnGenerationChangeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_batched_wave_matches_sequential_success_test",
+            empty,
+            CompareSearchModesBatchedWaveMatchesSequentialSuccessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "loaded_rules_avoid_symmetric_notation_fact_test",
+            empty,
+            LoadedRulesAvoidSymmetricNotationFactTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "loaded_rules_have_direct_progression_edge_equations_test",
+            empty,
+            LoadedRulesHaveDirectProgressionEdgeEquationsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "invariance_even_goal_unreachable_test",
+            empty,
+            InvarianceEvenGoalUnreachableTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "invariance_odd_goal_does_not_prune_test",
+            empty,
+            InvarianceOddGoalDoesNotPruneTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "invariance_unestablished_even_phi_does_not_prune_test",
+            empty,
+            InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compile_rule_to_law_test",
+            empty,
+            CompileRuleToLawTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shadow_pack_test",
+            empty,
+            ShadowPackTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "laws_inside_graph_versions_test",
+            empty,
+            LawsInsideGraphVersionsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_meta_rewrite_KNOWN_GAP",
+            empty,
+            MetaRewriteKnownGapTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "proposal_store_inert_test",
+            empty,
+            ProposalStoreInertTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "activate_proposal_test",
+            empty,
+            ActivateProposalTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "obligation_commit_gate_test",
+            empty,
+            ObligationCommitGateTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "proposal_store_history_test",
+            empty,
+            ProposalStoreHistoryTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "firing_ledger_test",
+            empty,
+            FiringLedgerTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_match_states_test",
+            empty,
+            SearchMatchStatesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "fire_law_surgery_test",
+            empty,
+            FireLawSurgeryTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "fire_law_dangling_mode_test",
+            empty,
+            FireLawDanglingModeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "law_maps_complete_test",
+            empty,
+            LawMapsCompleteTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "dangling_edges_test",
+            empty,
+            DanglingEdgesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "map_extension_alternatives_test",
+            empty,
+            MapExtensionAlternativesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "structured_miss_reason_test",
+            empty,
+            StructuredMissReasonTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "edge_send_positional_consistency_test",
+            empty,
+            EdgeSendPositionalConsistencyTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "graph_current_version_test",
+            empty,
+            GraphCurrentVersionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "invariance_flip_one_refutes_parity_test",
+            empty,
+            InvarianceFlipOneRefutesParityTest(graph),
+            M.truth_value,
+        )
 
-    _register_test(
-        graph,
-        "blackboard_parity_preserved_test",
-        empty,
-        BlackboardParityPreservedTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "blackboard_move_sum_is_sum_minus_twice_min_test",
-        empty,
-        BlackboardMoveSumIsSumMinusTwiceMinTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "blackboard_initial_parity_is_odd_test",
-        empty,
-        BlackboardInitialParityIsOddTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "blackboard_final_number_is_odd_test",
-        empty,
-        BlackboardFinalNumberIsOddTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "blackboard_even_n_refuses_odd_conclusion_test",
-        empty,
-        BlackboardEvenNRefusesOddConclusionTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "blackboard_proof_expands_no_boards_test",
-        empty,
-        BlackboardProofExpandsNoBoardsTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "blackboard_start_has_no_board_cells_test",
-        empty,
-        BlackboardStartHasNoBoardCellsTest(graph),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "blackboard_parity_preserved_test",
+            empty,
+            BlackboardParityPreservedTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "blackboard_move_sum_is_sum_minus_twice_min_test",
+            empty,
+            BlackboardMoveSumIsSumMinusTwiceMinTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "blackboard_initial_parity_is_odd_test",
+            empty,
+            BlackboardInitialParityIsOddTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "blackboard_final_number_is_odd_test",
+            empty,
+            BlackboardFinalNumberIsOddTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "blackboard_even_n_refuses_odd_conclusion_test",
+            empty,
+            BlackboardEvenNRefusesOddConclusionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "blackboard_proof_expands_no_boards_test",
+            empty,
+            BlackboardProofExpandsNoBoardsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "blackboard_start_has_no_board_cells_test",
+            empty,
+            BlackboardStartHasNoBoardCellsTest(graph),
+            M.truth_value,
+        )
 
 
     theorem_cursor_rules = M.Pair(a, empty)
@@ -7806,112 +8262,126 @@ def install_default_tests(graph):
         theorem_cursor_actions,
     )()
     cursor_state = M.SearchState(a, empty, empty, M.one, theorem_cursor)()
-    _register_test(
-        graph,
-        "search_state_cursor_roundtrip_test",
-        M.Pair(cursor_state, empty),
-        ComputedRawTermEqual(M.SearchStateCursor(cursor_state), theorem_cursor, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_theorem_cursor_head_index_roundtrip_test",
-        M.Pair(theorem_cursor, empty),
-        ComputedRawTermEqual(M.SearchTheoremCursorHeadIndex(theorem_cursor), theorem_cursor_head_index, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_theorem_cursor_exact_trie_roundtrip_test",
-        M.Pair(theorem_cursor, empty),
-        ComputedRawTermEqual(M.SearchTheoremCursorExactTrie(theorem_cursor), theorem_cursor_exact_trie, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_theorem_cursor_delta_roundtrip_test",
-        M.Pair(theorem_cursor, empty),
-        ComputedRawTermEqual(M.SearchTheoremCursorDelta(theorem_cursor), theorem_cursor_delta, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_theorem_cursor_next_delta_roundtrip_test",
-        M.Pair(theorem_cursor, empty),
-        ComputedRawTermEqual(M.SearchTheoremCursorNextDelta(theorem_cursor), theorem_cursor_next_delta, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "search_theorem_cursor_actions_roundtrip_test",
-        M.Pair(theorem_cursor, empty),
-        ComputedRawTermEqual(M.SearchTheoremCursorActions(theorem_cursor), theorem_cursor_actions, _registry(graph)),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_state_cursor_roundtrip_test",
+            M.Pair(cursor_state, empty),
+            ComputedRawTermEqual(M.SearchStateCursor(cursor_state), theorem_cursor, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_theorem_cursor_head_index_roundtrip_test",
+            M.Pair(theorem_cursor, empty),
+            ComputedRawTermEqual(M.SearchTheoremCursorHeadIndex(theorem_cursor), theorem_cursor_head_index, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_theorem_cursor_exact_trie_roundtrip_test",
+            M.Pair(theorem_cursor, empty),
+            ComputedRawTermEqual(M.SearchTheoremCursorExactTrie(theorem_cursor), theorem_cursor_exact_trie, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_theorem_cursor_delta_roundtrip_test",
+            M.Pair(theorem_cursor, empty),
+            ComputedRawTermEqual(M.SearchTheoremCursorDelta(theorem_cursor), theorem_cursor_delta, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_theorem_cursor_next_delta_roundtrip_test",
+            M.Pair(theorem_cursor, empty),
+            ComputedRawTermEqual(M.SearchTheoremCursorNextDelta(theorem_cursor), theorem_cursor_next_delta, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_theorem_cursor_actions_roundtrip_test",
+            M.Pair(theorem_cursor, empty),
+            ComputedRawTermEqual(M.SearchTheoremCursorActions(theorem_cursor), theorem_cursor_actions, _registry(graph)),
+            M.truth_value,
+        )
 
     rewrite_path = M.Pair(M.Zero, empty)
     rewrite_frame = M.SearchRewritePathFrame(b, rewrite_path)()
-    _register_test(
-        graph,
-        "search_rewrite_frame_path_roundtrip_test",
-        M.Pair(rewrite_frame, empty),
-        ComputedRawTermEqual(M.SearchRewritePathFramePath(rewrite_frame), rewrite_path, _registry(graph)),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_rewrite_frame_path_roundtrip_test",
+            M.Pair(rewrite_frame, empty),
+            ComputedRawTermEqual(M.SearchRewritePathFramePath(rewrite_frame), rewrite_path, _registry(graph)),
+            M.truth_value,
+        )
 
     rewrite_cursor_rest = M.Pair(b, empty)
     rewrite_cursor_agenda = M.Pair(rewrite_frame, empty)
     rewrite_cursor_generated = M.Thingy()
     rewrite_cursor = M.SearchRewriteCursor(a, rewrite_cursor_rest, rewrite_cursor_agenda, rewrite_cursor_generated)()
-    _register_test(
-        graph,
-        "search_rewrite_cursor_agenda_roundtrip_test",
-        M.Pair(rewrite_cursor, empty),
-        ComputedRawTermEqual(M.SearchRewriteCursorAgenda(rewrite_cursor), rewrite_cursor_agenda, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "goal_head_neighborhood_reachback_test",
-        empty,
-        GoalHeadNeighborhoodReachbackTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "heuristic_canonical_knowledge_agreement_test",
-        empty,
-        HeuristicCanonicalKnowledgeAgreementTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "canonical_arithmetic_add_ac_normalizes_test",
-        empty,
-        CanonicalArithmeticAddACNormalizesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "canonical_arithmetic_mul_ac_normalizes_test",
-        empty,
-        CanonicalArithmeticMulACNormalizesTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "canonical_arithmetic_equation_symmetry_test",
-        empty,
-        CanonicalArithmeticEquationSymmetryTest(graph),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "arithmetic_canonical_laws_declared_test",
-        empty,
-        ArithmeticCanonicalLawsDeclaredTest(graph),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_rewrite_cursor_agenda_roundtrip_test",
+            M.Pair(rewrite_cursor, empty),
+            ComputedRawTermEqual(M.SearchRewriteCursorAgenda(rewrite_cursor), rewrite_cursor_agenda, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "goal_head_neighborhood_reachback_test",
+            empty,
+            GoalHeadNeighborhoodReachbackTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "heuristic_canonical_knowledge_agreement_test",
+            empty,
+            HeuristicCanonicalKnowledgeAgreementTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "canonical_arithmetic_add_ac_normalizes_test",
+            empty,
+            CanonicalArithmeticAddACNormalizesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "canonical_arithmetic_mul_ac_normalizes_test",
+            empty,
+            CanonicalArithmeticMulACNormalizesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "canonical_arithmetic_equation_symmetry_test",
+            empty,
+            CanonicalArithmeticEquationSymmetryTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "arithmetic_canonical_laws_declared_test",
+            empty,
+            ArithmeticCanonicalLawsDeclaredTest(graph),
+            M.truth_value,
+        )
 
     job_theorem_cache = M.Tree(empty)
     job_rewrite_rules = M.Pair(a, empty)
@@ -7932,116 +8402,134 @@ def install_default_tests(graph):
         job_rewrite_rules,
         job_frontier_size,
     )()
-    _register_test(
-        graph,
-        "search_job_frontier_size_roundtrip_test",
-        M.Pair(job, empty),
-        M.SearchJobFrontierSize(job),
-        job_frontier_size,
-    )
-    _register_test(
-        graph,
-        "search_job_theorem_cache_roundtrip_test",
-        M.Pair(job, empty),
-        M.SearchJobTheoremRuleCache(job),
-        job_theorem_cache,
-    )
-    _register_test(
-        graph,
-        "search_job_rewrite_rules_roundtrip_test",
-        M.Pair(job, empty),
-        ComputedRawTermEqual(M.SearchJobRewriteRules(job), job_rewrite_rules, _registry(graph)),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_job_frontier_size_roundtrip_test",
+            M.Pair(job, empty),
+            M.SearchJobFrontierSize(job),
+            job_frontier_size,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_job_theorem_cache_roundtrip_test",
+            M.Pair(job, empty),
+            M.SearchJobTheoremRuleCache(job),
+            job_theorem_cache,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_job_rewrite_rules_roundtrip_test",
+            M.Pair(job, empty),
+            ComputedRawTermEqual(M.SearchJobRewriteRules(job), job_rewrite_rules, _registry(graph)),
+            M.truth_value,
+        )
 
-    _register_test(
-        graph,
-        "true_atom_test",
-        M.Pair(M.TrueAtom(), empty),
-        M.Compare(M.TrueAtom()(), M.truth_value),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "false_atom_test",
-        M.Pair(M.FalseAtom(), empty),
-        M.Compare(M.FalseAtom()(), M.false_value),
-        M.truth_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "true_atom_test",
+            M.Pair(M.TrueAtom(), empty),
+            M.Compare(M.TrueAtom()(), M.truth_value),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "false_atom_test",
+            M.Pair(M.FalseAtom(), empty),
+            M.Compare(M.FalseAtom()(), M.false_value),
+            M.truth_value,
+        )
 
-    _register_test(
-        graph,
-        "nat_eq_zero_zero_test",
-        M.Pair(M.Zero, M.Pair(M.Zero, empty)),
-        M.NatEq(M.Zero, M.Zero, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "nat_eq_zero_one_test",
-        M.Pair(M.Zero, M.Pair(M.one, empty)),
-        M.NatEq(M.Zero, M.one, _registry(graph)),
-        M.false_value,
-    )
-    _register_test(
-        graph,
-        "nat_eq_one_two_test",
-        M.Pair(M.one, M.Pair(M.two, empty)),
-        M.NatEq(M.one, M.two, _registry(graph)),
-        M.false_value,
-    )
-    _register_test(
-        graph,
-        "nat_less_zero_zero_print_test",
-        M.Pair(M.Zero, M.Pair(M.Zero, empty)),
-        M.NatLess(M.Zero, M.Zero, _registry(graph)),
-        M.false_value,
-    )
-    _register_test(
-        graph,
-        "nat_less_zero_one_print_test",
-        M.Pair(M.Zero, M.Pair(M.one, empty)),
-        M.NatLess(M.Zero, M.one, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "nat_less_one_two_print_test",
-        M.Pair(M.one, M.Pair(M.two, empty)),
-        M.NatLess(M.one, M.two, _registry(graph)),
-        M.truth_value,
-    )
-    _register_test(
-        graph,
-        "nat_less_two_one_print_test",
-        M.Pair(M.two, M.Pair(M.one, empty)),
-        M.NatLess(M.two, M.one, _registry(graph)),
-        M.false_value,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_eq_zero_zero_test",
+            M.Pair(M.Zero, M.Pair(M.Zero, empty)),
+            M.NatEq(M.Zero, M.Zero, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_eq_zero_one_test",
+            M.Pair(M.Zero, M.Pair(M.one, empty)),
+            M.NatEq(M.Zero, M.one, _registry(graph)),
+            M.false_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_eq_one_two_test",
+            M.Pair(M.one, M.Pair(M.two, empty)),
+            M.NatEq(M.one, M.two, _registry(graph)),
+            M.false_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_less_zero_zero_print_test",
+            M.Pair(M.Zero, M.Pair(M.Zero, empty)),
+            M.NatLess(M.Zero, M.Zero, _registry(graph)),
+            M.false_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_less_zero_one_print_test",
+            M.Pair(M.Zero, M.Pair(M.one, empty)),
+            M.NatLess(M.Zero, M.one, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_less_one_two_print_test",
+            M.Pair(M.one, M.Pair(M.two, empty)),
+            M.NatLess(M.one, M.two, _registry(graph)),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "nat_less_two_one_print_test",
+            M.Pair(M.two, M.Pair(M.one, empty)),
+            M.NatLess(M.two, M.one, _registry(graph)),
+            M.false_value,
+        )
 
-    _register_test(graph, "is_atom_one_test", M.Pair(M.one, empty), M.IsAtom(M.one, _registry(graph)), M.truth_value)
-    _register_test(graph, "is_edge_thingy_test", M.Pair(a, empty), M.IsEdge(a, _registry(graph)), M.false_value)
-    _register_test(graph, "is_atom_pair_test", M.Pair(M.Pair(a, empty), empty), M.IsAtom(M.Pair(a, empty), _registry(graph)), M.truth_value)
-    _register_test(graph, "is_two_nat_print_test", M.Pair(M.two, empty), M.IsNat(M.two, _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_atom_one_test", M.Pair(M.one, empty), M.IsAtom(M.one, _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_edge_thingy_test", M.Pair(a, empty), M.IsEdge(a, _registry(graph)), M.false_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_atom_pair_test", M.Pair(M.Pair(a, empty), empty), M.IsAtom(M.Pair(a, empty), _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_two_nat_print_test", M.Pair(M.two, empty), M.IsNat(M.two, _registry(graph)), M.truth_value)
 
-    _register_test(
-        graph,
-        "add_one_two_test",
-        M.Pair(M.one, M.Pair(M.two, empty)),
-        M.Add(M.one, M.two, _registry(graph)),
-        M.three,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "add_one_two_test",
+            M.Pair(M.one, M.Pair(M.two, empty)),
+            M.Add(M.one, M.two, _registry(graph)),
+            M.three,
+        )
 
     three_from_add_pair = M.Add(M.one, M.two, _registry(graph))()
     three_from_add = M.Head(three_from_add_pair)()
     _set_registry(graph, M.Head(M.Tail(three_from_add_pair)())())
-    _register_test(
-        graph,
-        "pred_of_add_one_two_test",
-        M.Pair(three_from_add, empty),
-        M.NatPred(three_from_add, _registry(graph)),
-        M.two,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "pred_of_add_one_two_test",
+            M.Pair(three_from_add, empty),
+            M.NatPred(three_from_add, _registry(graph)),
+            M.two,
+        )
 
     half_pair = M.Fraction(M.one, M.two, _registry(graph))()
     half = M.Head(half_pair)()
@@ -8059,50 +8547,62 @@ def install_default_tests(graph):
     plus1 = M.Head(plus1_pair)()
     _set_registry(graph, M.Head(M.Tail(plus1_pair)())())
 
-    _register_test(graph, "fraction_is_fraction_test", M.Pair(half, empty), M.IsFraction(half, _registry(graph)), M.truth_value)
-    _register_test(graph, "fraction_left_test", M.Pair(half, empty), M.FractionLeft(half, _registry(graph)), M.one)
-    _register_test(graph, "fraction_right_test", M.Pair(half, empty), M.FractionRight(half, _registry(graph)), M.two)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "fraction_is_fraction_test", M.Pair(half, empty), M.IsFraction(half, _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "fraction_left_test", M.Pair(half, empty), M.FractionLeft(half, _registry(graph)), M.one)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "fraction_right_test", M.Pair(half, empty), M.FractionRight(half, _registry(graph)), M.two)
 
-    _register_test(
-        graph,
-        "multiply_two_three_test",
-        M.Pair(M.two, M.Pair(M.three, empty)),
-        M.Multiply(M.two, M.three, _registry(graph)),
-        M.six,
-    )
-    _register_test(
-        graph,
-        "multiply_three_three_test",
-        M.Pair(M.three, M.Pair(M.three, empty)),
-        M.Multiply(M.three, M.three, _registry(graph)),
-        M.nine,
-    )
-    _register_test(
-        graph,
-        "multiply_four_two_test",
-        M.Pair(M.four, M.Pair(M.two, empty)),
-        M.Multiply(M.four, M.two, _registry(graph)),
-        M.eight,
-    )
-    _register_test(
-        graph,
-        "multiply_zero_three_test",
-        M.Pair(M.Zero, M.Pair(M.three, empty)),
-        M.Multiply(M.Zero, M.three, _registry(graph)),
-        M.Zero,
-    )
-    _register_test(
-        graph,
-        "multiply_three_zero_test",
-        M.Pair(M.three, M.Pair(M.Zero, empty)),
-        M.Multiply(M.three, M.Zero, _registry(graph)),
-        M.Zero,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "multiply_two_three_test",
+            M.Pair(M.two, M.Pair(M.three, empty)),
+            M.Multiply(M.two, M.three, _registry(graph)),
+            M.six,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "multiply_three_three_test",
+            M.Pair(M.three, M.Pair(M.three, empty)),
+            M.Multiply(M.three, M.three, _registry(graph)),
+            M.nine,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "multiply_four_two_test",
+            M.Pair(M.four, M.Pair(M.two, empty)),
+            M.Multiply(M.four, M.two, _registry(graph)),
+            M.eight,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "multiply_zero_three_test",
+            M.Pair(M.Zero, M.Pair(M.three, empty)),
+            M.Multiply(M.Zero, M.three, _registry(graph)),
+            M.Zero,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "multiply_three_zero_test",
+            M.Pair(M.three, M.Pair(M.Zero, empty)),
+            M.Multiply(M.three, M.Zero, _registry(graph)),
+            M.Zero,
+        )
 
-    _register_test(graph, "is_whole_plus3_test", M.Pair(plus3, empty), M.IsWhole(plus3, _registry(graph)), M.truth_value)
-    _register_test(graph, "is_whole_minus2_test", M.Pair(minus2, empty), M.IsWhole(minus2, _registry(graph)), M.truth_value)
-    _register_test(graph, "whole_left_plus3_test", M.Pair(plus3, empty), M.WholeLeft(plus3, _registry(graph)), M.three)
-    _register_test(graph, "whole_right_minus2_test", M.Pair(minus2, empty), M.WholeRight(minus2, _registry(graph)), M.two)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_whole_plus3_test", M.Pair(plus3, empty), M.IsWhole(plus3, _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "is_whole_minus2_test", M.Pair(minus2, empty), M.IsWhole(minus2, _registry(graph)), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "whole_left_plus3_test", M.Pair(plus3, empty), M.WholeLeft(plus3, _registry(graph)), M.three)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "whole_right_minus2_test", M.Pair(minus2, empty), M.WholeRight(minus2, _registry(graph)), M.two)
 
     whole_three_two_pair = M.Whole(M.three, M.two, _registry(graph))()
     whole_three_two = M.Head(whole_three_two_pair)()
@@ -8120,34 +8620,38 @@ def install_default_tests(graph):
     whole_four_zero = M.Head(whole_four_zero_pair)()
     _set_registry(graph, M.Head(M.Tail(whole_four_zero_pair)())())
 
-    _register_test(
-        graph,
-        "whole_add_pos_neg_test",
-        M.Pair(plus3, M.Pair(minus2, empty)),
-        M.WholeAdd(plus3, minus2, _registry(graph)),
-        whole_three_two,
-    )
-    _register_test(
-        graph,
-        "whole_add_one_neg_two_test",
-        M.Pair(plus1, M.Pair(minus2, empty)),
-        M.WholeAdd(plus1, minus2, _registry(graph)),
-        whole_three_four,
-    )
-    _register_test(
-        graph,
-        "whole_mul_pos_neg_test",
-        M.Pair(plus3, M.Pair(minus2, empty)),
-        M.WholeMultiply(plus3, minus2, _registry(graph)),
-        whole_zero_six,
-    )
-    _register_test(
-        graph,
-        "whole_mul_neg_neg_test",
-        M.Pair(minus2, M.Pair(minus2, empty)),
-        M.WholeMultiply(minus2, minus2, _registry(graph)),
-        whole_four_zero,
-    )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "whole_add_pos_neg_test",
+            M.Pair(plus3, M.Pair(minus2, empty)),
+            M.WholeAdd(plus3, minus2, _registry(graph)),
+            whole_three_two,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "whole_add_one_neg_two_test",
+            M.Pair(plus1, M.Pair(minus2, empty)),
+            M.WholeAdd(plus1, minus2, _registry(graph)),
+            whole_three_four,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "whole_mul_pos_neg_test",
+            M.Pair(plus3, M.Pair(minus2, empty)),
+            M.WholeMultiply(plus3, minus2, _registry(graph)),
+            whole_zero_six,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "whole_mul_neg_neg_test",
+            M.Pair(minus2, M.Pair(minus2, empty)),
+            M.WholeMultiply(minus2, minus2, _registry(graph)),
+            whole_four_zero,
+        )
 
     graph.default_tests_installed = M.truth_value
     return graph
