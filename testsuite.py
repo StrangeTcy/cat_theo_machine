@@ -668,6 +668,65 @@ class ShadowPackTest(M.Edge):
         return self.result
 
 
+class LawsInsideGraphVersionsTest(M.Edge):
+    """Step 13: installed Laws are discoverable, fireable, and persistent."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_one = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        right_two = M.Pair(Lmod.NonNegativeLabel, M.Pair(left_term, empty))
+        law_one = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_one))()
+        law_two = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_two))()
+
+        encoded_left = Gmod.EncodeTermAsGraph(left_term)()
+        version = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded_left)(),
+            Gmod.GraphEdges(encoded_left)(),
+            empty,
+        )()
+        installed = Gmod.InstallLaw(version, law_one)()
+        installed = Gmod.InstallLaw(installed, law_two)()
+        before_laws = Gmod.InstalledLaws(installed)()
+        invariants = Gmod.GraphVersionInvariants(installed)()
+
+        self.result = M.truth_value
+        if Gmod.LawMapsComplete(law_one)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(law_two)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(installed)(), law_one)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(installed)(), law_two)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(before_laws, law_one)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(before_laws, law_two)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(invariants, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.IsInstalledLaw(M.Head(invariants)())() is M.false_value:
+            self.result = M.false_value
+        else:
+            fired = Gmod.FireAny(installed, Gmod.DanglingForbid()())()
+            committed = M.Head(fired)()
+            trace = M.Head(M.Tail(fired)())()
+            if M.IdentityCompare(committed, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(trace, empty)() is M.truth_value:
+                self.result = M.false_value
+            else:
+                after_laws = Gmod.InstalledLaws(committed)()
+                if Gmod.ChainHasTerm(after_laws, law_one)() is M.false_value:
+                    self.result = M.false_value
+                elif Gmod.ChainHasTerm(after_laws, law_two)() is M.false_value:
+                    self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchMatchStatesTest(M.Edge):
     """Step 10: a pattern with two candidate matches yields two completed matches."""
 
@@ -7154,6 +7213,13 @@ def install_default_tests(graph):
         "shadow_pack_test",
         empty,
         ShadowPackTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "laws_inside_graph_versions_test",
+        empty,
+        LawsInsideGraphVersionsTest(graph),
         M.truth_value,
     )
     _register_test(

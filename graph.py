@@ -6,6 +6,14 @@ from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
+from .search.model import (
+    SearchMatchCursor,
+    SearchMatchCursorComplete,
+    SearchMatchCursorPending,
+    SearchMatchCursorRoot,
+    SearchState,
+    SearchStateCursor,
+)
 
 
 class Hypergraph:
@@ -330,6 +338,36 @@ class Law(M.Edge):
             inputs=M.Pair(left, M.Pair(interface, M.Pair(right, M.Pair(k_to_left_map, M.Pair(k_to_right_map, M.Pair(obligations, M.EmptyList)))))),
             results=self.result
         )
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledLaw(M.Edge):
+    def __init__(self, law):
+        self.result = M.Pair(Lmod.InstalledLawLabel, M.Pair(law, M.EmptyList))
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsInstalledLaw(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.InstalledLawLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledLawValue(M.Edge):
+    def __init__(self, installed):
+        self.result = M.Head(M.Tail(installed)())()
+        super().__init__(inputs=M.Pair(installed, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -1126,7 +1164,16 @@ class InstantiateLaw(M.Edge):
                 if M.IdentityCompare(right_nodes, M.EmptyList)() is M.false_value:
                     left_term = M.Head(M.Instantiate(M.Head(left_nodes)(), bindings)())()
                     right_term = M.Head(M.Instantiate(M.Head(right_nodes)(), bindings)())()
-                    self.result = CompileRuleToLaw(P.Rule(left_term, right_term))()
+                    grounded = CompileRuleToLaw(P.Rule(left_term, right_term))()
+                    if M.IdentityCompare(grounded, M.EmptyList)() is M.false_value:
+                        self.result = Law(
+                            LawLeft(grounded)(),
+                            LawInterface(grounded)(),
+                            LawRight(grounded)(),
+                            LawKToLeft(grounded)(),
+                            LawKToRight(grounded)(),
+                            LawObligations(law)(),
+                        )()
         super().__init__(
             inputs=M.Pair(law, M.Pair(bindings, M.EmptyList)),
             results=self.result,
@@ -1168,6 +1215,233 @@ class GraphStoresEqual(M.Edge):
         edges_equal = ChainSetEqual(GraphEdges(left)(), GraphEdges(right)())()
         self.result = M.AndAtom(nodes_equal, edges_equal)()
         super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ChainAddMissing(M.Edge):
+    """Add structurally absent elements to a Pair-chain store."""
+
+    def __init__(self, store, additions):
+        result = store
+        remaining = additions
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining)()
+            if ChainHasTerm(result, element)() is M.false_value:
+                result = M.Pair(element, result)
+            remaining = M.Tail(remaining)()
+        self.result = result
+        super().__init__(
+            inputs=M.Pair(store, M.Pair(additions, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallLaw(M.Edge):
+    """Install a Law and its L/K/R elements in a fresh GraphVersion."""
+
+    def __init__(self, graph_version, law):
+        nodes = ChainAddMissing(
+            GraphNodes(graph_version)(),
+            M.Pair(law, M.EmptyList),
+        )()
+        edges = GraphEdges(graph_version)()
+
+        left = LawLeft(law)()
+        nodes = ChainAddMissing(nodes, GraphNodes(left)())()
+        edges = ChainAddMissing(edges, GraphEdges(left)())()
+
+        interface = LawInterface(law)()
+        nodes = ChainAddMissing(nodes, GraphNodes(interface)())()
+        edges = ChainAddMissing(edges, GraphEdges(interface)())()
+
+        right = LawRight(law)()
+        nodes = ChainAddMissing(nodes, GraphNodes(right)())()
+        edges = ChainAddMissing(edges, GraphEdges(right)())()
+
+        invariants = ChainAddMissing(
+            GraphVersionInvariants(graph_version)(),
+            M.Pair(InstalledLaw(law)(), M.EmptyList),
+        )()
+        self.result = GraphVersion(nodes, edges, invariants)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledLaws(M.Edge):
+    """The installed Laws recorded in a GraphVersion invariant store."""
+
+    def __init__(self, graph_version):
+        reversed_laws = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            invariant = M.Head(remaining)()
+            if IsInstalledLaw(invariant)() is M.truth_value:
+                reversed_laws = M.Pair(InstalledLawValue(invariant)(), reversed_laws)
+            remaining = M.Tail(remaining)()
+        self.result = Reverse(reversed_laws)()
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GraphElements(M.Edge):
+    """Unique structural elements of a graph, nodes followed by absent edges."""
+
+    def __init__(self, graph):
+        self.result = ChainAddMissing(GraphNodes(graph)(), GraphEdges(graph)())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GraphElementCompatible(M.Edge):
+    """Shape compatibility used while expanding Step-10 match states."""
+
+    def __init__(self, pattern, candidate):
+        self.result = M.false_value
+        if P.IsVarPattern(pattern)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            pattern_pair = M.IsPair(pattern)()
+            candidate_pair = M.IsPair(candidate)()
+            if M.AndAtom(pattern_pair, candidate_pair)() is M.truth_value:
+                self.result = M.TermEqual(M.Head(pattern)(), M.Head(candidate)())()
+            elif M.OrAtom(pattern_pair, candidate_pair)() is M.false_value:
+                self.result = M.TermEqual(pattern, candidate)()
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(candidate, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FirstCompletedMatch(M.Edge):
+    """First complete Step-10 SearchMatchCursor mapping for pattern in host."""
+
+    def __init__(self, pattern, host):
+        pending = GraphElements(pattern)()
+        cursor = SearchMatchCursor(M.EmptyList, pattern, host, pending)()
+        start = SearchState(M.EmptyList, M.EmptyList, M.EmptyList, M.one, cursor)()
+        self.result = self._find(pattern, host, M.Pair(start, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(host, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _find(self, pattern, host, frontier):
+        remaining_frontier = frontier
+        while M.IdentityCompare(remaining_frontier, M.EmptyList)() is M.false_value:
+            state = M.Head(remaining_frontier)()
+            remaining_frontier = M.Tail(remaining_frontier)()
+            cursor = SearchStateCursor(state)()
+            if SearchMatchCursorComplete(cursor)() is M.truth_value:
+                mapping = Map(pattern, host, SearchMatchCursorRoot(cursor)())()
+                if MapSendsEveryElement(mapping, pattern)() is M.truth_value:
+                    return mapping
+            else:
+                pending = SearchMatchCursorPending(cursor)()
+                pat = M.Head(pending)()
+                rest = M.Tail(pending)()
+                mapping = Map(pattern, host, SearchMatchCursorRoot(cursor)())()
+                alternatives = MapExtensionAlternatives(mapping, pat, host)()
+                while M.IdentityCompare(alternatives, M.EmptyList)() is M.false_value:
+                    alternative = M.Head(alternatives)()
+                    root = M.Head(M.Tail(M.Tail(M.Tail(alternative)())())())()
+                    found = MappedHostForPat(root, pat)()
+                    if M.IdentityCompare(M.Head(found)(), M.truth_value)() is M.truth_value:
+                        if GraphElementCompatible(pat, M.Tail(found)())() is M.truth_value:
+                            child_cursor = SearchMatchCursor(root, pattern, host, rest)()
+                            child = SearchState(
+                                M.EmptyList,
+                                M.EmptyList,
+                                M.EmptyList,
+                                M.one,
+                                child_cursor,
+                            )()
+                            remaining_frontier = M.Pair(child, remaining_frontier)
+                    alternatives = M.Tail(alternatives)()
+        return M.EmptyList
+
+    def __call__(self):
+        return self.result
+
+
+class LawMatchBindings(M.Edge):
+    """Legacy variable bindings recovered from a completed Law match Map."""
+
+    def __init__(self, law, mapping):
+        bindings = M.EmptyList
+        root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+        remaining = GraphNodes(LawLeft(law)())()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            node = M.Head(remaining)()
+            if P.IsVarPattern(node)() is M.truth_value:
+                existing = M.FindBinding(bindings, node)()
+                if M.IdentityCompare(M.Head(existing)(), M.false_value)() is M.truth_value:
+                    found = MappedHostForPat(root, node)()
+                    if M.IdentityCompare(M.Head(found)(), M.truth_value)() is M.truth_value:
+                        binding = M.Pair(node, M.Pair(M.Tail(found)(), M.EmptyList))
+                        bindings = M.Pair(binding, bindings)
+            remaining = M.Tail(remaining)()
+        self.result = Reverse(bindings)()
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(mapping, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FireAny(M.Edge):
+    """Fire the first installed Law having a completed Step-10 match."""
+
+    def __init__(self, graph_version, dangling_mode):
+        self.result = M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        laws = InstalledLaws(graph_version)()
+        remaining = laws
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            law = M.Head(remaining)()
+            mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
+            active_law = law
+            if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
+                bindings = LawMatchBindings(law, mapping)()
+                if M.IdentityCompare(bindings, M.EmptyList)() is M.false_value:
+                    active_law = InstantiateLaw(law, bindings)()
+                    if M.IdentityCompare(active_law, M.EmptyList)() is M.false_value:
+                        mapping = FirstCompletedMatch(LawLeft(active_law)(), graph_version)()
+                if M.IdentityCompare(active_law, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
+                        fired = FireLaw(graph_version, active_law, mapping, dangling_mode)()
+                        if M.IdentityCompare(M.Head(fired)(), M.EmptyList)() is M.false_value:
+                            self.result = fired
+                            remaining = M.EmptyList
+                        else:
+                            remaining = M.Tail(remaining)()
+                    else:
+                        remaining = M.Tail(remaining)()
+                else:
+                    remaining = M.Tail(remaining)()
+            else:
+                remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(dangling_mode, M.EmptyList)),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result

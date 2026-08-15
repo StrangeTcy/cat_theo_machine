@@ -1015,6 +1015,10 @@ class LawLabel(ConstructorLabel):
     pass
 
 
+class InstalledLawLabel(ConstructorLabel):
+    pass
+
+
 class FireLabel(ConstructorLabel):
     pass
 
@@ -1236,6 +1240,7 @@ DanglingDeleteLabel = DanglingDeleteLabel()
 FireRejectedLabel = FireRejectedLabel()
 MissLabel = MissLabel()
 LawLabel = LawLabel()
+InstalledLawLabel = InstalledLawLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
 GraphVersionLabel = GraphVersionLabel()
@@ -1635,6 +1640,7 @@ def sync_from_namespace(namespace):
         "FireRejectedLabel",
         "MissLabel",
         "LawLabel",
+        "InstalledLawLabel",
         "FireLabel",
         "NextLabel",
         "PlannerProblemLabel",
