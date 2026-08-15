@@ -727,6 +727,80 @@ class LawsInsideGraphVersionsTest(M.Edge):
         return self.result
 
 
+class MetaRewriteKnownGapTest(M.Edge):
+    """Step 14 known gap: meta-Law matching stops before FireLaw MatchPrepared."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        empty_graph = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(empty, M.Pair(empty, empty)),
+        )
+        empty_map = Gmod.Map(empty_graph, empty_graph, empty)()
+        target = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            empty_graph,
+            empty_map,
+            empty_map,
+            empty,
+        )()
+        obligation = Gmod.KObligation(M.Char("meta-added"), M.Char("fixed"))()
+        updated_target = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            empty_graph,
+            empty_map,
+            empty_map,
+            M.Pair(obligation, empty),
+        )()
+        meta = Gmod.CompileRuleToLaw(Pmod.Rule(target, updated_target))()
+
+        version = Gmod.GraphVersion(empty, empty, empty)()
+        installed = Gmod.InstallLaw(version, target)()
+        installed = Gmod.InstallLaw(installed, meta)()
+
+        # KNOWN GAP: Step-10 matching returns no completed Map for meta's L.
+        # FireLaw is never entered, so there is no FireRejected Miss reason;
+        # FireAny falls through and records a firing of the target Law instead.
+        meta_match = Gmod.FirstCompletedMatch(Gmod.LawLeft(meta)(), installed)()
+        fired = Gmod.FireAny(installed, Gmod.DanglingForbid()())()
+        committed = M.Head(fired)()
+        trace = M.Head(M.Tail(fired)())()
+
+        self.result = M.truth_value
+        if Gmod.LawMapsComplete(target)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(meta)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(meta_match, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(committed, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            last = empty
+            remaining = trace
+            while M.IdentityCompare(remaining, empty)() is M.false_value:
+                last = M.Head(remaining)()
+                remaining = M.Tail(remaining)()
+            if M.IdentityCompare(last, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Head(last)(), Lmod.NextLabel)() is M.false_value:
+                self.result = M.false_value
+            else:
+                fire = M.Head(M.Tail(M.Tail(last)())())()
+                if M.IdentityCompare(M.Head(fire)(), Lmod.FireLabel)() is M.false_value:
+                    self.result = M.false_value
+                elif M.TermEqual(M.Head(M.Tail(fire)())(), target)() is M.false_value:
+                    self.result = M.false_value
+                elif M.TermEqual(M.Head(M.Tail(fire)())(), meta)() is M.truth_value:
+                    self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchMatchStatesTest(M.Edge):
     """Step 10: a pattern with two candidate matches yields two completed matches."""
 
@@ -7220,6 +7294,13 @@ def install_default_tests(graph):
         "laws_inside_graph_versions_test",
         empty,
         LawsInsideGraphVersionsTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "test_meta_rewrite_KNOWN_GAP",
+        empty,
+        MetaRewriteKnownGapTest(graph),
         M.truth_value,
     )
     _register_test(
