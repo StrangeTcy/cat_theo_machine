@@ -937,6 +937,92 @@ class ActivateProposalTest(M.Edge):
         return self.result
 
 
+class ProposalStoreHistoryTest(M.Edge):
+    """Step 18: rejection evidence and submission history are retained."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        law = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_term))()
+        first_proposal = Gmod.Proposal(law, M.Char("first-origin"))()
+        second_proposal = Gmod.Proposal(law, M.Char("second-origin"))()
+
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(store, first_proposal)()
+        store = Gmod.ProposalStoreSubmit(store, second_proposal)()
+        submitted = Gmod.ProposalStoreHistory(store)()
+        first_entry = M.Head(submitted)()
+        second_entry = M.Head(M.Tail(submitted)())()
+
+        approval = Gmod.Approved(first_proposal, M.Char("curator"))()
+        store = Gmod.ProposalStoreAttach(
+            store,
+            first_proposal,
+            approval,
+        )()
+        second_entry = M.Head(M.Tail(Gmod.ProposalStoreHistory(store)())())()
+        rejection_authority = M.Char("curator")
+        rejection_reason = M.Char("insufficient-evidence")
+        store = Gmod.ProposalStoreReject(
+            store,
+            second_entry,
+            rejection_authority,
+            rejection_reason,
+        )()
+
+        history = Gmod.ProposalStoreHistory(store)()
+        approved = Gmod.ProposalStoreApproved(store)()
+        first_history_entry = M.Head(history)()
+        second_history_entry = M.Head(M.Tail(history)())()
+        expected_rejection = Gmod.Rejected(
+            second_proposal,
+            rejection_authority,
+            rejection_reason,
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(history, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(history)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(M.Tail(history)())(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.ProposalEntryProposal(first_history_entry)(),
+            first_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.ProposalEntryProposal(second_history_entry)(),
+            second_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.ProposalEntryAnnotations(second_history_entry)(),
+            expected_rejection,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(approved, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(approved)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.ProposalEntryProposal(M.Head(approved)())(),
+            first_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.ProposalEntryAnnotations(first_entry)(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -7572,6 +7658,13 @@ def install_default_tests(graph):
         "obligation_commit_gate_test",
         empty,
         ObligationCommitGateTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "proposal_store_history_test",
+        empty,
+        ProposalStoreHistoryTest(graph),
         M.truth_value,
     )
     _register_test(

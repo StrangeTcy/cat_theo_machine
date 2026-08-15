@@ -633,6 +633,39 @@ class ProposalStoreApproved(M.Edge):
         return self.result
 
 
+class ProposalStoreReject(M.Edge):
+    """Retain a rejection annotation on an immutable proposal entry chain."""
+
+    def __init__(self, store, proposal_entry, authority, reason):
+        proposal = ProposalEntryProposal(proposal_entry)()
+        rejection = Rejected(proposal, authority, reason)()
+        self.result = ProposalStoreAttach(store, proposal, rejection)()
+        super().__init__(
+            inputs=M.Pair(
+                store,
+                M.Pair(
+                    proposal_entry,
+                    M.Pair(authority, M.Pair(reason, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStoreHistory(M.Edge):
+    """Return every proposal entry, with annotations, in submission order."""
+
+    def __init__(self, store):
+        self.result = ProposalStoreEntries(store)()
+        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class Activation(M.Edge):
     def __init__(self, proposal):
         self.result = M.Pair(
