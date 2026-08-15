@@ -526,6 +526,68 @@ class ComputedRawTermEqual(M.Edge):
         return self.result
 
 
+class CompileRuleToLawTest(M.Edge):
+    """Step 11: rules compile to Laws that pass LawMapsComplete and fire to R."""
+
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        simple_rule = Pmod.Rule(left_term, right_term)
+        law = Gmod.CompileRuleToLaw(simple_rule)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(law, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.IsLawTerm(law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(law)() is M.false_value:
+            self.result = M.false_value
+        else:
+            encoded_left = Gmod.LawLeft(law)()
+            encoded_right = Gmod.LawRight(law)()
+            host = Gmod.GraphVersion(
+                Gmod.GraphNodes(encoded_left)(),
+                Gmod.GraphEdges(encoded_left)(),
+                empty,
+            )()
+            sends = Gmod.IdentitySendsFor(Gmod.GraphNodes(encoded_left)())()
+            remaining = Gmod.GraphEdges(encoded_left)()
+            while M.IdentityCompare(remaining, empty)() is M.false_value:
+                edge = M.Head(remaining)()
+                sends = M.Pair(Gmod.Send(edge, edge)(), sends)
+                remaining = M.Tail(remaining)()
+            mapping = Gmod.Map(encoded_left, host, sends)()
+            fired = Gmod.FireLaw(host, law, mapping, Gmod.DanglingForbid()())()
+            committed = M.Head(fired)()
+            if M.IdentityCompare(committed, empty)() is M.truth_value:
+                self.result = M.false_value
+            else:
+                wanted = Gmod.GraphNodes(encoded_right)()
+                while M.IdentityCompare(wanted, empty)() is M.false_value:
+                    if Gmod.ChainHasTerm(Gmod.GraphNodes(committed)(), M.Head(wanted)())() is M.false_value:
+                        self.result = M.false_value
+                    wanted = M.Tail(wanted)()
+                wanted = Gmod.GraphEdges(encoded_right)()
+                while M.IdentityCompare(wanted, empty)() is M.false_value:
+                    if Gmod.ChainHasTerm(Gmod.GraphEdges(committed)(), M.Head(wanted)())() is M.false_value:
+                        self.result = M.false_value
+                    wanted = M.Tail(wanted)()
+
+        multi_rule = Pmod.MultiRule(
+            M.Pair(left_term, M.Pair(right_term, empty)),
+            right_term,
+        )
+        if M.IdentityCompare(Gmod.CompileRuleToLaw(multi_rule)(), empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchMatchStatesTest(M.Edge):
     """Step 10: a pattern with two candidate matches yields two completed matches."""
 
@@ -6998,6 +7060,13 @@ def install_default_tests(graph):
         "invariance_unestablished_even_phi_does_not_prune_test",
         empty,
         InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "compile_rule_to_law_test",
+        empty,
+        CompileRuleToLawTest(graph),
         M.truth_value,
     )
     _register_test(

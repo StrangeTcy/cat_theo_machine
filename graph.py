@@ -912,6 +912,163 @@ class InterfacePreimages(M.Edge):
         return self.result
 
 
+class TermSubterms(M.Edge):
+    """
+    Every subterm occurrence of `term`, parents before children.
+
+    One entry per occurrence: the same structure appearing twice yields two
+    entries, because a graph encoding needs a node per occurrence. Variable
+    patterns are leaves -- their internal VarTag structure is not walked.
+    """
+
+    def __init__(self, term):
+        self.result = self._walk(M.Pair(term, M.EmptyList), M.EmptyList)
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def _walk(self, agenda, seen_rev):
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            item = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            seen_rev = M.Pair(item, seen_rev)
+            if P.IsVarPattern(item)() is M.false_value:
+                if M.IsPair(item)() is M.truth_value:
+                    children = M.Tail(item)()
+                    reversed_children = M.EmptyList
+                    while M.IdentityCompare(children, M.EmptyList)() is M.false_value:
+                        reversed_children = M.Pair(M.Head(children)(), reversed_children)
+                        children = M.Tail(children)()
+                    while M.IdentityCompare(reversed_children, M.EmptyList)() is M.false_value:
+                        agenda = M.Pair(M.Head(reversed_children)(), agenda)
+                        reversed_children = M.Tail(reversed_children)()
+        ordered = M.EmptyList
+        while M.IdentityCompare(seen_rev, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(seen_rev)(), ordered)
+            seen_rev = M.Tail(seen_rev)()
+        return ordered
+
+    def __call__(self):
+        return self.result
+
+
+class EncodeTermAsGraph(M.Edge):
+    """
+    The simplest term-to-graph encoding: one node per subterm occurrence, one
+    edge per constructor application linking the result node to its argument
+    nodes in order.
+
+    No such encoder existed in the repo, so this is the literal construction
+    the step prescribes.
+    """
+
+    def __init__(self, term):
+        subterms = TermSubterms(term)()
+        reversed_edges = M.EmptyList
+        remaining = subterms
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            node = M.Head(remaining)()
+            if P.IsVarPattern(node)() is M.false_value:
+                if M.IsPair(node)() is M.truth_value:
+                    reversed_edges = M.Pair(node, reversed_edges)
+            remaining = M.Tail(remaining)()
+        edges = M.EmptyList
+        while M.IdentityCompare(reversed_edges, M.EmptyList)() is M.false_value:
+            edges = M.Pair(M.Head(reversed_edges)(), edges)
+            reversed_edges = M.Tail(reversed_edges)()
+        self.result = M.Pair(M.HypergraphLabel, M.Pair(subterms, M.Pair(edges, M.EmptyList)))
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SharedSubterms(M.Edge):
+    """Subterm occurrences present in both encodings: the interface K."""
+
+    def __init__(self, left_term, right_term):
+        right_subterms = TermSubterms(right_term)()
+        reversed_shared = M.EmptyList
+        remaining = TermSubterms(left_term)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            candidate = M.Head(remaining)()
+            if ChainHasTerm(right_subterms, candidate)() is M.truth_value:
+                if ChainHasTerm(reversed_shared, candidate)() is M.false_value:
+                    reversed_shared = M.Pair(candidate, reversed_shared)
+            remaining = M.Tail(remaining)()
+        shared = M.EmptyList
+        while M.IdentityCompare(reversed_shared, M.EmptyList)() is M.false_value:
+            shared = M.Pair(M.Head(reversed_shared)(), shared)
+            reversed_shared = M.Tail(reversed_shared)()
+        self.result = shared
+        super().__init__(
+            inputs=M.Pair(left_term, M.Pair(right_term, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IdentitySendsFor(M.Edge):
+    """A Send chain carrying each element of `elements` to itself."""
+
+    def __init__(self, elements):
+        reversed_sends = M.EmptyList
+        remaining = elements
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining)()
+            reversed_sends = M.Pair(Send(element, element)(), reversed_sends)
+            remaining = M.Tail(remaining)()
+        sends = M.EmptyList
+        while M.IdentityCompare(reversed_sends, M.EmptyList)() is M.false_value:
+            sends = M.Pair(M.Head(reversed_sends)(), sends)
+            reversed_sends = M.Tail(reversed_sends)()
+        self.result = sends
+        super().__init__(inputs=M.Pair(elements, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompileRuleToLaw(M.Edge):
+    """
+    Step 11. A rewrite rule with left pattern P and right result R becomes the
+    Law (L, K, R, k_to_left, k_to_right, obligations).
+
+    L and R are the graph encodings of P and R; K is the subterm occurrences
+    shared by both, so the K-maps are identity Sends into each side.
+    Obligations are empty for now.
+
+    Returns M.EmptyList for a rule this encoding cannot express: a rule with
+    no pattern, or a multi-premise rule, whose left side is not a single term.
+    """
+
+    def __init__(self, rule):
+        self.result = self._compile(rule)
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def _compile(self, rule):
+        premises = P.RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(M.Tail(premises)(), M.EmptyList)() is M.false_value:
+            return M.EmptyList
+        pattern = M.Head(premises)()
+        replacement = P.RuleReplacement(rule)()
+        if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        left = EncodeTermAsGraph(pattern)()
+        right = EncodeTermAsGraph(replacement)()
+        shared = SharedSubterms(pattern, replacement)()
+        interface = M.Pair(M.HypergraphLabel, M.Pair(shared, M.Pair(M.EmptyList, M.EmptyList)))
+        sends = IdentitySendsFor(shared)()
+        k_to_left = Map(interface, left, sends)()
+        k_to_right = Map(interface, right, sends)()
+        return Law(left, interface, right, k_to_left, k_to_right, M.EmptyList)()
+
+    def __call__(self):
+        return self.result
+
+
 class FireLaw(M.Edge):
     """
     Step 8. Staged double-pushout surgery over a GraphVersion.
