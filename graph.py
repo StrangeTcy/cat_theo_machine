@@ -1607,6 +1607,200 @@ class CompileHandleToLaws(M.Edge):
         return self.result
 
 
+class PositionalSignature(M.Edge):
+    """Machine Pair signature: edge label followed by its ordered arity Nat."""
+
+    def __init__(self, edge_term):
+        counted = M.Count(EdgeEndpoints(edge_term)(), M.AllConstructors)()
+        arity = M.Head(counted)()
+        self.registry = M.Head(M.Tail(counted)())()
+        self.result = M.Pair(
+            M.Head(edge_term)(),
+            M.Pair(arity, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(edge_term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignatureCensus(M.Edge):
+    """Deterministic Pair association chain from positional signatures to Nat counts."""
+
+    def __init__(self, graph_version):
+        registry = M.AllConstructors
+        census = M.EmptyList
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        remaining_edges = probe._normalize_store(GraphEdges(graph_version)())
+        while M.IdentityCompare(remaining_edges, M.EmptyList)() is M.false_value:
+            edge_term = M.Head(remaining_edges)()
+            counted = M.Count(EdgeEndpoints(edge_term)(), registry)()
+            arity = M.Head(counted)()
+            registry = M.Head(M.Tail(counted)())()
+            signature = M.Pair(
+                M.Head(edge_term)(),
+                M.Pair(arity, M.EmptyList),
+            )
+
+            remaining_entries = census
+            reversed_entries = M.EmptyList
+            found = M.false_value
+            while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
+                entry = M.Head(remaining_entries)()
+                entry_signature = M.Head(entry)()
+                same_signature = M.false_value
+                if M.TermEqual(
+                    M.Head(entry_signature)(),
+                    M.Head(signature)(),
+                )() is M.truth_value:
+                    if M.NatEq(
+                        M.Head(M.Tail(entry_signature)())(),
+                        M.Head(M.Tail(signature)())(),
+                        registry,
+                    )() is M.truth_value:
+                        same_signature = M.truth_value
+                if same_signature is M.truth_value:
+                    incremented = M.Succ(
+                        M.Head(M.Tail(entry)())(),
+                        registry,
+                    )()
+                    entry = M.Pair(
+                        entry_signature,
+                        M.Pair(M.Head(incremented)(), M.EmptyList),
+                    )
+                    registry = M.Head(M.Tail(incremented)())()
+                    found = M.truth_value
+                reversed_entries = M.Pair(entry, reversed_entries)
+                remaining_entries = M.Tail(remaining_entries)()
+            census = M.Reverse(reversed_entries)()
+            if found is M.false_value:
+                reversed_entries = M.Reverse(census)()
+                census = M.Reverse(
+                    M.Pair(
+                        M.Pair(signature, M.Pair(M.one, M.EmptyList)),
+                        reversed_entries,
+                    )
+                )()
+            remaining_edges = M.Tail(remaining_edges)()
+
+        self.registry = registry
+        self.result = census
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HandleRespectsSignatures(M.Edge):
+    """Machine truth when one Handle fold preserves every external signature count."""
+
+    def __init__(self, handle, interface_nodes, graph_version):
+        atom_result = M.false_value
+        pattern = HandlePattern(handle)()
+        compiled = CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        mapping = FirstCompletedMatch(pattern, graph_version)()
+        if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
+            root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+            probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+            remaining_pattern_edges = probe._normalize_store(GraphEdges(pattern)())
+            reversed_internal_edges = M.EmptyList
+            while M.IdentityCompare(
+                remaining_pattern_edges,
+                M.EmptyList,
+            )() is M.false_value:
+                found = MappedHostForPat(
+                    root,
+                    M.Head(remaining_pattern_edges)(),
+                )()
+                if M.IdentityCompare(M.Head(found)(), M.truth_value)() is M.truth_value:
+                    reversed_internal_edges = M.Pair(
+                        M.Tail(found)(),
+                        reversed_internal_edges,
+                    )
+                remaining_pattern_edges = M.Tail(remaining_pattern_edges)()
+            internal_edges = M.Reverse(reversed_internal_edges)()
+            external_edges = ChainWithout(
+                probe._normalize_store(GraphEdges(graph_version)()),
+                internal_edges,
+            )()
+            external_graph = GraphVersion(
+                GraphNodes(graph_version)(),
+                external_edges,
+                GraphVersionInvariants(graph_version)(),
+            )()
+            before_census = SignatureCensus(external_graph)()
+
+            fired = FireLaw(
+                graph_version,
+                fold,
+                mapping,
+                DanglingForbid()(),
+            )()
+            committed = M.Head(fired)()
+            if M.IdentityCompare(committed, M.EmptyList)() is M.false_value:
+                after_census = SignatureCensus(committed)()
+                atom_result = M.truth_value
+                remaining_before = before_census
+                while M.IdentityCompare(
+                    remaining_before,
+                    M.EmptyList,
+                )() is M.false_value:
+                    before_entry = M.Head(remaining_before)()
+                    before_signature = M.Head(before_entry)()
+                    remaining_after = after_census
+                    matching_count = M.EmptyList
+                    while M.IdentityCompare(
+                        remaining_after,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        after_entry = M.Head(remaining_after)()
+                        after_signature = M.Head(after_entry)()
+                        same_signature = M.false_value
+                        if M.TermEqual(
+                            M.Head(before_signature)(),
+                            M.Head(after_signature)(),
+                        )() is M.truth_value:
+                            if M.NatEq(
+                                M.Head(M.Tail(before_signature)())(),
+                                M.Head(M.Tail(after_signature)())(),
+                                M.AllConstructors,
+                            )() is M.truth_value:
+                                same_signature = M.truth_value
+                        if same_signature is M.truth_value:
+                            matching_count = M.Head(M.Tail(after_entry)())()
+                            remaining_after = M.EmptyList
+                        else:
+                            remaining_after = M.Tail(remaining_after)()
+                    if M.IdentityCompare(
+                        matching_count,
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        atom_result = M.false_value
+                        remaining_before = M.EmptyList
+                    elif M.NatEq(
+                        M.Head(M.Tail(before_entry)())(),
+                        matching_count,
+                        M.AllConstructors,
+                    )() is M.false_value:
+                        atom_result = M.false_value
+                        remaining_before = M.EmptyList
+                    else:
+                        remaining_before = M.Tail(remaining_before)()
+
+        self.result = atom_result
+        super().__init__(
+            inputs=M.Pair(
+                handle,
+                M.Pair(interface_nodes, M.Pair(graph_version, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class CompileRuleToLaw(M.Edge):
     """
     Step 11. A rewrite rule with left pattern P and right result R becomes the

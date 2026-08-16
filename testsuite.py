@@ -1547,6 +1547,129 @@ class HandleFoldUnfoldTest(M.Edge):
         return self.result
 
 
+class PositionalSignaturesTest(M.Edge):
+    """Step 22: Pair signatures are counted and Handle folds preserve boundaries."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_interface = M.Thingy()
+        internal = M.Thingy()
+        right_interface = M.Thingy()
+        outside = M.Thingy()
+        pattern_label = M.Char("signature-pattern-edge")
+        boundary_label = M.Char("signature-boundary-edge")
+        pattern_edge = M.Pair(
+            pattern_label,
+            M.Pair(
+                left_interface,
+                M.Pair(internal, M.Pair(right_interface, empty)),
+            ),
+        )
+        right_boundary_edge = M.Pair(
+            boundary_label,
+            M.Pair(right_interface, M.Pair(outside, empty)),
+        )
+        left_boundary_edge = M.Pair(
+            boundary_label,
+            M.Pair(left_interface, M.Pair(outside, empty)),
+        )
+        pattern_nodes = M.Pair(
+            left_interface,
+            M.Pair(internal, M.Pair(right_interface, empty)),
+        )
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(pattern_nodes, M.Pair(M.Pair(pattern_edge, empty), empty)),
+        )
+        host = Gmod.GraphVersion(
+            M.Pair(
+                left_interface,
+                M.Pair(
+                    internal,
+                    M.Pair(right_interface, M.Pair(outside, empty)),
+                ),
+            ),
+            M.Pair(
+                pattern_edge,
+                M.Pair(
+                    right_boundary_edge,
+                    M.Pair(left_boundary_edge, empty),
+                ),
+            ),
+            empty,
+        )()
+        handle = Gmod.Handle(M.Char("signature-handle"), pattern)()
+        complete_interface = M.Pair(
+            left_interface,
+            M.Pair(right_interface, empty),
+        )
+        incomplete_interface = M.Pair(left_interface, empty)
+
+        boundary_signature = Gmod.PositionalSignature(right_boundary_edge)()
+        census = Gmod.SignatureCensus(host)()
+        pattern_entry = M.Head(census)()
+        boundary_entry = M.Head(M.Tail(census)())()
+
+        self.result = M.truth_value
+        if M.TermEqual(M.Head(boundary_signature)(), boundary_label)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(boundary_signature)())(),
+            M.two,
+            M.AllConstructors,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(census)())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(pattern_entry)())(),
+            pattern_label,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Head(pattern_entry)())())(),
+            M.three,
+            M.AllConstructors,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(pattern_entry)())(),
+            M.one,
+            M.AllConstructors,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(boundary_entry)())(),
+            boundary_label,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(boundary_entry)())(),
+            M.two,
+            M.AllConstructors,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.HandleRespectsSignatures(
+            handle,
+            complete_interface,
+            host,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.HandleRespectsSignatures(
+            handle,
+            incomplete_interface,
+            host,
+        )() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -8351,6 +8474,14 @@ def install_default_tests(graph):
             "handle_fold_unfold_test",
             empty,
             HandleFoldUnfoldTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "positional_signatures_test",
+            empty,
+            PositionalSignaturesTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
