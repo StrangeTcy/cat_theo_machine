@@ -1316,6 +1316,73 @@ class FiringLedgerTest(M.Edge):
         return self.result
 
 
+class PatternCensusTest(M.Edge):
+    """Step 20: per-version completed-match counts preserve version order."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = _registry(graph)
+        ledger = Gmod.FiringLedger(registry)
+
+        pat_node = M.Thingy()
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(M.Pair(pat_node, empty), M.Pair(empty, empty)),
+        )
+        host_left = M.Thingy()
+        host_right = M.Thingy()
+        twice = Gmod.GraphVersion(
+            M.Pair(host_left, M.Pair(host_right, empty)),
+            empty,
+            empty,
+        )()
+        absent = Gmod.GraphVersion(empty, empty, empty)()
+        versions = M.Pair(twice, M.Pair(absent, empty))
+
+        counts = Gmod.PatternCensus(ledger, pattern, versions)()
+        tuned_counts = Gmod.PatternCensus(
+            ledger,
+            pattern,
+            versions,
+            M.GMPRep("1"),
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(counts, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(counts)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(counts)())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(M.Head(counts)(), M.two, ledger.registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(counts)())(),
+            M.Zero,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(tuned_counts)(),
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(tuned_counts)())(),
+            M.Zero,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -8104,6 +8171,14 @@ def install_default_tests(graph):
             "firing_ledger_test",
             empty,
             FiringLedgerTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "pattern_census_test",
+            empty,
+            PatternCensusTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

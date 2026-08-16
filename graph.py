@@ -2479,6 +2479,237 @@ class FiringLedger(M.Edge):
         return self.records
 
 
+CENSUS_MATCH_CAP = M.GMPRep("100")
+
+
+class PatternCensusMatchCount(M.Edge):
+    """Count completed Step-10 match states up to a machine Nat cap."""
+
+    def __init__(self, pattern_graph, host_version, match_cap, registry):
+        cap_pair = M.NatFromRep(match_cap, registry)()
+        cap = M.Head(cap_pair)()
+        registry = M.Head(M.Tail(cap_pair)())()
+        completed = M.Zero
+        pending = GraphElements(pattern_graph)()
+        cursor = SearchMatchCursor(M.EmptyList, pattern_graph, host_version, pending)()
+        start = SearchState(M.EmptyList, M.EmptyList, M.EmptyList, M.one, cursor)()
+        frontier = M.Pair(start, M.EmptyList)
+
+        while M.IdentityCompare(frontier, M.EmptyList)() is M.false_value:
+            if M.NatEq(completed, cap, registry)() is M.truth_value:
+                frontier = M.EmptyList
+            else:
+                state = M.Head(frontier)()
+                frontier = M.Tail(frontier)()
+                cursor = SearchStateCursor(state)()
+                if SearchMatchCursorComplete(cursor)() is M.truth_value:
+                    mapping = Map(
+                        pattern_graph,
+                        host_version,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    if MapSendsEveryElement(mapping, pattern_graph)() is M.truth_value:
+                        completed_pair = M.Succ(completed, registry)()
+                        completed = M.Head(completed_pair)()
+                        registry = M.Head(M.Tail(completed_pair)())()
+                else:
+                    pending = SearchMatchCursorPending(cursor)()
+                    pat = M.Head(pending)()
+                    rest = M.Tail(pending)()
+                    mapping = Map(
+                        pattern_graph,
+                        host_version,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    alternatives = MapExtensionAlternatives(mapping, pat, host_version)()
+                    while M.IdentityCompare(alternatives, M.EmptyList)() is M.false_value:
+                        alternative = M.Head(alternatives)()
+                        root = M.Head(M.Tail(M.Tail(M.Tail(alternative)())())())()
+                        child_cursor = SearchMatchCursor(
+                            root,
+                            pattern_graph,
+                            host_version,
+                            rest,
+                        )()
+                        child = SearchState(
+                            M.EmptyList,
+                            M.EmptyList,
+                            M.EmptyList,
+                            M.one,
+                            child_cursor,
+                        )()
+                        frontier = M.Pair(child, frontier)
+                        alternatives = M.Tail(alternatives)()
+
+        self.result = M.Pair(completed, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                pattern_graph,
+                M.Pair(
+                    host_version,
+                    M.Pair(match_cap, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PatternCensusShard(M.Edge):
+    """Spawn-safe census worker for one chronological version shard."""
+
+    def __init__(self, pattern_graph, versions, match_cap, result_queue):
+        registry = M.Tree(M.EmptyList)
+        reversed_counts = M.EmptyList
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            counted = PatternCensusMatchCount(
+                pattern_graph,
+                M.Head(remaining_versions)(),
+                match_cap,
+                registry,
+            )()
+            reversed_counts = M.Pair(M.Head(counted)(), reversed_counts)
+            registry = M.Head(M.Tail(counted)())()
+            remaining_versions = M.Tail(remaining_versions)()
+        self.result = M.Reverse(reversed_counts)()
+        result_queue.put(self.result)
+        super().__init__(
+            inputs=M.Pair(
+                pattern_graph,
+                M.Pair(versions, M.Pair(match_cap, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PatternCensus(M.Edge):
+    """
+    Count a given pattern in each version, preserving Pair-chain input order.
+
+    `match_cap` is a machine GMP value with a default of 100. Keeping it as an
+    input allows later machine policy to tune the bound without changing this
+    operation. Independent version shards run in parallel and are reduced in
+    deterministic shard order. The firing ledger supplies the constructor
+    registry; its records are intentionally not consulted.
+    """
+
+    def __init__(
+        self,
+        ledger,
+        pattern_graph,
+        versions,
+        match_cap=CENSUS_MATCH_CAP,
+    ):
+        version_count = 0
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            version_count = version_count + 1
+            remaining_versions = M.Tail(remaining_versions)()
+
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            worker_capacity = 1
+        if worker_capacity > version_count:
+            worker_capacity = version_count
+
+        if worker_capacity < 2:
+            reversed_counts = M.EmptyList
+            registry = ledger.registry
+            remaining_versions = versions
+            while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+                counted = PatternCensusMatchCount(
+                    pattern_graph,
+                    M.Head(remaining_versions)(),
+                    match_cap,
+                    registry,
+                )()
+                reversed_counts = M.Pair(M.Head(counted)(), reversed_counts)
+                registry = M.Head(M.Tail(counted)())()
+                remaining_versions = M.Tail(remaining_versions)()
+            ledger.registry = registry
+            self.result = M.Reverse(reversed_counts)()
+        else:
+            try:
+                mp_context = multiprocessing.get_context("fork")
+            except ValueError:
+                mp_context = multiprocessing.get_context("spawn")
+
+            shard_width = version_count // worker_capacity
+            wide_shards = version_count % worker_capacity
+            workers = M.EmptyList
+            remaining_versions = versions
+            slot = 0
+            while slot != worker_capacity:
+                active_width = shard_width
+                if slot < wide_shards:
+                    active_width = active_width + 1
+                reversed_shard = M.EmptyList
+                copied = 0
+                while copied != active_width:
+                    reversed_shard = M.Pair(
+                        M.Head(remaining_versions)(),
+                        reversed_shard,
+                    )
+                    remaining_versions = M.Tail(remaining_versions)()
+                    copied = copied + 1
+                shard = M.Reverse(reversed_shard)()
+                result_queue = mp_context.Queue()
+                process = mp_context.Process(
+                    target=PatternCensusShard,
+                    args=(pattern_graph, shard, match_cap, result_queue),
+                )
+                process.start()
+                workers = M.Pair(
+                    M.Pair(process, M.Pair(result_queue, M.EmptyList)),
+                    workers,
+                )
+                slot = slot + 1
+            workers = M.Reverse(workers)()
+
+            reversed_counts = M.EmptyList
+            remaining_workers = workers
+            while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+                worker = M.Head(remaining_workers)()
+                process = M.Head(worker)()
+                result_queue = M.Head(M.Tail(worker)())()
+                shard_counts = result_queue.get()
+                process.join()
+                result_queue.close()
+                remaining_shard_counts = shard_counts
+                while M.IdentityCompare(
+                    remaining_shard_counts,
+                    M.EmptyList,
+                )() is M.false_value:
+                    reversed_counts = M.Pair(
+                        M.Head(remaining_shard_counts)(),
+                        reversed_counts,
+                    )
+                    remaining_shard_counts = M.Tail(remaining_shard_counts)()
+                remaining_workers = M.Tail(remaining_workers)()
+            self.result = M.Reverse(reversed_counts)()
+
+        super().__init__(
+            inputs=M.Pair(
+                ledger,
+                M.Pair(
+                    pattern_graph,
+                    M.Pair(versions, M.Pair(match_cap, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class FireLaw(M.Edge):
     """
     Step 8. Staged double-pushout surgery over a GraphVersion.
