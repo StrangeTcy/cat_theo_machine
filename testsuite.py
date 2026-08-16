@@ -2062,6 +2062,18 @@ class AutonomyCycleTest(M.Edge):
         fold = M.Head(compiled)()
         unfold = M.Head(M.Tail(compiled)())()
         auto_proposal = Gmod.Proposal(fold, handle)()
+        rollback_obligation = Gmod.KObligation(
+            M.Char("node-count-max"),
+            M.nine,
+        )()
+        rollback_law = Gmod.Law(
+            Gmod.LawLeft(unfold)(),
+            Gmod.LawInterface(unfold)(),
+            Gmod.LawRight(unfold)(),
+            Gmod.LawKToLeft(unfold)(),
+            Gmod.LawKToRight(unfold)(),
+            M.Pair(rollback_obligation, empty),
+        )()
 
         empty_graph = Gmod.GraphVersion(empty, empty, empty)()
         human_law = Gmod.Law(
@@ -2118,6 +2130,10 @@ class AutonomyCycleTest(M.Edge):
         human_annotations = Gmod.ProposalEntryAnnotations(updated_human_entry)()
         approval = M.Head(auto_annotations)()
         authority = M.Head(M.Tail(M.Tail(approval)())())()
+        activated_proposal = M.Head(activated_proposals)()
+        activated_law = Gmod.ProposalLaw(activated_proposal)()
+        activated_obligations = Gmod.LawObligations(activated_law)()
+        activated_obligation = M.Head(activated_obligations)()
 
         rollback_ledger = Gmod.FiringLedger(ledger.registry)
         rollback_host = Gmod.GraphVersion(
@@ -2125,7 +2141,7 @@ class AutonomyCycleTest(M.Edge):
             Gmod.GraphEdges(Gmod.LawLeft(unfold)())(),
             empty,
         )()
-        rollback_proposal = Gmod.Proposal(unfold, handle)()
+        rollback_proposal = Gmod.Proposal(rollback_law, handle)()
         rollback_store = Gmod.ProposalStoreSubmit(
             Gmod.ProposalStore(empty)(),
             rollback_proposal,
@@ -2165,7 +2181,7 @@ class AutonomyCycleTest(M.Edge):
         )()
         rollback_firings = M.Head(M.Tail(rollback_firings_entry)())()
         rollback_reason = M.Head(M.Tail(rollback_reason_entry)())()
-        expected_rollback_version = Gmod.InstallLaw(rollback_host, unfold)()
+        expected_rollback_version = Gmod.InstallLaw(rollback_host, rollback_law)()
 
         exhaustion_ledger = Gmod.FiringLedger(rollback_ledger.registry)
         exhaustion_budget = M.Pair(
@@ -2230,9 +2246,25 @@ class AutonomyCycleTest(M.Edge):
             Gmod.AUTONOMY_REPORT_STOPPED_REASON_KEY,
         )() is M.false_value:
             self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.ProposalOrigin(activated_proposal)(),
+            Gmod.ProposalOrigin(auto_proposal)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.KObligationName(activated_obligation)(),
+            M.Char("node-count-max"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.KObligationStructure(activated_obligation)(),
+            M.nine,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
         elif M.IdentityCompare(
-            M.Head(activated_proposals)(),
-            auto_proposal,
+            M.Tail(activated_obligations)(),
+            empty,
         )() is M.false_value:
             self.result = M.false_value
         elif M.IdentityCompare(M.Tail(activated_proposals)(), empty)() is M.false_value:
@@ -2258,9 +2290,9 @@ class AutonomyCycleTest(M.Edge):
             self.result = M.false_value
         elif M.IdentityCompare(M.Tail(ledger.records)(), empty)() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(
+        elif M.TermEqual(
             Gmod.ProposalEntryProposal(updated_auto_entry)(),
-            auto_proposal,
+            activated_proposal,
         )() is M.false_value:
             self.result = M.false_value
         elif Gmod.ProposalEntryIsApproved(updated_auto_entry)() is M.false_value:
@@ -2312,8 +2344,154 @@ class AutonomyCycleTest(M.Edge):
         return self.result
 
 
+class AutonomyObligationSafetyTest(M.Edge):
+    """Step 26: an auto Law is independently braked at the obligation gate."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+
+        interface_node = M.Char("guard-interface")
+        internal_node = M.Char("guard-internal")
+        pattern_edge = M.Pair(
+            M.Char("guard-pattern-edge"),
+            M.Pair(interface_node, M.Pair(internal_node, empty)),
+        )
+        pattern_nodes = M.Pair(interface_node, M.Pair(internal_node, empty))
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(pattern_nodes, M.Pair(M.Pair(pattern_edge, empty), empty)),
+        )
+        handle = Gmod.Handle(M.Char("guard-handle"), pattern)()
+        compiled = Gmod.CompileHandleToLaws(
+            handle,
+            M.Pair(interface_node, empty),
+        )()
+        fold = M.Head(compiled)()
+        proposal = Gmod.Proposal(fold, handle)()
+        store = Gmod.ProposalStoreSubmit(
+            Gmod.ProposalStore(empty)(),
+            proposal,
+        )()
+        host = Gmod.GraphVersion(
+            pattern_nodes,
+            M.Pair(pattern_edge, empty),
+            empty,
+        )()
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.one, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.one, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+
+        cycle_edge = Gmod.AutonomyCycle(host, store, ledger, budget)
+        cycle = cycle_edge()
+        final_version = M.Head(cycle)()
+        updated_store = M.Head(M.Tail(cycle)())()
+        report = M.Head(M.Tail(M.Tail(cycle)())())()
+        activated_entry = M.Head(report)()
+        activated = M.Head(M.Tail(activated_entry)())()
+        firings_entry = M.Head(M.Tail(M.Tail(report)())())()
+        firing_count = M.Head(M.Tail(firings_entry)())()
+        reason_entry = M.Head(M.Tail(M.Tail(M.Tail(report)())())())()
+        stopped_reason = M.Head(M.Tail(reason_entry)())()
+
+        updated_entry = M.Head(Gmod.ProposalStoreEntries(updated_store)())()
+        guarded_proposal = Gmod.ProposalEntryProposal(updated_entry)()
+        guarded_law = Gmod.ProposalLaw(guarded_proposal)()
+        guarded_obligations = Gmod.LawObligations(guarded_law)()
+        guarded_obligation = M.Head(guarded_obligations)()
+
+        trace = cycle_edge.last_firing_trace
+        refusal = empty
+        remaining_trace = trace
+        while M.IdentityCompare(remaining_trace, empty)() is M.false_value:
+            refusal = M.Head(remaining_trace)()
+            remaining_trace = M.Tail(remaining_trace)()
+        refused_obligation = empty
+        if M.IdentityCompare(refusal, empty)() is M.false_value:
+            refused_obligation = M.Head(M.Tail(refusal)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(activated, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(activated)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(activated)(),
+            guarded_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ProposalEntryIsApproved(updated_entry)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.KObligationName(guarded_obligation)(),
+            M.Char("node-count-max"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.KObligationStructure(guarded_obligation)(),
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(guarded_obligations)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(firing_count, M.Zero, ledger.registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatLess(
+            firing_count,
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            stopped_reason,
+            Gmod.AUTONOMY_STOP_EXHAUSTED,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(ledger.records, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(trace, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(refusal, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(refusal)(),
+            Lmod.ReasonObligationLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            refused_obligation,
+            guarded_obligation,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GraphStoresEqual(final_version, host)() is M.truth_value:
+            self.result = M.false_value
+        graph._replace_context(constructors=ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
-    """Step 17: node-count-max is enforced immediately before Law commit."""
+    """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
     def __init__(self, _graph):
         empty = M.EmptyList
@@ -2396,6 +2574,45 @@ class ObligationCommitGateTest(M.Edge):
         )()
         unchecked_twice = Gmod.CheckObligationUnchecked(checked_two)()
 
+        edge_tight = Gmod.KObligation(
+            M.Char("edge-count-max"),
+            M.Zero,
+        )()
+        edge_generous = Gmod.KObligation(
+            M.Char("edge-count-max"),
+            M.one,
+        )()
+        checked_edge_tight = Gmod.CheckObligation(
+            host,
+            edge_tight,
+            Gmod.UncheckedObligations()(),
+        )()
+        checked_edge_generous = Gmod.CheckObligation(
+            host,
+            edge_generous,
+            Gmod.UncheckedObligations()(),
+        )()
+
+        history_ledger = Gmod.FiringLedger()
+        history_ledger.append(M.Char("completed-firing"))
+        history_bound = Gmod.KObligation(
+            M.Char("ledger-length-max"),
+            M.one,
+        )()
+        checked_history_tight = Gmod.CheckObligation(
+            host,
+            history_bound,
+            Gmod.UncheckedObligations()(),
+            history_ledger,
+        )()
+        empty_history_ledger = Gmod.FiringLedger(history_ledger.registry)
+        checked_history_generous = Gmod.CheckObligation(
+            host,
+            history_bound,
+            Gmod.UncheckedObligations()(),
+            empty_history_ledger,
+        )()
+
         self.result = M.truth_value
         if Gmod.LawMapsComplete(tight_law)() is M.false_value:
             self.result = M.false_value
@@ -2419,6 +2636,14 @@ class ObligationCommitGateTest(M.Edge):
         elif M.IdentityCompare(unchecked_twice, empty)() is M.truth_value:
             self.result = M.false_value
         elif M.IdentityCompare(M.Tail(unchecked_twice)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.CheckObligationVerdict(checked_edge_tight)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.CheckObligationVerdict(checked_edge_generous)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.CheckObligationVerdict(checked_history_tight)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.CheckObligationVerdict(checked_history_generous)() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
@@ -9148,6 +9373,14 @@ def install_default_tests(graph):
             "autonomy_cycle_test",
             empty,
             AutonomyCycleTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "autonomy_obligation_safety_test",
+            empty,
+            AutonomyObligationSafetyTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

@@ -779,7 +779,13 @@ class ReasonObligation(M.Edge):
 class CheckObligation(M.Edge):
     """Check one commit obligation and thread unknown-name state."""
 
-    def __init__(self, graph_version, obligation, unchecked_obligations):
+    def __init__(
+        self,
+        graph_version,
+        obligation,
+        unchecked_obligations,
+        ledger=M.EmptyList,
+    ):
         name = KObligationName(obligation)()
         updated_unchecked = unchecked_obligations
         if M.Compare(name, M.Char("node-count-max"))() is M.truth_value:
@@ -789,6 +795,30 @@ class CheckObligation(M.Edge):
             bound = KObligationStructure(obligation)()
             too_many = M.NatLess(bound, count, registry)()
             verdict = M.NotAtom(too_many)()
+        elif M.Compare(name, M.Char("edge-count-max"))() is M.truth_value:
+            count_pair = M.Count(GraphEdges(graph_version)(), M.AllConstructors)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            bound = KObligationStructure(obligation)()
+            too_many = M.NatLess(bound, count, registry)()
+            verdict = M.NotAtom(too_many)()
+        elif M.Compare(name, M.Char("ledger-length-max"))() is M.truth_value:
+            records = M.EmptyList
+            registry = M.AllConstructors
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                records = ledger.records
+                registry = ledger.registry
+            count_pair = M.Count(records, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            prospective_pair = M.Succ(count, registry)()
+            prospective_count = M.Head(prospective_pair)()
+            registry = M.Head(M.Tail(prospective_pair)())()
+            bound = KObligationStructure(obligation)()
+            too_many = M.NatLess(bound, prospective_count, registry)()
+            verdict = M.NotAtom(too_many)()
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                ledger.registry = registry
         else:
             verdict = M.truth_value
             seen = M.false_value
@@ -810,7 +840,10 @@ class CheckObligation(M.Edge):
                 graph_version,
                 M.Pair(
                     obligation,
-                    M.Pair(unchecked_obligations, M.EmptyList),
+                    M.Pair(
+                        unchecked_obligations,
+                        M.Pair(ledger, M.EmptyList),
+                    ),
                 ),
             ),
             results=self.result,
@@ -2181,6 +2214,113 @@ class AutonomyCycle(M.Edge):
                         max_activations,
                         ledger.registry,
                     )() is M.truth_value:
+                        law = ProposalLaw(proposal)()
+                        obligations = LawObligations(law)()
+                        has_node_bound = M.false_value
+                        remaining_obligations = obligations
+                        while M.IdentityCompare(
+                            remaining_obligations,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                KObligationName(M.Head(remaining_obligations)())(),
+                                M.Char("node-count-max"),
+                            )() is M.truth_value:
+                                has_node_bound = M.truth_value
+                                remaining_obligations = M.EmptyList
+                            else:
+                                remaining_obligations = M.Tail(
+                                    remaining_obligations,
+                                )()
+                        if M.IdentityCompare(
+                            has_node_bound,
+                            M.false_value,
+                        )() is M.truth_value:
+                            reversed_obligations = M.Reverse(obligations)()
+                            obligations = M.Reverse(
+                                M.Pair(
+                                    KObligation(
+                                        M.Char("node-count-max"),
+                                        max_nodes,
+                                    )(),
+                                    reversed_obligations,
+                                )
+                            )()
+                            law = Law(
+                                LawLeft(law)(),
+                                LawInterface(law)(),
+                                LawRight(law)(),
+                                LawKToLeft(law)(),
+                                LawKToRight(law)(),
+                                obligations,
+                            )()
+                            guarded_proposal = Proposal(
+                                law,
+                                ProposalOrigin(proposal)(),
+                            )()
+                            reversed_entries = M.EmptyList
+                            current_entries = ProposalStoreEntries(current_store)()
+                            while M.IdentityCompare(
+                                current_entries,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                current_entry = M.Head(current_entries)()
+                                if M.TermEqual(
+                                    ProposalEntryProposal(current_entry)(),
+                                    proposal,
+                                )() is M.truth_value:
+                                    reversed_annotations = M.EmptyList
+                                    current_annotations = ProposalEntryAnnotations(
+                                        current_entry,
+                                    )()
+                                    while M.IdentityCompare(
+                                        current_annotations,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        current_annotation = M.Head(
+                                            current_annotations,
+                                        )()
+                                        if M.IsPair(current_annotation)() is M.truth_value:
+                                            if M.TermEqual(
+                                                M.Head(current_annotation)(),
+                                                Lmod.JustifiedByLabel,
+                                            )() is M.truth_value:
+                                                if M.TermEqual(
+                                                    M.Head(
+                                                        M.Tail(current_annotation)(),
+                                                    )(),
+                                                    proposal,
+                                                )() is M.truth_value:
+                                                    current_annotation = JustifiedBy(
+                                                        guarded_proposal,
+                                                        M.Head(
+                                                            M.Tail(
+                                                                M.Tail(
+                                                                    current_annotation,
+                                                                )(),
+                                                            )(),
+                                                        )(),
+                                                    )()
+                                        reversed_annotations = M.Pair(
+                                            current_annotation,
+                                            reversed_annotations,
+                                        )
+                                        current_annotations = M.Tail(
+                                            current_annotations,
+                                        )()
+                                    current_entry = ProposalEntry(
+                                        guarded_proposal,
+                                        M.Reverse(reversed_annotations)(),
+                                    )()
+                                reversed_entries = M.Pair(
+                                    current_entry,
+                                    reversed_entries,
+                                )
+                                current_entries = M.Tail(current_entries)()
+                            current_store = ProposalStore(
+                                M.Reverse(reversed_entries)(),
+                            )()
+                            proposal = guarded_proposal
                         approval = Approved(proposal, authority)()
                         current_store = ProposalStoreAttach(
                             current_store,
@@ -2226,6 +2366,7 @@ class AutonomyCycle(M.Edge):
 
         firings = M.Zero
         stopped_reason = AUTONOMY_STOP_EXHAUSTED
+        self.last_firing_trace = M.EmptyList
         firing = M.truth_value
         while M.IdentityCompare(firing, M.truth_value)() is M.truth_value:
             if M.NatLess(firings, max_firings, ledger.registry)() is M.false_value:
@@ -2240,6 +2381,7 @@ class AutonomyCycle(M.Edge):
                     ledger,
                 )()
                 candidate_version = M.Head(fired)()
+                self.last_firing_trace = M.Head(M.Tail(fired)())()
                 if M.IdentityCompare(
                     candidate_version,
                     M.EmptyList,
@@ -2683,6 +2825,7 @@ class FireAny(M.Edge):
                             self.result = fired
                             remaining = M.EmptyList
                         else:
+                            self.result = fired
                             remaining = M.Tail(remaining)()
                     else:
                         remaining = M.Tail(remaining)()
@@ -3634,7 +3777,12 @@ class FireLaw(M.Edge):
         remaining_obligations = LawObligations(law)()
         while M.IdentityCompare(remaining_obligations, M.EmptyList)() is M.false_value:
             obligation = M.Head(remaining_obligations)()
-            checked = CheckObligation(committed, obligation, unchecked)()
+            checked = CheckObligation(
+                committed,
+                obligation,
+                unchecked,
+                ledger,
+            )()
             unchecked = CheckObligationUnchecked(checked)()
             if CheckObligationVerdict(checked)() is M.false_value:
                 trace = self._append(trace, ReasonObligation(obligation)())
