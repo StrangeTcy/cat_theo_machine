@@ -2490,6 +2490,152 @@ class AutonomyObligationSafetyTest(M.Edge):
         return self.result
 
 
+class RecurringPatternMiningTest(M.Edge):
+    """Step 27: one recurring closed neighborhood is mined with raw count three."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        recurring_one = M.Thingy()
+        recurring_two = M.Thingy()
+        recurring_three = M.Thingy()
+        recurring_nodes = M.Pair(
+            recurring_one,
+            M.Pair(recurring_two, M.Pair(recurring_three, empty)),
+        )
+        recurring_edge = M.Pair(
+            M.Char("recurring-three-node-edge"),
+            recurring_nodes,
+        )
+        recurring_edges = M.Pair(recurring_edge, empty)
+
+        unique_one = M.Thingy()
+        unique_nodes = M.Pair(unique_one, empty)
+        unique_edge = M.Pair(
+            M.Char("unique-one-node-edge"),
+            unique_nodes,
+        )
+
+        first = Gmod.GraphVersion(
+            recurring_nodes,
+            recurring_edges,
+            empty,
+        )()
+        second = Gmod.GraphVersion(
+            recurring_nodes,
+            recurring_edges,
+            empty,
+        )()
+        latest_nodes = M.Pair(
+            recurring_one,
+            M.Pair(
+                recurring_two,
+                M.Pair(
+                    recurring_three,
+                    M.Pair(unique_one, empty),
+                ),
+            ),
+        )
+        latest_edges = M.Pair(
+            recurring_edge,
+            M.Pair(unique_edge, empty),
+        )
+        latest = Gmod.GraphVersion(
+            latest_nodes,
+            latest_edges,
+            empty,
+        )()
+        versions = M.Pair(first, M.Pair(second, M.Pair(latest, empty)))
+
+        candidates = Gmod.EnumerateCandidatePatterns(latest, M.four)()
+        mined = Gmod.MineRecurringPatterns(versions, M.two, M.four)()
+
+        candidate_count_pair = M.Count(candidates, registry)()
+        candidate_count = M.Head(candidate_count_pair)()
+        registry = M.Head(M.Tail(candidate_count_pair)())()
+
+        self.result = M.truth_value
+        expected_focal_nodes = latest_nodes
+        remaining_candidates = candidates
+        while M.IdentityCompare(expected_focal_nodes, empty)() is M.false_value:
+            if M.IdentityCompare(remaining_candidates, empty)() is M.truth_value:
+                self.result = M.false_value
+                expected_focal_nodes = empty
+            else:
+                expected_focal = M.Head(expected_focal_nodes)()
+                candidate = M.Head(remaining_candidates)()
+                candidate_nodes = Gmod.GraphNodes(candidate)()
+                if M.IdentityCompare(candidate_nodes, empty)() is M.truth_value:
+                    self.result = M.false_value
+                    expected_focal_nodes = empty
+                elif M.IdentityCompare(
+                    M.Head(candidate_nodes)(),
+                    expected_focal,
+                )() is M.false_value:
+                    self.result = M.false_value
+                    expected_focal_nodes = empty
+                else:
+                    expected_focal_nodes = M.Tail(expected_focal_nodes)()
+                    remaining_candidates = M.Tail(remaining_candidates)()
+
+        if M.NatEq(candidate_count, M.four, registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(remaining_candidates, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(mined, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(mined)(), empty)() is M.false_value:
+            self.result = M.false_value
+        else:
+            entry = M.Head(mined)()
+            candidate = M.Head(entry)()
+            count = M.Head(M.Tail(entry)())()
+            candidate_nodes = Gmod.GraphNodes(candidate)()
+            candidate_edges = Gmod.GraphEdges(candidate)()
+            candidate_node_count_pair = M.Count(candidate_nodes, registry)()
+            candidate_node_count = M.Head(candidate_node_count_pair)()
+            registry = M.Head(M.Tail(candidate_node_count_pair)())()
+            if M.IdentityCompare(
+                M.Tail(M.Tail(entry)())(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IsNat(count, registry)() is M.false_value:
+                self.result = M.false_value
+            elif M.NatEq(count, M.three, registry)() is M.false_value:
+                self.result = M.false_value
+            elif M.NatEq(
+                candidate_node_count,
+                M.three,
+                registry,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(candidate_edges, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(candidate_edges)(),
+                recurring_edge,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Tail(candidate_edges)(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                Gmod.GraphVersionInvariants(candidate)(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
@@ -9411,6 +9557,14 @@ def install_default_tests(graph):
             "autonomy_obligation_safety_test",
             empty,
             AutonomyObligationSafetyTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "recurring_pattern_mining_test",
+            empty,
+            RecurringPatternMiningTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

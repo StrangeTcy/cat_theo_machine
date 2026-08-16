@@ -7,6 +7,7 @@ from . import machine as M
 from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
+from .gmprep import GMPAddText, GMPSuccText
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
 from .search.model import (
     SearchMatchCursor,
@@ -3635,6 +3636,557 @@ class PatternCensus(M.Edge):
                     pattern_graph,
                     M.Pair(versions, M.Pair(match_cap, M.EmptyList)),
                 ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+MINE_CANDIDATE_CAP = M.GMPRep("200")
+
+
+class MineNatFromGMPRep(M.Edge):
+    """Convert a GMP machine value to a cached machine Nat."""
+
+    def __init__(self, rep):
+        result = M.Atom()
+        result.value = rep
+        self.result = result
+        super().__init__(inputs=M.Pair(rep, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MineNatSuccessor(M.Edge):
+    """Increment a mining Nat without materializing a deep successor key."""
+
+    def __init__(self, number, registry):
+        rep = M.NatRepOf(number, registry)()
+        next_text = GMPSuccText(M.GMPRepText(rep)())()
+        successor = MineNatFromGMPRep(M.GMPRep(next_text))()
+        self.result = M.Pair(successor, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(number, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MineNatAdd(M.Edge):
+    """Add mining Nats while retaining their bounded cached representation."""
+
+    def __init__(self, left, right, registry):
+        left_rep = M.NatRepOf(left, registry)()
+        right_rep = M.NatRepOf(right, registry)()
+        total_text = GMPAddText(
+            M.GMPRepText(left_rep)(),
+            M.GMPRepText(right_rep)(),
+        )()
+        total = MineNatFromGMPRep(M.GMPRep(total_text))()
+        self.result = M.Pair(total, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                left,
+                M.Pair(right, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class EnumerateCandidatePatterns(M.Edge):
+    """Enumerate bounded closed one-neighborhood GraphVersion candidates."""
+
+    def __init__(self, graph_version, max_size):
+        registry = M.Tree(M.EmptyList)
+        cap = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+        inspected = M.Zero
+        emitted = M.Zero
+        reversed_candidates = M.EmptyList
+        remaining_nodes = GraphNodes(graph_version)()
+
+        while M.IdentityCompare(remaining_nodes, M.EmptyList)() is M.false_value:
+            if M.NatEq(inspected, cap, registry)() is M.truth_value:
+                remaining_nodes = M.EmptyList
+            elif M.NatEq(emitted, cap, registry)() is M.truth_value:
+                remaining_nodes = M.EmptyList
+            else:
+                node = M.Head(remaining_nodes)()
+                remaining_nodes = M.Tail(remaining_nodes)()
+                stepped = MineNatSuccessor(inspected, registry)()
+                inspected = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+
+                candidate_ok = M.truth_value
+                candidate_nodes = M.Pair(node, M.EmptyList)
+                reversed_edges = M.EmptyList
+                element_count = M.one
+                if M.NatLess(max_size, element_count, registry)() is M.truth_value:
+                    candidate_ok = M.false_value
+
+                edge_scans = M.Zero
+                remaining_edges = GraphEdges(graph_version)()
+                while M.IdentityCompare(
+                    remaining_edges,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(candidate_ok, M.false_value)() is M.truth_value:
+                        remaining_edges = M.EmptyList
+                    elif M.NatEq(edge_scans, cap, registry)() is M.truth_value:
+                        candidate_ok = M.false_value
+                        remaining_edges = M.EmptyList
+                    else:
+                        edge = M.Head(remaining_edges)()
+                        remaining_edges = M.Tail(remaining_edges)()
+                        stepped = MineNatSuccessor(edge_scans, registry)()
+                        edge_scans = M.Head(stepped)()
+                        registry = M.Head(M.Tail(stepped)())()
+
+                        incident = M.false_value
+                        endpoint_scans = M.Zero
+                        remaining_endpoints = EdgeEndpoints(edge)()
+                        while M.IdentityCompare(
+                            remaining_endpoints,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if M.NatEq(endpoint_scans, cap, registry)() is M.truth_value:
+                                candidate_ok = M.false_value
+                                remaining_endpoints = M.EmptyList
+                            else:
+                                endpoint = M.Head(remaining_endpoints)()
+                                remaining_endpoints = M.Tail(remaining_endpoints)()
+                                stepped = MineNatSuccessor(endpoint_scans, registry)()
+                                endpoint_scans = M.Head(stepped)()
+                                registry = M.Head(M.Tail(stepped)())()
+                                if M.IdentityCompare(endpoint, node)() is M.truth_value:
+                                    incident = M.truth_value
+
+                        if M.AndAtom(candidate_ok, incident)() is M.truth_value:
+                            reversed_edges = M.Pair(edge, reversed_edges)
+                            stepped = MineNatSuccessor(element_count, registry)()
+                            element_count = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+                            if M.NatLess(max_size, element_count, registry)() is M.truth_value:
+                                candidate_ok = M.false_value
+                            elif M.NatLess(cap, element_count, registry)() is M.truth_value:
+                                candidate_ok = M.false_value
+
+                            endpoint_scans = M.Zero
+                            remaining_endpoints = EdgeEndpoints(edge)()
+                            while M.IdentityCompare(
+                                remaining_endpoints,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                if M.IdentityCompare(
+                                    candidate_ok,
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    remaining_endpoints = M.EmptyList
+                                elif M.NatEq(
+                                    endpoint_scans,
+                                    cap,
+                                    registry,
+                                )() is M.truth_value:
+                                    candidate_ok = M.false_value
+                                    remaining_endpoints = M.EmptyList
+                                else:
+                                    endpoint = M.Head(remaining_endpoints)()
+                                    remaining_endpoints = M.Tail(remaining_endpoints)()
+                                    stepped = MineNatSuccessor(endpoint_scans, registry)()
+                                    endpoint_scans = M.Head(stepped)()
+                                    registry = M.Head(M.Tail(stepped)())()
+
+                                    present = M.false_value
+                                    node_scans = M.Zero
+                                    remaining_candidate_nodes = candidate_nodes
+                                    while M.IdentityCompare(
+                                        remaining_candidate_nodes,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        if M.NatEq(
+                                            node_scans,
+                                            cap,
+                                            registry,
+                                        )() is M.truth_value:
+                                            candidate_ok = M.false_value
+                                            remaining_candidate_nodes = M.EmptyList
+                                        else:
+                                            candidate_node = M.Head(
+                                                remaining_candidate_nodes
+                                            )()
+                                            remaining_candidate_nodes = M.Tail(
+                                                remaining_candidate_nodes
+                                            )()
+                                            stepped = MineNatSuccessor(node_scans, registry)()
+                                            node_scans = M.Head(stepped)()
+                                            registry = M.Head(M.Tail(stepped)())()
+                                            if M.IdentityCompare(
+                                                candidate_node,
+                                                endpoint,
+                                            )() is M.truth_value:
+                                                present = M.truth_value
+                                                remaining_candidate_nodes = M.EmptyList
+
+                                    if M.AndAtom(
+                                        candidate_ok,
+                                        M.IdentityCompare(
+                                            present,
+                                            M.false_value,
+                                        )(),
+                                    )() is M.truth_value:
+                                        candidate_nodes = M.Reverse(
+                                            M.Pair(
+                                                endpoint,
+                                                M.Reverse(candidate_nodes)(),
+                                            )
+                                        )()
+                                        stepped = MineNatSuccessor(element_count, registry)()
+                                        element_count = M.Head(stepped)()
+                                        registry = M.Head(M.Tail(stepped)())()
+                                        if M.NatLess(
+                                            max_size,
+                                            element_count,
+                                            registry,
+                                        )() is M.truth_value:
+                                            candidate_ok = M.false_value
+                                        elif M.NatLess(
+                                            cap,
+                                            element_count,
+                                            registry,
+                                        )() is M.truth_value:
+                                            candidate_ok = M.false_value
+
+                if M.IdentityCompare(candidate_ok, M.truth_value)() is M.truth_value:
+                    candidate = GraphVersion(
+                        candidate_nodes,
+                        M.Reverse(reversed_edges)(),
+                        M.EmptyList,
+                    )()
+                    reversed_candidates = M.Pair(candidate, reversed_candidates)
+                    stepped = MineNatSuccessor(emitted, registry)()
+                    emitted = M.Head(stepped)()
+                    registry = M.Head(M.Tail(stepped)())()
+
+        self.result = M.Reverse(reversed_candidates)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(max_size, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedFirstCompletedMatch(M.Edge):
+    """Return the first completed Step-10 match within a machine fuel cap."""
+
+    def __init__(self, pattern, host, match_cap=MINE_CANDIDATE_CAP):
+        registry = M.Tree(M.EmptyList)
+        cap = MineNatFromGMPRep(match_cap)()
+        fuel_used = M.Zero
+        pending = GraphElements(pattern)()
+        cursor = SearchMatchCursor(M.EmptyList, pattern, host, pending)()
+        start = SearchState(M.EmptyList, M.EmptyList, M.EmptyList, M.one, cursor)()
+        frontier = M.Pair(start, M.EmptyList)
+        result = M.EmptyList
+
+        while M.IdentityCompare(frontier, M.EmptyList)() is M.false_value:
+            if M.NatEq(fuel_used, cap, registry)() is M.truth_value:
+                frontier = M.EmptyList
+            elif M.IdentityCompare(result, M.EmptyList)() is M.false_value:
+                frontier = M.EmptyList
+            else:
+                state = M.Head(frontier)()
+                frontier = M.Tail(frontier)()
+                stepped = MineNatSuccessor(fuel_used, registry)()
+                fuel_used = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                cursor = SearchStateCursor(state)()
+                if SearchMatchCursorComplete(cursor)() is M.truth_value:
+                    mapping = Map(
+                        pattern,
+                        host,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    if MapSendsEveryElement(mapping, pattern)() is M.truth_value:
+                        result = mapping
+                else:
+                    pending = SearchMatchCursorPending(cursor)()
+                    pat = M.Head(pending)()
+                    rest = M.Tail(pending)()
+                    mapping = Map(
+                        pattern,
+                        host,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    alternatives = MapExtensionAlternatives(mapping, pat, host)()
+                    while M.IdentityCompare(
+                        alternatives,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if M.NatEq(fuel_used, cap, registry)() is M.truth_value:
+                            alternatives = M.EmptyList
+                            frontier = M.EmptyList
+                        else:
+                            alternative = M.Head(alternatives)()
+                            alternatives = M.Tail(alternatives)()
+                            stepped = MineNatSuccessor(fuel_used, registry)()
+                            fuel_used = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+                            root = M.Head(
+                                M.Tail(M.Tail(M.Tail(alternative)())())()
+                            )()
+                            found = MappedHostForPat(root, pat)()
+                            if M.IdentityCompare(
+                                M.Head(found)(),
+                                M.truth_value,
+                            )() is M.truth_value:
+                                if GraphElementCompatible(
+                                    pat,
+                                    M.Tail(found)(),
+                                )() is M.truth_value:
+                                    child_cursor = SearchMatchCursor(
+                                        root,
+                                        pattern,
+                                        host,
+                                        rest,
+                                    )()
+                                    child = SearchState(
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.one,
+                                        child_cursor,
+                                    )()
+                                    frontier = M.Pair(child, frontier)
+
+        self.result = result
+        super().__init__(
+            inputs=M.Pair(
+                pattern,
+                M.Pair(host, M.Pair(match_cap, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MineRecurringPatterns(M.Edge):
+    """Mine latest-version candidates by summed bounded census counts."""
+
+    def __init__(self, versions, min_count, max_size):
+        registry = M.Tree(M.EmptyList)
+        cap = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+
+        latest = M.EmptyList
+        version_scans = M.Zero
+        remaining_versions = versions
+        versions_complete = M.truth_value
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            if M.NatEq(version_scans, cap, registry)() is M.truth_value:
+                versions_complete = M.false_value
+                remaining_versions = M.EmptyList
+            else:
+                latest = M.Head(remaining_versions)()
+                remaining_versions = M.Tail(remaining_versions)()
+                stepped = MineNatSuccessor(version_scans, registry)()
+                version_scans = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+
+        candidates = M.EmptyList
+        if M.IdentityCompare(versions_complete, M.truth_value)() is M.truth_value:
+            if M.IdentityCompare(latest, M.EmptyList)() is M.false_value:
+                candidates = EnumerateCandidatePatterns(latest, max_size)()
+
+        reversed_unique_candidates = M.EmptyList
+        candidate_dedup_scans = M.Zero
+        remaining_candidates = candidates
+        while M.IdentityCompare(
+            remaining_candidates,
+            M.EmptyList,
+        )() is M.false_value:
+            if M.NatEq(
+                candidate_dedup_scans,
+                cap,
+                registry,
+            )() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            else:
+                candidate = M.Head(remaining_candidates)()
+                remaining_candidates = M.Tail(remaining_candidates)()
+                stepped = MineNatSuccessor(
+                    candidate_dedup_scans,
+                    registry,
+                )()
+                candidate_dedup_scans = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+
+                duplicate = M.false_value
+                unique_scans = M.Zero
+                remaining_unique = reversed_unique_candidates
+                while M.IdentityCompare(
+                    remaining_unique,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.NatEq(unique_scans, cap, registry)() is M.truth_value:
+                        remaining_unique = M.EmptyList
+                    else:
+                        prior_candidate = M.Head(remaining_unique)()
+                        forward = BoundedFirstCompletedMatch(
+                            candidate,
+                            prior_candidate,
+                        )()
+                        reverse = M.EmptyList
+                        if M.IdentityCompare(
+                            forward,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reverse = BoundedFirstCompletedMatch(
+                                prior_candidate,
+                                candidate,
+                            )()
+                        if M.IdentityCompare(
+                            reverse,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            duplicate = M.truth_value
+                            remaining_unique = M.EmptyList
+                        else:
+                            remaining_unique = M.Tail(remaining_unique)()
+                            stepped = MineNatSuccessor(unique_scans, registry)()
+                            unique_scans = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+
+                if M.IdentityCompare(duplicate, M.false_value)() is M.truth_value:
+                    reversed_unique_candidates = M.Pair(
+                        candidate,
+                        reversed_unique_candidates,
+                    )
+
+        candidates = M.Reverse(reversed_unique_candidates)()
+        ledger = FiringLedger(registry)
+        reversed_mined = M.EmptyList
+        candidate_scans = M.Zero
+        remaining_candidates = candidates
+        while M.IdentityCompare(
+            remaining_candidates,
+            M.EmptyList,
+        )() is M.false_value:
+            if M.NatEq(candidate_scans, cap, ledger.registry)() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            else:
+                candidate = M.Head(remaining_candidates)()
+                remaining_candidates = M.Tail(remaining_candidates)()
+                stepped = MineNatSuccessor(candidate_scans, ledger.registry)()
+                candidate_scans = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+
+                counts = PatternCensus(ledger, candidate, versions)()
+                total = M.Zero
+                count_scans = M.Zero
+                counts_complete = M.truth_value
+                remaining_counts = counts
+                while M.IdentityCompare(
+                    remaining_counts,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.NatEq(
+                        count_scans,
+                        cap,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        counts_complete = M.false_value
+                        remaining_counts = M.EmptyList
+                    else:
+                        added = MineNatAdd(
+                            total,
+                            M.Head(remaining_counts)(),
+                            ledger.registry,
+                        )()
+                        total = M.Head(added)()
+                        ledger.registry = M.Head(M.Tail(added)())()
+                        remaining_counts = M.Tail(remaining_counts)()
+                        stepped = MineNatSuccessor(count_scans, ledger.registry)()
+                        count_scans = M.Head(stepped)()
+                        ledger.registry = M.Head(M.Tail(stepped)())()
+
+                frequent = M.false_value
+                if M.IdentityCompare(counts_complete, M.truth_value)() is M.truth_value:
+                    if M.NatLess(
+                        total,
+                        min_count,
+                        ledger.registry,
+                    )() is M.false_value:
+                        frequent = M.truth_value
+
+                duplicate = M.false_value
+                mined_scans = M.Zero
+                remaining_mined = reversed_mined
+                while M.IdentityCompare(
+                    remaining_mined,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(frequent, M.false_value)() is M.truth_value:
+                        remaining_mined = M.EmptyList
+                    elif M.NatEq(
+                        mined_scans,
+                        cap,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        duplicate = M.truth_value
+                        remaining_mined = M.EmptyList
+                    else:
+                        entry = M.Head(remaining_mined)()
+                        prior_candidate = M.Head(entry)()
+                        forward = BoundedFirstCompletedMatch(
+                            candidate,
+                            prior_candidate,
+                        )()
+                        reverse = M.EmptyList
+                        if M.IdentityCompare(
+                            forward,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reverse = BoundedFirstCompletedMatch(
+                                prior_candidate,
+                                candidate,
+                            )()
+                        if M.IdentityCompare(
+                            reverse,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            duplicate = M.truth_value
+                            remaining_mined = M.EmptyList
+                        else:
+                            remaining_mined = M.Tail(remaining_mined)()
+                            stepped = MineNatSuccessor(mined_scans, ledger.registry)()
+                            mined_scans = M.Head(stepped)()
+                            ledger.registry = M.Head(M.Tail(stepped)())()
+
+                if M.AndAtom(
+                    frequent,
+                    M.IdentityCompare(duplicate, M.false_value)(),
+                )() is M.truth_value:
+                    entry = M.Pair(
+                        candidate,
+                        M.Pair(total, M.EmptyList),
+                    )
+                    reversed_mined = M.Pair(entry, reversed_mined)
+
+        self.result = M.Reverse(reversed_mined)()
+        super().__init__(
+            inputs=M.Pair(
+                versions,
+                M.Pair(min_count, M.Pair(max_size, M.EmptyList)),
             ),
             results=self.result,
         )
