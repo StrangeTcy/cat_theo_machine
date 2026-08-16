@@ -1670,6 +1670,206 @@ class PositionalSignaturesTest(M.Edge):
         return self.result
 
 
+class HandlePromotionTest(M.Edge):
+    """Step 23: report, human approval, activation, and folding stay mechanical."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+        left_interface = M.Char("promotion-left-interface")
+        first_internal = M.Char("promotion-first-internal")
+        second_internal = M.Char("promotion-second-internal")
+        right_interface = M.Char("promotion-right-interface")
+        outside = M.Char("promotion-outside")
+        pattern_edge = M.Pair(
+            M.Char("promotion-pattern-edge"),
+            M.Pair(
+                left_interface,
+                M.Pair(
+                    first_internal,
+                    M.Pair(second_internal, M.Pair(right_interface, empty)),
+                ),
+            ),
+        )
+        boundary_edge = M.Pair(
+            M.Char("promotion-boundary-edge"),
+            M.Pair(right_interface, M.Pair(outside, empty)),
+        )
+        pattern_nodes = M.Pair(
+            left_interface,
+            M.Pair(
+                first_internal,
+                M.Pair(second_internal, M.Pair(right_interface, empty)),
+            ),
+        )
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(pattern_nodes, M.Pair(M.Pair(pattern_edge, empty), empty)),
+        )
+        host = Gmod.GraphVersion(
+            M.Pair(
+                left_interface,
+                M.Pair(
+                    first_internal,
+                    M.Pair(
+                        second_internal,
+                        M.Pair(right_interface, M.Pair(outside, empty)),
+                    ),
+                ),
+            ),
+            M.Pair(pattern_edge, M.Pair(boundary_edge, empty)),
+            empty,
+        )()
+        versions = M.Pair(host, M.Pair(host, empty))
+        interface_nodes = M.Pair(
+            left_interface,
+            M.Pair(right_interface, empty),
+        )
+        handle = Gmod.Handle(M.Char("promotion-handle"), pattern)()
+        report = Gmod.PromotionReport(
+            handle,
+            interface_nodes,
+            ledger,
+            versions,
+            M.GMPRep("1"),
+        )()
+        census_entry = M.Head(report)()
+        signature_entry = M.Head(M.Tail(report)())()
+        roundtrip_entry = M.Head(M.Tail(M.Tail(report)())())()
+        size_entry = M.Head(M.Tail(M.Tail(M.Tail(report)())())())()
+        census = M.Head(M.Tail(census_entry)())()
+        signature_ok = M.Head(M.Tail(signature_entry)())()
+        roundtrip_ok = M.Head(M.Tail(roundtrip_entry)())()
+        size_delta = M.Head(M.Tail(size_entry)())()
+
+        store = Gmod.ProposalStore(empty)()
+        proposed_store = Gmod.ProposeHandle(
+            store,
+            handle,
+            interface_nodes,
+            report,
+        )()
+        history = Gmod.ProposalStoreHistory(proposed_store)()
+        proposal_entry = M.Head(history)()
+        proposal = Gmod.ProposalEntryProposal(proposal_entry)()
+        annotations = Gmod.ProposalEntryAnnotations(proposal_entry)()
+        justification = M.Head(annotations)()
+        justification_report = M.Head(M.Tail(M.Tail(justification)())())()
+        approved_store = Gmod.ProposalStoreAttach(
+            proposed_store,
+            proposal,
+            Gmod.Approved(proposal, M.Char("human-curator"))(),
+        )()
+        approved_entry = M.Head(Gmod.ProposalStoreApproved(approved_store)())()
+        activated = Gmod.ActivateProposal(host, approved_entry)()
+        active_version = M.Head(activated)()
+        fired = Gmod.FireAny(
+            active_version,
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        fired_version = M.Head(fired)()
+
+        absent = Gmod.GraphVersion(empty, empty, empty)()
+        no_match_report = Gmod.PromotionReport(
+            handle,
+            interface_nodes,
+            ledger,
+            M.Pair(absent, empty),
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(report, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(M.Tail(report)())())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(census_entry)(),
+            Gmod.PROMOTION_REPORT_CENSUS_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(signature_entry)(),
+            Gmod.PROMOTION_REPORT_SIGNATURE_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(roundtrip_entry)(),
+            Gmod.PROMOTION_REPORT_ROUNDTRIP_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(size_entry)(),
+            Gmod.PROMOTION_REPORT_SIZE_DELTA_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(M.Tail(census)())(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(M.Head(census)(), M.Zero, ledger.registry)() is M.truth_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(census)())(),
+            M.Zero,
+            ledger.registry,
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(signature_ok, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(roundtrip_ok, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalPositive(size_delta)(),
+            M.five,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalNegative(size_delta)(),
+            M.four,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SignedRationalSamples(size_delta)(),
+            M.one,
+            ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(history)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(Gmod.ProposalOrigin(proposal)(), handle)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.ProposalLaw(proposal)(),
+            M.Head(Gmod.CompileHandleToLaws(handle, interface_nodes)())(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(justification)(), Lmod.JustifiedByLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(justification_report, report)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(active_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(fired_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(fired_version)(),
+            handle,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(no_match_report, empty)() is M.false_value:
+            self.result = M.false_value
+        graph._replace_context(constructors=ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -8482,6 +8682,14 @@ def install_default_tests(graph):
             "positional_signatures_test",
             empty,
             PositionalSignaturesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "handle_promotion_test",
+            empty,
+            HandlePromotionTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

@@ -1801,6 +1801,179 @@ class HandleRespectsSignatures(M.Edge):
         return self.result
 
 
+PROMOTION_REPORT_CENSUS_KEY = M.Char("census")
+PROMOTION_REPORT_SIGNATURE_KEY = M.Char("signature_ok")
+PROMOTION_REPORT_ROUNDTRIP_KEY = M.Char("roundtrip_ok")
+PROMOTION_REPORT_SIZE_DELTA_KEY = M.Char("size_delta")
+
+
+class PromotionReport(M.Edge):
+    """Build the ordered machine evidence report for one Handle candidate."""
+
+    def __init__(
+        self,
+        handle,
+        interface_nodes,
+        ledger,
+        versions,
+        match_cap=M.EmptyList,
+    ):
+        pattern = HandlePattern(handle)()
+        if M.IdentityCompare(match_cap, M.EmptyList)() is M.truth_value:
+            match_cap = CENSUS_MATCH_CAP
+        latest_version = M.EmptyList
+        latest_mapping = M.EmptyList
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            version = M.Head(remaining_versions)()
+            mapping = FirstCompletedMatch(pattern, version)()
+            if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
+                latest_version = version
+                latest_mapping = mapping
+            remaining_versions = M.Tail(remaining_versions)()
+
+        if M.IdentityCompare(latest_version, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            census = PatternCensus(
+                ledger,
+                pattern,
+                versions,
+                match_cap,
+            )()
+            signature_ok = HandleRespectsSignatures(
+                handle,
+                interface_nodes,
+                latest_version,
+            )()
+            compiled = CompileHandleToLaws(handle, interface_nodes)()
+            fold = M.Head(compiled)()
+            unfold = M.Head(M.Tail(compiled)())()
+            folded_result = FireLaw(
+                latest_version,
+                fold,
+                latest_mapping,
+                DanglingForbid()(),
+            )()
+            folded = M.Head(folded_result)()
+            roundtrip_ok = M.false_value
+            size_delta = SignedRational(M.Zero, M.Zero, M.one)()
+            if M.IdentityCompare(folded, M.EmptyList)() is M.false_value:
+                before_counted = M.Count(
+                    GraphNodes(latest_version)(),
+                    ledger.registry,
+                )()
+                nodes_before = M.Head(before_counted)()
+                ledger.registry = M.Head(M.Tail(before_counted)())()
+                after_counted = M.Count(GraphNodes(folded)(), ledger.registry)()
+                nodes_after = M.Head(after_counted)()
+                ledger.registry = M.Head(M.Tail(after_counted)())()
+                size_delta = SignedRational(
+                    nodes_before,
+                    nodes_after,
+                    M.one,
+                )()
+
+                unfold_mapping = FirstCompletedMatch(LawLeft(unfold)(), folded)()
+                if M.IdentityCompare(
+                    unfold_mapping,
+                    M.EmptyList,
+                )() is M.false_value:
+                    unfolded_result = FireLaw(
+                        folded,
+                        unfold,
+                        unfold_mapping,
+                        DanglingForbid()(),
+                    )()
+                    unfolded = M.Head(unfolded_result)()
+                    if M.IdentityCompare(
+                        unfolded,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        roundtrip_ok = GraphStoresEqual(
+                            unfolded,
+                            latest_version,
+                        )()
+
+            self.result = M.Pair(
+                M.Pair(
+                    PROMOTION_REPORT_CENSUS_KEY,
+                    M.Pair(census, M.EmptyList),
+                ),
+                M.Pair(
+                    M.Pair(
+                        PROMOTION_REPORT_SIGNATURE_KEY,
+                        M.Pair(signature_ok, M.EmptyList),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            PROMOTION_REPORT_ROUNDTRIP_KEY,
+                            M.Pair(roundtrip_ok, M.EmptyList),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                PROMOTION_REPORT_SIZE_DELTA_KEY,
+                                M.Pair(size_delta, M.EmptyList),
+                            ),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
+            )
+
+        super().__init__(
+            inputs=M.Pair(
+                handle,
+                M.Pair(
+                    interface_nodes,
+                    M.Pair(
+                        ledger,
+                        M.Pair(
+                            versions,
+                            M.Pair(match_cap, M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposeHandle(M.Edge):
+    """Submit a Handle fold proposal with its machine report as justification."""
+
+    def __init__(self, proposal_store, handle, interface_nodes, report):
+        compiled = CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        proposal = Proposal(fold, handle)()
+        submitted = ProposalStoreSubmit(proposal_store, proposal)()
+        justification = JustifiedBy(proposal, report)()
+        self.result = ProposalStoreAttach(
+            submitted,
+            proposal,
+            justification,
+        )()
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(
+                    handle,
+                    M.Pair(
+                        interface_nodes,
+                        M.Pair(report, M.EmptyList),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class CompileRuleToLaw(M.Edge):
     """
     Step 11. A rewrite rule with left pattern P and right result R becomes the
