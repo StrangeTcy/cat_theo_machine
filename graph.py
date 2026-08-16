@@ -2065,6 +2065,254 @@ class ClassifyProposal(M.Edge):
         return self.result
 
 
+AUTONOMY_BUDGET_MAX_FIRINGS_KEY = M.Char("max_firings")
+AUTONOMY_BUDGET_MAX_NODES_KEY = M.Char("max_nodes")
+AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY = M.Char("max_activations")
+AUTONOMY_REPORT_ACTIVATED_KEY = M.Char("activated")
+AUTONOMY_REPORT_SKIPPED_HUMAN_KEY = M.Char("skipped_human")
+AUTONOMY_REPORT_FIRINGS_KEY = M.Char("firings")
+AUTONOMY_REPORT_STOPPED_REASON_KEY = M.Char("stopped_reason")
+AUTONOMY_STOP_EXHAUSTED = M.Char("exhausted")
+AUTONOMY_STOP_BUDGET_FIRINGS = M.Char("budget_firings")
+AUTONOMY_STOP_BUDGET_NODES = M.Char("budget_nodes")
+
+
+class AutonomyAuthority(M.Edge):
+    """Machine authority recording the exact budget used for auto-approval."""
+
+    def __init__(self, budget_as_term):
+        self.result = M.Pair(
+            Lmod.AutonomyAuthorityLabel,
+            M.Pair(budget_as_term, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(budget_as_term, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class AutonomyCycle(M.Edge):
+    """Approve permitted proposals, activate them, and fire within a budget."""
+
+    def __init__(self, graph_version, proposal_store, ledger, budget):
+        max_firings = M.EmptyList
+        max_nodes = M.EmptyList
+        max_activations = M.EmptyList
+        remaining_budget = budget
+        while M.IdentityCompare(remaining_budget, M.EmptyList)() is M.false_value:
+            association = M.Head(remaining_budget)()
+            key = M.Head(association)()
+            value = M.Head(M.Tail(association)())()
+            if M.Compare(key, AUTONOMY_BUDGET_MAX_FIRINGS_KEY)() is M.truth_value:
+                max_firings = value
+            elif M.Compare(key, AUTONOMY_BUDGET_MAX_NODES_KEY)() is M.truth_value:
+                max_nodes = value
+            elif M.Compare(key, AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY)() is M.truth_value:
+                max_activations = value
+            remaining_budget = M.Tail(remaining_budget)()
+
+        current_version = graph_version
+        current_store = proposal_store
+        authority = AutonomyAuthority(budget)()
+        activation_count = M.Zero
+        reversed_activated = M.EmptyList
+        reversed_skipped_human = M.EmptyList
+        remaining_entries = ProposalStoreEntries(proposal_store)()
+        policy = ImpactPolicy()()
+
+        while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining_entries)()
+            proposal = ProposalEntryProposal(entry)()
+            pending = M.truth_value
+            remaining_annotations = ProposalEntryAnnotations(entry)()
+            while M.IdentityCompare(
+                remaining_annotations,
+                M.EmptyList,
+            )() is M.false_value:
+                annotation = M.Head(remaining_annotations)()
+                if M.IsPair(annotation)() is M.truth_value:
+                    annotation_label = M.Head(annotation)()
+                    if M.TermEqual(
+                        annotation_label,
+                        Lmod.ApprovedLabel,
+                    )() is M.truth_value:
+                        pending = M.false_value
+                        remaining_annotations = M.EmptyList
+                    elif M.TermEqual(
+                        annotation_label,
+                        Lmod.RejectedLabel,
+                    )() is M.truth_value:
+                        pending = M.false_value
+                        remaining_annotations = M.EmptyList
+                    else:
+                        remaining_annotations = M.Tail(remaining_annotations)()
+                else:
+                    remaining_annotations = M.Tail(remaining_annotations)()
+
+            if M.IdentityCompare(pending, M.truth_value)() is M.truth_value:
+                impact = ClassifyProposal(proposal)()
+                disposition = M.EmptyList
+                remaining_policy = policy
+                while M.IdentityCompare(
+                    remaining_policy,
+                    M.EmptyList,
+                )() is M.false_value:
+                    policy_entry = M.Head(remaining_policy)()
+                    if M.Compare(
+                        M.Head(policy_entry)(),
+                        impact,
+                    )() is M.truth_value:
+                        disposition = M.Head(M.Tail(policy_entry)())()
+                        remaining_policy = M.EmptyList
+                    else:
+                        remaining_policy = M.Tail(remaining_policy)()
+
+                if M.Compare(disposition, M.Char("human"))() is M.truth_value:
+                    reversed_skipped_human = M.Pair(
+                        proposal,
+                        reversed_skipped_human,
+                    )
+                elif M.Compare(disposition, M.Char("auto"))() is M.truth_value:
+                    if M.NatLess(
+                        activation_count,
+                        max_activations,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        approval = Approved(proposal, authority)()
+                        current_store = ProposalStoreAttach(
+                            current_store,
+                            proposal,
+                            approval,
+                        )()
+                        approved_entry = M.EmptyList
+                        updated_entries = ProposalStoreEntries(current_store)()
+                        while M.IdentityCompare(
+                            updated_entries,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            updated_entry = M.Head(updated_entries)()
+                            if M.TermEqual(
+                                ProposalEntryProposal(updated_entry)(),
+                                proposal,
+                            )() is M.truth_value:
+                                approved_entry = updated_entry
+                                updated_entries = M.EmptyList
+                            else:
+                                updated_entries = M.Tail(updated_entries)()
+                        activated = ActivateProposal(
+                            current_version,
+                            approved_entry,
+                        )()
+                        active_version = M.Head(activated)()
+                        if M.IdentityCompare(
+                            active_version,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            current_version = active_version
+                            reversed_activated = M.Pair(
+                                proposal,
+                                reversed_activated,
+                            )
+                            next_activation = M.Succ(
+                                activation_count,
+                                ledger.registry,
+                            )()
+                            activation_count = M.Head(next_activation)()
+                            ledger.registry = M.Head(M.Tail(next_activation)())()
+            remaining_entries = M.Tail(remaining_entries)()
+
+        firings = M.Zero
+        stopped_reason = AUTONOMY_STOP_EXHAUSTED
+        firing = M.truth_value
+        while M.IdentityCompare(firing, M.truth_value)() is M.truth_value:
+            if M.NatLess(firings, max_firings, ledger.registry)() is M.false_value:
+                stopped_reason = AUTONOMY_STOP_BUDGET_FIRINGS
+                firing = M.false_value
+            else:
+                records_before = ledger.records
+                registry_before = ledger.registry
+                fired = FireAny(
+                    current_version,
+                    DanglingForbid()(),
+                    ledger,
+                )()
+                candidate_version = M.Head(fired)()
+                if M.IdentityCompare(
+                    candidate_version,
+                    M.EmptyList,
+                )() is M.truth_value:
+                    stopped_reason = AUTONOMY_STOP_EXHAUSTED
+                    firing = M.false_value
+                else:
+                    counted = M.Count(
+                        GraphNodes(candidate_version)(),
+                        ledger.registry,
+                    )()
+                    candidate_nodes = M.Head(counted)()
+                    ledger.registry = M.Head(M.Tail(counted)())()
+                    if M.NatLess(
+                        max_nodes,
+                        candidate_nodes,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        ledger.records = records_before
+                        ledger.results = records_before
+                        ledger.registry = registry_before
+                        stopped_reason = AUTONOMY_STOP_BUDGET_NODES
+                        firing = M.false_value
+                    else:
+                        current_version = candidate_version
+                        next_firings = M.Succ(firings, ledger.registry)()
+                        firings = M.Head(next_firings)()
+                        ledger.registry = M.Head(M.Tail(next_firings)())()
+
+        report = M.Pair(
+            M.Pair(
+                AUTONOMY_REPORT_ACTIVATED_KEY,
+                M.Pair(M.Reverse(reversed_activated)(), M.EmptyList),
+            ),
+            M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_SKIPPED_HUMAN_KEY,
+                    M.Pair(M.Reverse(reversed_skipped_human)(), M.EmptyList),
+                ),
+                M.Pair(
+                    M.Pair(
+                        AUTONOMY_REPORT_FIRINGS_KEY,
+                        M.Pair(firings, M.EmptyList),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            AUTONOMY_REPORT_STOPPED_REASON_KEY,
+                            M.Pair(stopped_reason, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+            ),
+        )
+        self.result = M.Pair(
+            current_version,
+            M.Pair(current_store, M.Pair(report, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(
+                    proposal_store,
+                    M.Pair(ledger, M.Pair(budget, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class CompileRuleToLaw(M.Edge):
     """
     Step 11. A rewrite rule with left pattern P and right result R becomes the

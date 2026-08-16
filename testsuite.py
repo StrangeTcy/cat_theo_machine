@@ -2030,6 +2030,288 @@ class ImpactPolicyTest(M.Edge):
         return self.result
 
 
+class AutonomyCycleTest(M.Edge):
+    """Step 25: automatic governance respects policy and firing budgets."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+
+        interface_node = M.Char("autonomy-interface")
+        first_internal = M.Char("autonomy-first-internal")
+        second_internal = M.Char("autonomy-second-internal")
+        pattern_edge = M.Pair(
+            M.Char("autonomy-pattern-edge"),
+            M.Pair(
+                interface_node,
+                M.Pair(first_internal, M.Pair(second_internal, empty)),
+            ),
+        )
+        pattern_nodes = M.Pair(
+            interface_node,
+            M.Pair(first_internal, M.Pair(second_internal, empty)),
+        )
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(pattern_nodes, M.Pair(M.Pair(pattern_edge, empty), empty)),
+        )
+        interface_nodes = M.Pair(interface_node, empty)
+        handle = Gmod.Handle(M.Char("autonomy-handle"), pattern)()
+        compiled = Gmod.CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        unfold = M.Head(M.Tail(compiled)())()
+        auto_proposal = Gmod.Proposal(fold, handle)()
+
+        empty_graph = Gmod.GraphVersion(empty, empty, empty)()
+        human_law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            empty_graph,
+            empty,
+            empty,
+            empty,
+        )()
+        human_proposal = Gmod.Proposal(
+            human_law,
+            M.Char("autonomy-human-origin"),
+        )()
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(store, auto_proposal)()
+        store = Gmod.ProposalStoreSubmit(store, human_proposal)()
+        host = Gmod.GraphVersion(pattern_nodes, M.Pair(pattern_edge, empty), empty)()
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.one, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        cycle = Gmod.AutonomyCycle(host, store, ledger, budget)()
+        final_version = M.Head(cycle)()
+        updated_store = M.Head(M.Tail(cycle)())()
+        report = M.Head(M.Tail(M.Tail(cycle)())())()
+        activated_entry = M.Head(report)()
+        skipped_entry = M.Head(M.Tail(report)())()
+        firings_entry = M.Head(M.Tail(M.Tail(report)())())()
+        reason_entry = M.Head(M.Tail(M.Tail(M.Tail(report)())())())()
+        activated_proposals = M.Head(M.Tail(activated_entry)())()
+        skipped_proposals = M.Head(M.Tail(skipped_entry)())()
+        firing_count = M.Head(M.Tail(firings_entry)())()
+        stopped_reason = M.Head(M.Tail(reason_entry)())()
+        updated_entries = Gmod.ProposalStoreEntries(updated_store)()
+        updated_auto_entry = M.Head(updated_entries)()
+        updated_human_entry = M.Head(M.Tail(updated_entries)())()
+        auto_annotations = Gmod.ProposalEntryAnnotations(updated_auto_entry)()
+        human_annotations = Gmod.ProposalEntryAnnotations(updated_human_entry)()
+        approval = M.Head(auto_annotations)()
+        authority = M.Head(M.Tail(M.Tail(approval)())())()
+
+        rollback_ledger = Gmod.FiringLedger(ledger.registry)
+        rollback_host = Gmod.GraphVersion(
+            Gmod.GraphNodes(Gmod.LawLeft(unfold)())(),
+            Gmod.GraphEdges(Gmod.LawLeft(unfold)())(),
+            empty,
+        )()
+        rollback_proposal = Gmod.Proposal(unfold, handle)()
+        rollback_store = Gmod.ProposalStoreSubmit(
+            Gmod.ProposalStore(empty)(),
+            rollback_proposal,
+        )()
+        rollback_budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.one, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.one, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        rollback_cycle = Gmod.AutonomyCycle(
+            rollback_host,
+            rollback_store,
+            rollback_ledger,
+            rollback_budget,
+        )()
+        rollback_version = M.Head(rollback_cycle)()
+        rollback_report = M.Head(M.Tail(M.Tail(rollback_cycle)())())()
+        rollback_firings_entry = M.Head(
+            M.Tail(M.Tail(rollback_report)())(),
+        )()
+        rollback_reason_entry = M.Head(
+            M.Tail(M.Tail(M.Tail(rollback_report)())())(),
+        )()
+        rollback_firings = M.Head(M.Tail(rollback_firings_entry)())()
+        rollback_reason = M.Head(M.Tail(rollback_reason_entry)())()
+        expected_rollback_version = Gmod.InstallLaw(rollback_host, unfold)()
+
+        exhaustion_ledger = Gmod.FiringLedger(rollback_ledger.registry)
+        exhaustion_budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.one, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.Zero, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        exhaustion_cycle = Gmod.AutonomyCycle(
+            empty_graph,
+            Gmod.ProposalStore(empty)(),
+            exhaustion_ledger,
+            exhaustion_budget,
+        )()
+        exhaustion_report = M.Head(M.Tail(M.Tail(exhaustion_cycle)())())()
+        exhaustion_reason_entry = M.Head(
+            M.Tail(M.Tail(M.Tail(exhaustion_report)())())(),
+        )()
+        exhaustion_reason = M.Head(M.Tail(exhaustion_reason_entry)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(cycle)())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(M.Tail(report)())())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(activated_entry)(),
+            Gmod.AUTONOMY_REPORT_ACTIVATED_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(skipped_entry)(),
+            Gmod.AUTONOMY_REPORT_SKIPPED_HUMAN_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(firings_entry)(),
+            Gmod.AUTONOMY_REPORT_FIRINGS_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(reason_entry)(),
+            Gmod.AUTONOMY_REPORT_STOPPED_REASON_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(activated_proposals)(),
+            auto_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(activated_proposals)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(skipped_proposals)(),
+            human_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(skipped_proposals)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(firing_count, M.one, ledger.registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            stopped_reason,
+            Gmod.AUTONOMY_STOP_BUDGET_FIRINGS,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(final_version)(),
+            handle,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(ledger.records)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.ProposalEntryProposal(updated_auto_entry)(),
+            auto_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ProposalEntryIsApproved(updated_auto_entry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(human_annotations, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(authority)(),
+            Lmod.AutonomyAuthorityLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(authority)())(),
+            budget,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GraphStoresEqual(
+            rollback_version,
+            expected_rollback_version,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(rollback_version)(),
+            handle,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(rollback_ledger.records, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            rollback_firings,
+            M.Zero,
+            rollback_ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            rollback_reason,
+            Gmod.AUTONOMY_STOP_BUDGET_NODES,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            exhaustion_reason,
+            Gmod.AUTONOMY_STOP_EXHAUSTED,
+        )() is M.false_value:
+            self.result = M.false_value
+        graph._replace_context(constructors=exhaustion_ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -8858,6 +9140,14 @@ def install_default_tests(graph):
             "impact_policy_test",
             empty,
             ImpactPolicyTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "autonomy_cycle_test",
+            empty,
+            AutonomyCycleTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
