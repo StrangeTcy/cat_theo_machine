@@ -19,7 +19,7 @@ from .labels import (
     TreePatriciaStopTokenLabel,
     TreePatriciaTokenLabel,
 )
-from .core import Atom, Edge, EmptyList, Head, IdentityCompare, Pair, Tail, false_value, truth_value
+from .core import Atom, Edge, EmptyList, Head, IdentityCompare, IdentityLess, Pair, Tail, false_value, truth_value
 from .logic import AndAtom, OrAtom
 from .tree_patricia import (
     TreePatriciaLongestCommonPrefix,
@@ -62,6 +62,304 @@ class TreeTermEqual(Edge):
         if OrAtom(left_is_pair, right_is_pair)() is truth_value:
             return false_value
         return false_value
+
+    def __call__(self):
+        return self.result
+
+
+class IdentityRedBlackLookup(Edge):
+    """Look up an object by machine identity in an immutable red-black tree.
+
+    The tree is EmptyList or a Pair node containing, in order, its colour,
+    left subtree, identity key, value, and right subtree.  truth_value denotes
+    red and false_value denotes black.  The result is (found, value).
+    """
+
+    def __init__(self, tree, key):
+        self.result = self._lookup(tree, key)
+        super().__init__(inputs=Pair(tree, Pair(key, EmptyList)), results=self.result)
+
+    def _left(self, tree):
+        return Head(Tail(tree)())()
+
+    def _key(self, tree):
+        return Head(Tail(Tail(tree)())())()
+
+    def _value(self, tree):
+        return Head(Tail(Tail(Tail(tree)())())())()
+
+    def _right(self, tree):
+        return Head(Tail(Tail(Tail(Tail(tree)())())())())()
+
+    def _lookup(self, tree, key):
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            return Pair(false_value, Pair(EmptyList, EmptyList))
+        node_key = self._key(tree)
+        if IdentityLess(key, node_key)() is truth_value:
+            return self._lookup(self._left(tree), key)
+        if IdentityLess(node_key, key)() is truth_value:
+            return self._lookup(self._right(tree), key)
+        return Pair(truth_value, Pair(self._value(tree), EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class IdentityRedBlackInsert(Edge):
+    """Immutably associate an identity key with a value in a red-black tree."""
+
+    def __init__(self, tree, key, value):
+        inserted = self._insert(tree, key, value)
+        self.result = self._node(
+            false_value,
+            self._left(inserted),
+            self._key(inserted),
+            self._value(inserted),
+            self._right(inserted),
+        )
+        super().__init__(
+            inputs=Pair(tree, Pair(key, Pair(value, EmptyList))),
+            results=self.result,
+        )
+
+    def _node(self, colour, left, key, value, right):
+        return Pair(
+            colour,
+            Pair(left, Pair(key, Pair(value, Pair(right, EmptyList)))),
+        )
+
+    def _colour(self, tree):
+        return Head(tree)()
+
+    def _left(self, tree):
+        return Head(Tail(tree)())()
+
+    def _key(self, tree):
+        return Head(Tail(Tail(tree)())())()
+
+    def _value(self, tree):
+        return Head(Tail(Tail(Tail(tree)())())())()
+
+    def _right(self, tree):
+        return Head(Tail(Tail(Tail(Tail(tree)())())())())()
+
+    def _red(self, tree):
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            return false_value
+        return IdentityCompare(self._colour(tree), truth_value)()
+
+    def _balance(self, colour, left, key, value, right):
+        if IdentityCompare(colour, false_value)() is truth_value:
+            if self._red(left) is truth_value:
+                left_left = self._left(left)
+                if self._red(left_left) is truth_value:
+                    return self._node(
+                        truth_value,
+                        self._node(
+                            false_value,
+                            self._left(left_left),
+                            self._key(left_left),
+                            self._value(left_left),
+                            self._right(left_left),
+                        ),
+                        self._key(left),
+                        self._value(left),
+                        self._node(false_value, self._right(left), key, value, right),
+                    )
+                left_right = self._right(left)
+                if self._red(left_right) is truth_value:
+                    return self._node(
+                        truth_value,
+                        self._node(
+                            false_value,
+                            self._left(left),
+                            self._key(left),
+                            self._value(left),
+                            self._left(left_right),
+                        ),
+                        self._key(left_right),
+                        self._value(left_right),
+                        self._node(
+                            false_value,
+                            self._right(left_right),
+                            key,
+                            value,
+                            right,
+                        ),
+                    )
+            if self._red(right) is truth_value:
+                right_left = self._left(right)
+                if self._red(right_left) is truth_value:
+                    return self._node(
+                        truth_value,
+                        self._node(
+                            false_value,
+                            left,
+                            key,
+                            value,
+                            self._left(right_left),
+                        ),
+                        self._key(right_left),
+                        self._value(right_left),
+                        self._node(
+                            false_value,
+                            self._right(right_left),
+                            self._key(right),
+                            self._value(right),
+                            self._right(right),
+                        ),
+                    )
+                right_right = self._right(right)
+                if self._red(right_right) is truth_value:
+                    return self._node(
+                        truth_value,
+                        self._node(
+                            false_value,
+                            left,
+                            key,
+                            value,
+                            self._left(right),
+                        ),
+                        self._key(right),
+                        self._value(right),
+                        self._node(
+                            false_value,
+                            self._left(right_right),
+                            self._key(right_right),
+                            self._value(right_right),
+                            self._right(right_right),
+                        ),
+                    )
+        return self._node(colour, left, key, value, right)
+
+    def _insert(self, tree, key, value):
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            return self._node(
+                truth_value,
+                EmptyList,
+                key,
+                value,
+                EmptyList,
+            )
+        node_key = self._key(tree)
+        if IdentityLess(key, node_key)() is truth_value:
+            return self._balance(
+                self._colour(tree),
+                self._insert(self._left(tree), key, value),
+                node_key,
+                self._value(tree),
+                self._right(tree),
+            )
+        if IdentityLess(node_key, key)() is truth_value:
+            return self._balance(
+                self._colour(tree),
+                self._left(tree),
+                node_key,
+                self._value(tree),
+                self._insert(self._right(tree), key, value),
+            )
+        return self._node(
+            self._colour(tree),
+            self._left(tree),
+            node_key,
+            value,
+            self._right(tree),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IdentityRedBlackValid(Edge):
+    """Check ordering, colour, red-parent, and black-height invariants."""
+
+    def __init__(self, tree):
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = truth_value
+        elif IdentityCompare(self._colour(tree), false_value)() is false_value:
+            self.result = false_value
+        else:
+            checked = self._validate(
+                tree,
+                false_value,
+                EmptyList,
+                false_value,
+                EmptyList,
+            )
+            self.result = Head(checked)()
+        super().__init__(inputs=Pair(tree, EmptyList), results=self.result)
+
+    def _colour(self, tree):
+        return Head(tree)()
+
+    def _left(self, tree):
+        return Head(Tail(tree)())()
+
+    def _key(self, tree):
+        return Head(Tail(Tail(tree)())())()
+
+    def _right(self, tree):
+        return Head(Tail(Tail(Tail(Tail(tree)())())())())()
+
+    def _red(self, tree):
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            return false_value
+        return IdentityCompare(self._colour(tree), truth_value)()
+
+    def _invalid(self):
+        return Pair(false_value, Pair(EmptyList, EmptyList))
+
+    def _validate(self, tree, has_lower, lower, has_upper, upper):
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            return Pair(truth_value, Pair(EmptyList, EmptyList))
+
+        colour = self._colour(tree)
+        if IdentityCompare(colour, truth_value)() is false_value:
+            if IdentityCompare(colour, false_value)() is false_value:
+                return self._invalid()
+
+        key = self._key(tree)
+        if IdentityCompare(has_lower, truth_value)() is truth_value:
+            if IdentityLess(lower, key)() is false_value:
+                return self._invalid()
+        if IdentityCompare(has_upper, truth_value)() is truth_value:
+            if IdentityLess(key, upper)() is false_value:
+                return self._invalid()
+
+        left = self._left(tree)
+        right = self._right(tree)
+        if IdentityCompare(colour, truth_value)() is truth_value:
+            if self._red(left) is truth_value:
+                return self._invalid()
+            if self._red(right) is truth_value:
+                return self._invalid()
+
+        left_checked = self._validate(
+            left,
+            has_lower,
+            lower,
+            truth_value,
+            key,
+        )
+        if Head(left_checked)() is false_value:
+            return self._invalid()
+        right_checked = self._validate(
+            right,
+            truth_value,
+            key,
+            has_upper,
+            upper,
+        )
+        if Head(right_checked)() is false_value:
+            return self._invalid()
+
+        left_height = Head(Tail(left_checked)())()
+        right_height = Head(Tail(right_checked)())()
+        if TreeTermEqual(left_height, right_height)() is false_value:
+            return self._invalid()
+        if IdentityCompare(colour, false_value)() is truth_value:
+            left_height = Pair(truth_value, left_height)
+        return Pair(truth_value, Pair(left_height, EmptyList))
 
     def __call__(self):
         return self.result

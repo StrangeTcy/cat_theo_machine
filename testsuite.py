@@ -6020,6 +6020,64 @@ class NatValueIndexSnapshotRoundtripTest(M.Edge):
         return self.result
 
 
+class IdentityRedBlackIdentityIndexTest(M.Edge):
+    def __init__(self, _graph):
+        first = M.Char("same")
+        second = M.Char("same")
+        third = M.Atom()
+        fourth = M.Atom()
+        fifth = M.Atom()
+        entries = M.Pair(
+            M.Pair(first, M.Pair(M.one, M.EmptyList)),
+            M.Pair(
+                M.Pair(second, M.Pair(M.two, M.EmptyList)),
+                M.Pair(
+                    M.Pair(third, M.Pair(third, M.EmptyList)),
+                    M.Pair(
+                        M.Pair(fourth, M.Pair(fourth, M.EmptyList)),
+                        M.Pair(
+                            M.Pair(fifth, M.Pair(fifth, M.EmptyList)),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        tree = M.EmptyList
+        remaining = entries
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            tree = Tmod.IdentityRedBlackInsert(
+                tree,
+                M.Head(entry)(),
+                M.Head(M.Tail(entry)())(),
+            )()
+            remaining = M.Tail(remaining)()
+
+        self.result = Tmod.IdentityRedBlackValid(tree)()
+        remaining = entries
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            found = Tmod.IdentityRedBlackLookup(tree, M.Head(entry)())()
+            if M.Head(found)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(M.Tail(found)())(),
+                M.Head(M.Tail(entry)())(),
+            )() is M.false_value:
+                self.result = M.false_value
+            remaining = M.Tail(remaining)()
+
+        missing = Tmod.IdentityRedBlackLookup(tree, M.Atom())()
+        if M.Head(missing)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SnapshotPreservesMachineEdgeStructureTest(M.Edge):
     def __init__(self, _graph):
         empty = M.EmptyList
@@ -6049,16 +6107,32 @@ class SnapshotPreservesConstructorLabelsAndCharsTest(M.Edge):
         empty = M.EmptyList
         namespace = dict(vars(M))
         namespace.update(vars(Lmod))
+        first_name = M.Char("v")
+        second_name = M.Char("v")
         term = M.Pair(
             Lmod.SideOfLabel,
             M.Pair(
-                M.Pair(Lmod.SegmentLabel, M.Pair(M.Char("v"), M.Pair(M.Char("w"), empty))),
+                M.Pair(
+                    Lmod.SegmentLabel,
+                    M.Pair(first_name, M.Pair(first_name, M.Pair(second_name, empty))),
+                ),
                 M.Pair(M.Char("t"), empty),
             ),
         )
-        snapshot = SnapshotCodec(namespace).capture_objects({"term": term})
+        codec = SnapshotCodec(namespace)
+        snapshot = codec.capture_objects({"term": term})
         loaded = SnapshotCodec(namespace).load_snapshot(snapshot).roots["term"]
         self.result = RawTermEqual(loaded, term, M.AllConstructors)()
+        if Tmod.IdentityRedBlackValid(codec.object_id_index)() is M.false_value:
+            self.result = M.false_value
+        loaded_names = M.Tail(M.Head(M.Tail(loaded)())())()
+        loaded_first = M.Head(loaded_names)()
+        loaded_repeat = M.Head(M.Tail(loaded_names)())()
+        loaded_second = M.Head(M.Tail(M.Tail(loaded_names)())())()
+        if M.IdentityCompare(loaded_first, loaded_repeat)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(loaded_first, loaded_second)() is M.truth_value:
+            self.result = M.false_value
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):
@@ -9656,6 +9730,14 @@ def install_default_tests(graph):
             "nat_value_index_snapshot_roundtrip_test",
             empty,
             NatValueIndexSnapshotRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "identity_red_black_identity_index_test",
+            empty,
+            IdentityRedBlackIdentityIndexTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

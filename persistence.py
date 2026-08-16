@@ -437,8 +437,9 @@ class SnapshotCodec:
     def __init__(self, namespace, symbol_names=None):
         self.namespace = namespace
         self.symbol_names = symbol_names if symbol_names is not None else SNAPSHOT_SYMBOL_NAMES
-        self.obj_to_id = {}
-        self.next_id = 1
+        self.object_id_index = M.EmptyList
+        self.captured_objects = M.EmptyList
+        self.next_id = Gmod.MineNatFromGMPRep(M.GMPRep("1"))()
 
     def _restore_tree_root_worker(queue, state, namespace, root_name, registry):
         # Legacy worker retained for older platforms, but on Windows "spawn"
@@ -471,11 +472,19 @@ class SnapshotCodec:
         return self._ns_get("IdentityCompare")(marker, obj)() is self._ns_get("truth_value")
 
     def _captured_object_id(self, target):
-        for obj in self.obj_to_id:
-            oid = self.obj_to_id[obj]
-            if obj is target:
-                return oid
-        return None
+        lookup = T.IdentityRedBlackLookup(self.object_id_index, target)()
+        if M.Head(lookup)() is M.false_value:
+            return M.EmptyList
+        return M.Head(M.Tail(lookup)())()
+
+    def _capture_oid_number(self, oid):
+        return int(M.GMPRepText(oid())())
+
+    def _take_capture_oid(self):
+        oid = self.next_id
+        next_text = Gmod.GMPSuccText(M.GMPRepText(oid())())()
+        self.next_id = Gmod.MineNatFromGMPRep(M.GMPRep(next_text))()
+        return oid
 
     def _scalar_payload(self, x):
         try:
@@ -909,9 +918,12 @@ class SnapshotCodec:
     def _encode_field(self, x):
         if x is None:
             return {"tag": "none"}
+        scalar = self._scalar_payload(x)
+        if scalar is not None:
+            return {"tag": "scalar", "value": scalar}
         oid = self._captured_object_id(x)
-        if oid is not None:
-            return {"tag": "ref", "id": oid}
+        if M.IdentityCompare(oid, M.EmptyList)() is M.false_value:
+            return {"tag": "ref", "id": self._capture_oid_number(oid)}
         return {"tag": "scalar", "value": self._encode_scalar(x)}
 
     def _encode_scalar(self, x):
@@ -964,7 +976,7 @@ class SnapshotCodec:
             return None
 
         existing = self._captured_object_id(obj)
-        if existing is not None:
+        if M.IdentityCompare(existing, M.EmptyList)() is M.false_value:
             return existing
 
         Pair = self.namespace["Pair"]
@@ -982,26 +994,36 @@ class SnapshotCodec:
                 continue
             if self._scalar_payload(current) is not None:
                 continue
-            if self._captured_object_id(current) is not None:
+            if M.IdentityCompare(
+                self._captured_object_id(current),
+                M.EmptyList,
+            )() is M.false_value:
                 continue
 
-            oid = self.next_id
-            self.next_id += 1
-            self.obj_to_id[current] = oid
+            oid = self._take_capture_oid()
+            self.object_id_index = T.IdentityRedBlackInsert(
+                self.object_id_index,
+                current,
+                oid,
+            )()
+            self.captured_objects = M.Pair(current, self.captured_objects)
 
             for child in self._child_refs(current):
                 if child is None:
                     continue
                 if self._scalar_payload(child) is not None:
                     continue
-                if self._captured_object_id(child) is not None:
+                if M.IdentityCompare(
+                    self._captured_object_id(child),
+                    M.EmptyList,
+                )() is M.false_value:
                     continue
                 queue = Pair(child, queue)
 
         return self._captured_object_id(obj)
 
     def _record_for(self, obj):
-        oid = self.obj_to_id[obj]
+        oid = self._capture_oid_number(self._captured_object_id(obj))
         namespace_name = None
         for name in self.namespace:
             if self.namespace[name] is obj:
@@ -1045,8 +1067,9 @@ class SnapshotCodec:
         }
 
     def _capture_from_roots(self, roots):
-        self.obj_to_id = {}
-        self.next_id = 1
+        self.object_id_index = M.EmptyList
+        self.captured_objects = M.EmptyList
+        self.next_id = Gmod.MineNatFromGMPRep(M.GMPRep("1"))()
 
         for name in roots:
             self._intern(roots[name])
@@ -1058,18 +1081,26 @@ class SnapshotCodec:
                 symbols[name] = obj
                 self._intern(obj)
 
-        objects = [None] * len(self.obj_to_id)
-        for obj in self.obj_to_id:
-            oid = self.obj_to_id[obj]
+        object_count = self._capture_oid_number(self.next_id) - 1
+        objects = [None] * object_count
+        remaining_objects = self.captured_objects
+        while M.IdentityCompare(remaining_objects, M.EmptyList)() is M.false_value:
+            obj = M.Head(remaining_objects)()
+            oid = self._capture_oid_number(self._captured_object_id(obj))
             objects[oid - 1] = self._record_for(obj)
+            remaining_objects = M.Tail(remaining_objects)()
 
         root_ids = {}
         for name in roots:
-            root_ids[name] = self.obj_to_id[roots[name]]
+            root_ids[name] = self._capture_oid_number(
+                self._captured_object_id(roots[name])
+            )
 
         symbol_ids = {}
         for name in symbols:
-            symbol_ids[name] = self.obj_to_id[symbols[name]]
+            symbol_ids[name] = self._capture_oid_number(
+                self._captured_object_id(symbols[name])
+            )
 
         return {
             "header": {"format": "hyge-proof-kernel", "version": 3, "protocol_version": 3},
