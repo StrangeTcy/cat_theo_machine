@@ -1870,6 +1870,166 @@ class HandlePromotionTest(M.Edge):
         return self.result
 
 
+class ImpactPolicyTest(M.Edge):
+    """Step 24: fixed impact classes prefer the restrictive structural class."""
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        policy = Gmod.ImpactPolicy()()
+        fold_entry = M.Head(policy)()
+        policy_tail = M.Tail(policy)()
+        unfold_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
+        install_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
+        meta_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
+        activation_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
+
+        empty_graph = Gmod.GraphVersion(empty, empty, empty)()
+        handle = Gmod.Handle(M.Char("impact-handle"), empty_graph)()
+        handle_graph = Gmod.GraphVersion(M.Pair(handle, empty), empty, empty)()
+        plain_law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            empty_graph,
+            empty,
+            empty,
+            empty,
+        )()
+        law_graph = Gmod.GraphVersion(M.Pair(plain_law, empty), empty, empty)()
+
+        fold_proposal = Gmod.Proposal(
+            Gmod.Law(
+                empty_graph,
+                empty_graph,
+                handle_graph,
+                empty,
+                empty,
+                empty,
+            )(),
+            M.Char("fold-impact"),
+        )()
+        unfold_proposal = Gmod.Proposal(
+            Gmod.Law(
+                handle_graph,
+                empty_graph,
+                empty_graph,
+                empty,
+                empty,
+                empty,
+            )(),
+            M.Char("unfold-impact"),
+        )()
+        install_proposal = Gmod.Proposal(
+            plain_law,
+            M.Char("install-impact"),
+        )()
+        meta_proposal = Gmod.Proposal(
+            Gmod.Law(
+                law_graph,
+                empty_graph,
+                empty_graph,
+                empty,
+                empty,
+                empty,
+            )(),
+            M.Char("meta-impact"),
+        )()
+        ambiguous_proposal = Gmod.Proposal(
+            Gmod.Law(
+                law_graph,
+                empty_graph,
+                handle_graph,
+                empty,
+                empty,
+                empty,
+            )(),
+            M.Char("ambiguous-impact"),
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(policy_tail, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(fold_entry)(), M.Char("fold_handle"))() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(fold_entry)())(),
+            M.Char("auto"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(unfold_entry)(),
+            M.Char("unfold_handle"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(unfold_entry)())(),
+            M.Char("auto"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(install_entry)(),
+            M.Char("install_law"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(install_entry)())(),
+            M.Char("human"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(meta_entry)(),
+            M.Char("meta_rewrite"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(meta_entry)())(),
+            M.Char("human"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(activation_entry)(),
+            M.Char("activation"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(activation_entry)())(),
+            M.Char("human"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(fold_proposal)(),
+            M.Char("fold_handle"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(unfold_proposal)(),
+            M.Char("unfold_handle"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(install_proposal)(),
+            M.Char("install_law"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(meta_proposal)(),
+            M.Char("meta_rewrite"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(ambiguous_proposal)(),
+            M.Char("meta_rewrite"),
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -8690,6 +8850,14 @@ def install_default_tests(graph):
             "handle_promotion_test",
             empty,
             HandlePromotionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "impact_policy_test",
+            empty,
+            ImpactPolicyTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

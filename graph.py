@@ -1974,6 +1974,97 @@ class ProposeHandle(M.Edge):
         return self.result
 
 
+class ImpactPolicy(M.Edge):
+    """The fixed Step-24 impact policy as ordered machine associations."""
+
+    def __init__(self):
+        self.result = M.Pair(
+            M.Pair(
+                M.Char("fold_handle"),
+                M.Pair(M.Char("auto"), M.EmptyList),
+            ),
+            M.Pair(
+                M.Pair(
+                    M.Char("unfold_handle"),
+                    M.Pair(M.Char("auto"), M.EmptyList),
+                ),
+                M.Pair(
+                    M.Pair(
+                        M.Char("install_law"),
+                        M.Pair(M.Char("human"), M.EmptyList),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            M.Char("meta_rewrite"),
+                            M.Pair(M.Char("human"), M.EmptyList),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                M.Char("activation"),
+                                M.Pair(M.Char("human"), M.EmptyList),
+                            ),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ClassifyProposal(M.Edge):
+    """Classify a proposed Law by literal Handle and Law structure."""
+
+    def __init__(self, proposal):
+        policy = ImpactPolicy()()
+        fold_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        unfold_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        install_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        meta_class = M.Head(M.Head(policy)())()
+
+        law = ProposalLaw(proposal)()
+        left_contains_law = M.false_value
+        left_contains_handle = M.false_value
+        remaining_left = GraphElements(LawLeft(law)())()
+        while M.IdentityCompare(remaining_left, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining_left)()
+            if M.IsPair(element)() is M.truth_value:
+                if M.TermEqual(M.Head(element)(), Lmod.LawLabel)() is M.truth_value:
+                    left_contains_law = M.truth_value
+                if M.TermEqual(M.Head(element)(), Lmod.HandleLabel)() is M.truth_value:
+                    left_contains_handle = M.truth_value
+            remaining_left = M.Tail(remaining_left)()
+
+        right_contains_handle = M.false_value
+        remaining_right = GraphElements(LawRight(law)())()
+        while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining_right)()
+            if M.IsPair(element)() is M.truth_value:
+                if M.TermEqual(M.Head(element)(), Lmod.HandleLabel)() is M.truth_value:
+                    right_contains_handle = M.truth_value
+            remaining_right = M.Tail(remaining_right)()
+
+        if M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
+            self.result = meta_class
+        elif M.IdentityCompare(right_contains_handle, M.truth_value)() is M.truth_value:
+            self.result = fold_class
+        elif M.IdentityCompare(left_contains_handle, M.truth_value)() is M.truth_value:
+            self.result = unfold_class
+        else:
+            self.result = install_class
+
+        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class CompileRuleToLaw(M.Edge):
     """
     Step 11. A rewrite rule with left pattern P and right result R becomes the
