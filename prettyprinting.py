@@ -9,6 +9,10 @@ from .labels import (
     AreaFormulaAvailableLabel,
     AreaLabel,
     ArithmeticProgressionLabel,
+    AbsDiffLabel,
+    BlackboardProblemLabel,
+    BoardSumLabel,
+    BoardSumObservableLabel,
     CosineLabel,
     CommonDifferenceLabel,
     CommonDifferenceGivenLabel,
@@ -30,19 +34,28 @@ from .labels import (
     GeometryFactLabel,
     HeronFormulaAvailableLabel,
     EdgesLabel,
+    EvenLabel,
+    FinalNumberLabel,
+    InitialBoardLabel,
+    InvariantLabel,
     IsCauchyLabel,
+    IsEvenLabel,
     IsRealLabel,
     KnowledgeLabel,
     LengthLabel,
     LimitLabel,
     MachineContextLabel,
+    MinLabel,
     MiddleTermAverageLabel,
+    MoveErasesLabel,
     NeedLabel,
     NewtonErrorIdentityLabel,
     NewtonErrorShrinksLabel,
     NewtonPositiveLabel,
     NewtonStepTermLabel,
+    OddLabel,
     ParameterLabel,
+    ParityLabel,
     PhysicalConstraintsKnownLabel,
     PositiveLabel,
     PolygonLabel,
@@ -69,6 +82,7 @@ from .labels import (
     TaoProblem11BetaValueLabel,
     TaoProblem11GammaValueLabel,
     DistinctLabel,
+    TerminalLabel,
     VertexOfLabel,
     SegmentLabel,
     AngleLabel,
@@ -429,6 +443,34 @@ class PrettyTerm(Edge):
         return None
 
     def _generic_unary_constructor_name(self, label):
+        if IdentityCompare(label, AbsDiffLabel)() is truth_value:
+            return "AbsDiff"
+        if IdentityCompare(label, BlackboardProblemLabel)() is truth_value:
+            return "BlackboardProblem"
+        if IdentityCompare(label, BoardSumLabel)() is truth_value:
+            return "BoardSum"
+        if IdentityCompare(label, BoardSumObservableLabel)() is truth_value:
+            return "BoardSumObservable"
+        if IdentityCompare(label, EvenLabel)() is truth_value:
+            return "Even"
+        if IdentityCompare(label, FinalNumberLabel)() is truth_value:
+            return "FinalNumber"
+        if IdentityCompare(label, InitialBoardLabel)() is truth_value:
+            return "InitialBoard"
+        if IdentityCompare(label, InvariantLabel)() is truth_value:
+            return "Invariant"
+        if IdentityCompare(label, IsEvenLabel)() is truth_value:
+            return "IsEven"
+        if IdentityCompare(label, MinLabel)() is truth_value:
+            return "Min"
+        if IdentityCompare(label, MoveErasesLabel)() is truth_value:
+            return "MoveErases"
+        if IdentityCompare(label, OddLabel)() is truth_value:
+            return "Odd"
+        if IdentityCompare(label, ParityLabel)() is truth_value:
+            return "Parity"
+        if IdentityCompare(label, TerminalLabel)() is truth_value:
+            return "Terminal"
         if IdentityCompare(label, ArithmeticProgressionLabel)() is truth_value:
             return "ArithmeticProgression"
         if IdentityCompare(label, SymmetricProgressionNotationLabel)() is truth_value:

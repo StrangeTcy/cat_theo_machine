@@ -8078,6 +8078,36 @@ class BlackboardFinalNumberIsOddTest(M.Edge):
         )()
         plan = Imod.RewriteSearch(start, goal, rules, registry)()
         self.result = M.truth_value
+        start_text = M.PrettyTerm(start, registry)()
+        expected_start_text = "Knowledge([InitialBoard(n), Parity(n, Odd), Terminal(final), Invariant(BlackboardProblem, Parity(BoardSumObservable))])"
+        if M.Compare(M.Char(start_text), M.Char(expected_start_text))() is M.false_value:
+            self.result = M.false_value
+        goal_text = M.PrettyTerm(goal, registry)()
+        expected_goal_text = "Knowledge([Parity(FinalNumber, Odd)])"
+        if M.Compare(M.Char(goal_text), M.Char(expected_goal_text))() is M.false_value:
+            self.result = M.false_value
+        before = M.Char("before")
+        after = M.Char("after")
+        a = M.Char("a")
+        b = M.Char("b")
+        move_text = M.PrettyTerm(MoveErasesFact(before, a, b, after)(), registry)()
+        if M.Compare(M.Char(move_text), M.Char("MoveErases(before, a, b, after)"))() is M.false_value:
+            self.result = M.false_value
+        sum_text = M.PrettyTerm(BoardSumFact(after, M.Char("sum"))(), registry)()
+        if M.Compare(M.Char(sum_text), M.Char("BoardSum(after, sum)"))() is M.false_value:
+            self.result = M.false_value
+        even_text = M.PrettyTerm(IsEvenFact(M.Char("delta"))(), registry)()
+        if M.Compare(M.Char(even_text), M.Char("IsEven(delta)"))() is M.false_value:
+            self.result = M.false_value
+        min_text = M.PrettyTerm(MinTerm(a, b)(), registry)()
+        if M.Compare(M.Char(min_text), M.Char("Min(a, b)"))() is M.false_value:
+            self.result = M.false_value
+        abs_diff_text = M.PrettyTerm(AbsDiffTerm(a, b)(), registry)()
+        if M.Compare(M.Char(abs_diff_text), M.Char("AbsDiff(a, b)"))() is M.false_value:
+            self.result = M.false_value
+        even_parity_text = M.PrettyTerm(ParityFact(M.Char("n"), Lmod.EvenLabel)(), registry)()
+        if M.Compare(M.Char(even_parity_text), M.Char("Parity(n, Even)"))() is M.false_value:
+            self.result = M.false_value
         if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
             self.result = M.false_value
         else:
