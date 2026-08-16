@@ -78,53 +78,105 @@ class SnapshotSaveDeadline:
         self.temporary_path = None
         self.state = "active"
         self.timeout_error = None
+        self.lock = threading.Lock()
         self.watchdog = threading.Timer(timeout_seconds, self.expire)
         self.watchdog.daemon = True
         self.watchdog.start()
 
     def set_phase(self, phase):
-        self.phase = phase
+        with self.lock:
+            self.phase = phase
 
     def set_counts(self, discovered_count, encoded_count):
-        self.discovered_count = discovered_count
-        self.encoded_count = encoded_count
+        with self.lock:
+            self.discovered_count = discovered_count
+            self.encoded_count = encoded_count
 
     def set_temporary_path(self, temporary_path):
-        self.temporary_path = temporary_path
+        with self.lock:
+            self.temporary_path = temporary_path
 
     def expire(self):
-        if self.state != "active":
-            return
-        temporary_size = None
-        if self.temporary_path is not None:
-            try:
-                temporary_size = os.path.getsize(self.temporary_path)
-            except OSError:
-                temporary_size = None
-        self.timeout_error = SnapshotSaveTimeout(
-            self.timeout_seconds,
-            self.phase,
-            time.monotonic() - self.started_at,
-            self.discovered_count,
-            self.encoded_count,
-            self.temporary_path,
-            temporary_size,
-        )
-        self.state = "expired"
-        print(str(self.timeout_error), flush=True)
+        with self.lock:
+            if self.state != "active":
+                return
+            temporary_size = None
+            if self.temporary_path is not None:
+                try:
+                    temporary_size = os.path.getsize(self.temporary_path)
+                except OSError:
+                    temporary_size = None
+            if self.temporary_path is not None:
+                quarantine_path = (
+                    self.temporary_path
+                    + ".timed-out-"
+                    + str(int(time.monotonic() * 1000000))
+                )
+                try:
+                    os.replace(self.temporary_path, quarantine_path)
+                    self.temporary_path = quarantine_path
+                except OSError:
+                    pass
+            self.timeout_error = SnapshotSaveTimeout(
+                self.timeout_seconds,
+                self.phase,
+                time.monotonic() - self.started_at,
+                self.discovered_count,
+                self.encoded_count,
+                self.temporary_path,
+                temporary_size,
+            )
+            self.state = "expired"
+            print(str(self.timeout_error), flush=True)
 
     def require_remaining(self, phase):
-        self.phase = phase
-        if self.state == "expired":
-            raise self.timeout_error
-        if time.monotonic() >= self.expires_at:
+        timeout_reached = None
+        with self.lock:
+            self.phase = phase
+            if self.state == "expired":
+                raise self.timeout_error
+            if time.monotonic() >= self.expires_at:
+                timeout_reached = "yes"
+            else:
+                return self.expires_at - time.monotonic()
+        if timeout_reached is not None:
             self.expire()
             raise self.timeout_error
-        return self.expires_at - time.monotonic()
+
+    def replace_temporary_snapshot(self, path):
+        timeout_reached = None
+        with self.lock:
+            if self.state == "expired":
+                raise self.timeout_error
+            if time.monotonic() >= self.expires_at:
+                timeout_reached = "yes"
+            else:
+                os.replace(self.temporary_path, path)
+                self.temporary_path = None
+                self.state = "replaced"
+        if timeout_reached is not None:
+            self.expire()
+            raise self.timeout_error
+
+    def discard_temporary_output(self):
+        with self.lock:
+            if self.temporary_path is None:
+                return
+            try:
+                os.remove(self.temporary_path)
+                print(
+                    "snapshot save: removed incomplete temporary output "
+                    + self.temporary_path,
+                    flush=True,
+                )
+                self.temporary_path = None
+            except OSError:
+                pass
 
     def close(self):
-        if self.state == "active":
-            self.state = "completed"
+        with self.lock:
+            if self.state == "active":
+                self.state = "completed"
         self.watchdog.cancel()
 
 
@@ -1392,9 +1444,9 @@ class SnapshotCodec:
                     )
             if deadline is not None:
                 deadline.require_remaining("atomic replacement")
-            os.replace(tmp_path, path)
-            if deadline is not None:
-                deadline.set_temporary_path(None)
+                deadline.replace_temporary_snapshot(path)
+            else:
+                os.replace(tmp_path, path)
             if progress is M.truth_value:
                 print(
                     "snapshot save: complete in "
@@ -1404,6 +1456,8 @@ class SnapshotCodec:
                 )
             return path
         except Exception:
+            if deadline is not None:
+                deadline.discard_temporary_output()
             try:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)

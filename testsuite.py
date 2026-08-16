@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import pickle
 import queue
 import shutil
 import sys
 import tempfile
+from contextlib import redirect_stdout
 
 from . import machine as M
 from . import graph as Gmod
@@ -21,7 +23,7 @@ from . import search as Smod
 from . import theorem_rules as Theoremmod
 from . import trees as Tmod
 from .graph import Test
-from .persistence import SnapshotCodec
+from .persistence import SnapshotCodec, SnapshotSaveDeadline, SnapshotSaveTimeout
 from .proof import BuildDerivation, CollectRules, Rule, RulePremises, RuleReplacement
 from .runtime import boot_from_packs, boot_from_snapshot, make_fresh_runtime, save_runtime
 from .search import (
@@ -6020,6 +6022,112 @@ class NatValueIndexSnapshotRoundtripTest(M.Edge):
         return self.result
 
 
+class ColdE2ReachesSnapshotSaveTest(M.Edge):
+    def __init__(self, _graph):
+        from . import main as Mainmod
+
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            os.remove(snapshot_path)
+        except OSError:
+            pass
+        output = io.StringIO()
+        self.result = M.false_value
+        try:
+            with redirect_stdout(output):
+                try:
+                    Mainmod.run_cold_mode(
+                        filter_name="e2",
+                        snapshot_path=snapshot_path,
+                        snapshot_save_timeout_seconds=0.0,
+                    )
+                except SnapshotSaveTimeout:
+                    self.result = M.truth_value
+            text = output.getvalue()
+            proved_index = text.find("engel_e2: proved in")
+            summary_index = text.find("proved 1 / 1 theorem cases during cold boot")
+            save_index = text.find("snapshot save FAILED: exceeded 0 seconds during namespace synchronization")
+            if proved_index == -1:
+                self.result = M.false_value
+            elif summary_index == -1:
+                self.result = M.false_value
+            elif save_index == -1:
+                self.result = M.false_value
+            elif save_index <= summary_index:
+                self.result = M.false_value
+        except (OSError, RuntimeError):
+            self.result = M.false_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+            try:
+                os.remove(snapshot_path + ".tmp")
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SnapshotSaveTimeoutPreservesExistingSnapshotTest(M.Edge):
+    def __init__(self, _graph):
+        runtime = make_fresh_runtime()
+        namespace = dict(vars(M))
+        namespace.update(vars(Hmod))
+        namespace.update(vars(Lmod))
+        namespace.update(vars(Pmod))
+        namespace.update(vars(Gmod))
+        namespace.update(vars(Xmod))
+        namespace.update(vars(Rmod))
+        namespace.update(vars(Smod))
+        namespace.update(vars(Theoremmod))
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        with open(snapshot_path, "w", encoding="utf-8") as handle:
+            handle.write("previous snapshot")
+        output = io.StringIO()
+        deadline = None
+        self.result = M.false_value
+        try:
+            with redirect_stdout(output):
+                deadline = SnapshotSaveDeadline(0.0)
+                try:
+                    save_runtime(runtime, snapshot_path, namespace, deadline=deadline)
+                except SnapshotSaveTimeout as error:
+                    self.result = M.truth_value
+                    if error.phase != "namespace synchronization":
+                        self.result = M.false_value
+            if output.getvalue().find("snapshot save FAILED: exceeded 0 seconds during namespace synchronization") == -1:
+                self.result = M.false_value
+            if os.path.exists(snapshot_path + ".tmp"):
+                self.result = M.false_value
+            with open(snapshot_path, "r", encoding="utf-8") as handle:
+                preserved_text = handle.read()
+            if preserved_text != "previous snapshot":
+                self.result = M.false_value
+        except (OSError, RuntimeError):
+            self.result = M.false_value
+        finally:
+            if deadline is not None:
+                deadline.close()
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+            try:
+                os.remove(snapshot_path + ".tmp")
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class IdentityRedBlackIdentityIndexTest(M.Edge):
     def __init__(self, _graph):
         first = M.Char("same")
@@ -9730,6 +9838,22 @@ def install_default_tests(graph):
             "nat_value_index_snapshot_roundtrip_test",
             empty,
             NatValueIndexSnapshotRoundtripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "cold_e2_reaches_snapshot_save_test",
+            empty,
+            ColdE2ReachesSnapshotSaveTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_save_timeout_preserves_existing_snapshot_test",
+            empty,
+            SnapshotSaveTimeoutPreservesExistingSnapshotTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

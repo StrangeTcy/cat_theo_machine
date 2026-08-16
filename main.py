@@ -169,12 +169,20 @@ def _paused_comparison_job_is_compatible(comparison_job, graph):
     return M.truth_value
 
 
-def _save_snapshot_now(runtime, runtime_namespace, snapshot_path=None):
+def _save_snapshot_now(
+    runtime,
+    runtime_namespace,
+    snapshot_path=None,
+    timeout_seconds=SNAPSHOT_SAVE_TIMEOUT_SECONDS,
+):
     target_path = SNAPSHOT_PATH if snapshot_path is None else snapshot_path
     os.makedirs(SNAPSHOT_DIR, exist_ok=True)
-    deadline = SnapshotSaveDeadline(SNAPSHOT_SAVE_TIMEOUT_SECONDS)
+    deadline = SnapshotSaveDeadline(timeout_seconds)
     print(
-        "snapshot save: 120-second deadline started for " + target_path,
+        "snapshot save: "
+        + format(timeout_seconds, ".0f")
+        + "-second deadline started for "
+        + target_path,
         flush=True,
     )
     try:
@@ -1008,7 +1016,12 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
     return 0
 
-def run_cold_mode(debug: bool = False, filter_name: str = "tao", snapshot_path=None):
+def run_cold_mode(
+    debug: bool = False,
+    filter_name: str = "tao",
+    snapshot_path=None,
+    snapshot_save_timeout_seconds=SNAPSHOT_SAVE_TIMEOUT_SECONDS,
+):
     if debug:
         P.SetDebugTrace(M.truth_value)()
     else:
@@ -1034,16 +1047,16 @@ def run_cold_mode(debug: bool = False, filter_name: str = "tao", snapshot_path=N
         theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs, filter_name), "Cold theorem agenda", debug=debug)
     except PausedComparisonRequested as paused:
         print(paused.label + ": comparison paused after " + str(paused.elapsed) + " seconds")
-        _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
+        _save_snapshot_now(runtime, runtime_namespace, snapshot_path, snapshot_save_timeout_seconds)
         return
     except PausedSearchRequested as paused:
         print(paused.label + ": paused after " + str(paused.elapsed) + " seconds")
-        _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
+        _save_snapshot_now(runtime, runtime_namespace, snapshot_path, snapshot_save_timeout_seconds)
         return
     proved_count = sum(1 for _label, proved, _elapsed, _goal, _derivation in theorem_results if proved)
     print(f"proved {proved_count} / {len(theorem_results)} theorem cases during cold boot")
 
-    _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
+    _save_snapshot_now(runtime, runtime_namespace, snapshot_path, snapshot_save_timeout_seconds)
 
 
 def run_warm_mode(debug: bool = False):
