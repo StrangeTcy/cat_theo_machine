@@ -2106,6 +2106,12 @@ AUTONOMY_REPORT_ACTIVATED_KEY = M.Char("activated")
 AUTONOMY_REPORT_SKIPPED_HUMAN_KEY = M.Char("skipped_human")
 AUTONOMY_REPORT_FIRINGS_KEY = M.Char("firings")
 AUTONOMY_REPORT_STOPPED_REASON_KEY = M.Char("stopped_reason")
+AUTONOMY_REPORT_GENERATED_HANDLES_KEY = M.Char("generated_handles")
+AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY = M.Char("generated_compositions")
+AUTONOMY_GENERATE_HANDLES_KEY = M.Char("generate_handles")
+AUTONOMY_GENERATE_COMPOSITIONS_KEY = M.Char("generate_compositions")
+AUTONOMY_GENERATOR_VERSIONS_KEY = M.Char("versions")
+AUTONOMY_GENERATOR_MIN_COUNT_KEY = M.Char("min_count")
 AUTONOMY_STOP_EXHAUSTED = M.Char("exhausted")
 AUTONOMY_STOP_BUDGET_FIRINGS = M.Char("budget_firings")
 AUTONOMY_STOP_BUDGET_NODES = M.Char("budget_nodes")
@@ -2129,9 +2135,16 @@ class AutonomyAuthority(M.Edge):
 
 
 class AutonomyCycle(M.Edge):
-    """Approve permitted proposals, activate them, and fire within a budget."""
+    """Optionally generate, then approve, activate, and fire within a budget."""
 
-    def __init__(self, graph_version, proposal_store, ledger, budget):
+    def __init__(
+        self,
+        graph_version,
+        proposal_store,
+        ledger,
+        budget,
+        generator_config=M.EmptyList,
+    ):
         max_firings = M.EmptyList
         max_nodes = M.EmptyList
         max_activations = M.EmptyList
@@ -2148,13 +2161,95 @@ class AutonomyCycle(M.Edge):
                 max_activations = value
             remaining_budget = M.Tail(remaining_budget)()
 
+        generate_handles = M.false_value
+        generate_compositions = M.false_value
+        generator_versions = M.EmptyList
+        generator_min_count = M.one
+        remaining_generator_config = generator_config
+        while M.IdentityCompare(
+            remaining_generator_config,
+            M.EmptyList,
+        )() is M.false_value:
+            association = M.Head(remaining_generator_config)()
+            key = M.Head(association)()
+            value = M.Head(M.Tail(association)())()
+            if M.Compare(key, AUTONOMY_GENERATE_HANDLES_KEY)() is M.truth_value:
+                generate_handles = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATE_COMPOSITIONS_KEY,
+            )() is M.truth_value:
+                generate_compositions = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATOR_VERSIONS_KEY,
+            )() is M.truth_value:
+                generator_versions = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATOR_MIN_COUNT_KEY,
+            )() is M.truth_value:
+                generator_min_count = value
+            remaining_generator_config = M.Tail(remaining_generator_config)()
+
         current_version = graph_version
         current_store = proposal_store
+        reversed_generation_report = M.EmptyList
+        if M.IdentityCompare(generate_handles, M.truth_value)() is M.truth_value:
+            generated_handles = GenerateHandleProposals(
+                current_store,
+                generator_versions,
+                ledger,
+                generator_min_count,
+            )()
+            current_store = M.Head(generated_handles)()
+            handle_count = M.Head(M.Tail(generated_handles)())()
+            handle_skipped = M.Head(M.Tail(M.Tail(generated_handles)())())()
+            reversed_generation_report = M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_GENERATED_HANDLES_KEY,
+                    M.Pair(
+                        M.Pair(
+                            handle_count,
+                            M.Pair(handle_skipped, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                reversed_generation_report,
+            )
+        if M.IdentityCompare(
+            generate_compositions,
+            M.truth_value,
+        )() is M.truth_value:
+            generated_compositions = GenerateCompositionProposals(
+                current_store,
+                ledger,
+            )()
+            current_store = M.Head(generated_compositions)()
+            composition_count = M.Head(M.Tail(generated_compositions)())()
+            composition_skipped = M.Head(
+                M.Tail(M.Tail(generated_compositions)())(),
+            )()
+            reversed_generation_report = M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY,
+                    M.Pair(
+                        M.Pair(
+                            composition_count,
+                            M.Pair(composition_skipped, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                reversed_generation_report,
+            )
+        generation_report = M.Reverse(reversed_generation_report)()
         authority = AutonomyAuthority(budget)()
         activation_count = M.Zero
         reversed_activated = M.EmptyList
         reversed_skipped_human = M.EmptyList
-        remaining_entries = ProposalStoreEntries(proposal_store)()
+        remaining_entries = ProposalStoreEntries(current_store)()
         policy = ImpactPolicy()()
 
         while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
@@ -2432,7 +2527,7 @@ class AutonomyCycle(M.Edge):
                             AUTONOMY_REPORT_STOPPED_REASON_KEY,
                             M.Pair(stopped_reason, M.EmptyList),
                         ),
-                        M.EmptyList,
+                        generation_report,
                     ),
                 ),
             ),
@@ -2446,7 +2541,10 @@ class AutonomyCycle(M.Edge):
                 graph_version,
                 M.Pair(
                     proposal_store,
-                    M.Pair(ledger, M.Pair(budget, M.EmptyList)),
+                    M.Pair(
+                        ledger,
+                        M.Pair(budget, M.Pair(generator_config, M.EmptyList)),
+                    ),
                 ),
             ),
             results=self.result,

@@ -3007,6 +3007,174 @@ class WitnessedCompositionProposalTest(M.Edge):
         return self.result
 
 
+class AutonomyGenerationPhaseTest(M.Edge):
+    """Step 30: optional generators submit before autonomy policy is applied."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left_a = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        right_a = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        left_b = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        right_b = Gmod.GraphVersion(M.Pair(node_c, empty), empty, empty)()
+        law_a = Gmod.Law(
+            left_a,
+            interface,
+            right_a,
+            Gmod.Map(interface, left_a, empty)(),
+            Gmod.Map(interface, right_a, empty)(),
+            empty,
+        )()
+        law_b = Gmod.Law(
+            left_b,
+            interface,
+            right_b,
+            Gmod.Map(interface, left_b, empty)(),
+            Gmod.Map(interface, right_b, empty)(),
+            empty,
+        )()
+        host = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        fired_a = Gmod.FireLaw(
+            host,
+            law_a,
+            Gmod.Map(
+                left_a,
+                host,
+                M.Pair(Gmod.Send(node_a, node_a)(), empty),
+            )(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        intermediate = M.Head(fired_a)()
+        Gmod.FireLaw(
+            intermediate,
+            law_b,
+            Gmod.Map(
+                left_b,
+                intermediate,
+                M.Pair(Gmod.Send(node_b, node_b)(), empty),
+            )(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.Zero, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.Zero, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        generator_config = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_GENERATE_HANDLES_KEY,
+                M.Pair(M.false_value, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_GENERATE_COMPOSITIONS_KEY,
+                    M.Pair(M.truth_value, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_GENERATOR_VERSIONS_KEY,
+                        M.Pair(empty, empty),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Gmod.AUTONOMY_GENERATOR_MIN_COUNT_KEY,
+                            M.Pair(M.one, empty),
+                        ),
+                        empty,
+                    ),
+                ),
+            ),
+        )
+        idle_graph = Gmod.GraphVersion(empty, empty, empty)()
+        cycle = Gmod.AutonomyCycle(
+            idle_graph,
+            Gmod.ProposalStore(empty)(),
+            ledger,
+            budget,
+            generator_config,
+        )()
+        final_graph = M.Head(cycle)()
+        updated_store = M.Head(M.Tail(cycle)())()
+        report = M.Head(M.Tail(M.Tail(cycle)())())()
+        entries = Gmod.ProposalStoreAll(updated_store)()
+        skipped_human_entry = M.Head(M.Tail(report)())()
+        skipped_human = M.Head(M.Tail(skipped_human_entry)())()
+        generation_entry = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(report)())())())(),
+        )()
+        generation_value = M.Head(M.Tail(generation_entry)())()
+        generated_count = M.Head(generation_value)()
+        generated_skipped = M.Head(M.Tail(generation_value)())()
+
+        self.result = M.truth_value
+        if Gmod.GraphStoresEqual(final_graph, idle_graph)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ProposalEntryIsApproved(M.Head(entries)())() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(
+                Gmod.ProposalEntryProposal(M.Head(entries)())(),
+            )(),
+            M.Char("install_law"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(skipped_human)(),
+            Gmod.ProposalEntryProposal(M.Head(entries)())(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(skipped_human)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(generation_entry)(),
+            Gmod.AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(generated_count, M.one, ledger.registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(generated_skipped, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(M.Tail(generation_value)())(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(report)())())())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
@@ -9952,6 +10120,14 @@ def install_default_tests(graph):
             "witnessed_composition_proposal_test",
             empty,
             WitnessedCompositionProposalTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "autonomy_generation_phase_test",
+            empty,
+            AutonomyGenerationPhaseTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
