@@ -2636,6 +2636,127 @@ class RecurringPatternMiningTest(M.Edge):
         return self.result
 
 
+class HandleProposalGeneratorTest(M.Edge):
+    """Step 28: mined Handle folds are pending, classified, and inert."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+
+        recurring_one = M.Thingy()
+        recurring_two = M.Thingy()
+        recurring_three = M.Thingy()
+        recurring_nodes = M.Pair(
+            recurring_one,
+            M.Pair(recurring_two, M.Pair(recurring_three, empty)),
+        )
+        recurring_edge = M.Pair(
+            M.Char("generated-recurring-three-node-edge"),
+            recurring_nodes,
+        )
+        recurring_edges = M.Pair(recurring_edge, empty)
+        unique_one = M.Thingy()
+        unique_nodes = M.Pair(unique_one, empty)
+        unique_edge = M.Pair(
+            M.Char("generated-unique-one-node-edge"),
+            unique_nodes,
+        )
+
+        first = Gmod.GraphVersion(
+            recurring_nodes,
+            recurring_edges,
+            empty,
+        )()
+        second = Gmod.GraphVersion(
+            recurring_nodes,
+            recurring_edges,
+            empty,
+        )()
+        latest = Gmod.GraphVersion(
+            M.Pair(
+                recurring_one,
+                M.Pair(
+                    recurring_two,
+                    M.Pair(recurring_three, M.Pair(unique_one, empty)),
+                ),
+            ),
+            M.Pair(recurring_edge, M.Pair(unique_edge, empty)),
+            empty,
+        )()
+        versions = M.Pair(first, M.Pair(second, M.Pair(latest, empty)))
+        initial_store = Gmod.ProposalStore(empty)()
+
+        generated = Gmod.GenerateHandleProposals(
+            initial_store,
+            versions,
+            ledger,
+            M.two,
+        )()
+        generated_store = M.Head(generated)()
+        generated_count = M.Head(M.Tail(generated)())()
+        skipped = M.Head(M.Tail(M.Tail(generated)())())()
+        entries = Gmod.ProposalStoreAll(generated_store)()
+        before_firing = Gmod.FireAny(
+            latest,
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        after_firing = Gmod.FireAny(
+            latest,
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(generated)())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(generated_count, M.one, ledger.registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(skipped, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        else:
+            entry = M.Head(entries)()
+            proposal = Gmod.ProposalEntryProposal(entry)()
+            if Gmod.ProposalEntryIsApproved(entry)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(
+                Gmod.ClassifyProposal(proposal)(),
+                M.Char("fold_handle"),
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(before_firing)(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(M.Tail(before_firing)())(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(before_firing, after_firing)() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(
+                Gmod.GraphVersionInvariants(latest)(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
+
+        graph._replace_context(constructors=ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
@@ -9565,6 +9686,14 @@ def install_default_tests(graph):
             "recurring_pattern_mining_test",
             empty,
             RecurringPatternMiningTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "handle_proposal_generator_test",
+            empty,
+            HandleProposalGeneratorTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

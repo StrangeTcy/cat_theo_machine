@@ -4195,6 +4195,208 @@ class MineRecurringPatterns(M.Edge):
         return self.result
 
 
+HANDLE_PROPOSAL_CAP = M.GMPRep("10")
+HANDLE_INTERFACE_SCAN_CAP = M.GMPRep("200")
+SKIPPED_HANDLE_CANDIDATES = M.EmptyList
+
+
+class PatternInterfaceNodes(M.Edge):
+    """Return pattern nodes touching host edges outside the pattern."""
+
+    def __init__(self, pattern, host_version):
+        registry = M.Tree(M.EmptyList)
+        scan_cap = MineNatFromGMPRep(HANDLE_INTERFACE_SCAN_CAP)()
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        reversed_interface = M.EmptyList
+        remaining_nodes = GraphNodes(pattern)()
+        while M.IdentityCompare(remaining_nodes, M.EmptyList)() is M.false_value:
+            if M.NatEq(scanned, scan_cap, registry)() is M.truth_value:
+                remaining_nodes = M.EmptyList
+            else:
+                node = M.Head(remaining_nodes)()
+                remaining_edges = GraphEdges(host_version)()
+                touches_outside = M.false_value
+                while M.IdentityCompare(
+                    remaining_edges,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.NatEq(
+                        scanned,
+                        scan_cap,
+                        registry,
+                    )() is M.truth_value:
+                        remaining_edges = M.EmptyList
+                    else:
+                        edge = M.Head(remaining_edges)()
+                        if ChainHasTerm(
+                            GraphEdges(pattern)(),
+                            edge,
+                        )() is M.false_value:
+                            remaining_endpoints = EdgeEndpoints(edge)()
+                            while M.IdentityCompare(
+                                remaining_endpoints,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                if M.NatEq(
+                                    scanned,
+                                    scan_cap,
+                                    registry,
+                                )() is M.truth_value:
+                                    remaining_endpoints = M.EmptyList
+                                else:
+                                    endpoint = M.Head(remaining_endpoints)()
+                                    if M.IdentityCompare(
+                                        endpoint,
+                                        node,
+                                    )() is M.truth_value:
+                                        touches_outside = M.truth_value
+                                        remaining_endpoints = M.EmptyList
+                                        remaining_edges = M.EmptyList
+                                    else:
+                                        stepped = MineNatSuccessor(scanned, registry)()
+                                        scanned = M.Head(stepped)()
+                                        registry = M.Head(M.Tail(stepped)())()
+                                        remaining_endpoints = M.Tail(
+                                            remaining_endpoints
+                                        )()
+                            if M.IdentityCompare(
+                                remaining_edges,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                stepped = MineNatSuccessor(scanned, registry)()
+                                scanned = M.Head(stepped)()
+                                registry = M.Head(M.Tail(stepped)())()
+                                remaining_edges = M.Tail(remaining_edges)()
+                        else:
+                            stepped = MineNatSuccessor(scanned, registry)()
+                            scanned = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+                            remaining_edges = M.Tail(remaining_edges)()
+                if touches_outside is M.truth_value:
+                    reversed_interface = M.Pair(node, reversed_interface)
+                stepped = MineNatSuccessor(scanned, registry)()
+                scanned = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                remaining_nodes = M.Tail(remaining_nodes)()
+
+        self.result = M.Reverse(reversed_interface)()
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(host_version, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateHandleProposals(M.Edge):
+    """Mine witnessed patterns and submit bounded, mechanically checked folds."""
+
+    def __init__(self, proposal_store, versions, ledger, min_count):
+        candidate_cap = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+        proposal_cap = MineNatFromGMPRep(HANDLE_PROPOSAL_CAP)()
+        pattern_max_size = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        submitted_count = MineNatFromGMPRep(M.GMPRep("0"))()
+        candidate_index = MineNatFromGMPRep(M.GMPRep("0"))()
+        skipped = SKIPPED_HANDLE_CANDIDATES
+        current_store = proposal_store
+
+        latest_version = M.EmptyList
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            if M.NatEq(scanned, candidate_cap, ledger.registry)() is M.truth_value:
+                remaining_versions = M.EmptyList
+            else:
+                latest_version = M.Head(remaining_versions)()
+                stepped = MineNatSuccessor(scanned, ledger.registry)()
+                scanned = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+                remaining_versions = M.Tail(remaining_versions)()
+
+        candidates = M.EmptyList
+        if M.IdentityCompare(latest_version, M.EmptyList)() is M.false_value:
+            candidates = MineRecurringPatterns(
+                versions,
+                min_count,
+                pattern_max_size,
+            )()
+
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        remaining_candidates = candidates
+        while M.IdentityCompare(remaining_candidates, M.EmptyList)() is M.false_value:
+            if M.NatEq(submitted_count, proposal_cap, ledger.registry)() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            elif M.NatEq(scanned, candidate_cap, ledger.registry)() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            else:
+                candidate_entry = M.Head(remaining_candidates)()
+                pattern = M.Head(candidate_entry)()
+                index_rep = M.NatRepOf(candidate_index, ledger.registry)()
+                name = M.Char("mined-" + M.GMPRepText(index_rep)())
+                handle = Handle(name, pattern)()
+                interface_nodes = PatternInterfaceNodes(
+                    pattern,
+                    latest_version,
+                )()
+                report = PromotionReport(
+                    handle,
+                    interface_nodes,
+                    ledger,
+                    versions,
+                )()
+                signature_ok = M.false_value
+                roundtrip_ok = M.false_value
+                if M.IdentityCompare(report, M.EmptyList)() is M.false_value:
+                    signature_entry = M.Head(M.Tail(report)())()
+                    roundtrip_entry = M.Head(M.Tail(M.Tail(report)())())()
+                    signature_ok = M.Head(M.Tail(signature_entry)())()
+                    roundtrip_ok = M.Head(M.Tail(roundtrip_entry)())()
+
+                if M.AndAtom(signature_ok, roundtrip_ok)() is M.truth_value:
+                    current_store = ProposeHandle(
+                        current_store,
+                        handle,
+                        interface_nodes,
+                        report,
+                    )()
+                    stepped = MineNatSuccessor(
+                        submitted_count,
+                        ledger.registry,
+                    )()
+                    submitted_count = M.Head(stepped)()
+                    ledger.registry = M.Head(M.Tail(stepped)())()
+                else:
+                    skipped = M.Pair(name, skipped)
+
+                stepped = MineNatSuccessor(candidate_index, ledger.registry)()
+                candidate_index = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+                stepped = MineNatSuccessor(scanned, ledger.registry)()
+                scanned = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+                remaining_candidates = M.Tail(remaining_candidates)()
+
+        skipped = M.Reverse(skipped)()
+        self.result = M.Pair(
+            current_store,
+            M.Pair(submitted_count, M.Pair(skipped, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(
+                    versions,
+                    M.Pair(ledger, M.Pair(min_count, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class FireLaw(M.Edge):
     """
     Step 8. Staged double-pushout surgery over a GraphVersion.
