@@ -2757,6 +2757,256 @@ class HandleProposalGeneratorTest(M.Edge):
         return self.result
 
 
+class WitnessedCompositionProposalTest(M.Edge):
+    """Step 29: adjacent witnessed firings propose one equivalent composite."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        witnessed_ledger = Gmod.FiringLedger(registry)
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        preserved = M.Thingy()
+        interface_a_node = M.Thingy()
+        interface_b_node = M.Thingy()
+        left_a = Gmod.GraphVersion(
+            M.Pair(preserved, M.Pair(node_a, empty)),
+            empty,
+            empty,
+        )()
+        right_a = Gmod.GraphVersion(
+            M.Pair(preserved, M.Pair(node_b, empty)),
+            empty,
+            empty,
+        )()
+        left_b = Gmod.GraphVersion(
+            M.Pair(preserved, M.Pair(node_b, empty)),
+            empty,
+            empty,
+        )()
+        right_b = Gmod.GraphVersion(
+            M.Pair(preserved, M.Pair(node_c, empty)),
+            empty,
+            empty,
+        )()
+        interface_a = Gmod.GraphVersion(
+            M.Pair(interface_a_node, empty),
+            empty,
+            empty,
+        )()
+        interface_b = Gmod.GraphVersion(
+            M.Pair(interface_b_node, empty),
+            empty,
+            empty,
+        )()
+        law_a = Gmod.Law(
+            left_a,
+            interface_a,
+            right_a,
+            Gmod.Map(
+                interface_a,
+                left_a,
+                M.Pair(Gmod.Send(interface_a_node, preserved)(), empty),
+            )(),
+            Gmod.Map(
+                interface_a,
+                right_a,
+                M.Pair(Gmod.Send(interface_a_node, preserved)(), empty),
+            )(),
+            empty,
+        )()
+        law_b = Gmod.Law(
+            left_b,
+            interface_b,
+            right_b,
+            Gmod.Map(
+                interface_b,
+                left_b,
+                M.Pair(Gmod.Send(interface_b_node, preserved)(), empty),
+            )(),
+            Gmod.Map(
+                interface_b,
+                right_b,
+                M.Pair(Gmod.Send(interface_b_node, preserved)(), empty),
+            )(),
+            empty,
+        )()
+        fresh_redex = Gmod.GraphVersion(
+            M.Pair(preserved, M.Pair(node_a, empty)),
+            empty,
+            empty,
+        )()
+        mapping_a = Gmod.Map(
+            left_a,
+            fresh_redex,
+            M.Pair(
+                Gmod.Send(preserved, preserved)(),
+                M.Pair(Gmod.Send(node_a, node_a)(), empty),
+            ),
+        )()
+        fired_a = Gmod.FireLaw(
+            fresh_redex,
+            law_a,
+            mapping_a,
+            Gmod.DanglingForbid()(),
+            witnessed_ledger,
+        )()
+        intermediate = M.Head(fired_a)()
+        mapping_b = Gmod.Map(
+            left_b,
+            intermediate,
+            M.Pair(
+                Gmod.Send(preserved, preserved)(),
+                M.Pair(Gmod.Send(node_b, node_b)(), empty),
+            ),
+        )()
+        fired_b = Gmod.FireLaw(
+            intermediate,
+            law_b,
+            mapping_b,
+            Gmod.DanglingForbid()(),
+            witnessed_ledger,
+        )()
+        sequential_result = M.Head(fired_b)()
+
+        generated = Gmod.GenerateCompositionProposals(
+            Gmod.ProposalStore(empty)(),
+            witnessed_ledger,
+        )()
+        generated_store = M.Head(generated)()
+        generated_count = M.Head(M.Tail(generated)())()
+        skipped = M.Head(M.Tail(M.Tail(generated)())())()
+        entries = Gmod.ProposalStoreAll(generated_store)()
+
+        self.result = M.truth_value
+        proposal = empty
+        composite = empty
+        if M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(generated)())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            generated_count,
+            M.one,
+            witnessed_ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(skipped, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        else:
+            entry = M.Head(entries)()
+            proposal = Gmod.ProposalEntryProposal(entry)()
+            composite = Gmod.ProposalLaw(proposal)()
+            annotations = Gmod.ProposalEntryAnnotations(entry)()
+            origin = Gmod.ProposalOrigin(proposal)()
+            if Gmod.ProposalEntryIsApproved(entry)() is M.truth_value:
+                self.result = M.false_value
+            elif Gmod.LawMapsComplete(composite)() is M.false_value:
+                self.result = M.false_value
+            elif Gmod.ChainHasTerm(
+                Gmod.GraphNodes(Gmod.LawInterface(composite)())(),
+                interface_a_node,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.Compare(
+                Gmod.ClassifyProposal(proposal)(),
+                M.Char("install_law"),
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(origin)(),
+                Lmod.ComposedFromLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(annotations, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Tail(annotations)(), empty)() is M.false_value:
+                self.result = M.false_value
+            else:
+                justification = M.Head(annotations)()
+                evidence = M.Head(M.Tail(M.Tail(justification)())())()
+                if M.IdentityCompare(
+                    M.Head(justification)(),
+                    Lmod.JustifiedByLabel,
+                )() is M.false_value:
+                    self.result = M.false_value
+                elif M.NatEq(
+                    M.Head(evidence)(),
+                    M.Zero,
+                    witnessed_ledger.registry,
+                )() is M.false_value:
+                    self.result = M.false_value
+                elif M.NatEq(
+                    M.Head(M.Tail(evidence)())(),
+                    M.one,
+                    witnessed_ledger.registry,
+                )() is M.false_value:
+                    self.result = M.false_value
+                elif M.IdentityCompare(
+                    M.Tail(M.Tail(evidence)())(),
+                    empty,
+                )() is M.false_value:
+                    self.result = M.false_value
+
+        if M.IdentityCompare(self.result, M.truth_value)() is M.truth_value:
+            approval = Gmod.Approved(proposal, M.Char("curator"))()
+            approved_store = Gmod.ProposalStoreAttach(
+                generated_store,
+                proposal,
+                approval,
+            )()
+            approved_entry = M.Head(
+                Gmod.ProposalStoreApproved(approved_store)()
+            )()
+            activated = Gmod.ActivateProposal(fresh_redex, approved_entry)()
+            activated_version = M.Head(activated)()
+            active_fresh_redex = Gmod.GraphVersion(
+                M.Pair(preserved, M.Pair(node_a, empty)),
+                empty,
+                Gmod.GraphVersionInvariants(activated_version)(),
+            )()
+            composite_ledger = Gmod.FiringLedger(witnessed_ledger.registry)
+            fired_composite = Gmod.FireAny(
+                active_fresh_redex,
+                Gmod.DanglingForbid()(),
+                composite_ledger,
+            )()
+            composite_result = M.Head(fired_composite)()
+            composite_records = composite_ledger.records
+            if M.IdentityCompare(activated_version, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif Gmod.GraphStoresEqual(
+                sequential_result,
+                composite_result,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(composite_records, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Tail(composite_records)(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(
+                Gmod.FiringRecordLaw(M.Head(composite_records)())(),
+                composite,
+            )() is M.false_value:
+                self.result = M.false_value
+            witnessed_ledger.registry = composite_ledger.registry
+
+        graph._replace_context(constructors=witnessed_ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
@@ -9694,6 +9944,14 @@ def install_default_tests(graph):
             "handle_proposal_generator_test",
             empty,
             HandleProposalGeneratorTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "witnessed_composition_proposal_test",
+            empty,
+            WitnessedCompositionProposalTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

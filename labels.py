@@ -1023,6 +1023,10 @@ class ProposalLabel(ConstructorLabel):
     pass
 
 
+class ComposedFromLabel(ConstructorLabel):
+    pass
+
+
 class JustifiedByLabel(ConstructorLabel):
     pass
 
@@ -1294,6 +1298,7 @@ MissLabel = MissLabel()
 LawLabel = LawLabel()
 InstalledLawLabel = InstalledLawLabel()
 ProposalLabel = ProposalLabel()
+ComposedFromLabel = ComposedFromLabel()
 JustifiedByLabel = JustifiedByLabel()
 ApprovedLabel = ApprovedLabel()
 AutonomyAuthorityLabel = AutonomyAuthorityLabel()
@@ -1707,6 +1712,7 @@ def sync_from_namespace(namespace):
         "LawLabel",
         "InstalledLawLabel",
         "ProposalLabel",
+        "ComposedFromLabel",
         "JustifiedByLabel",
         "ApprovedLabel",
         "AutonomyAuthorityLabel",

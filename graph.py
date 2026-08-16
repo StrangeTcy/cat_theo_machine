@@ -4397,6 +4397,371 @@ class GenerateHandleProposals(M.Edge):
         return self.result
 
 
+COMPOSITION_PROPOSAL_CAP = M.GMPRep("10")
+COMPOSITION_ELEMENT_SCAN_CAP = M.GMPRep("200")
+SKIPPED_COMPOSITIONS = M.EmptyList
+
+
+class ComposedFrom(M.Edge):
+    """Machine origin evidence for a law composed from two witnessed laws."""
+
+    def __init__(self, law_a, law_b):
+        self.result = M.Pair(
+            Lmod.ComposedFromLabel,
+            M.Pair(law_a, M.Pair(law_b, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(law_a, M.Pair(law_b, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordMapping(M.Edge):
+    """Recover the committed match map from a firing record's exact trace."""
+
+    def __init__(self, record):
+        prepared = M.Head(FiringRecordTrace(record)())()
+        self.result = M.Head(M.Tail(M.Tail(prepared)())())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MapRoot(M.Edge):
+    """The immutable Send-root carried by a machine Map term."""
+
+    def __init__(self, mapping):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+        super().__init__(inputs=M.Pair(mapping, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ComposeWitnessedLaws(M.Edge):
+    """Mechanically compose an adjacent, chronologically witnessed firing pair."""
+
+    def __init__(self, record_a, record_b):
+        law_a = FiringRecordLaw(record_a)()
+        law_b = FiringRecordLaw(record_b)()
+        registry = M.Tree(M.EmptyList)
+        retained_nodes = self._retained(
+            GraphNodes(LawInterface(law_a)())(),
+            GraphNodes(LawInterface(law_b)())(),
+            law_a,
+            law_b,
+            record_a,
+            record_b,
+            registry,
+        )
+        retained_edges = self._retained(
+            GraphEdges(LawInterface(law_a)())(),
+            GraphEdges(LawInterface(law_b)())(),
+            law_a,
+            law_b,
+            record_a,
+            record_b,
+            registry,
+        )
+        obligations = self._obligations(law_a, law_b, registry)
+
+        valid = M.AndAtom(
+            M.Head(retained_nodes)(),
+            M.AndAtom(
+                M.Head(retained_edges)(),
+                M.Head(obligations)(),
+            )(),
+        )()
+        self.result = M.EmptyList
+        if M.IdentityCompare(valid, M.truth_value)() is M.truth_value:
+            node_payload = M.Tail(retained_nodes)()
+            edge_payload = M.Tail(retained_edges)()
+            interface = GraphVersion(
+                M.Head(node_payload)(),
+                M.Head(edge_payload)(),
+                M.EmptyList,
+            )()
+            left_sends = M.Head(M.Tail(node_payload)())()
+            edge_left_sends = M.Head(M.Tail(edge_payload)())()
+            right_sends = M.Head(M.Tail(M.Tail(node_payload)())())()
+            edge_right_sends = M.Head(M.Tail(M.Tail(edge_payload)())())()
+            left_sends = self._join(left_sends, edge_left_sends)
+            right_sends = self._join(right_sends, edge_right_sends)
+            composite = Law(
+                LawLeft(law_a)(),
+                interface,
+                LawRight(law_b)(),
+                Map(interface, LawLeft(law_a)(), left_sends)(),
+                Map(interface, LawRight(law_b)(), right_sends)(),
+                M.Head(M.Tail(obligations)())(),
+            )()
+            if LawMapsComplete(composite)() is M.truth_value:
+                self.result = composite
+
+        super().__init__(
+            inputs=M.Pair(record_a, M.Pair(record_b, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _lookup(self, root, source):
+        found = MappedHostForPat(root, source)()
+        return found
+
+    def _join(self, first, second):
+        reversed_first = M.Reverse(first)()
+        result = second
+        remaining = reversed_first
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            result = M.Pair(M.Head(remaining)(), result)
+            remaining = M.Tail(remaining)()
+        return result
+
+    def _retained(
+        self,
+        source_elements,
+        target_elements,
+        law_a,
+        law_b,
+        record_a,
+        record_b,
+        registry,
+    ):
+        cap = MineNatFromGMPRep(COMPOSITION_ELEMENT_SCAN_CAP)()
+        source_scans = MineNatFromGMPRep(M.GMPRep("0"))()
+        valid = M.truth_value
+        reversed_elements = M.EmptyList
+        reversed_left_sends = M.EmptyList
+        reversed_right_sends = M.EmptyList
+        a_left_root = MapRoot(LawKToLeft(law_a)())()
+        b_left_root = MapRoot(LawKToLeft(law_b)())()
+        b_right_root = MapRoot(LawKToRight(law_b)())()
+        firing_a_root = MapRoot(FiringRecordMapping(record_a)())()
+        firing_b_root = MapRoot(FiringRecordMapping(record_b)())()
+        remaining_source = source_elements
+
+        while M.IdentityCompare(remaining_source, M.EmptyList)() is M.false_value:
+            if M.NatEq(source_scans, cap, registry)() is M.truth_value:
+                valid = M.false_value
+                remaining_source = M.EmptyList
+            else:
+                source = M.Head(remaining_source)()
+                remaining_source = M.Tail(remaining_source)()
+                stepped = MineNatSuccessor(source_scans, registry)()
+                source_scans = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                left_a = self._lookup(a_left_root, source)
+                if M.IdentityCompare(M.Head(left_a)(), M.false_value)() is M.truth_value:
+                    valid = M.false_value
+                else:
+                    actual_a = self._lookup(firing_a_root, M.Tail(left_a)())
+                    if M.IdentityCompare(M.Head(actual_a)(), M.false_value)() is M.truth_value:
+                        valid = M.false_value
+                    else:
+                        target_scans = MineNatFromGMPRep(M.GMPRep("0"))()
+                        remaining_target = target_elements
+                        matched = M.false_value
+                        matched_target = M.EmptyList
+                        while M.IdentityCompare(
+                            remaining_target,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if M.NatEq(target_scans, cap, registry)() is M.truth_value:
+                                valid = M.false_value
+                                remaining_target = M.EmptyList
+                            elif M.IdentityCompare(
+                                matched,
+                                M.truth_value,
+                            )() is M.truth_value:
+                                remaining_target = M.EmptyList
+                            else:
+                                target = M.Head(remaining_target)()
+                                remaining_target = M.Tail(remaining_target)()
+                                stepped = MineNatSuccessor(target_scans, registry)()
+                                target_scans = M.Head(stepped)()
+                                registry = M.Head(M.Tail(stepped)())()
+                                left_b = self._lookup(b_left_root, target)
+                                if M.IdentityCompare(
+                                    M.Head(left_b)(),
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    valid = M.false_value
+                                else:
+                                    actual_b = self._lookup(
+                                        firing_b_root,
+                                        M.Tail(left_b)(),
+                                    )
+                                    if M.IdentityCompare(
+                                        M.Head(actual_b)(),
+                                        M.false_value,
+                                    )() is M.truth_value:
+                                        valid = M.false_value
+                                    elif M.TermEqual(
+                                        M.Tail(actual_a)(),
+                                        M.Tail(actual_b)(),
+                                    )() is M.truth_value:
+                                        matched = M.truth_value
+                                        matched_target = target
+
+                        if M.IdentityCompare(
+                            matched,
+                            M.truth_value,
+                        )() is M.truth_value:
+                            right_b = self._lookup(
+                                b_right_root,
+                                matched_target,
+                            )
+                            if M.IdentityCompare(
+                                M.Head(right_b)(),
+                                M.false_value,
+                            )() is M.truth_value:
+                                valid = M.false_value
+                            else:
+                                reversed_elements = M.Pair(
+                                    source,
+                                    reversed_elements,
+                                )
+                                reversed_left_sends = M.Pair(
+                                    Send(source, M.Tail(left_a)())(),
+                                    reversed_left_sends,
+                                )
+                                reversed_right_sends = M.Pair(
+                                    Send(source, M.Tail(right_b)())(),
+                                    reversed_right_sends,
+                                )
+
+        return M.Pair(
+            valid,
+            M.Pair(
+                M.Reverse(reversed_elements)(),
+                M.Pair(
+                    M.Reverse(reversed_left_sends)(),
+                    M.Pair(M.Reverse(reversed_right_sends)(), M.EmptyList),
+                ),
+            ),
+        )
+
+    def _obligations(self, law_a, law_b, registry):
+        cap = MineNatFromGMPRep(COMPOSITION_ELEMENT_SCAN_CAP)()
+        scans = MineNatFromGMPRep(M.GMPRep("0"))()
+        valid = M.truth_value
+        reversed_obligations = M.EmptyList
+        remaining_laws = M.Pair(law_a, M.Pair(law_b, M.EmptyList))
+        while M.IdentityCompare(remaining_laws, M.EmptyList)() is M.false_value:
+            law = M.Head(remaining_laws)()
+            remaining_laws = M.Tail(remaining_laws)()
+            remaining = LawObligations(law)()
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if M.NatEq(scans, cap, registry)() is M.truth_value:
+                    valid = M.false_value
+                    remaining = M.EmptyList
+                    remaining_laws = M.EmptyList
+                else:
+                    reversed_obligations = M.Pair(
+                        M.Head(remaining)(),
+                        reversed_obligations,
+                    )
+                    remaining = M.Tail(remaining)()
+                    stepped = MineNatSuccessor(scans, registry)()
+                    scans = M.Head(stepped)()
+                    registry = M.Head(M.Tail(stepped)())()
+        return M.Pair(valid, M.Pair(M.Reverse(reversed_obligations)(), M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateCompositionProposals(M.Edge):
+    """Submit bounded pending proposals from adjacent witnessed firings."""
+
+    def __init__(self, proposal_store, ledger):
+        cap = MineNatFromGMPRep(COMPOSITION_PROPOSAL_CAP)()
+        scan_cap = MineNatFromGMPRep(COMPOSITION_ELEMENT_SCAN_CAP)()
+        submitted_count = MineNatFromGMPRep(M.GMPRep("0"))()
+        record_index = MineNatFromGMPRep(M.GMPRep("0"))()
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        skipped = SKIPPED_COMPOSITIONS
+        current_store = proposal_store
+        remaining = ledger.records
+        registry = ledger.registry
+
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            next_records = M.Tail(remaining)()
+            if M.IdentityCompare(next_records, M.EmptyList)() is M.truth_value:
+                remaining = M.EmptyList
+            elif M.NatEq(submitted_count, cap, registry)() is M.truth_value:
+                remaining = M.EmptyList
+            elif M.NatEq(scanned, scan_cap, registry)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                record_a = M.Head(remaining)()
+                record_b = M.Head(next_records)()
+                law_a = FiringRecordLaw(record_a)()
+                law_b = FiringRecordLaw(record_b)()
+                next_index_step = MineNatSuccessor(record_index, registry)()
+                next_index = M.Head(next_index_step)()
+                registry = M.Head(M.Tail(next_index_step)())()
+                contiguous = M.TermEqual(
+                    FiringRecordG1(record_a)(),
+                    FiringRecordG0(record_b)(),
+                )()
+                distinct = M.NotAtom(M.TermEqual(law_a, law_b)())()
+                if M.AndAtom(contiguous, distinct)() is M.truth_value:
+                    composite = ComposeWitnessedLaws(record_a, record_b)()
+                    if M.IdentityCompare(composite, M.EmptyList)() is M.false_value:
+                        justification = M.Pair(
+                            record_index,
+                            M.Pair(next_index, M.EmptyList),
+                        )
+                        proposal = Proposal(
+                            composite,
+                            ComposedFrom(law_a, law_b)(),
+                        )()
+                        current_store = ProposalStoreSubmit(
+                            current_store,
+                            proposal,
+                        )()
+                        current_store = ProposalStoreAttach(
+                            current_store,
+                            proposal,
+                            JustifiedBy(proposal, justification)(),
+                        )()
+                        stepped = MineNatSuccessor(
+                            submitted_count,
+                            registry,
+                        )()
+                        submitted_count = M.Head(stepped)()
+                        registry = M.Head(M.Tail(stepped)())()
+                    else:
+                        skipped = M.Pair(
+                            M.Pair(
+                                M.Head(law_a)(),
+                                M.Pair(M.Head(law_b)(), M.EmptyList),
+                            ),
+                            skipped,
+                        )
+                stepped = MineNatSuccessor(scanned, registry)()
+                scanned = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                record_index = next_index
+                remaining = next_records
+
+        self.result = M.Pair(
+            current_store,
+            M.Pair(submitted_count, M.Pair(M.Reverse(skipped)(), M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal_store, M.Pair(ledger, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class FireLaw(M.Edge):
     """
     Step 8. Staged double-pushout surgery over a GraphVersion.
