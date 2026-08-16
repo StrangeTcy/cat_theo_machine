@@ -1383,6 +1383,170 @@ class PatternCensusTest(M.Edge):
         return self.result
 
 
+class HandleFoldUnfoldTest(M.Edge):
+    """Step 21: a three-node pattern folds to a handle and unfolds exactly."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        left_interface = M.Thingy()
+        internal = M.Thingy()
+        right_interface = M.Thingy()
+        pattern_edge = M.Pair(
+            M.Char("pattern-edge"),
+            M.Pair(
+                left_interface,
+                M.Pair(internal, M.Pair(right_interface, empty)),
+            ),
+        )
+        pattern_nodes = M.Pair(
+            left_interface,
+            M.Pair(internal, M.Pair(right_interface, empty)),
+        )
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(pattern_nodes, M.Pair(M.Pair(pattern_edge, empty), empty)),
+        )
+        interface_nodes = M.Pair(
+            left_interface,
+            M.Pair(right_interface, empty),
+        )
+        name = M.Char("three-node-handle")
+        handle = Gmod.Handle(name, pattern)()
+        compiled = Gmod.CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        unfold = M.Head(M.Tail(compiled)())()
+        connector = M.Head(Gmod.GraphEdges(Gmod.LawRight(fold)())())()
+
+        host = Gmod.GraphVersion(
+            pattern_nodes,
+            M.Pair(pattern_edge, empty),
+            empty,
+        )()
+        fold_sends = Gmod.IdentitySendsFor(Gmod.GraphElements(pattern)())()
+        fold_mapping = Gmod.Map(pattern, host, fold_sends)()
+        folded_result = Gmod.FireLaw(
+            host,
+            fold,
+            fold_mapping,
+            Gmod.DanglingForbid()(),
+        )()
+        folded = M.Head(folded_result)()
+
+        before_counted = M.Count(Gmod.GraphNodes(host)(), registry)()
+        before_count = M.Head(before_counted)()
+        registry = M.Head(M.Tail(before_counted)())()
+        interface_counted = M.Count(interface_nodes, registry)()
+        interface_count = M.Head(interface_counted)()
+        registry = M.Head(M.Tail(interface_counted)())()
+        expected_folded_pair = M.Succ(interface_count, registry)()
+        expected_folded_count = M.Head(expected_folded_pair)()
+        registry = M.Head(M.Tail(expected_folded_pair)())()
+        folded_counted = M.Count(Gmod.GraphNodes(folded)(), registry)()
+        folded_count = M.Head(folded_counted)()
+        registry = M.Head(M.Tail(folded_counted)())()
+
+        unfold_sends = Gmod.IdentitySendsFor(
+            Gmod.GraphElements(Gmod.LawLeft(unfold)())(),
+        )()
+        unfold_mapping = Gmod.Map(
+            Gmod.LawLeft(unfold)(),
+            folded,
+            unfold_sends,
+        )()
+        unfolded_result = Gmod.FireLaw(
+            folded,
+            unfold,
+            unfold_mapping,
+            Gmod.DanglingForbid()(),
+        )()
+        unfolded = M.Head(unfolded_result)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Tail(M.Tail(compiled)())(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(Gmod.HandleName(handle)(), name)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(Gmod.HandlePattern(handle)(), pattern)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(Gmod.LawLeft(fold)(), pattern)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(Gmod.LawInterface(fold)())(),
+            interface_nodes,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.GraphEdges(Gmod.LawInterface(fold)())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(fold)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(unfold)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.LawLeft(unfold)(),
+            Gmod.LawRight(fold)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.LawRight(unfold)(),
+            Gmod.LawLeft(fold)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.LawKToLeft(unfold)(),
+            Gmod.LawKToRight(fold)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.LawKToRight(unfold)(),
+            Gmod.LawKToLeft(fold)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(Gmod.LawRight(fold)())(),
+            M.Pair(handle, interface_nodes),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(Gmod.GraphEdges(Gmod.LawRight(fold)())())(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(pattern_nodes, handle)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(connector)(), Lmod.HandleLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.EdgeEndpoints(connector)(),
+            M.Pair(handle, interface_nodes),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(folded, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.NatEq(before_count, expected_folded_count, registry)() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(folded_count, expected_folded_count, registry)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(folded)(), internal)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(folded)(), handle)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphEdges(folded)(), connector)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unfolded, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.GraphStoresEqual(unfolded, host)() is M.false_value:
+            self.result = M.false_value
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Step 17: node-count-max is enforced immediately before Law commit."""
 
@@ -8179,6 +8343,14 @@ def install_default_tests(graph):
             "pattern_census_test",
             empty,
             PatternCensusTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "handle_fold_unfold_test",
+            empty,
+            HandleFoldUnfoldTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

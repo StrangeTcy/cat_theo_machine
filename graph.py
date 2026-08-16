@@ -1502,6 +1502,41 @@ class SharedSubterms(M.Edge):
         return self.result
 
 
+class Handle(M.Edge):
+    """Named graph-pattern abbreviation term."""
+
+    def __init__(self, name, pattern_graph):
+        self.result = M.Pair(
+            Lmod.HandleLabel,
+            M.Pair(name, M.Pair(pattern_graph, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(name, M.Pair(pattern_graph, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class HandleName(M.Edge):
+    def __init__(self, handle):
+        self.result = M.Head(M.Tail(handle)())()
+        super().__init__(inputs=M.Pair(handle, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HandlePattern(M.Edge):
+    def __init__(self, handle):
+        self.result = M.Head(M.Tail(M.Tail(handle)())())()
+        super().__init__(inputs=M.Pair(handle, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class IdentitySendsFor(M.Edge):
     """A Send chain carrying each element of `elements` to itself."""
 
@@ -1518,6 +1553,55 @@ class IdentitySendsFor(M.Edge):
             reversed_sends = M.Tail(reversed_sends)()
         self.result = sends
         super().__init__(inputs=M.Pair(elements, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompileHandleToLaws(M.Edge):
+    """Compile a named pattern abbreviation into ordered fold/unfold Laws."""
+
+    def __init__(self, handle, interface_nodes):
+        pattern = HandlePattern(handle)()
+        interface = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(interface_nodes, M.Pair(M.EmptyList, M.EmptyList)),
+        )
+        connector = M.Pair(
+            Lmod.HandleLabel,
+            M.Pair(handle, interface_nodes),
+        )
+        abbreviation = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                M.Pair(handle, interface_nodes),
+                M.Pair(M.Pair(connector, M.EmptyList), M.EmptyList),
+            ),
+        )
+        interface_sends = IdentitySendsFor(interface_nodes)()
+        pattern_map = Map(interface, pattern, interface_sends)()
+        abbreviation_map = Map(interface, abbreviation, interface_sends)()
+        fold = Law(
+            pattern,
+            interface,
+            abbreviation,
+            pattern_map,
+            abbreviation_map,
+            M.EmptyList,
+        )()
+        unfold = Law(
+            abbreviation,
+            interface,
+            pattern,
+            abbreviation_map,
+            pattern_map,
+            M.EmptyList,
+        )()
+        self.result = M.Pair(fold, M.Pair(unfold, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(handle, M.Pair(interface_nodes, M.EmptyList)),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result
