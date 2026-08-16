@@ -33,7 +33,7 @@ else:
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
-    from .persistence import SnapshotCodec
+    from .persistence import SnapshotCodec, SnapshotSaveDeadline, SnapshotSaveTimeout
     from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
@@ -45,6 +45,7 @@ PACK_DIR = os.path.join(PACKAGE_DIR, "packs")
 SNAPSHOT_DIR = os.path.join(PACKAGE_DIR, "snapshots")
 INSPECTOR_DIR = os.path.join(PACKAGE_DIR, "inspector")
 SNAPSHOT_NAME = "hyge_snapshot_v8.json"
+SNAPSHOT_SAVE_TIMEOUT_SECONDS = 120.0
 INSPECTOR_DEFAULT_PORT = 8765
 INSPECTOR_DEFAULT_MAX_RULE_EDGES = 80
 PACK_PATHS = [
@@ -168,13 +169,27 @@ def _paused_comparison_job_is_compatible(comparison_job, graph):
     return M.truth_value
 
 
-def _save_snapshot_now(runtime, runtime_namespace):
+def _save_snapshot_now(runtime, runtime_namespace, snapshot_path=None):
+    target_path = SNAPSHOT_PATH if snapshot_path is None else snapshot_path
     os.makedirs(SNAPSHOT_DIR, exist_ok=True)
-    temp_snapshot_path = SNAPSHOT_PATH + ".tmp"
-    print("snapshot save: starting capture for", SNAPSHOT_PATH, flush=True)
-    save_runtime(runtime, temp_snapshot_path, runtime_namespace)
-    os.replace(temp_snapshot_path, SNAPSHOT_PATH)
-    print("saved snapshot to", SNAPSHOT_PATH, flush=True)
+    deadline = SnapshotSaveDeadline(SNAPSHOT_SAVE_TIMEOUT_SECONDS)
+    print(
+        "snapshot save: 120-second deadline started for " + target_path,
+        flush=True,
+    )
+    try:
+        save_runtime(runtime, target_path, runtime_namespace, deadline=deadline)
+    except SnapshotSaveTimeout:
+        raise
+    except Exception as error:
+        print(
+            "snapshot save FAILED during " + deadline.phase + ": " + str(error),
+            flush=True,
+        )
+        raise
+    finally:
+        deadline.close()
+    print("saved snapshot to", target_path, flush=True)
 
 
 def _debug_log(debug_flag, *args, **kwargs):
@@ -182,10 +197,11 @@ def _debug_log(debug_flag, *args, **kwargs):
         print(*args, **kwargs)
 
 
-def _maybe_resume_paused_cold_search(debug: bool = False):
+def _maybe_resume_paused_cold_search(debug: bool = False, snapshot_path=None):
+    target_path = SNAPSHOT_PATH if snapshot_path is None else snapshot_path
     debug_flag = M.truth_value if debug else M.false_value
-    _debug_log(debug_flag, f"DEBUG: checking paused snapshot at {SNAPSHOT_PATH}")
-    if os.path.exists(SNAPSHOT_PATH):
+    _debug_log(debug_flag, f"DEBUG: checking paused snapshot at {target_path}")
+    if os.path.exists(target_path):
         snapshot_exists = M.truth_value
     else:
         snapshot_exists = M.false_value
@@ -196,18 +212,18 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
     _debug_log(debug_flag, "DEBUG: paused snapshot found, restoring")
     runtime_namespace = _runtime_namespace()
     try:
-        runtime = boot_from_snapshot(SNAPSHOT_PATH, runtime_namespace, debug=debug_flag)
+        runtime = boot_from_snapshot(target_path, runtime_namespace, debug=debug_flag)
     except (OSError, RuntimeError, json.JSONDecodeError, ValueError, KeyError, TypeError) as error:
         print(
             "ignoring unreadable snapshot at",
-            SNAPSHOT_PATH,
+            target_path,
             "(" + error.__class__.__name__ + ": " + str(error) + ")",
         )
         try:
-            bad_path = SNAPSHOT_PATH + ".bad"
+            bad_path = target_path + ".bad"
             if os.path.exists(bad_path):
                 os.remove(bad_path)
-            os.replace(SNAPSHOT_PATH, bad_path)
+            os.replace(target_path, bad_path)
             print("moved unreadable snapshot to", bad_path)
         except OSError:
             pass
@@ -216,9 +232,9 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
     comparison_job = _first_paused_search_comparison_job(runtime.graph)
     if M.Compare(comparison_job, M.EmptyList)() is M.false_value:
         if _paused_comparison_job_is_compatible(comparison_job, runtime.graph) is M.false_value:
-            print("ignoring incompatible paused comparison snapshot at", SNAPSHOT_PATH)
-            incompatible_path = SNAPSHOT_PATH + ".incompatible"
-            os.replace(SNAPSHOT_PATH, incompatible_path)
+            print("ignoring incompatible paused comparison snapshot at", target_path)
+            incompatible_path = target_path + ".incompatible"
+            os.replace(target_path, incompatible_path)
             print("moved incompatible snapshot to", incompatible_path)
             return M.false_value
 
@@ -247,7 +263,7 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
         paused_comparison_again = _first_paused_search_comparison_job(runtime.graph)
         if M.Compare(paused_comparison_again, M.EmptyList)() is not M.truth_value:
             print(comparison_text + ": paused again after " + str(elapsed) + " seconds")
-            _save_snapshot_now(runtime, runtime_namespace)
+            _save_snapshot_now(runtime, runtime_namespace, target_path)
             return M.truth_value
 
         proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
@@ -256,16 +272,16 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
         else:
             print(comparison_text + ": resumed and finished benchmarking after " + str(elapsed) + " seconds")
 
-        _save_snapshot_now(runtime, runtime_namespace)
+        _save_snapshot_now(runtime, runtime_namespace, target_path)
         return M.truth_value
 
     if M.Compare(job, M.EmptyList)() is M.truth_value:
         return M.false_value
 
     if _paused_job_is_compatible(job, runtime.graph) is M.false_value:
-        print("ignoring incompatible paused snapshot at", SNAPSHOT_PATH)
-        incompatible_path = SNAPSHOT_PATH + ".incompatible"
-        os.replace(SNAPSHOT_PATH, incompatible_path)
+        print("ignoring incompatible paused snapshot at", target_path)
+        incompatible_path = target_path + ".incompatible"
+        os.replace(target_path, incompatible_path)
         print("moved incompatible snapshot to", incompatible_path)
         return M.false_value
 
@@ -294,7 +310,7 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
     paused_again = _first_paused_search_job(runtime.graph)
     if M.Compare(paused_again, M.EmptyList)() is not M.truth_value:
         print(mode_text + ": paused again after " + str(elapsed) + " seconds")
-        _save_snapshot_now(runtime, runtime_namespace)
+        _save_snapshot_now(runtime, runtime_namespace, target_path)
         return M.truth_value
 
     proved = M.Compare(derivation, M.EmptyList)() is not M.truth_value
@@ -303,7 +319,7 @@ def _maybe_resume_paused_cold_search(debug: bool = False):
     else:
         print(mode_text + ": resumed and did not prove the goal after " + str(elapsed) + " seconds")
 
-    _save_snapshot_now(runtime, runtime_namespace)
+    _save_snapshot_now(runtime, runtime_namespace, target_path)
     return M.truth_value
 
 
@@ -992,13 +1008,13 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
     return 0
 
-def run_cold_mode(debug: bool = False, filter_name: str = "tao"):
+def run_cold_mode(debug: bool = False, filter_name: str = "tao", snapshot_path=None):
     if debug:
         P.SetDebugTrace(M.truth_value)()
     else:
         P.SetDebugTrace(M.false_value)()
     runtime_namespace = _runtime_namespace()
-    if M.IdentityCompare(_maybe_resume_paused_cold_search(debug=debug), M.truth_value)() is M.truth_value:
+    if M.IdentityCompare(_maybe_resume_paused_cold_search(debug=debug, snapshot_path=snapshot_path), M.truth_value)() is M.truth_value:
         return
 
     start_time = time.time()
@@ -1018,16 +1034,16 @@ def run_cold_mode(debug: bool = False, filter_name: str = "tao"):
         theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs, filter_name), "Cold theorem agenda", debug=debug)
     except PausedComparisonRequested as paused:
         print(paused.label + ": comparison paused after " + str(paused.elapsed) + " seconds")
-        _save_snapshot_now(runtime, runtime_namespace)
+        _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
         return
     except PausedSearchRequested as paused:
         print(paused.label + ": paused after " + str(paused.elapsed) + " seconds")
-        _save_snapshot_now(runtime, runtime_namespace)
+        _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
         return
     proved_count = sum(1 for _label, proved, _elapsed, _goal, _derivation in theorem_results if proved)
     print(f"proved {proved_count} / {len(theorem_results)} theorem cases during cold boot")
 
-    _save_snapshot_now(runtime, runtime_namespace)
+    _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
 
 
 def run_warm_mode(debug: bool = False):
