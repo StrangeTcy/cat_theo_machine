@@ -171,9 +171,10 @@ def _paused_comparison_job_is_compatible(comparison_job, graph):
 def _save_snapshot_now(runtime, runtime_namespace):
     os.makedirs(SNAPSHOT_DIR, exist_ok=True)
     temp_snapshot_path = SNAPSHOT_PATH + ".tmp"
+    print("snapshot save: starting capture for", SNAPSHOT_PATH, flush=True)
     save_runtime(runtime, temp_snapshot_path, runtime_namespace)
     os.replace(temp_snapshot_path, SNAPSHOT_PATH)
-    print("saved snapshot to", SNAPSHOT_PATH)
+    print("saved snapshot to", SNAPSHOT_PATH, flush=True)
 
 
 def _debug_log(debug_flag, *args, **kwargs):

@@ -25,6 +25,9 @@ from . import search as Smod
 from . import theorem_rules as Tmod
 from . import trees as T
 
+SNAPSHOT_CAPTURE_PROGRESS_SECONDS = 2.0
+
+
 SNAPSHOT_SYMBOL_NAMES = [
     "EmptyList",
     "Zero",
@@ -440,6 +443,14 @@ class SnapshotCodec:
         self.object_id_index = M.EmptyList
         self.captured_objects = M.EmptyList
         self.next_id = Gmod.MineNatFromGMPRep(M.GMPRep("1"))()
+        self.capture_progress = M.false_value
+        self.capture_started_at = 0.0
+        self.capture_last_progress_at = 0.0
+        self.capture_discovered_count = 0
+        self.capture_encoded_count = 0
+        self.last_capture_discovery_seconds = 0.0
+        self.last_capture_record_seconds = 0.0
+        self.last_capture_total_seconds = 0.0
 
     def _restore_tree_root_worker(queue, state, namespace, root_name, registry):
         # Legacy worker retained for older platforms, but on Windows "spawn"
@@ -1007,6 +1018,19 @@ class SnapshotCodec:
                 oid,
             )()
             self.captured_objects = M.Pair(current, self.captured_objects)
+            self.capture_discovered_count = self.capture_discovered_count + 1
+            if self.capture_progress is M.truth_value:
+                capture_now = time.monotonic()
+                if capture_now - self.capture_last_progress_at >= SNAPSHOT_CAPTURE_PROGRESS_SECONDS:
+                    print(
+                        "snapshot capture: discovery: "
+                        + str(self.capture_discovered_count)
+                        + " objects found ("
+                        + format(capture_now - self.capture_started_at, ".1f")
+                        + "s elapsed)",
+                        flush=True,
+                    )
+                    self.capture_last_progress_at = capture_now
 
             for child in self._child_refs(current):
                 if child is None:
@@ -1066,10 +1090,20 @@ class SnapshotCodec:
             "value": self._encode_field(obj.value),
         }
 
-    def _capture_from_roots(self, roots):
+    def _capture_from_roots(self, roots, progress=M.false_value):
         self.object_id_index = M.EmptyList
         self.captured_objects = M.EmptyList
         self.next_id = Gmod.MineNatFromGMPRep(M.GMPRep("1"))()
+        self.capture_progress = progress
+        self.capture_started_at = time.monotonic()
+        self.capture_last_progress_at = self.capture_started_at
+        self.capture_discovered_count = 0
+        self.capture_encoded_count = 0
+        self.last_capture_discovery_seconds = 0.0
+        self.last_capture_record_seconds = 0.0
+        self.last_capture_total_seconds = 0.0
+        if self.capture_progress is M.truth_value:
+            print("snapshot capture: discovery started", flush=True)
 
         for name in roots:
             self._intern(roots[name])
@@ -1081,14 +1115,62 @@ class SnapshotCodec:
                 symbols[name] = obj
                 self._intern(obj)
 
+        discovery_finished_at = time.monotonic()
+        self.last_capture_discovery_seconds = discovery_finished_at - self.capture_started_at
         object_count = self._capture_oid_number(self.next_id) - 1
+        if self.capture_progress is M.truth_value:
+            print(
+                "snapshot capture: discovery complete: "
+                + str(object_count)
+                + " objects in "
+                + format(self.last_capture_discovery_seconds, ".2f")
+                + "s",
+                flush=True,
+            )
+            print(
+                "snapshot capture: record encoding started: "
+                + str(object_count)
+                + " objects",
+                flush=True,
+            )
+
         objects = [None] * object_count
+        self.capture_last_progress_at = discovery_finished_at
         remaining_objects = self.captured_objects
         while M.IdentityCompare(remaining_objects, M.EmptyList)() is M.false_value:
             obj = M.Head(remaining_objects)()
             oid = self._capture_oid_number(self._captured_object_id(obj))
             objects[oid - 1] = self._record_for(obj)
+            self.capture_encoded_count = self.capture_encoded_count + 1
+            if self.capture_progress is M.truth_value:
+                capture_now = time.monotonic()
+                if capture_now - self.capture_last_progress_at >= SNAPSHOT_CAPTURE_PROGRESS_SECONDS:
+                    print(
+                        "snapshot capture: record encoding: "
+                        + str(self.capture_encoded_count)
+                        + " / "
+                        + str(object_count)
+                        + " objects ("
+                        + format(capture_now - discovery_finished_at, ".1f")
+                        + "s in phase, "
+                        + format(capture_now - self.capture_started_at, ".1f")
+                        + "s total)",
+                        flush=True,
+                    )
+                    self.capture_last_progress_at = capture_now
             remaining_objects = M.Tail(remaining_objects)()
+
+        records_finished_at = time.monotonic()
+        self.last_capture_record_seconds = records_finished_at - discovery_finished_at
+        if self.capture_progress is M.truth_value:
+            print(
+                "snapshot capture: record encoding complete: "
+                + str(self.capture_encoded_count)
+                + " objects in "
+                + format(self.last_capture_record_seconds, ".2f")
+                + "s",
+                flush=True,
+            )
 
         root_ids = {}
         for name in roots:
@@ -1102,6 +1184,17 @@ class SnapshotCodec:
                 self._captured_object_id(symbols[name])
             )
 
+        self.last_capture_total_seconds = time.monotonic() - self.capture_started_at
+        if self.capture_progress is M.truth_value:
+            print(
+                "snapshot capture: complete: "
+                + str(object_count)
+                + " objects in "
+                + format(self.last_capture_total_seconds, ".2f")
+                + "s",
+                flush=True,
+            )
+
         return {
             "header": {"format": "hyge-proof-kernel", "version": 3, "protocol_version": 3},
             "roots": root_ids,
@@ -1109,10 +1202,10 @@ class SnapshotCodec:
             "objects": objects,
         }
 
-    def capture_objects(self, roots):
-        return self._capture_from_roots(roots)
+    def capture_objects(self, roots, progress=M.false_value):
+        return self._capture_from_roots(roots, progress)
 
-    def capture(self, graph, extra_roots=None):
+    def capture(self, graph, extra_roots=None, progress=M.false_value):
         roots = {
             "constructor_registry": graph.constructor_registry,
             "all_rules": graph.all_rules,
@@ -1129,14 +1222,54 @@ class SnapshotCodec:
         if extra_roots is not None:
             for name in extra_roots:
                 roots[name] = extra_roots[name]
-        return self._capture_from_roots(roots)
+        return self._capture_from_roots(roots, progress)
 
-    def save(self, graph, path):
-        snapshot = self.capture(graph)
+    def save(self, graph, path, progress=M.truth_value):
+        save_started_at = time.monotonic()
+        if progress is M.truth_value:
+            print("snapshot save: capture starting", flush=True)
+        snapshot = self.capture(graph, progress=progress)
+        capture_finished_at = time.monotonic()
+        if progress is M.truth_value:
+            print(
+                "snapshot save: capture finished in "
+                + format(capture_finished_at - save_started_at, ".2f")
+                + "s; JSON write starting",
+                flush=True,
+            )
         tmp_path = path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, ensure_ascii=False, indent=2)
+        write_finished_at = time.monotonic()
+        if progress is M.truth_value:
+            try:
+                snapshot_bytes = os.path.getsize(tmp_path)
+            except OSError:
+                snapshot_bytes = None
+            if snapshot_bytes is None:
+                print(
+                    "snapshot save: JSON write complete in "
+                    + format(write_finished_at - capture_finished_at, ".2f")
+                    + "s; atomic replace starting",
+                    flush=True,
+                )
+            else:
+                print(
+                    "snapshot save: JSON write complete: "
+                    + str(snapshot_bytes)
+                    + " bytes in "
+                    + format(write_finished_at - capture_finished_at, ".2f")
+                    + "s; atomic replace starting",
+                    flush=True,
+                )
         os.replace(tmp_path, path)
+        if progress is M.truth_value:
+            print(
+                "snapshot save: complete in "
+                + format(time.monotonic() - save_started_at, ".2f")
+                + "s",
+                flush=True,
+            )
         return path
 
     def load_snapshot(self, snapshot):
