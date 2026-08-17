@@ -5581,12 +5581,13 @@ class RenderNatSurface(M.Edge):
         return self.result
 
 
-class ConverseValue(M.Edge):
-    """Parse one group-free Surface chain and evaluate it to a Nat.
+class ConverseInterpretations(M.Edge):
+    """Every structurally distinct Meaning for one group-free Surface chain.
 
-    Returns Pair(value_or_EmptyList, Pair(registry, EmptyList)). Chains may
-    contain Nat atoms spliced in by group reduction; a single-element chain
-    holding a Nat evaluates to that Nat directly.
+    All template laws run within the scan cap; every distinct Meaning is
+    retained as Pair(meaning, Pair(law, EmptyList)). Nothing collapses to
+    the first match. Word and spliced-Nat readings apply when no template
+    matches.
     """
 
     def __init__(self, vocabulary, surface_term, registry):
@@ -5594,7 +5595,7 @@ class ConverseValue(M.Edge):
         templates = M.Head(vocabulary)()
         word_entries = M.Head(M.Tail(vocabulary)())()
 
-        parsed = M.EmptyList
+        reversed_interpretations = M.EmptyList
         scan_text = "0"
         remaining = templates
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -5605,12 +5606,33 @@ class ConverseValue(M.Edge):
                 law = M.Head(remaining)()
                 candidate = CorrespondenceApply(law, surface_term)()
                 if M.IdentityCompare(candidate, M.EmptyList)() is M.false_value:
-                    parsed = candidate
-                    remaining = M.EmptyList
-                else:
-                    remaining = M.Tail(remaining)()
+                    duplicate = M.false_value
+                    check_text = "0"
+                    checking = reversed_interpretations
+                    while M.IdentityCompare(checking, M.EmptyList)() is M.false_value:
+                        if GMPEqualText(check_text, cap_text)() is M.truth_value:
+                            checking = M.EmptyList
+                        else:
+                            check_text = GMPSuccText(check_text)()
+                            if M.Compare(
+                                M.Head(M.Head(checking)())(),
+                                candidate,
+                            )() is M.truth_value:
+                                duplicate = M.truth_value
+                                checking = M.EmptyList
+                            else:
+                                checking = M.Tail(checking)()
+                    if M.IdentityCompare(duplicate, M.false_value)() is M.truth_value:
+                        reversed_interpretations = M.Pair(
+                            M.Pair(candidate, M.Pair(law, M.EmptyList)),
+                            reversed_interpretations,
+                        )
+                remaining = M.Tail(remaining)()
 
-        if M.IdentityCompare(parsed, M.EmptyList)() is M.truth_value:
+        if M.IdentityCompare(
+            reversed_interpretations,
+            M.EmptyList,
+        )() is M.truth_value:
             direct = CorrespondenceResolveWord(word_entries, surface_term)()
             if M.IdentityCompare(direct, M.EmptyList)() is M.truth_value:
                 chain = M.Head(M.Tail(surface_term)())()
@@ -5623,14 +5645,66 @@ class ConverseValue(M.Edge):
                         if M.IsNat(element, registry)() is M.truth_value:
                             direct = element
             if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
-                parsed = Meaning(direct)()
+                reversed_interpretations = M.Pair(
+                    M.Pair(Meaning(direct)(), M.Pair(M.EmptyList, M.EmptyList)),
+                    reversed_interpretations,
+                )
+
+        self.result = M.Pair(
+            M.Reverse(reversed_interpretations)(),
+            M.Pair(registry, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                vocabulary,
+                M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConverseValue(M.Edge):
+    """Evaluate one group-free Surface chain to its single agreed Nat value.
+
+    Every interpretation is enumerated and evaluated; the value returns
+    only when all evaluable interpretations agree. Zero interpretations or
+    conflicting values return EmptyList explicitly — never a silent pick.
+    """
+
+    def __init__(self, vocabulary, surface_term, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        interpreted = ConverseInterpretations(vocabulary, surface_term, registry)()
+        interpretations = M.Head(interpreted)()
+        registry = M.Head(M.Tail(interpreted)())()
 
         value = M.EmptyList
-        if M.IdentityCompare(parsed, M.EmptyList)() is M.false_value:
-            evaluated = MeaningEvaluate(parsed, word_entries, registry)()
-            value = M.Head(evaluated)()
-            registry = M.Head(M.Tail(evaluated)())()
+        conflicted = M.false_value
+        scan_text = "0"
+        remaining = interpretations
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                meaning = M.Head(M.Head(remaining)())()
+                evaluated = MeaningEvaluate(meaning, word_entries, registry)()
+                candidate = M.Head(evaluated)()
+                registry = M.Head(M.Tail(evaluated)())()
+                if M.IdentityCompare(candidate, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
+                        value = candidate
+                    elif M.NatEq(value, candidate, registry)() is M.false_value:
+                        conflicted = M.truth_value
+                        remaining = M.EmptyList
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
 
+        if M.IdentityCompare(conflicted, M.truth_value)() is M.truth_value:
+            value = M.EmptyList
         self.result = M.Pair(value, M.Pair(registry, M.EmptyList))
         super().__init__(
             inputs=M.Pair(
@@ -5779,36 +5853,825 @@ class SurfaceReduceGroups(M.Edge):
         return self.result
 
 
-class Converse(M.Edge):
-    """Parse a Surface sentence, evaluate its Meaning, render the answer.
+class Understood(M.Edge):
+    """A successful interpretation: surface, meaning, law, and answer."""
 
-    Parenthesis groups reduce innermost-first through the same laws before
-    the sentence templates run. Returns Pair(answer_surface_or_EmptyList,
-    Pair(registry, EmptyList)). An unmatched sentence returns EmptyList
-    explicitly; nothing is guessed.
-    """
+    def __init__(self, surface_term, meaning_term, law, answer_surface):
+        self.result = M.Pair(
+            Lmod.UnderstoodLabel,
+            M.Pair(
+                surface_term,
+                M.Pair(
+                    meaning_term,
+                    M.Pair(law, M.Pair(answer_surface, M.EmptyList)),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                surface_term,
+                M.Pair(
+                    meaning_term,
+                    M.Pair(law, M.Pair(answer_surface, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class NotUnderstood(M.Edge):
+    """An explicit interpretation failure carrying its structured reason."""
+
+    def __init__(self, surface_term, reason):
+        self.result = M.Pair(
+            Lmod.NotUnderstoodLabel,
+            M.Pair(surface_term, M.Pair(reason, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(surface_term, M.Pair(reason, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class AmbiguousResult(M.Edge):
+    """Distinct disagreeing interpretations retained, none chosen."""
+
+    def __init__(self, surface_term, interpretations):
+        self.result = M.Pair(
+            Lmod.AmbiguousLabel,
+            M.Pair(surface_term, M.Pair(interpretations, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(surface_term, M.Pair(interpretations, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceUnknownWords(M.Edge):
+    """Words of a Surface chain with no entry, template mention, or grouping."""
 
     def __init__(self, vocabulary, surface_term, registry):
-        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        templates = M.Head(vocabulary)()
+        word_entries = M.Head(M.Tail(vocabulary)())()
 
-        reduced = SurfaceReduceGroups(vocabulary, surface_term, registry)()
-        reduced_surface = M.Head(reduced)()
-        registry = M.Head(M.Tail(reduced)())()
+        reversed_known = M.EmptyList
+        entry_scan_text = "0"
+        remaining_entries = word_entries
+        while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
+            if GMPEqualText(entry_scan_text, cap_text)() is M.truth_value:
+                remaining_entries = M.EmptyList
+            else:
+                entry_scan_text = GMPSuccText(entry_scan_text)()
+                reversed_known = M.Pair(
+                    M.Head(M.Head(remaining_entries)())(),
+                    reversed_known,
+                )
+                remaining_entries = M.Tail(remaining_entries)()
+        template_scan_text = "0"
+        remaining_templates = templates
+        while M.IdentityCompare(remaining_templates, M.EmptyList)() is M.false_value:
+            if GMPEqualText(template_scan_text, cap_text)() is M.truth_value:
+                remaining_templates = M.EmptyList
+            else:
+                template_scan_text = GMPSuccText(template_scan_text)()
+                law = M.Head(remaining_templates)()
+                left_nodes = GraphNodes(LawLeft(law)())()
+                if M.IdentityCompare(left_nodes, M.EmptyList)() is M.false_value:
+                    pattern = M.Head(left_nodes)()
+                    if M.IsPair(pattern)() is M.truth_value:
+                        chain = M.Head(M.Tail(pattern)())()
+                        word_scan_text = "0"
+                        while M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+                            if GMPEqualText(
+                                word_scan_text,
+                                cap_text,
+                            )() is M.truth_value:
+                                chain = M.EmptyList
+                            else:
+                                word_scan_text = GMPSuccText(word_scan_text)()
+                                element = M.Head(chain)()
+                                if P.IsVarPattern(element)() is M.false_value:
+                                    reversed_known = M.Pair(element, reversed_known)
+                                chain = M.Tail(chain)()
+                remaining_templates = M.Tail(remaining_templates)()
+        known = M.Pair(
+            M.Char("("),
+            M.Pair(M.Char(")"), M.Reverse(reversed_known)()),
+        )
 
-        answer = M.EmptyList
-        if M.IdentityCompare(reduced_surface, M.EmptyList)() is M.false_value:
-            valued = ConverseValue(vocabulary, reduced_surface, registry)()
-            value = M.Head(valued)()
-            registry = M.Head(M.Tail(valued)())()
-            if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
-                answer = RenderNatSurface(value, digit_words, registry)()
-
-        self.result = M.Pair(answer, M.Pair(registry, M.EmptyList))
+        reversed_unknown = M.EmptyList
+        scan_text = "0"
+        remaining = M.Head(M.Tail(surface_term)())()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                word = M.Head(remaining)()
+                if M.IsNat(word, registry)() is M.false_value:
+                    found = M.false_value
+                    check_text = "0"
+                    checking = known
+                    while M.IdentityCompare(checking, M.EmptyList)() is M.false_value:
+                        if GMPEqualText(check_text, cap_text)() is M.truth_value:
+                            checking = M.EmptyList
+                        else:
+                            check_text = GMPSuccText(check_text)()
+                            if M.Compare(M.Head(checking)(), word)() is M.truth_value:
+                                found = M.truth_value
+                                checking = M.EmptyList
+                            else:
+                                checking = M.Tail(checking)()
+                    if M.IdentityCompare(found, M.false_value)() is M.truth_value:
+                        reversed_unknown = M.Pair(word, reversed_unknown)
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_unknown)()
         super().__init__(
             inputs=M.Pair(
                 vocabulary,
                 M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
             ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Converse(M.Edge):
+    """Interpret a Surface sentence and return an explicit result term.
+
+    Parenthesis groups reduce innermost-first through the same laws before
+    the sentence templates run. Returns Pair(result_term, Pair(registry,
+    EmptyList)) where result_term is Understood, NotUnderstood with a
+    structured reason, or Ambiguous with every disagreeing interpretation.
+    Nothing is guessed and no interpretation is silently discarded.
+    """
+
+    def __init__(self, vocabulary, surface_term, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+
+        unknown_words = SurfaceUnknownWords(vocabulary, surface_term, registry)()
+        outcome = M.EmptyList
+        if M.IdentityCompare(unknown_words, M.EmptyList)() is M.false_value:
+            outcome = NotUnderstood(
+                surface_term,
+                M.Pair(
+                    Lmod.ReasonUnknownWordLabel,
+                    M.Pair(unknown_words, M.EmptyList),
+                ),
+            )()
+
+        if M.IdentityCompare(outcome, M.EmptyList)() is M.truth_value:
+            reduced = SurfaceReduceGroups(vocabulary, surface_term, registry)()
+            reduced_surface = M.Head(reduced)()
+            registry = M.Head(M.Tail(reduced)())()
+            if M.IdentityCompare(reduced_surface, M.EmptyList)() is M.truth_value:
+                outcome = NotUnderstood(
+                    surface_term,
+                    M.Pair(
+                        Lmod.ReasonGroupLabel,
+                        M.Pair(surface_term, M.EmptyList),
+                    ),
+                )()
+            else:
+                interpreted = ConverseInterpretations(
+                    vocabulary,
+                    reduced_surface,
+                    registry,
+                )()
+                interpretations = M.Head(interpreted)()
+                registry = M.Head(M.Tail(interpreted)())()
+                if M.IdentityCompare(
+                    interpretations,
+                    M.EmptyList,
+                )() is M.truth_value:
+                    outcome = NotUnderstood(
+                        surface_term,
+                        M.Pair(
+                            Lmod.ReasonNoCorrespondenceLabel,
+                            M.Pair(reduced_surface, M.EmptyList),
+                        ),
+                    )()
+                else:
+                    value = M.EmptyList
+                    chosen = M.EmptyList
+                    conflicted = M.false_value
+                    reversed_valued = M.EmptyList
+                    scan_text = "0"
+                    remaining = interpretations
+                    while M.IdentityCompare(
+                        remaining,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                            remaining = M.EmptyList
+                        else:
+                            scan_text = GMPSuccText(scan_text)()
+                            interpretation = M.Head(remaining)()
+                            meaning = M.Head(interpretation)()
+                            evaluated = MeaningEvaluate(
+                                meaning,
+                                word_entries,
+                                registry,
+                            )()
+                            candidate = M.Head(evaluated)()
+                            registry = M.Head(M.Tail(evaluated)())()
+                            if M.IdentityCompare(
+                                candidate,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                reversed_valued = M.Pair(
+                                    interpretation,
+                                    reversed_valued,
+                                )
+                                if M.IdentityCompare(
+                                    value,
+                                    M.EmptyList,
+                                )() is M.truth_value:
+                                    value = candidate
+                                    chosen = interpretation
+                                elif M.NatEq(
+                                    value,
+                                    candidate,
+                                    registry,
+                                )() is M.false_value:
+                                    conflicted = M.truth_value
+                            remaining = M.Tail(remaining)()
+                    if M.IdentityCompare(conflicted, M.truth_value)() is M.truth_value:
+                        outcome = AmbiguousResult(
+                            surface_term,
+                            M.Reverse(reversed_valued)(),
+                        )()
+                    elif M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
+                        outcome = NotUnderstood(
+                            surface_term,
+                            M.Pair(
+                                Lmod.ReasonEvaluationLabel,
+                                M.Pair(interpretations, M.EmptyList),
+                            ),
+                        )()
+                    else:
+                        answer = RenderNatSurface(value, digit_words, registry)()
+                        outcome = Understood(
+                            surface_term,
+                            M.Head(chosen)(),
+                            M.Head(M.Tail(chosen)())(),
+                            answer,
+                        )()
+
+        self.result = M.Pair(outcome, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                vocabulary,
+                M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+CORRESPONDENCE_INDUCTION_CAP = M.GMPRep("10")
+
+
+class CorrespondenceExample(M.Edge):
+    """One recorded Surface/Meaning pair with its evidence tag."""
+
+    def __init__(self, surface_term, meaning_term, evidence):
+        self.result = M.Pair(
+            Lmod.CorrespondenceExampleLabel,
+            M.Pair(
+                surface_term,
+                M.Pair(meaning_term, M.Pair(evidence, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                surface_term,
+                M.Pair(meaning_term, M.Pair(evidence, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CorrespondenceExampleSurface(M.Edge):
+    def __init__(self, example):
+        self.result = M.Head(M.Tail(example)())()
+        super().__init__(inputs=M.Pair(example, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CorrespondenceExampleMeaning(M.Edge):
+    def __init__(self, example):
+        self.result = M.Head(M.Tail(M.Tail(example)())())()
+        super().__init__(inputs=M.Pair(example, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CorrespondenceExampleEvidence(M.Edge):
+    def __init__(self, example):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(example)())())())()
+        super().__init__(inputs=M.Pair(example, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AntiUnifyCorrespondence(M.Edge):
+    """Bounded structural anti-unification of two correspondence examples.
+
+    Differing aligned surface words become shared variables; differing
+    aligned meaning subterms must resolve to the same word differences and
+    become Surface holes over the same variables. Returns Pair(parse_law,
+    Pair(render_law, EmptyList)) or EmptyList when no lawful shared
+    generalization exists. No repair, no guessing.
+    """
+
+    def __init__(self, example_a, example_b, word_entries):
+        self.word_entries = word_entries
+        self.cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = self._induce(example_a, example_b)
+        super().__init__(
+            inputs=M.Pair(
+                example_a,
+                M.Pair(example_b, M.Pair(word_entries, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _induce(self, example_a, example_b):
+        surface_a = CorrespondenceExampleSurface(example_a)()
+        surface_b = CorrespondenceExampleSurface(example_b)()
+        chain_a = M.Head(M.Tail(surface_a)())()
+        chain_b = M.Head(M.Tail(surface_b)())()
+
+        reversed_general = M.EmptyList
+        diffs = M.EmptyList
+        var_index_text = "0"
+        scan_text = "0"
+        while M.IdentityCompare(chain_a, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, self.cap_text)() is M.truth_value:
+                return M.EmptyList
+            scan_text = GMPSuccText(scan_text)()
+            if M.IdentityCompare(chain_b, M.EmptyList)() is M.truth_value:
+                return M.EmptyList
+            word_a = M.Head(chain_a)()
+            word_b = M.Head(chain_b)()
+            if M.Compare(word_a, word_b)() is M.truth_value:
+                reversed_general = M.Pair(word_a, reversed_general)
+            else:
+                variable = M.EmptyList
+                check_text = "0"
+                remaining_diffs = diffs
+                while M.IdentityCompare(
+                    remaining_diffs,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(check_text, self.cap_text)() is M.truth_value:
+                        remaining_diffs = M.EmptyList
+                    else:
+                        check_text = GMPSuccText(check_text)()
+                        diff = M.Head(remaining_diffs)()
+                        same_a = M.Compare(M.Head(diff)(), word_a)()
+                        same_b = M.Compare(M.Head(M.Tail(diff)())(), word_b)()
+                        if M.AndAtom(same_a, same_b)() is M.truth_value:
+                            variable = M.Head(M.Tail(M.Tail(diff)())())()
+                            remaining_diffs = M.EmptyList
+                        else:
+                            remaining_diffs = M.Tail(remaining_diffs)()
+                if M.IdentityCompare(variable, M.EmptyList)() is M.truth_value:
+                    variable = M.Pair(
+                        M.VarTag,
+                        M.Pair(M.Char("?g" + var_index_text), M.EmptyList),
+                    )
+                    var_index_text = GMPSuccText(var_index_text)()
+                    diffs = M.Pair(
+                        M.Pair(
+                            word_a,
+                            M.Pair(word_b, M.Pair(variable, M.EmptyList)),
+                        ),
+                        diffs,
+                    )
+                reversed_general = M.Pair(variable, reversed_general)
+            chain_a = M.Tail(chain_a)()
+            chain_b = M.Tail(chain_b)()
+        if M.IdentityCompare(chain_b, M.EmptyList)() is M.false_value:
+            return M.EmptyList
+        if M.IdentityCompare(diffs, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+
+        meaning_a = CorrespondenceExampleMeaning(example_a)()
+        meaning_b = CorrespondenceExampleMeaning(example_b)()
+        generalized = self._general(
+            M.Head(M.Tail(meaning_a)())(),
+            M.Head(M.Tail(meaning_b)())(),
+            diffs,
+            "0",
+        )
+        if M.IdentityCompare(M.Head(generalized)(), M.false_value)() is M.truth_value:
+            return M.EmptyList
+
+        general_surface = Surface(M.Reverse(reversed_general)())()
+        general_meaning = Meaning(M.Tail(generalized)())()
+        parse_law = CompileRuleToLaw(P.Rule(general_surface, general_meaning))()
+        render_law = CompileRuleToLaw(P.Rule(general_meaning, general_surface))()
+        if M.IdentityCompare(parse_law, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(render_law, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(parse_law, M.Pair(render_law, M.EmptyList))
+
+    def _general(self, term_a, term_b, diffs, depth_text):
+        if GMPEqualText(depth_text, self.cap_text)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
+        next_depth = GMPSuccText(depth_text)()
+        if M.Compare(term_a, term_b)() is M.truth_value:
+            return M.Pair(M.truth_value, term_a)
+
+        check_text = "0"
+        remaining_diffs = diffs
+        while M.IdentityCompare(remaining_diffs, M.EmptyList)() is M.false_value:
+            if GMPEqualText(check_text, self.cap_text)() is M.truth_value:
+                remaining_diffs = M.EmptyList
+            else:
+                check_text = GMPSuccText(check_text)()
+                diff = M.Head(remaining_diffs)()
+                word_a = M.Head(diff)()
+                word_b = M.Head(M.Tail(diff)())()
+                variable = M.Head(M.Tail(M.Tail(diff)())())()
+                if M.AndAtom(
+                    self._names(term_a, word_a),
+                    self._names(term_b, word_b),
+                )() is M.truth_value:
+                    return M.Pair(
+                        M.truth_value,
+                        Surface(M.Pair(variable, M.EmptyList))(),
+                    )
+                remaining_diffs = M.Tail(remaining_diffs)()
+
+        both_pairs = M.AndAtom(M.IsPair(term_a)(), M.IsPair(term_b)())()
+        if M.IdentityCompare(both_pairs, M.truth_value)() is M.truth_value:
+            head_general = self._general(
+                M.Head(term_a)(),
+                M.Head(term_b)(),
+                diffs,
+                next_depth,
+            )
+            if M.IdentityCompare(
+                M.Head(head_general)(),
+                M.false_value,
+            )() is M.truth_value:
+                return M.Pair(M.false_value, M.EmptyList)
+            tail_general = self._general(
+                M.Tail(term_a)(),
+                M.Tail(term_b)(),
+                diffs,
+                next_depth,
+            )
+            if M.IdentityCompare(
+                M.Head(tail_general)(),
+                M.false_value,
+            )() is M.truth_value:
+                return M.Pair(M.false_value, M.EmptyList)
+            return M.Pair(
+                M.truth_value,
+                M.Pair(M.Tail(head_general)(), M.Tail(tail_general)()),
+            )
+        return M.Pair(M.false_value, M.EmptyList)
+
+    def _names(self, meaning_part, word):
+        if M.Compare(meaning_part, word)() is M.truth_value:
+            return M.truth_value
+        if M.Compare(
+            meaning_part,
+            Surface(M.Pair(word, M.EmptyList))(),
+        )() is M.truth_value:
+            return M.truth_value
+        resolved = CorrespondenceResolveWord(
+            self.word_entries,
+            Surface(M.Pair(word, M.EmptyList))(),
+        )()
+        if M.IdentityCompare(resolved, M.EmptyList)() is M.false_value:
+            if M.Compare(meaning_part, resolved)() is M.truth_value:
+                return M.truth_value
+        return M.false_value
+
+    def __call__(self):
+        return self.result
+
+
+class ValidateCorrespondenceLaws(M.Edge):
+    """Check induced parse and render laws against every recorded example.
+
+    Accepted examples must parse, agree in evaluated value with the recorded
+    meaning, and round-trip through the render law. Rejected examples must
+    not match. Returns Pair(verdict, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, parse_law, render_law, examples, word_entries, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        verdict = M.truth_value
+        scan_text = "0"
+        remaining = examples
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                verdict = M.false_value
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                example = M.Head(remaining)()
+                surface = CorrespondenceExampleSurface(example)()
+                evidence = CorrespondenceExampleEvidence(example)()
+                parsed = CorrespondenceApply(parse_law, surface)()
+                if M.Compare(evidence, M.Char("rejected"))() is M.truth_value:
+                    if M.IdentityCompare(parsed, M.EmptyList)() is M.false_value:
+                        verdict = M.false_value
+                        remaining = M.EmptyList
+                else:
+                    if M.IdentityCompare(parsed, M.EmptyList)() is M.truth_value:
+                        verdict = M.false_value
+                        remaining = M.EmptyList
+                    else:
+                        parsed_value = MeaningEvaluate(
+                            parsed,
+                            word_entries,
+                            registry,
+                        )()
+                        left_value = M.Head(parsed_value)()
+                        registry = M.Head(M.Tail(parsed_value)())()
+                        recorded_value = MeaningEvaluate(
+                            CorrespondenceExampleMeaning(example)(),
+                            word_entries,
+                            registry,
+                        )()
+                        right_value = M.Head(recorded_value)()
+                        registry = M.Head(M.Tail(recorded_value)())()
+                        rendered = CorrespondenceApply(render_law, parsed)()
+                        if M.IdentityCompare(
+                            left_value,
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            verdict = M.false_value
+                            remaining = M.EmptyList
+                        elif M.IdentityCompare(
+                            right_value,
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            verdict = M.false_value
+                            remaining = M.EmptyList
+                        elif M.NatEq(
+                            left_value,
+                            right_value,
+                            registry,
+                        )() is M.false_value:
+                            verdict = M.false_value
+                            remaining = M.EmptyList
+                        elif M.IdentityCompare(
+                            rendered,
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            verdict = M.false_value
+                            remaining = M.EmptyList
+                        elif M.Compare(rendered, surface)() is M.false_value:
+                            verdict = M.false_value
+                            remaining = M.EmptyList
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
+        self.result = M.Pair(verdict, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                parse_law,
+                M.Pair(
+                    render_law,
+                    M.Pair(
+                        examples,
+                        M.Pair(word_entries, M.Pair(registry, M.EmptyList)),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateCorrespondenceProposals(M.Edge):
+    """Induce, validate, and submit correspondence laws as pending proposals.
+
+    Accepted example pairs are anti-unified within bounded scans; validated
+    candidates are submitted with the render law and source examples as
+    JustifiedBy evidence. Nothing is approved or activated here.
+    """
+
+    def __init__(self, proposal_store, examples, word_entries, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        proposal_cap_text = M.GMPRepText(CORRESPONDENCE_INDUCTION_CAP)()
+        current_store = proposal_store
+        submitted_text = "0"
+        seen_candidates = M.EmptyList
+
+        outer_text = "0"
+        remaining_a = examples
+        while M.IdentityCompare(remaining_a, M.EmptyList)() is M.false_value:
+            if GMPEqualText(outer_text, cap_text)() is M.truth_value:
+                remaining_a = M.EmptyList
+            elif GMPEqualText(submitted_text, proposal_cap_text)() is M.truth_value:
+                remaining_a = M.EmptyList
+            else:
+                outer_text = GMPSuccText(outer_text)()
+                example_a = M.Head(remaining_a)()
+                inner_text = "0"
+                remaining_b = M.Tail(remaining_a)()
+                while M.IdentityCompare(remaining_b, M.EmptyList)() is M.false_value:
+                    if GMPEqualText(inner_text, cap_text)() is M.truth_value:
+                        remaining_b = M.EmptyList
+                    elif GMPEqualText(
+                        submitted_text,
+                        proposal_cap_text,
+                    )() is M.truth_value:
+                        remaining_b = M.EmptyList
+                    else:
+                        inner_text = GMPSuccText(inner_text)()
+                        example_b = M.Head(remaining_b)()
+                        rejected_a = M.Compare(
+                            CorrespondenceExampleEvidence(example_a)(),
+                            M.Char("rejected"),
+                        )()
+                        rejected_b = M.Compare(
+                            CorrespondenceExampleEvidence(example_b)(),
+                            M.Char("rejected"),
+                        )()
+                        if M.OrAtom(rejected_a, rejected_b)() is M.false_value:
+                            induced = AntiUnifyCorrespondence(
+                                example_a,
+                                example_b,
+                                word_entries,
+                            )()
+                            if M.IdentityCompare(
+                                induced,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                parse_law = M.Head(induced)()
+                                render_law = M.Head(M.Tail(induced)())()
+                                duplicate = M.false_value
+                                check_text = "0"
+                                checking = seen_candidates
+                                while M.IdentityCompare(
+                                    checking,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    if GMPEqualText(
+                                        check_text,
+                                        cap_text,
+                                    )() is M.truth_value:
+                                        checking = M.EmptyList
+                                    else:
+                                        check_text = GMPSuccText(check_text)()
+                                        if M.Compare(
+                                            M.Head(checking)(),
+                                            parse_law,
+                                        )() is M.truth_value:
+                                            duplicate = M.truth_value
+                                            checking = M.EmptyList
+                                        else:
+                                            checking = M.Tail(checking)()
+                                if M.IdentityCompare(
+                                    duplicate,
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    seen_candidates = M.Pair(
+                                        parse_law,
+                                        seen_candidates,
+                                    )
+                                    validated = ValidateCorrespondenceLaws(
+                                        parse_law,
+                                        render_law,
+                                        examples,
+                                        word_entries,
+                                        registry,
+                                    )()
+                                    registry = M.Head(M.Tail(validated)())()
+                                    if M.IdentityCompare(
+                                        M.Head(validated)(),
+                                        M.truth_value,
+                                    )() is M.truth_value:
+                                        proposal = Proposal(
+                                            parse_law,
+                                            M.Char("induced-correspondence"),
+                                        )()
+                                        evidence = M.Pair(
+                                            render_law,
+                                            M.Pair(
+                                                example_a,
+                                                M.Pair(example_b, M.EmptyList),
+                                            ),
+                                        )
+                                        current_store = ProposalStoreSubmit(
+                                            current_store,
+                                            proposal,
+                                        )()
+                                        current_store = ProposalStoreAttach(
+                                            current_store,
+                                            proposal,
+                                            JustifiedBy(proposal, evidence)(),
+                                        )()
+                                        submitted_text = GMPSuccText(
+                                            submitted_text,
+                                        )()
+                        remaining_b = M.Tail(remaining_b)()
+                remaining_a = M.Tail(remaining_a)()
+
+        self.result = M.Pair(
+            current_store,
+            M.Pair(
+                MineNatFromGMPRep(M.GMPRep(submitted_text))(),
+                M.Pair(registry, M.EmptyList),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(
+                    examples,
+                    M.Pair(word_entries, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledCorrespondenceLaws(M.Edge):
+    """Installed laws whose left pattern is a Surface term."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_laws = M.EmptyList
+        scan_text = "0"
+        remaining = InstalledLaws(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                law = M.Head(remaining)()
+                left_nodes = GraphNodes(LawLeft(law)())()
+                if M.IdentityCompare(left_nodes, M.EmptyList)() is M.false_value:
+                    pattern = M.Head(left_nodes)()
+                    if M.IsPair(pattern)() is M.truth_value:
+                        if M.TermEqual(
+                            M.Head(pattern)(),
+                            Lmod.SurfaceLabel,
+                        )() is M.truth_value:
+                            reversed_laws = M.Pair(law, reversed_laws)
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_laws)()
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class VocabularyWithTemplates(M.Edge):
+    """Extend a vocabulary's template chain with additional compiled laws."""
+
+    def __init__(self, vocabulary, extra_laws):
+        templates = M.Head(vocabulary)()
+        reversed_templates = M.Reverse(templates)()
+        remaining = extra_laws
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            reversed_templates = M.Pair(M.Head(remaining)(), reversed_templates)
+            remaining = M.Tail(remaining)()
+        self.result = M.Pair(
+            M.Reverse(reversed_templates)(),
+            M.Tail(vocabulary)(),
+        )
+        super().__init__(
+            inputs=M.Pair(vocabulary, M.Pair(extra_laws, M.EmptyList)),
             results=self.result,
         )
 

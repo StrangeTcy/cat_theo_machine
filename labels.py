@@ -1095,6 +1095,38 @@ class CorrespondsLabel(ConstructorLabel):
     pass
 
 
+class UnderstoodLabel(ConstructorLabel):
+    pass
+
+
+class NotUnderstoodLabel(ConstructorLabel):
+    pass
+
+
+class AmbiguousLabel(ConstructorLabel):
+    pass
+
+
+class ReasonUnknownWordLabel(ConstructorLabel):
+    pass
+
+
+class ReasonNoCorrespondenceLabel(ConstructorLabel):
+    pass
+
+
+class ReasonGroupLabel(ConstructorLabel):
+    pass
+
+
+class ReasonEvaluationLabel(ConstructorLabel):
+    pass
+
+
+class CorrespondenceExampleLabel(ConstructorLabel):
+    pass
+
+
 class HandleLabel(ConstructorLabel):
     pass
 
@@ -1332,6 +1364,14 @@ LawPreferenceLabel = LawPreferenceLabel()
 SurfaceLabel = SurfaceLabel()
 MeaningLabel = MeaningLabel()
 CorrespondsLabel = CorrespondsLabel()
+UnderstoodLabel = UnderstoodLabel()
+NotUnderstoodLabel = NotUnderstoodLabel()
+AmbiguousLabel = AmbiguousLabel()
+ReasonUnknownWordLabel = ReasonUnknownWordLabel()
+ReasonNoCorrespondenceLabel = ReasonNoCorrespondenceLabel()
+ReasonGroupLabel = ReasonGroupLabel()
+ReasonEvaluationLabel = ReasonEvaluationLabel()
+CorrespondenceExampleLabel = CorrespondenceExampleLabel()
 HandleLabel = HandleLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
@@ -1750,6 +1790,14 @@ def sync_from_namespace(namespace):
         "SurfaceLabel",
         "MeaningLabel",
         "CorrespondsLabel",
+        "UnderstoodLabel",
+        "NotUnderstoodLabel",
+        "AmbiguousLabel",
+        "ReasonUnknownWordLabel",
+        "ReasonNoCorrespondenceLabel",
+        "ReasonGroupLabel",
+        "ReasonEvaluationLabel",
+        "CorrespondenceExampleLabel",
         "HandleLabel",
         "PlannerProblemLabel",
         "FiniteLabel",

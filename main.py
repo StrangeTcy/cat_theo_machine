@@ -1177,6 +1177,18 @@ def run_talk_mode(sentence: str = None):
     vocabulary = G.DefaultCorrespondenceVocabulary()()
     registry = M.AllConstructors
 
+    def _speak_chain(chain):
+        spoken = []
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            word = M.Head(remaining)()
+            try:
+                spoken.append(str(word()))
+            except Exception:
+                spoken.append("?")
+            remaining = M.Tail(remaining)()
+        return " ".join(spoken)
+
     def _respond(line):
         nonlocal registry
         words = line.replace("(", " ( ").replace(")", " ) ").split()
@@ -1189,21 +1201,50 @@ def run_talk_mode(sentence: str = None):
             chain = M.Pair(M.Char(words[index]), chain)
         surface = G.Surface(chain)()
         result = G.Converse(vocabulary, surface, registry)()
-        answer = M.Head(result)()
+        outcome = M.Head(result)()
         registry = M.Head(M.Tail(result)())()
-        if M.IdentityCompare(answer, M.EmptyList)() is M.truth_value:
-            return None
-        spoken = []
-        remaining = M.Head(M.Tail(answer)())()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            spoken.append(M.Head(remaining)()())
-            remaining = M.Tail(remaining)()
-        return " ".join(spoken)
+        label = M.Head(outcome)()
+        if M.IdentityCompare(label, Lmod.UnderstoodLabel)() is M.truth_value:
+            answer = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(outcome)())())())(),
+            )()
+            if M.IdentityCompare(answer, M.EmptyList)() is M.truth_value:
+                return "I understood, but could not render the answer."
+            return _speak_chain(M.Head(M.Tail(answer)())())
+        if M.IdentityCompare(label, Lmod.AmbiguousLabel)() is M.truth_value:
+            interpretations = M.Head(M.Tail(M.Tail(outcome)())())()
+            count = 0
+            remaining = interpretations
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                count = count + 1
+                remaining = M.Tail(remaining)()
+            return (
+                "That sentence has " + str(count)
+                + " disagreeing readings; say which grouping you intend."
+            )
+        reason = M.Head(M.Tail(M.Tail(outcome)())())()
+        reason_label = M.Head(reason)()
+        if M.IdentityCompare(
+            reason_label,
+            Lmod.ReasonUnknownWordLabel,
+        )() is M.truth_value:
+            unknown = _speak_chain(M.Head(M.Tail(reason)())())
+            return "I do not know the word: " + unknown
+        if M.IdentityCompare(
+            reason_label,
+            Lmod.ReasonGroupLabel,
+        )() is M.truth_value:
+            return "The parentheses in that sentence do not balance."
+        if M.IdentityCompare(
+            reason_label,
+            Lmod.ReasonEvaluationLabel,
+        )() is M.truth_value:
+            return "I parsed that sentence but could not evaluate it."
+        return "I know those words but have no correspondence law for that shape."
 
-    refusal = "I have no correspondence law for that sentence."
     if sentence is not None:
         answer = _respond(sentence)
-        print(answer if answer is not None else refusal)
+        print(answer if answer is not None else "Say something.")
         return
 
     print("HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.")
@@ -1221,7 +1262,7 @@ def run_talk_mode(sentence: str = None):
             print("hyge> goodbye")
             break
         answer = _respond(stripped)
-        print("hyge> " + (answer if answer is not None else refusal))
+        print("hyge> " + (answer if answer is not None else "Say something."))
 
 
 def run_test_mode(debug: bool = False):

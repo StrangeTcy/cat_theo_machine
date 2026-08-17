@@ -3578,10 +3578,11 @@ class ToyCorrespondenceRoundTripTest(M.Edge):
 
 
 class ConverseDefaultModeTest(M.Edge):
-    """Talk mode: Converse parses, evaluates, renders, and refuses explicitly.
+    """Talk mode: Converse returns explicit Understood/NotUnderstood/Ambiguous.
 
-    Four sentence shapes plus a bare word succeed through correspondence
-    laws only; an unknown sentence returns EmptyList, never a guess.
+    Sentence shapes, bare words, and parenthesis groups produce Understood
+    terms; unknown words, unknown shapes, and unbalanced groups produce
+    NotUnderstood terms carrying distinct structured reasons.
     """
 
     def __init__(self, graph):
@@ -3597,137 +3598,291 @@ class ConverseDefaultModeTest(M.Edge):
                 chain = M.Pair(M.Char(symbols[index]), chain)
             return Gmod.Surface(chain)()
 
-        def _spoken(surface):
+        def _converse(surface):
+            nonlocal registry
+            outcome_pair = Gmod.Converse(vocabulary, surface, registry)()
+            registry = M.Head(M.Tail(outcome_pair)())()
+            return M.Head(outcome_pair)()
+
+        def _understood_words(outcome):
             words = empty
-            if M.IdentityCompare(surface, empty)() is M.false_value:
-                words = M.Head(M.Tail(surface)())()
+            if M.IdentityCompare(
+                M.Head(outcome)(),
+                Lmod.UnderstoodLabel,
+            )() is M.truth_value:
+                answer = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(outcome)())())())(),
+                )()
+                if M.IdentityCompare(answer, empty)() is M.false_value:
+                    words = M.Head(M.Tail(answer)())()
             return words
 
-        sum_result = Gmod.Converse(
-            vocabulary,
-            _sentence("the", "sum", "of", "two", "and", "three"),
-            registry,
-        )()
-        sum_answer = _spoken(M.Head(sum_result)())
-        registry = M.Head(M.Tail(sum_result)())()
+        def _failure_reason(outcome):
+            reason_label = empty
+            if M.IdentityCompare(
+                M.Head(outcome)(),
+                Lmod.NotUnderstoodLabel,
+            )() is M.truth_value:
+                reason_label = M.Head(
+                    M.Head(M.Tail(M.Tail(outcome)())())(),
+                )()
+            return reason_label
 
-        plus_result = Gmod.Converse(
-            vocabulary,
-            _sentence("two", "plus", "three"),
-            registry,
-        )()
-        plus_answer = _spoken(M.Head(plus_result)())
-        registry = M.Head(M.Tail(plus_result)())()
-
-        product_result = Gmod.Converse(
-            vocabulary,
-            _sentence("the", "product", "of", "two", "and", "three"),
-            registry,
-        )()
-        product_answer = _spoken(M.Head(product_result)())
-        registry = M.Head(M.Tail(product_result)())()
-
-        times_result = Gmod.Converse(
-            vocabulary,
-            _sentence("four", "times", "four"),
-            registry,
-        )()
-        times_answer = _spoken(M.Head(times_result)())
-        registry = M.Head(M.Tail(times_result)())()
-
-        word_result = Gmod.Converse(
-            vocabulary,
-            _sentence("seven"),
-            registry,
-        )()
-        word_answer = _spoken(M.Head(word_result)())
-        registry = M.Head(M.Tail(word_result)())()
-
-        unknown_result = Gmod.Converse(
-            vocabulary,
-            _sentence("the", "banana", "of", "two"),
-            registry,
-        )()
-        unknown_answer = M.Head(unknown_result)()
-        registry = M.Head(M.Tail(unknown_result)())()
-
-        group_result = Gmod.Converse(
-            vocabulary,
-            _sentence("two", "times", "(", "two", "plus", "two", ")"),
-            registry,
-        )()
-        group_answer = _spoken(M.Head(group_result)())
-        registry = M.Head(M.Tail(group_result)())()
-
-        nested_result = Gmod.Converse(
-            vocabulary,
-            _sentence(
-                "two", "times",
-                "(", "(", "one", "plus", "one", ")", "plus", "two", ")",
+        sum_words = _understood_words(
+            _converse(_sentence("the", "sum", "of", "two", "and", "three")),
+        )
+        plus_words = _understood_words(_converse(_sentence("two", "plus", "three")))
+        product_words = _understood_words(
+            _converse(_sentence("the", "product", "of", "two", "and", "three")),
+        )
+        times_words = _understood_words(
+            _converse(_sentence("four", "times", "four")),
+        )
+        word_words = _understood_words(_converse(_sentence("seven")))
+        group_words = _understood_words(
+            _converse(
+                _sentence("two", "times", "(", "two", "plus", "two", ")"),
             ),
-            registry,
-        )()
-        nested_answer = _spoken(M.Head(nested_result)())
-        registry = M.Head(M.Tail(nested_result)())()
-
-        unbalanced_result = Gmod.Converse(
-            vocabulary,
-            _sentence("two", "times", "(", "two", "plus", "two"),
-            registry,
-        )()
-        unbalanced_answer = M.Head(unbalanced_result)()
-        registry = M.Head(M.Tail(unbalanced_result)())()
+        )
+        nested_words = _understood_words(
+            _converse(
+                _sentence(
+                    "two", "times",
+                    "(", "(", "one", "plus", "one", ")", "plus", "two", ")",
+                ),
+            ),
+        )
+        unknown_reason = _failure_reason(
+            _converse(_sentence("the", "banana", "of", "two")),
+        )
+        shape_reason = _failure_reason(
+            _converse(_sentence("two", "two", "two")),
+        )
+        unbalanced_reason = _failure_reason(
+            _converse(_sentence("two", "times", "(", "two", "plus", "two")),
+        )
 
         self.result = M.truth_value
-        if M.IdentityCompare(sum_answer, empty)() is M.truth_value:
+        if M.IdentityCompare(sum_words, empty)() is M.truth_value:
             self.result = M.false_value
-        elif M.Compare(M.Head(sum_answer)(), M.Char("five"))() is M.false_value:
+        elif M.Compare(M.Head(sum_words)(), M.Char("five"))() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(M.Tail(sum_answer)(), empty)() is M.false_value:
+        elif M.IdentityCompare(M.Tail(sum_words)(), empty)() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(plus_answer, empty)() is M.truth_value:
+        elif M.IdentityCompare(plus_words, empty)() is M.truth_value:
             self.result = M.false_value
-        elif M.Compare(M.Head(plus_answer)(), M.Char("five"))() is M.false_value:
+        elif M.Compare(M.Head(plus_words)(), M.Char("five"))() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(product_answer, empty)() is M.truth_value:
+        elif M.IdentityCompare(product_words, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(product_words)(), M.Char("six"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(times_words, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(times_words)(), M.Char("one"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(times_words)(), empty)() is M.truth_value:
             self.result = M.false_value
         elif M.Compare(
-            M.Head(product_answer)(),
+            M.Head(M.Tail(times_words)())(),
             M.Char("six"),
         )() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(times_answer, empty)() is M.truth_value:
+        elif M.IdentityCompare(word_words, empty)() is M.truth_value:
             self.result = M.false_value
-        elif M.Compare(M.Head(times_answer)(), M.Char("one"))() is M.false_value:
+        elif M.Compare(M.Head(word_words)(), M.Char("seven"))() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(M.Tail(times_answer)(), empty)() is M.truth_value:
+        elif M.IdentityCompare(group_words, empty)() is M.truth_value:
             self.result = M.false_value
-        elif M.Compare(
-            M.Head(M.Tail(times_answer)())(),
-            M.Char("six"),
+        elif M.Compare(M.Head(group_words)(), M.Char("eight"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(nested_words, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(nested_words)(), M.Char("eight"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            unknown_reason,
+            Lmod.ReasonUnknownWordLabel,
         )() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(word_answer, empty)() is M.truth_value:
-            self.result = M.false_value
-        elif M.Compare(M.Head(word_answer)(), M.Char("seven"))() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(unknown_answer, empty)() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(group_answer, empty)() is M.truth_value:
-            self.result = M.false_value
-        elif M.Compare(M.Head(group_answer)(), M.Char("eight"))() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(M.Tail(group_answer)(), empty)() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(nested_answer, empty)() is M.truth_value:
-            self.result = M.false_value
-        elif M.Compare(
-            M.Head(nested_answer)(),
-            M.Char("eight"),
+        elif M.IdentityCompare(
+            shape_reason,
+            Lmod.ReasonNoCorrespondenceLabel,
         )() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(unbalanced_answer, empty)() is M.false_value:
+        elif M.IdentityCompare(
+            unbalanced_reason,
+            Lmod.ReasonGroupLabel,
+        )() is M.false_value:
             self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class CorrespondenceInductionTest(M.Edge):
+    """Language acquisition v1: a correspondence law is induced, validated,
+    proposed, activated, and used on a held-out utterance.
+
+    Three trainer pairs for 'double N' anti-unify into one candidate; the
+    candidate survives validation, is submitted as a pending proposal,
+    passes the standard approval/activation path, and then understands
+    'double seven' with no hand-authored template. A recorded rejection
+    example blocks induction entirely.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        word_entries = M.Head(M.Tail(vocabulary)())()
+
+        def _sentence(*symbols):
+            chain = empty
+            index = len(symbols)
+            while index != 0:
+                index = index - 1
+                chain = M.Pair(M.Char(symbols[index]), chain)
+            return Gmod.Surface(chain)()
+
+        def _double_meaning(nat):
+            return Gmod.Meaning(
+                M.Pair(M.ExprMulLabel, M.Pair(M.two, M.Pair(nat, empty))),
+            )()
+
+        trainer = M.Char("trainer")
+        example_one = Gmod.CorrespondenceExample(
+            _sentence("double", "two"),
+            _double_meaning(M.two),
+            trainer,
+        )()
+        example_two = Gmod.CorrespondenceExample(
+            _sentence("double", "three"),
+            _double_meaning(M.three),
+            trainer,
+        )()
+        example_three = Gmod.CorrespondenceExample(
+            _sentence("double", "four"),
+            _double_meaning(M.four),
+            trainer,
+        )()
+        examples = M.Pair(
+            example_one,
+            M.Pair(example_two, M.Pair(example_three, empty)),
+        )
+
+        generated = Gmod.GenerateCorrespondenceProposals(
+            Gmod.ProposalStore(empty)(),
+            examples,
+            word_entries,
+            registry,
+        )()
+        generated_store = M.Head(generated)()
+        registry = M.Head(M.Tail(M.Tail(generated)())())()
+        entries = Gmod.ProposalStoreAll(generated_store)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        else:
+            entry = M.Head(entries)()
+            proposal = Gmod.ProposalEntryProposal(entry)()
+            if Gmod.ProposalEntryIsApproved(entry)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(
+                Gmod.ClassifyProposal(proposal)(),
+                M.Char("install_law"),
+            )() is M.false_value:
+                self.result = M.false_value
+            else:
+                approval = Gmod.Approved(proposal, M.Char("curator"))()
+                approved_store = Gmod.ProposalStoreAttach(
+                    generated_store,
+                    proposal,
+                    approval,
+                )()
+                approved_entry = M.Head(
+                    Gmod.ProposalStoreApproved(approved_store)(),
+                )()
+                activated = Gmod.ActivateProposal(
+                    Gmod.GraphVersion(empty, empty, empty)(),
+                    approved_entry,
+                )()
+                active_version = M.Head(activated)()
+                if M.IdentityCompare(active_version, empty)() is M.truth_value:
+                    self.result = M.false_value
+                else:
+                    learned = Gmod.InstalledCorrespondenceLaws(active_version)()
+                    extended = Gmod.VocabularyWithTemplates(
+                        vocabulary,
+                        learned,
+                    )()
+                    held_out = Gmod.Converse(
+                        extended,
+                        _sentence("double", "seven"),
+                        registry,
+                    )()
+                    outcome = M.Head(held_out)()
+                    registry = M.Head(M.Tail(held_out)())()
+                    if M.IdentityCompare(learned, empty)() is M.truth_value:
+                        self.result = M.false_value
+                    elif M.IdentityCompare(
+                        M.Head(outcome)(),
+                        Lmod.UnderstoodLabel,
+                    )() is M.false_value:
+                        self.result = M.false_value
+                    else:
+                        answer = M.Head(
+                            M.Tail(M.Tail(M.Tail(M.Tail(outcome)())())())(),
+                        )()
+                        words = empty
+                        if M.IdentityCompare(answer, empty)() is M.false_value:
+                            words = M.Head(M.Tail(answer)())()
+                        if M.IdentityCompare(words, empty)() is M.truth_value:
+                            self.result = M.false_value
+                        elif M.Compare(
+                            M.Head(words)(),
+                            M.Char("one"),
+                        )() is M.false_value:
+                            self.result = M.false_value
+                        elif M.IdentityCompare(
+                            M.Tail(words)(),
+                            empty,
+                        )() is M.truth_value:
+                            self.result = M.false_value
+                        elif M.Compare(
+                            M.Head(M.Tail(words)())(),
+                            M.Char("four"),
+                        )() is M.false_value:
+                            self.result = M.false_value
+
+        if M.IdentityCompare(self.result, M.truth_value)() is M.truth_value:
+            rejection = Gmod.CorrespondenceExample(
+                _sentence("double", "five"),
+                _double_meaning(M.five),
+                M.Char("rejected"),
+            )()
+            blocked = Gmod.GenerateCorrespondenceProposals(
+                Gmod.ProposalStore(empty)(),
+                M.Pair(
+                    example_one,
+                    M.Pair(example_two, M.Pair(rejection, empty)),
+                ),
+                word_entries,
+                registry,
+            )()
+            blocked_store = M.Head(blocked)()
+            registry = M.Head(M.Tail(M.Tail(blocked)())())()
+            if M.IdentityCompare(
+                Gmod.ProposalStoreAll(blocked_store)(),
+                empty,
+            )() is M.false_value:
+                self.result = M.false_value
 
         graph._replace_context(constructors=registry)
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
@@ -10992,6 +11147,14 @@ def install_default_tests(graph):
             "converse_default_mode_test",
             empty,
             ConverseDefaultModeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "correspondence_induction_test",
+            empty,
+            CorrespondenceInductionTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
