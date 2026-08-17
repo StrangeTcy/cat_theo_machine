@@ -67,13 +67,35 @@ class TreeTermEqual(Edge):
         return self.result
 
 
+class IdentityRedBlackLeftCopyPair(Pair):
+    """Immutable Pair node copy sharing an unchanged right branch holder."""
+
+    def __init__(self, original, left):
+        Atom.__init__(self)
+        self.head = Atom()
+        self.head.value = left
+        self.tail = original.tail
+        self.value = original.value
+
+
+class IdentityRedBlackRightCopyPair(Pair):
+    """Immutable Pair node copy sharing an unchanged left branch holder."""
+
+    def __init__(self, original, right):
+        Atom.__init__(self)
+        self.head = original.head
+        self.tail = Atom()
+        self.tail.value = right
+        self.value = original.value
+
+
 class IdentityRedBlackLookup(Edge):
     """Look up an object by machine identity in an immutable red-black tree.
 
     The tree is EmptyList or a Pair node whose head and tail hold its left and
-    right subtrees and whose value holds its colour and identity entry.
-    truth_value denotes red and false_value denotes black.  The result is
-    (found, value).
+    right subtrees and whose value directly holds the identity entry Pair.  The
+    entry's inherited value slot holds its colour: truth_value denotes red and
+    false_value denotes black.  The result is (found, value).
     """
 
     def __init__(self, tree, key):
@@ -84,10 +106,10 @@ class IdentityRedBlackLookup(Edge):
         return tree.head.value
 
     def _key(self, tree):
-        return tree.value.tail.value.head.value
+        return tree.value.head.value
 
     def _value(self, tree):
-        return tree.value.tail.value.tail.value
+        return tree.value.tail.value
 
     def _right(self, tree):
         return tree.tail.value
@@ -122,16 +144,20 @@ class IdentityRedBlackLookupValue(IdentityRedBlackLookup):
         self.result = self._lookup_value(tree, key)
 
     def _lookup_value(self, tree, key):
-        if tree is EmptyList:
-            return EmptyList
-        node_key = self._key(tree)
-        if key is node_key:
-            return self._value(tree)
-        if IdentityLess(key, node_key)() is truth_value:
-            return self._lookup_value(self._left(tree), key)
-        if IdentityLess(node_key, key)() is truth_value:
-            return self._lookup_value(self._right(tree), key)
-        return self._value(tree)
+        current = tree
+        while current is not EmptyList:
+            entry = current.value
+            node_key = entry.head.value
+            if key is node_key:
+                return entry.tail.value
+            if IdentityLess(key, node_key)() is truth_value:
+                current = current.head.value
+                continue
+            if IdentityLess(node_key, key)() is truth_value:
+                current = current.tail.value
+                continue
+            return entry.tail.value
+        return EmptyList
 
 
 class IdentityRedBlackInsert(Edge):
@@ -154,27 +180,35 @@ class IdentityRedBlackInsert(Edge):
         )
 
     def _node(self, colour, left, key, value, right):
-        return self._rebuild(colour, left, Pair(key, value), right)
+        entry = Pair(key, value)
+        entry.value = colour
+        rebuilt = Pair(left, right)
+        rebuilt.value = entry
+        return rebuilt
 
     def _rebuild(self, colour, left, entry, right):
+        next_entry = entry
+        if entry.value is not colour:
+            next_entry = Pair(entry.head.value, entry.tail.value)
+            next_entry.value = colour
         rebuilt = Pair(left, right)
-        rebuilt.value = Pair(colour, entry)
+        rebuilt.value = next_entry
         return rebuilt
 
     def _entry(self, tree):
-        return tree.value.tail.value
+        return tree.value
 
     def _colour(self, tree):
-        return tree.value.head.value
+        return tree.value.value
 
     def _left(self, tree):
         return tree.head.value
 
     def _key(self, tree):
-        return tree.value.tail.value.head.value
+        return tree.value.head.value
 
     def _value(self, tree):
-        return tree.value.tail.value.tail.value
+        return tree.value.tail.value
 
     def _right(self, tree):
         return tree.tail.value
@@ -271,11 +305,8 @@ class IdentityRedBlackInsert(Edge):
                         ),
                     )
         if changed_side is truth_value:
-            rebuilt = Pair(left, original.tail.value)
-        else:
-            rebuilt = Pair(original.head.value, right)
-        rebuilt.value = original.value
-        return rebuilt
+            return IdentityRedBlackLeftCopyPair(original, left)
+        return IdentityRedBlackRightCopyPair(original, right)
 
     def _insert(self, tree, key, value):
         if tree is EmptyList:
@@ -400,13 +431,13 @@ class IdentityRedBlackValid(Edge):
         super().__init__(inputs=Pair(tree, EmptyList), results=self.result)
 
     def _colour(self, tree):
-        return tree.value.head.value
+        return tree.value.value
 
     def _left(self, tree):
         return tree.head.value
 
     def _key(self, tree):
-        return tree.value.tail.value.head.value
+        return tree.value.head.value
 
     def _right(self, tree):
         return tree.tail.value

@@ -1266,7 +1266,7 @@ class SnapshotCodec:
         )
         if deadline is not None:
             deadline.require_remaining("record encoding")
-        entry = tree.value.tail.value
+        entry = tree.value
         obj = entry.head.value
         oid = self._capture_oid_number(entry.tail.value)
         objects[oid - 1] = self._record_for(obj, oid)
@@ -1490,7 +1490,7 @@ class SnapshotCodec:
                 deadline.set_temporary_path(tmp_path)
                 deadline.require_remaining("JSON writing")
             with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(snapshot, f, ensure_ascii=False, indent=2)
+                json.dump(snapshot, f, ensure_ascii=False, separators=(",", ":"))
             if deadline is not None:
                 deadline.require_remaining("JSON writing")
             write_finished_at = time.monotonic()
