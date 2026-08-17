@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import multiprocessing
+
 from . import context as Ctx
 from . import machine as M
 from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
+from .gmprep import GMPAddText, GMPSuccText
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
 from .search.model import (
     SearchMatchCursor,
@@ -23,6 +26,9 @@ class Hypergraph:
             M.AllConstructors = M.set_all_constructors(constructor_registry)
         self.rep = M.HypergraphRep()
         self.default_tests_installed = M.false_value
+        self._test_shard_index = M.Zero
+        self._test_shard_count = M.one
+        self._test_shard_cursor = M.Zero
         self._search_console_input = None
         self._search_disable_console = M.false_value
         self._search_disable_progress_ticker = M.false_value
@@ -633,6 +639,39 @@ class ProposalStoreApproved(M.Edge):
         return self.result
 
 
+class ProposalStoreReject(M.Edge):
+    """Retain a rejection annotation on an immutable proposal entry chain."""
+
+    def __init__(self, store, proposal_entry, authority, reason):
+        proposal = ProposalEntryProposal(proposal_entry)()
+        rejection = Rejected(proposal, authority, reason)()
+        self.result = ProposalStoreAttach(store, proposal, rejection)()
+        super().__init__(
+            inputs=M.Pair(
+                store,
+                M.Pair(
+                    proposal_entry,
+                    M.Pair(authority, M.Pair(reason, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposalStoreHistory(M.Edge):
+    """Return every proposal entry, with annotations, in submission order."""
+
+    def __init__(self, store):
+        self.result = ProposalStoreEntries(store)()
+        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class Activation(M.Edge):
     def __init__(self, proposal):
         self.result = M.Pair(
@@ -741,7 +780,13 @@ class ReasonObligation(M.Edge):
 class CheckObligation(M.Edge):
     """Check one commit obligation and thread unknown-name state."""
 
-    def __init__(self, graph_version, obligation, unchecked_obligations):
+    def __init__(
+        self,
+        graph_version,
+        obligation,
+        unchecked_obligations,
+        ledger=M.EmptyList,
+    ):
         name = KObligationName(obligation)()
         updated_unchecked = unchecked_obligations
         if M.Compare(name, M.Char("node-count-max"))() is M.truth_value:
@@ -751,6 +796,30 @@ class CheckObligation(M.Edge):
             bound = KObligationStructure(obligation)()
             too_many = M.NatLess(bound, count, registry)()
             verdict = M.NotAtom(too_many)()
+        elif M.Compare(name, M.Char("edge-count-max"))() is M.truth_value:
+            count_pair = M.Count(GraphEdges(graph_version)(), M.AllConstructors)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            bound = KObligationStructure(obligation)()
+            too_many = M.NatLess(bound, count, registry)()
+            verdict = M.NotAtom(too_many)()
+        elif M.Compare(name, M.Char("ledger-length-max"))() is M.truth_value:
+            records = M.EmptyList
+            registry = M.AllConstructors
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                records = ledger.records
+                registry = ledger.registry
+            count_pair = M.Count(records, registry)()
+            count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            prospective_pair = M.Succ(count, registry)()
+            prospective_count = M.Head(prospective_pair)()
+            registry = M.Head(M.Tail(prospective_pair)())()
+            bound = KObligationStructure(obligation)()
+            too_many = M.NatLess(bound, prospective_count, registry)()
+            verdict = M.NotAtom(too_many)()
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                ledger.registry = registry
         else:
             verdict = M.truth_value
             seen = M.false_value
@@ -772,7 +841,10 @@ class CheckObligation(M.Edge):
                 graph_version,
                 M.Pair(
                     obligation,
-                    M.Pair(unchecked_obligations, M.EmptyList),
+                    M.Pair(
+                        unchecked_obligations,
+                        M.Pair(ledger, M.EmptyList),
+                    ),
                 ),
             ),
             results=self.result,
@@ -1464,6 +1536,41 @@ class SharedSubterms(M.Edge):
         return self.result
 
 
+class Handle(M.Edge):
+    """Named graph-pattern abbreviation term."""
+
+    def __init__(self, name, pattern_graph):
+        self.result = M.Pair(
+            Lmod.HandleLabel,
+            M.Pair(name, M.Pair(pattern_graph, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(name, M.Pair(pattern_graph, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class HandleName(M.Edge):
+    def __init__(self, handle):
+        self.result = M.Head(M.Tail(handle)())()
+        super().__init__(inputs=M.Pair(handle, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HandlePattern(M.Edge):
+    def __init__(self, handle):
+        self.result = M.Head(M.Tail(M.Tail(handle)())())()
+        super().__init__(inputs=M.Pair(handle, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class IdentitySendsFor(M.Edge):
     """A Send chain carrying each element of `elements` to itself."""
 
@@ -1480,6 +1587,968 @@ class IdentitySendsFor(M.Edge):
             reversed_sends = M.Tail(reversed_sends)()
         self.result = sends
         super().__init__(inputs=M.Pair(elements, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompileHandleToLaws(M.Edge):
+    """Compile a named pattern abbreviation into ordered fold/unfold Laws."""
+
+    def __init__(self, handle, interface_nodes):
+        pattern = HandlePattern(handle)()
+        interface = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(interface_nodes, M.Pair(M.EmptyList, M.EmptyList)),
+        )
+        connector = M.Pair(
+            Lmod.HandleLabel,
+            M.Pair(handle, interface_nodes),
+        )
+        abbreviation = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                M.Pair(handle, interface_nodes),
+                M.Pair(M.Pair(connector, M.EmptyList), M.EmptyList),
+            ),
+        )
+        interface_sends = IdentitySendsFor(interface_nodes)()
+        pattern_map = Map(interface, pattern, interface_sends)()
+        abbreviation_map = Map(interface, abbreviation, interface_sends)()
+        fold = Law(
+            pattern,
+            interface,
+            abbreviation,
+            pattern_map,
+            abbreviation_map,
+            M.EmptyList,
+        )()
+        unfold = Law(
+            abbreviation,
+            interface,
+            pattern,
+            abbreviation_map,
+            pattern_map,
+            M.EmptyList,
+        )()
+        self.result = M.Pair(fold, M.Pair(unfold, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(handle, M.Pair(interface_nodes, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PositionalSignature(M.Edge):
+    """Machine Pair signature: edge label followed by its ordered arity Nat."""
+
+    def __init__(self, edge_term):
+        counted = M.Count(EdgeEndpoints(edge_term)(), M.AllConstructors)()
+        arity = M.Head(counted)()
+        self.registry = M.Head(M.Tail(counted)())()
+        self.result = M.Pair(
+            M.Head(edge_term)(),
+            M.Pair(arity, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(edge_term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignatureCensus(M.Edge):
+    """Deterministic Pair association chain from positional signatures to Nat counts."""
+
+    def __init__(self, graph_version):
+        registry = M.AllConstructors
+        census = M.EmptyList
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        remaining_edges = probe._normalize_store(GraphEdges(graph_version)())
+        while M.IdentityCompare(remaining_edges, M.EmptyList)() is M.false_value:
+            edge_term = M.Head(remaining_edges)()
+            counted = M.Count(EdgeEndpoints(edge_term)(), registry)()
+            arity = M.Head(counted)()
+            registry = M.Head(M.Tail(counted)())()
+            signature = M.Pair(
+                M.Head(edge_term)(),
+                M.Pair(arity, M.EmptyList),
+            )
+
+            remaining_entries = census
+            reversed_entries = M.EmptyList
+            found = M.false_value
+            while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
+                entry = M.Head(remaining_entries)()
+                entry_signature = M.Head(entry)()
+                same_signature = M.false_value
+                if M.TermEqual(
+                    M.Head(entry_signature)(),
+                    M.Head(signature)(),
+                )() is M.truth_value:
+                    if M.NatEq(
+                        M.Head(M.Tail(entry_signature)())(),
+                        M.Head(M.Tail(signature)())(),
+                        registry,
+                    )() is M.truth_value:
+                        same_signature = M.truth_value
+                if same_signature is M.truth_value:
+                    incremented = M.Succ(
+                        M.Head(M.Tail(entry)())(),
+                        registry,
+                    )()
+                    entry = M.Pair(
+                        entry_signature,
+                        M.Pair(M.Head(incremented)(), M.EmptyList),
+                    )
+                    registry = M.Head(M.Tail(incremented)())()
+                    found = M.truth_value
+                reversed_entries = M.Pair(entry, reversed_entries)
+                remaining_entries = M.Tail(remaining_entries)()
+            census = M.Reverse(reversed_entries)()
+            if found is M.false_value:
+                reversed_entries = M.Reverse(census)()
+                census = M.Reverse(
+                    M.Pair(
+                        M.Pair(signature, M.Pair(M.one, M.EmptyList)),
+                        reversed_entries,
+                    )
+                )()
+            remaining_edges = M.Tail(remaining_edges)()
+
+        self.registry = registry
+        self.result = census
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HandleRespectsSignatures(M.Edge):
+    """Machine truth when one Handle fold preserves every external signature count."""
+
+    def __init__(self, handle, interface_nodes, graph_version):
+        atom_result = M.false_value
+        pattern = HandlePattern(handle)()
+        compiled = CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        mapping = FirstCompletedMatch(pattern, graph_version)()
+        if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
+            root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+            probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+            remaining_pattern_edges = probe._normalize_store(GraphEdges(pattern)())
+            reversed_internal_edges = M.EmptyList
+            while M.IdentityCompare(
+                remaining_pattern_edges,
+                M.EmptyList,
+            )() is M.false_value:
+                found = MappedHostForPat(
+                    root,
+                    M.Head(remaining_pattern_edges)(),
+                )()
+                if M.IdentityCompare(M.Head(found)(), M.truth_value)() is M.truth_value:
+                    reversed_internal_edges = M.Pair(
+                        M.Tail(found)(),
+                        reversed_internal_edges,
+                    )
+                remaining_pattern_edges = M.Tail(remaining_pattern_edges)()
+            internal_edges = M.Reverse(reversed_internal_edges)()
+            external_edges = ChainWithout(
+                probe._normalize_store(GraphEdges(graph_version)()),
+                internal_edges,
+            )()
+            external_graph = GraphVersion(
+                GraphNodes(graph_version)(),
+                external_edges,
+                GraphVersionInvariants(graph_version)(),
+            )()
+            before_census = SignatureCensus(external_graph)()
+
+            fired = FireLaw(
+                graph_version,
+                fold,
+                mapping,
+                DanglingForbid()(),
+            )()
+            committed = M.Head(fired)()
+            if M.IdentityCompare(committed, M.EmptyList)() is M.false_value:
+                after_census = SignatureCensus(committed)()
+                atom_result = M.truth_value
+                remaining_before = before_census
+                while M.IdentityCompare(
+                    remaining_before,
+                    M.EmptyList,
+                )() is M.false_value:
+                    before_entry = M.Head(remaining_before)()
+                    before_signature = M.Head(before_entry)()
+                    remaining_after = after_census
+                    matching_count = M.EmptyList
+                    while M.IdentityCompare(
+                        remaining_after,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        after_entry = M.Head(remaining_after)()
+                        after_signature = M.Head(after_entry)()
+                        same_signature = M.false_value
+                        if M.TermEqual(
+                            M.Head(before_signature)(),
+                            M.Head(after_signature)(),
+                        )() is M.truth_value:
+                            if M.NatEq(
+                                M.Head(M.Tail(before_signature)())(),
+                                M.Head(M.Tail(after_signature)())(),
+                                M.AllConstructors,
+                            )() is M.truth_value:
+                                same_signature = M.truth_value
+                        if same_signature is M.truth_value:
+                            matching_count = M.Head(M.Tail(after_entry)())()
+                            remaining_after = M.EmptyList
+                        else:
+                            remaining_after = M.Tail(remaining_after)()
+                    if M.IdentityCompare(
+                        matching_count,
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        atom_result = M.false_value
+                        remaining_before = M.EmptyList
+                    elif M.NatEq(
+                        M.Head(M.Tail(before_entry)())(),
+                        matching_count,
+                        M.AllConstructors,
+                    )() is M.false_value:
+                        atom_result = M.false_value
+                        remaining_before = M.EmptyList
+                    else:
+                        remaining_before = M.Tail(remaining_before)()
+
+        self.result = atom_result
+        super().__init__(
+            inputs=M.Pair(
+                handle,
+                M.Pair(interface_nodes, M.Pair(graph_version, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+PROMOTION_REPORT_CENSUS_KEY = M.Char("census")
+PROMOTION_REPORT_SIGNATURE_KEY = M.Char("signature_ok")
+PROMOTION_REPORT_ROUNDTRIP_KEY = M.Char("roundtrip_ok")
+PROMOTION_REPORT_SIZE_DELTA_KEY = M.Char("size_delta")
+
+
+class PromotionReport(M.Edge):
+    """Build the ordered machine evidence report for one Handle candidate."""
+
+    def __init__(
+        self,
+        handle,
+        interface_nodes,
+        ledger,
+        versions,
+        match_cap=M.EmptyList,
+    ):
+        pattern = HandlePattern(handle)()
+        if M.IdentityCompare(match_cap, M.EmptyList)() is M.truth_value:
+            match_cap = CENSUS_MATCH_CAP
+        latest_version = M.EmptyList
+        latest_mapping = M.EmptyList
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            version = M.Head(remaining_versions)()
+            mapping = FirstCompletedMatch(pattern, version)()
+            if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
+                latest_version = version
+                latest_mapping = mapping
+            remaining_versions = M.Tail(remaining_versions)()
+
+        if M.IdentityCompare(latest_version, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            census = PatternCensus(
+                ledger,
+                pattern,
+                versions,
+                match_cap,
+            )()
+            signature_ok = HandleRespectsSignatures(
+                handle,
+                interface_nodes,
+                latest_version,
+            )()
+            compiled = CompileHandleToLaws(handle, interface_nodes)()
+            fold = M.Head(compiled)()
+            unfold = M.Head(M.Tail(compiled)())()
+            folded_result = FireLaw(
+                latest_version,
+                fold,
+                latest_mapping,
+                DanglingForbid()(),
+            )()
+            folded = M.Head(folded_result)()
+            roundtrip_ok = M.false_value
+            size_delta = SignedRational(M.Zero, M.Zero, M.one)()
+            if M.IdentityCompare(folded, M.EmptyList)() is M.false_value:
+                before_counted = M.Count(
+                    GraphNodes(latest_version)(),
+                    ledger.registry,
+                )()
+                nodes_before = M.Head(before_counted)()
+                ledger.registry = M.Head(M.Tail(before_counted)())()
+                after_counted = M.Count(GraphNodes(folded)(), ledger.registry)()
+                nodes_after = M.Head(after_counted)()
+                ledger.registry = M.Head(M.Tail(after_counted)())()
+                size_delta = SignedRational(
+                    nodes_before,
+                    nodes_after,
+                    M.one,
+                )()
+
+                unfold_mapping = FirstCompletedMatch(LawLeft(unfold)(), folded)()
+                if M.IdentityCompare(
+                    unfold_mapping,
+                    M.EmptyList,
+                )() is M.false_value:
+                    unfolded_result = FireLaw(
+                        folded,
+                        unfold,
+                        unfold_mapping,
+                        DanglingForbid()(),
+                    )()
+                    unfolded = M.Head(unfolded_result)()
+                    if M.IdentityCompare(
+                        unfolded,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        roundtrip_ok = GraphStoresEqual(
+                            unfolded,
+                            latest_version,
+                        )()
+
+            self.result = M.Pair(
+                M.Pair(
+                    PROMOTION_REPORT_CENSUS_KEY,
+                    M.Pair(census, M.EmptyList),
+                ),
+                M.Pair(
+                    M.Pair(
+                        PROMOTION_REPORT_SIGNATURE_KEY,
+                        M.Pair(signature_ok, M.EmptyList),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            PROMOTION_REPORT_ROUNDTRIP_KEY,
+                            M.Pair(roundtrip_ok, M.EmptyList),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                PROMOTION_REPORT_SIZE_DELTA_KEY,
+                                M.Pair(size_delta, M.EmptyList),
+                            ),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
+            )
+
+        super().__init__(
+            inputs=M.Pair(
+                handle,
+                M.Pair(
+                    interface_nodes,
+                    M.Pair(
+                        ledger,
+                        M.Pair(
+                            versions,
+                            M.Pair(match_cap, M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProposeHandle(M.Edge):
+    """Submit a Handle fold proposal with its machine report as justification."""
+
+    def __init__(self, proposal_store, handle, interface_nodes, report):
+        compiled = CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        proposal = Proposal(fold, handle)()
+        submitted = ProposalStoreSubmit(proposal_store, proposal)()
+        justification = JustifiedBy(proposal, report)()
+        self.result = ProposalStoreAttach(
+            submitted,
+            proposal,
+            justification,
+        )()
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(
+                    handle,
+                    M.Pair(
+                        interface_nodes,
+                        M.Pair(report, M.EmptyList),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ImpactPolicy(M.Edge):
+    """The fixed Step-24 impact policy as ordered machine associations."""
+
+    def __init__(self):
+        self.result = M.Pair(
+            M.Pair(
+                M.Char("fold_handle"),
+                M.Pair(M.Char("auto"), M.EmptyList),
+            ),
+            M.Pair(
+                M.Pair(
+                    M.Char("unfold_handle"),
+                    M.Pair(M.Char("auto"), M.EmptyList),
+                ),
+                M.Pair(
+                    M.Pair(
+                        M.Char("install_law"),
+                        M.Pair(M.Char("human"), M.EmptyList),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            M.Char("meta_rewrite"),
+                            M.Pair(M.Char("human"), M.EmptyList),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                M.Char("activation"),
+                                M.Pair(M.Char("human"), M.EmptyList),
+                            ),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ClassifyProposal(M.Edge):
+    """Classify a proposed Law by literal Handle and Law structure."""
+
+    def __init__(self, proposal):
+        policy = ImpactPolicy()()
+        fold_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        unfold_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        install_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        meta_class = M.Head(M.Head(policy)())()
+
+        law = ProposalLaw(proposal)()
+        left_contains_law = M.false_value
+        left_contains_handle = M.false_value
+        remaining_left = GraphElements(LawLeft(law)())()
+        while M.IdentityCompare(remaining_left, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining_left)()
+            if M.IsPair(element)() is M.truth_value:
+                if M.TermEqual(M.Head(element)(), Lmod.LawLabel)() is M.truth_value:
+                    left_contains_law = M.truth_value
+                if M.TermEqual(M.Head(element)(), Lmod.HandleLabel)() is M.truth_value:
+                    left_contains_handle = M.truth_value
+            remaining_left = M.Tail(remaining_left)()
+
+        right_contains_handle = M.false_value
+        remaining_right = GraphElements(LawRight(law)())()
+        while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining_right)()
+            if M.IsPair(element)() is M.truth_value:
+                if M.TermEqual(M.Head(element)(), Lmod.HandleLabel)() is M.truth_value:
+                    right_contains_handle = M.truth_value
+            remaining_right = M.Tail(remaining_right)()
+
+        if M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
+            self.result = meta_class
+        elif M.IdentityCompare(right_contains_handle, M.truth_value)() is M.truth_value:
+            self.result = fold_class
+        elif M.IdentityCompare(left_contains_handle, M.truth_value)() is M.truth_value:
+            self.result = unfold_class
+        else:
+            self.result = install_class
+
+        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+AUTONOMY_BUDGET_MAX_FIRINGS_KEY = M.Char("max_firings")
+AUTONOMY_BUDGET_MAX_NODES_KEY = M.Char("max_nodes")
+AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY = M.Char("max_activations")
+AUTONOMY_REPORT_ACTIVATED_KEY = M.Char("activated")
+AUTONOMY_REPORT_SKIPPED_HUMAN_KEY = M.Char("skipped_human")
+AUTONOMY_REPORT_FIRINGS_KEY = M.Char("firings")
+AUTONOMY_REPORT_STOPPED_REASON_KEY = M.Char("stopped_reason")
+AUTONOMY_REPORT_GENERATED_HANDLES_KEY = M.Char("generated_handles")
+AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY = M.Char("generated_compositions")
+AUTONOMY_GENERATE_HANDLES_KEY = M.Char("generate_handles")
+AUTONOMY_GENERATE_COMPOSITIONS_KEY = M.Char("generate_compositions")
+AUTONOMY_GENERATOR_VERSIONS_KEY = M.Char("versions")
+AUTONOMY_GENERATOR_MIN_COUNT_KEY = M.Char("min_count")
+AUTONOMY_STOP_EXHAUSTED = M.Char("exhausted")
+AUTONOMY_STOP_BUDGET_FIRINGS = M.Char("budget_firings")
+AUTONOMY_STOP_BUDGET_NODES = M.Char("budget_nodes")
+
+
+class AutonomyAuthority(M.Edge):
+    """Machine authority recording the exact budget used for auto-approval."""
+
+    def __init__(self, budget_as_term):
+        self.result = M.Pair(
+            Lmod.AutonomyAuthorityLabel,
+            M.Pair(budget_as_term, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(budget_as_term, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class AutonomyCycle(M.Edge):
+    """Optionally generate, then approve, activate, and fire within a budget."""
+
+    def __init__(
+        self,
+        graph_version,
+        proposal_store,
+        ledger,
+        budget,
+        generator_config=M.EmptyList,
+    ):
+        max_firings = M.EmptyList
+        max_nodes = M.EmptyList
+        max_activations = M.EmptyList
+        remaining_budget = budget
+        while M.IdentityCompare(remaining_budget, M.EmptyList)() is M.false_value:
+            association = M.Head(remaining_budget)()
+            key = M.Head(association)()
+            value = M.Head(M.Tail(association)())()
+            if M.Compare(key, AUTONOMY_BUDGET_MAX_FIRINGS_KEY)() is M.truth_value:
+                max_firings = value
+            elif M.Compare(key, AUTONOMY_BUDGET_MAX_NODES_KEY)() is M.truth_value:
+                max_nodes = value
+            elif M.Compare(key, AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY)() is M.truth_value:
+                max_activations = value
+            remaining_budget = M.Tail(remaining_budget)()
+
+        generate_handles = M.false_value
+        generate_compositions = M.false_value
+        generator_versions = M.EmptyList
+        generator_min_count = M.one
+        remaining_generator_config = generator_config
+        while M.IdentityCompare(
+            remaining_generator_config,
+            M.EmptyList,
+        )() is M.false_value:
+            association = M.Head(remaining_generator_config)()
+            key = M.Head(association)()
+            value = M.Head(M.Tail(association)())()
+            if M.Compare(key, AUTONOMY_GENERATE_HANDLES_KEY)() is M.truth_value:
+                generate_handles = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATE_COMPOSITIONS_KEY,
+            )() is M.truth_value:
+                generate_compositions = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATOR_VERSIONS_KEY,
+            )() is M.truth_value:
+                generator_versions = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATOR_MIN_COUNT_KEY,
+            )() is M.truth_value:
+                generator_min_count = value
+            remaining_generator_config = M.Tail(remaining_generator_config)()
+
+        current_version = graph_version
+        current_store = proposal_store
+        reversed_generation_report = M.EmptyList
+        if M.IdentityCompare(generate_handles, M.truth_value)() is M.truth_value:
+            generated_handles = GenerateHandleProposals(
+                current_store,
+                generator_versions,
+                ledger,
+                generator_min_count,
+            )()
+            current_store = M.Head(generated_handles)()
+            handle_count = M.Head(M.Tail(generated_handles)())()
+            handle_skipped = M.Head(M.Tail(M.Tail(generated_handles)())())()
+            reversed_generation_report = M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_GENERATED_HANDLES_KEY,
+                    M.Pair(
+                        M.Pair(
+                            handle_count,
+                            M.Pair(handle_skipped, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                reversed_generation_report,
+            )
+        if M.IdentityCompare(
+            generate_compositions,
+            M.truth_value,
+        )() is M.truth_value:
+            generated_compositions = GenerateCompositionProposals(
+                current_store,
+                ledger,
+            )()
+            current_store = M.Head(generated_compositions)()
+            composition_count = M.Head(M.Tail(generated_compositions)())()
+            composition_skipped = M.Head(
+                M.Tail(M.Tail(generated_compositions)())(),
+            )()
+            reversed_generation_report = M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY,
+                    M.Pair(
+                        M.Pair(
+                            composition_count,
+                            M.Pair(composition_skipped, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                reversed_generation_report,
+            )
+        generation_report = M.Reverse(reversed_generation_report)()
+        authority = AutonomyAuthority(budget)()
+        activation_count = M.Zero
+        reversed_activated = M.EmptyList
+        reversed_skipped_human = M.EmptyList
+        remaining_entries = ProposalStoreEntries(current_store)()
+        policy = ImpactPolicy()()
+
+        while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining_entries)()
+            proposal = ProposalEntryProposal(entry)()
+            pending = M.truth_value
+            remaining_annotations = ProposalEntryAnnotations(entry)()
+            while M.IdentityCompare(
+                remaining_annotations,
+                M.EmptyList,
+            )() is M.false_value:
+                annotation = M.Head(remaining_annotations)()
+                if M.IsPair(annotation)() is M.truth_value:
+                    annotation_label = M.Head(annotation)()
+                    if M.TermEqual(
+                        annotation_label,
+                        Lmod.ApprovedLabel,
+                    )() is M.truth_value:
+                        pending = M.false_value
+                        remaining_annotations = M.EmptyList
+                    elif M.TermEqual(
+                        annotation_label,
+                        Lmod.RejectedLabel,
+                    )() is M.truth_value:
+                        pending = M.false_value
+                        remaining_annotations = M.EmptyList
+                    else:
+                        remaining_annotations = M.Tail(remaining_annotations)()
+                else:
+                    remaining_annotations = M.Tail(remaining_annotations)()
+
+            if M.IdentityCompare(pending, M.truth_value)() is M.truth_value:
+                impact = ClassifyProposal(proposal)()
+                disposition = M.EmptyList
+                remaining_policy = policy
+                while M.IdentityCompare(
+                    remaining_policy,
+                    M.EmptyList,
+                )() is M.false_value:
+                    policy_entry = M.Head(remaining_policy)()
+                    if M.Compare(
+                        M.Head(policy_entry)(),
+                        impact,
+                    )() is M.truth_value:
+                        disposition = M.Head(M.Tail(policy_entry)())()
+                        remaining_policy = M.EmptyList
+                    else:
+                        remaining_policy = M.Tail(remaining_policy)()
+
+                if M.Compare(disposition, M.Char("human"))() is M.truth_value:
+                    reversed_skipped_human = M.Pair(
+                        proposal,
+                        reversed_skipped_human,
+                    )
+                elif M.Compare(disposition, M.Char("auto"))() is M.truth_value:
+                    if M.NatLess(
+                        activation_count,
+                        max_activations,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        law = ProposalLaw(proposal)()
+                        obligations = LawObligations(law)()
+                        has_node_bound = M.false_value
+                        remaining_obligations = obligations
+                        while M.IdentityCompare(
+                            remaining_obligations,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                KObligationName(M.Head(remaining_obligations)())(),
+                                M.Char("node-count-max"),
+                            )() is M.truth_value:
+                                has_node_bound = M.truth_value
+                                remaining_obligations = M.EmptyList
+                            else:
+                                remaining_obligations = M.Tail(
+                                    remaining_obligations,
+                                )()
+                        if M.IdentityCompare(
+                            has_node_bound,
+                            M.false_value,
+                        )() is M.truth_value:
+                            reversed_obligations = M.Reverse(obligations)()
+                            obligations = M.Reverse(
+                                M.Pair(
+                                    KObligation(
+                                        M.Char("node-count-max"),
+                                        max_nodes,
+                                    )(),
+                                    reversed_obligations,
+                                )
+                            )()
+                            law = Law(
+                                LawLeft(law)(),
+                                LawInterface(law)(),
+                                LawRight(law)(),
+                                LawKToLeft(law)(),
+                                LawKToRight(law)(),
+                                obligations,
+                            )()
+                            guarded_proposal = Proposal(
+                                law,
+                                ProposalOrigin(proposal)(),
+                            )()
+                            reversed_entries = M.EmptyList
+                            current_entries = ProposalStoreEntries(current_store)()
+                            while M.IdentityCompare(
+                                current_entries,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                current_entry = M.Head(current_entries)()
+                                if M.TermEqual(
+                                    ProposalEntryProposal(current_entry)(),
+                                    proposal,
+                                )() is M.truth_value:
+                                    reversed_annotations = M.EmptyList
+                                    current_annotations = ProposalEntryAnnotations(
+                                        current_entry,
+                                    )()
+                                    while M.IdentityCompare(
+                                        current_annotations,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        current_annotation = M.Head(
+                                            current_annotations,
+                                        )()
+                                        if M.IsPair(current_annotation)() is M.truth_value:
+                                            if M.TermEqual(
+                                                M.Head(current_annotation)(),
+                                                Lmod.JustifiedByLabel,
+                                            )() is M.truth_value:
+                                                if M.TermEqual(
+                                                    M.Head(
+                                                        M.Tail(current_annotation)(),
+                                                    )(),
+                                                    proposal,
+                                                )() is M.truth_value:
+                                                    current_annotation = JustifiedBy(
+                                                        guarded_proposal,
+                                                        M.Head(
+                                                            M.Tail(
+                                                                M.Tail(
+                                                                    current_annotation,
+                                                                )(),
+                                                            )(),
+                                                        )(),
+                                                    )()
+                                        reversed_annotations = M.Pair(
+                                            current_annotation,
+                                            reversed_annotations,
+                                        )
+                                        current_annotations = M.Tail(
+                                            current_annotations,
+                                        )()
+                                    current_entry = ProposalEntry(
+                                        guarded_proposal,
+                                        M.Reverse(reversed_annotations)(),
+                                    )()
+                                reversed_entries = M.Pair(
+                                    current_entry,
+                                    reversed_entries,
+                                )
+                                current_entries = M.Tail(current_entries)()
+                            current_store = ProposalStore(
+                                M.Reverse(reversed_entries)(),
+                            )()
+                            proposal = guarded_proposal
+                        approval = Approved(proposal, authority)()
+                        current_store = ProposalStoreAttach(
+                            current_store,
+                            proposal,
+                            approval,
+                        )()
+                        approved_entry = M.EmptyList
+                        updated_entries = ProposalStoreEntries(current_store)()
+                        while M.IdentityCompare(
+                            updated_entries,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            updated_entry = M.Head(updated_entries)()
+                            if M.TermEqual(
+                                ProposalEntryProposal(updated_entry)(),
+                                proposal,
+                            )() is M.truth_value:
+                                approved_entry = updated_entry
+                                updated_entries = M.EmptyList
+                            else:
+                                updated_entries = M.Tail(updated_entries)()
+                        activated = ActivateProposal(
+                            current_version,
+                            approved_entry,
+                        )()
+                        active_version = M.Head(activated)()
+                        if M.IdentityCompare(
+                            active_version,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            current_version = active_version
+                            reversed_activated = M.Pair(
+                                proposal,
+                                reversed_activated,
+                            )
+                            next_activation = M.Succ(
+                                activation_count,
+                                ledger.registry,
+                            )()
+                            activation_count = M.Head(next_activation)()
+                            ledger.registry = M.Head(M.Tail(next_activation)())()
+            remaining_entries = M.Tail(remaining_entries)()
+
+        firings = M.Zero
+        stopped_reason = AUTONOMY_STOP_EXHAUSTED
+        self.last_firing_trace = M.EmptyList
+        firing = M.truth_value
+        while M.IdentityCompare(firing, M.truth_value)() is M.truth_value:
+            if M.NatLess(firings, max_firings, ledger.registry)() is M.false_value:
+                stopped_reason = AUTONOMY_STOP_BUDGET_FIRINGS
+                firing = M.false_value
+            else:
+                records_before = ledger.records
+                registry_before = ledger.registry
+                fired = FireAny(
+                    current_version,
+                    DanglingForbid()(),
+                    ledger,
+                )()
+                candidate_version = M.Head(fired)()
+                self.last_firing_trace = M.Head(M.Tail(fired)())()
+                if M.IdentityCompare(
+                    candidate_version,
+                    M.EmptyList,
+                )() is M.truth_value:
+                    stopped_reason = AUTONOMY_STOP_EXHAUSTED
+                    firing = M.false_value
+                else:
+                    counted = M.Count(
+                        GraphNodes(candidate_version)(),
+                        ledger.registry,
+                    )()
+                    candidate_nodes = M.Head(counted)()
+                    ledger.registry = M.Head(M.Tail(counted)())()
+                    if M.NatLess(
+                        max_nodes,
+                        candidate_nodes,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        ledger.records = records_before
+                        ledger.results = records_before
+                        ledger.registry = registry_before
+                        stopped_reason = AUTONOMY_STOP_BUDGET_NODES
+                        firing = M.false_value
+                    else:
+                        current_version = candidate_version
+                        next_firings = M.Succ(firings, ledger.registry)()
+                        firings = M.Head(next_firings)()
+                        ledger.registry = M.Head(M.Tail(next_firings)())()
+
+        report = M.Pair(
+            M.Pair(
+                AUTONOMY_REPORT_ACTIVATED_KEY,
+                M.Pair(M.Reverse(reversed_activated)(), M.EmptyList),
+            ),
+            M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_SKIPPED_HUMAN_KEY,
+                    M.Pair(M.Reverse(reversed_skipped_human)(), M.EmptyList),
+                ),
+                M.Pair(
+                    M.Pair(
+                        AUTONOMY_REPORT_FIRINGS_KEY,
+                        M.Pair(firings, M.EmptyList),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            AUTONOMY_REPORT_STOPPED_REASON_KEY,
+                            M.Pair(stopped_reason, M.EmptyList),
+                        ),
+                        generation_report,
+                    ),
+                ),
+            ),
+        )
+        self.result = M.Pair(
+            current_version,
+            M.Pair(current_store, M.Pair(report, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(
+                    proposal_store,
+                    M.Pair(
+                        ledger,
+                        M.Pair(budget, M.Pair(generator_config, M.EmptyList)),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result
@@ -1828,7 +2897,7 @@ class LawMatchBindings(M.Edge):
 class FireAny(M.Edge):
     """Fire the first installed Law having a completed Step-10 match."""
 
-    def __init__(self, graph_version, dangling_mode):
+    def __init__(self, graph_version, dangling_mode, ledger=M.EmptyList):
         self.result = M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
         laws = InstalledLaws(graph_version)()
         remaining = laws
@@ -1844,11 +2913,18 @@ class FireAny(M.Edge):
                         mapping = FirstCompletedMatch(LawLeft(active_law)(), graph_version)()
                 if M.IdentityCompare(active_law, M.EmptyList)() is M.false_value:
                     if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
-                        fired = FireLaw(graph_version, active_law, mapping, dangling_mode)()
+                        fired = FireLaw(
+                            graph_version,
+                            active_law,
+                            mapping,
+                            dangling_mode,
+                            ledger,
+                        )()
                         if M.IdentityCompare(M.Head(fired)(), M.EmptyList)() is M.false_value:
                             self.result = fired
                             remaining = M.EmptyList
                         else:
+                            self.result = fired
                             remaining = M.Tail(remaining)()
                     else:
                         remaining = M.Tail(remaining)()
@@ -1857,7 +2933,1926 @@ class FireAny(M.Edge):
             else:
                 remaining = M.Tail(remaining)()
         super().__init__(
-            inputs=M.Pair(graph_version, M.Pair(dangling_mode, M.EmptyList)),
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(dangling_mode, M.Pair(ledger, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecord(M.Edge):
+    """A committed firing together with its exact graph and trace counts."""
+
+    def __init__(
+        self,
+        law,
+        g0,
+        g1,
+        trace,
+        nodes_before,
+        nodes_after,
+        edges_before,
+        edges_after,
+        trace_steps,
+    ):
+        self.result = M.Pair(
+            Lmod.FiringRecordLabel,
+            M.Pair(
+                law,
+                M.Pair(
+                    g0,
+                    M.Pair(
+                        g1,
+                        M.Pair(
+                            trace,
+                            M.Pair(
+                                nodes_before,
+                                M.Pair(
+                                    nodes_after,
+                                    M.Pair(
+                                        edges_before,
+                                        M.Pair(
+                                            edges_after,
+                                            M.Pair(trace_steps, M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                law,
+                M.Pair(
+                    g0,
+                    M.Pair(
+                        g1,
+                        M.Pair(
+                            trace,
+                            M.Pair(
+                                nodes_before,
+                                M.Pair(
+                                    nodes_after,
+                                    M.Pair(
+                                        edges_before,
+                                        M.Pair(
+                                            edges_after,
+                                            M.Pair(trace_steps, M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordLaw(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(record)())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordG0(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordG1(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordTrace(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordNodesBefore(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordNodesAfter(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordEdgesBefore(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordEdgesAfter(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordTraceSteps(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRational(M.Edge):
+    """Exact signed rational (positive_total - negative_total) / samples."""
+
+    def __init__(self, positive_total, negative_total, samples):
+        self.result = M.Pair(
+            Lmod.SignedRationalLabel,
+            M.Pair(
+                positive_total,
+                M.Pair(negative_total, M.Pair(samples, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                positive_total,
+                M.Pair(negative_total, M.Pair(samples, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalPositive(M.Edge):
+    def __init__(self, signed_rational):
+        self.result = M.Head(M.Tail(signed_rational)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalNegative(M.Edge):
+    def __init__(self, signed_rational):
+        args = M.Tail(signed_rational)()
+        self.result = M.Head(M.Tail(args)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalSamples(M.Edge):
+    def __init__(self, signed_rational):
+        args = M.Tail(signed_rational)()
+        args = M.Tail(args)()
+        self.result = M.Head(M.Tail(args)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerByLaw(M.Edge):
+    """Group a chronological record shard into Pair law associations."""
+
+    def __init__(self, records):
+        groups = M.EmptyList
+        remaining_records = records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record = M.Head(remaining_records)()
+            law = FiringRecordLaw(record)()
+            remaining_groups = groups
+            reversed_groups = M.EmptyList
+            found = M.false_value
+            while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+                group = M.Head(remaining_groups)()
+                group_law = M.Head(group)()
+                if M.TermEqual(group_law, law)() is M.truth_value:
+                    group_records = M.Head(M.Tail(group)())()
+                    reversed_group_records = M.Reverse(group_records)()
+                    group_records = M.Reverse(M.Pair(record, reversed_group_records))()
+                    group = M.Pair(law, M.Pair(group_records, M.EmptyList))
+                    found = M.truth_value
+                reversed_groups = M.Pair(group, reversed_groups)
+                remaining_groups = M.Tail(remaining_groups)()
+            groups = M.Reverse(reversed_groups)()
+            if M.IdentityCompare(found, M.false_value)() is M.truth_value:
+                reversed_groups = M.Reverse(groups)()
+                groups = M.Reverse(
+                    M.Pair(
+                        M.Pair(law, M.Pair(M.Pair(record, M.EmptyList), M.EmptyList)),
+                        reversed_groups,
+                    )
+                )()
+            remaining_records = M.Tail(remaining_records)()
+        self.result = groups
+        super().__init__(inputs=M.Pair(records, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerByLawShard(M.Edge):
+    """Spawn-safe worker edge for one by-law record shard."""
+
+    def __init__(self, records, result_queue):
+        self.result = FiringLedgerByLaw(records)()
+        result_queue.put(self.result)
+        super().__init__(inputs=M.Pair(records, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerDelta(M.Edge):
+    """Exact node totals for one law over one chronological record shard."""
+
+    def __init__(self, records, law, registry):
+        positive_total = M.Zero
+        negative_total = M.Zero
+        samples = M.Zero
+        remaining_records = records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record = M.Head(remaining_records)()
+            if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                positive_pair = M.Add(
+                    positive_total,
+                    FiringRecordNodesAfter(record)(),
+                    registry,
+                )()
+                positive_total = M.Head(positive_pair)()
+                registry = M.Head(M.Tail(positive_pair)())()
+                negative_pair = M.Add(
+                    negative_total,
+                    FiringRecordNodesBefore(record)(),
+                    registry,
+                )()
+                negative_total = M.Head(negative_pair)()
+                registry = M.Head(M.Tail(negative_pair)())()
+                samples_pair = M.Succ(samples, registry)()
+                samples = M.Head(samples_pair)()
+                registry = M.Head(M.Tail(samples_pair)())()
+            remaining_records = M.Tail(remaining_records)()
+        signed_rational = SignedRational(positive_total, negative_total, samples)()
+        self.result = M.Pair(signed_rational, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(records, M.Pair(law, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerDeltaShard(M.Edge):
+    """Spawn-safe worker edge for one exact-delta record shard."""
+
+    def __init__(self, records, law, result_queue):
+        registry = M.Tree(M.EmptyList)
+        self.result = FiringLedgerDelta(records, law, registry)()
+        result_queue.put(self.result)
+        super().__init__(
+            inputs=M.Pair(records, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedger(M.Edge):
+    """Mutable chronological ledger of committed firing records."""
+
+    def __init__(self, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        self.records = M.EmptyList
+        self.registry = registry
+        super().__init__(inputs=M.Pair(registry, M.EmptyList), results=self.records)
+
+    def append(self, record):
+        reversed_records = M.Reverse(self.records)()
+        self.records = M.Reverse(M.Pair(record, reversed_records))()
+        self.results = self.records
+        return self.records
+
+    def all(self):
+        return self.records
+
+    def by_law(self):
+        record_count = 0
+        remaining_records = self.records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record_count = record_count + 1
+            remaining_records = M.Tail(remaining_records)()
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            return FiringLedgerByLaw(self.records)()
+        if worker_capacity > record_count:
+            worker_capacity = record_count
+        if worker_capacity < 2:
+            return FiringLedgerByLaw(self.records)()
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        shard_width = record_count // worker_capacity
+        wide_shards = record_count % worker_capacity
+        workers = M.EmptyList
+        remaining_records = self.records
+        slot = 0
+        while slot != worker_capacity:
+            active_width = shard_width
+            if slot < wide_shards:
+                active_width = active_width + 1
+            reversed_shard = M.EmptyList
+            copied = 0
+            while copied != active_width:
+                reversed_shard = M.Pair(M.Head(remaining_records)(), reversed_shard)
+                remaining_records = M.Tail(remaining_records)()
+                copied = copied + 1
+            shard = M.Reverse(reversed_shard)()
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=FiringLedgerByLawShard,
+                args=(shard, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        groups = M.EmptyList
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            shard_groups = result_queue.get()
+            process.join()
+            result_queue.close()
+            remaining_shard_groups = shard_groups
+            while M.IdentityCompare(remaining_shard_groups, M.EmptyList)() is M.false_value:
+                shard_group = M.Head(remaining_shard_groups)()
+                shard_law = M.Head(shard_group)()
+                shard_records = M.Head(M.Tail(shard_group)())()
+                remaining_groups = groups
+                reversed_groups = M.EmptyList
+                found = M.false_value
+                while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+                    group = M.Head(remaining_groups)()
+                    group_law = M.Head(group)()
+                    if M.TermEqual(group_law, shard_law)() is M.truth_value:
+                        group_records = M.Head(M.Tail(group)())()
+                        reversed_group_records = M.Reverse(group_records)()
+                        remaining_shard_records = shard_records
+                        while M.IdentityCompare(
+                            remaining_shard_records,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reversed_group_records = M.Pair(
+                                M.Head(remaining_shard_records)(),
+                                reversed_group_records,
+                            )
+                            remaining_shard_records = M.Tail(remaining_shard_records)()
+                        group = M.Pair(
+                            shard_law,
+                            M.Pair(M.Reverse(reversed_group_records)(), M.EmptyList),
+                        )
+                        found = M.truth_value
+                    reversed_groups = M.Pair(group, reversed_groups)
+                    remaining_groups = M.Tail(remaining_groups)()
+                groups = M.Reverse(reversed_groups)()
+                if M.IdentityCompare(found, M.false_value)() is M.truth_value:
+                    reversed_groups = M.Reverse(groups)()
+                    groups = M.Reverse(M.Pair(shard_group, reversed_groups))()
+                remaining_shard_groups = M.Tail(remaining_shard_groups)()
+            remaining_workers = M.Tail(remaining_workers)()
+        return groups
+
+    def size_delta(self, law):
+        record_count = 0
+        remaining_records = self.records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record_count = record_count + 1
+            remaining_records = M.Tail(remaining_records)()
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            delta_pair = FiringLedgerDelta(self.records, law, self.registry)()
+            self.registry = M.Head(M.Tail(delta_pair)())()
+            return M.Head(delta_pair)()
+        if worker_capacity > record_count:
+            worker_capacity = record_count
+        if worker_capacity < 2:
+            delta_pair = FiringLedgerDelta(self.records, law, self.registry)()
+            self.registry = M.Head(M.Tail(delta_pair)())()
+            return M.Head(delta_pair)()
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        shard_width = record_count // worker_capacity
+        wide_shards = record_count % worker_capacity
+        workers = M.EmptyList
+        remaining_records = self.records
+        slot = 0
+        while slot != worker_capacity:
+            active_width = shard_width
+            if slot < wide_shards:
+                active_width = active_width + 1
+            reversed_shard = M.EmptyList
+            copied = 0
+            while copied != active_width:
+                reversed_shard = M.Pair(M.Head(remaining_records)(), reversed_shard)
+                remaining_records = M.Tail(remaining_records)()
+                copied = copied + 1
+            shard = M.Reverse(reversed_shard)()
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=FiringLedgerDeltaShard,
+                args=(shard, law, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        positive_total = M.Zero
+        negative_total = M.Zero
+        samples = M.Zero
+        registry = self.registry
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            partial_pair = result_queue.get()
+            process.join()
+            result_queue.close()
+            partial = M.Head(partial_pair)()
+            positive_pair = M.Add(
+                positive_total,
+                SignedRationalPositive(partial)(),
+                registry,
+            )()
+            positive_total = M.Head(positive_pair)()
+            registry = M.Head(M.Tail(positive_pair)())()
+            negative_pair = M.Add(
+                negative_total,
+                SignedRationalNegative(partial)(),
+                registry,
+            )()
+            negative_total = M.Head(negative_pair)()
+            registry = M.Head(M.Tail(negative_pair)())()
+            samples_pair = M.Add(
+                samples,
+                SignedRationalSamples(partial)(),
+                registry,
+            )()
+            samples = M.Head(samples_pair)()
+            registry = M.Head(M.Tail(samples_pair)())()
+            remaining_workers = M.Tail(remaining_workers)()
+        self.registry = registry
+        return SignedRational(positive_total, negative_total, samples)()
+
+    def __call__(self):
+        return self.records
+
+
+CENSUS_MATCH_CAP = M.GMPRep("100")
+
+
+class PatternCensusMatchCount(M.Edge):
+    """Count completed Step-10 match states up to a machine Nat cap."""
+
+    def __init__(self, pattern_graph, host_version, match_cap, registry):
+        cap_pair = M.NatFromRep(match_cap, registry)()
+        cap = M.Head(cap_pair)()
+        registry = M.Head(M.Tail(cap_pair)())()
+        completed = M.Zero
+        pending = GraphElements(pattern_graph)()
+        cursor = SearchMatchCursor(M.EmptyList, pattern_graph, host_version, pending)()
+        start = SearchState(M.EmptyList, M.EmptyList, M.EmptyList, M.one, cursor)()
+        frontier = M.Pair(start, M.EmptyList)
+
+        while M.IdentityCompare(frontier, M.EmptyList)() is M.false_value:
+            if M.NatEq(completed, cap, registry)() is M.truth_value:
+                frontier = M.EmptyList
+            else:
+                state = M.Head(frontier)()
+                frontier = M.Tail(frontier)()
+                cursor = SearchStateCursor(state)()
+                if SearchMatchCursorComplete(cursor)() is M.truth_value:
+                    mapping = Map(
+                        pattern_graph,
+                        host_version,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    if MapSendsEveryElement(mapping, pattern_graph)() is M.truth_value:
+                        completed_pair = M.Succ(completed, registry)()
+                        completed = M.Head(completed_pair)()
+                        registry = M.Head(M.Tail(completed_pair)())()
+                else:
+                    pending = SearchMatchCursorPending(cursor)()
+                    pat = M.Head(pending)()
+                    rest = M.Tail(pending)()
+                    mapping = Map(
+                        pattern_graph,
+                        host_version,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    alternatives = MapExtensionAlternatives(mapping, pat, host_version)()
+                    while M.IdentityCompare(alternatives, M.EmptyList)() is M.false_value:
+                        alternative = M.Head(alternatives)()
+                        root = M.Head(M.Tail(M.Tail(M.Tail(alternative)())())())()
+                        child_cursor = SearchMatchCursor(
+                            root,
+                            pattern_graph,
+                            host_version,
+                            rest,
+                        )()
+                        child = SearchState(
+                            M.EmptyList,
+                            M.EmptyList,
+                            M.EmptyList,
+                            M.one,
+                            child_cursor,
+                        )()
+                        frontier = M.Pair(child, frontier)
+                        alternatives = M.Tail(alternatives)()
+
+        self.result = M.Pair(completed, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                pattern_graph,
+                M.Pair(
+                    host_version,
+                    M.Pair(match_cap, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PatternCensusShard(M.Edge):
+    """Spawn-safe census worker for one chronological version shard."""
+
+    def __init__(self, pattern_graph, versions, match_cap, result_queue):
+        registry = M.Tree(M.EmptyList)
+        reversed_counts = M.EmptyList
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            counted = PatternCensusMatchCount(
+                pattern_graph,
+                M.Head(remaining_versions)(),
+                match_cap,
+                registry,
+            )()
+            reversed_counts = M.Pair(M.Head(counted)(), reversed_counts)
+            registry = M.Head(M.Tail(counted)())()
+            remaining_versions = M.Tail(remaining_versions)()
+        self.result = M.Reverse(reversed_counts)()
+        result_queue.put(self.result)
+        super().__init__(
+            inputs=M.Pair(
+                pattern_graph,
+                M.Pair(versions, M.Pair(match_cap, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PatternCensus(M.Edge):
+    """
+    Count a given pattern in each version, preserving Pair-chain input order.
+
+    `match_cap` is a machine GMP value with a default of 100. Keeping it as an
+    input allows later machine policy to tune the bound without changing this
+    operation. Independent version shards run in parallel and are reduced in
+    deterministic shard order. The firing ledger supplies the constructor
+    registry; its records are intentionally not consulted.
+    """
+
+    def __init__(
+        self,
+        ledger,
+        pattern_graph,
+        versions,
+        match_cap=CENSUS_MATCH_CAP,
+    ):
+        version_count = 0
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            version_count = version_count + 1
+            remaining_versions = M.Tail(remaining_versions)()
+
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            worker_capacity = 1
+        if worker_capacity > version_count:
+            worker_capacity = version_count
+
+        if worker_capacity < 2:
+            reversed_counts = M.EmptyList
+            registry = ledger.registry
+            remaining_versions = versions
+            while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+                counted = PatternCensusMatchCount(
+                    pattern_graph,
+                    M.Head(remaining_versions)(),
+                    match_cap,
+                    registry,
+                )()
+                reversed_counts = M.Pair(M.Head(counted)(), reversed_counts)
+                registry = M.Head(M.Tail(counted)())()
+                remaining_versions = M.Tail(remaining_versions)()
+            ledger.registry = registry
+            self.result = M.Reverse(reversed_counts)()
+        else:
+            try:
+                mp_context = multiprocessing.get_context("fork")
+            except ValueError:
+                mp_context = multiprocessing.get_context("spawn")
+
+            shard_width = version_count // worker_capacity
+            wide_shards = version_count % worker_capacity
+            workers = M.EmptyList
+            remaining_versions = versions
+            slot = 0
+            while slot != worker_capacity:
+                active_width = shard_width
+                if slot < wide_shards:
+                    active_width = active_width + 1
+                reversed_shard = M.EmptyList
+                copied = 0
+                while copied != active_width:
+                    reversed_shard = M.Pair(
+                        M.Head(remaining_versions)(),
+                        reversed_shard,
+                    )
+                    remaining_versions = M.Tail(remaining_versions)()
+                    copied = copied + 1
+                shard = M.Reverse(reversed_shard)()
+                result_queue = mp_context.Queue()
+                process = mp_context.Process(
+                    target=PatternCensusShard,
+                    args=(pattern_graph, shard, match_cap, result_queue),
+                )
+                process.start()
+                workers = M.Pair(
+                    M.Pair(process, M.Pair(result_queue, M.EmptyList)),
+                    workers,
+                )
+                slot = slot + 1
+            workers = M.Reverse(workers)()
+
+            reversed_counts = M.EmptyList
+            remaining_workers = workers
+            while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+                worker = M.Head(remaining_workers)()
+                process = M.Head(worker)()
+                result_queue = M.Head(M.Tail(worker)())()
+                shard_counts = result_queue.get()
+                process.join()
+                result_queue.close()
+                remaining_shard_counts = shard_counts
+                while M.IdentityCompare(
+                    remaining_shard_counts,
+                    M.EmptyList,
+                )() is M.false_value:
+                    reversed_counts = M.Pair(
+                        M.Head(remaining_shard_counts)(),
+                        reversed_counts,
+                    )
+                    remaining_shard_counts = M.Tail(remaining_shard_counts)()
+                remaining_workers = M.Tail(remaining_workers)()
+            self.result = M.Reverse(reversed_counts)()
+
+        super().__init__(
+            inputs=M.Pair(
+                ledger,
+                M.Pair(
+                    pattern_graph,
+                    M.Pair(versions, M.Pair(match_cap, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+MINE_CANDIDATE_CAP = M.GMPRep("200")
+
+
+class MineNatFromGMPRep(M.Edge):
+    """Convert a GMP machine value to a cached machine Nat."""
+
+    def __init__(self, rep):
+        result = M.Atom()
+        result.value = rep
+        self.result = result
+        super().__init__(inputs=M.Pair(rep, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MineNatSuccessor(M.Edge):
+    """Increment a mining Nat without materializing a deep successor key."""
+
+    def __init__(self, number, registry):
+        rep = M.NatRepOf(number, registry)()
+        next_text = GMPSuccText(M.GMPRepText(rep)())()
+        successor = MineNatFromGMPRep(M.GMPRep(next_text))()
+        self.result = M.Pair(successor, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(number, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MineNatAdd(M.Edge):
+    """Add mining Nats while retaining their bounded cached representation."""
+
+    def __init__(self, left, right, registry):
+        left_rep = M.NatRepOf(left, registry)()
+        right_rep = M.NatRepOf(right, registry)()
+        total_text = GMPAddText(
+            M.GMPRepText(left_rep)(),
+            M.GMPRepText(right_rep)(),
+        )()
+        total = MineNatFromGMPRep(M.GMPRep(total_text))()
+        self.result = M.Pair(total, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                left,
+                M.Pair(right, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class EnumerateCandidatePatterns(M.Edge):
+    """Enumerate bounded closed one-neighborhood GraphVersion candidates."""
+
+    def __init__(self, graph_version, max_size):
+        registry = M.Tree(M.EmptyList)
+        cap = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+        inspected = M.Zero
+        emitted = M.Zero
+        reversed_candidates = M.EmptyList
+        remaining_nodes = GraphNodes(graph_version)()
+
+        while M.IdentityCompare(remaining_nodes, M.EmptyList)() is M.false_value:
+            if M.NatEq(inspected, cap, registry)() is M.truth_value:
+                remaining_nodes = M.EmptyList
+            elif M.NatEq(emitted, cap, registry)() is M.truth_value:
+                remaining_nodes = M.EmptyList
+            else:
+                node = M.Head(remaining_nodes)()
+                remaining_nodes = M.Tail(remaining_nodes)()
+                stepped = MineNatSuccessor(inspected, registry)()
+                inspected = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+
+                candidate_ok = M.truth_value
+                candidate_nodes = M.Pair(node, M.EmptyList)
+                reversed_edges = M.EmptyList
+                element_count = M.one
+                if M.NatLess(max_size, element_count, registry)() is M.truth_value:
+                    candidate_ok = M.false_value
+
+                edge_scans = M.Zero
+                remaining_edges = GraphEdges(graph_version)()
+                while M.IdentityCompare(
+                    remaining_edges,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(candidate_ok, M.false_value)() is M.truth_value:
+                        remaining_edges = M.EmptyList
+                    elif M.NatEq(edge_scans, cap, registry)() is M.truth_value:
+                        candidate_ok = M.false_value
+                        remaining_edges = M.EmptyList
+                    else:
+                        edge = M.Head(remaining_edges)()
+                        remaining_edges = M.Tail(remaining_edges)()
+                        stepped = MineNatSuccessor(edge_scans, registry)()
+                        edge_scans = M.Head(stepped)()
+                        registry = M.Head(M.Tail(stepped)())()
+
+                        incident = M.false_value
+                        endpoint_scans = M.Zero
+                        remaining_endpoints = EdgeEndpoints(edge)()
+                        while M.IdentityCompare(
+                            remaining_endpoints,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if M.NatEq(endpoint_scans, cap, registry)() is M.truth_value:
+                                candidate_ok = M.false_value
+                                remaining_endpoints = M.EmptyList
+                            else:
+                                endpoint = M.Head(remaining_endpoints)()
+                                remaining_endpoints = M.Tail(remaining_endpoints)()
+                                stepped = MineNatSuccessor(endpoint_scans, registry)()
+                                endpoint_scans = M.Head(stepped)()
+                                registry = M.Head(M.Tail(stepped)())()
+                                if M.IdentityCompare(endpoint, node)() is M.truth_value:
+                                    incident = M.truth_value
+
+                        if M.AndAtom(candidate_ok, incident)() is M.truth_value:
+                            reversed_edges = M.Pair(edge, reversed_edges)
+                            stepped = MineNatSuccessor(element_count, registry)()
+                            element_count = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+                            if M.NatLess(max_size, element_count, registry)() is M.truth_value:
+                                candidate_ok = M.false_value
+                            elif M.NatLess(cap, element_count, registry)() is M.truth_value:
+                                candidate_ok = M.false_value
+
+                            endpoint_scans = M.Zero
+                            remaining_endpoints = EdgeEndpoints(edge)()
+                            while M.IdentityCompare(
+                                remaining_endpoints,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                if M.IdentityCompare(
+                                    candidate_ok,
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    remaining_endpoints = M.EmptyList
+                                elif M.NatEq(
+                                    endpoint_scans,
+                                    cap,
+                                    registry,
+                                )() is M.truth_value:
+                                    candidate_ok = M.false_value
+                                    remaining_endpoints = M.EmptyList
+                                else:
+                                    endpoint = M.Head(remaining_endpoints)()
+                                    remaining_endpoints = M.Tail(remaining_endpoints)()
+                                    stepped = MineNatSuccessor(endpoint_scans, registry)()
+                                    endpoint_scans = M.Head(stepped)()
+                                    registry = M.Head(M.Tail(stepped)())()
+
+                                    present = M.false_value
+                                    node_scans = M.Zero
+                                    remaining_candidate_nodes = candidate_nodes
+                                    while M.IdentityCompare(
+                                        remaining_candidate_nodes,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        if M.NatEq(
+                                            node_scans,
+                                            cap,
+                                            registry,
+                                        )() is M.truth_value:
+                                            candidate_ok = M.false_value
+                                            remaining_candidate_nodes = M.EmptyList
+                                        else:
+                                            candidate_node = M.Head(
+                                                remaining_candidate_nodes
+                                            )()
+                                            remaining_candidate_nodes = M.Tail(
+                                                remaining_candidate_nodes
+                                            )()
+                                            stepped = MineNatSuccessor(node_scans, registry)()
+                                            node_scans = M.Head(stepped)()
+                                            registry = M.Head(M.Tail(stepped)())()
+                                            if M.IdentityCompare(
+                                                candidate_node,
+                                                endpoint,
+                                            )() is M.truth_value:
+                                                present = M.truth_value
+                                                remaining_candidate_nodes = M.EmptyList
+
+                                    if M.AndAtom(
+                                        candidate_ok,
+                                        M.IdentityCompare(
+                                            present,
+                                            M.false_value,
+                                        )(),
+                                    )() is M.truth_value:
+                                        candidate_nodes = M.Reverse(
+                                            M.Pair(
+                                                endpoint,
+                                                M.Reverse(candidate_nodes)(),
+                                            )
+                                        )()
+                                        stepped = MineNatSuccessor(element_count, registry)()
+                                        element_count = M.Head(stepped)()
+                                        registry = M.Head(M.Tail(stepped)())()
+                                        if M.NatLess(
+                                            max_size,
+                                            element_count,
+                                            registry,
+                                        )() is M.truth_value:
+                                            candidate_ok = M.false_value
+                                        elif M.NatLess(
+                                            cap,
+                                            element_count,
+                                            registry,
+                                        )() is M.truth_value:
+                                            candidate_ok = M.false_value
+
+                if M.IdentityCompare(candidate_ok, M.truth_value)() is M.truth_value:
+                    candidate = GraphVersion(
+                        candidate_nodes,
+                        M.Reverse(reversed_edges)(),
+                        M.EmptyList,
+                    )()
+                    reversed_candidates = M.Pair(candidate, reversed_candidates)
+                    stepped = MineNatSuccessor(emitted, registry)()
+                    emitted = M.Head(stepped)()
+                    registry = M.Head(M.Tail(stepped)())()
+
+        self.result = M.Reverse(reversed_candidates)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(max_size, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedFirstCompletedMatch(M.Edge):
+    """Return the first completed Step-10 match within a machine fuel cap."""
+
+    def __init__(self, pattern, host, match_cap=MINE_CANDIDATE_CAP):
+        registry = M.Tree(M.EmptyList)
+        cap = MineNatFromGMPRep(match_cap)()
+        fuel_used = M.Zero
+        pending = GraphElements(pattern)()
+        cursor = SearchMatchCursor(M.EmptyList, pattern, host, pending)()
+        start = SearchState(M.EmptyList, M.EmptyList, M.EmptyList, M.one, cursor)()
+        frontier = M.Pair(start, M.EmptyList)
+        result = M.EmptyList
+
+        while M.IdentityCompare(frontier, M.EmptyList)() is M.false_value:
+            if M.NatEq(fuel_used, cap, registry)() is M.truth_value:
+                frontier = M.EmptyList
+            elif M.IdentityCompare(result, M.EmptyList)() is M.false_value:
+                frontier = M.EmptyList
+            else:
+                state = M.Head(frontier)()
+                frontier = M.Tail(frontier)()
+                stepped = MineNatSuccessor(fuel_used, registry)()
+                fuel_used = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                cursor = SearchStateCursor(state)()
+                if SearchMatchCursorComplete(cursor)() is M.truth_value:
+                    mapping = Map(
+                        pattern,
+                        host,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    if MapSendsEveryElement(mapping, pattern)() is M.truth_value:
+                        result = mapping
+                else:
+                    pending = SearchMatchCursorPending(cursor)()
+                    pat = M.Head(pending)()
+                    rest = M.Tail(pending)()
+                    mapping = Map(
+                        pattern,
+                        host,
+                        SearchMatchCursorRoot(cursor)(),
+                    )()
+                    alternatives = MapExtensionAlternatives(mapping, pat, host)()
+                    while M.IdentityCompare(
+                        alternatives,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if M.NatEq(fuel_used, cap, registry)() is M.truth_value:
+                            alternatives = M.EmptyList
+                            frontier = M.EmptyList
+                        else:
+                            alternative = M.Head(alternatives)()
+                            alternatives = M.Tail(alternatives)()
+                            stepped = MineNatSuccessor(fuel_used, registry)()
+                            fuel_used = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+                            root = M.Head(
+                                M.Tail(M.Tail(M.Tail(alternative)())())()
+                            )()
+                            found = MappedHostForPat(root, pat)()
+                            if M.IdentityCompare(
+                                M.Head(found)(),
+                                M.truth_value,
+                            )() is M.truth_value:
+                                if GraphElementCompatible(
+                                    pat,
+                                    M.Tail(found)(),
+                                )() is M.truth_value:
+                                    child_cursor = SearchMatchCursor(
+                                        root,
+                                        pattern,
+                                        host,
+                                        rest,
+                                    )()
+                                    child = SearchState(
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.one,
+                                        child_cursor,
+                                    )()
+                                    frontier = M.Pair(child, frontier)
+
+        self.result = result
+        super().__init__(
+            inputs=M.Pair(
+                pattern,
+                M.Pair(host, M.Pair(match_cap, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MineRecurringPatterns(M.Edge):
+    """Mine latest-version candidates by summed bounded census counts."""
+
+    def __init__(self, versions, min_count, max_size):
+        registry = M.Tree(M.EmptyList)
+        cap = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+
+        latest = M.EmptyList
+        version_scans = M.Zero
+        remaining_versions = versions
+        versions_complete = M.truth_value
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            if M.NatEq(version_scans, cap, registry)() is M.truth_value:
+                versions_complete = M.false_value
+                remaining_versions = M.EmptyList
+            else:
+                latest = M.Head(remaining_versions)()
+                remaining_versions = M.Tail(remaining_versions)()
+                stepped = MineNatSuccessor(version_scans, registry)()
+                version_scans = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+
+        candidates = M.EmptyList
+        if M.IdentityCompare(versions_complete, M.truth_value)() is M.truth_value:
+            if M.IdentityCompare(latest, M.EmptyList)() is M.false_value:
+                candidates = EnumerateCandidatePatterns(latest, max_size)()
+
+        reversed_unique_candidates = M.EmptyList
+        candidate_dedup_scans = M.Zero
+        remaining_candidates = candidates
+        while M.IdentityCompare(
+            remaining_candidates,
+            M.EmptyList,
+        )() is M.false_value:
+            if M.NatEq(
+                candidate_dedup_scans,
+                cap,
+                registry,
+            )() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            else:
+                candidate = M.Head(remaining_candidates)()
+                remaining_candidates = M.Tail(remaining_candidates)()
+                stepped = MineNatSuccessor(
+                    candidate_dedup_scans,
+                    registry,
+                )()
+                candidate_dedup_scans = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+
+                duplicate = M.false_value
+                unique_scans = M.Zero
+                remaining_unique = reversed_unique_candidates
+                while M.IdentityCompare(
+                    remaining_unique,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.NatEq(unique_scans, cap, registry)() is M.truth_value:
+                        remaining_unique = M.EmptyList
+                    else:
+                        prior_candidate = M.Head(remaining_unique)()
+                        forward = BoundedFirstCompletedMatch(
+                            candidate,
+                            prior_candidate,
+                        )()
+                        reverse = M.EmptyList
+                        if M.IdentityCompare(
+                            forward,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reverse = BoundedFirstCompletedMatch(
+                                prior_candidate,
+                                candidate,
+                            )()
+                        if M.IdentityCompare(
+                            reverse,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            duplicate = M.truth_value
+                            remaining_unique = M.EmptyList
+                        else:
+                            remaining_unique = M.Tail(remaining_unique)()
+                            stepped = MineNatSuccessor(unique_scans, registry)()
+                            unique_scans = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+
+                if M.IdentityCompare(duplicate, M.false_value)() is M.truth_value:
+                    reversed_unique_candidates = M.Pair(
+                        candidate,
+                        reversed_unique_candidates,
+                    )
+
+        candidates = M.Reverse(reversed_unique_candidates)()
+        ledger = FiringLedger(registry)
+        reversed_mined = M.EmptyList
+        candidate_scans = M.Zero
+        remaining_candidates = candidates
+        while M.IdentityCompare(
+            remaining_candidates,
+            M.EmptyList,
+        )() is M.false_value:
+            if M.NatEq(candidate_scans, cap, ledger.registry)() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            else:
+                candidate = M.Head(remaining_candidates)()
+                remaining_candidates = M.Tail(remaining_candidates)()
+                stepped = MineNatSuccessor(candidate_scans, ledger.registry)()
+                candidate_scans = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+
+                counts = PatternCensus(ledger, candidate, versions)()
+                total = M.Zero
+                count_scans = M.Zero
+                counts_complete = M.truth_value
+                remaining_counts = counts
+                while M.IdentityCompare(
+                    remaining_counts,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.NatEq(
+                        count_scans,
+                        cap,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        counts_complete = M.false_value
+                        remaining_counts = M.EmptyList
+                    else:
+                        added = MineNatAdd(
+                            total,
+                            M.Head(remaining_counts)(),
+                            ledger.registry,
+                        )()
+                        total = M.Head(added)()
+                        ledger.registry = M.Head(M.Tail(added)())()
+                        remaining_counts = M.Tail(remaining_counts)()
+                        stepped = MineNatSuccessor(count_scans, ledger.registry)()
+                        count_scans = M.Head(stepped)()
+                        ledger.registry = M.Head(M.Tail(stepped)())()
+
+                frequent = M.false_value
+                if M.IdentityCompare(counts_complete, M.truth_value)() is M.truth_value:
+                    if M.NatLess(
+                        total,
+                        min_count,
+                        ledger.registry,
+                    )() is M.false_value:
+                        frequent = M.truth_value
+
+                duplicate = M.false_value
+                mined_scans = M.Zero
+                remaining_mined = reversed_mined
+                while M.IdentityCompare(
+                    remaining_mined,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(frequent, M.false_value)() is M.truth_value:
+                        remaining_mined = M.EmptyList
+                    elif M.NatEq(
+                        mined_scans,
+                        cap,
+                        ledger.registry,
+                    )() is M.truth_value:
+                        duplicate = M.truth_value
+                        remaining_mined = M.EmptyList
+                    else:
+                        entry = M.Head(remaining_mined)()
+                        prior_candidate = M.Head(entry)()
+                        forward = BoundedFirstCompletedMatch(
+                            candidate,
+                            prior_candidate,
+                        )()
+                        reverse = M.EmptyList
+                        if M.IdentityCompare(
+                            forward,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reverse = BoundedFirstCompletedMatch(
+                                prior_candidate,
+                                candidate,
+                            )()
+                        if M.IdentityCompare(
+                            reverse,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            duplicate = M.truth_value
+                            remaining_mined = M.EmptyList
+                        else:
+                            remaining_mined = M.Tail(remaining_mined)()
+                            stepped = MineNatSuccessor(mined_scans, ledger.registry)()
+                            mined_scans = M.Head(stepped)()
+                            ledger.registry = M.Head(M.Tail(stepped)())()
+
+                if M.AndAtom(
+                    frequent,
+                    M.IdentityCompare(duplicate, M.false_value)(),
+                )() is M.truth_value:
+                    entry = M.Pair(
+                        candidate,
+                        M.Pair(total, M.EmptyList),
+                    )
+                    reversed_mined = M.Pair(entry, reversed_mined)
+
+        self.result = M.Reverse(reversed_mined)()
+        super().__init__(
+            inputs=M.Pair(
+                versions,
+                M.Pair(min_count, M.Pair(max_size, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+HANDLE_PROPOSAL_CAP = M.GMPRep("10")
+HANDLE_INTERFACE_SCAN_CAP = M.GMPRep("200")
+SKIPPED_HANDLE_CANDIDATES = M.EmptyList
+
+
+class PatternInterfaceNodes(M.Edge):
+    """Return pattern nodes touching host edges outside the pattern."""
+
+    def __init__(self, pattern, host_version):
+        registry = M.Tree(M.EmptyList)
+        scan_cap = MineNatFromGMPRep(HANDLE_INTERFACE_SCAN_CAP)()
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        reversed_interface = M.EmptyList
+        remaining_nodes = GraphNodes(pattern)()
+        while M.IdentityCompare(remaining_nodes, M.EmptyList)() is M.false_value:
+            if M.NatEq(scanned, scan_cap, registry)() is M.truth_value:
+                remaining_nodes = M.EmptyList
+            else:
+                node = M.Head(remaining_nodes)()
+                remaining_edges = GraphEdges(host_version)()
+                touches_outside = M.false_value
+                while M.IdentityCompare(
+                    remaining_edges,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.NatEq(
+                        scanned,
+                        scan_cap,
+                        registry,
+                    )() is M.truth_value:
+                        remaining_edges = M.EmptyList
+                    else:
+                        edge = M.Head(remaining_edges)()
+                        if ChainHasTerm(
+                            GraphEdges(pattern)(),
+                            edge,
+                        )() is M.false_value:
+                            remaining_endpoints = EdgeEndpoints(edge)()
+                            while M.IdentityCompare(
+                                remaining_endpoints,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                if M.NatEq(
+                                    scanned,
+                                    scan_cap,
+                                    registry,
+                                )() is M.truth_value:
+                                    remaining_endpoints = M.EmptyList
+                                else:
+                                    endpoint = M.Head(remaining_endpoints)()
+                                    if M.IdentityCompare(
+                                        endpoint,
+                                        node,
+                                    )() is M.truth_value:
+                                        touches_outside = M.truth_value
+                                        remaining_endpoints = M.EmptyList
+                                        remaining_edges = M.EmptyList
+                                    else:
+                                        stepped = MineNatSuccessor(scanned, registry)()
+                                        scanned = M.Head(stepped)()
+                                        registry = M.Head(M.Tail(stepped)())()
+                                        remaining_endpoints = M.Tail(
+                                            remaining_endpoints
+                                        )()
+                            if M.IdentityCompare(
+                                remaining_edges,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                stepped = MineNatSuccessor(scanned, registry)()
+                                scanned = M.Head(stepped)()
+                                registry = M.Head(M.Tail(stepped)())()
+                                remaining_edges = M.Tail(remaining_edges)()
+                        else:
+                            stepped = MineNatSuccessor(scanned, registry)()
+                            scanned = M.Head(stepped)()
+                            registry = M.Head(M.Tail(stepped)())()
+                            remaining_edges = M.Tail(remaining_edges)()
+                if touches_outside is M.truth_value:
+                    reversed_interface = M.Pair(node, reversed_interface)
+                stepped = MineNatSuccessor(scanned, registry)()
+                scanned = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                remaining_nodes = M.Tail(remaining_nodes)()
+
+        self.result = M.Reverse(reversed_interface)()
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(host_version, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateHandleProposals(M.Edge):
+    """Mine witnessed patterns and submit bounded, mechanically checked folds."""
+
+    def __init__(self, proposal_store, versions, ledger, min_count):
+        candidate_cap = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+        proposal_cap = MineNatFromGMPRep(HANDLE_PROPOSAL_CAP)()
+        pattern_max_size = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        submitted_count = MineNatFromGMPRep(M.GMPRep("0"))()
+        candidate_index = MineNatFromGMPRep(M.GMPRep("0"))()
+        skipped = SKIPPED_HANDLE_CANDIDATES
+        current_store = proposal_store
+
+        latest_version = M.EmptyList
+        remaining_versions = versions
+        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
+            if M.NatEq(scanned, candidate_cap, ledger.registry)() is M.truth_value:
+                remaining_versions = M.EmptyList
+            else:
+                latest_version = M.Head(remaining_versions)()
+                stepped = MineNatSuccessor(scanned, ledger.registry)()
+                scanned = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+                remaining_versions = M.Tail(remaining_versions)()
+
+        candidates = M.EmptyList
+        if M.IdentityCompare(latest_version, M.EmptyList)() is M.false_value:
+            candidates = MineRecurringPatterns(
+                versions,
+                min_count,
+                pattern_max_size,
+            )()
+
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        remaining_candidates = candidates
+        while M.IdentityCompare(remaining_candidates, M.EmptyList)() is M.false_value:
+            if M.NatEq(submitted_count, proposal_cap, ledger.registry)() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            elif M.NatEq(scanned, candidate_cap, ledger.registry)() is M.truth_value:
+                remaining_candidates = M.EmptyList
+            else:
+                candidate_entry = M.Head(remaining_candidates)()
+                pattern = M.Head(candidate_entry)()
+                index_rep = M.NatRepOf(candidate_index, ledger.registry)()
+                name = M.Char("mined-" + M.GMPRepText(index_rep)())
+                handle = Handle(name, pattern)()
+                interface_nodes = PatternInterfaceNodes(
+                    pattern,
+                    latest_version,
+                )()
+                report = PromotionReport(
+                    handle,
+                    interface_nodes,
+                    ledger,
+                    versions,
+                )()
+                signature_ok = M.false_value
+                roundtrip_ok = M.false_value
+                if M.IdentityCompare(report, M.EmptyList)() is M.false_value:
+                    signature_entry = M.Head(M.Tail(report)())()
+                    roundtrip_entry = M.Head(M.Tail(M.Tail(report)())())()
+                    signature_ok = M.Head(M.Tail(signature_entry)())()
+                    roundtrip_ok = M.Head(M.Tail(roundtrip_entry)())()
+
+                if M.AndAtom(signature_ok, roundtrip_ok)() is M.truth_value:
+                    current_store = ProposeHandle(
+                        current_store,
+                        handle,
+                        interface_nodes,
+                        report,
+                    )()
+                    stepped = MineNatSuccessor(
+                        submitted_count,
+                        ledger.registry,
+                    )()
+                    submitted_count = M.Head(stepped)()
+                    ledger.registry = M.Head(M.Tail(stepped)())()
+                else:
+                    skipped = M.Pair(name, skipped)
+
+                stepped = MineNatSuccessor(candidate_index, ledger.registry)()
+                candidate_index = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+                stepped = MineNatSuccessor(scanned, ledger.registry)()
+                scanned = M.Head(stepped)()
+                ledger.registry = M.Head(M.Tail(stepped)())()
+                remaining_candidates = M.Tail(remaining_candidates)()
+
+        skipped = M.Reverse(skipped)()
+        self.result = M.Pair(
+            current_store,
+            M.Pair(submitted_count, M.Pair(skipped, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(
+                    versions,
+                    M.Pair(ledger, M.Pair(min_count, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+COMPOSITION_PROPOSAL_CAP = M.GMPRep("10")
+COMPOSITION_ELEMENT_SCAN_CAP = M.GMPRep("200")
+SKIPPED_COMPOSITIONS = M.EmptyList
+
+
+class ComposedFrom(M.Edge):
+    """Machine origin evidence for a law composed from two witnessed laws."""
+
+    def __init__(self, law_a, law_b):
+        self.result = M.Pair(
+            Lmod.ComposedFromLabel,
+            M.Pair(law_a, M.Pair(law_b, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(law_a, M.Pair(law_b, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringRecordMapping(M.Edge):
+    """Recover the committed match map from a firing record's exact trace."""
+
+    def __init__(self, record):
+        prepared = M.Head(FiringRecordTrace(record)())()
+        self.result = M.Head(M.Tail(M.Tail(prepared)())())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MapRoot(M.Edge):
+    """The immutable Send-root carried by a machine Map term."""
+
+    def __init__(self, mapping):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+        super().__init__(inputs=M.Pair(mapping, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ComposeWitnessedLaws(M.Edge):
+    """Mechanically compose an adjacent, chronologically witnessed firing pair."""
+
+    def __init__(self, record_a, record_b):
+        law_a = FiringRecordLaw(record_a)()
+        law_b = FiringRecordLaw(record_b)()
+        registry = M.Tree(M.EmptyList)
+        retained_nodes = self._retained(
+            GraphNodes(LawInterface(law_a)())(),
+            GraphNodes(LawInterface(law_b)())(),
+            law_a,
+            law_b,
+            record_a,
+            record_b,
+            registry,
+        )
+        retained_edges = self._retained(
+            GraphEdges(LawInterface(law_a)())(),
+            GraphEdges(LawInterface(law_b)())(),
+            law_a,
+            law_b,
+            record_a,
+            record_b,
+            registry,
+        )
+        obligations = self._obligations(law_a, law_b, registry)
+
+        valid = M.AndAtom(
+            M.Head(retained_nodes)(),
+            M.AndAtom(
+                M.Head(retained_edges)(),
+                M.Head(obligations)(),
+            )(),
+        )()
+        self.result = M.EmptyList
+        if M.IdentityCompare(valid, M.truth_value)() is M.truth_value:
+            node_payload = M.Tail(retained_nodes)()
+            edge_payload = M.Tail(retained_edges)()
+            interface = GraphVersion(
+                M.Head(node_payload)(),
+                M.Head(edge_payload)(),
+                M.EmptyList,
+            )()
+            left_sends = M.Head(M.Tail(node_payload)())()
+            edge_left_sends = M.Head(M.Tail(edge_payload)())()
+            right_sends = M.Head(M.Tail(M.Tail(node_payload)())())()
+            edge_right_sends = M.Head(M.Tail(M.Tail(edge_payload)())())()
+            left_sends = self._join(left_sends, edge_left_sends)
+            right_sends = self._join(right_sends, edge_right_sends)
+            composite = Law(
+                LawLeft(law_a)(),
+                interface,
+                LawRight(law_b)(),
+                Map(interface, LawLeft(law_a)(), left_sends)(),
+                Map(interface, LawRight(law_b)(), right_sends)(),
+                M.Head(M.Tail(obligations)())(),
+            )()
+            if LawMapsComplete(composite)() is M.truth_value:
+                self.result = composite
+
+        super().__init__(
+            inputs=M.Pair(record_a, M.Pair(record_b, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _lookup(self, root, source):
+        found = MappedHostForPat(root, source)()
+        return found
+
+    def _join(self, first, second):
+        reversed_first = M.Reverse(first)()
+        result = second
+        remaining = reversed_first
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            result = M.Pair(M.Head(remaining)(), result)
+            remaining = M.Tail(remaining)()
+        return result
+
+    def _retained(
+        self,
+        source_elements,
+        target_elements,
+        law_a,
+        law_b,
+        record_a,
+        record_b,
+        registry,
+    ):
+        cap = MineNatFromGMPRep(COMPOSITION_ELEMENT_SCAN_CAP)()
+        source_scans = MineNatFromGMPRep(M.GMPRep("0"))()
+        valid = M.truth_value
+        reversed_elements = M.EmptyList
+        reversed_left_sends = M.EmptyList
+        reversed_right_sends = M.EmptyList
+        a_left_root = MapRoot(LawKToLeft(law_a)())()
+        b_left_root = MapRoot(LawKToLeft(law_b)())()
+        b_right_root = MapRoot(LawKToRight(law_b)())()
+        firing_a_root = MapRoot(FiringRecordMapping(record_a)())()
+        firing_b_root = MapRoot(FiringRecordMapping(record_b)())()
+        remaining_source = source_elements
+
+        while M.IdentityCompare(remaining_source, M.EmptyList)() is M.false_value:
+            if M.NatEq(source_scans, cap, registry)() is M.truth_value:
+                valid = M.false_value
+                remaining_source = M.EmptyList
+            else:
+                source = M.Head(remaining_source)()
+                remaining_source = M.Tail(remaining_source)()
+                stepped = MineNatSuccessor(source_scans, registry)()
+                source_scans = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                left_a = self._lookup(a_left_root, source)
+                if M.IdentityCompare(M.Head(left_a)(), M.false_value)() is M.truth_value:
+                    valid = M.false_value
+                else:
+                    actual_a = self._lookup(firing_a_root, M.Tail(left_a)())
+                    if M.IdentityCompare(M.Head(actual_a)(), M.false_value)() is M.truth_value:
+                        valid = M.false_value
+                    else:
+                        target_scans = MineNatFromGMPRep(M.GMPRep("0"))()
+                        remaining_target = target_elements
+                        matched = M.false_value
+                        matched_target = M.EmptyList
+                        while M.IdentityCompare(
+                            remaining_target,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if M.NatEq(target_scans, cap, registry)() is M.truth_value:
+                                valid = M.false_value
+                                remaining_target = M.EmptyList
+                            elif M.IdentityCompare(
+                                matched,
+                                M.truth_value,
+                            )() is M.truth_value:
+                                remaining_target = M.EmptyList
+                            else:
+                                target = M.Head(remaining_target)()
+                                remaining_target = M.Tail(remaining_target)()
+                                stepped = MineNatSuccessor(target_scans, registry)()
+                                target_scans = M.Head(stepped)()
+                                registry = M.Head(M.Tail(stepped)())()
+                                left_b = self._lookup(b_left_root, target)
+                                if M.IdentityCompare(
+                                    M.Head(left_b)(),
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    valid = M.false_value
+                                else:
+                                    actual_b = self._lookup(
+                                        firing_b_root,
+                                        M.Tail(left_b)(),
+                                    )
+                                    if M.IdentityCompare(
+                                        M.Head(actual_b)(),
+                                        M.false_value,
+                                    )() is M.truth_value:
+                                        valid = M.false_value
+                                    elif M.TermEqual(
+                                        M.Tail(actual_a)(),
+                                        M.Tail(actual_b)(),
+                                    )() is M.truth_value:
+                                        matched = M.truth_value
+                                        matched_target = target
+
+                        if M.IdentityCompare(
+                            matched,
+                            M.truth_value,
+                        )() is M.truth_value:
+                            right_b = self._lookup(
+                                b_right_root,
+                                matched_target,
+                            )
+                            if M.IdentityCompare(
+                                M.Head(right_b)(),
+                                M.false_value,
+                            )() is M.truth_value:
+                                valid = M.false_value
+                            else:
+                                reversed_elements = M.Pair(
+                                    source,
+                                    reversed_elements,
+                                )
+                                reversed_left_sends = M.Pair(
+                                    Send(source, M.Tail(left_a)())(),
+                                    reversed_left_sends,
+                                )
+                                reversed_right_sends = M.Pair(
+                                    Send(source, M.Tail(right_b)())(),
+                                    reversed_right_sends,
+                                )
+
+        return M.Pair(
+            valid,
+            M.Pair(
+                M.Reverse(reversed_elements)(),
+                M.Pair(
+                    M.Reverse(reversed_left_sends)(),
+                    M.Pair(M.Reverse(reversed_right_sends)(), M.EmptyList),
+                ),
+            ),
+        )
+
+    def _obligations(self, law_a, law_b, registry):
+        cap = MineNatFromGMPRep(COMPOSITION_ELEMENT_SCAN_CAP)()
+        scans = MineNatFromGMPRep(M.GMPRep("0"))()
+        valid = M.truth_value
+        reversed_obligations = M.EmptyList
+        remaining_laws = M.Pair(law_a, M.Pair(law_b, M.EmptyList))
+        while M.IdentityCompare(remaining_laws, M.EmptyList)() is M.false_value:
+            law = M.Head(remaining_laws)()
+            remaining_laws = M.Tail(remaining_laws)()
+            remaining = LawObligations(law)()
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if M.NatEq(scans, cap, registry)() is M.truth_value:
+                    valid = M.false_value
+                    remaining = M.EmptyList
+                    remaining_laws = M.EmptyList
+                else:
+                    reversed_obligations = M.Pair(
+                        M.Head(remaining)(),
+                        reversed_obligations,
+                    )
+                    remaining = M.Tail(remaining)()
+                    stepped = MineNatSuccessor(scans, registry)()
+                    scans = M.Head(stepped)()
+                    registry = M.Head(M.Tail(stepped)())()
+        return M.Pair(valid, M.Pair(M.Reverse(reversed_obligations)(), M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateCompositionProposals(M.Edge):
+    """Submit bounded pending proposals from adjacent witnessed firings."""
+
+    def __init__(self, proposal_store, ledger):
+        cap = MineNatFromGMPRep(COMPOSITION_PROPOSAL_CAP)()
+        scan_cap = MineNatFromGMPRep(COMPOSITION_ELEMENT_SCAN_CAP)()
+        submitted_count = MineNatFromGMPRep(M.GMPRep("0"))()
+        record_index = MineNatFromGMPRep(M.GMPRep("0"))()
+        scanned = MineNatFromGMPRep(M.GMPRep("0"))()
+        skipped = SKIPPED_COMPOSITIONS
+        current_store = proposal_store
+        remaining = ledger.records
+        registry = ledger.registry
+
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            next_records = M.Tail(remaining)()
+            if M.IdentityCompare(next_records, M.EmptyList)() is M.truth_value:
+                remaining = M.EmptyList
+            elif M.NatEq(submitted_count, cap, registry)() is M.truth_value:
+                remaining = M.EmptyList
+            elif M.NatEq(scanned, scan_cap, registry)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                record_a = M.Head(remaining)()
+                record_b = M.Head(next_records)()
+                law_a = FiringRecordLaw(record_a)()
+                law_b = FiringRecordLaw(record_b)()
+                next_index_step = MineNatSuccessor(record_index, registry)()
+                next_index = M.Head(next_index_step)()
+                registry = M.Head(M.Tail(next_index_step)())()
+                contiguous = M.TermEqual(
+                    FiringRecordG1(record_a)(),
+                    FiringRecordG0(record_b)(),
+                )()
+                distinct = M.NotAtom(M.TermEqual(law_a, law_b)())()
+                if M.AndAtom(contiguous, distinct)() is M.truth_value:
+                    composite = ComposeWitnessedLaws(record_a, record_b)()
+                    if M.IdentityCompare(composite, M.EmptyList)() is M.false_value:
+                        justification = M.Pair(
+                            record_index,
+                            M.Pair(next_index, M.EmptyList),
+                        )
+                        proposal = Proposal(
+                            composite,
+                            ComposedFrom(law_a, law_b)(),
+                        )()
+                        current_store = ProposalStoreSubmit(
+                            current_store,
+                            proposal,
+                        )()
+                        current_store = ProposalStoreAttach(
+                            current_store,
+                            proposal,
+                            JustifiedBy(proposal, justification)(),
+                        )()
+                        stepped = MineNatSuccessor(
+                            submitted_count,
+                            registry,
+                        )()
+                        submitted_count = M.Head(stepped)()
+                        registry = M.Head(M.Tail(stepped)())()
+                    else:
+                        skipped = M.Pair(
+                            M.Pair(
+                                M.Head(law_a)(),
+                                M.Pair(M.Head(law_b)(), M.EmptyList),
+                            ),
+                            skipped,
+                        )
+                stepped = MineNatSuccessor(scanned, registry)()
+                scanned = M.Head(stepped)()
+                registry = M.Head(M.Tail(stepped)())()
+                record_index = next_index
+                remaining = next_records
+
+        self.result = M.Pair(
+            current_store,
+            M.Pair(submitted_count, M.Pair(M.Reverse(skipped)(), M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal_store, M.Pair(ledger, M.EmptyList)),
             results=self.result,
         )
 
@@ -1879,13 +4874,26 @@ class FireLaw(M.Edge):
     never mutated.
     """
 
-    def __init__(self, graph_version, law, mapping, dangling_mode):
+    def __init__(
+        self,
+        graph_version,
+        law,
+        mapping,
+        dangling_mode,
+        ledger=M.EmptyList,
+    ):
         self.probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
-        self.result = self._fire(graph_version, law, mapping, dangling_mode)
+        self.result = self._fire(graph_version, law, mapping, dangling_mode, ledger)
         super().__init__(
             inputs=M.Pair(
                 graph_version,
-                M.Pair(law, M.Pair(mapping, M.Pair(dangling_mode, M.EmptyList))),
+                M.Pair(
+                    law,
+                    M.Pair(
+                        mapping,
+                        M.Pair(dangling_mode, M.Pair(ledger, M.EmptyList)),
+                    ),
+                ),
             ),
             results=self.result,
         )
@@ -1907,7 +4915,7 @@ class FireLaw(M.Edge):
         rejected = M.Pair(Lmod.FireRejectedLabel, M.Pair(stage, M.EmptyList))
         return M.Pair(M.EmptyList, M.Pair(self._append(trace, rejected), M.EmptyList))
 
-    def _fire(self, graph_version, law, mapping, dangling_mode):
+    def _fire(self, graph_version, law, mapping, dangling_mode, ledger):
         trace = M.EmptyList
 
         # --- MatchPrepared -------------------------------------------------
@@ -1986,7 +4994,12 @@ class FireLaw(M.Edge):
         remaining_obligations = LawObligations(law)()
         while M.IdentityCompare(remaining_obligations, M.EmptyList)() is M.false_value:
             obligation = M.Head(remaining_obligations)()
-            checked = CheckObligation(committed, obligation, unchecked)()
+            checked = CheckObligation(
+                committed,
+                obligation,
+                unchecked,
+                ledger,
+            )()
             unchecked = CheckObligationUnchecked(checked)()
             if CheckObligationVerdict(checked)() is M.false_value:
                 trace = self._append(trace, ReasonObligation(obligation)())
@@ -1998,6 +5011,36 @@ class FireLaw(M.Edge):
             M.Pair(Lmod.GraphVersionCommittedLabel, M.Pair(LawObligations(law)(), M.EmptyList)),
         )
         trace = self._append(trace, Next(graph_version, fire, committed)())
+        if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+            registry = ledger.registry
+            nodes_before_pair = M.Count(GraphNodes(graph_version)(), registry)()
+            nodes_before = M.Head(nodes_before_pair)()
+            registry = M.Head(M.Tail(nodes_before_pair)())()
+            nodes_after_pair = M.Count(GraphNodes(committed)(), registry)()
+            nodes_after = M.Head(nodes_after_pair)()
+            registry = M.Head(M.Tail(nodes_after_pair)())()
+            edges_before_pair = M.Count(GraphEdges(graph_version)(), registry)()
+            edges_before = M.Head(edges_before_pair)()
+            registry = M.Head(M.Tail(edges_before_pair)())()
+            edges_after_pair = M.Count(GraphEdges(committed)(), registry)()
+            edges_after = M.Head(edges_after_pair)()
+            registry = M.Head(M.Tail(edges_after_pair)())()
+            trace_steps_pair = M.Count(trace, registry)()
+            trace_steps = M.Head(trace_steps_pair)()
+            ledger.registry = M.Head(M.Tail(trace_steps_pair)())()
+            ledger.append(
+                FiringRecord(
+                    law,
+                    graph_version,
+                    committed,
+                    trace,
+                    nodes_before,
+                    nodes_after,
+                    edges_before,
+                    edges_after,
+                    trace_steps,
+                )()
+            )
         return M.Pair(committed, M.Pair(trace, M.EmptyList))
 
     def __call__(self):
@@ -2337,6 +5380,72 @@ class MapExtendOneStep(M.Edge):
         return self.result
 
 
+class TestShardConfigure(M.Edge):
+    """Select one deterministic round-robin shard of default tests."""
+
+    def __init__(self, graph, shard_index, shard_count):
+        graph._test_shard_index = shard_index
+        graph._test_shard_count = shard_count
+        graph._test_shard_cursor = M.Zero
+        self.result = graph
+        super().__init__(
+            inputs=M.Pair(
+                graph,
+                M.Pair(shard_index, M.Pair(shard_count, M.EmptyList)),
+            ),
+            results=M.Pair(graph, M.EmptyList),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TestShardAccept(M.Edge):
+    """Advance the test ordinal and admit it only to the configured shard."""
+
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        self.result = M.NatEq(
+            graph._test_shard_cursor,
+            graph._test_shard_index,
+            registry,
+        )()
+        next_pair = M.Succ(graph._test_shard_cursor, registry)()
+        next_cursor = M.Head(next_pair)()
+        registry = M.Head(M.Tail(next_pair)())()
+        if M.NatEq(next_cursor, graph._test_shard_count, registry)() is M.truth_value:
+            next_cursor = M.Zero
+        graph._test_shard_cursor = next_cursor
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RunDefaultTestShard(M.Edge):
+    """Spawn-safe isolated installation and execution of one test shard."""
+
+    def __init__(self, graph, shard_index, shard_count, result_queue):
+        from . import testsuite
+
+        TestShardConfigure(graph, shard_index, shard_count)()
+        testsuite.install_default_tests(graph)
+        RunTests(graph)()
+        self.result = M.FromContextGetTestResults(graph)()
+        result_queue.put(self.result)
+        super().__init__(
+            inputs=M.Pair(
+                graph,
+                M.Pair(shard_index, M.Pair(shard_count, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class Test(Hypergraph):
     def __init__(self, graph, name, input_nodes, computation_edge, expected):
         self.graph = graph
@@ -2408,6 +5517,97 @@ class RunTests(M.Edge):
         result = test.run()
         rest = self._run(M.Tail(chain)())
         return M.Pair(result, rest)
+
+    def __call__(self):
+        return self.result
+
+
+class RunDefaultTestsParallel(M.Edge):
+    """Install and run default tests in isolated shards with Pair reduction."""
+
+    def __init__(self, graph):
+        from . import testsuite
+
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            worker_capacity = 1
+        if worker_capacity > 8:
+            worker_capacity = 8
+        if worker_capacity < 2:
+            testsuite.install_default_tests(graph)
+            self.result = RunTests(graph)()
+            super().__init__(
+                inputs=M.Pair(graph, M.EmptyList),
+                results=self.result,
+            )
+            return
+
+        registry = M.FromContextGetConstructors(graph)()
+        shard_count = M.Zero
+        built_count = 0
+        while built_count != worker_capacity:
+            count_pair = M.Succ(shard_count, registry)()
+            shard_count = M.Head(count_pair)()
+            registry = M.Head(M.Tail(count_pair)())()
+            built_count = built_count + 1
+        graph._replace_context(constructors=registry)
+
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        workers = M.EmptyList
+        shard_index = M.Zero
+        slot = 0
+        while slot != worker_capacity:
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=RunDefaultTestShard,
+                args=(graph, shard_index, shard_count, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            next_pair = M.Succ(shard_index, registry)()
+            shard_index = M.Head(next_pair)()
+            registry = M.Head(M.Tail(next_pair)())()
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        combined_results = M.EmptyList
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            process.join()
+            if process.exitcode != 0:
+                result_queue.close()
+                raise RuntimeError("default test shard failed")
+            shard_results = result_queue.get()
+            result_queue.close()
+            reversed_combined = M.Reverse(combined_results)()
+            combined_results = shard_results
+            while M.IdentityCompare(reversed_combined, M.EmptyList)() is M.false_value:
+                combined_results = M.Pair(
+                    M.Head(reversed_combined)(),
+                    combined_results,
+                )
+                reversed_combined = M.Tail(reversed_combined)()
+            remaining_workers = M.Tail(remaining_workers)()
+
+        graph._replace_context(
+            constructors=registry,
+            test_results=combined_results,
+        )
+        graph.default_tests_installed = M.truth_value
+        self.result = combined_results
+        super().__init__(
+            inputs=M.Pair(graph, M.EmptyList),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result

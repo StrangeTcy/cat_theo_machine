@@ -1023,11 +1023,19 @@ class ProposalLabel(ConstructorLabel):
     pass
 
 
+class ComposedFromLabel(ConstructorLabel):
+    pass
+
+
 class JustifiedByLabel(ConstructorLabel):
     pass
 
 
 class ApprovedLabel(ConstructorLabel):
+    pass
+
+
+class AutonomyAuthorityLabel(ConstructorLabel):
     pass
 
 
@@ -1060,6 +1068,18 @@ class FireLabel(ConstructorLabel):
 
 
 class NextLabel(ConstructorLabel):
+    pass
+
+
+class FiringRecordLabel(ConstructorLabel):
+    pass
+
+
+class SignedRationalLabel(ConstructorLabel):
+    pass
+
+
+class HandleLabel(ConstructorLabel):
     pass
 
 
@@ -1278,8 +1298,10 @@ MissLabel = MissLabel()
 LawLabel = LawLabel()
 InstalledLawLabel = InstalledLawLabel()
 ProposalLabel = ProposalLabel()
+ComposedFromLabel = ComposedFromLabel()
 JustifiedByLabel = JustifiedByLabel()
 ApprovedLabel = ApprovedLabel()
+AutonomyAuthorityLabel = AutonomyAuthorityLabel()
 RejectedLabel = RejectedLabel()
 ProposalStoreLabel = ProposalStoreLabel()
 ProposalEntryLabel = ProposalEntryLabel()
@@ -1288,6 +1310,9 @@ ReasonUnapprovedLabel = ReasonUnapprovedLabel()
 ReasonObligationLabel = ReasonObligationLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
+FiringRecordLabel = FiringRecordLabel()
+SignedRationalLabel = SignedRationalLabel()
+HandleLabel = HandleLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
 PlannerProblemLabel = PlannerProblemLabel()
@@ -1687,8 +1712,10 @@ def sync_from_namespace(namespace):
         "LawLabel",
         "InstalledLawLabel",
         "ProposalLabel",
+        "ComposedFromLabel",
         "JustifiedByLabel",
         "ApprovedLabel",
+        "AutonomyAuthorityLabel",
         "RejectedLabel",
         "ProposalStoreLabel",
         "ProposalEntryLabel",
@@ -1697,6 +1724,9 @@ def sync_from_namespace(namespace):
         "ReasonObligationLabel",
         "FireLabel",
         "NextLabel",
+        "FiringRecordLabel",
+        "SignedRationalLabel",
+        "HandleLabel",
         "PlannerProblemLabel",
         "FiniteLabel",
         "TotalMapLabel",

@@ -1582,21 +1582,47 @@ class LoadedRuntimePacks:
         return self._by_name[name]
 
 
-def _sync_live_namespace(namespace):
+def _sync_live_namespace(namespace, deadline=None):
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     M.__dict__.update(namespace)
     live_namespace = M.__dict__
     Core.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Ctxmod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     L.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     T.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Logicmod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     C.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Gmpmod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Peanomod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Arithmod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Prettymod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Pmod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     Searchmod.sync_from_namespace(live_namespace)
+    if deadline is not None:
+        deadline.require_remaining("namespace synchronization")
     live_namespace["AllConstructors"] = C.AllConstructors
     M.AllConstructors = C.AllConstructors
     return live_namespace
@@ -1705,7 +1731,12 @@ def boot_from_packs(pack_paths, namespace, debug=M.false_value):
     return runtime, LoadedRuntimePacks(loaded_packs, loader.string_table)
 
 
-def boot_from_snapshot(snapshot_path, namespace, debug=M.false_value):
+def boot_from_snapshot(
+    snapshot_path,
+    namespace,
+    debug=M.false_value,
+    save_upgraded_snapshot=M.truth_value,
+):
     namespace = _sync_live_namespace(namespace)
     _debug_log(debug, f"DEBUG: boot_from_snapshot: loading snapshot {snapshot_path}")
     codec = SnapshotCodec(namespace)
@@ -1714,11 +1745,19 @@ def boot_from_snapshot(snapshot_path, namespace, debug=M.false_value):
     runtime = make_fresh_runtime()
     _debug_log(debug, "DEBUG: boot_from_snapshot: activating snapshot state")
     _debug_log(debug, "DEBUG: boot_from_snapshot: restored snapshot roots, rebuilding graph context")
-    codec.activate(state, runtime.graph, debug=debug)
+    codec.activate(
+        state,
+        runtime.graph,
+        debug=debug,
+        save_upgraded_snapshot=save_upgraded_snapshot,
+    )
     M.AllConstructors = M.set_all_constructors(runtime.graph.constructor_registry)
     _sync_live_namespace(namespace)
     _debug_log(debug, "DEBUG: boot_from_snapshot: snapshot state activated")
-    if M.Compare(state.needs_upgrade, M.truth_value)() is M.truth_value:
+    if M.AndAtom(
+        M.Compare(state.needs_upgrade, M.truth_value)(),
+        M.IdentityCompare(save_upgraded_snapshot, M.truth_value)(),
+    )() is M.truth_value:
         _debug_log(debug, "DEBUG: snapshot needs upgrade, saving new snapshot")
         try:
             upgrade_roots = state.upgrade_roots
@@ -1787,10 +1826,27 @@ def boot_from_snapshot(snapshot_path, namespace, debug=M.false_value):
     return runtime
 
 
-def save_runtime(runtime, snapshot_path, namespace):
-    namespace = _sync_live_namespace(namespace)
+def save_runtime(runtime, snapshot_path, namespace, deadline=None):
+    sync_started_at = time.monotonic()
+    if deadline is not None:
+        print(
+            "snapshot save: namespace synchronization starting ("
+            + format(deadline.require_remaining("namespace synchronization"), ".1f")
+            + "s remaining)",
+            flush=True,
+        )
+    namespace = _sync_live_namespace(namespace, deadline)
+    if deadline is not None:
+        print(
+            "snapshot save: namespace synchronization complete in "
+            + format(time.monotonic() - sync_started_at, ".2f")
+            + "s ("
+            + format(deadline.require_remaining("namespace synchronization"), ".1f")
+            + "s remaining)",
+            flush=True,
+        )
     codec = SnapshotCodec(namespace)
-    codec.save(runtime.graph, snapshot_path)
+    codec.save(runtime.graph, snapshot_path, deadline=deadline)
     return snapshot_path
 
 
