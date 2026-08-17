@@ -1083,6 +1083,18 @@ class LawPreferenceLabel(ConstructorLabel):
     pass
 
 
+class SurfaceLabel(ConstructorLabel):
+    pass
+
+
+class MeaningLabel(ConstructorLabel):
+    pass
+
+
+class CorrespondsLabel(ConstructorLabel):
+    pass
+
+
 class HandleLabel(ConstructorLabel):
     pass
 
@@ -1317,6 +1329,9 @@ NextLabel = NextLabel()
 FiringRecordLabel = FiringRecordLabel()
 SignedRationalLabel = SignedRationalLabel()
 LawPreferenceLabel = LawPreferenceLabel()
+SurfaceLabel = SurfaceLabel()
+MeaningLabel = MeaningLabel()
+CorrespondsLabel = CorrespondsLabel()
 HandleLabel = HandleLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
@@ -1732,6 +1747,9 @@ def sync_from_namespace(namespace):
         "FiringRecordLabel",
         "SignedRationalLabel",
         "LawPreferenceLabel",
+        "SurfaceLabel",
+        "MeaningLabel",
+        "CorrespondsLabel",
         "HandleLabel",
         "PlannerProblemLabel",
         "FiniteLabel",

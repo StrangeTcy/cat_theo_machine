@@ -5135,6 +5135,97 @@ class GenerateCompositionProposals(M.Edge):
         return self.result
 
 
+class Surface(M.Edge):
+    """A surface form: an ordered Pair chain of symbol atoms."""
+
+    def __init__(self, symbol_chain):
+        self.result = M.Pair(
+            Lmod.SurfaceLabel,
+            M.Pair(symbol_chain, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(symbol_chain, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Meaning(M.Edge):
+    """A structural interpretation wrapped as a labeled term."""
+
+    def __init__(self, graph_term):
+        self.result = M.Pair(
+            Lmod.MeaningLabel,
+            M.Pair(graph_term, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(graph_term, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Corresponds(M.Edge):
+    """A recorded correspondence between one surface and one meaning."""
+
+    def __init__(self, surface_term, meaning_term, law):
+        self.result = M.Pair(
+            Lmod.CorrespondsLabel,
+            M.Pair(
+                surface_term,
+                M.Pair(meaning_term, M.Pair(law, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                surface_term,
+                M.Pair(meaning_term, M.Pair(law, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CorrespondenceApply(M.Edge):
+    """Apply one correspondence law in one direction via the term matcher.
+
+    The law is a compiled Law whose single L node is the source pattern and
+    whose single R node is the target template. Returns the instantiated
+    target term, or EmptyList when the source does not match.
+    """
+
+    def __init__(self, law, source_term):
+        self.result = M.EmptyList
+        if IsLawTerm(law)() is M.truth_value:
+            left_nodes = GraphNodes(LawLeft(law)())()
+            right_nodes = GraphNodes(LawRight(law)())()
+            if M.IdentityCompare(left_nodes, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(right_nodes, M.EmptyList)() is M.false_value:
+                    pattern = M.Head(left_nodes)()
+                    template = M.Head(right_nodes)()
+                    matched = M.Match(pattern, source_term)()
+                    if M.IdentityCompare(
+                        M.Head(matched)(),
+                        M.truth_value,
+                    )() is M.truth_value:
+                        self.result = M.Head(
+                            M.Instantiate(template, M.Tail(matched)())(),
+                        )()
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(source_term, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class GeneratePreferenceProposal(M.Edge):
     """Submit the ledger-derived law ordering as one insertion-law proposal."""
 

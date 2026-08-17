@@ -3437,6 +3437,146 @@ class LawPreferenceInstallableTest(M.Edge):
         return self.result
 
 
+class ToyCorrespondenceRoundTripTest(M.Edge):
+    """Toy v0: one hand-authored Surface/Meaning law parses, evaluates, renders.
+
+    This is scope-limited by design: no paraphrase equivalence, no ambiguity,
+    no induction, no fragment extension. It verifies only that a correspondence
+    rule works as a machine rewrite in both directions.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        the_sym = M.Char("the")
+        sum_sym = M.Char("sum")
+        of_sym = M.Char("of")
+        and_sym = M.Char("and")
+        two_sym = M.Char("two")
+        three_sym = M.Char("three")
+        five_sym = M.Char("five")
+        var_a = M.Pair(M.VarTag, M.Pair(M.Char("?a"), empty))
+        var_b = M.Pair(M.VarTag, M.Pair(M.Char("?b"), empty))
+
+        pattern = Gmod.Surface(
+            M.Pair(
+                the_sym,
+                M.Pair(
+                    sum_sym,
+                    M.Pair(
+                        of_sym,
+                        M.Pair(var_a, M.Pair(and_sym, M.Pair(var_b, empty))),
+                    ),
+                ),
+            ),
+        )()
+        template = Gmod.Meaning(
+            M.Pair(
+                M.ExprAddLabel,
+                M.Pair(
+                    Gmod.Surface(M.Pair(var_a, empty))(),
+                    M.Pair(Gmod.Surface(M.Pair(var_b, empty))(), empty),
+                ),
+            ),
+        )()
+
+        law_parse = Gmod.CompileRuleToLaw(Pmod.Rule(pattern, template))()
+        law_render = Gmod.CompileRuleToLaw(Pmod.Rule(template, pattern))()
+        law_two = Gmod.CompileRuleToLaw(
+            Pmod.Rule(Gmod.Surface(M.Pair(two_sym, empty))(), M.two),
+        )()
+        law_three = Gmod.CompileRuleToLaw(
+            Pmod.Rule(Gmod.Surface(M.Pair(three_sym, empty))(), M.three),
+        )()
+        law_five_render = Gmod.CompileRuleToLaw(
+            Pmod.Rule(M.five, Gmod.Surface(M.Pair(five_sym, empty))()),
+        )()
+
+        sentence = Gmod.Surface(
+            M.Pair(
+                the_sym,
+                M.Pair(
+                    sum_sym,
+                    M.Pair(
+                        of_sym,
+                        M.Pair(two_sym, M.Pair(and_sym, M.Pair(three_sym, empty))),
+                    ),
+                ),
+            ),
+        )()
+
+        registry = M.FromContextGetConstructors(graph)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(law_parse, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(law_render, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(law_two, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(law_three, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(law_five_render, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            parsed = Gmod.CorrespondenceApply(law_parse, sentence)()
+            if M.IdentityCompare(parsed, empty)() is M.truth_value:
+                self.result = M.false_value
+            else:
+                correspondence = Gmod.Corresponds(sentence, parsed, law_parse)()
+                if M.IdentityCompare(
+                    M.Head(correspondence)(),
+                    Lmod.CorrespondsLabel,
+                )() is M.false_value:
+                    self.result = M.false_value
+                meaning_body = M.Head(M.Tail(parsed)())()
+                left_arg = M.Head(M.Tail(meaning_body)())()
+                right_arg = M.Head(M.Tail(M.Tail(meaning_body)())())()
+                left_number = Gmod.CorrespondenceApply(law_two, left_arg)()
+                right_number = Gmod.CorrespondenceApply(law_three, right_arg)()
+                if M.IdentityCompare(
+                    M.Head(meaning_body)(),
+                    M.ExprAddLabel,
+                )() is M.false_value:
+                    self.result = M.false_value
+                elif M.IdentityCompare(left_number, empty)() is M.truth_value:
+                    self.result = M.false_value
+                elif M.IdentityCompare(right_number, empty)() is M.truth_value:
+                    self.result = M.false_value
+                elif M.NatEq(left_number, M.two, registry)() is M.false_value:
+                    self.result = M.false_value
+                elif M.NatEq(right_number, M.three, registry)() is M.false_value:
+                    self.result = M.false_value
+                else:
+                    added = M.Add(left_number, right_number, registry)()
+                    total = M.Head(added)()
+                    registry = M.Head(M.Tail(added)())()
+                    if M.NatEq(total, M.five, registry)() is M.false_value:
+                        self.result = M.false_value
+                    else:
+                        total_surface = Gmod.CorrespondenceApply(
+                            law_five_render,
+                            total,
+                        )()
+                        rendered = Gmod.CorrespondenceApply(law_render, parsed)()
+                        if M.IdentityCompare(total_surface, empty)() is M.truth_value:
+                            self.result = M.false_value
+                        elif M.IdentityCompare(
+                            M.Head(M.Head(M.Tail(total_surface)())())(),
+                            five_sym,
+                        )() is M.false_value:
+                            self.result = M.false_value
+                        elif M.IdentityCompare(rendered, empty)() is M.truth_value:
+                            self.result = M.false_value
+                        elif M.TermEqual(rendered, sentence)() is M.false_value:
+                            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
@@ -10677,6 +10817,14 @@ def install_default_tests(graph):
             "law_preference_installable_test",
             empty,
             LawPreferenceInstallableTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "toy_correspondence_round_trip_test",
+            empty,
+            ToyCorrespondenceRoundTripTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
