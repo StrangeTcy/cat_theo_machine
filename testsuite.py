@@ -3651,6 +3651,33 @@ class ConverseDefaultModeTest(M.Edge):
         unknown_answer = M.Head(unknown_result)()
         registry = M.Head(M.Tail(unknown_result)())()
 
+        group_result = Gmod.Converse(
+            vocabulary,
+            _sentence("two", "times", "(", "two", "plus", "two", ")"),
+            registry,
+        )()
+        group_answer = _spoken(M.Head(group_result)())
+        registry = M.Head(M.Tail(group_result)())()
+
+        nested_result = Gmod.Converse(
+            vocabulary,
+            _sentence(
+                "two", "times",
+                "(", "(", "one", "plus", "one", ")", "plus", "two", ")",
+            ),
+            registry,
+        )()
+        nested_answer = _spoken(M.Head(nested_result)())
+        registry = M.Head(M.Tail(nested_result)())()
+
+        unbalanced_result = Gmod.Converse(
+            vocabulary,
+            _sentence("two", "times", "(", "two", "plus", "two"),
+            registry,
+        )()
+        unbalanced_answer = M.Head(unbalanced_result)()
+        registry = M.Head(M.Tail(unbalanced_result)())()
+
         self.result = M.truth_value
         if M.IdentityCompare(sum_answer, empty)() is M.truth_value:
             self.result = M.false_value
@@ -3685,6 +3712,21 @@ class ConverseDefaultModeTest(M.Edge):
         elif M.Compare(M.Head(word_answer)(), M.Char("seven"))() is M.false_value:
             self.result = M.false_value
         elif M.IdentityCompare(unknown_answer, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(group_answer, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(group_answer)(), M.Char("eight"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(group_answer)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(nested_answer, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(nested_answer)(),
+            M.Char("eight"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unbalanced_answer, empty)() is M.false_value:
             self.result = M.false_value
 
         graph._replace_context(constructors=registry)

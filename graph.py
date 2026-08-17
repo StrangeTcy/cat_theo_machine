@@ -5480,6 +5480,16 @@ class MeaningEvaluate(M.Edge):
                 return self._eval(M.Head(M.Tail(term)())(), registry, next_depth)
             if M.TermEqual(label, Lmod.SurfaceLabel)() is M.truth_value:
                 value = CorrespondenceResolveWord(self.word_entries, term)()
+                if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
+                    chain = M.Head(M.Tail(term)())()
+                    if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+                        if M.IdentityCompare(
+                            M.Tail(chain)(),
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            element = M.Head(chain)()
+                            if M.IsNat(element, registry)() is M.truth_value:
+                                value = element
                 return M.Pair(value, M.Pair(registry, M.EmptyList))
             arguments = M.Tail(term)()
             is_add = M.TermEqual(label, M.ExprAddLabel)()
@@ -5571,18 +5581,18 @@ class RenderNatSurface(M.Edge):
         return self.result
 
 
-class Converse(M.Edge):
-    """Parse a Surface sentence, evaluate its Meaning, render the answer.
+class ConverseValue(M.Edge):
+    """Parse one group-free Surface chain and evaluate it to a Nat.
 
-    Returns Pair(answer_surface_or_EmptyList, Pair(registry, EmptyList)).
-    An unmatched sentence returns EmptyList explicitly; nothing is guessed.
+    Returns Pair(value_or_EmptyList, Pair(registry, EmptyList)). Chains may
+    contain Nat atoms spliced in by group reduction; a single-element chain
+    holding a Nat evaluates to that Nat directly.
     """
 
     def __init__(self, vocabulary, surface_term, registry):
         cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
         templates = M.Head(vocabulary)()
         word_entries = M.Head(M.Tail(vocabulary)())()
-        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
 
         parsed = M.EmptyList
         scan_text = "0"
@@ -5602,14 +5612,194 @@ class Converse(M.Edge):
 
         if M.IdentityCompare(parsed, M.EmptyList)() is M.truth_value:
             direct = CorrespondenceResolveWord(word_entries, surface_term)()
+            if M.IdentityCompare(direct, M.EmptyList)() is M.truth_value:
+                chain = M.Head(M.Tail(surface_term)())()
+                if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(
+                        M.Tail(chain)(),
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        element = M.Head(chain)()
+                        if M.IsNat(element, registry)() is M.truth_value:
+                            direct = element
             if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
                 parsed = Meaning(direct)()
 
-        answer = M.EmptyList
+        value = M.EmptyList
         if M.IdentityCompare(parsed, M.EmptyList)() is M.false_value:
             evaluated = MeaningEvaluate(parsed, word_entries, registry)()
             value = M.Head(evaluated)()
             registry = M.Head(M.Tail(evaluated)())()
+
+        self.result = M.Pair(value, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                vocabulary,
+                M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceReduceGroups(M.Edge):
+    """Reduce innermost parenthesis groups to their evaluated Nat values.
+
+    Each pass finds one innermost balanced group, evaluates its group-free
+    chain through ConverseValue, and splices the Nat back into the sentence.
+    Unbalanced or unparseable groups return EmptyList explicitly.
+    """
+
+    def __init__(self, vocabulary, surface_term, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        open_symbol = M.Char("(")
+        close_symbol = M.Char(")")
+        chain = M.Head(M.Tail(surface_term)())()
+        failed = M.false_value
+        pass_text = "0"
+        reducing = M.truth_value
+        while M.IdentityCompare(reducing, M.truth_value)() is M.truth_value:
+            if GMPEqualText(pass_text, cap_text)() is M.truth_value:
+                failed = M.truth_value
+                reducing = M.false_value
+            else:
+                pass_text = GMPSuccText(pass_text)()
+                reversed_before = M.EmptyList
+                reversed_inner = M.EmptyList
+                open_atom = M.EmptyList
+                seen_open = M.false_value
+                reduced_once = M.false_value
+                scan_text = "0"
+                remaining = chain
+                while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                        failed = M.truth_value
+                        remaining = M.EmptyList
+                    else:
+                        scan_text = GMPSuccText(scan_text)()
+                        element = M.Head(remaining)()
+                        if M.Compare(element, open_symbol)() is M.truth_value:
+                            if M.IdentityCompare(
+                                seen_open,
+                                M.truth_value,
+                            )() is M.truth_value:
+                                reversed_before = M.Pair(
+                                    open_atom,
+                                    reversed_before,
+                                )
+                                flush = M.Reverse(reversed_inner)()
+                                while M.IdentityCompare(
+                                    flush,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    reversed_before = M.Pair(
+                                        M.Head(flush)(),
+                                        reversed_before,
+                                    )
+                                    flush = M.Tail(flush)()
+                            open_atom = element
+                            seen_open = M.truth_value
+                            reversed_inner = M.EmptyList
+                            remaining = M.Tail(remaining)()
+                        elif M.Compare(element, close_symbol)() is M.truth_value:
+                            if M.IdentityCompare(
+                                seen_open,
+                                M.false_value,
+                            )() is M.truth_value:
+                                failed = M.truth_value
+                                remaining = M.EmptyList
+                            else:
+                                inner_chain = M.Reverse(reversed_inner)()
+                                if M.IdentityCompare(
+                                    inner_chain,
+                                    M.EmptyList,
+                                )() is M.truth_value:
+                                    failed = M.truth_value
+                                    remaining = M.EmptyList
+                                else:
+                                    valued = ConverseValue(
+                                        vocabulary,
+                                        Surface(inner_chain)(),
+                                        registry,
+                                    )()
+                                    value = M.Head(valued)()
+                                    registry = M.Head(M.Tail(valued)())()
+                                    if M.IdentityCompare(
+                                        value,
+                                        M.EmptyList,
+                                    )() is M.truth_value:
+                                        failed = M.truth_value
+                                        remaining = M.EmptyList
+                                    else:
+                                        rebuilt = M.Tail(remaining)()
+                                        spliced = M.Pair(value, reversed_before)
+                                        while M.IdentityCompare(
+                                            spliced,
+                                            M.EmptyList,
+                                        )() is M.false_value:
+                                            rebuilt = M.Pair(
+                                                M.Head(spliced)(),
+                                                rebuilt,
+                                            )
+                                            spliced = M.Tail(spliced)()
+                                        chain = rebuilt
+                                        reduced_once = M.truth_value
+                                        remaining = M.EmptyList
+                        else:
+                            if M.IdentityCompare(
+                                seen_open,
+                                M.truth_value,
+                            )() is M.truth_value:
+                                reversed_inner = M.Pair(element, reversed_inner)
+                            else:
+                                reversed_before = M.Pair(element, reversed_before)
+                            remaining = M.Tail(remaining)()
+                if M.IdentityCompare(failed, M.truth_value)() is M.truth_value:
+                    reducing = M.false_value
+                elif M.IdentityCompare(reduced_once, M.false_value)() is M.truth_value:
+                    if M.IdentityCompare(seen_open, M.truth_value)() is M.truth_value:
+                        failed = M.truth_value
+                    reducing = M.false_value
+
+        reduced_surface = M.EmptyList
+        if M.IdentityCompare(failed, M.false_value)() is M.truth_value:
+            reduced_surface = Surface(chain)()
+        self.result = M.Pair(reduced_surface, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                vocabulary,
+                M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Converse(M.Edge):
+    """Parse a Surface sentence, evaluate its Meaning, render the answer.
+
+    Parenthesis groups reduce innermost-first through the same laws before
+    the sentence templates run. Returns Pair(answer_surface_or_EmptyList,
+    Pair(registry, EmptyList)). An unmatched sentence returns EmptyList
+    explicitly; nothing is guessed.
+    """
+
+    def __init__(self, vocabulary, surface_term, registry):
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+
+        reduced = SurfaceReduceGroups(vocabulary, surface_term, registry)()
+        reduced_surface = M.Head(reduced)()
+        registry = M.Head(M.Tail(reduced)())()
+
+        answer = M.EmptyList
+        if M.IdentityCompare(reduced_surface, M.EmptyList)() is M.false_value:
+            valued = ConverseValue(vocabulary, reduced_surface, registry)()
+            value = M.Head(valued)()
+            registry = M.Head(M.Tail(valued)())()
             if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
                 answer = RenderNatSurface(value, digit_words, registry)()
 
