@@ -7,7 +7,7 @@ from . import machine as M
 from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
-from .gmprep import GMPAddText, GMPSuccText
+from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPSubText, GMPSuccText
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
 from .search.model import (
     SearchMatchCursor,
@@ -2897,9 +2897,11 @@ class LawMatchBindings(M.Edge):
 class FireAny(M.Edge):
     """Fire the first installed Law having a completed Step-10 match."""
 
-    def __init__(self, graph_version, dangling_mode, ledger=M.EmptyList):
+    def __init__(self, graph_version, dangling_mode, ledger=M.EmptyList, ordering=M.EmptyList):
         self.result = M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
         laws = InstalledLaws(graph_version)()
+        if M.IdentityCompare(ordering, M.EmptyList)() is M.false_value:
+            laws = ordering
         remaining = laws
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             law = M.Head(remaining)()
@@ -2935,7 +2937,10 @@ class FireAny(M.Edge):
         super().__init__(
             inputs=M.Pair(
                 graph_version,
-                M.Pair(dangling_mode, M.Pair(ledger, M.EmptyList)),
+                M.Pair(
+                    dangling_mode,
+                    M.Pair(ledger, M.Pair(ordering, M.EmptyList)),
+                ),
             ),
             results=self.result,
         )
@@ -3509,6 +3514,174 @@ class FiringLedger(M.Edge):
 
     def __call__(self):
         return self.records
+
+
+LAW_ORDERING_SCAN_CAP = M.GMPRep("200")
+
+
+class LawLedgerScore(M.Edge):
+    """Success count and exact mean-delta fraction for one law's groups."""
+
+    def __init__(self, law, groups):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        scan_text = "0"
+        success_text = "0"
+        numerator_text = "0"
+        denominator_text = "1"
+        remaining_groups = groups
+        while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_groups = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                group = M.Head(remaining_groups)()
+                if M.TermEqual(M.Head(group)(), law)() is M.truth_value:
+                    positive_text = "0"
+                    negative_text = "0"
+                    record_scan_text = "0"
+                    remaining_records = M.Head(M.Tail(group)())()
+                    while M.IdentityCompare(
+                        remaining_records,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            record_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_records = M.EmptyList
+                        else:
+                            record_scan_text = GMPSuccText(record_scan_text)()
+                            record = M.Head(remaining_records)()
+                            success_text = GMPSuccText(success_text)()
+                            positive_text = GMPAddText(
+                                positive_text,
+                                M.GMPRepText(
+                                    M.NatRepOf(
+                                        FiringRecordNodesAfter(record)(),
+                                        M.AllConstructors,
+                                    )()
+                                )(),
+                            )()
+                            negative_text = GMPAddText(
+                                negative_text,
+                                M.GMPRepText(
+                                    M.NatRepOf(
+                                        FiringRecordNodesBefore(record)(),
+                                        M.AllConstructors,
+                                    )()
+                                )(),
+                            )()
+                            remaining_records = M.Tail(remaining_records)()
+                    if GMPEqualText(success_text, "0")() is M.false_value:
+                        numerator_text = GMPSubText(positive_text, negative_text)()
+                        denominator_text = success_text
+                    remaining_groups = M.EmptyList
+                else:
+                    remaining_groups = M.Tail(remaining_groups)()
+        self.result = M.Pair(
+            success_text,
+            M.Pair(numerator_text, M.Pair(denominator_text, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(groups, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LawScorePrecedes(M.Edge):
+    """Strict ordering: higher success first, then lower exact mean delta."""
+
+    def __init__(self, left_score, right_score):
+        left_success = M.Head(left_score)()
+        left_numerator = M.Head(M.Tail(left_score)())()
+        left_denominator = M.Head(M.Tail(M.Tail(left_score)())())()
+        right_success = M.Head(right_score)()
+        right_numerator = M.Head(M.Tail(right_score)())()
+        right_denominator = M.Head(M.Tail(M.Tail(right_score)())())()
+        if GMPLessText(right_success, left_success)() is M.truth_value:
+            self.result = M.truth_value
+        elif GMPLessText(left_success, right_success)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_cross = GMPMulText(left_numerator, right_denominator)()
+            right_cross = GMPMulText(right_numerator, left_denominator)()
+            self.result = GMPLessText(left_cross, right_cross)()
+        super().__init__(
+            inputs=M.Pair(left_score, M.Pair(right_score, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LawOrderingFromLedger(M.Edge):
+    """Reorder installed laws by recorded successes, then compression."""
+
+    def __init__(self, ledger, installed):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        groups = FiringLedgerByLaw(ledger.records)()
+
+        ordered = M.EmptyList
+        law_scan_text = "0"
+        remaining_installed = installed
+        while M.IdentityCompare(remaining_installed, M.EmptyList)() is M.false_value:
+            if GMPEqualText(law_scan_text, cap_text)() is M.truth_value:
+                remaining_installed = M.EmptyList
+            else:
+                law_scan_text = GMPSuccText(law_scan_text)()
+                law = M.Head(remaining_installed)()
+                remaining_installed = M.Tail(remaining_installed)()
+                score = LawLedgerScore(law, groups)()
+                entry = M.Pair(law, M.Pair(score, M.EmptyList))
+
+                reversed_front = M.EmptyList
+                placed = M.false_value
+                insert_scan_text = "0"
+                remaining_ordered = ordered
+                while M.IdentityCompare(
+                    remaining_ordered,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(insert_scan_text, cap_text)() is M.truth_value:
+                        reversed_front = M.Pair(
+                            M.Head(remaining_ordered)(),
+                            reversed_front,
+                        )
+                        remaining_ordered = M.Tail(remaining_ordered)()
+                    else:
+                        insert_scan_text = GMPSuccText(insert_scan_text)()
+                        existing = M.Head(remaining_ordered)()
+                        existing_score = M.Head(M.Tail(existing)())()
+                        if M.IdentityCompare(placed, M.false_value)() is M.truth_value:
+                            if LawScorePrecedes(score, existing_score)() is M.truth_value:
+                                reversed_front = M.Pair(entry, reversed_front)
+                                placed = M.truth_value
+                        reversed_front = M.Pair(existing, reversed_front)
+                        remaining_ordered = M.Tail(remaining_ordered)()
+                if M.IdentityCompare(placed, M.false_value)() is M.truth_value:
+                    reversed_front = M.Pair(entry, reversed_front)
+                ordered = M.Reverse(reversed_front)()
+
+        reversed_laws = M.EmptyList
+        remaining_ordered = ordered
+        while M.IdentityCompare(remaining_ordered, M.EmptyList)() is M.false_value:
+            reversed_laws = M.Pair(
+                M.Head(M.Head(remaining_ordered)())(),
+                reversed_laws,
+            )
+            remaining_ordered = M.Tail(remaining_ordered)()
+        self.result = M.Reverse(reversed_laws)()
+        super().__init__(
+            inputs=M.Pair(ledger, M.Pair(installed, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 
 
 CENSUS_MATCH_CAP = M.GMPRep("100")

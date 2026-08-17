@@ -3177,6 +3177,121 @@ class AutonomyGenerationPhaseTest(M.Edge):
         return self.result
 
 
+class LawOrderingFromLedgerTest(M.Edge):
+    """Step 31: ledger successes reorder FireAny while the default is unchanged."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        node_d = M.Thingy()
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left_first = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        right_first = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        left_second = Gmod.GraphVersion(M.Pair(node_c, empty), empty, empty)()
+        right_second = Gmod.GraphVersion(M.Pair(node_d, empty), empty, empty)()
+        law_first = Gmod.Law(
+            left_first,
+            interface,
+            right_first,
+            Gmod.Map(interface, left_first, empty)(),
+            Gmod.Map(interface, right_first, empty)(),
+            empty,
+        )()
+        law_second = Gmod.Law(
+            left_second,
+            interface,
+            right_second,
+            Gmod.Map(interface, left_second, empty)(),
+            Gmod.Map(interface, right_second, empty)(),
+            empty,
+        )()
+
+        witness_host = Gmod.GraphVersion(M.Pair(node_c, empty), empty, empty)()
+        Gmod.FireLaw(
+            witness_host,
+            law_second,
+            Gmod.Map(
+                left_second,
+                witness_host,
+                M.Pair(Gmod.Send(node_c, node_c)(), empty),
+            )(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+
+        installed_order = M.Pair(law_first, M.Pair(law_second, empty))
+        derived = Gmod.LawOrderingFromLedger(ledger, installed_order)()
+
+        both_redexes = Gmod.GraphVersion(
+            M.Pair(node_a, M.Pair(node_c, empty)),
+            empty,
+            empty,
+        )()
+        both_redexes = Gmod.InstallLaw(both_redexes, law_second)()
+        both_redexes = Gmod.InstallLaw(both_redexes, law_first)()
+
+        ordered_ledger = Gmod.FiringLedger(ledger.registry)
+        ordered_fire = Gmod.FireAny(
+            both_redexes,
+            Gmod.DanglingForbid()(),
+            ordered_ledger,
+            derived,
+        )()
+        default_ledger = Gmod.FiringLedger(ordered_ledger.registry)
+        default_fire = Gmod.FireAny(
+            both_redexes,
+            Gmod.DanglingForbid()(),
+            default_ledger,
+        )()
+        plain_fire = Gmod.FireAny(both_redexes, Gmod.DanglingForbid()())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(derived)(), law_second)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(derived)())(),
+            law_first,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(M.Tail(derived)())(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(ordered_fire)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(ordered_ledger.records, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordLaw(M.Head(ordered_ledger.records)())(),
+            law_second,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(default_fire)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(default_ledger.records, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordLaw(M.Head(default_ledger.records)())(),
+            law_first,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(plain_fire)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.GraphStoresEqual(
+            M.Head(plain_fire)(),
+            M.Head(default_fire)(),
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=default_ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
@@ -10401,6 +10516,14 @@ def install_default_tests(graph):
             "autonomy_generation_phase_test",
             empty,
             AutonomyGenerationPhaseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "law_ordering_from_ledger_test",
+            empty,
+            LawOrderingFromLedgerTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

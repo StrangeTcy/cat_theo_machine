@@ -121,6 +121,15 @@ class GMPAddText(Edge, GMPHostMath):
         return self.result
 
 
+class GMPSubText(Edge, GMPHostMath):
+    def __init__(self, left, right):
+        self.result = str(self._mpz_value(left) - self._mpz_value(right))
+        super().__init__(inputs=Pair(left, Pair(right, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class GMPMulByDigitText(Edge, GMPHostMath):
     def __init__(self, text, digit):
         self.result = str(self._mpz_value(text) * self._mpz_value(digit))
@@ -205,6 +214,7 @@ __all__ = [
     "GMPEqualText",
     "GMPLessText",
     "GMPAddText",
+    "GMPSubText",
     "GMPMulByDigitText",
     "GMPMulText",
     "GMPRepDigitList",
