@@ -3577,6 +3577,123 @@ class ToyCorrespondenceRoundTripTest(M.Edge):
         return self.result
 
 
+class ConverseDefaultModeTest(M.Edge):
+    """Talk mode: Converse parses, evaluates, renders, and refuses explicitly.
+
+    Four sentence shapes plus a bare word succeed through correspondence
+    laws only; an unknown sentence returns EmptyList, never a guess.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+
+        def _sentence(*symbols):
+            chain = empty
+            index = len(symbols)
+            while index != 0:
+                index = index - 1
+                chain = M.Pair(M.Char(symbols[index]), chain)
+            return Gmod.Surface(chain)()
+
+        def _spoken(surface):
+            words = empty
+            if M.IdentityCompare(surface, empty)() is M.false_value:
+                words = M.Head(M.Tail(surface)())()
+            return words
+
+        sum_result = Gmod.Converse(
+            vocabulary,
+            _sentence("the", "sum", "of", "two", "and", "three"),
+            registry,
+        )()
+        sum_answer = _spoken(M.Head(sum_result)())
+        registry = M.Head(M.Tail(sum_result)())()
+
+        plus_result = Gmod.Converse(
+            vocabulary,
+            _sentence("two", "plus", "three"),
+            registry,
+        )()
+        plus_answer = _spoken(M.Head(plus_result)())
+        registry = M.Head(M.Tail(plus_result)())()
+
+        product_result = Gmod.Converse(
+            vocabulary,
+            _sentence("the", "product", "of", "two", "and", "three"),
+            registry,
+        )()
+        product_answer = _spoken(M.Head(product_result)())
+        registry = M.Head(M.Tail(product_result)())()
+
+        times_result = Gmod.Converse(
+            vocabulary,
+            _sentence("four", "times", "four"),
+            registry,
+        )()
+        times_answer = _spoken(M.Head(times_result)())
+        registry = M.Head(M.Tail(times_result)())()
+
+        word_result = Gmod.Converse(
+            vocabulary,
+            _sentence("seven"),
+            registry,
+        )()
+        word_answer = _spoken(M.Head(word_result)())
+        registry = M.Head(M.Tail(word_result)())()
+
+        unknown_result = Gmod.Converse(
+            vocabulary,
+            _sentence("the", "banana", "of", "two"),
+            registry,
+        )()
+        unknown_answer = M.Head(unknown_result)()
+        registry = M.Head(M.Tail(unknown_result)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(sum_answer, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(sum_answer)(), M.Char("five"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(sum_answer)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(plus_answer, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(plus_answer)(), M.Char("five"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(product_answer, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(product_answer)(),
+            M.Char("six"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(times_answer, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(times_answer)(), M.Char("one"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(times_answer)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(times_answer)())(),
+            M.Char("six"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(word_answer, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(word_answer)(), M.Char("seven"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unknown_answer, empty)() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ObligationCommitGateTest(M.Edge):
     """Steps 17 and 26: commit-time node, edge, and history bounds."""
 
@@ -10825,6 +10942,14 @@ def install_default_tests(graph):
             "toy_correspondence_round_trip_test",
             empty,
             ToyCorrespondenceRoundTripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "converse_default_mode_test",
+            empty,
+            ConverseDefaultModeTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

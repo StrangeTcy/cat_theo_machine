@@ -7,7 +7,7 @@ from . import machine as M
 from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
-from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPSubText, GMPSuccText
+from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPRepDigitList, GMPSubText, GMPSuccText
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
 from .search.model import (
     SearchMatchCursor,
@@ -5219,6 +5219,406 @@ class CorrespondenceApply(M.Edge):
                         )()
         super().__init__(
             inputs=M.Pair(law, M.Pair(source_term, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+CORRESPONDENCE_SCAN_CAP = M.GMPRep("50")
+
+
+class CorrespondenceWordEntry(M.Edge):
+    """One vocabulary word: its parse law and its render association."""
+
+    def __init__(self, word_symbol, nat):
+        parse_law = CompileRuleToLaw(
+            P.Rule(Surface(M.Pair(word_symbol, M.EmptyList))(), nat),
+        )()
+        self.result = M.Pair(
+            word_symbol,
+            M.Pair(nat, M.Pair(parse_law, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(word_symbol, M.Pair(nat, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefaultCorrespondenceVocabulary(M.Edge):
+    """Hand-authored correspondence laws for spoken arithmetic sentences.
+
+    Pair(template_law_chain, Pair(word_entry_chain, Pair(digit_word_chain,
+    EmptyList))). Every law is compiled through CompileRuleToLaw; nothing
+    here parses host strings.
+    """
+
+    def __init__(self):
+        empty = M.EmptyList
+        var_a = M.Pair(M.VarTag, M.Pair(M.Char("?a"), empty))
+        var_b = M.Pair(M.VarTag, M.Pair(M.Char("?b"), empty))
+
+        add_meaning = Meaning(
+            M.Pair(
+                M.ExprAddLabel,
+                M.Pair(
+                    Surface(M.Pair(var_a, empty))(),
+                    M.Pair(Surface(M.Pair(var_b, empty))(), empty),
+                ),
+            ),
+        )()
+        mul_meaning = Meaning(
+            M.Pair(
+                M.ExprMulLabel,
+                M.Pair(
+                    Surface(M.Pair(var_a, empty))(),
+                    M.Pair(Surface(M.Pair(var_b, empty))(), empty),
+                ),
+            ),
+        )()
+
+        sum_sentence = Surface(
+            M.Pair(
+                M.Char("the"),
+                M.Pair(
+                    M.Char("sum"),
+                    M.Pair(
+                        M.Char("of"),
+                        M.Pair(
+                            var_a,
+                            M.Pair(M.Char("and"), M.Pair(var_b, empty)),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        product_sentence = Surface(
+            M.Pair(
+                M.Char("the"),
+                M.Pair(
+                    M.Char("product"),
+                    M.Pair(
+                        M.Char("of"),
+                        M.Pair(
+                            var_a,
+                            M.Pair(M.Char("and"), M.Pair(var_b, empty)),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        plus_sentence = Surface(
+            M.Pair(var_a, M.Pair(M.Char("plus"), M.Pair(var_b, empty))),
+        )()
+        times_sentence = Surface(
+            M.Pair(var_a, M.Pair(M.Char("times"), M.Pair(var_b, empty))),
+        )()
+
+        templates = M.Pair(
+            CompileRuleToLaw(P.Rule(sum_sentence, add_meaning))(),
+            M.Pair(
+                CompileRuleToLaw(P.Rule(product_sentence, mul_meaning))(),
+                M.Pair(
+                    CompileRuleToLaw(P.Rule(plus_sentence, add_meaning))(),
+                    M.Pair(
+                        CompileRuleToLaw(P.Rule(times_sentence, mul_meaning))(),
+                        empty,
+                    ),
+                ),
+            ),
+        )
+
+        words = M.Pair(
+            CorrespondenceWordEntry(M.Char("zero"), M.Zero)(),
+            M.Pair(
+                CorrespondenceWordEntry(M.Char("one"), M.one)(),
+                M.Pair(
+                    CorrespondenceWordEntry(M.Char("two"), M.two)(),
+                    M.Pair(
+                        CorrespondenceWordEntry(M.Char("three"), M.three)(),
+                        M.Pair(
+                            CorrespondenceWordEntry(M.Char("four"), M.four)(),
+                            M.Pair(
+                                CorrespondenceWordEntry(M.Char("five"), M.five)(),
+                                M.Pair(
+                                    CorrespondenceWordEntry(M.Char("six"), M.six)(),
+                                    M.Pair(
+                                        CorrespondenceWordEntry(
+                                            M.Char("seven"),
+                                            M.seven,
+                                        )(),
+                                        M.Pair(
+                                            CorrespondenceWordEntry(
+                                                M.Char("eight"),
+                                                M.eight,
+                                            )(),
+                                            M.Pair(
+                                                CorrespondenceWordEntry(
+                                                    M.Char("nine"),
+                                                    M.nine,
+                                                )(),
+                                                empty,
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        digit_words = M.Pair(
+            M.Pair(M.Char("0"), M.Pair(M.Char("zero"), empty)),
+            M.Pair(
+                M.Pair(M.Char("1"), M.Pair(M.Char("one"), empty)),
+                M.Pair(
+                    M.Pair(M.Char("2"), M.Pair(M.Char("two"), empty)),
+                    M.Pair(
+                        M.Pair(M.Char("3"), M.Pair(M.Char("three"), empty)),
+                        M.Pair(
+                            M.Pair(M.Char("4"), M.Pair(M.Char("four"), empty)),
+                            M.Pair(
+                                M.Pair(M.Char("5"), M.Pair(M.Char("five"), empty)),
+                                M.Pair(
+                                    M.Pair(M.Char("6"), M.Pair(M.Char("six"), empty)),
+                                    M.Pair(
+                                        M.Pair(
+                                            M.Char("7"),
+                                            M.Pair(M.Char("seven"), empty),
+                                        ),
+                                        M.Pair(
+                                            M.Pair(
+                                                M.Char("8"),
+                                                M.Pair(M.Char("eight"), empty),
+                                            ),
+                                            M.Pair(
+                                                M.Pair(
+                                                    M.Char("9"),
+                                                    M.Pair(M.Char("nine"), empty),
+                                                ),
+                                                empty,
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        self.result = M.Pair(
+            templates,
+            M.Pair(words, M.Pair(digit_words, empty)),
+        )
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CorrespondenceResolveWord(M.Edge):
+    """Resolve one Surface word to its Nat through the word parse laws."""
+
+    def __init__(self, word_entries, surface_term):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        scan_text = "0"
+        self.result = M.EmptyList
+        remaining = word_entries
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining)()
+                law = M.Head(M.Tail(M.Tail(entry)())())()
+                value = CorrespondenceApply(law, surface_term)()
+                if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
+                    self.result = value
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(word_entries, M.Pair(surface_term, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MeaningEvaluate(M.Edge):
+    """Evaluate a parsed Meaning to a Nat through the arithmetic edges."""
+
+    def __init__(self, meaning_term, word_entries, registry):
+        self.word_entries = word_entries
+        evaluated = self._eval(meaning_term, registry, "0")
+        self.result = evaluated
+        super().__init__(
+            inputs=M.Pair(
+                meaning_term,
+                M.Pair(word_entries, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _eval(self, term, registry, depth_text):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        if GMPEqualText(depth_text, cap_text)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        next_depth = GMPSuccText(depth_text)()
+        if M.IsPair(term)() is M.truth_value:
+            label = M.Head(term)()
+            if M.TermEqual(label, Lmod.MeaningLabel)() is M.truth_value:
+                return self._eval(M.Head(M.Tail(term)())(), registry, next_depth)
+            if M.TermEqual(label, Lmod.SurfaceLabel)() is M.truth_value:
+                value = CorrespondenceResolveWord(self.word_entries, term)()
+                return M.Pair(value, M.Pair(registry, M.EmptyList))
+            arguments = M.Tail(term)()
+            is_add = M.TermEqual(label, M.ExprAddLabel)()
+            is_mul = M.TermEqual(label, M.ExprMulLabel)()
+            if M.OrAtom(is_add, is_mul)() is M.truth_value:
+                left_pair = self._eval(M.Head(arguments)(), registry, next_depth)
+                left_value = M.Head(left_pair)()
+                registry = M.Head(M.Tail(left_pair)())()
+                if M.IdentityCompare(left_value, M.EmptyList)() is M.truth_value:
+                    return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+                right_pair = self._eval(
+                    M.Head(M.Tail(arguments)())(),
+                    registry,
+                    next_depth,
+                )
+                right_value = M.Head(right_pair)()
+                registry = M.Head(M.Tail(right_pair)())()
+                if M.IdentityCompare(right_value, M.EmptyList)() is M.truth_value:
+                    return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+                if M.IdentityCompare(is_add, M.truth_value)() is M.truth_value:
+                    return M.Add(left_value, right_value, registry)()
+                return M.Multiply(left_value, right_value, registry)()
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.IsNat(term, registry)() is M.truth_value:
+            return M.Pair(term, M.Pair(registry, M.EmptyList))
+        return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class RenderNatSurface(M.Edge):
+    """Render a Nat as a Surface of number words, one word per digit."""
+
+    def __init__(self, nat, digit_words, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        rep = M.NatRepOf(nat, registry)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            digits = GMPRepDigitList(rep)()
+            reversed_words = M.EmptyList
+            complete = M.truth_value
+            scan_text = "0"
+            remaining_digits = digits
+            while M.IdentityCompare(remaining_digits, M.EmptyList)() is M.false_value:
+                if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                    complete = M.false_value
+                    remaining_digits = M.EmptyList
+                else:
+                    scan_text = GMPSuccText(scan_text)()
+                    digit = M.Head(remaining_digits)()
+                    word = M.EmptyList
+                    lookup_text = "0"
+                    remaining_words = digit_words
+                    while M.IdentityCompare(
+                        remaining_words,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(lookup_text, cap_text)() is M.truth_value:
+                            remaining_words = M.EmptyList
+                        else:
+                            lookup_text = GMPSuccText(lookup_text)()
+                            association = M.Head(remaining_words)()
+                            if M.Compare(
+                                M.Head(association)(),
+                                digit,
+                            )() is M.truth_value:
+                                word = M.Head(M.Tail(association)())()
+                                remaining_words = M.EmptyList
+                            else:
+                                remaining_words = M.Tail(remaining_words)()
+                    if M.IdentityCompare(word, M.EmptyList)() is M.truth_value:
+                        complete = M.false_value
+                        remaining_digits = M.EmptyList
+                    else:
+                        reversed_words = M.Pair(word, reversed_words)
+                        remaining_digits = M.Tail(remaining_digits)()
+            if M.IdentityCompare(complete, M.truth_value)() is M.truth_value:
+                self.result = Surface(M.Reverse(reversed_words)())()
+        super().__init__(
+            inputs=M.Pair(
+                nat,
+                M.Pair(digit_words, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Converse(M.Edge):
+    """Parse a Surface sentence, evaluate its Meaning, render the answer.
+
+    Returns Pair(answer_surface_or_EmptyList, Pair(registry, EmptyList)).
+    An unmatched sentence returns EmptyList explicitly; nothing is guessed.
+    """
+
+    def __init__(self, vocabulary, surface_term, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        templates = M.Head(vocabulary)()
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+
+        parsed = M.EmptyList
+        scan_text = "0"
+        remaining = templates
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                law = M.Head(remaining)()
+                candidate = CorrespondenceApply(law, surface_term)()
+                if M.IdentityCompare(candidate, M.EmptyList)() is M.false_value:
+                    parsed = candidate
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+
+        if M.IdentityCompare(parsed, M.EmptyList)() is M.truth_value:
+            direct = CorrespondenceResolveWord(word_entries, surface_term)()
+            if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
+                parsed = Meaning(direct)()
+
+        answer = M.EmptyList
+        if M.IdentityCompare(parsed, M.EmptyList)() is M.false_value:
+            evaluated = MeaningEvaluate(parsed, word_entries, registry)()
+            value = M.Head(evaluated)()
+            registry = M.Head(M.Tail(evaluated)())()
+            if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
+                answer = RenderNatSurface(value, digit_words, registry)()
+
+        self.result = M.Pair(answer, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                vocabulary,
+                M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
+            ),
             results=self.result,
         )
 

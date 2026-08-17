@@ -1166,6 +1166,63 @@ def run_warm_mode(debug: bool = False):
     print(f"proved {proved_count} / {len(theorem_results)} theorem cases during warm boot")
 
 
+def run_talk_mode(sentence: str = None):
+    """Natural-language interaction through Surface/Meaning correspondence laws.
+
+    The host contributes only the I/O boundary: each whitespace-separated
+    word becomes one Char symbol atom in a Surface chain. All grammar lives
+    in compiled correspondence Laws; evaluation and rendering are machine
+    edges. An unmatched sentence is refused explicitly, never guessed.
+    """
+    vocabulary = G.DefaultCorrespondenceVocabulary()()
+    registry = M.AllConstructors
+
+    def _respond(line):
+        nonlocal registry
+        words = line.split()
+        if not words:
+            return None
+        chain = M.EmptyList
+        index = len(words)
+        while index != 0:
+            index = index - 1
+            chain = M.Pair(M.Char(words[index]), chain)
+        surface = G.Surface(chain)()
+        result = G.Converse(vocabulary, surface, registry)()
+        answer = M.Head(result)()
+        registry = M.Head(M.Tail(result)())()
+        if M.IdentityCompare(answer, M.EmptyList)() is M.truth_value:
+            return None
+        spoken = []
+        remaining = M.Head(M.Tail(answer)())()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            spoken.append(M.Head(remaining)()())
+            remaining = M.Tail(remaining)()
+        return " ".join(spoken)
+
+    refusal = "I have no correspondence law for that sentence."
+    if sentence is not None:
+        answer = _respond(sentence)
+        print(answer if answer is not None else refusal)
+        return
+
+    print("HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.")
+    print("Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',")
+    print("'A times B', or a bare number word (zero..nine).")
+    while True:
+        try:
+            line = input("you> ")
+        except EOFError:
+            print()
+            break
+        stripped = line.strip()
+        if stripped == "" or stripped == "goodbye":
+            print("hyge> goodbye")
+            break
+        answer = _respond(stripped)
+        print("hyge> " + (answer if answer is not None else refusal))
+
+
 def run_test_mode(debug: bool = False):
     if debug:
         P.SetDebugTrace(M.truth_value)()
@@ -1300,9 +1357,13 @@ def main():
     parser.add_argument(
         "mode",
         nargs="?",
-        default="cold",
-        choices=["cold", "warm", "test", "inspect", "search-worker"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, or search-worker",
+        default="talk",
+        choices=["talk", "cold", "warm", "test", "inspect", "search-worker"],
+        help=(
+            "Boot mode: talk (default; natural-language interaction through "
+            "correspondence laws), cold (from packs), warm (from snapshot), "
+            "test, inspect, or search-worker"
+        ),
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -1329,7 +1390,9 @@ def main():
     filter_name = args.arg2 if debug_enabled else args.arg1
 
     try:
-        if args.mode == "cold":
+        if args.mode == "talk":
+            run_talk_mode(sentence=args.arg1)
+        elif args.mode == "cold":
             run_cold_mode(debug_enabled, filter_name)
         elif args.mode == "warm":
             run_warm_mode(debug_enabled)
