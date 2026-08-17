@@ -1888,6 +1888,8 @@ class ImpactPolicyTest(M.Edge):
         policy_tail = M.Tail(policy_tail)()
         activation_entry = M.Head(policy_tail)()
         policy_tail = M.Tail(policy_tail)()
+        preference_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
 
         empty_graph = Gmod.GraphVersion(empty, empty, empty)()
         handle = Gmod.Handle(M.Char("impact-handle"), empty_graph)()
@@ -1999,6 +2001,16 @@ class ImpactPolicyTest(M.Edge):
         elif M.Compare(
             M.Head(M.Tail(activation_entry)())(),
             M.Char("human"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(preference_entry)(),
+            M.Char("tune_preference"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(preference_entry)())(),
+            M.Char("auto"),
         )() is M.false_value:
             self.result = M.false_value
         elif M.Compare(
@@ -3286,6 +3298,139 @@ class LawOrderingFromLedgerTest(M.Edge):
             self.result = M.false_value
 
         graph._replace_context(constructors=default_ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LawPreferenceInstallableTest(M.Edge):
+    """Step 32: an auto-class LawPreference term retunes FireAny order only."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+        node_d = M.Thingy()
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left_first = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        right_first = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        left_second = Gmod.GraphVersion(M.Pair(node_c, empty), empty, empty)()
+        right_second = Gmod.GraphVersion(M.Pair(node_d, empty), empty, empty)()
+        law_first = Gmod.Law(
+            left_first,
+            interface,
+            right_first,
+            Gmod.Map(interface, left_first, empty)(),
+            Gmod.Map(interface, right_first, empty)(),
+            empty,
+        )()
+        law_second = Gmod.Law(
+            left_second,
+            interface,
+            right_second,
+            Gmod.Map(interface, left_second, empty)(),
+            Gmod.Map(interface, right_second, empty)(),
+            empty,
+        )()
+        witness = Gmod.GraphVersion(M.Pair(node_c, empty), empty, empty)()
+        Gmod.FireLaw(
+            witness,
+            law_second,
+            Gmod.Map(
+                left_second,
+                witness,
+                M.Pair(Gmod.Send(node_c, node_c)(), empty),
+            )(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+
+        version = Gmod.GraphVersion(
+            M.Pair(node_a, M.Pair(node_c, empty)),
+            empty,
+            empty,
+        )()
+        version = Gmod.InstallLaw(version, law_second)()
+        version = Gmod.InstallLaw(version, law_first)()
+
+        generated = Gmod.GeneratePreferenceProposal(
+            Gmod.ProposalStore(empty)(),
+            ledger,
+            version,
+        )()
+        generated_store = M.Head(generated)()
+        entries = Gmod.ProposalStoreAll(generated_store)()
+        proposal = Gmod.ProposalEntryProposal(M.Head(entries)())()
+
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.Zero, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        cycle = Gmod.AutonomyCycle(version, generated_store, ledger, budget)()
+        final_version = M.Head(cycle)()
+        report = M.Head(M.Tail(M.Tail(cycle)())())()
+        activated = M.Head(M.Tail(M.Head(report)())())()
+
+        preference = Gmod.InstalledPreference(final_version)()
+        laws_after = Gmod.InstalledLaws(final_version)()
+        active = Gmod.GraphVersion(
+            M.Pair(node_a, M.Pair(node_c, empty)),
+            empty,
+            Gmod.GraphVersionInvariants(final_version)(),
+        )()
+        fire_ledger = Gmod.FiringLedger(ledger.registry)
+        fired = Gmod.FireAny(active, Gmod.DanglingForbid()(), fire_ledger)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Tail(entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(proposal)(),
+            M.Char("tune_preference"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(activated, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(activated)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(preference, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(preference)(), law_second)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(laws_after, law_first)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(laws_after, law_second)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(fired)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(fire_ledger.records, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordLaw(M.Head(fire_ledger.records)())(),
+            law_second,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=fire_ledger.registry)
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
@@ -10524,6 +10669,14 @@ def install_default_tests(graph):
             "law_ordering_from_ledger_test",
             empty,
             LawOrderingFromLedgerTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "law_preference_installable_test",
+            empty,
+            LawPreferenceInstallableTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

@@ -2037,7 +2037,13 @@ class ImpactPolicy(M.Edge):
                                 M.Char("activation"),
                                 M.Pair(M.Char("human"), M.EmptyList),
                             ),
-                            M.EmptyList,
+                            M.Pair(
+                                M.Pair(
+                                    M.Char("tune_preference"),
+                                    M.Pair(M.Char("auto"), M.EmptyList),
+                                ),
+                                M.EmptyList,
+                            ),
                         ),
                     ),
                 ),
@@ -2061,6 +2067,9 @@ class ClassifyProposal(M.Edge):
         install_class = M.Head(M.Head(policy)())()
         policy = M.Tail(policy)()
         meta_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        policy = M.Tail(policy)()
+        preference_class = M.Head(M.Head(policy)())()
 
         law = ProposalLaw(proposal)()
         left_contains_law = M.false_value
@@ -2076,18 +2085,29 @@ class ClassifyProposal(M.Edge):
             remaining_left = M.Tail(remaining_left)()
 
         right_contains_handle = M.false_value
+        right_contains_preference = M.false_value
         remaining_right = GraphElements(LawRight(law)())()
         while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
             element = M.Head(remaining_right)()
             if M.IsPair(element)() is M.truth_value:
                 if M.TermEqual(M.Head(element)(), Lmod.HandleLabel)() is M.truth_value:
                     right_contains_handle = M.truth_value
+                if M.TermEqual(
+                    M.Head(element)(),
+                    Lmod.LawPreferenceLabel,
+                )() is M.truth_value:
+                    right_contains_preference = M.truth_value
             remaining_right = M.Tail(remaining_right)()
 
         if M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
             self.result = meta_class
         elif M.IdentityCompare(right_contains_handle, M.truth_value)() is M.truth_value:
             self.result = fold_class
+        elif M.IdentityCompare(
+            right_contains_preference,
+            M.truth_value,
+        )() is M.truth_value:
+            self.result = preference_class
         elif M.IdentityCompare(left_contains_handle, M.truth_value)() is M.truth_value:
             self.result = unfold_class
         else:
@@ -2900,8 +2920,17 @@ class FireAny(M.Edge):
     def __init__(self, graph_version, dangling_mode, ledger=M.EmptyList, ordering=M.EmptyList):
         self.result = M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
         laws = InstalledLaws(graph_version)()
+        if M.IdentityCompare(ordering, M.EmptyList)() is M.truth_value:
+            ordering = InstalledPreference(graph_version)()
         if M.IdentityCompare(ordering, M.EmptyList)() is M.false_value:
-            laws = ordering
+            reversed_ordered = M.Reverse(ordering)()
+            remaining_laws = laws
+            while M.IdentityCompare(remaining_laws, M.EmptyList)() is M.false_value:
+                law = M.Head(remaining_laws)()
+                if ChainHasTerm(ordering, law)() is M.false_value:
+                    reversed_ordered = M.Pair(law, reversed_ordered)
+                remaining_laws = M.Tail(remaining_laws)()
+            laws = M.Reverse(reversed_ordered)()
         remaining = laws
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             law = M.Head(remaining)()
@@ -3613,6 +3642,79 @@ class LawScorePrecedes(M.Edge):
             inputs=M.Pair(left_score, M.Pair(right_score, M.EmptyList)),
             results=self.result,
         )
+
+    def __call__(self):
+        return self.result
+
+
+class LawPreference(M.Edge):
+    """Preferred-order law list as an installable labeled term."""
+
+    def __init__(self, ordering):
+        self.result = M.Pair(
+            Lmod.LawPreferenceLabel,
+            M.Pair(ordering, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(ordering, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawPreferenceOrdering(M.Edge):
+    def __init__(self, preference):
+        self.result = M.Head(M.Tail(preference)())()
+        super().__init__(inputs=M.Pair(preference, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledPreference(M.Edge):
+    """Ordering of the newest installed LawPreference term, or EmptyList."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        scan_text = "0"
+        self.result = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                invariant = M.Head(remaining)()
+                if IsInstalledLaw(invariant)() is M.truth_value:
+                    law = InstalledLawValue(invariant)()
+                    element_scan_text = "0"
+                    remaining_elements = GraphNodes(LawRight(law)())()
+                    while M.IdentityCompare(
+                        remaining_elements,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            element_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_elements = M.EmptyList
+                        else:
+                            element_scan_text = GMPSuccText(element_scan_text)()
+                            element = M.Head(remaining_elements)()
+                            if M.IsPair(element)() is M.truth_value:
+                                if M.TermEqual(
+                                    M.Head(element)(),
+                                    Lmod.LawPreferenceLabel,
+                                )() is M.truth_value:
+                                    self.result = LawPreferenceOrdering(element)()
+                                    remaining_elements = M.EmptyList
+                                    remaining = M.EmptyList
+                                else:
+                                    remaining_elements = M.Tail(remaining_elements)()
+                            else:
+                                remaining_elements = M.Tail(remaining_elements)()
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -5026,6 +5128,86 @@ class GenerateCompositionProposals(M.Edge):
         )
         super().__init__(
             inputs=M.Pair(proposal_store, M.Pair(ledger, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GeneratePreferenceProposal(M.Edge):
+    """Submit the ledger-derived law ordering as one insertion-law proposal."""
+
+    def __init__(self, proposal_store, ledger, graph_version):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        current_store = proposal_store
+        submitted_text = "0"
+        installed = InstalledLaws(graph_version)()
+        if M.IdentityCompare(installed, M.EmptyList)() is M.false_value:
+            ordering = LawOrderingFromLedger(ledger, installed)()
+            preference = LawPreference(ordering)()
+            empty_graph = GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+            preference_graph = GraphVersion(
+                M.Pair(preference, M.EmptyList),
+                M.EmptyList,
+                M.EmptyList,
+            )()
+            law = Law(
+                empty_graph,
+                empty_graph,
+                preference_graph,
+                Map(empty_graph, empty_graph, M.EmptyList)(),
+                Map(empty_graph, preference_graph, M.EmptyList)(),
+                M.EmptyList,
+            )()
+            proposal = Proposal(law, M.Char("ledger-preference"))()
+
+            groups = FiringLedgerByLaw(ledger.records)()
+            reversed_evidence = M.EmptyList
+            scan_text = "0"
+            remaining_laws = installed
+            while M.IdentityCompare(remaining_laws, M.EmptyList)() is M.false_value:
+                if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                    remaining_laws = M.EmptyList
+                else:
+                    scan_text = GMPSuccText(scan_text)()
+                    scored_law = M.Head(remaining_laws)()
+                    score = LawLedgerScore(scored_law, groups)()
+                    reversed_evidence = M.Pair(
+                        M.Pair(
+                            scored_law,
+                            M.Pair(
+                                MineNatFromGMPRep(
+                                    M.GMPRep(M.Head(score)()),
+                                )(),
+                                M.EmptyList,
+                            ),
+                        ),
+                        reversed_evidence,
+                    )
+                    remaining_laws = M.Tail(remaining_laws)()
+            evidence = M.Reverse(reversed_evidence)()
+
+            current_store = ProposalStoreSubmit(current_store, proposal)()
+            current_store = ProposalStoreAttach(
+                current_store,
+                proposal,
+                JustifiedBy(proposal, evidence)(),
+            )()
+            submitted_text = "1"
+
+        self.result = M.Pair(
+            current_store,
+            M.Pair(
+                MineNatFromGMPRep(M.GMPRep(submitted_text))(),
+                M.EmptyList,
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(ledger, M.Pair(graph_version, M.EmptyList)),
+            ),
             results=self.result,
         )
 

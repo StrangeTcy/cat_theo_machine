@@ -1079,6 +1079,10 @@ class SignedRationalLabel(ConstructorLabel):
     pass
 
 
+class LawPreferenceLabel(ConstructorLabel):
+    pass
+
+
 class HandleLabel(ConstructorLabel):
     pass
 
@@ -1312,6 +1316,7 @@ FireLabel = FireLabel()
 NextLabel = NextLabel()
 FiringRecordLabel = FiringRecordLabel()
 SignedRationalLabel = SignedRationalLabel()
+LawPreferenceLabel = LawPreferenceLabel()
 HandleLabel = HandleLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
@@ -1726,6 +1731,7 @@ def sync_from_namespace(namespace):
         "NextLabel",
         "FiringRecordLabel",
         "SignedRationalLabel",
+        "LawPreferenceLabel",
         "HandleLabel",
         "PlannerProblemLabel",
         "FiniteLabel",
