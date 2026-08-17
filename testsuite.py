@@ -6128,6 +6128,50 @@ class SnapshotSaveTimeoutPreservesExistingSnapshotTest(M.Edge):
         return self.result
 
 
+class UnpausedSnapshotProbeSkipsActivationAndRewriteTest(M.Edge):
+    def __init__(self, _graph):
+        from . import main as Mainmod
+
+        runtime = make_fresh_runtime()
+        namespace = Mainmod._runtime_namespace()
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        output = io.StringIO()
+        self.result = M.truth_value
+        try:
+            save_runtime(runtime, snapshot_path, namespace)
+            with open(snapshot_path, "rb") as handle:
+                saved_snapshot = handle.read()
+            with redirect_stdout(output):
+                resumed = Mainmod._maybe_resume_paused_cold_search(
+                    debug=True,
+                    snapshot_path=snapshot_path,
+                )
+            with open(snapshot_path, "rb") as handle:
+                probed_snapshot = handle.read()
+
+            text = output.getvalue()
+            if M.IdentityCompare(resumed, M.false_value)() is M.false_value:
+                self.result = M.false_value
+            elif saved_snapshot != probed_snapshot:
+                self.result = M.false_value
+            elif text.find("DEBUG: snapshot contains no paused-job roots") == -1:
+                self.result = M.false_value
+            elif text.find("DEBUG: boot_from_snapshot:") != -1:
+                self.result = M.false_value
+        except (OSError, RuntimeError, json.JSONDecodeError, ValueError, KeyError):
+            self.result = M.false_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class IdentityRedBlackIdentityIndexTest(M.Edge):
     def __init__(self, _graph):
         first = M.Char("same")
@@ -9854,6 +9898,14 @@ def install_default_tests(graph):
             "snapshot_save_timeout_preserves_existing_snapshot_test",
             empty,
             SnapshotSaveTimeoutPreservesExistingSnapshotTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "unpaused_snapshot_probe_skips_activation_and_rewrite_test",
+            empty,
+            UnpausedSnapshotProbeSkipsActivationAndRewriteTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

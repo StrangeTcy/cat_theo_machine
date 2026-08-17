@@ -1731,7 +1731,12 @@ def boot_from_packs(pack_paths, namespace, debug=M.false_value):
     return runtime, LoadedRuntimePacks(loaded_packs, loader.string_table)
 
 
-def boot_from_snapshot(snapshot_path, namespace, debug=M.false_value):
+def boot_from_snapshot(
+    snapshot_path,
+    namespace,
+    debug=M.false_value,
+    save_upgraded_snapshot=M.truth_value,
+):
     namespace = _sync_live_namespace(namespace)
     _debug_log(debug, f"DEBUG: boot_from_snapshot: loading snapshot {snapshot_path}")
     codec = SnapshotCodec(namespace)
@@ -1740,11 +1745,19 @@ def boot_from_snapshot(snapshot_path, namespace, debug=M.false_value):
     runtime = make_fresh_runtime()
     _debug_log(debug, "DEBUG: boot_from_snapshot: activating snapshot state")
     _debug_log(debug, "DEBUG: boot_from_snapshot: restored snapshot roots, rebuilding graph context")
-    codec.activate(state, runtime.graph, debug=debug)
+    codec.activate(
+        state,
+        runtime.graph,
+        debug=debug,
+        save_upgraded_snapshot=save_upgraded_snapshot,
+    )
     M.AllConstructors = M.set_all_constructors(runtime.graph.constructor_registry)
     _sync_live_namespace(namespace)
     _debug_log(debug, "DEBUG: boot_from_snapshot: snapshot state activated")
-    if M.Compare(state.needs_upgrade, M.truth_value)() is M.truth_value:
+    if M.AndAtom(
+        M.Compare(state.needs_upgrade, M.truth_value)(),
+        M.IdentityCompare(save_upgraded_snapshot, M.truth_value)(),
+    )() is M.truth_value:
         _debug_log(debug, "DEBUG: snapshot needs upgrade, saving new snapshot")
         try:
             upgrade_roots = state.upgrade_roots

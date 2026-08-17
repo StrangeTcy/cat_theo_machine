@@ -70,9 +70,10 @@ class TreeTermEqual(Edge):
 class IdentityRedBlackLookup(Edge):
     """Look up an object by machine identity in an immutable red-black tree.
 
-    The tree is EmptyList or a Pair node containing, in order, its colour,
-    left subtree, identity key, value, and right subtree.  truth_value denotes
-    red and false_value denotes black.  The result is (found, value).
+    The tree is EmptyList or a Pair node whose head and tail hold its left and
+    right subtrees and whose value holds its colour and identity entry.
+    truth_value denotes red and false_value denotes black.  The result is
+    (found, value).
     """
 
     def __init__(self, tree, key):
@@ -80,21 +81,30 @@ class IdentityRedBlackLookup(Edge):
         super().__init__(inputs=Pair(tree, Pair(key, EmptyList)), results=self.result)
 
     def _left(self, tree):
-        return Head(Tail(tree)())()
+        return tree.head.value
 
     def _key(self, tree):
-        return Head(Tail(Tail(tree)())())()
+        return tree.value.tail.value.head.value
 
     def _value(self, tree):
-        return Head(Tail(Tail(Tail(tree)())())())()
+        return tree.value.tail.value.tail.value
 
     def _right(self, tree):
-        return Head(Tail(Tail(Tail(Tail(tree)())())())())()
+        return tree.tail.value
+
+    def _same(self, left, right):
+        if IdentityLess(left, right)() is truth_value:
+            return false_value
+        if IdentityLess(right, left)() is truth_value:
+            return false_value
+        return truth_value
 
     def _lookup(self, tree, key):
-        if IdentityCompare(tree, EmptyList)() is truth_value:
+        if tree is EmptyList:
             return Pair(false_value, Pair(EmptyList, EmptyList))
         node_key = self._key(tree)
+        if key is node_key:
+            return Pair(truth_value, Pair(self._value(tree), EmptyList))
         if IdentityLess(key, node_key)() is truth_value:
             return self._lookup(self._left(tree), key)
         if IdentityLess(node_key, key)() is truth_value:
@@ -105,135 +115,170 @@ class IdentityRedBlackLookup(Edge):
         return self.result
 
 
+class IdentityRedBlackLookupValue(IdentityRedBlackLookup):
+    """Return an identity-associated value directly, or EmptyList if absent."""
+
+    def __init__(self, tree, key):
+        self.result = self._lookup_value(tree, key)
+
+    def _lookup_value(self, tree, key):
+        if tree is EmptyList:
+            return EmptyList
+        node_key = self._key(tree)
+        if key is node_key:
+            return self._value(tree)
+        if IdentityLess(key, node_key)() is truth_value:
+            return self._lookup_value(self._left(tree), key)
+        if IdentityLess(node_key, key)() is truth_value:
+            return self._lookup_value(self._right(tree), key)
+        return self._value(tree)
+
+
 class IdentityRedBlackInsert(Edge):
     """Immutably associate an identity key with a value in a red-black tree."""
 
     def __init__(self, tree, key, value):
         inserted = self._insert(tree, key, value)
-        self.result = self._node(
-            false_value,
-            self._left(inserted),
-            self._key(inserted),
-            self._value(inserted),
-            self._right(inserted),
-        )
+        if self._colour(inserted) is false_value:
+            self.result = inserted
+        else:
+            self.result = self._rebuild(
+                false_value,
+                self._left(inserted),
+                self._entry(inserted),
+                self._right(inserted),
+            )
         super().__init__(
             inputs=Pair(tree, Pair(key, Pair(value, EmptyList))),
             results=self.result,
         )
 
     def _node(self, colour, left, key, value, right):
-        return Pair(
-            colour,
-            Pair(left, Pair(key, Pair(value, Pair(right, EmptyList)))),
-        )
+        return self._rebuild(colour, left, Pair(key, value), right)
+
+    def _rebuild(self, colour, left, entry, right):
+        rebuilt = Pair(left, right)
+        rebuilt.value = Pair(colour, entry)
+        return rebuilt
+
+    def _entry(self, tree):
+        return tree.value.tail.value
 
     def _colour(self, tree):
-        return Head(tree)()
+        return tree.value.head.value
 
     def _left(self, tree):
-        return Head(Tail(tree)())()
+        return tree.head.value
 
     def _key(self, tree):
-        return Head(Tail(Tail(tree)())())()
+        return tree.value.tail.value.head.value
 
     def _value(self, tree):
-        return Head(Tail(Tail(Tail(tree)())())())()
+        return tree.value.tail.value.tail.value
 
     def _right(self, tree):
-        return Head(Tail(Tail(Tail(Tail(tree)())())())())()
+        return tree.tail.value
+
+    def _same(self, left, right):
+        if IdentityLess(left, right)() is truth_value:
+            return false_value
+        if IdentityLess(right, left)() is truth_value:
+            return false_value
+        return truth_value
 
     def _red(self, tree):
-        if IdentityCompare(tree, EmptyList)() is truth_value:
+        if tree is EmptyList:
             return false_value
-        return IdentityCompare(self._colour(tree), truth_value)()
+        if self._colour(tree) is truth_value:
+            return truth_value
+        return false_value
 
-    def _balance(self, colour, left, key, value, right):
-        if IdentityCompare(colour, false_value)() is truth_value:
-            if self._red(left) is truth_value:
-                left_left = self._left(left)
-                if self._red(left_left) is truth_value:
-                    return self._node(
-                        truth_value,
-                        self._node(
-                            false_value,
-                            self._left(left_left),
-                            self._key(left_left),
-                            self._value(left_left),
-                            self._right(left_left),
-                        ),
-                        self._key(left),
-                        self._value(left),
-                        self._node(false_value, self._right(left), key, value, right),
-                    )
-                left_right = self._right(left)
-                if self._red(left_right) is truth_value:
-                    return self._node(
-                        truth_value,
-                        self._node(
-                            false_value,
-                            self._left(left),
-                            self._key(left),
-                            self._value(left),
-                            self._left(left_right),
-                        ),
-                        self._key(left_right),
-                        self._value(left_right),
-                        self._node(
-                            false_value,
-                            self._right(left_right),
-                            key,
-                            value,
-                            right,
-                        ),
-                    )
-            if self._red(right) is truth_value:
+    def _balance(self, colour, left, right, original, changed_side):
+        if colour is false_value:
+            if changed_side is truth_value:
+                if self._red(left) is truth_value:
+                    left_left = self._left(left)
+                    if self._red(left_left) is truth_value:
+                        return self._rebuild(
+                            truth_value,
+                            self._rebuild(
+                                false_value,
+                                self._left(left_left),
+                                self._entry(left_left),
+                                self._right(left_left),
+                            ),
+                            self._entry(left),
+                            self._rebuild(
+                                false_value,
+                                self._right(left),
+                                self._entry(original),
+                                right,
+                            ),
+                        )
+                    left_right = self._right(left)
+                    if self._red(left_right) is truth_value:
+                        return self._rebuild(
+                            truth_value,
+                            self._rebuild(
+                                false_value,
+                                self._left(left),
+                                self._entry(left),
+                                self._left(left_right),
+                            ),
+                            self._entry(left_right),
+                            self._rebuild(
+                                false_value,
+                                self._right(left_right),
+                                self._entry(original),
+                                right,
+                            ),
+                        )
+            elif self._red(right) is truth_value:
                 right_left = self._left(right)
                 if self._red(right_left) is truth_value:
-                    return self._node(
+                    return self._rebuild(
                         truth_value,
-                        self._node(
+                        self._rebuild(
                             false_value,
                             left,
-                            key,
-                            value,
+                            self._entry(original),
                             self._left(right_left),
                         ),
-                        self._key(right_left),
-                        self._value(right_left),
-                        self._node(
+                        self._entry(right_left),
+                        self._rebuild(
                             false_value,
                             self._right(right_left),
-                            self._key(right),
-                            self._value(right),
+                            self._entry(right),
                             self._right(right),
                         ),
                     )
                 right_right = self._right(right)
                 if self._red(right_right) is truth_value:
-                    return self._node(
+                    return self._rebuild(
                         truth_value,
-                        self._node(
+                        self._rebuild(
                             false_value,
                             left,
-                            key,
-                            value,
+                            self._entry(original),
                             self._left(right),
                         ),
-                        self._key(right),
-                        self._value(right),
-                        self._node(
+                        self._entry(right),
+                        self._rebuild(
                             false_value,
                             self._left(right_right),
-                            self._key(right_right),
-                            self._value(right_right),
+                            self._entry(right_right),
                             self._right(right_right),
                         ),
                     )
-        return self._node(colour, left, key, value, right)
+        if changed_side is truth_value:
+            rebuilt = Pair(left, original.tail.value)
+        else:
+            rebuilt = Pair(original.head.value, right)
+        rebuilt.value = original.value
+        return rebuilt
 
     def _insert(self, tree, key, value):
-        if IdentityCompare(tree, EmptyList)() is truth_value:
+        if tree is EmptyList:
             return self._node(
                 truth_value,
                 EmptyList,
@@ -242,21 +287,29 @@ class IdentityRedBlackInsert(Edge):
                 EmptyList,
             )
         node_key = self._key(tree)
+        if key is node_key:
+            return self._node(
+                self._colour(tree),
+                self._left(tree),
+                node_key,
+                value,
+                self._right(tree),
+            )
         if IdentityLess(key, node_key)() is truth_value:
             return self._balance(
                 self._colour(tree),
                 self._insert(self._left(tree), key, value),
-                node_key,
-                self._value(tree),
                 self._right(tree),
+                tree,
+                truth_value,
             )
         if IdentityLess(node_key, key)() is truth_value:
             return self._balance(
                 self._colour(tree),
                 self._left(tree),
-                node_key,
-                self._value(tree),
                 self._insert(self._right(tree), key, value),
+                tree,
+                false_value,
             )
         return self._node(
             self._colour(tree),
@@ -268,6 +321,63 @@ class IdentityRedBlackInsert(Edge):
 
     def __call__(self):
         return self.result
+
+
+class IdentityRedBlackInsertMissing(IdentityRedBlackInsert):
+    """Insert only when an identity key is absent and expose machine insertion truth."""
+
+    def __init__(self, tree, key, value):
+        self.inserted = false_value
+        inserted_tree = self._insert_missing(tree, key, value)
+        if self.inserted is truth_value:
+            if self._colour(inserted_tree) is false_value:
+                self.result = inserted_tree
+            else:
+                self.result = self._rebuild(
+                    false_value,
+                    self._left(inserted_tree),
+                    self._entry(inserted_tree),
+                    self._right(inserted_tree),
+                )
+        else:
+            self.result = tree
+
+    def _insert_missing(self, tree, key, value):
+        if tree is EmptyList:
+            self.inserted = truth_value
+            return self._node(
+                truth_value,
+                EmptyList,
+                key,
+                value,
+                EmptyList,
+            )
+        node_key = self._key(tree)
+        if key is node_key:
+            return tree
+        if IdentityLess(key, node_key)() is truth_value:
+            next_left = self._insert_missing(self._left(tree), key, value)
+            if self.inserted is false_value:
+                return tree
+            return self._balance(
+                self._colour(tree),
+                next_left,
+                self._right(tree),
+                tree,
+                truth_value,
+            )
+        if IdentityLess(node_key, key)() is truth_value:
+            next_right = self._insert_missing(self._right(tree), key, value)
+            if self.inserted is false_value:
+                return tree
+            return self._balance(
+                self._colour(tree),
+                self._left(tree),
+                next_right,
+                tree,
+                false_value,
+            )
+        return tree
 
 
 class IdentityRedBlackValid(Edge):
@@ -290,16 +400,16 @@ class IdentityRedBlackValid(Edge):
         super().__init__(inputs=Pair(tree, EmptyList), results=self.result)
 
     def _colour(self, tree):
-        return Head(tree)()
+        return tree.value.head.value
 
     def _left(self, tree):
-        return Head(Tail(tree)())()
+        return tree.head.value
 
     def _key(self, tree):
-        return Head(Tail(Tail(tree)())())()
+        return tree.value.tail.value.head.value
 
     def _right(self, tree):
-        return Head(Tail(Tail(Tail(Tail(tree)())())())())()
+        return tree.tail.value
 
     def _red(self, tree):
         if IdentityCompare(tree, EmptyList)() is truth_value:

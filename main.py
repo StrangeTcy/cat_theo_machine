@@ -217,10 +217,32 @@ def _maybe_resume_paused_cold_search(debug: bool = False, snapshot_path=None):
         _debug_log(debug_flag, "DEBUG: no paused snapshot found")
         return M.false_value
 
-    _debug_log(debug_flag, "DEBUG: paused snapshot found, restoring")
+    _debug_log(debug_flag, "DEBUG: snapshot found, checking paused-job roots")
     runtime_namespace = _runtime_namespace()
     try:
-        runtime = boot_from_snapshot(target_path, runtime_namespace, debug=debug_flag)
+        probe_codec = SnapshotCodec(runtime_namespace)
+        probe_state = probe_codec.load(target_path)
+        snapshot_empty = probe_state.symbols["EmptyList"]
+        snapshot_search_jobs = snapshot_empty
+        if "search_jobs" in probe_state.roots:
+            snapshot_search_jobs = probe_state.roots["search_jobs"]
+        snapshot_comparison_jobs = snapshot_empty
+        if "search_comparison_jobs" in probe_state.roots:
+            snapshot_comparison_jobs = probe_state.roots["search_comparison_jobs"]
+        if M.AndAtom(
+            M.IdentityCompare(snapshot_search_jobs, snapshot_empty)(),
+            M.IdentityCompare(snapshot_comparison_jobs, snapshot_empty)(),
+        )() is M.truth_value:
+            _debug_log(debug_flag, "DEBUG: snapshot contains no paused-job roots")
+            return M.false_value
+
+        _debug_log(debug_flag, "DEBUG: paused-job root found, restoring snapshot")
+        runtime = boot_from_snapshot(
+            target_path,
+            runtime_namespace,
+            debug=debug_flag,
+            save_upgraded_snapshot=M.false_value,
+        )
     except (OSError, RuntimeError, json.JSONDecodeError, ValueError, KeyError, TypeError) as error:
         print(
             "ignoring unreadable snapshot at",
