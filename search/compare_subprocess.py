@@ -265,6 +265,8 @@ class _ComparisonSubprocessMixin:
         if "HYGE_SEARCH_WORKER_DEFER_DERIVATION" in child_env:
             del child_env["HYGE_SEARCH_WORKER_DEFER_DERIVATION"]
         child_env["HYGE_SEARCH_WORKER_RESUME_DERIVATION"] = "1"
+        if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+            child_env["HYGE_SEARCH_WORKER_DEBUG"] = "1"
         process = subprocess.Popen(
             [sys.executable, "-m", package_name + ".main", "search-worker", mode_token, result_path, timeout_text],
             stdout=subprocess.PIPE,
@@ -459,6 +461,8 @@ class _ComparisonSubprocessMixin:
             child_env = os.environ.copy()
             child_env["PYTHONPATH"] = import_root
             child_env["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = "1"
+            if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
+                child_env["HYGE_SEARCH_WORKER_DEBUG"] = "1"
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,

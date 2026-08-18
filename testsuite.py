@@ -7271,6 +7271,7 @@ class PausedComparisonJobSnapshotResumeTest(M.Edge):
             save_runtime(runtime, snapshot_path, namespace)
 
             loaded_runtime = boot_from_snapshot(snapshot_path, namespace)
+            loaded_runtime.graph._search_disable_console = M.truth_value
             loaded_registry = _registry(loaded_runtime.graph)
             resumed = Smod.CompareSearchModes(loaded_runtime.graph, start, goal, rules, heuristic, loaded_registry)
             comparison = M.Head(resumed.result)()

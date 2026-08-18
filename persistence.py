@@ -1801,7 +1801,7 @@ class SnapshotCodec:
                     if debug is M.truth_value:
                         print("DEBUG: activate: saving upgraded snapshot...", flush=True)
                     t_save0 = time.monotonic()
-                    self.save(graph, snapshot_path)
+                    self.save(graph, snapshot_path, progress=debug)
                     if debug is M.truth_value:
                         print(f"DEBUG: activate: upgraded snapshot saved ({time.monotonic() - t_save0:.2f}s)", flush=True)
                 elif debug is M.truth_value:

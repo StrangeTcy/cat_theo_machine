@@ -1826,7 +1826,7 @@ def boot_from_snapshot(
     return runtime
 
 
-def save_runtime(runtime, snapshot_path, namespace, deadline=None):
+def save_runtime(runtime, snapshot_path, namespace, deadline=None, progress=M.false_value):
     sync_started_at = time.monotonic()
     if deadline is not None:
         print(
@@ -1846,7 +1846,7 @@ def save_runtime(runtime, snapshot_path, namespace, deadline=None):
             flush=True,
         )
     codec = SnapshotCodec(namespace)
-    codec.save(runtime.graph, snapshot_path, deadline=deadline)
+    codec.save(runtime.graph, snapshot_path, progress=progress, deadline=deadline)
     return snapshot_path
 
 

@@ -186,7 +186,7 @@ def _save_snapshot_now(
         flush=True,
     )
     try:
-        save_runtime(runtime, target_path, runtime_namespace, deadline=deadline)
+        save_runtime(runtime, target_path, runtime_namespace, deadline=deadline, progress=M.truth_value)
     except SnapshotSaveTimeout:
         raise
     except Exception as error:
@@ -794,7 +794,8 @@ def _maybe_set_search_worker_memory_limit():
 
 
 def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
-    P.SetDebugTrace(M.truth_value)()
+    if os.environ.get("HYGE_SEARCH_WORKER_DEBUG", "") == "1":
+        P.SetDebugTrace(M.truth_value)()
     _maybe_set_search_worker_memory_limit()
     resume_derivation_only = os.environ.get("HYGE_SEARCH_WORKER_RESUME_DERIVATION", "") == "1"
     if resume_derivation_only:
@@ -1596,6 +1597,7 @@ def run_test_mode(debug: bool = False):
     else:
         P.SetDebugTrace(M.false_value)()
     runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    runtime.graph._search_disable_console = M.truth_value
     install_default_tests(runtime.graph)
     _print_summary(runtime, "Cold boot summary for tests")
     start_time = time.time()
