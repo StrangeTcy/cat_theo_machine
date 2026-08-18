@@ -1184,6 +1184,7 @@ def run_talk_mode(sentence: str = None):
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     pending_queue = []
     decided_laws = M.EmptyList
+    proof_records = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
 
     TASK_RUNNERS = {
@@ -1204,7 +1205,7 @@ def run_talk_mode(sentence: str = None):
         return G.Surface(chain)()
 
     def _tokens(text):
-        return text.replace("(", " ( ").replace(")", " ) ").replace(",", " , ").split()
+        return text.lower().replace("?", " ").replace("!", " ").replace(".", " ").replace("(", " ( ").replace(")", " ) ").replace(",", " , ").replace("0", " zero ").replace("1", " one ").replace("2", " two ").replace("3", " three ").replace("4", " four ").replace("5", " five ").replace("6", " six ").replace("7", " seven ").replace("8", " eight ").replace("9", " nine ").split()
 
     def _speak_chain(chain):
         spoken = []
@@ -1259,6 +1260,16 @@ def run_talk_mode(sentence: str = None):
                     "Add(" + _speak_meaning(M.Head(args)()) + ", "
                     + _speak_meaning(M.Head(M.Tail(args)())()) + ")"
                 )
+            if M.IdentityCompare(head, Lmod.EqualLabel)() is M.truth_value:
+                args = M.Tail(term)()
+                return (
+                    "Equal(" + _speak_meaning(M.Head(args)()) + ", "
+                    + _speak_meaning(M.Head(M.Tail(args)())()) + ")"
+                )
+            if M.IdentityCompare(head, M.IsRealLabel)() is M.truth_value:
+                return "IsReal(" + _speak_meaning(M.Head(M.Tail(term)())()) + ")"
+            if M.IdentityCompare(head, M.SqrtLabel)() is M.truth_value:
+                return "Sqrt(" + _speak_meaning(M.Head(M.Tail(term)())()) + ")"
             if P.IsVarPattern(term)() is M.truth_value:
                 return str(M.Head(M.Tail(term)())()())
         rep = M.NatRepOf(term, registry)()
@@ -1515,7 +1526,7 @@ def run_talk_mode(sentence: str = None):
         return outcome
 
     def _respond(line, record=True):
-        nonlocal registry
+        nonlocal registry, proof_records
         lowered = line.lower()
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
@@ -1542,6 +1553,47 @@ def run_talk_mode(sentence: str = None):
                     print("hyge> running task: " + task_name)
                     runner()
                     return "task '" + task_name + "' finished."
+                if M.TermEqual(M.Head(body)(), M.IsRealLabel)() is M.truth_value:
+                    subject = M.Head(M.Tail(body)())()
+                    if M.IsPair(subject)() is M.truth_value:
+                        if M.TermEqual(M.Head(subject)(), M.SqrtLabel)() is M.truth_value:
+                            source_meaning = M.Head(M.Tail(subject)())()
+                            word_entries = M.Head(M.Tail(vocabulary)())()
+                            evaluated = G.MeaningEvaluate(
+                                source_meaning,
+                                word_entries,
+                                registry,
+                            )()
+                            radicand = M.Head(evaluated)()
+                            registry = M.Head(M.Tail(evaluated)())()
+                            if M.IdentityCompare(radicand, M.EmptyList)() is M.false_value:
+                                start = M.Pair(
+                                    M.SqrtLabel,
+                                    M.Pair(radicand, M.EmptyList),
+                                )
+                                goal = M.Pair(
+                                    M.IsRealLabel,
+                                    M.Pair(start, M.EmptyList),
+                                )
+                                proof_runtime, _proof_packs = boot_from_packs(
+                                    PACK_PATHS,
+                                    _runtime_namespace(),
+                                )
+                                derivation = proof_runtime.prove(start, goal)
+                                proof_records = M.Pair(
+                                    M.Pair(
+                                        goal,
+                                        M.Pair(derivation, M.EmptyList),
+                                    ),
+                                    proof_records,
+                                )
+                                if M.IdentityCompare(
+                                    derivation,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    return "yes"
+                                return "I could not prove that proposition."
+                    return "I understood the proposition, but cannot yet prove that form."
             answer = M.Head(
                 M.Tail(M.Tail(M.Tail(M.Tail(outcome)())())())(),
             )()
