@@ -4763,6 +4763,151 @@ class ConverseDefaultModeTest(M.Edge):
         return self.result
 
 
+class ConversePropositionTest(M.Edge):
+    """Phase 7: Converse evaluates equality and retains IsReal query terms."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        equality_yes = Gmod.Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(
+                    M.Char("two"),
+                    M.Pair(
+                        M.Char("plus"),
+                        M.Pair(
+                            M.Char("two"),
+                            M.Pair(
+                                M.Char("equal"),
+                                M.Pair(
+                                    M.Char("to"),
+                                    M.Pair(M.Char("four"), empty),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        equality_no = Gmod.Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(
+                    M.Char("two"),
+                    M.Pair(
+                        M.Char("plus"),
+                        M.Pair(
+                            M.Char("two"),
+                            M.Pair(
+                                M.Char("equal"),
+                                M.Pair(
+                                    M.Char("to"),
+                                    M.Pair(M.Char("five"), empty),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        real_query = Gmod.Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(
+                    M.Char("sqrt"),
+                    M.Pair(
+                        M.Char("("),
+                        M.Pair(
+                            M.Char("three"),
+                            M.Pair(
+                                M.Char(")"),
+                                M.Pair(M.Char("real"), empty),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+
+        yes_pair = Gmod.Converse(vocabulary, equality_yes, registry)()
+        yes_outcome = M.Head(yes_pair)()
+        registry = M.Head(M.Tail(yes_pair)())()
+        no_pair = Gmod.Converse(vocabulary, equality_no, registry)()
+        no_outcome = M.Head(no_pair)()
+        registry = M.Head(M.Tail(no_pair)())()
+        real_pair = Gmod.Converse(vocabulary, real_query, registry)()
+        real_outcome = M.Head(real_pair)()
+        registry = M.Head(M.Tail(real_pair)())()
+
+        yes_answer = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
+        )()
+        no_answer = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(no_outcome)())())())(),
+        )()
+        yes_words = M.EmptyList
+        no_words = M.EmptyList
+        if M.IdentityCompare(yes_answer, empty)() is M.false_value:
+            yes_words = M.Head(M.Tail(yes_answer)())()
+        if M.IdentityCompare(no_answer, empty)() is M.false_value:
+            no_words = M.Head(M.Tail(no_answer)())()
+        real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
+        real_body = M.Head(M.Tail(real_meaning)())()
+        real_subject = M.Head(M.Tail(real_body)())()
+        real_answer = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(real_outcome)())())())(),
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(
+            M.Head(yes_outcome)(),
+            Lmod.UnderstoodLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(no_outcome)(),
+            Lmod.UnderstoodLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(yes_words, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(yes_words)(), M.Char("yes"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(yes_words)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(no_words, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(no_words)(), M.Char("no"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(no_words)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(real_outcome)(),
+            Lmod.UnderstoodLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(real_body)(),
+            M.IsRealLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(real_subject)(),
+            M.SqrtLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(real_answer, empty)() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class CorrespondenceInductionTest(M.Edge):
     """Language acquisition v1: a correspondence law is induced, validated,
     proposed, activated, and used on a held-out utterance.
@@ -12244,6 +12389,14 @@ def install_default_tests(graph):
             "converse_default_mode_test",
             empty,
             ConverseDefaultModeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "converse_proposition_test",
+            empty,
+            ConversePropositionTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

@@ -1184,8 +1184,9 @@ def run_talk_mode(sentence: str = None):
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     pending_queue = []
     decided_laws = M.EmptyList
-    proof_records = M.EmptyList
+    proof_runtime = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
+    proof_snapshot_path = os.path.join(SNAPSHOT_DIR, "talk_proofs_snapshot.json")
 
     TASK_RUNNERS = {
         "self-diagnostics": lambda: run_test_mode(False),
@@ -1526,7 +1527,7 @@ def run_talk_mode(sentence: str = None):
         return outcome
 
     def _respond(line, record=True):
-        nonlocal registry, proof_records
+        nonlocal registry, proof_runtime
         lowered = line.lower()
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
@@ -1567,6 +1568,24 @@ def run_talk_mode(sentence: str = None):
                             radicand = M.Head(evaluated)()
                             registry = M.Head(M.Tail(evaluated)())()
                             if M.IdentityCompare(radicand, M.EmptyList)() is M.false_value:
+                                if M.IdentityCompare(
+                                    proof_runtime,
+                                    M.EmptyList,
+                                )() is M.truth_value:
+                                    try:
+                                        proof_runtime = boot_from_snapshot(
+                                            proof_snapshot_path,
+                                            _runtime_namespace(),
+                                            save_upgraded_snapshot=M.false_value,
+                                        )
+                                    except Exception:
+                                        proof_runtime, _proof_packs = boot_from_packs(
+                                            PACK_PATHS,
+                                            _runtime_namespace(),
+                                        )
+                                    registry = M.FromContextGetConstructors(
+                                        proof_runtime.graph,
+                                    )()
                                 start = M.Pair(
                                     M.SqrtLabel,
                                     M.Pair(radicand, M.EmptyList),
@@ -1575,23 +1594,25 @@ def run_talk_mode(sentence: str = None):
                                     M.IsRealLabel,
                                     M.Pair(start, M.EmptyList),
                                 )
-                                proof_runtime, _proof_packs = boot_from_packs(
-                                    PACK_PATHS,
+                                derivation = proof_runtime.prove(start, goal)
+                                save_runtime(
+                                    proof_runtime,
+                                    proof_snapshot_path,
                                     _runtime_namespace(),
                                 )
-                                derivation = proof_runtime.prove(start, goal)
-                                proof_records = M.Pair(
-                                    M.Pair(
-                                        goal,
-                                        M.Pair(derivation, M.EmptyList),
-                                    ),
-                                    proof_records,
-                                )
+                                if record:
+                                    _log_lesson(line)
                                 if M.IdentityCompare(
                                     derivation,
                                     M.EmptyList,
                                 )() is M.false_value:
-                                    return "yes"
+                                    return "yes\n" + P.ExplainDerivation(
+                                        derivation,
+                                        goal,
+                                        M.FromContextGetConstructors(
+                                            proof_runtime.graph,
+                                        )(),
+                                    )()
                                 return "I could not prove that proposition."
                     return "I understood the proposition, but cannot yet prove that form."
             answer = M.Head(
