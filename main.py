@@ -1302,6 +1302,20 @@ def run_talk_mode(sentence: str = None):
             learned,
         )()
 
+    debug_enabled = True
+
+    def _debug(text):
+        if debug_enabled:
+            print("DEBUG: " + text)
+
+    def _count_chain(chain):
+        count = 0
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            count = count + 1
+            remaining = M.Tail(remaining)()
+        return count
+
     def _handle_training(line, record=True):
         nonlocal examples, proposal_store, pending_proposal, proposed_laws, registry
         body = line.split(":", 1)[1].strip()
@@ -1311,20 +1325,44 @@ def run_talk_mode(sentence: str = None):
         surface_words = _tokens(surface_text.strip())
         if not surface_words:
             return "The surface side of that example is empty."
+        _debug("reading training pair: '" + " ".join(surface_words)
+               + "' <-> '" + meaning_text.strip() + "'")
         meaning = _meaning_of(meaning_text.strip())
         if M.IdentityCompare(meaning, M.EmptyList)() is M.truth_value:
+            _debug("meaning side did not interpret; example dropped")
             return (
                 "I cannot interpret the meaning side '" + meaning_text.strip()
                 + "'; say it in words or as mul ( a , b ) / add ( a , b )."
             )
-        example = G.CorrespondenceExample(
-            _surface(surface_words),
-            meaning,
-            M.Char("trainer"),
-        )()
+        _debug("meaning interpreted as " + _speak_meaning(meaning))
+        surface = _surface(surface_words)
+        duplicate = M.false_value
+        remaining = examples
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            prior = M.Head(remaining)()
+            same_surface = M.Compare(
+                G.CorrespondenceExampleSurface(prior)(), surface,
+            )()
+            same_meaning = M.Compare(
+                G.CorrespondenceExampleMeaning(prior)(), meaning,
+            )()
+            if M.AndAtom(same_surface, same_meaning)() is M.truth_value:
+                duplicate = M.truth_value
+                remaining = M.EmptyList
+            else:
+                remaining = M.Tail(remaining)()
+        if M.IdentityCompare(duplicate, M.truth_value)() is M.truth_value:
+            _debug("structurally equal example already recorded; not re-added")
+            return "I already have that exact example."
+        example = G.CorrespondenceExample(surface, meaning, M.Char("trainer"))()
         examples = M.Pair(example, examples)
+        _debug("evidence store now holds "
+               + str(_count_chain(examples)) + " example(s)")
         if record:
             _log_lesson(line)
+            _debug("lesson line appended to " + lesson_path)
+        _debug("compressing evidence: anti-unifying example pairs, "
+               "validating candidates against every recorded example...")
         word_entries = M.Head(M.Tail(vocabulary)())()
         generated = G.GenerateCorrespondenceProposals(
             G.ProposalStore(M.EmptyList)(),
@@ -1335,12 +1373,23 @@ def run_talk_mode(sentence: str = None):
         candidate_store = M.Head(generated)()
         registry = M.Head(M.Tail(M.Tail(generated)())())()
         entries = G.ProposalStoreAll(candidate_store)()
+        _debug("induction produced " + str(_count_chain(entries))
+               + " validated candidate(s)")
         while M.IdentityCompare(entries, M.EmptyList)() is M.false_value:
             entry = M.Head(entries)()
             proposal = G.ProposalEntryProposal(entry)()
             law = G.ProposalLaw(proposal)()
-            if G.ChainHasTerm(proposed_laws, law)() is M.false_value:
+            already_proposed = M.false_value
+            prior_laws = proposed_laws
+            while M.IdentityCompare(prior_laws, M.EmptyList)() is M.false_value:
+                if M.Compare(M.Head(prior_laws)(), law)() is M.truth_value:
+                    already_proposed = M.truth_value
+                    prior_laws = M.EmptyList
+                else:
+                    prior_laws = M.Tail(prior_laws)()
+            if M.IdentityCompare(already_proposed, M.false_value)() is M.truth_value:
                 proposed_laws = M.Pair(law, proposed_laws)
+                _debug("formulating rule from the new candidate...")
                 proposal_store = G.ProposalStoreSubmit(proposal_store, proposal)()
                 annotations = G.ProposalEntryAnnotations(entry)()
                 while M.IdentityCompare(
@@ -1361,22 +1410,31 @@ def run_talk_mode(sentence: str = None):
                 remaining = M.Reverse(examples)()
                 sources = []
                 while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-                    count = count + 1
-                    sources.append(
-                        _speak_pattern(
-                            G.CorrespondenceExampleSurface(M.Head(remaining)())(),
-                        ),
-                    )
+                    covered = G.CorrespondenceApply(
+                        law,
+                        G.CorrespondenceExampleSurface(M.Head(remaining)())(),
+                    )()
+                    if M.IdentityCompare(covered, M.EmptyList)() is M.false_value:
+                        count = count + 1
+                        sources.append(
+                            _speak_pattern(
+                                G.CorrespondenceExampleSurface(
+                                    M.Head(remaining)(),
+                                )(),
+                            ),
+                        )
                     remaining = M.Tail(remaining)()
+                _debug("rule submitted as a pending proposal; awaiting decision")
                 return (
                     "I propose a rule: '" + pattern_text + "' == "
                     + meaning_text_out
                     + "; provenance: anti-unified from " + str(count)
-                    + " accepted examples [" + "; ".join(sources)
+                    + " covering examples [" + "; ".join(sources)
                     + "], validated on every recorded example"
                     + " with parse/render round trip; approve? (yes/no)"
                 )
             entries = M.Tail(entries)()
+        _debug("no new candidate survived validation; waiting for more evidence")
         return "Recorded. I need more examples before I can propose a rule."
 
     def _handle_decision(line, record=True):
@@ -1385,7 +1443,9 @@ def run_talk_mode(sentence: str = None):
             return "There is no proposal awaiting a decision."
         if record:
             _log_lesson(line)
+            _debug("decision '" + line + "' appended to " + lesson_path)
         if line == "yes":
+            _debug("attaching Approved(proposal, trainer) to the proposal store")
             approval = G.Approved(pending_proposal, M.Char("trainer"))()
             proposal_store = G.ProposalStoreAttach(
                 proposal_store, pending_proposal, approval,
@@ -1402,11 +1462,17 @@ def run_talk_mode(sentence: str = None):
                 )() is M.truth_value:
                     entry = candidate
                 approved_entries = M.Tail(approved_entries)()
+            _debug("activating through ActivateProposal; "
+                   "recording the Next splice in the learned version")
             activated = G.ActivateProposal(learned_version, entry)()
             learned_version = M.Head(activated)()
             pending_proposal = M.EmptyList
             _extend_vocabulary()
+            _debug("vocabulary rebuilt from installed correspondence laws; "
+                   "rule persists via the lesson transcript")
             return "Recorded and activated. The rule is now part of my grammar."
+        _debug("attaching Rejected(proposal, trainer, declined) "
+               "to the proposal store")
         rejection = G.Rejected(
             pending_proposal, M.Char("trainer"), M.Char("declined"),
         )()
@@ -1488,10 +1554,12 @@ def run_talk_mode(sentence: str = None):
                 lesson_lines = [item.strip() for item in stream.read().splitlines()]
         except OSError:
             lesson_lines = []
+        debug_enabled = False
         for lesson in lesson_lines:
             if lesson:
                 _respond(lesson, record=False)
                 replayed = replayed + 1
+        debug_enabled = True
 
     if sentence is not None:
         answer = _respond(sentence)

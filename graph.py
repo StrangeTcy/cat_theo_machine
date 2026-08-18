@@ -6547,14 +6547,18 @@ class AntiUnifyCorrespondence(M.Edge):
 class ValidateCorrespondenceLaws(M.Edge):
     """Check induced parse and render laws against every recorded example.
 
-    Accepted examples must parse, agree in evaluated value with the recorded
-    meaning, and round-trip through the render law. Rejected examples must
-    not match. Returns Pair(verdict, Pair(registry, EmptyList)).
+    Accepted examples the parse law matches must agree in evaluated value
+    with their recorded meaning and round-trip through the render law;
+    accepted examples it does not match are evidence for other
+    constructions and are skipped. The law must cover at least two
+    accepted examples. Rejected examples must never match. Returns
+    Pair(verdict, Pair(registry, EmptyList)).
     """
 
     def __init__(self, parse_law, render_law, examples, word_entries, registry):
         cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
         verdict = M.truth_value
+        covered_text = "0"
         scan_text = "0"
         remaining = examples
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -6573,9 +6577,9 @@ class ValidateCorrespondenceLaws(M.Edge):
                         remaining = M.EmptyList
                 else:
                     if M.IdentityCompare(parsed, M.EmptyList)() is M.truth_value:
-                        verdict = M.false_value
-                        remaining = M.EmptyList
+                        pass
                     else:
+                        covered_text = GMPSuccText(covered_text)()
                         parsed_value = MeaningEvaluate(
                             parsed,
                             word_entries,
@@ -6621,6 +6625,8 @@ class ValidateCorrespondenceLaws(M.Edge):
                             remaining = M.EmptyList
                 if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
                     remaining = M.Tail(remaining)()
+        if GMPLessText(covered_text, "2")() is M.truth_value:
+            verdict = M.false_value
         self.result = M.Pair(verdict, M.Pair(registry, M.EmptyList))
         super().__init__(
             inputs=M.Pair(
