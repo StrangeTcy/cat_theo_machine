@@ -1890,6 +1890,8 @@ class ImpactPolicyTest(M.Edge):
         policy_tail = M.Tail(policy_tail)()
         preference_entry = M.Head(policy_tail)()
         policy_tail = M.Tail(policy_tail)()
+        retire_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
 
         empty_graph = Gmod.GraphVersion(empty, empty, empty)()
         handle = Gmod.Handle(M.Char("impact-handle"), empty_graph)()
@@ -1951,6 +1953,22 @@ class ImpactPolicyTest(M.Edge):
                 empty,
             )(),
             M.Char("ambiguous-impact"),
+        )()
+        retired_graph = Gmod.GraphVersion(
+            M.Pair(Gmod.Retired(plain_law)(), empty),
+            empty,
+            empty,
+        )()
+        retire_proposal = Gmod.Proposal(
+            Gmod.Law(
+                empty_graph,
+                empty_graph,
+                retired_graph,
+                empty,
+                empty,
+                empty,
+            )(),
+            M.Char("retire-impact"),
         )()
 
         self.result = M.truth_value
@@ -2014,6 +2032,16 @@ class ImpactPolicyTest(M.Edge):
         )() is M.false_value:
             self.result = M.false_value
         elif M.Compare(
+            M.Head(retire_entry)(),
+            M.Char("retire_law"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(retire_entry)())(),
+            M.Char("human"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
             Gmod.ClassifyProposal(fold_proposal)(),
             M.Char("fold_handle"),
         )() is M.false_value:
@@ -2036,6 +2064,11 @@ class ImpactPolicyTest(M.Edge):
         elif M.Compare(
             Gmod.ClassifyProposal(ambiguous_proposal)(),
             M.Char("meta_rewrite"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(retire_proposal)(),
+            M.Char("retire_law"),
         )() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
@@ -3431,6 +3464,163 @@ class LawPreferenceInstallableTest(M.Edge):
             self.result = M.false_value
 
         graph._replace_context(constructors=fire_ledger.registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class RetirementLifecycleTest(M.Edge):
+    """Step 33: retire by mark, stop firing, stay queryable, reverse cleanly."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+        host_node = M.Thingy()
+        result_node = M.Thingy()
+        absent_node = M.Pair(M.Char("retire-absent-node"), empty)
+        miss_result = M.Pair(M.Char("retire-miss-result"), empty)
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left_miss = Gmod.GraphVersion(M.Pair(absent_node, empty), empty, empty)()
+        right_miss = Gmod.GraphVersion(M.Pair(miss_result, empty), empty, empty)()
+        left_hit = Gmod.GraphVersion(M.Pair(host_node, empty), empty, empty)()
+        right_hit = Gmod.GraphVersion(M.Pair(result_node, empty), empty, empty)()
+        law_miss = Gmod.Law(
+            left_miss,
+            interface,
+            right_miss,
+            Gmod.Map(interface, left_miss, empty)(),
+            Gmod.Map(interface, right_miss, empty)(),
+            empty,
+        )()
+        law_hit = Gmod.Law(
+            left_hit,
+            interface,
+            right_hit,
+            Gmod.Map(interface, left_hit, empty)(),
+            Gmod.Map(interface, right_hit, empty)(),
+            empty,
+        )()
+
+        version = Gmod.GraphVersion(M.Pair(host_node, empty), empty, empty)()
+        version = Gmod.InstallLaw(version, law_hit)()
+        version = Gmod.InstallLaw(version, law_miss)()
+        host = Gmod.GraphVersion(
+            M.Pair(host_node, empty),
+            empty,
+            Gmod.GraphVersionInvariants(version)(),
+        )()
+        fired = Gmod.FireAny(host, Gmod.DanglingForbid()(), ledger)()
+
+        generated = Gmod.GenerateRetirementProposals(
+            Gmod.ProposalStore(empty)(),
+            ledger,
+            host,
+        )()
+        generated_store = M.Head(generated)()
+        entries = Gmod.ProposalStoreAll(generated_store)()
+        proposal = Gmod.ProposalEntryProposal(M.Head(entries)())()
+        proposed_mark = M.Head(
+            Gmod.GraphNodes(Gmod.LawRight(Gmod.ProposalLaw(proposal)())())(),
+        )()
+        proposed_law = Gmod.RetiredLaw(proposed_mark)()
+
+        retired_version = Gmod.RetireLaw(version, proposed_law)()
+        active_laws = Gmod.InstalledLaws(retired_version)()
+        statuses = Gmod.AllLawsWithStatus(retired_version)()
+        miss_status = empty
+        hit_status = empty
+        remaining_statuses = statuses
+        while M.IdentityCompare(remaining_statuses, empty)() is M.false_value:
+            entry = M.Head(remaining_statuses)()
+            if M.TermEqual(M.Head(entry)(), law_miss)() is M.truth_value:
+                miss_status = M.Head(M.Tail(entry)())()
+            if M.TermEqual(M.Head(entry)(), law_hit)() is M.truth_value:
+                hit_status = M.Head(M.Tail(entry)())()
+            remaining_statuses = M.Tail(remaining_statuses)()
+
+        both_retired = Gmod.RetireLaw(retired_version, law_hit)()
+        retired_host = Gmod.GraphVersion(
+            M.Pair(host_node, empty),
+            empty,
+            Gmod.GraphVersionInvariants(both_retired)(),
+        )()
+        retired_ledger = Gmod.FiringLedger(ledger.registry)
+        retired_fired = Gmod.FireAny(
+            retired_host,
+            Gmod.DanglingForbid()(),
+            retired_ledger,
+        )()
+
+        restored_version = Gmod.UnretireLaw(both_retired, law_hit)()
+        restored_host = Gmod.GraphVersion(
+            M.Pair(host_node, empty),
+            empty,
+            Gmod.GraphVersionInvariants(restored_version)(),
+        )()
+        restored_ledger = Gmod.FiringLedger(ledger.registry)
+        restored_fired = Gmod.FireAny(
+            restored_host,
+            Gmod.DanglingForbid()(),
+            restored_ledger,
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(fired)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordLaw(M.Head(ledger.records)())(),
+            law_hit,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(ledger.misses, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(ledger.misses)())(),
+            law_miss,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(proposal)(),
+            M.Char("retire_law"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ProposalOrigin(proposal)(),
+            M.Char("ledger-retirement"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(proposed_law, law_miss)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(active_laws, law_miss)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(active_laws, law_hit)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(miss_status, M.Char("retired"))() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(hit_status, M.Char("active"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(retired_fired)(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(restored_fired)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(restored_ledger.records, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordLaw(M.Head(restored_ledger.records)())(),
+            law_hit,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=restored_ledger.registry)
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
@@ -11132,6 +11322,14 @@ def install_default_tests(graph):
             "law_preference_installable_test",
             empty,
             LawPreferenceInstallableTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "retirement_lifecycle_test",
+            empty,
+            RetirementLifecycleTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

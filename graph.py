@@ -379,6 +379,38 @@ class InstalledLawValue(M.Edge):
         return self.result
 
 
+class Retired(M.Edge):
+    """Step 33: an append-only invariant mark demoting one installed Law."""
+
+    def __init__(self, law):
+        self.result = M.Pair(Lmod.RetiredLabel, M.Pair(law, M.EmptyList))
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsRetired(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.RetiredLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RetiredLaw(M.Edge):
+    def __init__(self, retired):
+        self.result = M.Head(M.Tail(retired)())()
+        super().__init__(inputs=M.Pair(retired, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class Proposal(M.Edge):
     def __init__(self, law, origin):
         self.result = M.Pair(
@@ -2042,7 +2074,13 @@ class ImpactPolicy(M.Edge):
                                     M.Char("tune_preference"),
                                     M.Pair(M.Char("auto"), M.EmptyList),
                                 ),
-                                M.EmptyList,
+                                M.Pair(
+                                    M.Pair(
+                                        M.Char("retire_law"),
+                                        M.Pair(M.Char("human"), M.EmptyList),
+                                    ),
+                                    M.EmptyList,
+                                ),
                             ),
                         ),
                     ),
@@ -2070,6 +2108,8 @@ class ClassifyProposal(M.Edge):
         policy = M.Tail(policy)()
         policy = M.Tail(policy)()
         preference_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        retire_class = M.Head(M.Head(policy)())()
 
         law = ProposalLaw(proposal)()
         left_contains_law = M.false_value
@@ -2086,6 +2126,7 @@ class ClassifyProposal(M.Edge):
 
         right_contains_handle = M.false_value
         right_contains_preference = M.false_value
+        right_contains_retired = M.false_value
         remaining_right = GraphElements(LawRight(law)())()
         while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
             element = M.Head(remaining_right)()
@@ -2097,10 +2138,20 @@ class ClassifyProposal(M.Edge):
                     Lmod.LawPreferenceLabel,
                 )() is M.truth_value:
                     right_contains_preference = M.truth_value
+                if M.TermEqual(
+                    M.Head(element)(),
+                    Lmod.RetiredLabel,
+                )() is M.truth_value:
+                    right_contains_retired = M.truth_value
             remaining_right = M.Tail(remaining_right)()
 
         if M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
             self.result = meta_class
+        elif M.IdentityCompare(
+            right_contains_retired,
+            M.truth_value,
+        )() is M.truth_value:
+            self.result = retire_class
         elif M.IdentityCompare(right_contains_handle, M.truth_value)() is M.truth_value:
             self.result = fold_class
         elif M.IdentityCompare(
@@ -2784,18 +2835,126 @@ class InstallLaw(M.Edge):
         return self.result
 
 
+class RetireLaw(M.Edge):
+    """Step 33: append a Retired mark; nodes, edges, and history untouched."""
+
+    def __init__(self, graph_version, law):
+        invariants = M.Pair(
+            Retired(law)(),
+            GraphVersionInvariants(graph_version)(),
+        )
+        self.result = GraphVersion(
+            GraphNodes(graph_version)(),
+            GraphEdges(graph_version)(),
+            invariants,
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class UnretireLaw(M.Edge):
+    """Step 33 reversal: append a fresh InstalledLaw mark restoring the law."""
+
+    def __init__(self, graph_version, law):
+        invariants = M.Pair(
+            InstalledLaw(law)(),
+            GraphVersionInvariants(graph_version)(),
+        )
+        self.result = GraphVersion(
+            GraphNodes(graph_version)(),
+            GraphEdges(graph_version)(),
+            invariants,
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class InstalledLaws(M.Edge):
-    """The installed Laws recorded in a GraphVersion invariant store."""
+    """Active installed Laws: the newest status mark per law must be install."""
 
     def __init__(self, graph_version):
         reversed_laws = M.EmptyList
+        seen = M.EmptyList
         remaining = GraphVersionInvariants(graph_version)()
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             invariant = M.Head(remaining)()
+            law = M.EmptyList
+            active = M.false_value
             if IsInstalledLaw(invariant)() is M.truth_value:
-                reversed_laws = M.Pair(InstalledLawValue(invariant)(), reversed_laws)
+                law = InstalledLawValue(invariant)()
+                active = M.truth_value
+            elif IsRetired(invariant)() is M.truth_value:
+                law = RetiredLaw(invariant)()
+            if M.IdentityCompare(law, M.EmptyList)() is M.false_value:
+                already = M.false_value
+                remaining_seen = seen
+                while M.IdentityCompare(
+                    remaining_seen,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.TermEqual(M.Head(remaining_seen)(), law)() is M.truth_value:
+                        already = M.truth_value
+                        remaining_seen = M.EmptyList
+                    else:
+                        remaining_seen = M.Tail(remaining_seen)()
+                if M.IdentityCompare(already, M.false_value)() is M.truth_value:
+                    seen = M.Pair(law, seen)
+                    if M.IdentityCompare(active, M.truth_value)() is M.truth_value:
+                        reversed_laws = M.Pair(law, reversed_laws)
             remaining = M.Tail(remaining)()
         self.result = Reverse(reversed_laws)()
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AllLawsWithStatus(M.Edge):
+    """Every law ever installed paired with its current status Char."""
+
+    def __init__(self, graph_version):
+        reversed_entries = M.EmptyList
+        seen = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            invariant = M.Head(remaining)()
+            law = M.EmptyList
+            status = M.Char("retired")
+            if IsInstalledLaw(invariant)() is M.truth_value:
+                law = InstalledLawValue(invariant)()
+                status = M.Char("active")
+            elif IsRetired(invariant)() is M.truth_value:
+                law = RetiredLaw(invariant)()
+            if M.IdentityCompare(law, M.EmptyList)() is M.false_value:
+                already = M.false_value
+                remaining_seen = seen
+                while M.IdentityCompare(
+                    remaining_seen,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.TermEqual(M.Head(remaining_seen)(), law)() is M.truth_value:
+                        already = M.truth_value
+                        remaining_seen = M.EmptyList
+                    else:
+                        remaining_seen = M.Tail(remaining_seen)()
+                if M.IdentityCompare(already, M.false_value)() is M.truth_value:
+                    seen = M.Pair(law, seen)
+                    reversed_entries = M.Pair(
+                        M.Pair(law, M.Pair(status, M.EmptyList)),
+                        reversed_entries,
+                    )
+            remaining = M.Tail(remaining)()
+        self.result = Reverse(reversed_entries)()
         super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -2955,13 +3114,21 @@ class FireAny(M.Edge):
                             self.result = fired
                             remaining = M.EmptyList
                         else:
+                            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                                ledger.record_miss(law, M.Char("refused"))
                             self.result = fired
                             remaining = M.Tail(remaining)()
                     else:
+                        if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                            ledger.record_miss(law, M.Char("no-match"))
                         remaining = M.Tail(remaining)()
                 else:
+                    if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                        ledger.record_miss(law, M.Char("no-bindings"))
                     remaining = M.Tail(remaining)()
             else:
+                if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                    ledger.record_miss(law, M.Char("no-match"))
                 remaining = M.Tail(remaining)()
         super().__init__(
             inputs=M.Pair(
@@ -3347,6 +3514,7 @@ class FiringLedger(M.Edge):
         if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
             registry = M.AllConstructors
         self.records = M.EmptyList
+        self.misses = M.EmptyList
         self.registry = registry
         super().__init__(inputs=M.Pair(registry, M.EmptyList), results=self.records)
 
@@ -3355,6 +3523,13 @@ class FiringLedger(M.Edge):
         self.records = M.Reverse(M.Pair(record, reversed_records))()
         self.results = self.records
         return self.records
+
+    def record_miss(self, law, reason):
+        reversed_misses = M.Reverse(self.misses)()
+        self.misses = M.Reverse(
+            M.Pair(M.Pair(law, M.Pair(reason, M.EmptyList)), reversed_misses)
+        )()
+        return self.misses
 
     def all(self):
         return self.records
@@ -6908,6 +7083,103 @@ class GeneratePreferenceProposal(M.Edge):
                 JustifiedBy(proposal, evidence)(),
             )()
             submitted_text = "1"
+
+        self.result = M.Pair(
+            current_store,
+            M.Pair(
+                MineNatFromGMPRep(M.GMPRep(submitted_text))(),
+                M.EmptyList,
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(ledger, M.Pair(graph_version, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+RETIREMENT_PROPOSAL_CAP = M.GMPRep("10")
+
+
+class GenerateRetirementProposals(M.Edge):
+    """Step 33: propose retiring installed laws that only miss in the ledger."""
+
+    def __init__(self, proposal_store, ledger, graph_version):
+        cap_text = M.GMPRepText(RETIREMENT_PROPOSAL_CAP)()
+        current_store = proposal_store
+        submitted_text = "0"
+        empty_graph = GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+        remaining_laws = InstalledLaws(graph_version)()
+        while M.IdentityCompare(remaining_laws, M.EmptyList)() is M.false_value:
+            if GMPEqualText(submitted_text, cap_text)() is M.truth_value:
+                remaining_laws = M.EmptyList
+            else:
+                law = M.Head(remaining_laws)()
+                miss_text = "0"
+                remaining_misses = ledger.misses
+                while M.IdentityCompare(
+                    remaining_misses,
+                    M.EmptyList,
+                )() is M.false_value:
+                    miss = M.Head(remaining_misses)()
+                    if M.TermEqual(M.Head(miss)(), law)() is M.truth_value:
+                        miss_text = GMPSuccText(miss_text)()
+                    remaining_misses = M.Tail(remaining_misses)()
+                success_text = "0"
+                remaining_records = ledger.records
+                while M.IdentityCompare(
+                    remaining_records,
+                    M.EmptyList,
+                )() is M.false_value:
+                    record = M.Head(remaining_records)()
+                    if M.TermEqual(
+                        FiringRecordLaw(record)(),
+                        law,
+                    )() is M.truth_value:
+                        success_text = GMPSuccText(success_text)()
+                    remaining_records = M.Tail(remaining_records)()
+                if GMPEqualText(miss_text, "0")() is M.false_value:
+                    if GMPEqualText(success_text, "0")() is M.truth_value:
+                        retired_graph = GraphVersion(
+                            M.Pair(Retired(law)(), M.EmptyList),
+                            M.EmptyList,
+                            M.EmptyList,
+                        )()
+                        retire_law = Law(
+                            empty_graph,
+                            empty_graph,
+                            retired_graph,
+                            Map(empty_graph, empty_graph, M.EmptyList)(),
+                            Map(empty_graph, retired_graph, M.EmptyList)(),
+                            M.EmptyList,
+                        )()
+                        proposal = Proposal(
+                            retire_law,
+                            M.Char("ledger-retirement"),
+                        )()
+                        evidence = M.Pair(
+                            law,
+                            M.Pair(
+                                MineNatFromGMPRep(M.GMPRep(miss_text))(),
+                                M.EmptyList,
+                            ),
+                        )
+                        current_store = ProposalStoreSubmit(
+                            current_store,
+                            proposal,
+                        )()
+                        current_store = ProposalStoreAttach(
+                            current_store,
+                            proposal,
+                            JustifiedBy(proposal, evidence)(),
+                        )()
+                        submitted_text = GMPSuccText(submitted_text)()
+                remaining_laws = M.Tail(remaining_laws)()
 
         self.result = M.Pair(
             current_store,
