@@ -1127,6 +1127,10 @@ class CorrespondenceExampleLabel(ConstructorLabel):
     pass
 
 
+class TaskLabel(ConstructorLabel):
+    pass
+
+
 class HandleLabel(ConstructorLabel):
     pass
 
@@ -1372,6 +1376,7 @@ ReasonNoCorrespondenceLabel = ReasonNoCorrespondenceLabel()
 ReasonGroupLabel = ReasonGroupLabel()
 ReasonEvaluationLabel = ReasonEvaluationLabel()
 CorrespondenceExampleLabel = CorrespondenceExampleLabel()
+TaskLabel = TaskLabel()
 HandleLabel = HandleLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
@@ -1798,6 +1803,7 @@ def sync_from_namespace(namespace):
         "ReasonGroupLabel",
         "ReasonEvaluationLabel",
         "CorrespondenceExampleLabel",
+        "TaskLabel",
         "HandleLabel",
         "PlannerProblemLabel",
         "FiniteLabel",

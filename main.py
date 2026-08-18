@@ -1169,42 +1169,281 @@ def run_warm_mode(debug: bool = False):
 def run_talk_mode(sentence: str = None):
     """Natural-language interaction through Surface/Meaning correspondence laws.
 
-    The host contributes only the I/O boundary: each whitespace-separated
-    word becomes one Char symbol atom in a Surface chain. All grammar lives
-    in compiled correspondence Laws; evaluation and rendering are machine
-    edges. An unmatched sentence is refused explicitly, never guessed.
+    The host contributes only the I/O boundary: words become Char atoms in
+    Surface chains, and typed lines are appended to a lesson transcript that
+    is replayed through the same machine path on the next boot. Grammar,
+    training-example meanings, induction, validation, and approval records
+    all live in machine terms and the proposal store. Sentences whose
+    meaning is a Task term dispatch the formal runtime modes.
     """
     vocabulary = G.DefaultCorrespondenceVocabulary()()
     registry = M.AllConstructors
+    examples = M.EmptyList
+    proposal_store = G.ProposalStore(M.EmptyList)()
+    learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+    pending_proposal = M.EmptyList
+    proposed_laws = M.EmptyList
+    lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
+
+    TASK_RUNNERS = {
+        "self-diagnostics": lambda: run_test_mode(False),
+        "tao": lambda: run_cold_mode(False, "tao"),
+        "e1": lambda: run_cold_mode(False, "e1"),
+        "e2": lambda: run_cold_mode(False, "e2"),
+        "coins": lambda: run_cold_mode(False, "coins"),
+        "sqrt": lambda: run_cold_mode(False, "sqrt"),
+    }
+
+    def _surface(words):
+        chain = M.EmptyList
+        index = len(words)
+        while index != 0:
+            index = index - 1
+            chain = M.Pair(M.Char(words[index]), chain)
+        return G.Surface(chain)()
+
+    def _tokens(text):
+        return text.replace("(", " ( ").replace(")", " ) ").replace(",", " , ").split()
 
     def _speak_chain(chain):
         spoken = []
         remaining = chain
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             word = M.Head(remaining)()
-            try:
-                spoken.append(str(word()))
-            except Exception:
-                spoken.append("?")
+            if G.IsLawTerm(word)() is M.truth_value:
+                spoken.append("<law>")
+            else:
+                try:
+                    value = word()
+                    if value is None:
+                        spoken.append("?")
+                    else:
+                        spoken.append(str(value))
+                except Exception:
+                    spoken.append("?")
             remaining = M.Tail(remaining)()
         return " ".join(spoken)
 
-    def _respond(line):
+    def _speak_pattern(surface_term):
+        spoken = []
+        remaining = M.Head(M.Tail(surface_term)())()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            word = M.Head(remaining)()
+            if P.IsVarPattern(word)() is M.truth_value:
+                spoken.append(str(M.Head(M.Tail(word)())()()))
+            else:
+                try:
+                    spoken.append(str(word()))
+                except Exception:
+                    spoken.append("?")
+            remaining = M.Tail(remaining)()
+        return " ".join(spoken)
+
+    def _speak_meaning(term):
+        if M.IsPair(term)() is M.truth_value:
+            head = M.Head(term)()
+            if M.IdentityCompare(head, Lmod.MeaningLabel)() is M.truth_value:
+                return _speak_meaning(M.Head(M.Tail(term)())())
+            if M.IdentityCompare(head, Lmod.SurfaceLabel)() is M.truth_value:
+                return _speak_pattern(term)
+            if M.IdentityCompare(head, M.ExprMulLabel)() is M.truth_value:
+                args = M.Tail(term)()
+                return (
+                    "Mul(" + _speak_meaning(M.Head(args)()) + ", "
+                    + _speak_meaning(M.Head(M.Tail(args)())()) + ")"
+                )
+            if M.IdentityCompare(head, M.ExprAddLabel)() is M.truth_value:
+                args = M.Tail(term)()
+                return (
+                    "Add(" + _speak_meaning(M.Head(args)()) + ", "
+                    + _speak_meaning(M.Head(M.Tail(args)())()) + ")"
+                )
+            if P.IsVarPattern(term)() is M.truth_value:
+                return str(M.Head(M.Tail(term)())()())
+        rep = M.NatRepOf(term, registry)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            return str(rep())
+        try:
+            return str(term())
+        except Exception:
+            return "?"
+
+    def _log_lesson(line):
+        try:
+            os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+            with open(lesson_path, "a", encoding="utf-8") as stream:
+                stream.write(line + "\n")
+        except OSError:
+            pass
+
+    def _meaning_of(text):
         nonlocal registry
-        words = line.replace("(", " ( ").replace(")", " ) ").split()
+        words = _tokens(text)
+        if not words:
+            return M.EmptyList
+        interpreted = G.ConverseInterpretations(
+            vocabulary, _surface(words), registry,
+        )()
+        interpretations = M.Head(interpreted)()
+        registry = M.Head(M.Tail(interpreted)())()
+        if M.IdentityCompare(interpretations, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(
+            M.Tail(interpretations)(), M.EmptyList,
+        )() is M.false_value:
+            return M.EmptyList
+        return M.Head(M.Head(interpretations)())()
+
+    def _extend_vocabulary():
+        nonlocal vocabulary
+        learned = G.InstalledCorrespondenceLaws(learned_version)()
+        vocabulary = G.VocabularyWithTemplates(
+            G.DefaultCorrespondenceVocabulary()(),
+            learned,
+        )()
+
+    def _handle_training(line, record=True):
+        nonlocal examples, proposal_store, pending_proposal, proposed_laws, registry
+        body = line.split(":", 1)[1].strip()
+        if "<->" not in body:
+            return "A training example is 'training example: WORDS <-> MEANING'."
+        surface_text, meaning_text = body.split("<->", 1)
+        surface_words = _tokens(surface_text.strip())
+        if not surface_words:
+            return "The surface side of that example is empty."
+        meaning = _meaning_of(meaning_text.strip())
+        if M.IdentityCompare(meaning, M.EmptyList)() is M.truth_value:
+            return (
+                "I cannot interpret the meaning side '" + meaning_text.strip()
+                + "'; say it in words or as mul ( a , b ) / add ( a , b )."
+            )
+        example = G.CorrespondenceExample(
+            _surface(surface_words),
+            meaning,
+            M.Char("trainer"),
+        )()
+        examples = M.Pair(example, examples)
+        if record:
+            _log_lesson(line)
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        generated = G.GenerateCorrespondenceProposals(
+            G.ProposalStore(M.EmptyList)(),
+            M.Reverse(examples)(),
+            word_entries,
+            registry,
+        )()
+        candidate_store = M.Head(generated)()
+        registry = M.Head(M.Tail(M.Tail(generated)())())()
+        entries = G.ProposalStoreAll(candidate_store)()
+        while M.IdentityCompare(entries, M.EmptyList)() is M.false_value:
+            entry = M.Head(entries)()
+            proposal = G.ProposalEntryProposal(entry)()
+            law = G.ProposalLaw(proposal)()
+            if G.ChainHasTerm(proposed_laws, law)() is M.false_value:
+                proposed_laws = M.Pair(law, proposed_laws)
+                proposal_store = G.ProposalStoreSubmit(proposal_store, proposal)()
+                annotations = G.ProposalEntryAnnotations(entry)()
+                while M.IdentityCompare(
+                    annotations, M.EmptyList,
+                )() is M.false_value:
+                    proposal_store = G.ProposalStoreAttach(
+                        proposal_store,
+                        proposal,
+                        M.Head(annotations)(),
+                    )()
+                    annotations = M.Tail(annotations)()
+                pending_proposal = proposal
+                left_nodes = G.GraphNodes(G.LawLeft(law)())()
+                right_nodes = G.GraphNodes(G.LawRight(law)())()
+                pattern_text = _speak_pattern(M.Head(left_nodes)())
+                meaning_text_out = _speak_meaning(M.Head(right_nodes)())
+                count = 0
+                remaining = M.Reverse(examples)()
+                sources = []
+                while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    count = count + 1
+                    sources.append(
+                        _speak_pattern(
+                            G.CorrespondenceExampleSurface(M.Head(remaining)())(),
+                        ),
+                    )
+                    remaining = M.Tail(remaining)()
+                return (
+                    "I propose a rule: '" + pattern_text + "' == "
+                    + meaning_text_out
+                    + "; provenance: anti-unified from " + str(count)
+                    + " accepted examples [" + "; ".join(sources)
+                    + "], validated on every recorded example"
+                    + " with parse/render round trip; approve? (yes/no)"
+                )
+            entries = M.Tail(entries)()
+        return "Recorded. I need more examples before I can propose a rule."
+
+    def _handle_decision(line, record=True):
+        nonlocal proposal_store, learned_version, pending_proposal
+        if M.IdentityCompare(pending_proposal, M.EmptyList)() is M.truth_value:
+            return "There is no proposal awaiting a decision."
+        if record:
+            _log_lesson(line)
+        if line == "yes":
+            approval = G.Approved(pending_proposal, M.Char("trainer"))()
+            proposal_store = G.ProposalStoreAttach(
+                proposal_store, pending_proposal, approval,
+            )()
+            approved_entries = G.ProposalStoreApproved(proposal_store)()
+            entry = M.EmptyList
+            while M.IdentityCompare(
+                approved_entries, M.EmptyList,
+            )() is M.false_value:
+                candidate = M.Head(approved_entries)()
+                if M.TermEqual(
+                    G.ProposalEntryProposal(candidate)(),
+                    pending_proposal,
+                )() is M.truth_value:
+                    entry = candidate
+                approved_entries = M.Tail(approved_entries)()
+            activated = G.ActivateProposal(learned_version, entry)()
+            learned_version = M.Head(activated)()
+            pending_proposal = M.EmptyList
+            _extend_vocabulary()
+            return "Recorded and activated. The rule is now part of my grammar."
+        rejection = G.Rejected(
+            pending_proposal, M.Char("trainer"), M.Char("declined"),
+        )()
+        proposal_store = G.ProposalStoreAttach(
+            proposal_store, pending_proposal, rejection,
+        )()
+        pending_proposal = M.EmptyList
+        return "Recorded the rejection. The rule stays out of my grammar."
+
+    def _respond(line, record=True):
+        nonlocal registry
+        lowered = line.lower()
+        if lowered.startswith("training example:"):
+            return _handle_training(line, record=record)
+        if lowered in ("yes", "no"):
+            if M.IdentityCompare(pending_proposal, M.EmptyList)() is M.false_value:
+                return _handle_decision(lowered, record=record)
+        words = _tokens(line)
         if not words:
             return None
-        chain = M.EmptyList
-        index = len(words)
-        while index != 0:
-            index = index - 1
-            chain = M.Pair(M.Char(words[index]), chain)
-        surface = G.Surface(chain)()
+        surface = _surface(words)
         result = G.Converse(vocabulary, surface, registry)()
         outcome = M.Head(result)()
         registry = M.Head(M.Tail(result)())()
         label = M.Head(outcome)()
         if M.IdentityCompare(label, Lmod.UnderstoodLabel)() is M.truth_value:
+            meaning = M.Head(M.Tail(M.Tail(outcome)())())()
+            body = M.Head(M.Tail(meaning)())()
+            if M.IsPair(body)() is M.truth_value:
+                if M.TermEqual(M.Head(body)(), Lmod.TaskLabel)() is M.truth_value:
+                    task_name = str(M.Head(M.Tail(body)())()())
+                    runner = TASK_RUNNERS.get(task_name)
+                    if runner is None:
+                        return "I know the task '" + task_name + "' but cannot run it."
+                    print("hyge> running task: " + task_name)
+                    runner()
+                    return "task '" + task_name + "' finished."
             answer = M.Head(
                 M.Tail(M.Tail(M.Tail(M.Tail(outcome)())())())(),
             )()
@@ -1242,6 +1481,18 @@ def run_talk_mode(sentence: str = None):
             return "I parsed that sentence but could not evaluate it."
         return "I know those words but have no correspondence law for that shape."
 
+    replayed = 0
+    if os.path.exists(lesson_path):
+        try:
+            with open(lesson_path, "r", encoding="utf-8") as stream:
+                lesson_lines = [item.strip() for item in stream.read().splitlines()]
+        except OSError:
+            lesson_lines = []
+        for lesson in lesson_lines:
+            if lesson:
+                _respond(lesson, record=False)
+                replayed = replayed + 1
+
     if sentence is not None:
         answer = _respond(sentence)
         print(answer if answer is not None else "Say something.")
@@ -1249,8 +1500,14 @@ def run_talk_mode(sentence: str = None):
 
     print("HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.")
     print("Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',")
-    print("'A times B', or a bare number word (zero..nine).")
+    print("'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
     print("Parentheses group subexpressions: 'two times (two plus two)'.")
+    print("Teach me: 'training example: double two <-> mul ( two , two )'.")
+    print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
+    print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
+    print("'prove square roots are real'.")
+    if replayed:
+        print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
     while True:
         try:
             line = input("you> ")

@@ -5226,7 +5226,7 @@ class CorrespondenceApply(M.Edge):
         return self.result
 
 
-CORRESPONDENCE_SCAN_CAP = M.GMPRep("50")
+CORRESPONDENCE_SCAN_CAP = M.GMPRep("200")
 
 
 class CorrespondenceWordEntry(M.Edge):
@@ -5317,6 +5317,56 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         times_sentence = Surface(
             M.Pair(var_a, M.Pair(M.Char("times"), M.Pair(var_b, empty))),
         )()
+        formal_mul_sentence = Surface(
+            M.Pair(
+                M.Char("mul"),
+                M.Pair(
+                    M.Char("("),
+                    M.Pair(
+                        var_a,
+                        M.Pair(
+                            M.Char(","),
+                            M.Pair(var_b, M.Pair(M.Char(")"), empty)),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        formal_add_sentence = Surface(
+            M.Pair(
+                M.Char("add"),
+                M.Pair(
+                    M.Char("("),
+                    M.Pair(
+                        var_a,
+                        M.Pair(
+                            M.Char(","),
+                            M.Pair(var_b, M.Pair(M.Char(")"), empty)),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+
+        def _task_meaning(task_name):
+            return Meaning(
+                M.Pair(Lmod.TaskLabel, M.Pair(M.Char(task_name), empty)),
+            )()
+
+        def _task_law(task_meaning_term, *symbols):
+            chain = empty
+            index = len(symbols)
+            while index != 0:
+                index = index - 1
+                chain = M.Pair(M.Char(symbols[index]), chain)
+            return CompileRuleToLaw(P.Rule(Surface(chain)(), task_meaning_term))()
+
+        diagnostics_meaning = _task_meaning("self-diagnostics")
+        tao_meaning = _task_meaning("tao")
+        e1_meaning = _task_meaning("e1")
+        e2_meaning = _task_meaning("e2")
+        coins_meaning = _task_meaning("coins")
+        sqrt_meaning = _task_meaning("sqrt")
 
         templates = M.Pair(
             CompileRuleToLaw(P.Rule(sum_sentence, add_meaning))(),
@@ -5326,7 +5376,69 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                     CompileRuleToLaw(P.Rule(plus_sentence, add_meaning))(),
                     M.Pair(
                         CompileRuleToLaw(P.Rule(times_sentence, mul_meaning))(),
-                        empty,
+                        M.Pair(
+                            CompileRuleToLaw(
+                                P.Rule(formal_mul_sentence, mul_meaning),
+                            )(),
+                            M.Pair(
+                                CompileRuleToLaw(
+                                    P.Rule(formal_add_sentence, add_meaning),
+                                )(),
+                                M.Pair(
+                                    _task_law(
+                                        diagnostics_meaning,
+                                        "run", "self-diagnostics",
+                                    ),
+                                    M.Pair(
+                                        _task_law(
+                                            diagnostics_meaning,
+                                            "run", "the", "tests",
+                                        ),
+                                        M.Pair(
+                                            _task_law(
+                                                tao_meaning,
+                                                "solve", "the", "tao",
+                                                "triangle", "problem",
+                                            ),
+                                            M.Pair(
+                                                _task_law(
+                                                    tao_meaning,
+                                                    "solve", "tao",
+                                                ),
+                                                M.Pair(
+                                                    _task_law(
+                                                        e2_meaning,
+                                                        "solve", "engel", "e2",
+                                                    ),
+                                                    M.Pair(
+                                                        _task_law(
+                                                            e1_meaning,
+                                                            "solve", "engel", "e1",
+                                                        ),
+                                                        M.Pair(
+                                                            _task_law(
+                                                                coins_meaning,
+                                                                "solve", "the",
+                                                                "coin", "problem",
+                                                            ),
+                                                            M.Pair(
+                                                                _task_law(
+                                                                    sqrt_meaning,
+                                                                    "prove", "square",
+                                                                    "roots", "are",
+                                                                    "real",
+                                                                ),
+                                                                empty,
+                                                            ),
+                                                        ),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
                     ),
                 ),
             ),
@@ -6035,9 +6147,21 @@ class Converse(M.Edge):
             )()
 
         if M.IdentityCompare(outcome, M.EmptyList)() is M.truth_value:
-            reduced = SurfaceReduceGroups(vocabulary, surface_term, registry)()
-            reduced_surface = M.Head(reduced)()
-            registry = M.Head(M.Tail(reduced)())()
+            direct = ConverseInterpretations(vocabulary, surface_term, registry)()
+            direct_interpretations = M.Head(direct)()
+            registry = M.Head(M.Tail(direct)())()
+            reduced_surface = surface_term
+            if M.IdentityCompare(
+                direct_interpretations,
+                M.EmptyList,
+            )() is M.truth_value:
+                reduced = SurfaceReduceGroups(
+                    vocabulary,
+                    surface_term,
+                    registry,
+                )()
+                reduced_surface = M.Head(reduced)()
+                registry = M.Head(M.Tail(reduced)())()
             if M.IdentityCompare(reduced_surface, M.EmptyList)() is M.truth_value:
                 outcome = NotUnderstood(
                     surface_term,
@@ -6047,13 +6171,18 @@ class Converse(M.Edge):
                     ),
                 )()
             else:
-                interpreted = ConverseInterpretations(
-                    vocabulary,
-                    reduced_surface,
-                    registry,
-                )()
-                interpretations = M.Head(interpreted)()
-                registry = M.Head(M.Tail(interpreted)())()
+                interpretations = direct_interpretations
+                if M.IdentityCompare(
+                    interpretations,
+                    M.EmptyList,
+                )() is M.truth_value:
+                    interpreted = ConverseInterpretations(
+                        vocabulary,
+                        reduced_surface,
+                        registry,
+                    )()
+                    interpretations = M.Head(interpreted)()
+                    registry = M.Head(M.Tail(interpreted)())()
                 if M.IdentityCompare(
                     interpretations,
                     M.EmptyList,
@@ -6065,7 +6194,41 @@ class Converse(M.Edge):
                             M.Pair(reduced_surface, M.EmptyList),
                         ),
                     )()
-                else:
+                if M.IdentityCompare(outcome, M.EmptyList)() is M.truth_value:
+                    task_scan_text = "0"
+                    remaining_tasks = interpretations
+                    while M.IdentityCompare(
+                        remaining_tasks,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            task_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_tasks = M.EmptyList
+                        else:
+                            task_scan_text = GMPSuccText(task_scan_text)()
+                            interpretation = M.Head(remaining_tasks)()
+                            meaning = M.Head(interpretation)()
+                            body = M.Head(M.Tail(meaning)())()
+                            if M.IsPair(body)() is M.truth_value:
+                                if M.TermEqual(
+                                    M.Head(body)(),
+                                    Lmod.TaskLabel,
+                                )() is M.truth_value:
+                                    outcome = Understood(
+                                        surface_term,
+                                        meaning,
+                                        M.Head(M.Tail(interpretation)())(),
+                                        M.EmptyList,
+                                    )()
+                                    remaining_tasks = M.EmptyList
+                            if M.IdentityCompare(
+                                remaining_tasks,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                remaining_tasks = M.Tail(remaining_tasks)()
+                if M.IdentityCompare(outcome, M.EmptyList)() is M.truth_value:
                     value = M.EmptyList
                     chosen = M.EmptyList
                     conflicted = M.false_value
