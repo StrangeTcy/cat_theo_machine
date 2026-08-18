@@ -45,6 +45,8 @@ class Hypergraph:
         self._search_compare_discovery_mode = M.false_value
         self._search_probe_disable_applicable_cache = M.false_value
         self._search_probe_disable_applicable_shards = M.false_value
+        self._search_installed_heuristic_version = M.EmptyList
+        self._search_installed_heuristic_resolved = M.EmptyList
         self._search_compare_live_signature = M.EmptyList
         self._search_compare_live_start = M.EmptyList
         self._search_compare_live_goal = M.EmptyList
@@ -3885,6 +3887,73 @@ class InstalledPreference(M.Edge):
                                     remaining = M.EmptyList
                                 else:
                                     remaining_elements = M.Tail(remaining_elements)()
+                            else:
+                                remaining_elements = M.Tail(remaining_elements)()
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsHeuristicTerm(M.Edge):
+    """Step 34: a term whose head is one of the five search-mode labels."""
+
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            head = M.Head(term)()
+            if M.TermEqual(head, Lmod.DFSLabel)() is M.truth_value:
+                self.result = M.truth_value
+            elif M.TermEqual(head, Lmod.BFSLabel)() is M.truth_value:
+                self.result = M.truth_value
+            elif M.TermEqual(head, Lmod.BeamLabel)() is M.truth_value:
+                self.result = M.truth_value
+            elif M.TermEqual(head, Lmod.AStarLabel)() is M.truth_value:
+                self.result = M.truth_value
+            elif M.TermEqual(head, Lmod.RewriteDFSLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledHeuristic(M.Edge):
+    """Newest installed Heuristic-family term, or EmptyList (mirrors InstalledPreference)."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        scan_text = "0"
+        self.result = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                invariant = M.Head(remaining)()
+                if IsInstalledLaw(invariant)() is M.truth_value:
+                    law = InstalledLawValue(invariant)()
+                    element_scan_text = "0"
+                    remaining_elements = GraphNodes(LawRight(law)())()
+                    while M.IdentityCompare(
+                        remaining_elements,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            element_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_elements = M.EmptyList
+                        else:
+                            element_scan_text = GMPSuccText(element_scan_text)()
+                            element = M.Head(remaining_elements)()
+                            if IsHeuristicTerm(element)() is M.truth_value:
+                                self.result = element
+                                remaining_elements = M.EmptyList
+                                remaining = M.EmptyList
                             else:
                                 remaining_elements = M.Tail(remaining_elements)()
                 if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:

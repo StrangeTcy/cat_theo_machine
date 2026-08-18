@@ -23,6 +23,24 @@ from ..proof import _debug, _debug_term
 from .engine import SearchAStar, SearchBFS, SearchBeam, SearchDFS, SearchRewriteDFS
 class Search(M.Edge):
     def __init__(self, graph, start, goal, rules, heuristic, registry):
+        if heuristic == "installed":
+            from .. import graph as Gmod
+
+            governed_version = graph._search_installed_heuristic_version
+            resolved = M.EmptyList
+            if M.IdentityCompare(governed_version, M.EmptyList)() is M.false_value:
+                resolved = Gmod.InstalledHeuristic(governed_version)()
+            if M.IdentityCompare(resolved, M.EmptyList)() is M.truth_value:
+                resolved = Hmod.Heuristic(
+                    DFSLabel,
+                    GoalHeadOrderLabel,
+                    M.Zero,
+                    M.one,
+                    M.one,
+                    M.one,
+                )()
+            graph._search_installed_heuristic_resolved = resolved
+            heuristic = resolved
         mode = HeuristicSearchMode(heuristic)()
         if M.IdentityCompare(mode, DFSLabel)() is M.truth_value:
             atom_result = SearchDFS(graph, start, goal, rules, heuristic, registry)()

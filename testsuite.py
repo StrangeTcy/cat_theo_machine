@@ -3627,6 +3627,117 @@ class RetirementLifecycleTest(M.Edge):
         return self.result
 
 
+class InstalledHeuristicSearchTest(M.Edge):
+    """Step 34: the "installed" sentinel resolves the governed Heuristic term."""
+
+    def __init__(self, graph):
+        from .search import api as SearchApi
+
+        empty = M.EmptyList
+        registry = _registry(graph)
+        installed = M.Heuristic(
+            M.DFSLabel,
+            M.GoalHeadOrderLabel,
+            M.three,
+            M.one,
+            M.one,
+            M.one,
+        )()
+        empty_graph = Gmod.GraphVersion(empty, empty, empty)()
+        heuristic_graph = Gmod.GraphVersion(
+            M.Pair(installed, empty),
+            empty,
+            empty,
+        )()
+        law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            heuristic_graph,
+            Gmod.Map(empty_graph, empty_graph, empty)(),
+            Gmod.Map(empty_graph, heuristic_graph, empty)(),
+            empty,
+        )()
+        version = Gmod.InstallLaw(empty_graph, law)()
+
+        start = M.Pair(M.Char("installed-heuristic-start"), empty)
+        goal = M.Pair(M.Char("installed-heuristic-start"), empty)
+
+        saved_version = graph._search_installed_heuristic_version
+        saved_resolved = graph._search_installed_heuristic_resolved
+        graph._search_installed_heuristic_version = version
+        governed_pair = SearchApi.Search(
+            graph,
+            start,
+            goal,
+            empty,
+            "installed",
+            registry,
+        )()
+        governed_resolved = graph._search_installed_heuristic_resolved
+        governed_cost = M.Head(M.Tail(governed_pair)())()
+
+        graph._search_installed_heuristic_version = empty
+        registry = M.FromContextGetConstructors(graph)()
+        fallback_pair = SearchApi.Search(
+            graph,
+            start,
+            goal,
+            empty,
+            "installed",
+            registry,
+        )()
+        fallback_resolved = graph._search_installed_heuristic_resolved
+        fallback_cost = M.Head(M.Tail(fallback_pair)())()
+
+        graph._search_installed_heuristic_version = saved_version
+        graph._search_installed_heuristic_resolved = saved_resolved
+        registry = M.FromContextGetConstructors(graph)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(
+            Gmod.InstalledHeuristic(version)(),
+            installed,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(governed_resolved, installed)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Hmod.HeuristicSearchMode(governed_resolved)(),
+            M.DFSLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Hmod.HeuristicBeamWidth(governed_resolved)(),
+            M.three,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(governed_cost, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Smod.SearchCostOutcome(governed_cost)(),
+            Smod.SearchRunningLabel,
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Hmod.HeuristicBeamWidth(fallback_resolved)(),
+            M.Zero,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(fallback_cost, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Smod.SearchCostOutcome(fallback_cost)(),
+            Smod.SearchRunningLabel,
+        )() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ToyCorrespondenceRoundTripTest(M.Edge):
     """Toy v0: one hand-authored Surface/Meaning law parses, evaluates, renders.
 
@@ -11330,6 +11441,14 @@ def install_default_tests(graph):
             "retirement_lifecycle_test",
             empty,
             RetirementLifecycleTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "installed_heuristic_search_test",
+            empty,
+            InstalledHeuristicSearchTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
