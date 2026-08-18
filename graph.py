@@ -2081,7 +2081,13 @@ class ImpactPolicy(M.Edge):
                                         M.Char("retire_law"),
                                         M.Pair(M.Char("human"), M.EmptyList),
                                     ),
-                                    M.EmptyList,
+                                    M.Pair(
+                                        M.Pair(
+                                            M.Char("tune_scheduler"),
+                                            M.Pair(M.Char("human"), M.EmptyList),
+                                        ),
+                                        M.EmptyList,
+                                    ),
                                 ),
                             ),
                         ),
@@ -2112,6 +2118,8 @@ class ClassifyProposal(M.Edge):
         preference_class = M.Head(M.Head(policy)())()
         policy = M.Tail(policy)()
         retire_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        scheduler_class = M.Head(M.Head(policy)())()
 
         law = ProposalLaw(proposal)()
         left_contains_law = M.false_value
@@ -2129,6 +2137,7 @@ class ClassifyProposal(M.Edge):
         right_contains_handle = M.false_value
         right_contains_preference = M.false_value
         right_contains_retired = M.false_value
+        right_contains_heuristic = M.false_value
         remaining_right = GraphElements(LawRight(law)())()
         while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
             element = M.Head(remaining_right)()
@@ -2145,6 +2154,8 @@ class ClassifyProposal(M.Edge):
                     Lmod.RetiredLabel,
                 )() is M.truth_value:
                     right_contains_retired = M.truth_value
+                if IsHeuristicTerm(element)() is M.truth_value:
+                    right_contains_heuristic = M.truth_value
             remaining_right = M.Tail(remaining_right)()
 
         if M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
@@ -2154,6 +2165,11 @@ class ClassifyProposal(M.Edge):
             M.truth_value,
         )() is M.truth_value:
             self.result = retire_class
+        elif M.IdentityCompare(
+            right_contains_heuristic,
+            M.truth_value,
+        )() is M.truth_value:
+            self.result = scheduler_class
         elif M.IdentityCompare(right_contains_handle, M.truth_value)() is M.truth_value:
             self.result = fold_class
         elif M.IdentityCompare(
@@ -3959,6 +3975,140 @@ class InstalledHeuristic(M.Edge):
                 if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
                     remaining = M.Tail(remaining)()
         super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+HEURISTIC_TRIAL_FIXTURE_CAP = M.GMPRep("10")
+
+
+class HeuristicTrial(M.Edge):
+    """Step 35: run every fixture under both heuristics; observe costs only.
+
+    `fixtures` is an M-list of Pair(start, Pair(goal, Pair(rules, EmptyList))).
+    Returns an M-list of Pair(cost_a, Pair(cost_b, EmptyList)) in fixture
+    order. Nothing is installed; both runs are purely observational.
+    """
+
+    def __init__(self, graph, heuristic_a, heuristic_b, fixtures, registry):
+        from .search import api as SearchApi
+
+        cap_text = M.GMPRepText(HEURISTIC_TRIAL_FIXTURE_CAP)()
+        scan_text = "0"
+        reversed_results = M.EmptyList
+        remaining = fixtures
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                fixture = M.Head(remaining)()
+                start = M.Head(fixture)()
+                goal = M.Head(M.Tail(fixture)())()
+                rules = M.Head(M.Tail(M.Tail(fixture)())())()
+                pair_a = SearchApi.Search(
+                    graph,
+                    start,
+                    goal,
+                    rules,
+                    heuristic_a,
+                    registry,
+                )()
+                cost_a = M.Head(M.Tail(pair_a)())()
+                pair_b = SearchApi.Search(
+                    graph,
+                    start,
+                    goal,
+                    rules,
+                    heuristic_b,
+                    registry,
+                )()
+                cost_b = M.Head(M.Tail(pair_b)())()
+                reversed_results = M.Pair(
+                    M.Pair(cost_a, M.Pair(cost_b, M.EmptyList)),
+                    reversed_results,
+                )
+                remaining = M.Tail(remaining)()
+        self.result = Reverse(reversed_results)()
+        super().__init__(
+            inputs=M.Pair(
+                heuristic_a,
+                M.Pair(heuristic_b, M.Pair(fixtures, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateHeuristicProposal(M.Edge):
+    """Step 35: submit heuristic_b only under strict per-fixture dominance."""
+
+    def __init__(self, proposal_store, trial_result, heuristic_b, registry):
+        from .search.model import SearchCostValue
+
+        cap_text = M.GMPRepText(HEURISTIC_TRIAL_FIXTURE_CAP)()
+        scan_text = "0"
+        dominant = M.truth_value
+        if M.IdentityCompare(trial_result, M.EmptyList)() is M.truth_value:
+            dominant = M.false_value
+        remaining = trial_result
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining)()
+                value_a = SearchCostValue(M.Head(entry)())()
+                value_b = SearchCostValue(M.Head(M.Tail(entry)())())()
+                if M.NatLess(value_b, value_a, registry)() is M.false_value:
+                    dominant = M.false_value
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+
+        current_store = proposal_store
+        submitted_text = "0"
+        if M.IdentityCompare(dominant, M.truth_value)() is M.truth_value:
+            empty_graph = GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+            heuristic_graph = GraphVersion(
+                M.Pair(heuristic_b, M.EmptyList),
+                M.EmptyList,
+                M.EmptyList,
+            )()
+            law = Law(
+                empty_graph,
+                empty_graph,
+                heuristic_graph,
+                Map(empty_graph, empty_graph, M.EmptyList)(),
+                Map(empty_graph, heuristic_graph, M.EmptyList)(),
+                M.EmptyList,
+            )()
+            proposal = Proposal(law, M.Char("heuristic-trial"))()
+            current_store = ProposalStoreSubmit(current_store, proposal)()
+            current_store = ProposalStoreAttach(
+                current_store,
+                proposal,
+                JustifiedBy(proposal, trial_result)(),
+            )()
+            submitted_text = "1"
+
+        self.result = M.Pair(
+            current_store,
+            M.Pair(
+                MineNatFromGMPRep(M.GMPRep(submitted_text))(),
+                M.EmptyList,
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(trial_result, M.Pair(heuristic_b, M.EmptyList)),
+            ),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result

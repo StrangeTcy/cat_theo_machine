@@ -1892,6 +1892,8 @@ class ImpactPolicyTest(M.Edge):
         policy_tail = M.Tail(policy_tail)()
         retire_entry = M.Head(policy_tail)()
         policy_tail = M.Tail(policy_tail)()
+        scheduler_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
 
         empty_graph = Gmod.GraphVersion(empty, empty, empty)()
         handle = Gmod.Handle(M.Char("impact-handle"), empty_graph)()
@@ -1970,6 +1972,32 @@ class ImpactPolicyTest(M.Edge):
             )(),
             M.Char("retire-impact"),
         )()
+        heuristic_graph = Gmod.GraphVersion(
+            M.Pair(
+                M.Heuristic(
+                    M.DFSLabel,
+                    M.GoalHeadOrderLabel,
+                    M.Zero,
+                    M.one,
+                    M.one,
+                    M.one,
+                )(),
+                empty,
+            ),
+            empty,
+            empty,
+        )()
+        scheduler_proposal = Gmod.Proposal(
+            Gmod.Law(
+                empty_graph,
+                empty_graph,
+                heuristic_graph,
+                empty,
+                empty,
+                empty,
+            )(),
+            M.Char("scheduler-impact"),
+        )()
 
         self.result = M.truth_value
         if M.IdentityCompare(policy_tail, empty)() is M.false_value:
@@ -2042,6 +2070,16 @@ class ImpactPolicyTest(M.Edge):
         )() is M.false_value:
             self.result = M.false_value
         elif M.Compare(
+            M.Head(scheduler_entry)(),
+            M.Char("tune_scheduler"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(scheduler_entry)())(),
+            M.Char("human"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
             Gmod.ClassifyProposal(fold_proposal)(),
             M.Char("fold_handle"),
         )() is M.false_value:
@@ -2069,6 +2107,11 @@ class ImpactPolicyTest(M.Edge):
         elif M.Compare(
             Gmod.ClassifyProposal(retire_proposal)(),
             M.Char("retire_law"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(scheduler_proposal)(),
+            M.Char("tune_scheduler"),
         )() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
@@ -3731,6 +3774,135 @@ class InstalledHeuristicSearchTest(M.Edge):
             Smod.SearchCostOutcome(fallback_cost)(),
             Smod.SearchRunningLabel,
         )() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class HeuristicTrialProposalTest(M.Edge):
+    """Step 35: strict dominance submits one human-class proposal; mixed does not."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = _registry(graph)
+        heuristic_a = M.Heuristic(
+            M.DFSLabel,
+            M.GoalHeadOrderLabel,
+            M.Zero,
+            M.one,
+            M.one,
+            M.one,
+        )()
+        heuristic_b = M.Heuristic(
+            M.BFSLabel,
+            M.GoalHeadOrderLabel,
+            M.three,
+            M.one,
+            M.one,
+            M.one,
+        )()
+
+        start = M.Pair(M.Char("trial-start"), empty)
+        goal = M.Pair(M.Char("trial-start"), empty)
+        fixtures = M.Pair(
+            M.Pair(start, M.Pair(goal, M.Pair(empty, empty))),
+            empty,
+        )
+        trial = Gmod.HeuristicTrial(
+            graph,
+            heuristic_a,
+            heuristic_b,
+            fixtures,
+            registry,
+        )()
+        registry = M.FromContextGetConstructors(graph)()
+
+        cheap_pair = Smod.BuildSearchCost(
+            M.Pair(M.Atom(), empty),
+            M.one,
+            M.Zero,
+            M.one,
+            Smod.SearchSuccessLabel,
+            registry,
+        )()
+        cheap = M.Head(cheap_pair)()
+        registry = M.Head(M.Tail(cheap_pair)())()
+        costly_pair = Smod.BuildSearchCost(
+            M.Pair(M.Atom(), empty),
+            M.three,
+            M.three,
+            M.one,
+            Smod.SearchSuccessLabel,
+            registry,
+        )()
+        costly = M.Head(costly_pair)()
+        registry = M.Head(M.Tail(costly_pair)())()
+        graph._replace_context(constructors=registry)
+
+        dominant_trial = M.Pair(
+            M.Pair(costly, M.Pair(cheap, empty)),
+            M.Pair(M.Pair(costly, M.Pair(cheap, empty)), empty),
+        )
+        generated = Gmod.GenerateHeuristicProposal(
+            Gmod.ProposalStore(empty)(),
+            dominant_trial,
+            heuristic_b,
+            registry,
+        )()
+        dominant_store = M.Head(generated)()
+        dominant_entries = Gmod.ProposalStoreAll(dominant_store)()
+
+        mixed_trial = M.Pair(
+            M.Pair(costly, M.Pair(cheap, empty)),
+            M.Pair(M.Pair(cheap, M.Pair(costly, empty)), empty),
+        )
+        mixed_generated = Gmod.GenerateHeuristicProposal(
+            Gmod.ProposalStore(empty)(),
+            mixed_trial,
+            heuristic_b,
+            registry,
+        )()
+        mixed_entries = Gmod.ProposalStoreAll(M.Head(mixed_generated)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(trial, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(trial)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Head(trial)())(),
+            empty,
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(M.Head(trial)())())(),
+            empty,
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(dominant_entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Tail(dominant_entries)(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(
+                Gmod.ProposalEntryProposal(M.Head(dominant_entries)())(),
+            )(),
+            M.Char("tune_scheduler"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ProposalOrigin(
+                Gmod.ProposalEntryProposal(M.Head(dominant_entries)())(),
+            )(),
+            M.Char("heuristic-trial"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(mixed_entries, empty)() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
@@ -11449,6 +11621,14 @@ def install_default_tests(graph):
             "installed_heuristic_search_test",
             empty,
             InstalledHeuristicSearchTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "heuristic_trial_proposal_test",
+            empty,
+            HeuristicTrialProposalTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
