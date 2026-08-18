@@ -1182,8 +1182,8 @@ def run_talk_mode(sentence: str = None):
     examples = M.EmptyList
     proposal_store = G.ProposalStore(M.EmptyList)()
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
-    pending_proposal = M.EmptyList
-    proposed_laws = M.EmptyList
+    pending_queue = []
+    decided_laws = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
 
     TASK_RUNNERS = {
@@ -1318,7 +1318,7 @@ def run_talk_mode(sentence: str = None):
         return count
 
     def _handle_training(line, record=True):
-        nonlocal examples, proposal_store, pending_proposal, proposed_laws, registry
+        nonlocal examples, proposal_store, registry
         body = line.split(":", 1)[1].strip()
         if "<->" not in body:
             return "A training example is 'training example: WORDS <-> MEANING'."
@@ -1376,80 +1376,109 @@ def run_talk_mode(sentence: str = None):
         entries = G.ProposalStoreAll(candidate_store)()
         _debug("induction produced " + str(_count_chain(entries))
                + " validated candidate(s)")
+        queued_count = 0
         while M.IdentityCompare(entries, M.EmptyList)() is M.false_value:
             entry = M.Head(entries)()
             proposal = G.ProposalEntryProposal(entry)()
             law = G.ProposalLaw(proposal)()
-            already_proposed = M.false_value
-            prior_laws = proposed_laws
+            already_decided = M.false_value
+            prior_laws = decided_laws
             while M.IdentityCompare(prior_laws, M.EmptyList)() is M.false_value:
                 if M.Compare(M.Head(prior_laws)(), law)() is M.truth_value:
-                    already_proposed = M.truth_value
+                    already_decided = M.truth_value
                     prior_laws = M.EmptyList
                 else:
                     prior_laws = M.Tail(prior_laws)()
-            if M.IdentityCompare(already_proposed, M.false_value)() is M.truth_value:
-                proposed_laws = M.Pair(law, proposed_laws)
-                _debug("formulating rule from the new candidate...")
-                proposal_store = G.ProposalStoreSubmit(proposal_store, proposal)()
-                annotations = G.ProposalEntryAnnotations(entry)()
-                while M.IdentityCompare(
-                    annotations, M.EmptyList,
-                )() is M.false_value:
-                    proposal_store = G.ProposalStoreAttach(
-                        proposal_store,
-                        proposal,
-                        M.Head(annotations)(),
+            already_queued = M.false_value
+            for queued_proposal, _queued_prompt in pending_queue:
+                if M.Compare(
+                    G.ProposalLaw(queued_proposal)(), law,
+                )() is M.truth_value:
+                    already_queued = M.truth_value
+            if M.IdentityCompare(already_decided, M.false_value)() is M.truth_value:
+                if M.IdentityCompare(already_queued, M.false_value)() is M.truth_value:
+                    _debug("formulating rule from the candidate...")
+                    proposal_store = G.ProposalStoreSubmit(
+                        proposal_store, proposal,
                     )()
-                    annotations = M.Tail(annotations)()
-                pending_proposal = proposal
-                left_nodes = G.GraphNodes(G.LawLeft(law)())()
-                right_nodes = G.GraphNodes(G.LawRight(law)())()
-                pattern_text = _speak_pattern(M.Head(left_nodes)())
-                meaning_text_out = _speak_meaning(M.Head(right_nodes)())
-                count = 0
-                remaining = M.Reverse(examples)()
-                sources = []
-                while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-                    covered = G.CorrespondenceApply(
-                        law,
-                        G.CorrespondenceExampleSurface(M.Head(remaining)())(),
-                    )()
-                    if M.IdentityCompare(covered, M.EmptyList)() is M.false_value:
-                        count = count + 1
-                        sources.append(
-                            _speak_pattern(
-                                G.CorrespondenceExampleSurface(
-                                    M.Head(remaining)(),
-                                )(),
-                            ),
-                        )
-                    remaining = M.Tail(remaining)()
-                _debug("rule submitted as a pending proposal; awaiting decision")
-                return (
-                    "I propose a rule: '" + pattern_text + "' == "
-                    + meaning_text_out
-                    + "; provenance: anti-unified from " + str(count)
-                    + " covering examples [" + "; ".join(sources)
-                    + "], validated on every recorded example"
-                    + " with parse/render round trip; approve? (yes/no)"
-                )
+                    annotations = G.ProposalEntryAnnotations(entry)()
+                    while M.IdentityCompare(
+                        annotations, M.EmptyList,
+                    )() is M.false_value:
+                        proposal_store = G.ProposalStoreAttach(
+                            proposal_store,
+                            proposal,
+                            M.Head(annotations)(),
+                        )()
+                        annotations = M.Tail(annotations)()
+                    left_nodes = G.GraphNodes(G.LawLeft(law)())()
+                    right_nodes = G.GraphNodes(G.LawRight(law)())()
+                    pattern_text = _speak_pattern(M.Head(left_nodes)())
+                    meaning_text_out = _speak_meaning(M.Head(right_nodes)())
+                    count = 0
+                    remaining = M.Reverse(examples)()
+                    sources = []
+                    while M.IdentityCompare(
+                        remaining, M.EmptyList,
+                    )() is M.false_value:
+                        covered = G.CorrespondenceApply(
+                            law,
+                            G.CorrespondenceExampleSurface(
+                                M.Head(remaining)(),
+                            )(),
+                        )()
+                        if M.IdentityCompare(
+                            covered, M.EmptyList,
+                        )() is M.false_value:
+                            count = count + 1
+                            sources.append(
+                                _speak_pattern(
+                                    G.CorrespondenceExampleSurface(
+                                        M.Head(remaining)(),
+                                    )(),
+                                ),
+                            )
+                        remaining = M.Tail(remaining)()
+                    prompt = (
+                        "I propose a rule: '" + pattern_text + "' == "
+                        + meaning_text_out
+                        + "; provenance: anti-unified from " + str(count)
+                        + " covering examples [" + "; ".join(sources)
+                        + "], validated on every recorded example"
+                        + " with parse/render round trip; approve? (yes/no)"
+                    )
+                    pending_queue.append((proposal, prompt))
+                    queued_count = queued_count + 1
+                    _debug("rule submitted as a pending proposal; "
+                           "queued for decision")
             entries = M.Tail(entries)()
+        if pending_queue:
+            if queued_count > 1:
+                return (
+                    "(" + str(len(pending_queue))
+                    + " proposals await decisions; here is the first)\n"
+                    + "hyge> " + pending_queue[0][1]
+                )
+            return pending_queue[0][1]
         _debug("no new candidate survived validation; waiting for more evidence")
         return "Recorded. I need more examples before I can propose a rule."
 
     def _handle_decision(line, record=True):
-        nonlocal proposal_store, learned_version, pending_proposal
-        if M.IdentityCompare(pending_proposal, M.EmptyList)() is M.truth_value:
+        nonlocal proposal_store, learned_version, decided_laws
+        if not pending_queue:
             return "There is no proposal awaiting a decision."
         if record:
             _log_lesson(line)
             _debug("decision '" + line + "' appended to " + lesson_path)
+        decided_proposal, _decided_prompt = pending_queue.pop(0)
+        decided_laws = M.Pair(
+            G.ProposalLaw(decided_proposal)(), decided_laws,
+        )
         if line == "yes":
             _debug("attaching Approved(proposal, trainer) to the proposal store")
-            approval = G.Approved(pending_proposal, M.Char("trainer"))()
+            approval = G.Approved(decided_proposal, M.Char("trainer"))()
             proposal_store = G.ProposalStoreAttach(
-                proposal_store, pending_proposal, approval,
+                proposal_store, decided_proposal, approval,
             )()
             approved_entries = G.ProposalStoreApproved(proposal_store)()
             entry = M.EmptyList
@@ -1459,7 +1488,7 @@ def run_talk_mode(sentence: str = None):
                 candidate = M.Head(approved_entries)()
                 if M.TermEqual(
                     G.ProposalEntryProposal(candidate)(),
-                    pending_proposal,
+                    decided_proposal,
                 )() is M.truth_value:
                     entry = candidate
                 approved_entries = M.Tail(approved_entries)()
@@ -1467,21 +1496,23 @@ def run_talk_mode(sentence: str = None):
                    "recording the Next splice in the learned version")
             activated = G.ActivateProposal(learned_version, entry)()
             learned_version = M.Head(activated)()
-            pending_proposal = M.EmptyList
             _extend_vocabulary()
             _debug("vocabulary rebuilt from installed correspondence laws; "
                    "rule persists via the lesson transcript")
-            return "Recorded and activated. The rule is now part of my grammar."
-        _debug("attaching Rejected(proposal, trainer, declined) "
-               "to the proposal store")
-        rejection = G.Rejected(
-            pending_proposal, M.Char("trainer"), M.Char("declined"),
-        )()
-        proposal_store = G.ProposalStoreAttach(
-            proposal_store, pending_proposal, rejection,
-        )()
-        pending_proposal = M.EmptyList
-        return "Recorded the rejection. The rule stays out of my grammar."
+            outcome = "Recorded and activated. The rule is now part of my grammar."
+        else:
+            _debug("attaching Rejected(proposal, trainer, declined) "
+                   "to the proposal store")
+            rejection = G.Rejected(
+                decided_proposal, M.Char("trainer"), M.Char("declined"),
+            )()
+            proposal_store = G.ProposalStoreAttach(
+                proposal_store, decided_proposal, rejection,
+            )()
+            outcome = "Recorded the rejection. The rule stays out of my grammar."
+        if pending_queue:
+            outcome = outcome + "\nhyge> " + pending_queue[0][1]
+        return outcome
 
     def _respond(line, record=True):
         nonlocal registry
@@ -1489,7 +1520,7 @@ def run_talk_mode(sentence: str = None):
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
         if lowered in ("yes", "no"):
-            if M.IdentityCompare(pending_proposal, M.EmptyList)() is M.false_value:
+            if pending_queue:
                 return _handle_decision(lowered, record=record)
         words = _tokens(line)
         if not words:
@@ -1577,6 +1608,10 @@ def run_talk_mode(sentence: str = None):
     print("'prove square roots are real'.")
     if replayed:
         print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
+    if pending_queue:
+        print("hyge> (" + str(len(pending_queue)) + " proposal(s) from the "
+              "replayed lessons still await your decision)")
+        print("hyge> " + pending_queue[0][1])
     while True:
         try:
             line = input("you> ")
