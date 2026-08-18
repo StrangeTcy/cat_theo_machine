@@ -1099,6 +1099,18 @@ class ReasonUncountersignedLabel(ConstructorLabel):
     pass
 
 
+class ContractLabel(ConstructorLabel):
+    pass
+
+
+class ReasonContractLabel(ConstructorLabel):
+    pass
+
+
+class RobustnessLabel(ConstructorLabel):
+    pass
+
+
 class SurfaceLabel(ConstructorLabel):
     pass
 
@@ -1385,6 +1397,9 @@ RetiredLabel = RetiredLabel()
 PolicyEntryLabel = PolicyEntryLabel()
 CountersignedLabel = CountersignedLabel()
 ReasonUncountersignedLabel = ReasonUncountersignedLabel()
+ContractLabel = ContractLabel()
+ReasonContractLabel = ReasonContractLabel()
+RobustnessLabel = RobustnessLabel()
 SurfaceLabel = SurfaceLabel()
 MeaningLabel = MeaningLabel()
 CorrespondsLabel = CorrespondsLabel()
@@ -1816,6 +1831,9 @@ def sync_from_namespace(namespace):
         "PolicyEntryLabel",
         "CountersignedLabel",
         "ReasonUncountersignedLabel",
+        "ContractLabel",
+        "ReasonContractLabel",
+        "RobustnessLabel",
         "SurfaceLabel",
         "MeaningLabel",
         "CorrespondsLabel",

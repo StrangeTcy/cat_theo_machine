@@ -4195,6 +4195,125 @@ class PolicyChangeCountersignTest(M.Edge):
         return self.result
 
 
+class ContractEnforcementTest(M.Edge):
+    """Step 39: deleting a contracted port is a Miss term, never a firing."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        port_node = M.Pair(M.Char("contract-port"), empty)
+        absent_node = M.Pair(M.Char("contract-absent"), empty)
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left_delete = Gmod.GraphVersion(M.Pair(port_node, empty), empty, empty)()
+        right_delete = Gmod.GraphVersion(empty, empty, empty)()
+        delete_law = Gmod.Law(
+            left_delete,
+            interface,
+            right_delete,
+            Gmod.Map(interface, left_delete, empty)(),
+            Gmod.Map(interface, right_delete, empty)(),
+            empty,
+        )()
+
+        handle = Gmod.Handle(
+            M.Char("contract-handle"),
+            Gmod.GraphVersion(M.Pair(port_node, empty), empty, empty)(),
+        )()
+        contract = Gmod.Contract(
+            handle,
+            M.Pair(port_node, empty),
+            Gmod.DefaultContractForbidden()(),
+        )()
+        left_carrier = Gmod.GraphVersion(M.Pair(absent_node, empty), empty, empty)()
+        right_carrier = Gmod.GraphVersion(M.Pair(contract, empty), empty, empty)()
+        carrier_law = Gmod.Law(
+            left_carrier,
+            interface,
+            right_carrier,
+            Gmod.Map(interface, left_carrier, empty)(),
+            Gmod.Map(interface, right_carrier, empty)(),
+            empty,
+        )()
+
+        version = Gmod.GraphVersion(M.Pair(port_node, empty), empty, empty)()
+        version = Gmod.InstallLaw(version, delete_law)()
+        version = Gmod.InstallLaw(version, carrier_law)()
+        contracted_host = Gmod.GraphVersion(
+            M.Pair(port_node, empty),
+            empty,
+            Gmod.GraphVersionInvariants(version)(),
+        )()
+        ledger = Gmod.FiringLedger(registry)
+        refused = Gmod.FireAny(
+            contracted_host,
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        refused_version = M.Head(refused)()
+        refused_trace = M.Head(M.Tail(refused)())()
+
+        bare_version = Gmod.GraphVersion(M.Pair(port_node, empty), empty, empty)()
+        bare_version = Gmod.InstallLaw(bare_version, delete_law)()
+        bare_host = Gmod.GraphVersion(
+            M.Pair(port_node, empty),
+            empty,
+            Gmod.GraphVersionInvariants(bare_version)(),
+        )()
+        bare_ledger = Gmod.FiringLedger(ledger.registry)
+        fired = Gmod.FireAny(bare_host, Gmod.DanglingForbid()(), bare_ledger)()
+        fired_version = M.Head(fired)()
+
+        contract_miss_reason = empty
+        remaining_misses = ledger.misses
+        while M.IdentityCompare(remaining_misses, empty)() is M.false_value:
+            miss_entry = M.Head(remaining_misses)()
+            if M.TermEqual(M.Head(miss_entry)(), delete_law)() is M.truth_value:
+                reason = M.Head(M.Tail(miss_entry)())()
+                if M.IsPair(reason)() is M.truth_value:
+                    if M.TermEqual(
+                        M.Head(reason)(),
+                        Lmod.ReasonContractLabel,
+                    )() is M.truth_value:
+                        contract_miss_reason = reason
+                        remaining_misses = empty
+            if M.IdentityCompare(remaining_misses, empty)() is M.false_value:
+                remaining_misses = M.Tail(remaining_misses)()
+
+        graph._replace_context(constructors=bare_ledger.registry)
+
+        self.result = M.truth_value
+        if M.IdentityCompare(refused_version, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(refused_trace, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(refused_trace)())(),
+            Lmod.MissLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(contract_miss_reason, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.ContractViolation(
+                Gmod.InstalledContracts(contracted_host)(),
+                M.Pair(port_node, empty),
+            )(),
+            contract,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(fired_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(fired_version)(),
+            port_node,
+        )() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class CuratorReportTest(M.Edge):
     """Step 38: report counts match a hand-computed scripted session exactly."""
 
@@ -12101,6 +12220,14 @@ def install_default_tests(graph):
             "curator_report_test",
             empty,
             CuratorReportTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "contract_enforcement_test",
+            empty,
+            ContractEnforcementTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

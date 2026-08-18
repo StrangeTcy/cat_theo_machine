@@ -1828,6 +1828,169 @@ class IdentitySendsFor(M.Edge):
         return self.result
 
 
+CONTRACT_SCAN_CAP = M.GMPRep("500")
+
+
+class Contract(M.Edge):
+    """Step 39: machine-checkable interface promise for a promoted handle."""
+
+    def __init__(self, handle, ports, forbidden):
+        self.result = M.Pair(
+            Lmod.ContractLabel,
+            M.Pair(handle, M.Pair(ports, M.Pair(forbidden, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(handle, M.Pair(ports, M.Pair(forbidden, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsContract(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.ContractLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContractHandle(M.Edge):
+    def __init__(self, contract):
+        self.result = M.Head(M.Tail(contract)())()
+        super().__init__(inputs=M.Pair(contract, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContractPorts(M.Edge):
+    def __init__(self, contract):
+        self.result = M.Head(M.Tail(M.Tail(contract)())())()
+        super().__init__(inputs=M.Pair(contract, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContractForbidden(M.Edge):
+    def __init__(self, contract):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(contract)())())())()
+        super().__init__(inputs=M.Pair(contract, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefaultContractForbidden(M.Edge):
+    """The fixed initial alteration kinds a contract rules out."""
+
+    def __init__(self):
+        self.result = M.Pair(
+            M.Char("delete-port"),
+            M.Pair(M.Char("merge-port"), M.EmptyList),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledContracts(M.Edge):
+    """Contract terms carried by installed laws (newest first, capped)."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(CONTRACT_SCAN_CAP)()
+        scan_text = "0"
+        reversed_contracts = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                invariant = M.Head(remaining)()
+                if IsInstalledLaw(invariant)() is M.truth_value:
+                    law = InstalledLawValue(invariant)()
+                    element_scan_text = "0"
+                    remaining_elements = GraphNodes(LawRight(law)())()
+                    while M.IdentityCompare(
+                        remaining_elements,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            element_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_elements = M.EmptyList
+                        else:
+                            element_scan_text = GMPSuccText(element_scan_text)()
+                            element = M.Head(remaining_elements)()
+                            if IsContract(element)() is M.truth_value:
+                                reversed_contracts = M.Pair(
+                                    element,
+                                    reversed_contracts,
+                                )
+                            remaining_elements = M.Tail(remaining_elements)()
+                remaining = M.Tail(remaining)()
+        self.result = Reverse(reversed_contracts)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ContractViolation(M.Edge):
+    """First contract whose port a deletion set touches, or EmptyList."""
+
+    def __init__(self, contracts, deleted_nodes):
+        cap_text = M.GMPRepText(CONTRACT_SCAN_CAP)()
+        scan_text = "0"
+        self.result = M.EmptyList
+        remaining_contracts = contracts
+        while M.IdentityCompare(
+            remaining_contracts,
+            M.EmptyList,
+        )() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_contracts = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                contract = M.Head(remaining_contracts)()
+                remaining_ports = ContractPorts(contract)()
+                while M.IdentityCompare(
+                    remaining_ports,
+                    M.EmptyList,
+                )() is M.false_value:
+                    port = M.Head(remaining_ports)()
+                    if ChainHasTerm(deleted_nodes, port)() is M.truth_value:
+                        self.result = contract
+                        remaining_ports = M.EmptyList
+                        remaining_contracts = M.EmptyList
+                    else:
+                        remaining_ports = M.Tail(remaining_ports)()
+                if M.IdentityCompare(
+                    remaining_contracts,
+                    M.EmptyList,
+                )() is M.false_value:
+                    remaining_contracts = M.Tail(remaining_contracts)()
+        super().__init__(
+            inputs=M.Pair(contracts, M.Pair(deleted_nodes, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class CompileHandleToLaws(M.Edge):
     """Compile a named pattern abbreviation into ordered fold/unfold Laws."""
 
@@ -2213,11 +2376,40 @@ class PromotionReport(M.Edge):
 
 
 class ProposeHandle(M.Edge):
-    """Submit a Handle fold proposal with its machine report as justification."""
+    """Submit a Handle fold proposal with its machine report as justification.
 
-    def __init__(self, proposal_store, handle, interface_nodes, report):
+    Step 39: when `contract` is provided, the fold law's R graph gains the
+    Contract term as one extra node, so activation installs the contract and
+    firing the fold inserts it alongside the handle.
+    """
+
+    def __init__(self, proposal_store, handle, interface_nodes, report, contract=M.EmptyList):
         compiled = CompileHandleToLaws(handle, interface_nodes)()
         fold = M.Head(compiled)()
+        if M.IdentityCompare(contract, M.EmptyList)() is M.false_value:
+            right = LawRight(fold)()
+            contracted_right = M.Pair(
+                M.HypergraphLabel,
+                M.Pair(
+                    M.Pair(contract, GraphNodes(right)()),
+                    M.Pair(GraphEdges(right)(), M.EmptyList),
+                ),
+            )
+            interface = LawInterface(fold)()
+            old_map = LawKToRight(fold)()
+            contracted_map = Map(
+                interface,
+                contracted_right,
+                M.Head(M.Tail(M.Tail(M.Tail(old_map)())())())(),
+            )()
+            fold = Law(
+                LawLeft(fold)(),
+                interface,
+                contracted_right,
+                LawKToLeft(fold)(),
+                contracted_map,
+                LawObligations(fold)(),
+            )()
         proposal = Proposal(fold, handle)()
         submitted = ProposalStoreSubmit(proposal_store, proposal)()
         justification = JustifiedBy(proposal, report)()
@@ -3461,6 +3653,10 @@ class FireAny(M.Edge):
 
     def __init__(self, graph_version, dangling_mode, ledger=M.EmptyList, ordering=M.EmptyList):
         self.result = M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        contracts = InstalledContracts(graph_version)()
+        contract_probe = M.EmptyList
+        if M.IdentityCompare(contracts, M.EmptyList)() is M.false_value:
+            contract_probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
         laws = InstalledLaws(graph_version)()
         if M.IdentityCompare(ordering, M.EmptyList)() is M.truth_value:
             ordering = InstalledPreference(graph_version)()
@@ -3486,21 +3682,75 @@ class FireAny(M.Edge):
                         mapping = FirstCompletedMatch(LawLeft(active_law)(), graph_version)()
                 if M.IdentityCompare(active_law, M.EmptyList)() is M.false_value:
                     if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
-                        fired = FireLaw(
-                            graph_version,
-                            active_law,
-                            mapping,
-                            dangling_mode,
-                            ledger,
-                        )()
-                        if M.IdentityCompare(M.Head(fired)(), M.EmptyList)() is M.false_value:
-                            self.result = fired
-                            remaining = M.EmptyList
-                        else:
-                            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
-                                ledger.record_miss(law, M.Char("refused"))
-                            self.result = fired
+                        violation = M.EmptyList
+                        if M.IdentityCompare(
+                            contracts,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            root = M.Head(
+                                M.Tail(M.Tail(M.Tail(mapping)())())(),
+                            )()
+                            kept_left = InterfacePreimages(
+                                LawInterface(active_law)(),
+                                LawKToLeft(active_law)(),
+                            )()
+                            deleted_nodes = MappedImages(
+                                root,
+                                contract_probe._normalize_store(
+                                    GraphNodes(LawLeft(active_law)())(),
+                                ),
+                                kept_left,
+                            )()
+                            violation = ContractViolation(
+                                contracts,
+                                deleted_nodes,
+                            )()
+                        if M.IdentityCompare(
+                            violation,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reason = M.Pair(
+                                Lmod.ReasonContractLabel,
+                                M.Pair(violation, M.EmptyList),
+                            )
+                            if M.IdentityCompare(
+                                ledger,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                ledger.record_miss(law, reason)
+                            self.result = M.Pair(
+                                M.EmptyList,
+                                M.Pair(
+                                    M.Pair(
+                                        Miss(active_law, reason)(),
+                                        M.EmptyList,
+                                    ),
+                                    M.EmptyList,
+                                ),
+                            )
                             remaining = M.Tail(remaining)()
+                        else:
+                            fired = FireLaw(
+                                graph_version,
+                                active_law,
+                                mapping,
+                                dangling_mode,
+                                ledger,
+                            )()
+                            if M.IdentityCompare(
+                                M.Head(fired)(),
+                                M.EmptyList,
+                            )() is M.false_value:
+                                self.result = fired
+                                remaining = M.EmptyList
+                            else:
+                                if M.IdentityCompare(
+                                    ledger,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    ledger.record_miss(law, M.Char("refused"))
+                                self.result = fired
+                                remaining = M.Tail(remaining)()
                     else:
                         if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
                             ledger.record_miss(law, M.Char("no-match"))
@@ -5491,6 +5741,11 @@ class GenerateHandleProposals(M.Edge):
                         handle,
                         interface_nodes,
                         report,
+                        Contract(
+                            handle,
+                            interface_nodes,
+                            DefaultContractForbidden()(),
+                        )(),
                     )()
                     stepped = MineNatSuccessor(
                         submitted_count,
