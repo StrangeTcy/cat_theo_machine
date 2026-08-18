@@ -3910,6 +3910,291 @@ class HeuristicTrialProposalTest(M.Edge):
         return self.result
 
 
+class InstalledPolicyOverrideTest(M.Edge):
+    """Step 36: a PolicyEntry term overrides the bootstrap gate for its class."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+
+        interface_node = M.Char("policy-interface")
+        first_internal = M.Char("policy-first-internal")
+        second_internal = M.Char("policy-second-internal")
+        pattern_edge = M.Pair(
+            M.Char("policy-pattern-edge"),
+            M.Pair(
+                interface_node,
+                M.Pair(first_internal, M.Pair(second_internal, empty)),
+            ),
+        )
+        pattern_nodes = M.Pair(
+            interface_node,
+            M.Pair(first_internal, M.Pair(second_internal, empty)),
+        )
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(pattern_nodes, M.Pair(M.Pair(pattern_edge, empty), empty)),
+        )
+        interface_nodes = M.Pair(interface_node, empty)
+        handle = Gmod.Handle(M.Char("policy-handle"), pattern)()
+        compiled = Gmod.CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        fold_proposal = Gmod.Proposal(fold, handle)()
+
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(store, fold_proposal)()
+
+        policy_entry = Gmod.PolicyEntry(
+            M.Char("fold_handle"),
+            M.Char("human"),
+        )()
+        empty_graph = Gmod.GraphVersion(empty, empty, empty)()
+        policy_graph = Gmod.GraphVersion(
+            M.Pair(policy_entry, empty),
+            empty,
+            empty,
+        )()
+        policy_law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            policy_graph,
+            Gmod.Map(empty_graph, empty_graph, empty)(),
+            Gmod.Map(empty_graph, policy_graph, empty)(),
+            empty,
+        )()
+        governed_base = Gmod.InstallLaw(empty_graph, policy_law)()
+        host = Gmod.GraphVersion(
+            pattern_nodes,
+            M.Pair(pattern_edge, empty),
+            Gmod.GraphVersionInvariants(governed_base)(),
+        )()
+
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.one, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        cycle = Gmod.AutonomyCycle(host, store, ledger, budget)()
+        report = M.Head(M.Tail(M.Tail(cycle)())())()
+        activated_entry = M.Head(report)()
+        skipped_entry = M.Head(M.Tail(report)())()
+        activated_proposals = M.Head(M.Tail(activated_entry)())()
+        skipped_proposals = M.Head(M.Tail(skipped_entry)())()
+
+        bootstrap = Gmod.InstalledPolicy(empty)()
+        default_policy = Gmod.ImpactPolicy()()
+        effective = Gmod.InstalledPolicy(host)()
+        bootstrap_fold_gate = M.Head(M.Tail(M.Head(bootstrap)())())()
+        effective_fold_gate = M.Head(M.Tail(M.Head(effective)())())()
+
+        bootstrap_matches = M.truth_value
+        remaining_bootstrap = bootstrap
+        remaining_default = default_policy
+        while M.IdentityCompare(
+            remaining_default,
+            M.EmptyList,
+        )() is M.false_value:
+            if M.IdentityCompare(
+                remaining_bootstrap,
+                M.EmptyList,
+            )() is M.truth_value:
+                bootstrap_matches = M.false_value
+                remaining_default = M.EmptyList
+            else:
+                bootstrap_entry = M.Head(remaining_bootstrap)()
+                default_entry = M.Head(remaining_default)()
+                if M.Compare(
+                    M.Head(bootstrap_entry)(),
+                    M.Head(default_entry)(),
+                )() is M.false_value:
+                    bootstrap_matches = M.false_value
+                    remaining_default = M.EmptyList
+                elif M.Compare(
+                    M.Head(M.Tail(bootstrap_entry)())(),
+                    M.Head(M.Tail(default_entry)())(),
+                )() is M.false_value:
+                    bootstrap_matches = M.false_value
+                    remaining_default = M.EmptyList
+                else:
+                    remaining_bootstrap = M.Tail(remaining_bootstrap)()
+                    remaining_default = M.Tail(remaining_default)()
+
+        graph._replace_context(constructors=ledger.registry)
+
+        self.result = M.truth_value
+        if M.IdentityCompare(bootstrap_matches, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(bootstrap_fold_gate, M.Char("auto"))() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(effective_fold_gate, M.Char("human"))() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(activated_proposals, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(skipped_proposals, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(skipped_proposals)(),
+            fold_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class PolicyChangeCountersignTest(M.Edge):
+    """Step 37: loosening needs two distinct human authorities; tightening one."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        empty_graph = Gmod.GraphVersion(empty, empty, empty)()
+
+        first_human = M.Pair(M.Char("first-curator"), empty)
+        second_human = M.Pair(M.Char("second-curator"), empty)
+        machine_authority = Gmod.AutonomyAuthority(empty)()
+
+        loosen_entry = Gmod.PolicyEntry(
+            M.Char("install_law"),
+            M.Char("auto"),
+        )()
+        loosen_graph = Gmod.GraphVersion(
+            M.Pair(loosen_entry, empty),
+            empty,
+            empty,
+        )()
+        loosen_law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            loosen_graph,
+            Gmod.Map(empty_graph, empty_graph, empty)(),
+            Gmod.Map(empty_graph, loosen_graph, empty)(),
+            empty,
+        )()
+        loosen_proposal = Gmod.Proposal(loosen_law, M.Char("policy-loosen"))()
+
+        tighten_entry = Gmod.PolicyEntry(
+            M.Char("fold_handle"),
+            M.Char("human"),
+        )()
+        tighten_graph = Gmod.GraphVersion(
+            M.Pair(tighten_entry, empty),
+            empty,
+            empty,
+        )()
+        tighten_law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            tighten_graph,
+            Gmod.Map(empty_graph, empty_graph, empty)(),
+            Gmod.Map(empty_graph, tighten_graph, empty)(),
+            empty,
+        )()
+        tighten_proposal = Gmod.Proposal(tighten_law, M.Char("policy-tighten"))()
+
+        approved_only = Gmod.ProposalEntry(
+            loosen_proposal,
+            M.Pair(Gmod.Approved(loosen_proposal, first_human)(), empty),
+        )()
+        outcome_a = Gmod.ActivateProposal(empty_graph, approved_only)()
+        reason_a = M.Head(M.Tail(outcome_a)())()
+
+        countersigned_entry = Gmod.ProposalEntry(
+            loosen_proposal,
+            M.Pair(
+                Gmod.Approved(loosen_proposal, first_human)(),
+                M.Pair(
+                    Gmod.Countersigned(loosen_proposal, second_human)(),
+                    empty,
+                ),
+            ),
+        )()
+        outcome_b = Gmod.ActivateProposal(empty_graph, countersigned_entry)()
+
+        tighten_entry_term = Gmod.ProposalEntry(
+            tighten_proposal,
+            M.Pair(Gmod.Approved(tighten_proposal, first_human)(), empty),
+        )()
+        outcome_c = Gmod.ActivateProposal(empty_graph, tighten_entry_term)()
+
+        machine_countersign = Gmod.ProposalEntry(
+            loosen_proposal,
+            M.Pair(
+                Gmod.Approved(loosen_proposal, first_human)(),
+                M.Pair(
+                    Gmod.Countersigned(loosen_proposal, machine_authority)(),
+                    empty,
+                ),
+            ),
+        )()
+        outcome_d = Gmod.ActivateProposal(empty_graph, machine_countersign)()
+        reason_d = M.Head(M.Tail(outcome_d)())()
+
+        same_signer = Gmod.ProposalEntry(
+            loosen_proposal,
+            M.Pair(
+                Gmod.Approved(loosen_proposal, first_human)(),
+                M.Pair(
+                    Gmod.Countersigned(loosen_proposal, first_human)(),
+                    empty,
+                ),
+            ),
+        )()
+        outcome_e = Gmod.ActivateProposal(empty_graph, same_signer)()
+        reason_e = M.Head(M.Tail(outcome_e)())()
+
+        self.result = M.truth_value
+        if M.Compare(
+            Gmod.ClassifyProposal(loosen_proposal)(),
+            M.Char("policy_change"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(outcome_a)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(reason_a)(),
+            Lmod.ReasonUncountersignedLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(outcome_b)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(outcome_c)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(outcome_d)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(reason_d)(),
+            Lmod.ReasonUncountersignedLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(outcome_e)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(reason_e)(),
+            Lmod.ReasonUncountersignedLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ToyCorrespondenceRoundTripTest(M.Edge):
     """Toy v0: one hand-authored Surface/Meaning law parses, evaluates, renders.
 
@@ -11629,6 +11914,22 @@ def install_default_tests(graph):
             "heuristic_trial_proposal_test",
             empty,
             HeuristicTrialProposalTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "installed_policy_override_test",
+            empty,
+            InstalledPolicyOverrideTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "policy_change_countersign_test",
+            empty,
+            PolicyChangeCountersignTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

@@ -509,6 +509,98 @@ class ApprovedProposal(M.Edge):
         return self.result
 
 
+class ApprovedAuthority(M.Edge):
+    def __init__(self, approved):
+        self.result = M.Head(M.Tail(M.Tail(approved)())())()
+        super().__init__(inputs=M.Pair(approved, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Countersigned(M.Edge):
+    """Step 37: a second, independent authority endorsing a policy change."""
+
+    def __init__(self, proposal, authority):
+        self.result = M.Pair(
+            Lmod.CountersignedLabel,
+            M.Pair(proposal, M.Pair(authority, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal, M.Pair(authority, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsCountersigned(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(
+                M.Head(term)(),
+                Lmod.CountersignedLabel,
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CountersignedProposal(M.Edge):
+    def __init__(self, countersigned):
+        self.result = M.Head(M.Tail(countersigned)())()
+        super().__init__(
+            inputs=M.Pair(countersigned, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CountersignedAuthority(M.Edge):
+    def __init__(self, countersigned):
+        self.result = M.Head(M.Tail(M.Tail(countersigned)())())()
+        super().__init__(
+            inputs=M.Pair(countersigned, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsAutonomyAuthorityTerm(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(
+                M.Head(term)(),
+                Lmod.AutonomyAuthorityLabel,
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReasonUncountersigned(M.Edge):
+    def __init__(self, proposal):
+        self.result = M.Pair(
+            Lmod.ReasonUncountersignedLabel,
+            M.Pair(proposal, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class Rejected(M.Edge):
     def __init__(self, proposal, authority, reason):
         self.result = M.Pair(
@@ -731,14 +823,124 @@ class ReasonUnapproved(M.Edge):
 
 
 class ActivateProposal(M.Edge):
-    """Install an approved proposal and return its recorded Next splice."""
+    """Install an approved proposal and return its recorded Next splice.
+
+    Step 37: a `policy_change` proposal that loosens any class from "human"
+    to "auto" (relative to InstalledPolicy at activation time) additionally
+    requires a Countersigned annotation whose authority is structurally
+    distinct from the approving authority; neither authority may be an
+    AutonomyAuthority term. Tightening needs only the normal approval.
+    """
 
     def __init__(self, graph_version, proposal_entry):
         proposal = ProposalEntryProposal(proposal_entry)()
+        countersign_ok = M.truth_value
+        if M.Compare(
+            ClassifyProposal(proposal)(),
+            M.Char("policy_change"),
+        )() is M.truth_value:
+            loosening = M.false_value
+            effective_policy = InstalledPolicy(graph_version)()
+            remaining_elements = GraphNodes(
+                LawRight(ProposalLaw(proposal)())(),
+            )()
+            while M.IdentityCompare(
+                remaining_elements,
+                M.EmptyList,
+            )() is M.false_value:
+                element = M.Head(remaining_elements)()
+                if IsPolicyEntry(element)() is M.truth_value:
+                    class_name = PolicyEntryClassName(element)()
+                    new_gate = PolicyEntryGate(element)()
+                    current_gate = M.EmptyList
+                    remaining_policy = effective_policy
+                    while M.IdentityCompare(
+                        remaining_policy,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        policy_entry = M.Head(remaining_policy)()
+                        if M.Compare(
+                            M.Head(policy_entry)(),
+                            class_name,
+                        )() is M.truth_value:
+                            current_gate = M.Head(M.Tail(policy_entry)())()
+                            remaining_policy = M.EmptyList
+                        else:
+                            remaining_policy = M.Tail(remaining_policy)()
+                    if M.Compare(current_gate, M.Char("human"))() is M.truth_value:
+                        if M.Compare(new_gate, M.Char("auto"))() is M.truth_value:
+                            loosening = M.truth_value
+                remaining_elements = M.Tail(remaining_elements)()
+
+            if M.IdentityCompare(loosening, M.truth_value)() is M.truth_value:
+                countersign_ok = M.false_value
+                approving_authority = M.EmptyList
+                remaining_annotations = ProposalEntryAnnotations(proposal_entry)()
+                while M.IdentityCompare(
+                    remaining_annotations,
+                    M.EmptyList,
+                )() is M.false_value:
+                    annotation = M.Head(remaining_annotations)()
+                    if IsApproved(annotation)() is M.truth_value:
+                        if M.TermEqual(
+                            ApprovedProposal(annotation)(),
+                            proposal,
+                        )() is M.truth_value:
+                            approving_authority = ApprovedAuthority(annotation)()
+                            remaining_annotations = M.EmptyList
+                        else:
+                            remaining_annotations = M.Tail(remaining_annotations)()
+                    else:
+                        remaining_annotations = M.Tail(remaining_annotations)()
+                if M.IdentityCompare(
+                    approving_authority,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if IsAutonomyAuthorityTerm(
+                        approving_authority,
+                    )() is M.false_value:
+                        remaining_annotations = ProposalEntryAnnotations(
+                            proposal_entry,
+                        )()
+                        while M.IdentityCompare(
+                            remaining_annotations,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            annotation = M.Head(remaining_annotations)()
+                            if IsCountersigned(annotation)() is M.truth_value:
+                                if M.TermEqual(
+                                    CountersignedProposal(annotation)(),
+                                    proposal,
+                                )() is M.truth_value:
+                                    countersigner = CountersignedAuthority(
+                                        annotation,
+                                    )()
+                                    if IsAutonomyAuthorityTerm(
+                                        countersigner,
+                                    )() is M.false_value:
+                                        if M.TermEqual(
+                                            countersigner,
+                                            approving_authority,
+                                        )() is M.false_value:
+                                            countersign_ok = M.truth_value
+                                            remaining_annotations = M.EmptyList
+                            if M.IdentityCompare(
+                                remaining_annotations,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                remaining_annotations = M.Tail(
+                                    remaining_annotations,
+                                )()
+
         if ProposalEntryIsApproved(proposal_entry)() is M.false_value:
             self.result = M.Pair(
                 M.EmptyList,
                 M.Pair(ReasonUnapproved(proposal)(), M.EmptyList),
+            )
+        elif M.IdentityCompare(countersign_ok, M.false_value)() is M.truth_value:
+            self.result = M.Pair(
+                M.EmptyList,
+                M.Pair(ReasonUncountersigned(proposal)(), M.EmptyList),
             )
         else:
             installed = InstallLaw(graph_version, ProposalLaw(proposal)())()
@@ -2101,6 +2303,154 @@ class ImpactPolicy(M.Edge):
         return self.result
 
 
+class PolicyEntry(M.Edge):
+    """Step 36: one installable policy association, class name to gate."""
+
+    def __init__(self, class_name, gate):
+        self.result = M.Pair(
+            Lmod.PolicyEntryLabel,
+            M.Pair(class_name, M.Pair(gate, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(class_name, M.Pair(gate, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsPolicyEntry(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.PolicyEntryLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolicyEntryClassName(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(entry)())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolicyEntryGate(M.Edge):
+    def __init__(self, entry):
+        self.result = M.Head(M.Tail(M.Tail(entry)())())()
+        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledPolicy(M.Edge):
+    """Step 36: effective policy — newest PolicyEntry per class, else bootstrap.
+
+    Walks installed laws (newest first) collecting the newest PolicyEntry per
+    class name, then appends the ImpactPolicy bootstrap defaults for classes
+    without an entry. Returns the same association-chain shape as ImpactPolicy.
+    """
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        scan_text = "0"
+        overrides = M.EmptyList
+        if M.IdentityCompare(graph_version, M.EmptyList)() is M.false_value:
+            remaining = GraphVersionInvariants(graph_version)()
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                    remaining = M.EmptyList
+                else:
+                    scan_text = GMPSuccText(scan_text)()
+                    invariant = M.Head(remaining)()
+                    if IsInstalledLaw(invariant)() is M.truth_value:
+                        law = InstalledLawValue(invariant)()
+                        element_scan_text = "0"
+                        remaining_elements = GraphNodes(LawRight(law)())()
+                        while M.IdentityCompare(
+                            remaining_elements,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if GMPEqualText(
+                                element_scan_text,
+                                cap_text,
+                            )() is M.truth_value:
+                                remaining_elements = M.EmptyList
+                            else:
+                                element_scan_text = GMPSuccText(element_scan_text)()
+                                element = M.Head(remaining_elements)()
+                                if IsPolicyEntry(element)() is M.truth_value:
+                                    class_name = PolicyEntryClassName(element)()
+                                    known = M.false_value
+                                    remaining_overrides = overrides
+                                    while M.IdentityCompare(
+                                        remaining_overrides,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        if M.Compare(
+                                            M.Head(M.Head(remaining_overrides)())(),
+                                            class_name,
+                                        )() is M.truth_value:
+                                            known = M.truth_value
+                                            remaining_overrides = M.EmptyList
+                                        else:
+                                            remaining_overrides = M.Tail(
+                                                remaining_overrides,
+                                            )()
+                                    if M.IdentityCompare(
+                                        known,
+                                        M.false_value,
+                                    )() is M.truth_value:
+                                        overrides = M.Pair(
+                                            M.Pair(
+                                                class_name,
+                                                M.Pair(
+                                                    PolicyEntryGate(element)(),
+                                                    M.EmptyList,
+                                                ),
+                                            ),
+                                            overrides,
+                                        )
+                                remaining_elements = M.Tail(remaining_elements)()
+                    remaining = M.Tail(remaining)()
+            overrides = Reverse(overrides)()
+
+        reversed_effective = M.EmptyList
+        remaining_defaults = ImpactPolicy()()
+        while M.IdentityCompare(remaining_defaults, M.EmptyList)() is M.false_value:
+            default_entry = M.Head(remaining_defaults)()
+            class_name = M.Head(default_entry)()
+            effective_entry = default_entry
+            remaining_overrides = overrides
+            while M.IdentityCompare(
+                remaining_overrides,
+                M.EmptyList,
+            )() is M.false_value:
+                override = M.Head(remaining_overrides)()
+                if M.Compare(M.Head(override)(), class_name)() is M.truth_value:
+                    effective_entry = override
+                    remaining_overrides = M.EmptyList
+                else:
+                    remaining_overrides = M.Tail(remaining_overrides)()
+            reversed_effective = M.Pair(effective_entry, reversed_effective)
+            remaining_defaults = M.Tail(remaining_defaults)()
+        self.result = Reverse(reversed_effective)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class ClassifyProposal(M.Edge):
     """Classify a proposed Law by literal Handle and Law structure."""
 
@@ -2138,6 +2488,7 @@ class ClassifyProposal(M.Edge):
         right_contains_preference = M.false_value
         right_contains_retired = M.false_value
         right_contains_heuristic = M.false_value
+        right_contains_policy_entry = M.false_value
         remaining_right = GraphElements(LawRight(law)())()
         while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
             element = M.Head(remaining_right)()
@@ -2156,9 +2507,16 @@ class ClassifyProposal(M.Edge):
                     right_contains_retired = M.truth_value
                 if IsHeuristicTerm(element)() is M.truth_value:
                     right_contains_heuristic = M.truth_value
+                if IsPolicyEntry(element)() is M.truth_value:
+                    right_contains_policy_entry = M.truth_value
             remaining_right = M.Tail(remaining_right)()
 
-        if M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
+        if M.IdentityCompare(
+            right_contains_policy_entry,
+            M.truth_value,
+        )() is M.truth_value:
+            self.result = M.Char("policy_change")
+        elif M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
             self.result = meta_class
         elif M.IdentityCompare(
             right_contains_retired,
@@ -2339,7 +2697,7 @@ class AutonomyCycle(M.Edge):
         reversed_activated = M.EmptyList
         reversed_skipped_human = M.EmptyList
         remaining_entries = ProposalStoreEntries(current_store)()
-        policy = ImpactPolicy()()
+        policy = InstalledPolicy(current_version)()
 
         while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
             entry = M.Head(remaining_entries)()
@@ -2373,13 +2731,20 @@ class AutonomyCycle(M.Edge):
             if M.IdentityCompare(pending, M.truth_value)() is M.truth_value:
                 impact = ClassifyProposal(proposal)()
                 disposition = M.EmptyList
+                if M.Compare(impact, M.Char("policy_change"))() is M.truth_value:
+                    disposition = M.Char("human")
                 remaining_policy = policy
                 while M.IdentityCompare(
                     remaining_policy,
                     M.EmptyList,
                 )() is M.false_value:
                     policy_entry = M.Head(remaining_policy)()
-                    if M.Compare(
+                    if M.IdentityCompare(
+                        disposition,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        remaining_policy = M.EmptyList
+                    elif M.Compare(
                         M.Head(policy_entry)(),
                         impact,
                     )() is M.truth_value:
