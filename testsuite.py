@@ -4195,6 +4195,169 @@ class PolicyChangeCountersignTest(M.Edge):
         return self.result
 
 
+class CuratorReportTest(M.Edge):
+    """Step 38: report counts match a hand-computed scripted session exactly."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+
+        interface_node = M.Char("curator-interface")
+        first_internal = M.Char("curator-first-internal")
+        second_internal = M.Char("curator-second-internal")
+        pattern_edge = M.Pair(
+            M.Char("curator-pattern-edge"),
+            M.Pair(
+                interface_node,
+                M.Pair(first_internal, M.Pair(second_internal, empty)),
+            ),
+        )
+        pattern_nodes = M.Pair(
+            interface_node,
+            M.Pair(first_internal, M.Pair(second_internal, empty)),
+        )
+        pattern = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(pattern_nodes, M.Pair(M.Pair(pattern_edge, empty), empty)),
+        )
+        interface_nodes = M.Pair(interface_node, empty)
+        handle = Gmod.Handle(M.Char("curator-handle"), pattern)()
+        compiled = Gmod.CompileHandleToLaws(handle, interface_nodes)()
+        fold = M.Head(compiled)()
+        auto_proposal = Gmod.Proposal(fold, handle)()
+
+        empty_graph = Gmod.GraphVersion(empty, empty, empty)()
+        human_law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            empty_graph,
+            empty,
+            empty,
+            empty,
+        )()
+        human_proposal = Gmod.Proposal(
+            human_law,
+            M.Char("curator-human-origin"),
+        )()
+        rejected_proposal = Gmod.Proposal(
+            human_law,
+            M.Char("curator-rejected-origin"),
+        )()
+        human_authority = M.Pair(M.Char("curator-authority"), empty)
+
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(store, auto_proposal)()
+        store = Gmod.ProposalStoreSubmit(store, human_proposal)()
+        store = Gmod.ProposalStoreSubmit(store, rejected_proposal)()
+        store = Gmod.ProposalStoreReject(
+            store,
+            Gmod.ProposalEntry(rejected_proposal, empty)(),
+            human_authority,
+            M.Char("curator-rejection-reason"),
+        )()
+
+        host = Gmod.GraphVersion(
+            pattern_nodes,
+            M.Pair(pattern_edge, empty),
+            empty,
+        )()
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.one, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        cycle = Gmod.AutonomyCycle(host, store, ledger, budget)()
+        cycle_version = M.Head(cycle)()
+        cycle_store = M.Head(M.Tail(cycle)())()
+
+        approved_store = Gmod.ProposalStoreAttach(
+            cycle_store,
+            human_proposal,
+            Gmod.Approved(human_proposal, human_authority)(),
+        )()
+        activated = Gmod.ActivateProposal(
+            cycle_version,
+            Gmod.ProposalEntry(
+                human_proposal,
+                M.Pair(
+                    Gmod.Approved(human_proposal, human_authority)(),
+                    empty,
+                ),
+            )(),
+        )()
+        final_version = M.Head(activated)()
+
+        second_budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.Zero, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        second_cycle = Gmod.AutonomyCycle(
+            final_version,
+            approved_store,
+            ledger,
+            second_budget,
+        )()
+        final_store = M.Head(M.Tail(second_cycle)())()
+
+        report = Gmod.CuratorReport(final_store, ledger, final_version)()
+        rendered = Gmod.RenderCuratorReport(report)()
+        expected = (
+            "curator report"
+            + "\nclass fold_handle: submitted=1 approved=1 rejected=0 pending=0"
+            + "\nclass install_law: submitted=2 approved=1 rejected=1 pending=0"
+            + "\nretired_laws=0"
+            + "\nledger_firings=1"
+            + "\nledger_misses=0"
+            + "\neffective_policy:"
+            + " fold_handle=auto unfold_handle=auto install_law=human"
+            + " meta_rewrite=human activation=human tune_preference=auto"
+            + " retire_law=human tune_scheduler=human"
+            + "\nskipped_handle_candidates count=0"
+            + "\nskipped_compositions count=0"
+            + "\nunchecked_obligations count=0"
+        )
+
+        graph._replace_context(constructors=ledger.registry)
+
+        self.result = M.truth_value
+        if rendered != expected:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ToyCorrespondenceRoundTripTest(M.Edge):
     """Toy v0: one hand-authored Surface/Meaning law parses, evaluates, renders.
 
@@ -11930,6 +12093,14 @@ def install_default_tests(graph):
             "policy_change_countersign_test",
             empty,
             PolicyChangeCountersignTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "curator_report_test",
+            empty,
+            CuratorReportTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

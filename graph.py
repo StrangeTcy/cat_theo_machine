@@ -7784,6 +7784,306 @@ class GenerateRetirementProposals(M.Edge):
         return self.result
 
 
+CURATOR_REPORT_SCAN_CAP = M.GMPRep("200")
+
+
+class CuratorReport(M.Edge):
+    """Step 38: the machine's self-description for the deciding human.
+
+    Returns an association chain (sorted by class name at render time):
+      per proposal class: Pair(class, Pair(Pair(submitted, Pair(approved,
+        Pair(rejected, Pair(pending, EmptyList)))), EmptyList))
+    followed by entries for retired-law count, the effective policy, and the
+    recorded skip lists. Read-only: no store, ledger, or version is written.
+    """
+
+    def __init__(self, proposal_store, ledger, graph_version):
+        cap_text = M.GMPRepText(CURATOR_REPORT_SCAN_CAP)()
+        class_rows = M.EmptyList
+        scan_text = "0"
+        remaining_entries = ProposalStoreEntries(proposal_store)()
+        while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_entries = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining_entries)()
+                proposal = ProposalEntryProposal(entry)()
+                impact = ClassifyProposal(proposal)()
+                approved = M.false_value
+                rejected = M.false_value
+                remaining_annotations = ProposalEntryAnnotations(entry)()
+                while M.IdentityCompare(
+                    remaining_annotations,
+                    M.EmptyList,
+                )() is M.false_value:
+                    annotation = M.Head(remaining_annotations)()
+                    if M.IsPair(annotation)() is M.truth_value:
+                        if M.TermEqual(
+                            M.Head(annotation)(),
+                            Lmod.ApprovedLabel,
+                        )() is M.truth_value:
+                            approved = M.truth_value
+                        if M.TermEqual(
+                            M.Head(annotation)(),
+                            Lmod.RejectedLabel,
+                        )() is M.truth_value:
+                            rejected = M.truth_value
+                    remaining_annotations = M.Tail(remaining_annotations)()
+
+                row = M.EmptyList
+                reversed_rows = M.EmptyList
+                remaining_rows = class_rows
+                while M.IdentityCompare(
+                    remaining_rows,
+                    M.EmptyList,
+                )() is M.false_value:
+                    candidate = M.Head(remaining_rows)()
+                    if M.Compare(M.Head(candidate)(), impact)() is M.truth_value:
+                        row = candidate
+                    else:
+                        reversed_rows = M.Pair(candidate, reversed_rows)
+                    remaining_rows = M.Tail(remaining_rows)()
+                if M.IdentityCompare(row, M.EmptyList)() is M.truth_value:
+                    counts = M.Pair(
+                        "0",
+                        M.Pair("0", M.Pair("0", M.Pair("0", M.EmptyList))),
+                    )
+                else:
+                    counts = M.Head(M.Tail(row)())()
+                submitted_text = GMPSuccText(M.Head(counts)())()
+                approved_text = M.Head(M.Tail(counts)())()
+                rejected_text = M.Head(M.Tail(M.Tail(counts)())())()
+                pending_text = M.Head(M.Tail(M.Tail(M.Tail(counts)())())())()
+                if M.IdentityCompare(approved, M.truth_value)() is M.truth_value:
+                    approved_text = GMPSuccText(approved_text)()
+                elif M.IdentityCompare(rejected, M.truth_value)() is M.truth_value:
+                    rejected_text = GMPSuccText(rejected_text)()
+                else:
+                    pending_text = GMPSuccText(pending_text)()
+                row = M.Pair(
+                    impact,
+                    M.Pair(
+                        M.Pair(
+                            submitted_text,
+                            M.Pair(
+                                approved_text,
+                                M.Pair(
+                                    rejected_text,
+                                    M.Pair(pending_text, M.EmptyList),
+                                ),
+                            ),
+                        ),
+                        M.EmptyList,
+                    ),
+                )
+                class_rows = Reverse(M.Pair(row, reversed_rows))()
+                remaining_entries = M.Tail(remaining_entries)()
+
+        retired_text = "0"
+        scan_text = "0"
+        remaining_statuses = AllLawsWithStatus(graph_version)()
+        while M.IdentityCompare(remaining_statuses, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_statuses = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                status_entry = M.Head(remaining_statuses)()
+                if M.Compare(
+                    M.Head(M.Tail(status_entry)())(),
+                    M.Char("retired"),
+                )() is M.truth_value:
+                    retired_text = GMPSuccText(retired_text)()
+                remaining_statuses = M.Tail(remaining_statuses)()
+
+        fired_text = "0"
+        scan_text = "0"
+        remaining_records = ledger.records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_records = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                fired_text = GMPSuccText(fired_text)()
+                remaining_records = M.Tail(remaining_records)()
+
+        miss_text = "0"
+        scan_text = "0"
+        remaining_misses = ledger.misses
+        while M.IdentityCompare(remaining_misses, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_misses = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                miss_text = GMPSuccText(miss_text)()
+                remaining_misses = M.Tail(remaining_misses)()
+
+        self.result = M.Pair(
+            M.Pair(M.Char("classes"), M.Pair(class_rows, M.EmptyList)),
+            M.Pair(
+                M.Pair(
+                    M.Char("retired_laws"),
+                    M.Pair(retired_text, M.EmptyList),
+                ),
+                M.Pair(
+                    M.Pair(
+                        M.Char("ledger_firings"),
+                        M.Pair(fired_text, M.EmptyList),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            M.Char("ledger_misses"),
+                            M.Pair(miss_text, M.EmptyList),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                M.Char("effective_policy"),
+                                M.Pair(
+                                    InstalledPolicy(graph_version)(),
+                                    M.EmptyList,
+                                ),
+                            ),
+                            M.Pair(
+                                M.Pair(
+                                    M.Char("skipped_handle_candidates"),
+                                    M.Pair(
+                                        SKIPPED_HANDLE_CANDIDATES,
+                                        M.EmptyList,
+                                    ),
+                                ),
+                                M.Pair(
+                                    M.Pair(
+                                        M.Char("skipped_compositions"),
+                                        M.Pair(
+                                            SKIPPED_COMPOSITIONS,
+                                            M.EmptyList,
+                                        ),
+                                    ),
+                                    M.Pair(
+                                        M.Pair(
+                                            M.Char("unchecked_obligations"),
+                                            M.Pair(
+                                                UncheckedObligations()(),
+                                                M.EmptyList,
+                                            ),
+                                        ),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(ledger, M.Pair(graph_version, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RenderCuratorReport(M.Edge):
+    """Step 38: deterministic plain-text rendering; output only, no writes."""
+
+    def __init__(self, report):
+        class_rows = M.Head(M.Tail(M.Head(report)())())()
+        row_texts = M.EmptyList
+        remaining_rows = class_rows
+        while M.IdentityCompare(remaining_rows, M.EmptyList)() is M.false_value:
+            row = M.Head(remaining_rows)()
+            counts = M.Head(M.Tail(row)())()
+            line = (
+                "class "
+                + M.Head(row)()()
+                + ": submitted="
+                + M.Head(counts)()
+                + " approved="
+                + M.Head(M.Tail(counts)())()
+                + " rejected="
+                + M.Head(M.Tail(M.Tail(counts)())())()
+                + " pending="
+                + M.Head(M.Tail(M.Tail(M.Tail(counts)())())())()
+            )
+            inserted = M.false_value
+            reversed_sorted = M.EmptyList
+            remaining_texts = row_texts
+            while M.IdentityCompare(
+                remaining_texts,
+                M.EmptyList,
+            )() is M.false_value:
+                existing = M.Head(remaining_texts)()
+                if M.IdentityCompare(inserted, M.false_value)() is M.truth_value:
+                    if line < existing:
+                        reversed_sorted = M.Pair(existing, M.Pair(line, reversed_sorted))
+                        inserted = M.truth_value
+                    else:
+                        reversed_sorted = M.Pair(existing, reversed_sorted)
+                else:
+                    reversed_sorted = M.Pair(existing, reversed_sorted)
+                remaining_texts = M.Tail(remaining_texts)()
+            if M.IdentityCompare(inserted, M.false_value)() is M.truth_value:
+                reversed_sorted = M.Pair(line, reversed_sorted)
+            row_texts = Reverse(reversed_sorted)()
+            remaining_rows = M.Tail(remaining_rows)()
+
+        rendered = "curator report"
+        remaining_texts = row_texts
+        while M.IdentityCompare(remaining_texts, M.EmptyList)() is M.false_value:
+            rendered = rendered + "\n" + M.Head(remaining_texts)()
+            remaining_texts = M.Tail(remaining_texts)()
+
+        remaining_sections = M.Tail(report)()
+        while M.IdentityCompare(
+            remaining_sections,
+            M.EmptyList,
+        )() is M.false_value:
+            section = M.Head(remaining_sections)()
+            key = M.Head(section)()()
+            value = M.Head(M.Tail(section)())()
+            if key == "effective_policy":
+                policy_text = ""
+                remaining_policy = value
+                while M.IdentityCompare(
+                    remaining_policy,
+                    M.EmptyList,
+                )() is M.false_value:
+                    policy_entry = M.Head(remaining_policy)()
+                    policy_text = (
+                        policy_text
+                        + " "
+                        + M.Head(policy_entry)()()
+                        + "="
+                        + M.Head(M.Tail(policy_entry)())()()
+                    )
+                    remaining_policy = M.Tail(remaining_policy)()
+                rendered = rendered + "\n" + key + ":" + policy_text
+            elif key == "retired_laws" or key == "ledger_firings" or key == "ledger_misses":
+                rendered = rendered + "\n" + key + "=" + value
+            else:
+                count_text = "0"
+                remaining_items = value
+                while M.IdentityCompare(
+                    remaining_items,
+                    M.EmptyList,
+                )() is M.false_value:
+                    count_text = GMPSuccText(count_text)()
+                    remaining_items = M.Tail(remaining_items)()
+                rendered = rendered + "\n" + key + " count=" + count_text
+            remaining_sections = M.Tail(remaining_sections)()
+
+        self.result = rendered
+        super().__init__(inputs=M.Pair(report, M.EmptyList), results=M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
 class FireLaw(M.Edge):
     """
     Step 8. Staged double-pushout surgery over a GraphVersion.
