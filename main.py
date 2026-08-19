@@ -1184,6 +1184,44 @@ def run_test_mode(debug: bool = False):
         print(report)
 
 
+def run_ingest_mode(records_path: str):
+    """Batch ingestion of structured TrainingRecords.
+
+    python main.py ingest <training_records_file>
+
+    For each TrainingRecord in the file: load the meaning structure as
+    Knowledge, create a PlannerAlternative carrying the trainer-supplied
+    strategy method, attempt the conclusion obligation, and record an
+    AttemptResult. Reuses the pack loader, the invariance pipeline, and the
+    planner; no new proof engine.
+    """
+    from . import training as T
+
+    runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    _print_summary(runtime, "Cold boot summary for ingest")
+
+    loader = T.TrainingRecordLoader(_runtime_namespace())
+    records = loader.load_records_file(records_path)
+
+    print(f"\n--- Ingestion: {os.path.basename(records_path)} ({len(records)} record(s)) ---")
+    attempts = ()
+    for index, (record, rules_pack) in enumerate(records, start=1):
+        attempt, summary = T.attempt_training_record(runtime, packs, record, rules_pack)
+        attempts = attempts + (attempt,)
+        print(
+            f"{index}. {summary.record_id}: {summary.status_text} "
+            f"via {summary.method_text} in {summary.elapsed:.2f}s "
+            f"(planner root {summary.planner_root_status}, "
+            f"method alternative {summary.alternative_status}, "
+            f"derivation retained {summary.retained})"
+        )
+        if summary.failure_reason:
+            print(f"   reason: {summary.failure_reason}")
+        sys.stdout.flush()
+
+    print(f"\ningested {len(attempts)} record(s)")
+
+
 def _inspector_runtime(debug: bool, prefer_snapshot: bool):
     runtime_namespace = _runtime_namespace()
     if debug:
@@ -1301,8 +1339,8 @@ def main():
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect", "search-worker"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, or search-worker",
+        choices=["cold", "warm", "test", "inspect", "search-worker", "ingest"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, or ingest (training records)",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -1348,6 +1386,10 @@ def main():
             if args.arg3 is not None:
                 timeout_seconds = int(args.arg3)
             raise SystemExit(run_search_worker_mode(args.arg1, args.arg2, timeout_seconds))
+        elif args.mode == "ingest":
+            if args.arg1 is None:
+                raise RuntimeError("ingest requires a training-records file path")
+            run_ingest_mode(args.arg1)
         else:
             run_test_mode(debug_enabled)
     except KeyboardInterrupt:

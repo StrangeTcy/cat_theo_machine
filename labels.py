@@ -1227,6 +1227,10 @@ class AttemptResultLabel(ConstructorLabel):
     pass
 
 
+class InvarianceLabel(ConstructorLabel):
+    pass
+
+
 class ProvedLabel(ConstructorLabel):
     pass
 
@@ -1377,6 +1381,7 @@ StrategyHintLabel = StrategyHintLabel()
 ObligationSkeletonLabel = ObligationSkeletonLabel()
 TestInstanceLabel = TestInstanceLabel()
 AttemptResultLabel = AttemptResultLabel()
+InvarianceLabel = InvarianceLabel()
 ProvedLabel = ProvedLabel()
 PendingLabel = PendingLabel()
 FailedLabel = FailedLabel()
@@ -1907,6 +1912,7 @@ def sync_from_namespace(namespace):
         "ObligationSkeletonLabel",
         "TestInstanceLabel",
         "AttemptResultLabel",
+        "InvarianceLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
