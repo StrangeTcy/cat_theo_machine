@@ -1083,6 +1083,10 @@ class SignedRationalLabel(ConstructorLabel):
     pass
 
 
+class SchedulePolicyLabel(ConstructorLabel):
+    pass
+
+
 class LawPreferenceLabel(ConstructorLabel):
     pass
 
@@ -1112,6 +1116,18 @@ class ReasonContractLabel(ConstructorLabel):
 
 
 class RobustnessLabel(ConstructorLabel):
+    pass
+
+
+class CostSavingsLabel(ConstructorLabel):
+    pass
+
+
+class ReuseLabel(ConstructorLabel):
+    pass
+
+
+class NoveltyLabel(ConstructorLabel):
     pass
 
 
@@ -1441,6 +1457,7 @@ FireLabel = FireLabel()
 NextLabel = NextLabel()
 FiringRecordLabel = FiringRecordLabel()
 SignedRationalLabel = SignedRationalLabel()
+SchedulePolicyLabel = SchedulePolicyLabel()
 LawPreferenceLabel = LawPreferenceLabel()
 RetiredLabel = RetiredLabel()
 PolicyEntryLabel = PolicyEntryLabel()
@@ -1449,6 +1466,9 @@ ReasonUncountersignedLabel = ReasonUncountersignedLabel()
 ContractLabel = ContractLabel()
 ReasonContractLabel = ReasonContractLabel()
 RobustnessLabel = RobustnessLabel()
+CostSavingsLabel = CostSavingsLabel()
+ReuseLabel = ReuseLabel()
+NoveltyLabel = NoveltyLabel()
 ConflictLabel = ConflictLabel()
 MigrationLabel = MigrationLabel()
 EqualLabel = EqualLabel()
@@ -1886,6 +1906,7 @@ def sync_from_namespace(namespace):
         "NextLabel",
         "FiringRecordLabel",
         "SignedRationalLabel",
+        "SchedulePolicyLabel",
         "LawPreferenceLabel",
         "RetiredLabel",
         "PolicyEntryLabel",
@@ -1894,6 +1915,9 @@ def sync_from_namespace(namespace):
         "ContractLabel",
         "ReasonContractLabel",
         "RobustnessLabel",
+        "CostSavingsLabel",
+        "ReuseLabel",
+        "NoveltyLabel",
         "ConflictLabel",
         "MigrationLabel",
         "EqualLabel",

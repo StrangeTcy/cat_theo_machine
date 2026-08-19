@@ -3837,6 +3837,11 @@ class FireAny(M.Edge):
         if M.IdentityCompare(contracts, M.EmptyList)() is M.false_value:
             contract_probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
         laws = InstalledLaws(graph_version)()
+        # Step 47 ordering resolution, highest precedence first:
+        # explicit argument, then SchedulePolicy-derived, then LawPreference,
+        # then installed-store order.
+        if M.IdentityCompare(ordering, M.EmptyList)() is M.truth_value:
+            ordering = ScheduleOrdering(graph_version, ledger)()
         if M.IdentityCompare(ordering, M.EmptyList)() is M.truth_value:
             ordering = InstalledPreference(graph_version)()
         if M.IdentityCompare(ordering, M.EmptyList)() is M.false_value:
@@ -4774,6 +4779,213 @@ class InstalledHeuristic(M.Edge):
         return self.result
 
 
+class SchedulePolicy(M.Edge):
+    """Step 47: the two scheduler weights as an installable labeled term."""
+
+    def __init__(self, exploit_weight, explore_weight):
+        self.result = M.Pair(
+            Lmod.SchedulePolicyLabel,
+            M.Pair(exploit_weight, M.Pair(explore_weight, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                exploit_weight,
+                M.Pair(explore_weight, M.EmptyList),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsSchedulePolicy(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(
+                M.Head(term)(),
+                Lmod.SchedulePolicyLabel,
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchedulePolicyExploit(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchedulePolicyExplore(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledSchedulePolicy(M.Edge):
+    """Newest installed SchedulePolicy term, or EmptyList.
+
+    Mirrors InstalledPreference and InstalledHeuristic exactly: scan the
+    invariant store, newest installation wins.
+    """
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        scan_text = "0"
+        self.result = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                invariant = M.Head(remaining)()
+                if IsInstalledLaw(invariant)() is M.truth_value:
+                    law = InstalledLawValue(invariant)()
+                    element_scan_text = "0"
+                    remaining_elements = GraphNodes(LawRight(law)())()
+                    while M.IdentityCompare(
+                        remaining_elements,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            element_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_elements = M.EmptyList
+                        else:
+                            element_scan_text = GMPSuccText(element_scan_text)()
+                            element = M.Head(remaining_elements)()
+                            if IsSchedulePolicy(element)() is M.truth_value:
+                                self.result = element
+                                remaining_elements = M.EmptyList
+                                remaining = M.EmptyList
+                            else:
+                                remaining_elements = M.Tail(remaining_elements)()
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ScheduleOrdering(M.Edge):
+    """Step 47: order installed laws by the SchedulePolicy score, descending.
+
+    score(law) = exploit_weight * cost_savings(law)
+               + explore_weight * novelty(law-left-pattern)
+
+    The formula is host code and fixed; only the two Nat weights are
+    machine-visible and machine-changeable, through a tune_scheduler
+    proposal. If the machine ever needs a different formula, that is
+    ladder 13 territory and goes through Step 37's countersigned gate as a
+    policy change, not through a weight edit.
+
+    Nat arithmetic throughout, via GMP count texts. Selection sort by
+    descending score keeps the comparison structural and the order total:
+    ties keep installed-store order, so the result stays deterministic.
+    """
+
+    def __init__(self, graph_version, ledger, policy=M.EmptyList):
+        if M.IdentityCompare(policy, M.EmptyList)() is M.truth_value:
+            policy = InstalledSchedulePolicy(graph_version)()
+        self.result = M.EmptyList
+        if M.IdentityCompare(policy, M.EmptyList)() is M.false_value:
+            registry = M.AllConstructors
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                registry = ledger.registry
+            exploit_text = M.GMPRepText(
+                M.NatRepOf(SchedulePolicyExploit(policy)(), registry)(),
+            )()
+            explore_text = M.GMPRepText(
+                M.NatRepOf(SchedulePolicyExplore(policy)(), registry)(),
+            )()
+            records = M.EmptyList
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+                records = ledger.records
+            cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+            scan_text = "0"
+            scored = M.EmptyList
+            remaining = InstalledLaws(graph_version)()
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                    remaining = M.EmptyList
+                else:
+                    scan_text = GMPSuccText(scan_text)()
+                    law = M.Head(remaining)()
+                    saved_text = M.GMPRepText(
+                        M.NatRepOf(
+                            MeasureCostSavings(records, law, registry)(),
+                            registry,
+                        )(),
+                    )()
+                    novel_text = M.GMPRepText(
+                        M.NatRepOf(
+                            MeasureNovelty(graph_version, LawLeft(law)())(),
+                            registry,
+                        )(),
+                    )()
+                    score_text = GMPAddText(
+                        GMPMulText(exploit_text, saved_text)(),
+                        GMPMulText(explore_text, novel_text)(),
+                    )()
+                    scored = M.Pair(
+                        M.Pair(law, M.Pair(M.GMPRep(score_text), M.EmptyList)),
+                        scored,
+                    )
+                    remaining = M.Tail(remaining)()
+            scored = Reverse(scored)()
+            ordered = M.EmptyList
+            while M.IdentityCompare(scored, M.EmptyList)() is M.false_value:
+                best = M.Head(scored)()
+                best_text = M.GMPRepText(M.Head(M.Tail(best)())())()
+                probe = M.Tail(scored)()
+                while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                    entry = M.Head(probe)()
+                    entry_text = M.GMPRepText(M.Head(M.Tail(entry)())())()
+                    if GMPLessText(best_text, entry_text)() is M.truth_value:
+                        best = entry
+                        best_text = entry_text
+                    probe = M.Tail(probe)()
+                ordered = M.Pair(M.Head(best)(), ordered)
+                remainder = M.EmptyList
+                probe = scored
+                dropped = M.false_value
+                while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                    entry = M.Head(probe)()
+                    if M.IdentityCompare(entry, best)() is M.truth_value:
+                        if M.IdentityCompare(dropped, M.false_value)() is M.truth_value:
+                            dropped = M.truth_value
+                        else:
+                            remainder = M.Pair(entry, remainder)
+                    else:
+                        remainder = M.Pair(entry, remainder)
+                    probe = M.Tail(probe)()
+                scored = Reverse(remainder)()
+            self.result = Reverse(ordered)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 HEURISTIC_TRIAL_FIXTURE_CAP = M.GMPRep("10")
 
 
@@ -5251,6 +5463,271 @@ class GenerateRobustnessAnnotation(M.Edge):
                 proposal_store,
                 M.Pair(law, M.Pair(report, M.EmptyList)),
             ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+METRIC_RECORD_SCAN_CAP = M.GMPRep("200")
+NOVELTY_SCAN_CAP = M.GMPRep("50")
+
+
+class CostSavings(M.Edge):
+    """Step 46: recorded node-count savings for one law as a labeled term."""
+
+    def __init__(self, law, saved):
+        self.result = M.Pair(
+            Lmod.CostSavingsLabel,
+            M.Pair(law, M.Pair(saved, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(saved, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsCostSavings(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(
+                M.Head(term)(),
+                Lmod.CostSavingsLabel,
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CostSavingsLaw(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CostSavingsSaved(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Reuse(M.Edge):
+    """Step 46: census reuse count for one handle as a labeled term."""
+
+    def __init__(self, handle, count):
+        self.result = M.Pair(
+            Lmod.ReuseLabel,
+            M.Pair(handle, M.Pair(count, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(handle, M.Pair(count, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsReuse(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.ReuseLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReuseHandle(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReuseCount(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Novelty(M.Edge):
+    """Step 46: count of installed handles a pattern does not match into."""
+
+    def __init__(self, pattern_graph, count):
+        self.result = M.Pair(
+            Lmod.NoveltyLabel,
+            M.Pair(pattern_graph, M.Pair(count, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(pattern_graph, M.Pair(count, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsNovelty(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.NoveltyLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NoveltyPattern(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NoveltyCount(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MeasureCostSavings(M.Edge):
+    """Sum of node-count reductions over one law's committed records.
+
+    Reuses the ledger records written by FireLaw: a record whose nodes_after
+    is below its nodes_before saved the difference. Growth contributes
+    nothing rather than a negative, keeping the measure Nat-valued.
+    """
+
+    def __init__(self, records, law, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        cap_text = M.GMPRepText(METRIC_RECORD_SCAN_CAP)()
+        scan_text = "0"
+        saved_text = "0"
+        remaining = records
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                record = M.Head(remaining)()
+                if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                    before_text = M.GMPRepText(
+                        M.NatRepOf(FiringRecordNodesBefore(record)(), registry)(),
+                    )()
+                    after_text = M.GMPRepText(
+                        M.NatRepOf(FiringRecordNodesAfter(record)(), registry)(),
+                    )()
+                    if GMPLessText(after_text, before_text)() is M.truth_value:
+                        saved_text = GMPAddText(
+                            saved_text,
+                            GMPSubText(before_text, after_text)(),
+                        )()
+                remaining = M.Tail(remaining)()
+        self.result = MineNatFromGMPRep(M.GMPRep(saved_text))()
+        super().__init__(
+            inputs=M.Pair(records, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MeasureReuse(M.Edge):
+    """Census count of one handle's pattern across a version history.
+
+    Delegates to the Step-20 PatternCensus rather than re-counting, then
+    sums its per-version counts into a single Nat.
+    """
+
+    def __init__(self, ledger, handle, versions):
+        counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
+        total_text = "0"
+        remaining = counts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            count = M.Head(remaining)()
+            total_text = GMPAddText(
+                total_text,
+                M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+            )()
+            remaining = M.Tail(remaining)()
+        self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
+        super().__init__(
+            inputs=M.Pair(handle, M.Pair(versions, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MeasureNovelty(M.Edge):
+    """Count installed handles whose pattern the candidate does not match.
+
+    Bounded by NOVELTY_SCAN_CAP. Matching reuses FirstCompletedMatch, so a
+    candidate is 'known' exactly when the ordinary matcher relates it to an
+    installed handle's pattern.
+    """
+
+    def __init__(self, graph_version, pattern_graph):
+        cap_text = M.GMPRepText(NOVELTY_SCAN_CAP)()
+        scan_text = "0"
+        unmatched_text = "0"
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                invariant = M.Head(remaining)()
+                if M.IsPair(invariant)() is M.truth_value:
+                    if M.TermEqual(
+                        M.Head(invariant)(),
+                        Lmod.HandleLabel,
+                    )() is M.truth_value:
+                        scan_text = GMPSuccText(scan_text)()
+                        installed_pattern = HandlePattern(invariant)()
+                        mapping = FirstCompletedMatch(
+                            pattern_graph,
+                            installed_pattern,
+                        )()
+                        if M.IdentityCompare(
+                            mapping,
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            unmatched_text = GMPSuccText(unmatched_text)()
+                remaining = M.Tail(remaining)()
+        self.result = MineNatFromGMPRep(M.GMPRep(unmatched_text))()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(pattern_graph, M.EmptyList)),
             results=self.result,
         )
 
