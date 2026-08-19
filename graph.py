@@ -10278,6 +10278,123 @@ class GenerateRetirementProposals(M.Edge):
 CURATOR_REPORT_SCAN_CAP = M.GMPRep("200")
 
 
+class SelfModelVersion(M.Edge):
+    """Step 50: the machine's own state rendered in its own substrate.
+
+    One GraphVersion built by quotation: installed laws with their
+    Robustness and metric annotations, contracts, the effective policy,
+    the schedule policy, safety invariants, and the last META_WINDOW_CAP
+    ledger records. Everything is an ordinary term, so the ordinary miner,
+    matcher and census run over the result unchanged.
+
+    SelfModelLabel marks the root and is the only label this step adds.
+    Nothing here interprets the state; it only renders it.
+    """
+
+    def __init__(self, graph_version, proposal_store, ledger):
+        registry = M.AllConstructors
+        if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+            registry = ledger.registry
+        cap_text = M.GMPRepText(SAFETY_SCAN_CAP)()
+
+        # Installed laws, each paired with its recorded metrics so that a
+        # law with no successes is structurally visible as such.
+        scan_text = "0"
+        reversed_laws = M.EmptyList
+        records = M.EmptyList
+        if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
+            records = ledger.records
+        remaining = InstalledLaws(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                law = M.Head(remaining)()
+                fired_text = "0"
+                remaining_records = records
+                while M.IdentityCompare(
+                    remaining_records,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.TermEqual(
+                        FiringRecordLaw(M.Head(remaining_records)())(),
+                        law,
+                    )() is M.truth_value:
+                        fired_text = GMPSuccText(fired_text)()
+                    remaining_records = M.Tail(remaining_records)()
+                reversed_laws = M.Pair(
+                    M.Pair(
+                        law,
+                        M.Pair(
+                            MeasureCostSavings(records, law, registry)(),
+                            M.Pair(
+                                MineNatFromGMPRep(M.GMPRep(fired_text))(),
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                    reversed_laws,
+                )
+                remaining = M.Tail(remaining)()
+
+        # The last META_WINDOW_CAP records, quoted by the Step-48 edge.
+        window_text = M.GMPRepText(META_WINDOW_CAP)()
+        scan_text = "0"
+        reversed_quoted = M.EmptyList
+        remaining = records
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, window_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                reversed_quoted = M.Pair(
+                    QuoteLedgerRecord(
+                        M.Head(remaining)(),
+                        META_OUTCOME_FIRED,
+                        META_CLASS_UNKNOWN,
+                        registry,
+                    )(),
+                    reversed_quoted,
+                )
+                remaining = M.Tail(remaining)()
+
+        pending_count = M.EmptyList
+        if M.IdentityCompare(proposal_store, M.EmptyList)() is M.false_value:
+            pending_count = MeasurePendingProposals(proposal_store)()
+
+        model_term = M.Pair(
+            Lmod.SelfModelLabel,
+            M.Pair(
+                Reverse(reversed_laws)(),
+                M.Pair(
+                    InstalledContracts(graph_version)(),
+                    M.Pair(
+                        InstalledPolicy(graph_version)(),
+                        M.Pair(
+                            InstalledSchedulePolicy(graph_version)(),
+                            M.Pair(
+                                InstalledSafetyInvariants(graph_version)(),
+                                M.Pair(
+                                    Reverse(reversed_quoted)(),
+                                    M.Pair(pending_count, M.EmptyList),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        self.result = EncodeTermAsGraph(model_term)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class CuratorReport(M.Edge):
     """Step 38: the machine's self-description for the deciding human.
 
@@ -10458,7 +10575,20 @@ class CuratorReport(M.Edge):
                                                 M.EmptyList,
                                             ),
                                         ),
-                                        M.EmptyList,
+                                        M.Pair(
+                                            M.Pair(
+                                                M.Char("self_model"),
+                                                M.Pair(
+                                                    SelfModelVersion(
+                                                        graph_version,
+                                                        proposal_store,
+                                                        ledger,
+                                                    )(),
+                                                    M.EmptyList,
+                                                ),
+                                            ),
+                                            M.EmptyList,
+                                        ),
                                     ),
                                 ),
                             ),
