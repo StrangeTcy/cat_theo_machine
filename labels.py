@@ -1199,6 +1199,34 @@ class PlannerJobLabel(ConstructorLabel):
     pass
 
 
+class TrainingRecordLabel(ConstructorLabel):
+    pass
+
+
+class ProblemStatementLabel(ConstructorLabel):
+    pass
+
+
+class MeaningStructureLabel(ConstructorLabel):
+    pass
+
+
+class StrategyHintLabel(ConstructorLabel):
+    pass
+
+
+class ObligationSkeletonLabel(ConstructorLabel):
+    pass
+
+
+class TestInstanceLabel(ConstructorLabel):
+    pass
+
+
+class AttemptResultLabel(ConstructorLabel):
+    pass
+
+
 class ProvedLabel(ConstructorLabel):
     pass
 
@@ -1342,6 +1370,13 @@ PlannerAlternativeLabel = PlannerAlternativeLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()
 PlannerJobLabel = PlannerJobLabel()
+TrainingRecordLabel = TrainingRecordLabel()
+ProblemStatementLabel = ProblemStatementLabel()
+MeaningStructureLabel = MeaningStructureLabel()
+StrategyHintLabel = StrategyHintLabel()
+ObligationSkeletonLabel = ObligationSkeletonLabel()
+TestInstanceLabel = TestInstanceLabel()
+AttemptResultLabel = AttemptResultLabel()
 ProvedLabel = ProvedLabel()
 PendingLabel = PendingLabel()
 FailedLabel = FailedLabel()
@@ -1865,6 +1900,13 @@ def sync_from_namespace(namespace):
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",
+        "TrainingRecordLabel",
+        "ProblemStatementLabel",
+        "MeaningStructureLabel",
+        "StrategyHintLabel",
+        "ObligationSkeletonLabel",
+        "TestInstanceLabel",
+        "AttemptResultLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
