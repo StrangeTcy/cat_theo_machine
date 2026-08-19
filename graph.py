@@ -810,6 +810,288 @@ class Activation(M.Edge):
         return self.result
 
 
+BOOT_STORE_CAP = M.GMPRep("100000")
+BOOT_DEPTH_CAP = M.GMPRep("50000")
+BOOT_PENDING_CAP = M.GMPRep("1000")
+SAFETY_SCAN_CAP = M.GMPRep("200")
+
+# Step 49: the three recognized measures, as label singletons compared by
+# identity. Adding a fourth measure is a code change, deliberately: the
+# floor's vocabulary is not machine-extensible.
+SAFETY_MEASURE_STORE_SIZE = M.Char("store-size")
+SAFETY_MEASURE_PROVENANCE_DEPTH = M.Char("provenance-depth")
+SAFETY_MEASURE_PENDING_PROPOSALS = M.Char("pending-proposals")
+
+
+class SafetyInvariant(M.Edge):
+    """Step 49: a named bound on one recognized measure."""
+
+    def __init__(self, name, bound, measure):
+        self.result = M.Pair(
+            Lmod.SafetyInvariantLabel,
+            M.Pair(name, M.Pair(bound, M.Pair(measure, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(name, M.Pair(bound, M.Pair(measure, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsSafetyInvariant(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(
+                M.Head(term)(),
+                Lmod.SafetyInvariantLabel,
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SafetyInvariantName(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SafetyInvariantBound(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SafetyInvariantMeasure(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(term)())())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReasonSafety(M.Edge):
+    """Refusal reason carrying the violated invariant and the proposal."""
+
+    def __init__(self, invariant, proposal):
+        self.result = M.Pair(
+            Lmod.ReasonSafetyLabel,
+            M.Pair(invariant, M.Pair(proposal, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(invariant, M.Pair(proposal, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MeasureStoreSize(M.Edge):
+    """Element count of one graph version: nodes plus edges."""
+
+    def __init__(self, graph_version):
+        total_text = "0"
+        remaining = GraphNodes(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            total_text = GMPSuccText(total_text)()
+            remaining = M.Tail(remaining)()
+        remaining = GraphEdges(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            total_text = GMPSuccText(total_text)()
+            remaining = M.Tail(remaining)()
+        self.result = M.GMPRep(total_text)
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MeasureProvenanceDepth(M.Edge):
+    """Length of the Next chain reachable from one version."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(SAFETY_SCAN_CAP)()
+        depth_text = "0"
+        current = graph_version
+        walking = M.truth_value
+        while M.IdentityCompare(walking, M.truth_value)() is M.truth_value:
+            walking = M.false_value
+            if GMPEqualText(depth_text, cap_text)() is M.false_value:
+                if M.IsPair(current)() is M.truth_value:
+                    if M.TermEqual(
+                        M.Head(current)(),
+                        Lmod.NextLabel,
+                    )() is M.truth_value:
+                        depth_text = GMPSuccText(depth_text)()
+                        current = M.Head(M.Tail(current)())()
+                        walking = M.truth_value
+        self.result = M.GMPRep(depth_text)
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MeasurePendingProposals(M.Edge):
+    """Count of unapproved entries in a proposal store."""
+
+    def __init__(self, proposal_store):
+        total_text = "0"
+        remaining = M.EmptyList
+        if M.IdentityCompare(proposal_store, M.EmptyList)() is M.false_value:
+            remaining = ProposalStoreEntries(proposal_store)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            if ProposalEntryIsApproved(entry)() is M.false_value:
+                total_text = GMPSuccText(total_text)()
+            remaining = M.Tail(remaining)()
+        self.result = M.GMPRep(total_text)
+        super().__init__(
+            inputs=M.Pair(proposal_store, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledSafetyInvariants(M.Edge):
+    """Every SafetyInvariant term in the invariant store, in store order."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(SAFETY_SCAN_CAP)()
+        scan_text = "0"
+        reversed_found = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                invariant = M.Head(remaining)()
+                if IsSafetyInvariant(invariant)() is M.truth_value:
+                    reversed_found = M.Pair(invariant, reversed_found)
+                remaining = M.Tail(remaining)()
+        self.result = Reverse(reversed_found)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CheckSafety(M.Edge):
+    """Step 49: the first violated installed invariant, or EmptyList.
+
+    A measure exceeds its bound when bound < measured. Unrecognized
+    measures are ignored rather than treated as violations: the floor
+    refuses on evidence, never on confusion.
+    """
+
+    def __init__(self, graph_version, proposal_store=M.EmptyList):
+        self.result = M.EmptyList
+        remaining = InstalledSafetyInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            invariant = M.Head(remaining)()
+            measure = SafetyInvariantMeasure(invariant)()
+            measured = M.EmptyList
+            if M.Compare(measure, SAFETY_MEASURE_STORE_SIZE)() is M.truth_value:
+                measured = MeasureStoreSize(graph_version)()
+            elif M.Compare(
+                measure,
+                SAFETY_MEASURE_PROVENANCE_DEPTH,
+            )() is M.truth_value:
+                measured = MeasureProvenanceDepth(graph_version)()
+            elif M.Compare(
+                measure,
+                SAFETY_MEASURE_PENDING_PROPOSALS,
+            )() is M.truth_value:
+                measured = MeasurePendingProposals(proposal_store)()
+            if M.IdentityCompare(measured, M.EmptyList)() is M.false_value:
+                bound_text = M.GMPRepText(SafetyInvariantBound(invariant)())()
+                if GMPLessText(
+                    bound_text,
+                    M.GMPRepText(measured)(),
+                )() is M.truth_value:
+                    self.result = invariant
+                    remaining = M.EmptyList
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(proposal_store, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BootstrapSafetyInvariants(M.Edge):
+    """The three floor invariants, installed by host code at startup.
+
+    This is the one permitted non-proposal installation, mirroring
+    IMPACT_POLICY-as-bootstrap. Changing any of these bounds afterwards is
+    a policy_change proposal and goes through Step 37's gate.
+    """
+
+    def __init__(self, graph_version):
+        added = M.Pair(
+            SafetyInvariant(
+                M.Char("boot-store-size"),
+                BOOT_STORE_CAP,
+                SAFETY_MEASURE_STORE_SIZE,
+            )(),
+            M.Pair(
+                SafetyInvariant(
+                    M.Char("boot-provenance-depth"),
+                    BOOT_DEPTH_CAP,
+                    SAFETY_MEASURE_PROVENANCE_DEPTH,
+                )(),
+                M.Pair(
+                    SafetyInvariant(
+                        M.Char("boot-pending-proposals"),
+                        BOOT_PENDING_CAP,
+                        SAFETY_MEASURE_PENDING_PROPOSALS,
+                    )(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        self.result = GraphVersion(
+            GraphNodes(graph_version)(),
+            GraphEdges(graph_version)(),
+            ChainAddMissing(GraphVersionInvariants(graph_version)(), added)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class ReasonUnapproved(M.Edge):
     def __init__(self, proposal):
         self.result = M.Pair(
@@ -832,8 +1114,11 @@ class ActivateProposal(M.Edge):
     AutonomyAuthority term. Tightening needs only the normal approval.
     """
 
-    def __init__(self, graph_version, proposal_entry):
+    def __init__(self, graph_version, proposal_entry, proposal_store=M.EmptyList):
         proposal = ProposalEntryProposal(proposal_entry)()
+        # Step 49: the safety floor is evaluated before any gate logic, so a
+        # violation refuses even an approved, countersigned proposal.
+        safety_violation = CheckSafety(graph_version, proposal_store)()
         countersign_ok = M.truth_value
         if M.Compare(
             ClassifyProposal(proposal)(),
@@ -932,7 +1217,12 @@ class ActivateProposal(M.Edge):
                                     remaining_annotations,
                                 )()
 
-        if ProposalEntryIsApproved(proposal_entry)() is M.false_value:
+        if M.IdentityCompare(safety_violation, M.EmptyList)() is M.false_value:
+            self.result = M.Pair(
+                M.EmptyList,
+                M.Pair(ReasonSafety(safety_violation, proposal)(), M.EmptyList),
+            )
+        elif ProposalEntryIsApproved(proposal_entry)() is M.false_value:
             self.result = M.Pair(
                 M.EmptyList,
                 M.Pair(ReasonUnapproved(proposal)(), M.EmptyList),
