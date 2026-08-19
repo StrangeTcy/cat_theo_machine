@@ -5260,6 +5260,204 @@ class GenerateRobustnessAnnotation(M.Edge):
 
 MIGRATION_PROPOSAL_CAP = M.GMPRep("10")
 MIGRATION_SCAN_CAP = M.GMPRep("200")
+CONFLICT_SCAN_CAP = M.GMPRep("200")
+
+
+class FireTraceElements(M.Edge):
+    """Step 44: the host elements one committed FiringRecord touched.
+
+    The touched set is the record's mapped host nodes (Send targets in the
+    Fire mapping root) together with the host edges of g0 absent from g1
+    and the edges of g1 absent from g0 — everything the surgery consumed or
+    produced. Returned as one Pair chain, order deterministic: mapped nodes
+    in mapping order, then deleted edges in g0 store order, then inserted
+    edges in g1 store order."""
+
+    def __init__(self, record):
+        elements = M.EmptyList
+        trace = FiringRecordTrace(record)()
+        fire = M.EmptyList
+        remaining_trace = trace
+        while M.IdentityCompare(remaining_trace, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining_trace)()
+            if M.IsPair(entry)() is M.truth_value:
+                if M.TermEqual(M.Head(entry)(), Lmod.NextLabel)() is M.truth_value:
+                    fire = M.Head(M.Tail(M.Tail(entry)())())()
+            remaining_trace = M.Tail(remaining_trace)()
+        reversed_elements = M.EmptyList
+        if M.IdentityCompare(fire, M.EmptyList)() is M.false_value:
+            mapping = M.Head(M.Tail(M.Tail(fire)())())()
+            if M.IsPair(mapping)() is M.truth_value:
+                if M.TermEqual(M.Head(mapping)(), Lmod.MapLabel)() is M.truth_value:
+                    root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+                    remaining_root = root
+                    while M.IdentityCompare(
+                        remaining_root,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        item = M.Head(remaining_root)()
+                        if IsSend(item)() is M.truth_value:
+                            reversed_elements = M.Pair(
+                                SendHost(item)(),
+                                reversed_elements,
+                            )
+                        remaining_root = M.Tail(remaining_root)()
+        g0 = FiringRecordG0(record)()
+        g1 = FiringRecordG1(record)()
+        g0_edges = GraphEdges(g0)()
+        g1_edges = GraphEdges(g1)()
+        remaining_edges = g0_edges
+        while M.IdentityCompare(remaining_edges, M.EmptyList)() is M.false_value:
+            edge = M.Head(remaining_edges)()
+            if ChainHasTerm(g1_edges, edge)() is M.false_value:
+                reversed_elements = M.Pair(edge, reversed_elements)
+            remaining_edges = M.Tail(remaining_edges)()
+        remaining_edges = g1_edges
+        while M.IdentityCompare(remaining_edges, M.EmptyList)() is M.false_value:
+            edge = M.Head(remaining_edges)()
+            if ChainHasTerm(g0_edges, edge)() is M.false_value:
+                reversed_elements = M.Pair(edge, reversed_elements)
+            remaining_edges = M.Tail(remaining_edges)()
+        self.result = M.Reverse(reversed_elements)()
+        super().__init__(
+            inputs=M.Pair(record, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Conflict(M.Edge):
+    """Step 44: provenance term naming two firings that touched shared
+    elements, with the shared elements and the canonical winner recorded."""
+
+    def __init__(self, first_record, second_record, shared_elements, winner):
+        self.result = M.Pair(
+            Lmod.ConflictLabel,
+            M.Pair(
+                first_record,
+                M.Pair(
+                    second_record,
+                    M.Pair(shared_elements, M.Pair(winner, M.EmptyList)),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                first_record,
+                M.Pair(
+                    second_record,
+                    M.Pair(shared_elements, M.Pair(winner, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsConflict(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.ConflictLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DetectConflicts(M.Edge):
+    """Step 44: pairwise overlap scan over one chronological record chain.
+
+    Two records conflict when their Fire-trace element sets share at least
+    one element by identity. The winner is always the record earlier in the
+    chain (first-by-canonical-order: chronological ledger order, which for
+    merged worker chains is worker order then per-worker order). Conflict
+    terms are recorded, never discarded, and never mutate any version.
+    Scans at most CONFLICT_SCAN_CAP records. Returns the Conflict chain in
+    detection order."""
+
+    def __init__(self, records, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        scan_cap_text = M.GMPRepText(CONFLICT_SCAN_CAP)()
+        scanned_text = "0"
+        reversed_conflicts = M.EmptyList
+        annotated = M.EmptyList
+        remaining_records = records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scanned_text, scan_cap_text)() is M.truth_value:
+                remaining_records = M.EmptyList
+            else:
+                record = M.Head(remaining_records)()
+                elements = FireTraceElements(record)()
+                remaining_prior = annotated
+                while M.IdentityCompare(
+                    remaining_prior,
+                    M.EmptyList,
+                )() is M.false_value:
+                    prior = M.Head(remaining_prior)()
+                    prior_record = M.Head(prior)()
+                    prior_elements = M.Head(M.Tail(prior)())()
+                    reversed_shared = M.EmptyList
+                    remaining_elements = elements
+                    while M.IdentityCompare(
+                        remaining_elements,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        element = M.Head(remaining_elements)()
+                        if ChainHasTerm(
+                            prior_elements,
+                            element,
+                        )() is M.truth_value:
+                            reversed_shared = M.Pair(element, reversed_shared)
+                        remaining_elements = M.Tail(remaining_elements)()
+                    if M.IdentityCompare(
+                        reversed_shared,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        reversed_conflicts = M.Pair(
+                            Conflict(
+                                prior_record,
+                                record,
+                                M.Reverse(reversed_shared)(),
+                                prior_record,
+                            )(),
+                            reversed_conflicts,
+                        )
+                    remaining_prior = M.Tail(remaining_prior)()
+                annotated = M.Pair(
+                    M.Pair(record, M.Pair(elements, M.EmptyList)),
+                    annotated,
+                )
+                scanned_text = GMPSuccText(scanned_text)()
+                remaining_records = M.Tail(remaining_records)()
+        self.result = M.Reverse(reversed_conflicts)()
+        super().__init__(
+            inputs=M.Pair(records, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConflictWinner(M.Edge):
+    def __init__(self, conflict):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(conflict)())())())(),
+        )()
+        super().__init__(
+            inputs=M.Pair(conflict, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 
 
 class Migration(M.Edge):

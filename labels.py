@@ -1111,6 +1111,10 @@ class RobustnessLabel(ConstructorLabel):
     pass
 
 
+class ConflictLabel(ConstructorLabel):
+    pass
+
+
 class MigrationLabel(ConstructorLabel):
     pass
 
@@ -1440,6 +1444,7 @@ ReasonUncountersignedLabel = ReasonUncountersignedLabel()
 ContractLabel = ContractLabel()
 ReasonContractLabel = ReasonContractLabel()
 RobustnessLabel = RobustnessLabel()
+ConflictLabel = ConflictLabel()
 MigrationLabel = MigrationLabel()
 EqualLabel = EqualLabel()
 SurfaceLabel = SurfaceLabel()
@@ -1884,6 +1889,7 @@ def sync_from_namespace(namespace):
         "ContractLabel",
         "ReasonContractLabel",
         "RobustnessLabel",
+        "ConflictLabel",
         "MigrationLabel",
         "EqualLabel",
         "SurfaceLabel",

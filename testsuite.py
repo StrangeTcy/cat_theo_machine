@@ -4601,6 +4601,135 @@ class MigrationLifecycleTest(M.Edge):
         return self.result
 
 
+class ConflictDetectionTest(M.Edge):
+    """Step 44: overlapping Fire-trace element sets yield recorded Conflict
+    terms, first-by-canonical-order wins, and ledger length equals the
+    number of firing attempts."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        ledger = Gmod.FiringLedger()
+        node_a = M.Thingy()
+        node_b = M.Thingy()
+        node_c = M.Thingy()
+
+        def _delete_law(target):
+            left = M.Pair(
+                M.HypergraphLabel,
+                M.Pair(M.Pair(target, empty), M.Pair(empty, empty)),
+            )
+            interface = M.Pair(
+                M.HypergraphLabel,
+                M.Pair(empty, M.Pair(empty, empty)),
+            )
+            right = M.Pair(
+                M.HypergraphLabel,
+                M.Pair(empty, M.Pair(empty, empty)),
+            )
+            law = Gmod.Law(
+                left,
+                interface,
+                right,
+                Gmod.Map(interface, left, empty)(),
+                Gmod.Map(interface, right, empty)(),
+                empty,
+            )()
+            return left, law
+
+        host = Gmod.GraphVersion(
+            M.Pair(node_a, M.Pair(node_b, M.Pair(node_c, empty))),
+            empty,
+            empty,
+        )()
+
+        left_a, law_a = _delete_law(node_a)
+        Gmod.FireLaw(
+            host,
+            law_a,
+            Gmod.Map(left_a, host, M.Pair(Gmod.Send(node_a, node_a)(), empty))(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        left_a2, law_a2 = _delete_law(node_a)
+        Gmod.FireLaw(
+            host,
+            law_a2,
+            Gmod.Map(
+                left_a2,
+                host,
+                M.Pair(Gmod.Send(node_a, node_a)(), empty),
+            )(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+        left_c, law_c = _delete_law(node_c)
+        Gmod.FireLaw(
+            host,
+            law_c,
+            Gmod.Map(left_c, host, M.Pair(Gmod.Send(node_c, node_c)(), empty))(),
+            Gmod.DanglingForbid()(),
+            ledger,
+        )()
+
+        records = ledger.all()
+        record_count = M.EmptyList
+        counted = M.Count(records, ledger.registry)()
+        record_count = M.Head(counted)()
+        ledger.registry = M.Head(M.Tail(counted)())()
+        miss_counted = M.Count(ledger.misses, ledger.registry)()
+        miss_count = M.Head(miss_counted)()
+        ledger.registry = M.Head(M.Tail(miss_counted)())()
+        total = M.Add(record_count, miss_count, ledger.registry)()
+        total_nat = M.Head(total)()
+        ledger.registry = M.Head(M.Tail(total)())()
+        length_ok = M.NatEq(total_nat, M.three, ledger.registry)()
+
+        conflicts = Gmod.DetectConflicts(records, ledger.registry)()
+        conflict_counted = M.Count(conflicts, ledger.registry)()
+        conflict_count = M.Head(conflict_counted)()
+        ledger.registry = M.Head(M.Tail(conflict_counted)())()
+        one_conflict = M.NatEq(conflict_count, M.one, ledger.registry)()
+
+        recorded_ok = M.false_value
+        winner_ok = M.false_value
+        shared_ok = M.false_value
+        if M.IdentityCompare(conflicts, empty)() is M.false_value:
+            conflict = M.Head(conflicts)()
+            recorded_ok = Gmod.IsConflict(conflict)()
+            first_record = M.Head(records)()
+            if Gmod.ConflictWinner(conflict)() is first_record:
+                winner_ok = M.truth_value
+            shared = M.Head(M.Tail(M.Tail(M.Tail(conflict)())())())()
+            shared_ok = Gmod.ChainHasTerm(shared, node_a)()
+
+        disjoint_ok = M.false_value
+        third = M.Head(M.Tail(M.Tail(records)())())()
+        third_elements = Gmod.FireTraceElements(third)()
+        if Gmod.ChainHasTerm(third_elements, node_a)() is M.false_value:
+            disjoint_ok = M.truth_value
+
+        self.result = M.AndAtom(
+            length_ok,
+            M.AndAtom(
+                one_conflict,
+                M.AndAtom(
+                    recorded_ok,
+                    M.AndAtom(
+                        winner_ok,
+                        M.AndAtom(shared_ok, disjoint_ok)(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph, empty),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class WorkerProtocolTest(M.Edge):
     """Step 43: worker_task refuses nonzero activation budgets; a 2-worker
     run_workers union equals the single-process proposal set byte-for-byte;
@@ -13146,6 +13275,14 @@ def install_default_tests(graph):
             "worker_protocol_test",
             empty,
             WorkerProtocolTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "conflict_detection_test",
+            empty,
+            ConflictDetectionTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
