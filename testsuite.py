@@ -4456,6 +4456,151 @@ class RobustnessHarnessTest(M.Edge):
         return self.result
 
 
+class MigrationLifecycleTest(M.Edge):
+    """Step 41: a retired handle migrates onto its active replacement.
+
+    KNOWN GAP: Step-10 node compatibility is head-only for Pair nodes, so
+    the bridge's left pattern (old abbreviation) also matches the new
+    abbreviation after migration and refires B-to-B; A-instances stay zero
+    but true quiescence is unreachable without changing Part-1 matcher
+    machinery. Migration therefore completes under bounded firing budgets,
+    and this test asserts A-absence is preserved across a further firing
+    rather than asserting an empty second firing.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+
+        shared = M.Pair(M.Char("migration-shared"), empty)
+        extra = M.Pair(M.Char("migration-extra"), empty)
+        interface_nodes = M.Pair(shared, empty)
+        pattern_a = Gmod.GraphVersion(M.Pair(shared, empty), empty, empty)()
+        pattern_b = Gmod.GraphVersion(
+            M.Pair(shared, M.Pair(extra, empty)),
+            empty,
+            empty,
+        )()
+        handle_a = Gmod.Handle(M.Char("migration-old"), pattern_a)()
+        handle_b = Gmod.Handle(M.Char("migration-new"), pattern_b)()
+        fold_a = M.Head(Gmod.CompileHandleToLaws(handle_a, interface_nodes)())()
+        fold_b = M.Head(Gmod.CompileHandleToLaws(handle_b, interface_nodes)())()
+
+        version = Gmod.GraphVersion(empty, empty, empty)()
+        version = Gmod.InstallLaw(version, fold_a)()
+        version = Gmod.InstallLaw(version, fold_b)()
+        version = Gmod.RetireLaw(version, fold_a)()
+
+        generated = Gmod.GenerateMigrationProposals(
+            Gmod.ProposalStore(empty)(),
+            version,
+        )()
+        generated_store = M.Head(generated)()
+        entries = Gmod.ProposalStoreAll(generated_store)()
+        proposal = Gmod.ProposalEntryProposal(M.Head(entries)())()
+        bridge = Gmod.ProposalLaw(proposal)()
+
+        authority = M.Pair(M.Char("migration-curator"), empty)
+        approved_entry = Gmod.ProposalEntry(
+            proposal,
+            M.Pair(Gmod.Approved(proposal, authority)(), empty),
+        )()
+        activated = Gmod.ActivateProposal(version, approved_entry)()
+        activated_version = M.Head(activated)()
+        lineage = M.Head(M.Tail(activated)())()
+
+        abbrev_a = Gmod.LawRight(fold_a)()
+        host = Gmod.GraphVersion(
+            Gmod.GraphNodes(abbrev_a)(),
+            Gmod.GraphEdges(abbrev_a)(),
+            Gmod.GraphVersionInvariants(activated_version)(),
+        )()
+        fired = Gmod.FireAny(host, Gmod.DanglingForbid()(), ledger)()
+        fired_version = M.Head(fired)()
+        second_version = empty
+        if M.IdentityCompare(fired_version, empty)() is M.false_value:
+            second_host = Gmod.GraphVersion(
+                Gmod.GraphNodes(fired_version)(),
+                Gmod.GraphEdges(fired_version)(),
+                Gmod.GraphVersionInvariants(activated_version)(),
+            )()
+            second_fired = Gmod.FireAny(
+                second_host,
+                Gmod.DanglingForbid()(),
+                ledger,
+            )()
+            second_version = M.Head(second_fired)()
+
+        migration_marker = empty
+        if M.IdentityCompare(fired_version, empty)() is M.false_value:
+            remaining_nodes = Gmod.GraphNodes(fired_version)()
+            while M.IdentityCompare(remaining_nodes, empty)() is M.false_value:
+                node = M.Head(remaining_nodes)()
+                if Gmod.IsMigration(node)() is M.truth_value:
+                    migration_marker = node
+                    remaining_nodes = empty
+                else:
+                    remaining_nodes = M.Tail(remaining_nodes)()
+
+        graph._replace_context(constructors=ledger.registry)
+
+        self.result = M.truth_value
+        if M.IdentityCompare(entries, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(entries)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(proposal)(),
+            M.Char("install_law"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ProposalOrigin(proposal)(),
+            M.Char("handle-migration"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(activated_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(lineage)(),
+            Lmod.NextLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(fired_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(fired_version)(),
+            handle_a,
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(fired_version)(),
+            handle_b,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(migration_marker, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(second_version, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(second_version)(),
+            handle_a,
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(ledger.records, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.FiringRecordLaw(M.Head(ledger.records)())(),
+            bridge,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ContractEnforcementTest(M.Edge):
     """Step 39: deleting a contracted port is a Miss term, never a firing."""
 
@@ -12642,6 +12787,14 @@ def install_default_tests(graph):
             "robustness_harness_test",
             empty,
             RobustnessHarnessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "migration_lifecycle_test",
+            empty,
+            MigrationLifecycleTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

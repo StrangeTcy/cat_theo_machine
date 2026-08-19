@@ -2690,6 +2690,7 @@ class ClassifyProposal(M.Edge):
         right_contains_heuristic = M.false_value
         right_contains_policy_entry = M.false_value
         right_contains_robustness = M.false_value
+        right_contains_migration = M.false_value
         remaining_right = GraphElements(LawRight(law)())()
         while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
             element = M.Head(remaining_right)()
@@ -2710,6 +2711,8 @@ class ClassifyProposal(M.Edge):
                     right_contains_heuristic = M.truth_value
                 if IsPolicyEntry(element)() is M.truth_value:
                     right_contains_policy_entry = M.truth_value
+                if IsMigration(element)() is M.truth_value:
+                    right_contains_migration = M.truth_value
                 if M.TermEqual(
                     M.Head(element)(),
                     Lmod.RobustnessLabel,
@@ -2729,6 +2732,11 @@ class ClassifyProposal(M.Edge):
             M.truth_value,
         )() is M.truth_value:
             self.result = annotate_class
+        elif M.IdentityCompare(
+            right_contains_migration,
+            M.truth_value,
+        )() is M.truth_value:
+            self.result = install_class
         elif M.IdentityCompare(
             right_contains_retired,
             M.truth_value,
@@ -5226,6 +5234,216 @@ class GenerateRobustnessAnnotation(M.Edge):
             inputs=M.Pair(
                 proposal_store,
                 M.Pair(law, M.Pair(report, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+MIGRATION_PROPOSAL_CAP = M.GMPRep("10")
+MIGRATION_SCAN_CAP = M.GMPRep("200")
+
+
+class Migration(M.Edge):
+    """Step 41: provenance term naming an old-to-new handle replacement."""
+
+    def __init__(self, old_handle, new_handle, bridge_law):
+        self.result = M.Pair(
+            Lmod.MigrationLabel,
+            M.Pair(
+                old_handle,
+                M.Pair(new_handle, M.Pair(bridge_law, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                old_handle,
+                M.Pair(new_handle, M.Pair(bridge_law, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsMigration(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.MigrationLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateMigrationProposals(M.Edge):
+    """Step 41: bridge retired handles onto matching active replacements.
+
+    For each retired fold law whose handle-pattern completes a bounded match
+    into an active fold law's handle-pattern (and whose interfaces are
+    structurally equal), submit ONE proposal whose law rewrites the folded
+    old abbreviation into the folded new abbreviation plus a Migration
+    marker. No match, no proposal: bridges are never synthesized.
+    """
+
+    def __init__(self, proposal_store, graph_version):
+        scan_cap_text = M.GMPRepText(MIGRATION_SCAN_CAP)()
+        proposal_cap_text = M.GMPRepText(MIGRATION_PROPOSAL_CAP)()
+        current_store = proposal_store
+        submitted_text = "0"
+
+        retired_folds = M.EmptyList
+        active_folds = M.EmptyList
+        scan_text = "0"
+        remaining_statuses = AllLawsWithStatus(graph_version)()
+        while M.IdentityCompare(
+            remaining_statuses,
+            M.EmptyList,
+        )() is M.false_value:
+            if GMPEqualText(scan_text, scan_cap_text)() is M.truth_value:
+                remaining_statuses = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                status_entry = M.Head(remaining_statuses)()
+                law = M.Head(status_entry)()
+                status = M.Head(M.Tail(status_entry)())()
+                handle = M.EmptyList
+                element_scan_text = "0"
+                remaining_elements = GraphNodes(LawRight(law)())()
+                while M.IdentityCompare(
+                    remaining_elements,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        element_scan_text,
+                        scan_cap_text,
+                    )() is M.truth_value:
+                        remaining_elements = M.EmptyList
+                    else:
+                        element_scan_text = GMPSuccText(element_scan_text)()
+                        element = M.Head(remaining_elements)()
+                        if M.IsPair(element)() is M.truth_value:
+                            if M.TermEqual(
+                                M.Head(element)(),
+                                Lmod.HandleLabel,
+                            )() is M.truth_value:
+                                handle = element
+                                remaining_elements = M.EmptyList
+                        if M.IdentityCompare(
+                            remaining_elements,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            remaining_elements = M.Tail(remaining_elements)()
+                if M.IdentityCompare(handle, M.EmptyList)() is M.false_value:
+                    entry = M.Pair(handle, M.Pair(law, M.EmptyList))
+                    if M.Compare(status, M.Char("retired"))() is M.truth_value:
+                        retired_folds = M.Pair(entry, retired_folds)
+                    elif M.Compare(status, M.Char("active"))() is M.truth_value:
+                        active_folds = M.Pair(entry, active_folds)
+                remaining_statuses = M.Tail(remaining_statuses)()
+        retired_folds = Reverse(retired_folds)()
+        active_folds = Reverse(active_folds)()
+
+        remaining_retired = retired_folds
+        while M.IdentityCompare(
+            remaining_retired,
+            M.EmptyList,
+        )() is M.false_value:
+            if GMPEqualText(
+                submitted_text,
+                proposal_cap_text,
+            )() is M.truth_value:
+                remaining_retired = M.EmptyList
+            else:
+                retired_entry = M.Head(remaining_retired)()
+                old_handle = M.Head(retired_entry)()
+                old_fold = M.Head(M.Tail(retired_entry)())()
+                remaining_active = active_folds
+                while M.IdentityCompare(
+                    remaining_active,
+                    M.EmptyList,
+                )() is M.false_value:
+                    active_entry = M.Head(remaining_active)()
+                    new_handle = M.Head(active_entry)()
+                    new_fold = M.Head(M.Tail(active_entry)())()
+                    compatible = M.TermEqual(
+                        LawInterface(old_fold)(),
+                        LawInterface(new_fold)(),
+                    )()
+                    mapping = M.EmptyList
+                    if M.IdentityCompare(
+                        compatible,
+                        M.truth_value,
+                    )() is M.truth_value:
+                        mapping = BoundedFirstCompletedMatch(
+                            HandlePattern(old_handle)(),
+                            HandlePattern(new_handle)(),
+                        )()
+                    if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
+                        abbrev_old = LawRight(old_fold)()
+                        abbrev_new = LawRight(new_fold)()
+                        marker = Migration(
+                            old_handle,
+                            new_handle,
+                            M.EmptyList,
+                        )()
+                        bridged_right = M.Pair(
+                            M.HypergraphLabel,
+                            M.Pair(
+                                M.Pair(marker, GraphNodes(abbrev_new)()),
+                                M.Pair(GraphEdges(abbrev_new)(), M.EmptyList),
+                            ),
+                        )
+                        new_map = LawKToRight(new_fold)()
+                        bridge = Law(
+                            abbrev_old,
+                            LawInterface(old_fold)(),
+                            bridged_right,
+                            LawKToRight(old_fold)(),
+                            Map(
+                                LawInterface(old_fold)(),
+                                bridged_right,
+                                M.Head(
+                                    M.Tail(M.Tail(M.Tail(new_map)())())(),
+                                )(),
+                            )(),
+                            M.EmptyList,
+                        )()
+                        proposal = Proposal(
+                            bridge,
+                            M.Char("handle-migration"),
+                        )()
+                        current_store = ProposalStoreSubmit(
+                            current_store,
+                            proposal,
+                        )()
+                        current_store = ProposalStoreAttach(
+                            current_store,
+                            proposal,
+                            JustifiedBy(proposal, mapping)(),
+                        )()
+                        submitted_text = GMPSuccText(submitted_text)()
+                        remaining_active = M.EmptyList
+                    else:
+                        remaining_active = M.Tail(remaining_active)()
+                remaining_retired = M.Tail(remaining_retired)()
+
+        self.result = M.Pair(
+            current_store,
+            M.Pair(
+                MineNatFromGMPRep(M.GMPRep(submitted_text))(),
+                M.EmptyList,
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(graph_version, M.EmptyList),
             ),
             results=self.result,
         )
