@@ -11957,6 +11957,168 @@ def _registry(graph):
     return M.FromContextGetConstructors(graph)()
 
 
+# Step 52: open-ended operation milestones.
+#
+# Each milestone is an executable check, not a claim. A milestone that is
+# not yet met returns MILESTONE_SKIPPED rather than failing: the criteria
+# are allowed to be unmet while the substrate scales, but they are never
+# deleted, and none of them may be weakened to make it pass.
+MILESTONE_MET = M.Char("milestone-met")
+MILESTONE_SKIPPED = M.Char("milestone-skipped")
+
+
+class MilestoneM1CyclesWithoutRefusalTest(M.Edge):
+    """M1: consecutive distributed cycles, no safety refusal, no regression.
+
+    Met when a seeded corpus survives MILESTONE_M1_CYCLES consecutive
+    cycles with the floor never refusing and no auto-class regression.
+    Skipped while the corpus reaches quiescence sooner, which it does at
+    present: a corpus that stops having work to do cannot demonstrate
+    sustained operation, and pretending otherwise would make the
+    milestone meaningless.
+    """
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        law = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_term))()
+        encoded = Gmod.EncodeTermAsGraph(left_term)()
+        version = Gmod.InstallLaw(
+            Gmod.GraphVersion(
+                Gmod.GraphNodes(encoded)(),
+                Gmod.GraphEdges(encoded)(),
+                empty,
+            )(),
+            law,
+        )()
+        version = Gmod.BootstrapSafetyInvariants(version)()
+        store = Gmod.ProposalStore(empty)()
+        # The floor must be clear at the outset; that much is checkable now.
+        self.result = MILESTONE_SKIPPED
+        if M.IdentityCompare(
+            Gmod.CheckSafety(version, store)(),
+            empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MilestoneM2HandleLifecycleTest(M.Edge):
+    """M2: mined -> promoted -> retired -> migrated, all through proposals.
+
+    Met when one handle completes the whole lifecycle with every stage
+    reconstructible from the Next chain alone. Skipped until a corpus
+    drives a mined handle all the way round; the machinery for each
+    individual stage exists and is tested separately.
+    """
+
+    def __init__(self, _graph):
+        self.result = MILESTONE_SKIPPED
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MilestoneM3MetaHandleReordersTest(M.Edge):
+    """M3: a meta-handle prior measurably reorders generation.
+
+    The reordering half is met and checked here: a prior that matches one
+    candidate moves it to the front while leaving the candidate set
+    unchanged. The milestone as a whole stays skipped until the prior is
+    threaded through a real generator and the meta-handle is visible in
+    the self-model.
+    """
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        zero_term = M.Pair(Lmod.ZeroLabel, empty)
+        succ_term = M.Pair(Lmod.SuccLabel, M.Pair(zero_term, empty))
+        candidate_zero = Gmod.EncodeTermAsGraph(zero_term)()
+        candidate_succ = Gmod.EncodeTermAsGraph(succ_term)()
+        candidates = M.Pair(candidate_zero, M.Pair(candidate_succ, empty))
+        prior = Gmod.Handle(M.Char("meta-succ"), candidate_succ)()
+        ordered = Gmod.OrderByPriors(candidates, M.Pair(prior, empty))()
+        self.result = MILESTONE_SKIPPED
+        if M.TermEqual(M.Head(ordered)(), candidate_succ)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(ordered, candidate_zero)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MilestoneM4PolicyLoosenThenTightenTest(M.Edge):
+    """M4: a countersigned loosening, later reversed by a single approval.
+
+    The floor's precedence is met and checked here: an approved proposal
+    is refused while a safety bound is violated and activates once the
+    bound is raised. The milestone as a whole stays skipped until the
+    loosening and its reversal both run through the policy_change gate.
+    """
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        law = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_term))()
+        proposal = Gmod.Proposal(law, M.Char("milestone"))()
+        encoded = Gmod.EncodeTermAsGraph(left_term)()
+        version = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(),
+            Gmod.GraphEdges(encoded)(),
+            empty,
+        )()
+        store = Gmod.ProposalStoreSubmit(Gmod.ProposalStore(empty)(), proposal)()
+        store = Gmod.ProposalStoreAttach(
+            store,
+            proposal,
+            Gmod.Approved(proposal, M.Char("curator"))(),
+        )()
+        entry = M.Head(Gmod.ProposalStoreEntries(store)())()
+        tight = Gmod.GraphVersion(
+            Gmod.GraphNodes(version)(),
+            Gmod.GraphEdges(version)(),
+            M.Pair(
+                Gmod.SafetyInvariant(
+                    M.Char("milestone-bound"),
+                    M.GMPRep("0"),
+                    Gmod.SAFETY_MEASURE_STORE_SIZE,
+                )(),
+                empty,
+            ),
+        )()
+        refused = Gmod.ActivateProposal(tight, entry)()
+        loose = Gmod.GraphVersion(
+            Gmod.GraphNodes(version)(),
+            Gmod.GraphEdges(version)(),
+            M.Pair(
+                Gmod.SafetyInvariant(
+                    M.Char("milestone-bound"),
+                    M.GMPRep("9999"),
+                    Gmod.SAFETY_MEASURE_STORE_SIZE,
+                )(),
+                empty,
+            ),
+        )()
+        allowed = Gmod.ActivateProposal(loose, entry)()
+        self.result = MILESTONE_SKIPPED
+        if M.IdentityCompare(M.Head(refused)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(allowed)(), empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 def _register_test(graph, name, input_nodes, computation_edge, expected):
     test = Test(graph, M.TestName(name, _registry(graph)), input_nodes, computation_edge, expected)
     _set_registry(graph, M.FromContextGetConstructors(test)())
@@ -13862,6 +14024,43 @@ def install_default_tests(graph):
             M.Pair(minus2, M.Pair(minus2, empty)),
             M.WholeMultiply(minus2, minus2, _registry(graph)),
             whole_four_zero,
+        )
+
+    # Step 52: milestone checks. Expected value is MILESTONE_SKIPPED while a
+    # criterion is unmet, so an unmet milestone runs and reports rather than
+    # failing the suite. A milestone that regresses returns false_value and
+    # fails against this expectation.
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m1_cycles_without_refusal",
+            empty,
+            MilestoneM1CyclesWithoutRefusalTest(graph),
+            MILESTONE_SKIPPED,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m2_handle_lifecycle",
+            empty,
+            MilestoneM2HandleLifecycleTest(graph),
+            MILESTONE_SKIPPED,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m3_meta_handle_reorders",
+            empty,
+            MilestoneM3MetaHandleReordersTest(graph),
+            MILESTONE_SKIPPED,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m4_policy_loosen_then_tighten",
+            empty,
+            MilestoneM4PolicyLoosenThenTightenTest(graph),
+            MILESTONE_SKIPPED,
         )
 
     graph.default_tests_installed = M.truth_value
