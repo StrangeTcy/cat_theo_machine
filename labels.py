@@ -1870,4 +1870,116 @@ def sync_from_namespace(namespace):
             globals()[name] = namespace[name]
 
 
+class LessonLabel(ConstructorLabel):
+    pass
+
+
+class EntryLabel(ConstructorLabel):
+    pass
+
+
+class GroundedExampleLabel(ConstructorLabel):
+    pass
+
+
+class SourceLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceLabel(ConstructorLabel):
+    pass
+
+
+class MathematicsLabel(ConstructorLabel):
+    pass
+
+
+class HistoryLabel(ConstructorLabel):
+    pass
+
+
+class ProblemLabel(ConstructorLabel):
+    pass
+
+
+class HintLabel(ConstructorLabel):
+    pass
+
+
+class UsesStrategyLabel(ConstructorLabel):
+    pass
+
+
+class DerivationFragmentLabel(ConstructorLabel):
+    pass
+
+
+class GoalLabel(ConstructorLabel):
+    pass
+
+
+class ClaimsLabel(ConstructorLabel):
+    pass
+
+
+class SupportsLabel(ConstructorLabel):
+    pass
+
+
+class HistoricalContradictsLabel(ConstructorLabel):
+    pass
+
+
+class OccursOnLabel(ConstructorLabel):
+    pass
+
+
+class BeforeLabel(ConstructorLabel):
+    pass
+
+
+class CausesLabel(ConstructorLabel):
+    pass
+
+
+class ParticipatesInLabel(ConstructorLabel):
+    pass
+
+
+class OccursAtLabel(ConstructorLabel):
+    pass
+
+
+class ClaimStoreLabel(ConstructorLabel):
+    pass
+
+
+class CorrespondenceLawLabel(ConstructorLabel):
+    pass
+
+
+LessonLabel = LessonLabel()
+EntryLabel = EntryLabel()
+GroundedExampleLabel = GroundedExampleLabel()
+SourceLabel = SourceLabel()
+SurfaceLabel = SurfaceLabel()
+MathematicsLabel = MathematicsLabel()
+HistoryLabel = HistoryLabel()
+ProblemLabel = ProblemLabel()
+HintLabel = HintLabel()
+UsesStrategyLabel = UsesStrategyLabel()
+DerivationFragmentLabel = DerivationFragmentLabel()
+GoalLabel = GoalLabel()
+ClaimsLabel = ClaimsLabel()
+SupportsLabel = SupportsLabel()
+HistoricalContradictsLabel = HistoricalContradictsLabel()
+OccursOnLabel = OccursOnLabel()
+BeforeLabel = BeforeLabel()
+CausesLabel = CausesLabel()
+ParticipatesInLabel = ParticipatesInLabel()
+OccursAtLabel = OccursAtLabel()
+ClaimStoreLabel = ClaimStoreLabel()
+CorrespondenceLawLabel = CorrespondenceLawLabel()
+
+
 __all__ = [name for name in globals() if not name.startswith("_")]
