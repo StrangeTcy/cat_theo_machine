@@ -4601,6 +4601,153 @@ class MigrationLifecycleTest(M.Edge):
         return self.result
 
 
+class WireRoundTripTest(M.Edge):
+    """Step 42: canonical serialization is a byte fixed point and preserves
+    installed_laws, installed_policy, all_laws_with_status, contracts, and
+    Next-chain reachability across a checkpoint save/load."""
+
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        node_a = M.Pair(M.Char("wire-node-a"), empty)
+        node_b = M.Pair(M.Char("wire-node-b"), empty)
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        right = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        law_one = Gmod.Law(
+            left,
+            interface,
+            right,
+            Gmod.Map(interface, left, empty)(),
+            Gmod.Map(interface, right, empty)(),
+            empty,
+        )()
+        law_two = Gmod.Law(
+            right,
+            interface,
+            left,
+            Gmod.Map(interface, right, empty)(),
+            Gmod.Map(interface, left, empty)(),
+            empty,
+        )()
+        handle = Gmod.Handle(
+            M.Char("wire-handle"),
+            Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)(),
+        )()
+        contract = Gmod.Contract(
+            handle,
+            M.Pair(node_a, empty),
+            Gmod.DefaultContractForbidden()(),
+        )()
+        carrier_right = Gmod.GraphVersion(
+            M.Pair(contract, empty),
+            empty,
+            empty,
+        )()
+        carrier = Gmod.Law(
+            interface,
+            interface,
+            carrier_right,
+            Gmod.Map(interface, interface, empty)(),
+            Gmod.Map(interface, carrier_right, empty)(),
+            empty,
+        )()
+        version = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        version = Gmod.InstallLaw(version, law_one)()
+        version = Gmod.InstallLaw(version, law_two)()
+        version = Gmod.InstallLaw(version, carrier)()
+        version = Gmod.RetireLaw(version, law_two)()
+
+        fire = M.Pair(M.Char("wire-fire"), empty)
+        second = Gmod.GraphVersion(
+            M.Pair(node_b, empty),
+            empty,
+            Gmod.GraphVersionInvariants(version)(),
+        )()
+        third = Gmod.GraphVersion(
+            M.Pair(node_a, M.Pair(node_b, empty)),
+            empty,
+            Gmod.GraphVersionInvariants(version)(),
+        )()
+        chain = Gmod.Next(
+            Gmod.Next(
+                Gmod.Next(version, fire, second)(),
+                fire,
+                third,
+            )(),
+            fire,
+            version,
+        )()
+
+        blob = Wmod.serialize_term(chain)
+        rebuilt = Wmod.deserialize_term(blob)
+        blob_again = Wmod.serialize_term(rebuilt)
+        rebuilt_version = M.Head(
+            M.Tail(M.Tail(M.Tail(rebuilt)())())(),
+        )()
+
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(
+            store,
+            Gmod.Proposal(law_one, M.Char("wire-origin"))(),
+        )()
+        ledger = Gmod.FiringLedger(registry)
+        ledger.record_miss(law_one, M.Char("no-match"))
+        checkpoint_path = os.path.join(
+            tempfile.gettempdir(),
+            "hyge_wire_roundtrip_checkpoint.txt",
+        )
+        Wmod.save_checkpoint(checkpoint_path, version, store, ledger)
+        loaded = Wmod.load_checkpoint(checkpoint_path, registry)
+        loaded_version = M.Head(loaded)()
+        loaded_store = M.Head(M.Tail(loaded)())()
+        loaded_ledger = M.Head(M.Tail(M.Tail(loaded)())())()
+        os.remove(checkpoint_path)
+
+        self.result = M.truth_value
+        if blob != blob_again:
+            self.result = M.false_value
+        elif M.Compare(chain, rebuilt)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.InstalledLaws(rebuilt_version)(),
+            Gmod.InstalledLaws(version)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.AllLawsWithStatus(rebuilt_version)(),
+            Gmod.AllLawsWithStatus(version)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.InstalledPolicy(rebuilt_version)(),
+            Gmod.InstalledPolicy(version)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.InstalledContracts(rebuilt_version)(),
+            Gmod.InstalledContracts(version)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Wmod.serialize_version(loaded_version) != Wmod.serialize_version(
+            version,
+        ):
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ProposalStoreAll(loaded_store)(),
+            Gmod.ProposalStoreAll(store)(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(loaded_ledger.misses, ledger.misses)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ContractEnforcementTest(M.Edge):
     """Step 39: deleting a contracted port is a Miss term, never a firing."""
 
@@ -12795,6 +12942,14 @@ def install_default_tests(graph):
             "migration_lifecycle_test",
             empty,
             MigrationLifecycleTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "wire_round_trip_test",
+            empty,
+            WireRoundTripTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

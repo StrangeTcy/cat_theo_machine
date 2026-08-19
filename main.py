@@ -1187,6 +1187,10 @@ def run_talk_mode(sentence: str = None):
     pending_queue = []
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
+    last_outcome = M.EmptyList
+    last_derivation = M.EmptyList
+    last_goal = M.EmptyList
+    last_proof_registry = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
     proof_snapshot_path = os.path.join(SNAPSHOT_DIR, "talk_proofs_snapshot.json")
 
@@ -1528,14 +1532,68 @@ def run_talk_mode(sentence: str = None):
             outcome = outcome + "\nhyge> " + pending_queue[0][1]
         return outcome
 
+    def _explain_last():
+        nonlocal registry
+        if M.IdentityCompare(last_derivation, M.EmptyList)() is M.false_value:
+            return P.ExplainDerivation(
+                last_derivation,
+                last_goal,
+                last_proof_registry,
+            )()
+        if M.IdentityCompare(last_outcome, M.EmptyList)() is M.truth_value:
+            return "I have not answered anything yet; there is nothing to explain."
+        meaning = M.Head(M.Tail(M.Tail(last_outcome)())())()
+        body = M.Head(M.Tail(meaning)())()
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        if M.IsPair(body)() is M.truth_value:
+            if M.TermEqual(M.Head(body)(), Lmod.EqualLabel)() is M.truth_value:
+                left = M.Head(M.Tail(body)())()
+                right = M.Head(M.Tail(M.Tail(body)())())()
+                evaluated = G.MeaningEvaluate(left, word_entries, registry)()
+                left_value = M.Head(evaluated)()
+                registry = M.Head(M.Tail(evaluated)())()
+                evaluated = G.MeaningEvaluate(right, word_entries, registry)()
+                right_value = M.Head(evaluated)()
+                registry = M.Head(M.Tail(evaluated)())()
+                if M.IdentityCompare(left_value, M.EmptyList)() is M.truth_value:
+                    return "I could not re-evaluate the left side to explain it."
+                if M.IdentityCompare(right_value, M.EmptyList)() is M.truth_value:
+                    return "I could not re-evaluate the right side to explain it."
+                verdict = M.NatEq(left_value, right_value, registry)()
+                if M.IdentityCompare(verdict, M.truth_value)() is M.truth_value:
+                    closing = "; the values are equal, so the answer was yes."
+                else:
+                    closing = "; the values differ, so the answer was no."
+                return (
+                    "because " + _speak_meaning(left)
+                    + " evaluates to " + _speak_meaning(left_value)
+                    + ", and " + _speak_meaning(right)
+                    + " evaluates to " + _speak_meaning(right_value)
+                    + closing
+                )
+        answer = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(last_outcome)())())())())()
+        if M.IdentityCompare(answer, M.EmptyList)() is M.truth_value:
+            return (
+                "the sentence meant " + _speak_meaning(body)
+                + ", but no rendered answer was recorded."
+            )
+        return (
+            "because the sentence meant " + _speak_meaning(body)
+            + ", which evaluates to " + _speak_chain(M.Head(M.Tail(answer)())())
+            + "."
+        )
+
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
+        nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
         lowered = line.lower()
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
         if lowered in ("yes", "no"):
             if pending_queue:
                 return _handle_decision(lowered, record=record)
+        if lowered.strip() in ("why", "why?", "explain", "explain?"):
+            return _explain_last()
         words = _tokens(line)
         if not words:
             return None
@@ -1545,6 +1603,10 @@ def run_talk_mode(sentence: str = None):
         registry = M.Head(M.Tail(result)())()
         label = M.Head(outcome)()
         if M.IdentityCompare(label, Lmod.UnderstoodLabel)() is M.truth_value:
+            last_outcome = outcome
+            last_derivation = M.EmptyList
+            last_goal = M.EmptyList
+            last_proof_registry = M.EmptyList
             meaning = M.Head(M.Tail(M.Tail(outcome)())())()
             body = M.Head(M.Tail(meaning)())()
             if M.IsPair(body)() is M.truth_value:
@@ -1620,6 +1682,9 @@ def run_talk_mode(sentence: str = None):
                                             "yes (the derivation steps were "
                                             "not replayed this session)"
                                         )
+                                    last_derivation = derivation
+                                    last_goal = goal
+                                    last_proof_registry = proof_registry
                                     return "yes\n" + P.ExplainDerivation(
                                         derivation,
                                         goal,
