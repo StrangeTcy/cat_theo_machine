@@ -20,8 +20,34 @@ def char_chain(text):
     return encoded
 
 
+def _chain_text(chain):
+    """Decode a machine Char chain back to a python string (for reporting only)."""
+    text = ""
+    remaining = chain
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        item = M.Head(remaining)()
+        if M.IsPair(item)() is M.truth_value:
+            text = text + ""
+        elif hasattr(item, "symbol"):
+            text = text + str(item.symbol)
+        remaining = M.Tail(remaining)()
+    return text
+
+
 def pretty(term, registry):
     return M.PrettyTerm(term, registry)()
+
+
+def _status_text(status, registry):
+    if M.IdentityCompare(status, L.ProvedLabel)() is M.truth_value:
+        return "Proved"
+    if M.IdentityCompare(status, L.FailedLabel)() is M.truth_value:
+        return "Failed"
+    if M.IdentityCompare(status, L.PendingLabel)() is M.truth_value:
+        return "Pending"
+    if M.IdentityCompare(status, M.EmptyList)() is M.truth_value:
+        return "none"
+    return pretty(status, registry)
 
 
 # ---------------------------------------------------------------------------
@@ -542,7 +568,7 @@ def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, ru
 def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget=20):
     registry = M.FromContextGetConstructors(runtime.graph)()
     problem_statement = TrainingRecordProblemStatement(record)()
-    record_id_text = pretty(ProblemStatementId(problem_statement)(), registry)
+    record_id_text = _record_id_text(problem_statement, registry)
     start = TrainingRecordMeaningStructure(record)()
     skeleton = TrainingRecordObligationSkeleton(record)()
     conclusion_goal = ObligationSkeletonConclusionGoal(skeleton)()
@@ -694,6 +720,14 @@ def _status_text(status, registry):
     if M.IdentityCompare(status, M.EmptyList)() is M.truth_value:
         return "none"
     return pretty(status, registry)
+
+
+def _record_id_text(problem_statement, registry):
+    """Problem id as text: from the machine id chain directly, falling back to pretty."""
+    text = _chain_text(ProblemStatementId(problem_statement)())
+    if text:
+        return text
+    return pretty(ProblemStatementId(problem_statement)(), registry)
 
 
 __all__ = [
