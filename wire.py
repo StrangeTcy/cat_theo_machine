@@ -7,9 +7,10 @@ WIRE FORMAT (version WIRE1), one UTF-8 line per section:
              | "Z"                                 M.Zero
              | "V"                                 M.VarTag
              | "L:" name                           labels-module singleton
-             | "C:" pct                            M.Char (percent-encoded symbol)
-             | "G:" digits                         M.GMPRep (decimal text)
-             | "A:" index                          anonymous atom (Thingy et al.)
+             | "C:" pct                             M.Char (percent-encoded symbol)
+             | "G:" digits                          M.GMPRep (decimal text)
+             | "N:" digits                          Nat atom (cached GMPRep value)
+             | "A:" index                           anonymous atom (Thingy et al.)
 Anonymous atoms are numbered by first appearance in head-first traversal
 order, so identity sharing inside one blob is preserved and re-serializing
 a deserialized blob reproduces the bytes exactly (canonical fixed point).
@@ -85,6 +86,14 @@ def serialize_term(term):
         if getattr(current, "_mpz_value", None) is not None:
             pieces.append("G:" + str(current()))
             continue
+        cached = None
+        try:
+            cached = current()
+        except Exception:
+            cached = None
+        if cached is not None and getattr(cached, "_mpz_value", None) is not None:
+            pieces.append("N:" + str(cached()))
+            continue
         if current not in anonymous:
             anonymous[current] = len(anonymous)
         pieces.append("A:" + str(anonymous[current]))
@@ -125,6 +134,11 @@ def deserialize_term(blob):
             if token not in interned:
                 interned[token] = M.GMPRep(token[2:])
             value = interned[token]
+        elif token.startswith("N:"):
+            if token not in interned:
+                rebuilt = M.NatFromRep(M.GMPRep(token[2:]), M.AllConstructors)()
+                interned[token] = M.Head(rebuilt)()
+            value = interned[token]
         else:
             index = token[2:]
             if index not in anonymous:
@@ -164,6 +178,146 @@ def deserialize_ledger(blob, registry=M.EmptyList):
     ledger.results = ledger.records
     ledger.misses = M.Head(M.Tail(bundle)())()
     return ledger
+
+
+def worker_task(serialized_version, serialized_store, serialized_budget,
+                serialized_generator_config, slice_index_text, slice_count_text):
+    """Step 43: one worker turn — generate and fire, NEVER activate.
+
+    Every argument crosses the wire as canonical WIRE1 bytes (the budget and
+    generator config are the same M association chains AutonomyCycle reads).
+    The budget MUST carry max_activations = Zero; anything else is refused
+    with the Char atom "refused-nonzero-activations" before any work runs.
+    Returns (serialized proposal store, serialized ledger, serialized
+    frontier version) — claims only; the coordinator re-validates all of it.
+    """
+    from . import graph as Gmod
+
+    budget = deserialize_term(serialized_budget)
+    max_activations = M.EmptyList
+    remaining_budget = budget
+    while M.IdentityCompare(remaining_budget, M.EmptyList)() is M.false_value:
+        association = M.Head(remaining_budget)()
+        if M.Compare(
+            M.Head(association)(),
+            Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+        )() is M.truth_value:
+            max_activations = M.Head(M.Tail(association)())()
+        remaining_budget = M.Tail(remaining_budget)()
+    if M.IdentityCompare(max_activations, M.Zero)() is M.false_value:
+        return ("refused-nonzero-activations", b"", b"", b"")
+
+    graph_version = deserialize_term(serialized_version)
+    proposal_store = deserialize_term(serialized_store)
+    generator_config = deserialize_term(serialized_generator_config)
+    ledger = Gmod.FiringLedger(M.EmptyList)
+    generator_config = M.Pair(
+        M.Pair(
+            Gmod.AUTONOMY_GENERATOR_SLICE_INDEX_KEY,
+            M.Pair(M.GMPRep(slice_index_text), M.EmptyList),
+        ),
+        M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_GENERATOR_SLICE_COUNT_KEY,
+                M.Pair(M.GMPRep(slice_count_text), M.EmptyList),
+            ),
+            generator_config,
+        ),
+    )
+    cycle = Gmod.AutonomyCycle(
+        graph_version,
+        proposal_store,
+        ledger,
+        budget,
+        generator_config,
+    )()
+    frontier_version = M.Head(cycle)()
+    result_store = M.Head(M.Tail(cycle)())()
+    return (
+        "ok",
+        serialize_term(result_store),
+        serialize_ledger(ledger),
+        serialize_term(frontier_version),
+    )
+
+
+def _worker_entry(queue, serialized_version, serialized_store,
+                  serialized_budget, serialized_config, slice_index_text,
+                  slice_count_text):
+    queue.put(worker_task(
+        serialized_version,
+        serialized_store,
+        serialized_budget,
+        serialized_config,
+        slice_index_text,
+        slice_count_text,
+    ))
+
+
+def run_workers(graph_version, proposal_store, budget, generator_config,
+                worker_count):
+    """Step 43: fan one generation turn out over a multiprocessing Pool.
+
+    Worker i mines candidate slice i of worker_count; per-worker budgets are
+    the caller's budget with max_activations forced to Zero. Outputs are
+    collected in worker order (deterministic)."""
+    import multiprocessing
+
+    serialized_version = serialize_term(graph_version)
+    serialized_store = serialize_term(proposal_store)
+    zeroed = M.EmptyList
+    remaining_budget = budget
+    from . import graph as Gmod
+
+    reversed_budget = M.EmptyList
+    while M.IdentityCompare(remaining_budget, M.EmptyList)() is M.false_value:
+        association = M.Head(remaining_budget)()
+        if M.Compare(
+            M.Head(association)(),
+            Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+        )() is M.truth_value:
+            association = M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                M.Pair(M.Zero, M.EmptyList),
+            )
+        reversed_budget = M.Pair(association, reversed_budget)
+        remaining_budget = M.Tail(remaining_budget)()
+    zeroed = M.EmptyList
+    while M.IdentityCompare(reversed_budget, M.EmptyList)() is M.false_value:
+        zeroed = M.Pair(M.Head(reversed_budget)(), zeroed)
+        reversed_budget = M.Tail(reversed_budget)()
+    serialized_budget = serialize_term(zeroed)
+    serialized_config = serialize_term(generator_config)
+
+    try:
+        context = multiprocessing.get_context("fork")
+    except ValueError:
+        context = multiprocessing.get_context("spawn")
+    workers = []
+    index = 0
+    while index < worker_count:
+        queue = context.Queue()
+        process = context.Process(
+            target=_worker_entry,
+            args=(
+                queue,
+                serialized_version,
+                serialized_store,
+                serialized_budget,
+                serialized_config,
+                str(index),
+                str(worker_count),
+            ),
+        )
+        process.start()
+        workers.append((process, queue))
+        index = index + 1
+    outputs = []
+    for process, queue in workers:
+        outputs.append(queue.get())
+        process.join()
+        queue.close()
+    return outputs
 
 
 def save_checkpoint(path, graph_version, proposal_store, ledger):

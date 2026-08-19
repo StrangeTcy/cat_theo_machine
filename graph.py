@@ -2781,6 +2781,8 @@ AUTONOMY_GENERATE_HANDLES_KEY = M.Char("generate_handles")
 AUTONOMY_GENERATE_COMPOSITIONS_KEY = M.Char("generate_compositions")
 AUTONOMY_GENERATOR_VERSIONS_KEY = M.Char("versions")
 AUTONOMY_GENERATOR_MIN_COUNT_KEY = M.Char("min_count")
+AUTONOMY_GENERATOR_SLICE_INDEX_KEY = M.Char("slice_index")
+AUTONOMY_GENERATOR_SLICE_COUNT_KEY = M.Char("slice_count")
 AUTONOMY_STOP_EXHAUSTED = M.Char("exhausted")
 AUTONOMY_STOP_BUDGET_FIRINGS = M.Char("budget_firings")
 AUTONOMY_STOP_BUDGET_NODES = M.Char("budget_nodes")
@@ -2846,6 +2848,8 @@ class AutonomyCycle(M.Edge):
         generate_compositions = M.false_value
         generator_versions = M.EmptyList
         generator_min_count = M.one
+        generator_slice_index = M.EmptyList
+        generator_slice_count = M.EmptyList
         remaining_generator_config = generator_config
         while M.IdentityCompare(
             remaining_generator_config,
@@ -2871,6 +2875,16 @@ class AutonomyCycle(M.Edge):
                 AUTONOMY_GENERATOR_MIN_COUNT_KEY,
             )() is M.truth_value:
                 generator_min_count = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATOR_SLICE_INDEX_KEY,
+            )() is M.truth_value:
+                generator_slice_index = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATOR_SLICE_COUNT_KEY,
+            )() is M.truth_value:
+                generator_slice_count = value
             remaining_generator_config = M.Tail(remaining_generator_config)()
 
         current_version = graph_version
@@ -2882,6 +2896,8 @@ class AutonomyCycle(M.Edge):
                 generator_versions,
                 ledger,
                 generator_min_count,
+                generator_slice_index,
+                generator_slice_count,
             )()
             current_store = M.Head(generated_handles)()
             handle_count = M.Head(M.Tail(generated_handles)())()
@@ -6395,15 +6411,39 @@ class PatternInterfaceNodes(M.Edge):
 
 
 class GenerateHandleProposals(M.Edge):
-    """Mine witnessed patterns and submit bounded, mechanically checked folds."""
+    """Mine witnessed patterns and submit bounded, mechanically checked folds.
 
-    def __init__(self, proposal_store, versions, ledger, min_count):
+    Step 43: optional `slice_index`/`slice_count` (GMPRep atoms) select a
+    deterministic round-robin slice of the candidate list by candidate
+    ordinal; `candidate_index` (and so mined names) advance over every
+    candidate regardless of slice, so the union over all slices is
+    byte-identical to an unsliced run.
+    """
+
+    def __init__(
+        self,
+        proposal_store,
+        versions,
+        ledger,
+        min_count,
+        slice_index=M.EmptyList,
+        slice_count=M.EmptyList,
+    ):
         candidate_cap = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
         proposal_cap = MineNatFromGMPRep(HANDLE_PROPOSAL_CAP)()
         pattern_max_size = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
         scanned = MineNatFromGMPRep(M.GMPRep("0"))()
         submitted_count = MineNatFromGMPRep(M.GMPRep("0"))()
         candidate_index = MineNatFromGMPRep(M.GMPRep("0"))()
+        sliced = M.false_value
+        slice_cursor_text = "0"
+        slice_index_text = "0"
+        slice_count_text = "0"
+        if M.IdentityCompare(slice_index, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(slice_count, M.EmptyList)() is M.false_value:
+                sliced = M.truth_value
+                slice_index_text = M.GMPRepText(slice_index)()
+                slice_count_text = M.GMPRepText(slice_count)()
         skipped = SKIPPED_HANDLE_CANDIDATES
         current_store = proposal_store
 
@@ -6439,24 +6479,41 @@ class GenerateHandleProposals(M.Edge):
                 pattern = M.Head(candidate_entry)()
                 index_rep = M.NatRepOf(candidate_index, ledger.registry)()
                 name = M.Char("mined-" + M.GMPRepText(index_rep)())
-                handle = Handle(name, pattern)()
-                interface_nodes = PatternInterfaceNodes(
-                    pattern,
-                    latest_version,
-                )()
-                report = PromotionReport(
-                    handle,
-                    interface_nodes,
-                    ledger,
-                    versions,
-                )()
+                mine_here = M.truth_value
+                if M.IdentityCompare(sliced, M.truth_value)() is M.truth_value:
+                    if GMPEqualText(
+                        slice_cursor_text,
+                        slice_index_text,
+                    )() is M.false_value:
+                        mine_here = M.false_value
+                    slice_cursor_text = GMPSuccText(slice_cursor_text)()
+                    if GMPEqualText(
+                        slice_cursor_text,
+                        slice_count_text,
+                    )() is M.truth_value:
+                        slice_cursor_text = "0"
                 signature_ok = M.false_value
                 roundtrip_ok = M.false_value
-                if M.IdentityCompare(report, M.EmptyList)() is M.false_value:
-                    signature_entry = M.Head(M.Tail(report)())()
-                    roundtrip_entry = M.Head(M.Tail(M.Tail(report)())())()
-                    signature_ok = M.Head(M.Tail(signature_entry)())()
-                    roundtrip_ok = M.Head(M.Tail(roundtrip_entry)())()
+                handle = M.EmptyList
+                interface_nodes = M.EmptyList
+                report = M.EmptyList
+                if M.IdentityCompare(mine_here, M.truth_value)() is M.truth_value:
+                    handle = Handle(name, pattern)()
+                    interface_nodes = PatternInterfaceNodes(
+                        pattern,
+                        latest_version,
+                    )()
+                    report = PromotionReport(
+                        handle,
+                        interface_nodes,
+                        ledger,
+                        versions,
+                    )()
+                    if M.IdentityCompare(report, M.EmptyList)() is M.false_value:
+                        signature_entry = M.Head(M.Tail(report)())()
+                        roundtrip_entry = M.Head(M.Tail(M.Tail(report)())())()
+                        signature_ok = M.Head(M.Tail(signature_entry)())()
+                        roundtrip_ok = M.Head(M.Tail(roundtrip_entry)())()
 
                 if M.AndAtom(signature_ok, roundtrip_ok)() is M.truth_value:
                     current_store = ProposeHandle(
@@ -6476,7 +6533,7 @@ class GenerateHandleProposals(M.Edge):
                     )()
                     submitted_count = M.Head(stepped)()
                     ledger.registry = M.Head(M.Tail(stepped)())()
-                else:
+                elif M.IdentityCompare(mine_here, M.truth_value)() is M.truth_value:
                     skipped = M.Pair(name, skipped)
 
                 stepped = MineNatSuccessor(candidate_index, ledger.registry)()
