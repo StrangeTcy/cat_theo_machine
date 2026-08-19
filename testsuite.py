@@ -4601,6 +4601,194 @@ class MigrationLifecycleTest(M.Edge):
         return self.result
 
 
+class WorkerProtocolTest(M.Edge):
+    """Step 43: worker_task refuses nonzero activation budgets; a 2-worker
+    run_workers union equals the single-process proposal set byte-for-byte;
+    wire round trips preserve subterm identity sharing."""
+
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        node_one = M.Pair(M.Char("worker-node-one"), empty)
+        node_two = M.Pair(M.Char("worker-node-two"), empty)
+        edge_one = M.Pair(
+            M.Char("worker-edge-one"),
+            M.Pair(node_one, M.Pair(node_two, empty)),
+        )
+        version = Gmod.GraphVersion(
+            M.Pair(node_one, M.Pair(node_two, empty)),
+            M.Pair(edge_one, empty),
+            empty,
+        )()
+        versions = M.Pair(version, M.Pair(version, empty))
+
+        shared = M.Pair(node_one, M.Pair(node_one, empty))
+        rebuilt_shared = Wmod.deserialize_term(Wmod.serialize_term(shared))
+        sharing_ok = M.false_value
+        if M.Head(rebuilt_shared)() is M.Head(M.Tail(rebuilt_shared)())():
+            sharing_ok = M.truth_value
+
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.Zero, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.Zero, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+        doctored = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                M.Pair(M.one, empty),
+            ),
+            empty,
+        )
+        config = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_GENERATE_HANDLES_KEY,
+                M.Pair(M.truth_value, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_GENERATOR_VERSIONS_KEY,
+                    M.Pair(versions, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_GENERATOR_MIN_COUNT_KEY,
+                        M.Pair(M.two, empty),
+                    ),
+                    empty,
+                ),
+            ),
+        )
+
+        refusal = Wmod.worker_task(
+            Wmod.serialize_term(version),
+            Wmod.serialize_term(Gmod.ProposalStore(empty)()),
+            Wmod.serialize_term(doctored),
+            Wmod.serialize_term(config),
+            "0",
+            "1",
+        )
+        refused_ok = M.false_value
+        if refusal[0] == "refused-nonzero-activations":
+            refused_ok = M.truth_value
+
+        ledger = Gmod.FiringLedger(M.EmptyList)
+        single = Gmod.AutonomyCycle(
+            version,
+            Gmod.ProposalStore(empty)(),
+            ledger,
+            budget,
+            config,
+        )()
+        single_store = M.Head(M.Tail(single)())()
+        single_blobs = empty
+        entries = Gmod.ProposalStoreAll(single_store)()
+        while M.IdentityCompare(entries, empty)() is M.false_value:
+            single_blobs = M.Pair(
+                M.Char(Wmod.serialize_term(
+                    Gmod.ProposalEntryProposal(M.Head(entries)())(),
+                ).decode("utf-8")),
+                single_blobs,
+            )
+            entries = M.Tail(entries)()
+
+        outputs = Wmod.run_workers(
+            version,
+            Gmod.ProposalStore(empty)(),
+            budget,
+            config,
+            2,
+        )
+        union_blobs = empty
+        workers_ok = M.truth_value
+        for status, store_blob, ledger_blob, frontier_blob in outputs:
+            if status != "ok":
+                workers_ok = M.false_value
+                continue
+            worker_entries = Gmod.ProposalStoreAll(
+                Wmod.deserialize_term(store_blob),
+            )()
+            while M.IdentityCompare(
+                worker_entries,
+                empty,
+            )() is M.false_value:
+                union_blobs = M.Pair(
+                    M.Char(Wmod.serialize_term(
+                        Gmod.ProposalEntryProposal(
+                            M.Head(worker_entries)(),
+                        )(),
+                    ).decode("utf-8")),
+                    union_blobs,
+                )
+                worker_entries = M.Tail(worker_entries)()
+
+        sets_equal = M.truth_value
+        remaining_single = single_blobs
+        while M.IdentityCompare(remaining_single, empty)() is M.false_value:
+            found_here = M.false_value
+            probe = union_blobs
+            while M.IdentityCompare(probe, empty)() is M.false_value:
+                if M.Compare(
+                    M.Head(probe)(),
+                    M.Head(remaining_single)(),
+                )() is M.truth_value:
+                    found_here = M.truth_value
+                probe = M.Tail(probe)()
+            if M.IdentityCompare(found_here, M.false_value)() is M.truth_value:
+                sets_equal = M.false_value
+            remaining_single = M.Tail(remaining_single)()
+        remaining_union = union_blobs
+        while M.IdentityCompare(remaining_union, empty)() is M.false_value:
+            found_here = M.false_value
+            probe = single_blobs
+            while M.IdentityCompare(probe, empty)() is M.false_value:
+                if M.Compare(
+                    M.Head(probe)(),
+                    M.Head(remaining_union)(),
+                )() is M.truth_value:
+                    found_here = M.truth_value
+                probe = M.Tail(probe)()
+            if M.IdentityCompare(found_here, M.false_value)() is M.truth_value:
+                sets_equal = M.false_value
+            remaining_union = M.Tail(remaining_union)()
+        nonempty_ok = M.false_value
+        if M.IdentityCompare(single_blobs, empty)() is M.false_value:
+            nonempty_ok = M.truth_value
+
+        self.result = M.AndAtom(
+            sharing_ok,
+            M.AndAtom(
+                refused_ok,
+                M.AndAtom(
+                    workers_ok,
+                    M.AndAtom(sets_equal, nonempty_ok)(),
+                )(),
+            )(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph, empty),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class WireRoundTripTest(M.Edge):
     """Step 42: canonical serialization is a byte fixed point and preserves
     installed_laws, installed_policy, all_laws_with_status, contracts, and
@@ -12950,6 +13138,14 @@ def install_default_tests(graph):
             "wire_round_trip_test",
             empty,
             WireRoundTripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "worker_protocol_test",
+            empty,
+            WorkerProtocolTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

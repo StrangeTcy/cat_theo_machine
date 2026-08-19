@@ -16,8 +16,10 @@ order, so identity sharing inside one blob is preserved and re-serializing
 a deserialized blob reproduces the bytes exactly (canonical fixed point).
 Anonymous atoms deserialize as fresh Thingy objects: sharing inside one
 blob survives, identity across blobs does not — durable structures should
-carry labeled nodes. Char and GMPRep tokens are interned per blob so
-structural equality of the rebuilt term matches the original.
+carry labeled nodes. Char and GMPRep tokens are interned per blob, and
+Pairs are hash-consed per blob (same head and tail identity -> same Pair
+object), so identity sharing of repeated subterms — graph nodes referenced
+from both a version's node list and its edges — survives the round trip.
 Traversal and parsing are iterative: no recursion limits on deep chains.
 Checkpoints (save_checkpoint/load_checkpoint) store version, proposal
 store, and ledger records/misses as one WIRE1 document of four sections.
@@ -105,6 +107,7 @@ def deserialize_term(blob):
     tokens = text.replace("(", " ( ").replace(")", " ) ").split()
     anonymous = {}
     interned = {}
+    consed = {}
     stack = [[]]
     for token in tokens:
         if token == "(":
@@ -112,7 +115,10 @@ def deserialize_term(blob):
             continue
         if token == ")":
             frame = stack.pop()
-            stack[-1].append(M.Pair(frame[0], frame[1]))
+            cons_key = (id(frame[0]), id(frame[1]))
+            if cons_key not in consed:
+                consed[cons_key] = M.Pair(frame[0], frame[1])
+            stack[-1].append(consed[cons_key])
             continue
         if token == "E":
             value = M.EmptyList
