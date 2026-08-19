@@ -2018,10 +2018,6 @@ class SourceLabel(ConstructorLabel):
     pass
 
 
-class SurfaceLabel(ConstructorLabel):
-    pass
-
-
 class MathematicsLabel(ConstructorLabel):
     pass
 
@@ -2094,7 +2090,6 @@ LessonLabel = LessonLabel()
 EntryLabel = EntryLabel()
 GroundedExampleLabel = GroundedExampleLabel()
 SourceLabel = SourceLabel()
-SurfaceLabel = SurfaceLabel()
 MathematicsLabel = MathematicsLabel()
 HistoryLabel = HistoryLabel()
 ProblemLabel = ProblemLabel()
