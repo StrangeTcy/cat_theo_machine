@@ -1111,6 +1111,10 @@ class RobustnessLabel(ConstructorLabel):
     pass
 
 
+class EqualLabel(ConstructorLabel):
+    pass
+
+
 class SurfaceLabel(ConstructorLabel):
     pass
 
@@ -1400,6 +1404,7 @@ ReasonUncountersignedLabel = ReasonUncountersignedLabel()
 ContractLabel = ContractLabel()
 ReasonContractLabel = ReasonContractLabel()
 RobustnessLabel = RobustnessLabel()
+EqualLabel = EqualLabel()
 SurfaceLabel = SurfaceLabel()
 MeaningLabel = MeaningLabel()
 CorrespondsLabel = CorrespondsLabel()
@@ -1834,6 +1839,7 @@ def sync_from_namespace(namespace):
         "ContractLabel",
         "ReasonContractLabel",
         "RobustnessLabel",
+        "EqualLabel",
         "SurfaceLabel",
         "MeaningLabel",
         "CorrespondsLabel",
