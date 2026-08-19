@@ -1894,6 +1894,8 @@ class ImpactPolicyTest(M.Edge):
         policy_tail = M.Tail(policy_tail)()
         scheduler_entry = M.Head(policy_tail)()
         policy_tail = M.Tail(policy_tail)()
+        annotate_entry = M.Head(policy_tail)()
+        policy_tail = M.Tail(policy_tail)()
 
         empty_graph = Gmod.GraphVersion(empty, empty, empty)()
         handle = Gmod.Handle(M.Char("impact-handle"), empty_graph)()
@@ -1998,6 +2000,25 @@ class ImpactPolicyTest(M.Edge):
             )(),
             M.Char("scheduler-impact"),
         )()
+        robustness_graph = Gmod.GraphVersion(
+            M.Pair(
+                Gmod.Robustness(plain_law, M.two, M.three)(),
+                empty,
+            ),
+            empty,
+            empty,
+        )()
+        annotate_proposal = Gmod.Proposal(
+            Gmod.Law(
+                empty_graph,
+                empty_graph,
+                robustness_graph,
+                empty,
+                empty,
+                empty,
+            )(),
+            M.Char("annotate-impact"),
+        )()
 
         self.result = M.truth_value
         if M.IdentityCompare(policy_tail, empty)() is M.false_value:
@@ -2080,6 +2101,16 @@ class ImpactPolicyTest(M.Edge):
         )() is M.false_value:
             self.result = M.false_value
         elif M.Compare(
+            M.Head(annotate_entry)(),
+            M.Char("annotate"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(annotate_entry)())(),
+            M.Char("auto"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
             Gmod.ClassifyProposal(fold_proposal)(),
             M.Char("fold_handle"),
         )() is M.false_value:
@@ -2112,6 +2143,11 @@ class ImpactPolicyTest(M.Edge):
         elif M.Compare(
             Gmod.ClassifyProposal(scheduler_proposal)(),
             M.Char("tune_scheduler"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(annotate_proposal)(),
+            M.Char("annotate"),
         )() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
@@ -4195,6 +4231,231 @@ class PolicyChangeCountersignTest(M.Edge):
         return self.result
 
 
+class RobustnessHarnessTest(M.Edge):
+    """Step 40: perturbation evidence separates brittle from robust laws."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        ledger = Gmod.FiringLedger(registry)
+
+        anchor = M.Pair(M.Char("robust-anchor"), empty)
+        partner = M.Pair(M.Char("robust-partner"), empty)
+        in_edge = M.Pair(
+            M.Char("robust-in-edge"),
+            M.Pair(anchor, M.Pair(partner, empty)),
+        )
+        out_edge = M.Pair(
+            M.Char("robust-out-edge"),
+            M.Pair(anchor, M.Pair(partner, empty)),
+        )
+        both_nodes = M.Pair(anchor, M.Pair(partner, empty))
+        interface_graph = Gmod.GraphVersion(both_nodes, empty, empty)()
+        both_sends = M.Pair(
+            Gmod.Send(anchor, anchor)(),
+            M.Pair(Gmod.Send(partner, partner)(), empty),
+        )
+        robust_left = Gmod.GraphVersion(
+            both_nodes,
+            M.Pair(in_edge, empty),
+            empty,
+        )()
+        robust_right = Gmod.GraphVersion(
+            both_nodes,
+            M.Pair(out_edge, empty),
+            empty,
+        )()
+        robust_law = Gmod.Law(
+            robust_left,
+            interface_graph,
+            robust_right,
+            Gmod.Map(interface_graph, robust_left, both_sends)(),
+            Gmod.Map(interface_graph, robust_right, both_sends)(),
+            empty,
+        )()
+
+        anchor_interface = Gmod.GraphVersion(M.Pair(anchor, empty), empty, empty)()
+        anchor_sends = M.Pair(Gmod.Send(anchor, anchor)(), empty)
+        brittle_left = Gmod.GraphVersion(
+            both_nodes,
+            M.Pair(in_edge, empty),
+            empty,
+        )()
+        brittle_right = Gmod.GraphVersion(M.Pair(anchor, empty), empty, empty)()
+        brittle_law = Gmod.Law(
+            brittle_left,
+            anchor_interface,
+            brittle_right,
+            Gmod.Map(anchor_interface, brittle_left, anchor_sends)(),
+            Gmod.Map(anchor_interface, brittle_right, anchor_sends)(),
+            empty,
+        )()
+
+        robust_fixture = Gmod.GraphVersion(
+            both_nodes,
+            M.Pair(in_edge, empty),
+            empty,
+        )()
+        brittle_fixture = Gmod.GraphVersion(
+            both_nodes,
+            M.Pair(in_edge, empty),
+            empty,
+        )()
+        seeds = M.Pair(M.Char("0"), M.Pair(M.Char("1"), empty))
+
+        robust_report = Gmod.RobustnessReport(
+            robust_law,
+            M.Pair(robust_fixture, empty),
+            seeds,
+        )()
+        brittle_report = Gmod.RobustnessReport(
+            brittle_law,
+            M.Pair(brittle_fixture, empty),
+            seeds,
+        )()
+
+        robust_row_zero = M.Head(robust_report)()
+        robust_row_one = M.Head(M.Tail(robust_report)())()
+        brittle_row_zero = M.Head(brittle_report)()
+        brittle_row_one = M.Head(M.Tail(brittle_report)())()
+
+        store = Gmod.ProposalStore(empty)()
+        annotated = Gmod.GenerateRobustnessAnnotation(
+            store,
+            robust_law,
+            robust_report,
+        )()
+        annotated_store = M.Head(annotated)()
+        robustness_term = M.Head(M.Tail(annotated)())()
+        annotation_entries = Gmod.ProposalStoreAll(annotated_store)()
+        annotation_proposal = Gmod.ProposalEntryProposal(
+            M.Head(annotation_entries)(),
+        )()
+
+        gate_proposal = Gmod.Proposal(
+            robust_law,
+            M.Char("robust-gate-origin"),
+        )()
+        gate_authority = M.Pair(M.Char("robust-authority"), empty)
+        gate_store = Gmod.ProposalStore(empty)()
+        gate_store = Gmod.ProposalStoreSubmit(gate_store, gate_proposal)()
+        gate_store = Gmod.ProposalStoreAttach(
+            gate_store,
+            gate_proposal,
+            Gmod.Approved(gate_proposal, gate_authority)(),
+        )()
+        host = Gmod.GraphVersion(empty, empty, empty)()
+        budget = M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY,
+                M.Pair(M.Zero, empty),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_BUDGET_MAX_NODES_KEY,
+                    M.Pair(M.nine, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY,
+                        M.Pair(M.one, empty),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Gmod.AUTONOMY_BUDGET_ACTIVATE_APPROVED_KEY,
+                            M.Pair(M.truth_value, empty),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Gmod.AUTONOMY_BUDGET_REQUIRE_ROBUSTNESS_KEY,
+                                M.Pair(M.two, empty),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        gated_cycle = Gmod.AutonomyCycle(host, gate_store, ledger, budget)()
+        gated_report = M.Head(M.Tail(M.Tail(gated_cycle)())())()
+        gated_activated = M.Head(M.Tail(M.Head(gated_report)())())()
+        fragile_entry = M.EmptyList
+        remaining_report = gated_report
+        while M.IdentityCompare(remaining_report, empty)() is M.false_value:
+            report_entry = M.Head(remaining_report)()
+            if M.Compare(
+                M.Head(report_entry)(),
+                Gmod.AUTONOMY_REPORT_SKIPPED_FRAGILE_KEY,
+            )() is M.truth_value:
+                fragile_entry = M.Head(M.Tail(report_entry)())()
+                remaining_report = empty
+            else:
+                remaining_report = M.Tail(remaining_report)()
+
+        graph._replace_context(constructors=ledger.registry)
+
+        self.result = M.truth_value
+        if M.IdentityCompare(
+            M.Head(M.Tail(robust_row_zero)())(),
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(M.Tail(robust_row_zero)())())(),
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(robust_row_one)())(),
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(M.Tail(robust_row_one)())())(),
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(brittle_row_zero)())(),
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(brittle_row_one)())(),
+            M.false_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(M.Tail(brittle_row_one)())())(),
+            M.false_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.RobustnessPassed(robustness_term)(),
+            M.two,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.ClassifyProposal(annotation_proposal)(),
+            M.Char("annotate"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(gated_activated, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(fragile_entry, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(fragile_entry)(),
+            gate_proposal,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ContractEnforcementTest(M.Edge):
     """Step 39: deleting a contracted port is a Miss term, never a firing."""
 
@@ -4460,7 +4721,7 @@ class CuratorReportTest(M.Edge):
             + "\neffective_policy:"
             + " fold_handle=auto unfold_handle=auto install_law=human"
             + " meta_rewrite=human activation=human tune_preference=auto"
-            + " retire_law=human tune_scheduler=human"
+            + " retire_law=human tune_scheduler=human annotate=auto"
             + "\nskipped_handle_candidates count=0"
             + "\nskipped_compositions count=0"
             + "\nunchecked_obligations count=0"
@@ -12228,6 +12489,14 @@ def install_default_tests(graph):
             "contract_enforcement_test",
             empty,
             ContractEnforcementTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "robustness_harness_test",
+            empty,
+            RobustnessHarnessTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

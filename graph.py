@@ -2480,7 +2480,13 @@ class ImpactPolicy(M.Edge):
                                             M.Char("tune_scheduler"),
                                             M.Pair(M.Char("human"), M.EmptyList),
                                         ),
-                                        M.EmptyList,
+                                        M.Pair(
+                                            M.Pair(
+                                                M.Char("annotate"),
+                                                M.Pair(M.Char("auto"), M.EmptyList),
+                                            ),
+                                            M.EmptyList,
+                                        ),
                                     ),
                                 ),
                             ),
@@ -2662,6 +2668,8 @@ class ClassifyProposal(M.Edge):
         retire_class = M.Head(M.Head(policy)())()
         policy = M.Tail(policy)()
         scheduler_class = M.Head(M.Head(policy)())()
+        policy = M.Tail(policy)()
+        annotate_class = M.Head(M.Head(policy)())()
 
         law = ProposalLaw(proposal)()
         left_contains_law = M.false_value
@@ -2681,6 +2689,7 @@ class ClassifyProposal(M.Edge):
         right_contains_retired = M.false_value
         right_contains_heuristic = M.false_value
         right_contains_policy_entry = M.false_value
+        right_contains_robustness = M.false_value
         remaining_right = GraphElements(LawRight(law)())()
         while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
             element = M.Head(remaining_right)()
@@ -2701,6 +2710,11 @@ class ClassifyProposal(M.Edge):
                     right_contains_heuristic = M.truth_value
                 if IsPolicyEntry(element)() is M.truth_value:
                     right_contains_policy_entry = M.truth_value
+                if M.TermEqual(
+                    M.Head(element)(),
+                    Lmod.RobustnessLabel,
+                )() is M.truth_value:
+                    right_contains_robustness = M.truth_value
             remaining_right = M.Tail(remaining_right)()
 
         if M.IdentityCompare(
@@ -2710,6 +2724,11 @@ class ClassifyProposal(M.Edge):
             self.result = M.Char("policy_change")
         elif M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
             self.result = meta_class
+        elif M.IdentityCompare(
+            right_contains_robustness,
+            M.truth_value,
+        )() is M.truth_value:
+            self.result = annotate_class
         elif M.IdentityCompare(
             right_contains_retired,
             M.truth_value,
@@ -2741,6 +2760,9 @@ class ClassifyProposal(M.Edge):
 AUTONOMY_BUDGET_MAX_FIRINGS_KEY = M.Char("max_firings")
 AUTONOMY_BUDGET_MAX_NODES_KEY = M.Char("max_nodes")
 AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY = M.Char("max_activations")
+AUTONOMY_BUDGET_ACTIVATE_APPROVED_KEY = M.Char("activate_approved")
+AUTONOMY_BUDGET_REQUIRE_ROBUSTNESS_KEY = M.Char("require_robustness")
+AUTONOMY_REPORT_SKIPPED_FRAGILE_KEY = M.Char("skipped_fragile")
 AUTONOMY_REPORT_ACTIVATED_KEY = M.Char("activated")
 AUTONOMY_REPORT_SKIPPED_HUMAN_KEY = M.Char("skipped_human")
 AUTONOMY_REPORT_FIRINGS_KEY = M.Char("firings")
@@ -2787,6 +2809,8 @@ class AutonomyCycle(M.Edge):
         max_firings = M.EmptyList
         max_nodes = M.EmptyList
         max_activations = M.EmptyList
+        activate_approved = M.false_value
+        require_robustness = M.EmptyList
         remaining_budget = budget
         while M.IdentityCompare(remaining_budget, M.EmptyList)() is M.false_value:
             association = M.Head(remaining_budget)()
@@ -2798,6 +2822,16 @@ class AutonomyCycle(M.Edge):
                 max_nodes = value
             elif M.Compare(key, AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY)() is M.truth_value:
                 max_activations = value
+            elif M.Compare(
+                key,
+                AUTONOMY_BUDGET_ACTIVATE_APPROVED_KEY,
+            )() is M.truth_value:
+                activate_approved = value
+            elif M.Compare(
+                key,
+                AUTONOMY_BUDGET_REQUIRE_ROBUSTNESS_KEY,
+            )() is M.truth_value:
+                require_robustness = value
             remaining_budget = M.Tail(remaining_budget)()
 
         generate_handles = M.false_value
@@ -2888,6 +2922,7 @@ class AutonomyCycle(M.Edge):
         activation_count = M.Zero
         reversed_activated = M.EmptyList
         reversed_skipped_human = M.EmptyList
+        reversed_skipped_fragile = M.EmptyList
         remaining_entries = ProposalStoreEntries(current_store)()
         policy = InstalledPolicy(current_version)()
 
@@ -2895,6 +2930,9 @@ class AutonomyCycle(M.Edge):
             entry = M.Head(remaining_entries)()
             proposal = ProposalEntryProposal(entry)()
             pending = M.truth_value
+            has_approved = M.false_value
+            has_rejected = M.false_value
+            has_activation_mark = M.false_value
             remaining_annotations = ProposalEntryAnnotations(entry)()
             while M.IdentityCompare(
                 remaining_annotations,
@@ -2908,17 +2946,19 @@ class AutonomyCycle(M.Edge):
                         Lmod.ApprovedLabel,
                     )() is M.truth_value:
                         pending = M.false_value
-                        remaining_annotations = M.EmptyList
+                        has_approved = M.truth_value
                     elif M.TermEqual(
                         annotation_label,
                         Lmod.RejectedLabel,
                     )() is M.truth_value:
                         pending = M.false_value
-                        remaining_annotations = M.EmptyList
-                    else:
-                        remaining_annotations = M.Tail(remaining_annotations)()
-                else:
-                    remaining_annotations = M.Tail(remaining_annotations)()
+                        has_rejected = M.truth_value
+                    elif M.TermEqual(
+                        annotation_label,
+                        Lmod.ActivationLabel,
+                    )() is M.truth_value:
+                        has_activation_mark = M.truth_value
+                remaining_annotations = M.Tail(remaining_annotations)()
 
             if M.IdentityCompare(pending, M.truth_value)() is M.truth_value:
                 impact = ClassifyProposal(proposal)()
@@ -2951,7 +2991,32 @@ class AutonomyCycle(M.Edge):
                         reversed_skipped_human,
                     )
                 elif M.Compare(disposition, M.Char("auto"))() is M.truth_value:
-                    if M.NatLess(
+                    fragile = M.false_value
+                    if M.IdentityCompare(
+                        require_robustness,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        robustness_term = InstalledRobustness(
+                            current_version,
+                            ProposalLaw(proposal)(),
+                        )()
+                        if M.IdentityCompare(
+                            robustness_term,
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            fragile = M.truth_value
+                        elif M.NatLess(
+                            RobustnessPassed(robustness_term)(),
+                            require_robustness,
+                            ledger.registry,
+                        )() is M.truth_value:
+                            fragile = M.truth_value
+                    if M.IdentityCompare(fragile, M.truth_value)() is M.truth_value:
+                        reversed_skipped_fragile = M.Pair(
+                            proposal,
+                            reversed_skipped_fragile,
+                        )
+                    elif M.NatLess(
                         activation_count,
                         max_activations,
                         ledger.registry,
@@ -3104,6 +3169,79 @@ class AutonomyCycle(M.Edge):
                             )()
                             activation_count = M.Head(next_activation)()
                             ledger.registry = M.Head(M.Tail(next_activation)())()
+            elif M.IdentityCompare(
+                activate_approved,
+                M.truth_value,
+            )() is M.truth_value:
+                if M.IdentityCompare(has_approved, M.truth_value)() is M.truth_value:
+                    if M.IdentityCompare(
+                        has_rejected,
+                        M.false_value,
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            has_activation_mark,
+                            M.false_value,
+                        )() is M.truth_value:
+                            fragile = M.false_value
+                            if M.IdentityCompare(
+                                require_robustness,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                robustness_term = InstalledRobustness(
+                                    current_version,
+                                    ProposalLaw(proposal)(),
+                                )()
+                                if M.IdentityCompare(
+                                    robustness_term,
+                                    M.EmptyList,
+                                )() is M.truth_value:
+                                    fragile = M.truth_value
+                                elif M.NatLess(
+                                    RobustnessPassed(robustness_term)(),
+                                    require_robustness,
+                                    ledger.registry,
+                                )() is M.truth_value:
+                                    fragile = M.truth_value
+                            if M.IdentityCompare(
+                                fragile,
+                                M.truth_value,
+                            )() is M.truth_value:
+                                reversed_skipped_fragile = M.Pair(
+                                    proposal,
+                                    reversed_skipped_fragile,
+                                )
+                            elif M.NatLess(
+                                activation_count,
+                                max_activations,
+                                ledger.registry,
+                            )() is M.truth_value:
+                                activated = ActivateProposal(
+                                    current_version,
+                                    entry,
+                                )()
+                                active_version = M.Head(activated)()
+                                if M.IdentityCompare(
+                                    active_version,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    current_version = active_version
+                                    current_store = ProposalStoreAttach(
+                                        current_store,
+                                        proposal,
+                                        Activation(proposal)(),
+                                    )()
+                                    reversed_activated = M.Pair(
+                                        proposal,
+                                        reversed_activated,
+                                    )
+                                    next_activation = M.Succ(
+                                        activation_count,
+                                        ledger.registry,
+                                    )()
+                                    activation_count = M.Head(next_activation)()
+                                    ledger.registry = M.Head(
+                                        M.Tail(next_activation)(),
+                                    )()
             remaining_entries = M.Tail(remaining_entries)()
 
         firings = M.Zero
@@ -3153,6 +3291,23 @@ class AutonomyCycle(M.Edge):
                         firings = M.Head(next_firings)()
                         ledger.registry = M.Head(M.Tail(next_firings)())()
 
+        tail_report = generation_report
+        if M.IdentityCompare(
+            require_robustness,
+            M.EmptyList,
+        )() is M.false_value:
+            tail_report = M.Reverse(
+                M.Pair(
+                    M.Pair(
+                        AUTONOMY_REPORT_SKIPPED_FRAGILE_KEY,
+                        M.Pair(
+                            M.Reverse(reversed_skipped_fragile)(),
+                            M.EmptyList,
+                        ),
+                    ),
+                    M.Reverse(generation_report)(),
+                )
+            )()
         report = M.Pair(
             M.Pair(
                 AUTONOMY_REPORT_ACTIVATED_KEY,
@@ -3173,7 +3328,7 @@ class AutonomyCycle(M.Edge):
                             AUTONOMY_REPORT_STOPPED_REASON_KEY,
                             M.Pair(stopped_reason, M.EmptyList),
                         ),
-                        generation_report,
+                        tail_report,
                     ),
                 ),
             ),
@@ -4721,6 +4876,356 @@ class GenerateHeuristicProposal(M.Edge):
             inputs=M.Pair(
                 proposal_store,
                 M.Pair(trial_result, M.Pair(heuristic_b, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+PERTURB_SCAN_CAP = M.GMPRep("200")
+PERTURB_NODE_CHAR = M.Char("perturb-node")
+PERTURB_EDGE_CHAR = M.Char("perturb-edge")
+
+
+class PerturbVersion(M.Edge):
+    """Step 40: one deterministic perturbation chosen by seed mod 3.
+
+    `seed_atom` is a Char whose symbol is the decimal seed. The added node
+    and edge embed the module singleton label atoms plus the caller's seed
+    atom, so perturbing twice with the same seed atom yields structurally
+    equal additions (TermEqual is identity on atoms).
+
+    seed mod 3 == 0: add one fresh isolated node.
+    seed mod 3 == 1: add one fresh edge between the two lowest-index nodes.
+    seed mod 3 == 2: retire-mark the lowest-index installed law that is not
+    `protected_law`. No other menu items exist; no randomness.
+    """
+
+    def __init__(self, graph_version, seed_atom, protected_law=M.EmptyList):
+        remainder = seed_atom()
+        while GMPLessText(remainder, "3")() is M.false_value:
+            remainder = GMPSubText(remainder, "3")()
+        nodes = GraphNodes(graph_version)()
+        edges = GraphEdges(graph_version)()
+        invariants = GraphVersionInvariants(graph_version)()
+        if GMPEqualText(remainder, "0")() is M.truth_value:
+            fresh = M.Pair(
+                PERTURB_NODE_CHAR,
+                M.Pair(seed_atom, M.EmptyList),
+            )
+            nodes = M.Pair(fresh, nodes)
+        elif GMPEqualText(remainder, "1")() is M.truth_value:
+            first = M.EmptyList
+            second = M.EmptyList
+            remaining = nodes
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(first, M.EmptyList)() is M.truth_value:
+                    first = M.Head(remaining)()
+                elif M.IdentityCompare(second, M.EmptyList)() is M.truth_value:
+                    second = M.Head(remaining)()
+                    remaining = M.EmptyList
+                if M.IdentityCompare(
+                    remaining,
+                    M.EmptyList,
+                )() is M.false_value:
+                    remaining = M.Tail(remaining)()
+            if M.IdentityCompare(second, M.EmptyList)() is M.false_value:
+                fresh_edge = M.Pair(
+                    PERTURB_EDGE_CHAR,
+                    M.Pair(first, M.Pair(second, M.EmptyList)),
+                )
+                edges = M.Pair(fresh_edge, edges)
+        else:
+            victim = M.EmptyList
+            remaining = Reverse(InstalledLaws(graph_version)())()
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                law = M.Head(remaining)()
+                if M.TermEqual(law, protected_law)() is M.false_value:
+                    victim = law
+                remaining = M.Tail(remaining)()
+            if M.IdentityCompare(victim, M.EmptyList)() is M.false_value:
+                invariants = M.Pair(Retired(victim)(), invariants)
+        self.result = GraphVersion(nodes, edges, invariants)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(protected_law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RobustnessReport(M.Edge):
+    """Step 40: per-seed commutation evidence for one law; observational only.
+
+    For each fixture and seed: fire the law on the fixture, fire it on the
+    perturbed fixture, then compare the perturbed result against the
+    perturbation of the unperturbed result (firing commutes with the
+    perturbation). Returns an M-list of
+    Pair(seed_text_char, Pair(fired, Pair(commutes, EmptyList))).
+    """
+
+    def __init__(self, law, fixtures, seed_texts):
+        cap_text = M.GMPRepText(PERTURB_SCAN_CAP)()
+        scan_text = "0"
+        reversed_rows = M.EmptyList
+        remaining_fixtures = fixtures
+        while M.IdentityCompare(
+            remaining_fixtures,
+            M.EmptyList,
+        )() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_fixtures = M.EmptyList
+            else:
+                fixture = M.Head(remaining_fixtures)()
+                remaining_seeds = seed_texts
+                while M.IdentityCompare(
+                    remaining_seeds,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                        remaining_seeds = M.EmptyList
+                    else:
+                        scan_text = GMPSuccText(scan_text)()
+                        seed = M.Head(remaining_seeds)()
+                        base_mapping = FirstCompletedMatch(
+                            LawLeft(law)(),
+                            fixture,
+                        )()
+                        base_result = M.EmptyList
+                        if M.IdentityCompare(
+                            base_mapping,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            base_fired = FireLaw(
+                                fixture,
+                                law,
+                                base_mapping,
+                                DanglingForbid()(),
+                            )()
+                            base_result = M.Head(base_fired)()
+                        perturbed = PerturbVersion(fixture, seed, law)()
+                        mapping = FirstCompletedMatch(
+                            LawLeft(law)(),
+                            perturbed,
+                        )()
+                        fired_flag = M.false_value
+                        commutes = M.false_value
+                        if M.IdentityCompare(
+                            mapping,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            fired = FireLaw(
+                                perturbed,
+                                law,
+                                mapping,
+                                DanglingForbid()(),
+                            )()
+                            fired_version = M.Head(fired)()
+                            if M.IdentityCompare(
+                                fired_version,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                fired_flag = M.truth_value
+                                if M.IdentityCompare(
+                                    base_result,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    expected = PerturbVersion(
+                                        base_result,
+                                        seed,
+                                        law,
+                                    )()
+                                    forward = BoundedFirstCompletedMatch(
+                                        fired_version,
+                                        expected,
+                                    )()
+                                    reverse = M.EmptyList
+                                    if M.IdentityCompare(
+                                        forward,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        reverse = BoundedFirstCompletedMatch(
+                                            expected,
+                                            fired_version,
+                                        )()
+                                    if M.IdentityCompare(
+                                        reverse,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        commutes = M.truth_value
+                        reversed_rows = M.Pair(
+                            M.Pair(
+                                seed,
+                                M.Pair(
+                                    fired_flag,
+                                    M.Pair(commutes, M.EmptyList),
+                                ),
+                            ),
+                            reversed_rows,
+                        )
+                        remaining_seeds = M.Tail(remaining_seeds)()
+                remaining_fixtures = M.Tail(remaining_fixtures)()
+        self.result = Reverse(reversed_rows)()
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(fixtures, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Robustness(M.Edge):
+    """Step 40: recorded stress evidence for one law as a labeled term."""
+
+    def __init__(self, law, passed, total):
+        self.result = M.Pair(
+            Lmod.RobustnessLabel,
+            M.Pair(law, M.Pair(passed, M.Pair(total, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(passed, M.Pair(total, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsRobustness(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.RobustnessLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RobustnessLaw(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RobustnessPassed(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledRobustness(M.Edge):
+    """Newest installed Robustness term for a law, or EmptyList."""
+
+    def __init__(self, graph_version, law):
+        cap_text = M.GMPRepText(PERTURB_SCAN_CAP)()
+        scan_text = "0"
+        self.result = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                invariant = M.Head(remaining)()
+                if IsInstalledLaw(invariant)() is M.truth_value:
+                    carrier = InstalledLawValue(invariant)()
+                    element_scan_text = "0"
+                    remaining_elements = GraphNodes(LawRight(carrier)())()
+                    while M.IdentityCompare(
+                        remaining_elements,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            element_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_elements = M.EmptyList
+                        else:
+                            element_scan_text = GMPSuccText(element_scan_text)()
+                            element = M.Head(remaining_elements)()
+                            if IsRobustness(element)() is M.truth_value:
+                                if M.TermEqual(
+                                    RobustnessLaw(element)(),
+                                    law,
+                                )() is M.truth_value:
+                                    self.result = element
+                                    remaining_elements = M.EmptyList
+                                    remaining = M.EmptyList
+                            if M.IdentityCompare(
+                                remaining_elements,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                remaining_elements = M.Tail(remaining_elements)()
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateRobustnessAnnotation(M.Edge):
+    """Step 40: submit one insertion-law proposal carrying a Robustness term."""
+
+    def __init__(self, proposal_store, law, report):
+        passed_text = "0"
+        total_text = "0"
+        remaining_rows = report
+        while M.IdentityCompare(remaining_rows, M.EmptyList)() is M.false_value:
+            row = M.Head(remaining_rows)()
+            total_text = GMPSuccText(total_text)()
+            fired_flag = M.Head(M.Tail(row)())()
+            commutes = M.Head(M.Tail(M.Tail(row)())())()
+            if M.IdentityCompare(fired_flag, M.truth_value)() is M.truth_value:
+                if M.IdentityCompare(commutes, M.truth_value)() is M.truth_value:
+                    passed_text = GMPSuccText(passed_text)()
+            remaining_rows = M.Tail(remaining_rows)()
+        robustness = Robustness(
+            law,
+            MineNatFromGMPRep(M.GMPRep(passed_text))(),
+            MineNatFromGMPRep(M.GMPRep(total_text))(),
+        )()
+        empty_graph = GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+        robustness_graph = GraphVersion(
+            M.Pair(robustness, M.EmptyList),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        annotation_law = Law(
+            empty_graph,
+            empty_graph,
+            robustness_graph,
+            Map(empty_graph, empty_graph, M.EmptyList)(),
+            Map(empty_graph, robustness_graph, M.EmptyList)(),
+            M.EmptyList,
+        )()
+        proposal = Proposal(annotation_law, M.Char("robustness-harness"))()
+        current_store = ProposalStoreSubmit(proposal_store, proposal)()
+        current_store = ProposalStoreAttach(
+            current_store,
+            proposal,
+            JustifiedBy(proposal, report)(),
+        )()
+        self.result = M.Pair(current_store, M.Pair(robustness, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(
+                proposal_store,
+                M.Pair(law, M.Pair(report, M.EmptyList)),
             ),
             results=self.result,
         )
