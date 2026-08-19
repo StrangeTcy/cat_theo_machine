@@ -10407,4 +10407,86 @@ class TestResultsReport(M.Edge):
         return self.result
 
 
+class ReasonStale(M.Edge):
+    """Step 45: a worker claim that no longer replays on the merged version.
+
+    Carries the law whose replay was refused and the worker record that
+    claimed it, so a stale claim is recorded rather than silently dropped.
+    """
+
+    def __init__(self, law, claimed_record):
+        self.result = M.Pair(
+            Lmod.ReasonStaleLabel,
+            M.Pair(law, M.Pair(claimed_record, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(claimed_record, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MergeFrontiers(M.Edge):
+    """Step 45: fold worker frontier claims into one coordinator version.
+
+    Coordinator-only: workers never activate, and their frontier versions are
+    never transplanted. Each worker record is re-derived against the growing
+    coordinator version by replaying its law through the ordinary firing
+    path; a claim whose law no longer has a completed match is refused and
+    recorded as a Miss carrying ReasonStale. Worker order then per-worker
+    chronological order is the canonical order, so the fold is deterministic
+    and the earlier claim wins any overlap, matching DetectConflicts.
+
+    Returns Pair(merged_version, Pair(conflicts, EmptyList)); the ledger is
+    mutated in place with the replayed records and any stale misses.
+    """
+
+    def __init__(self, base_version, worker_records, ledger, dangling_mode=M.EmptyList):
+        if M.IdentityCompare(dangling_mode, M.EmptyList)() is M.truth_value:
+            dangling_mode = DanglingForbid()()
+        current_version = base_version
+        remaining_workers = worker_records
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            records = M.Head(remaining_workers)()
+            remaining_records = records
+            while M.IdentityCompare(
+                remaining_records,
+                M.EmptyList,
+            )() is M.false_value:
+                claimed = M.Head(remaining_records)()
+                law = FiringRecordLaw(claimed)()
+                mapping = FirstCompletedMatch(LawLeft(law)(), current_version)()
+                if M.IdentityCompare(mapping, M.EmptyList)() is M.truth_value:
+                    ledger.record_miss(law, ReasonStale(law, claimed)())
+                else:
+                    replayed = FireLaw(
+                        current_version,
+                        law,
+                        mapping,
+                        dangling_mode,
+                        ledger,
+                    )()
+                    committed = M.Head(replayed)()
+                    if M.IdentityCompare(
+                        committed,
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        ledger.record_miss(law, ReasonStale(law, claimed)())
+                    else:
+                        current_version = committed
+                remaining_records = M.Tail(remaining_records)()
+            remaining_workers = M.Tail(remaining_workers)()
+        conflicts = DetectConflicts(ledger.records, ledger.registry)()
+        self.result = M.Pair(current_version, M.Pair(conflicts, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(base_version, M.Pair(worker_records, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = [name for name in globals() if not name.startswith("_")]

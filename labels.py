@@ -975,6 +975,10 @@ class ReasonPositionalLabel(ConstructorLabel):
     pass
 
 
+class ReasonStaleLabel(ConstructorLabel):
+    pass
+
+
 class MatchPreparedLabel(ConstructorLabel):
     pass
 
@@ -1410,6 +1414,7 @@ ReasonApartLabel = ReasonApartLabel()
 ReasonAlreadyMappedLabel = ReasonAlreadyMappedLabel()
 ReasonShapeLabel = ReasonShapeLabel()
 ReasonPositionalLabel = ReasonPositionalLabel()
+ReasonStaleLabel = ReasonStaleLabel()
 MatchPreparedLabel = MatchPreparedLabel()
 DeletionAdmittedLabel = DeletionAdmittedLabel()
 ComplementProducedLabel = ComplementProducedLabel()

@@ -36,6 +36,9 @@ from . import labels as Lmod
 
 _WIRE_HEADER = "WIRE1"
 
+WORKER_STATUS_OK = M.Char("ok")
+WORKER_STATUS_REFUSED = M.Char("refused-nonzero-activations")
+
 
 def _label_map():
     mapping = {}
@@ -211,7 +214,7 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
             max_activations = M.Head(M.Tail(association)())()
         remaining_budget = M.Tail(remaining_budget)()
     if M.IdentityCompare(max_activations, M.Zero)() is M.false_value:
-        return ("refused-nonzero-activations", b"", b"", b"")
+        return (WORKER_STATUS_REFUSED(), b"", b"", b"")
 
     graph_version = deserialize_term(serialized_version)
     proposal_store = deserialize_term(serialized_store)
@@ -240,7 +243,7 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
     frontier_version = M.Head(cycle)()
     result_store = M.Head(M.Tail(cycle)())()
     return (
-        "ok",
+        WORKER_STATUS_OK(),
         serialize_term(result_store),
         serialize_ledger(ledger),
         serialize_term(frontier_version),
@@ -324,6 +327,95 @@ def run_workers(graph_version, proposal_store, budget, generator_config,
         process.join()
         queue.close()
     return outputs
+
+
+def distributed_cycle(graph_version, proposal_store, ledger, budget,
+                      generator_config, worker_count):
+    """Step 45: run_workers -> merge_frontiers -> single-process activation.
+
+    A linear Next chain with exactly three links and no branching:
+
+      1. run_workers fans generation and firing out; every worker budget has
+         max_activations forced to Zero, so no worker can activate.
+      2. MergeFrontiers folds the worker claims into the coordinator version
+         by replaying each claimed law against the growing version. Worker
+         frontier versions are deserialized only to be discarded: nothing is
+         transplanted, and a claim that no longer matches becomes a Miss
+         carrying ReasonStale.
+      3. AutonomyCycle runs once in this process with the caller's own
+         budget, which is the only place activation is permitted.
+
+    Returns a four-link chain: version, store, report, conflicts.
+    """
+    from . import graph as Gmod
+
+    outputs = run_workers(
+        graph_version,
+        proposal_store,
+        budget,
+        generator_config,
+        worker_count,
+    )
+
+    # run_workers hands back host tuples across the process boundary; convert
+    # them to a machine chain once, here, and walk that.
+    reversed_outputs = M.EmptyList
+    for status_text, store_blob, ledger_blob, _frontier_blob in outputs:
+        reversed_outputs = M.Pair(
+            M.Pair(
+                M.Char(status_text),
+                M.Pair(
+                    M.Char(store_blob.decode("utf-8")),
+                    M.Pair(M.Char(ledger_blob.decode("utf-8")), M.EmptyList),
+                ),
+            ),
+            reversed_outputs,
+        )
+    ordered_outputs = M.EmptyList
+    while M.IdentityCompare(reversed_outputs, M.EmptyList)() is M.false_value:
+        ordered_outputs = M.Pair(M.Head(reversed_outputs)(), ordered_outputs)
+        reversed_outputs = M.Tail(reversed_outputs)()
+
+    reversed_claims = M.EmptyList
+    merged_store = proposal_store
+    remaining_outputs = ordered_outputs
+    while M.IdentityCompare(remaining_outputs, M.EmptyList)() is M.false_value:
+        entry = M.Head(remaining_outputs)()
+        status = M.Head(entry)()
+        if M.Compare(status, WORKER_STATUS_OK)() is M.truth_value:
+            serialized_store = M.Head(M.Tail(entry)())()
+            serialized_ledger = M.Head(M.Tail(M.Tail(entry)())())()
+            worker_ledger = deserialize_ledger(
+                serialized_ledger().encode("utf-8"), ledger.registry)
+            reversed_claims = M.Pair(worker_ledger.records, reversed_claims)
+            merged_store = deserialize_term(serialized_store().encode("utf-8"))
+        remaining_outputs = M.Tail(remaining_outputs)()
+    worker_records = M.EmptyList
+    while M.IdentityCompare(reversed_claims, M.EmptyList)() is M.false_value:
+        worker_records = M.Pair(M.Head(reversed_claims)(), worker_records)
+        reversed_claims = M.Tail(reversed_claims)()
+
+    merged = Gmod.MergeFrontiers(graph_version, worker_records, ledger)()
+    merged_version = M.Head(merged)()
+    conflicts = M.Head(M.Tail(merged)())()
+
+    activated = Gmod.AutonomyCycle(
+        merged_version,
+        merged_store,
+        ledger,
+        budget,
+        generator_config,
+    )()
+    final_version = M.Head(activated)()
+    final_store = M.Head(M.Tail(activated)())()
+    report = M.Head(M.Tail(M.Tail(activated)())())()
+    return M.Pair(
+        final_version,
+        M.Pair(
+            final_store,
+            M.Pair(report, M.Pair(conflicts, M.EmptyList)),
+        ),
+    )
 
 
 def save_checkpoint(path, graph_version, proposal_store, ledger):
