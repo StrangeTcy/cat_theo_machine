@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import http.server
+import io
 import json
 import multiprocessing
 import os
@@ -10,6 +11,7 @@ import sys
 import time
 import urllib.parse
 import webbrowser
+from contextlib import redirect_stdout
 
 if __package__ in (None, ""):
     IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1568,21 +1570,23 @@ def run_talk_mode(sentence: str = None):
                             radicand = M.Head(evaluated)()
                             registry = M.Head(M.Tail(evaluated)())()
                             if M.IdentityCompare(radicand, M.EmptyList)() is M.false_value:
-                                if M.IdentityCompare(
-                                    proof_runtime,
-                                    M.EmptyList,
-                                )() is M.truth_value:
-                                    try:
-                                        proof_runtime = boot_from_snapshot(
-                                            proof_snapshot_path,
-                                            _runtime_namespace(),
-                                            save_upgraded_snapshot=M.false_value,
-                                        )
-                                    except Exception:
+                                if proof_runtime is M.EmptyList:
+                                    # The proof runtime always cold-boots from
+                                    # packs: snapshot-rehydrated rule chains
+                                    # lose their Edge wrappers and crash
+                                    # Prove on the next session.
+                                    quiet_boot = io.StringIO()
+                                    with redirect_stdout(quiet_boot):
                                         proof_runtime, _proof_packs = boot_from_packs(
                                             PACK_PATHS,
                                             _runtime_namespace(),
                                         )
+                                    proof_runtime.graph._search_disable_console = (
+                                        M.truth_value
+                                    )
+                                    proof_runtime.graph._search_disable_progress_ticker = (
+                                        M.truth_value
+                                    )
                                     registry = M.FromContextGetConstructors(
                                         proof_runtime.graph,
                                     )()
@@ -1595,23 +1599,31 @@ def run_talk_mode(sentence: str = None):
                                     M.Pair(start, M.EmptyList),
                                 )
                                 derivation = proof_runtime.prove(start, goal)
-                                save_runtime(
-                                    proof_runtime,
-                                    proof_snapshot_path,
-                                    _runtime_namespace(),
-                                )
                                 if record:
                                     _log_lesson(line)
                                 if M.IdentityCompare(
                                     derivation,
                                     M.EmptyList,
                                 )() is M.false_value:
+                                    proof_registry = M.FromContextGetConstructors(
+                                        proof_runtime.graph,
+                                    )()
+                                    steps = P.DerivationSteps(
+                                        derivation,
+                                        proof_registry,
+                                    )()
+                                    if M.IdentityCompare(
+                                        steps,
+                                        M.EmptyList,
+                                    )() is M.truth_value:
+                                        return (
+                                            "yes (the derivation steps were "
+                                            "not replayed this session)"
+                                        )
                                     return "yes\n" + P.ExplainDerivation(
                                         derivation,
                                         goal,
-                                        M.FromContextGetConstructors(
-                                            proof_runtime.graph,
-                                        )(),
+                                        proof_registry,
                                     )()
                                 return "I could not prove that proposition."
                     return "I understood the proposition, but cannot yet prove that form."
