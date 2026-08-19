@@ -6720,9 +6720,15 @@ class PatternCensusMatchCount(M.Edge):
     """Count completed Step-10 match states up to a machine Nat cap."""
 
     def __init__(self, pattern_graph, host_version, match_cap, registry):
-        cap_pair = M.NatFromRep(match_cap, registry)()
-        cap = M.Head(cap_pair)()
-        registry = M.Head(M.Tail(cap_pair)())()
+        # The cap is a loop bound, never a term under study: it is only ever
+        # handed to NatEq below, never decomposed, matched, or TermEqual'd.
+        # NatFromRep would materialize it as a Succ chain -- one allocation
+        # per unit, superquadratic in the bound -- so a cap of 100 costs ~50s
+        # to build before a single match is attempted. The cached atom denotes
+        # the same number and NatEq compares the two representations alike.
+        # Numerals the machine reasons about still get the Succ chain; this
+        # one it only counts with.
+        cap = MineNatFromGMPRep(match_cap)()
         completed = M.Zero
         pending = GraphElements(pattern_graph)()
         cursor = SearchMatchCursor(M.EmptyList, pattern_graph, host_version, pending)()
