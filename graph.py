@@ -5735,6 +5735,220 @@ class MeasureNovelty(M.Edge):
         return self.result
 
 
+META_WINDOW_CAP = M.GMPRep("100")
+
+# Step 48 quotation vocabulary: machine label singletons, compared by
+# identity, never reason text.
+META_OUTCOME_FIRED = M.Char("fired")
+META_OUTCOME_MISSED = M.Char("missed")
+META_DELTA_SHRANK = M.Char("shrank")
+META_DELTA_GREW = M.Char("grew")
+META_DELTA_FLAT = M.Char("flat")
+META_CLASS_UNKNOWN = M.Char("unknown-class")
+
+
+class QuoteLedgerRecord(M.Edge):
+    """Step 48: render one ledger record as an ordinary small GraphVersion.
+
+    The quoted structure encodes four facts about the record -- its law,
+    its outcome, the sign of its size delta, and its proposal class -- as
+    an ordinary term, then hands that term to the Step-8 encoder. No new
+    quotation machinery: EncodeTermAsGraph does the work, so the miner,
+    matcher and census run over the result unchanged.
+
+    Outcome and delta-sign are machine label singletons, not text, so the
+    miner compares them structurally like any other constructor.
+    """
+
+    def __init__(self, record, outcome, proposal_class, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        before_text = M.GMPRepText(
+            M.NatRepOf(FiringRecordNodesBefore(record)(), registry)(),
+        )()
+        after_text = M.GMPRepText(
+            M.NatRepOf(FiringRecordNodesAfter(record)(), registry)(),
+        )()
+        delta_sign = META_DELTA_FLAT
+        if GMPLessText(after_text, before_text)() is M.truth_value:
+            delta_sign = META_DELTA_SHRANK
+        elif GMPLessText(before_text, after_text)() is M.truth_value:
+            delta_sign = META_DELTA_GREW
+        quoted_term = M.Pair(
+            Lmod.MetaRecordLabel,
+            M.Pair(
+                FiringRecordLaw(record)(),
+                M.Pair(
+                    outcome,
+                    M.Pair(delta_sign, M.Pair(proposal_class, M.EmptyList)),
+                ),
+            ),
+        )
+        self.result = EncodeTermAsGraph(quoted_term)()
+        super().__init__(
+            inputs=M.Pair(record, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MineMetaPatterns(M.Edge):
+    """Step 48: mine the machine's own outcome history.
+
+    Quote the last META_WINDOW_CAP ledger records, then run the ordinary
+    Step-27 miner over the quoted versions. Recurring patterns here are
+    patterns-of-outcomes rather than patterns-of-terms, but nothing about
+    the miner changes: the quoted records are just graphs.
+
+    Misses are quoted too, so a law that keeps failing is as visible to
+    the miner as one that keeps succeeding. This edge interprets nothing;
+    it returns candidates for the ordinary handle path to name.
+    """
+
+    def __init__(self, ledger, min_count, max_size):
+        registry = ledger.registry
+        cap_text = M.GMPRepText(META_WINDOW_CAP)()
+        scan_text = "0"
+        reversed_quoted = M.EmptyList
+        remaining = ledger.records
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                reversed_quoted = M.Pair(
+                    QuoteLedgerRecord(
+                        M.Head(remaining)(),
+                        META_OUTCOME_FIRED,
+                        META_CLASS_UNKNOWN,
+                        registry,
+                    )(),
+                    reversed_quoted,
+                )
+                remaining = M.Tail(remaining)()
+        remaining_misses = ledger.misses
+        while M.IdentityCompare(remaining_misses, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_misses = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                miss = M.Head(remaining_misses)()
+                miss_term = M.Pair(
+                    Lmod.MetaRecordLabel,
+                    M.Pair(
+                        M.Head(miss)(),
+                        M.Pair(
+                            META_OUTCOME_MISSED,
+                            M.Pair(
+                                META_DELTA_FLAT,
+                                M.Pair(META_CLASS_UNKNOWN, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                )
+                reversed_quoted = M.Pair(
+                    EncodeTermAsGraph(miss_term)(),
+                    reversed_quoted,
+                )
+                remaining_misses = M.Tail(remaining_misses)()
+        quoted = Reverse(reversed_quoted)()
+        self.result = M.EmptyList
+        if M.IdentityCompare(quoted, M.EmptyList)() is M.false_value:
+            self.result = MineRecurringPatterns(quoted, min_count, max_size)()
+        super().__init__(
+            inputs=M.Pair(min_count, M.Pair(max_size, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class OrderByPriors(M.Edge):
+    """Step 48: stable-partition a candidate list by meta-handle priors.
+
+    Candidates whose pattern matches a prior meta-handle come first, in
+    their original relative order; everything else follows, also in its
+    original relative order. This is order only: every input candidate
+    appears in the output exactly once, so the set is unchanged and no cap
+    is widened. Passing priors at all is a coordinator decision.
+    """
+
+    def __init__(self, candidates, prior_handles):
+        self.result = candidates
+        if M.IdentityCompare(prior_handles, M.EmptyList)() is M.false_value:
+            cap_text = M.GMPRepText(MINE_CANDIDATE_CAP)()
+            scan_text = "0"
+            reversed_leading = M.EmptyList
+            reversed_trailing = M.EmptyList
+            remaining = candidates
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                    remaining = M.EmptyList
+                else:
+                    scan_text = GMPSuccText(scan_text)()
+                    entry = M.Head(remaining)()
+                    # A miner entry is Pair(pattern, Pair(count, ...)); a bare
+                    # graph is also a Pair, headed by HypergraphLabel. Unwrap
+                    # only the former, or the pattern becomes the label itself.
+                    pattern = entry
+                    if M.IsPair(entry)() is M.truth_value:
+                        if M.TermEqual(
+                            M.Head(entry)(),
+                            M.HypergraphLabel,
+                        )() is M.false_value:
+                            pattern = M.Head(entry)()
+                    favoured = M.false_value
+                    remaining_priors = prior_handles
+                    while M.IdentityCompare(
+                        remaining_priors,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        prior = M.Head(remaining_priors)()
+                        prior_pattern = prior
+                        if M.IsPair(prior)() is M.truth_value:
+                            if M.TermEqual(
+                                M.Head(prior)(),
+                                Lmod.HandleLabel,
+                            )() is M.truth_value:
+                                prior_pattern = HandlePattern(prior)()
+                        mapping = FirstCompletedMatch(
+                            prior_pattern,
+                            pattern,
+                        )()
+                        if M.IdentityCompare(
+                            mapping,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            favoured = M.truth_value
+                            remaining_priors = M.EmptyList
+                        else:
+                            remaining_priors = M.Tail(remaining_priors)()
+                    if M.IdentityCompare(favoured, M.truth_value)() is M.truth_value:
+                        reversed_leading = M.Pair(entry, reversed_leading)
+                    else:
+                        reversed_trailing = M.Pair(entry, reversed_trailing)
+                    remaining = M.Tail(remaining)()
+            ordered = Reverse(reversed_trailing)()
+            remaining_leading = reversed_leading
+            while M.IdentityCompare(
+                remaining_leading,
+                M.EmptyList,
+            )() is M.false_value:
+                ordered = M.Pair(M.Head(remaining_leading)(), ordered)
+                remaining_leading = M.Tail(remaining_leading)()
+            self.result = ordered
+        super().__init__(
+            inputs=M.Pair(candidates, M.Pair(prior_handles, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 MIGRATION_PROPOSAL_CAP = M.GMPRep("10")
 MIGRATION_SCAN_CAP = M.GMPRep("200")
 CONFLICT_SCAN_CAP = M.GMPRep("200")

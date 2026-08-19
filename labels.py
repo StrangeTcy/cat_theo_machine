@@ -1083,6 +1083,14 @@ class SignedRationalLabel(ConstructorLabel):
     pass
 
 
+class MetaRecordLabel(ConstructorLabel):
+    pass
+
+
+class MetaHandleLabel(ConstructorLabel):
+    pass
+
+
 class SchedulePolicyLabel(ConstructorLabel):
     pass
 
@@ -1457,6 +1465,8 @@ FireLabel = FireLabel()
 NextLabel = NextLabel()
 FiringRecordLabel = FiringRecordLabel()
 SignedRationalLabel = SignedRationalLabel()
+MetaRecordLabel = MetaRecordLabel()
+MetaHandleLabel = MetaHandleLabel()
 SchedulePolicyLabel = SchedulePolicyLabel()
 LawPreferenceLabel = LawPreferenceLabel()
 RetiredLabel = RetiredLabel()
@@ -1906,6 +1916,8 @@ def sync_from_namespace(namespace):
         "NextLabel",
         "FiringRecordLabel",
         "SignedRationalLabel",
+        "MetaRecordLabel",
+        "MetaHandleLabel",
         "SchedulePolicyLabel",
         "LawPreferenceLabel",
         "RetiredLabel",
