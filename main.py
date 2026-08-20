@@ -1537,7 +1537,14 @@ def run_talk_mode(sentence: str = None):
         )
 
     def _persist_talk_state():
-        """Write the shared checkpoint. Atomic: save_checkpoint uses os.replace."""
+        """Write the shared checkpoint, unless a daemon owns it.
+
+        One writer per file. With a daemon cycling, talk state reaches the
+        shared version through the inbox instead.
+        """
+        if os.path.exists(daemon_live_path):
+            _debug("daemon owns the checkpoint; not writing it here")
+            return
         W.save_checkpoint(
             talk_checkpoint_path,
             learned_version,
@@ -1581,9 +1588,11 @@ def run_talk_mode(sentence: str = None):
             # mode standalone keeps activating in-process, so nothing about
             # single-process use changes.
             if os.path.exists(daemon_live_path):
+                # Submit only. Writing talk_state.wire here would make two
+                # processes writers of one file and lose whichever wrote
+                # first; the daemon owns that file and folds the inbox in.
                 Dmn.submit_to_inbox(SNAPSHOT_DIR, proposal_store)
                 _debug("submitted to the daemon inbox; it will activate")
-                _persist_talk_state()
                 return ("Recorded and submitted. The daemon will activate it "
                         "on its next cycle.")
             _debug("activating through ActivateProposal; "
@@ -2045,6 +2054,65 @@ def _terminate_active_children():
             pass
 
 
+def run_live_mode(requested_workers):
+    """One process, two children: the conversation and the cycling daemon.
+
+    The daemon is spawned as a subprocess and its commentary is drained by
+    a reader thread that prints above the prompt, so its output appears as
+    it happens without corrupting a line being typed. The conversation
+    runs in this process's foreground, because a REPL needs the terminal.
+
+    Killing this process kills the daemon with it: the child is terminated
+    in the finally block, and its liveness file removed, so a later talk
+    session does not believe a dead daemon is still cycling.
+    """
+    import threading
+
+    # PACKAGE_DIR is this package; its parent is the import root, which is
+    # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
+    # only exists in the re-exec branch above, so it is recomputed here.
+    import_root = os.path.dirname(PACKAGE_DIR)
+    daemon_child = subprocess.Popen(
+        [
+            sys.executable,
+            "-u",
+            "-m",
+            "hyge.main",
+            "daemon",
+            "--workers",
+            str(requested_workers),
+        ],
+        cwd=import_root,
+        env=dict(os.environ, PYTHONPATH=import_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    def drain():
+        for line in daemon_child.stdout:
+            sys.stdout.write("\r\033[K[machine] " + line.rstrip() + "\nyou> ")
+            sys.stdout.flush()
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+    print("live mode: the machine is cycling while you talk. "
+          "Its work appears as [machine] lines.")
+    try:
+        run_talk_mode()
+    finally:
+        daemon_child.terminate()
+        try:
+            daemon_child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            daemon_child.kill()
+        live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
+        if os.path.exists(live_path):
+            os.remove(live_path)
+        print("live mode: daemon stopped.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="HYGE runtime modes")
     parser.add_argument(
@@ -2053,13 +2121,14 @@ def main():
         default="talk",
         choices=[
             "talk", "cold", "warm", "test", "inspect", "search-worker",
-            "ingest", "daemon",
+            "ingest", "daemon", "live",
         ],
         help=(
             "Boot mode: talk (default; natural-language interaction through "
             "correspondence laws), cold (from packs), warm (from snapshot), "
             "test, inspect, search-worker, ingest (training records), or "
-            "daemon (cycle the shared talk state beside a conversation)"
+            "daemon (cycle the shared talk state), or live (one process "
+            "supervising a conversation and a cycling daemon)"
         ),
     )
     parser.add_argument(
@@ -2118,6 +2187,8 @@ def main():
             if args.arg1 is None:
                 raise RuntimeError("ingest requires a training-records file path")
             run_ingest_mode(args.arg1)
+        elif args.mode == "live":
+            run_live_mode(args.workers)
         elif args.mode == "daemon":
             # arg1: how many cycles to run. arg2: how many worker processes
             # each cycle fans out to, zero for a single-process cycle.

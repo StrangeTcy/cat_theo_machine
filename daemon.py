@@ -24,6 +24,7 @@ draining the pipe sees what fired, what was proposed, and what the
 safety floor refused, as it happens.
 """
 
+import multiprocessing
 import os
 import time
 
@@ -44,6 +45,7 @@ DAEMON_LIVE_NAME = "talk_daemon.live"
 
 DAEMON_STOP_CYCLES = M.Char("daemon-stop-max-cycles")
 DAEMON_STOP_SAFETY = M.Char("daemon-stop-safety-refusal")
+DAEMON_STOP_QUIESCENT = M.Char("daemon-stop-quiescent")
 
 
 class DaemonCycleSummary(M.Edge):
@@ -100,6 +102,52 @@ class DaemonCycleSummary(M.Edge):
             + " composition(s)"
             + DaemonStoppedText(stopped)()
         )
+        super().__init__(inputs=M.Pair(report, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DaemonCycleIsQuiescent(M.Edge):
+    """A cycle that changed nothing: no firing, activation, or proposal.
+
+    Read from the cycle's own report rather than counted here, so the stop
+    condition cannot drift from the machine's account of the turn.
+    """
+
+    def __init__(self, report):
+        self.result = M.truth_value
+        remaining = report
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            key = M.Head(entry)()
+            counted = M.false_value
+            if M.Compare(key, Gmod.AUTONOMY_REPORT_FIRINGS_KEY)() is M.truth_value:
+                counted = M.truth_value
+            elif M.Compare(
+                key,
+                Gmod.AUTONOMY_REPORT_ACTIVATED_KEY,
+            )() is M.truth_value:
+                counted = M.truth_value
+            elif M.Compare(
+                key,
+                Gmod.AUTONOMY_REPORT_GENERATED_HANDLES_KEY,
+            )() is M.truth_value:
+                counted = M.truth_value
+            elif M.Compare(
+                key,
+                Gmod.AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY,
+            )() is M.truth_value:
+                counted = M.truth_value
+            if M.IdentityCompare(counted, M.truth_value)() is M.truth_value:
+                if Gmod.GMPEqualText(
+                    DaemonCountText(M.Head(M.Tail(entry)())())(),
+                    "0",
+                )() is M.false_value:
+                    self.result = M.false_value
+                    remaining = M.EmptyList
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                remaining = M.Tail(remaining)()
         super().__init__(inputs=M.Pair(report, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -241,8 +289,26 @@ def daemon_budget(graph_version):
     )
 
 
-def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS,
-               worker_count=0):
+def daemon_worker_count(requested):
+    """Workers per cycle: what was asked for, or one per core.
+
+    A negative or absent request means autoscale. One core means no fan-out
+    at all, since a single worker is the coordinator doing its own work
+    through a process boundary for nothing.
+    """
+    if requested:
+        return requested
+    try:
+        available = multiprocessing.cpu_count()
+    except NotImplementedError:
+        return 0
+    if available < 2:
+        return 0
+    return available
+
+
+def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
+               poll_seconds=DAEMON_POLL_SECONDS, worker_count=0):
     """Cycle the shared state until the cycle cap or a safety refusal.
 
     `max_cycles` is a GMP count text. Every cycle: fold the inbox, run one
@@ -262,18 +328,38 @@ def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS,
             graph_version = M.Head(restored)()
             proposal_store = M.Head(M.Tail(restored)())()
             ledger = M.Head(M.Tail(M.Tail(restored)())())()
+    worker_count = daemon_worker_count(worker_count)
     live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
     with open(live_path, "w", encoding="utf-8") as handle:
         handle.write(str(os.getpid()))
-    print("daemon: cycling shared state at " + state_path, flush=True)
+    print(
+        "daemon: cycling shared state at "
+        + state_path
+        + " with "
+        + str(worker_count)
+        + " worker(s)",
+        flush=True,
+    )
 
+    # An absent cycle cap means the daemon decides for itself: it runs
+    # until the work runs out. A cycle that fires nothing, activates
+    # nothing and proposes nothing has nothing left to do, and running it
+    # again would produce the same nothing -- so quiescence is the stop
+    # condition, and the cap is only a ceiling for when one is wanted.
+    bounded = M.false_value
+    max_text = "0"
+    if M.IdentityCompare(max_cycles, M.EmptyList)() is M.false_value:
+        bounded = M.truth_value
+        max_text = M.GMPRepText(max_cycles)()
     cycles_text = "0"
-    max_text = M.GMPRepText(max_cycles)()
     stop_reason = DAEMON_STOP_CYCLES
     cycling = M.truth_value
     while M.IdentityCompare(cycling, M.truth_value)() is M.truth_value:
         cycling = M.false_value
-        if Gmod.GMPEqualText(cycles_text, max_text)() is M.false_value:
+        capped = M.false_value
+        if M.IdentityCompare(bounded, M.truth_value)() is M.truth_value:
+            capped = Gmod.GMPEqualText(cycles_text, max_text)()
+        if M.IdentityCompare(capped, M.truth_value)() is M.false_value:
             cycles_text = Gmod.GMPSuccText(cycles_text)()
 
             if os.path.exists(inbox_path):
@@ -334,8 +420,11 @@ def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS,
                     "daemon cycle " + cycles_text + ": " + DaemonCycleSummary(report)(),
                     flush=True,
                 )
-                time.sleep(poll_seconds)
-                cycling = M.truth_value
+                if DaemonCycleIsQuiescent(report)() is M.truth_value:
+                    stop_reason = DAEMON_STOP_QUIESCENT
+                else:
+                    time.sleep(poll_seconds)
+                    cycling = M.truth_value
 
     if os.path.exists(live_path):
         os.remove(live_path)
