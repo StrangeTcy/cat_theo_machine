@@ -703,6 +703,46 @@ class SnapshotCodec:
                 return None
         return None
 
+    def _registry_entries_snapshot_root(self, registry):
+        """Snapshot format 4: persist constructor_registry as its entry chain.
+
+        Restore has always replayed TreeInsert from (key, fact) entries and
+        thrown the serialised trie nodes away, so the Patricia structure is
+        pure derived data on the wire. Capturing the entry chain instead of
+        walking the trie removes the trie and key_store objects from the
+        snapshot entirely. Old snapshots (version 3, trie-shaped root) stay
+        readable: every load path keeps its tree-shaped branch.
+        """
+        empty = self._ns_get("EmptyList")
+        if registry is empty:
+            return empty
+        tree_label = self._ns_get("TreeLabel")
+        try:
+            payload = registry()
+            if payload is None:
+                return registry
+            if payload.head.value is not tree_label:
+                return registry
+        except Exception:
+            return registry
+        return self._ns_get("TreeEntries")(registry)()
+
+    def _rebuild_tree_from_entry_chain(self, chain):
+        rebuilt = self._ns_get("Tree")(self._ns_get("EmptyList"))
+        empty = self._ns_get("EmptyList")
+        head = self._ns_get("Head")
+        tail = self._ns_get("Tail")
+        identity = self.namespace["IdentityCompare"]
+        truth = self.namespace["truth_value"]
+        current = chain
+        while identity(current, empty)() is not truth:
+            entry = head(current)()
+            key = head(entry)()
+            fact = head(tail(entry)())()
+            rebuilt = self._ns_get("TreeInsert")(rebuilt, key, fact, rebuilt)()
+            current = tail(current)()
+        return rebuilt
+
     def _collect_tree_items(self, tree):
         return self._collect_tree_items_from_entries(self._ns_get("TreeEntries")(tree)())
 
@@ -741,10 +781,18 @@ class SnapshotCodec:
             pass
         return M.false_value
 
+    def _is_entry_chain(self, obj):
+        # Snapshot format 4 stores tree roots as (key, fact) entry chains.
+        # Format 3 and older stored Tree/TreeNode atoms, never a bare Pair,
+        # so a Pair-shaped root uniquely identifies the entry-chain format.
+        return self._is_pair_object(obj)
+
     def _restore_tree_root(self, state, root_name, registry):
         if root_name not in state.root_ids:
             return self.namespace["EmptyList"]
         loaded_tree = state.roots.get(root_name, self.namespace["EmptyList"])
+        if self._is_entry_chain(loaded_tree) is M.truth_value:
+            return self._rebuild_tree_from_entry_chain(loaded_tree)
         if self._is_current_tree(loaded_tree) is M.truth_value:
             return loaded_tree
         return self._rebuild_tree_from_record_id(state, state.root_ids[root_name], registry)
@@ -858,12 +906,25 @@ class SnapshotCodec:
 
     def _restore_constructor_registry_parallel(self, state, debug=M.false_value):
         """Restore constructor_registry using multiple spawned workers (Windows-safe)."""
+        loaded_registry = state.roots.get(
+            "constructor_registry", self.namespace["EmptyList"],
+        )
+        if self._is_entry_chain(loaded_registry) is M.truth_value:
+            # Snapshot format 4: the root is already the (key, fact) entry
+            # chain that replay consumes, so the record-scanning shard
+            # workers have nothing to do — rebuild directly in-process.
+            if debug is M.truth_value:
+                print(
+                    "DEBUG: constructor_registry is an entry chain; "
+                    "rebuilding in-process",
+                    flush=True,
+                )
+            return self._rebuild_tree_from_entry_chain(loaded_registry)
         try:
             snapshot_path = state.snapshot_path
         except AttributeError:
             snapshot_path = ""
         if not snapshot_path:
-            loaded_registry = state.roots["constructor_registry"]
             return self._restore_tree_root(state, "constructor_registry", loaded_registry)
 
         ctx = multiprocessing.get_context("spawn")
@@ -1509,7 +1570,7 @@ class SnapshotCodec:
             )
 
         snapshot = {
-            "header": {"format": "hyge-proof-kernel", "version": 3, "protocol_version": 3},
+            "header": {"format": "hyge-proof-kernel", "version": 4, "protocol_version": 3},
             "roots": root_ids,
             "symbols": symbol_ids,
             "objects": objects,
@@ -1526,7 +1587,9 @@ class SnapshotCodec:
 
     def capture(self, graph, extra_roots=None, progress=M.false_value, deadline=None):
         roots = {
-            "constructor_registry": graph.constructor_registry,
+            "constructor_registry": self._registry_entries_snapshot_root(
+                graph.constructor_registry,
+            ),
             "all_rules": graph.all_rules,
             "rule_order": graph.rule_order,
             "derivations": graph.derivations,
@@ -1627,7 +1690,7 @@ class SnapshotCodec:
     def load_snapshot(self, snapshot):
         if snapshot["header"]["format"] != "hyge-proof-kernel":
             raise RuntimeError("Wrong snapshot format")
-        if snapshot["header"]["version"] != 3:
+        if snapshot["header"]["version"] not in (3, 4):
             raise RuntimeError("Unsupported snapshot version")
 
         id_to_obj = {}

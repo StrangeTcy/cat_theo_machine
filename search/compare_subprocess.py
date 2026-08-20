@@ -160,8 +160,12 @@ class _ComparisonSubprocessMixin:
 
         if os.path.exists(result_path) is False:
             return self._fabricate_worker_failure_attempt(heuristic, SearchFailureLabel, 0.0, "launch-error")
-        state = SnapshotCodec(_runtime_namespace()).load(result_path)
+        codec = SnapshotCodec(_runtime_namespace())
+        state = codec.load(result_path)
         child_registry = state.roots.get("constructor_registry", M.EmptyList)
+        if codec._is_entry_chain(child_registry) is M.truth_value:
+            # Snapshot format 4 stores the registry as its entry chain.
+            child_registry = codec._rebuild_tree_from_entry_chain(child_registry)
         if M.Compare(child_registry, M.EmptyList)() is M.false_value:
             self.registry = self._merge_tree(self.registry, child_registry)
             self.graph._replace_context(constructors=self.registry)
