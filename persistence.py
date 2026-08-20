@@ -14,6 +14,7 @@ import gmpy2
 from . import machine as M
 from . import context as Ctxmod
 from . import constructors as C
+from . import wire as Wiremod
 from . import core as Core
 from . import graph as Gmod
 from . import gmprep as Gmpmod
@@ -813,7 +814,7 @@ class SnapshotCodec:
         if not snapshot_path:
             raise RuntimeError("parallel root restore requires state.snapshot_path")
 
-        num_workers = min(8, len(root_names), multiprocessing.cpu_count())
+        num_workers = min(8, len(root_names), Wiremod.host_process_budget(0))
         if debug is M.truth_value:
             print(
                 "DEBUG: restoring roots",
@@ -928,7 +929,7 @@ class SnapshotCodec:
             return self._restore_tree_root(state, "constructor_registry", loaded_registry)
 
         ctx = multiprocessing.get_context("spawn")
-        shard_count = min(8, multiprocessing.cpu_count())
+        shard_count = min(8, Wiremod.host_process_budget(0))
         if debug is M.truth_value:
             print(f"DEBUG: restoring constructor_registry using {shard_count} processes", flush=True)
 

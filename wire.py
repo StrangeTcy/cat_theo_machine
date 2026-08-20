@@ -34,6 +34,55 @@ import urllib.parse
 from . import machine as M
 from . import labels as Lmod
 
+HOST_PROCESS_RESERVE = 2
+
+
+def host_process_budget(requested=0):
+    """The one process ceiling every fan-out in the system draws from.
+
+    Three separate places used to claim `cpu_count()` independently -- the
+    daemon's worker fan-out, the search comparison layer, and the search
+    worker launcher -- so a single conversation could hold three times the
+    machine.  They all read this instead.
+
+    `HOST_PROCESS_RESERVE` cores are left for the operating system and the
+    foreground conversation, so a proof never takes the whole laptop.  An
+    explicit positive `requested` overrides autoscaling and is honoured as
+    given, since that is a direct instruction rather than a guess.
+    """
+    if requested:
+        return requested
+    import multiprocessing
+
+    try:
+        available = multiprocessing.cpu_count()
+    except NotImplementedError:
+        return 0
+    available = available - HOST_PROCESS_RESERVE
+    if available < 2:
+        return 0
+    return available
+
+
+def share_process_budget(claimants):
+    """Split the host budget between concurrent fan-outs.
+
+    `claimants` is how many independent fan-outs are live at once.  One
+    claimant takes the whole budget; two share it.  A share below two is
+    no fan-out at all, since a lone worker is a process boundary crossed
+    for nothing.
+    """
+    budget = host_process_budget(0)
+    if budget < 1:
+        return 0
+    if claimants < 2:
+        return budget
+    share = budget // claimants
+    if share < 2:
+        return 0
+    return share
+
+
 _WIRE_HEADER = "WIRE1"
 
 WORKER_STATUS_OK = M.Char("ok")

@@ -37,6 +37,9 @@ from . import wire as Wmod
 # the two filenames. These live at the process boundary in the same way a
 # path or an exit code does.
 DAEMON_POLL_SECONDS = 0.5
+# The daemon and a foreground search comparison can fan out at the same
+# time, so each takes half of the host process budget rather than all of it.
+DAEMON_BUDGET_CLAIMANTS = 2
 DAEMON_STATE_NAME = "talk_state.wire"
 DAEMON_INBOX_NAME = "talk_inbox.wire"
 # Presence of this file means a daemon is cycling. The inbox cannot serve
@@ -348,21 +351,17 @@ def daemon_generator_config(graph_version):
 
 
 def daemon_worker_count(requested):
-    """Workers per cycle: what was asked for, or one per core.
+    """Workers per cycle: what was asked for, or the daemon's share.
 
-    A negative or absent request means autoscale. One core means no fan-out
-    at all, since a single worker is the coordinator doing its own work
-    through a process boundary for nothing.
+    A negative or absent request means autoscale.  The daemon no longer
+    claims one process per core: it draws a share of the single host budget
+    in `wire.host_process_budget`, because a foreground proof fans out at
+    the same time and the two used to oversubscribe the machine between
+    them.  An explicit request is honoured as given.
     """
     if requested:
         return requested
-    try:
-        available = multiprocessing.cpu_count()
-    except NotImplementedError:
-        return 0
-    if available < 2:
-        return 0
-    return available
+    return Wmod.share_process_budget(DAEMON_BUDGET_CLAIMANTS)
 
 
 def run_daemon(snapshot_dir, max_cycles=M.EmptyList,

@@ -19,6 +19,7 @@ from .. import context as Ctxmod
 from .. import schemata as Smod
 from .. import gmprep as Gmpmod
 from .. import trees as Tmod
+from .. import wire as Wmod
 from .. import logic as Logicmod
 from ..heuristics import *
 from ..labels import *
@@ -38,6 +39,11 @@ from .compare_packets import _ComparisonPacketMixin
 from .compare_executors import _ComparisonExecutorMixin
 from .engine import _SearchStepKernel
 from .model import *
+
+# A live daemon fans out at the same time as a foreground comparison, so the
+# comparison layer takes a share of the one host budget instead of claiming
+# every core for itself.
+COMPARISON_BUDGET_CLAIMANTS = 2
 from .patricia import *
 from .ui import _SearchComparisonPromptGuard, _SearchConsoleInput, _SearchStopConsole
 
@@ -66,7 +72,7 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
         self._comparison_root_wave_idle_executors = M.EmptyList
         self._comparison_machine_parallelism = M.four
         try:
-            host_parallelism = multiprocessing.cpu_count()
+            host_parallelism = Wmod.share_process_budget(COMPARISON_BUDGET_CLAIMANTS)
             if host_parallelism <= 1:
                 self._comparison_machine_parallelism = M.one
             elif host_parallelism == 2:
