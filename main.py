@@ -1243,7 +1243,27 @@ def run_talk_mode(sentence: str = None):
         return G.Surface(chain)()
 
     def _tokens(text):
-        return text.lower().replace("?", " ").replace("!", " ").replace(".", " ").replace("(", " ( ").replace(")", " ) ").replace(",", " , ").replace("0", " zero ").replace("1", " one ").replace("2", " two ").replace("3", " three ").replace("4", " four ").replace("5", " five ").replace("6", " six ").replace("7", " seven ").replace("8", " eight ").replace("9", " nine ").split()
+        """Split a line into words, spelling out numerals but not name digits.
+
+        The digit substitution used to run over the whole line, so "e2"
+        became "e two" and the task name was destroyed -- the reported
+        failure was "I do not know the word: e". The same substitution now
+        applies only to a word that is entirely digits, so "64" still
+        becomes "six four" while "e2" and "sqrt2" survive intact.
+        """
+        spaced = (text.lower().replace("?", " ").replace("!", " ")
+                  .replace(".", " ").replace("(", " ( ").replace(")", " ) ")
+                  .replace(",", " , "))
+        rebuilt = ""
+        for word in spaced.split():
+            if word.isdigit():
+                word = (word.replace("0", " zero ").replace("1", " one ")
+                        .replace("2", " two ").replace("3", " three ")
+                        .replace("4", " four ").replace("5", " five ")
+                        .replace("6", " six ").replace("7", " seven ")
+                        .replace("8", " eight ").replace("9", " nine "))
+            rebuilt = rebuilt + " " + word
+        return rebuilt.split()
 
     def _speak_chain(chain):
         spoken = []
