@@ -1903,6 +1903,13 @@ def run_talk_mode(sentence: str = None):
             return "I parsed that sentence but could not evaluate it."
         return "I know those words but have no correspondence law for that shape."
 
+    # The checkpoint restores learned_version, but vocabulary is derived
+    # data: without this rebuild, laws loaded from disk are invisible to
+    # the tokenizer-facing word list and every learned word reports
+    # "I do not know the word" until something reinstalls a law. The
+    # knowledge survived; the index into it did not.
+    _extend_vocabulary()
+
     replayed = 0
     skipped = 0
     if os.path.exists(lesson_path):
