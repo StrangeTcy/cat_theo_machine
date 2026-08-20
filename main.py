@@ -1291,6 +1291,11 @@ def run_talk_mode(sentence: str = None):
             word = M.Head(remaining)()
             if P.IsVarPattern(word)() is M.truth_value:
                 spoken.append(str(M.Head(M.Tail(word)())()()))
+            elif M.IsPair(word)() is M.truth_value:
+                # Group reduction splices whole terms (Sqrt(7), a Nat from
+                # "(64)") into surface chains; render them as meanings, not
+                # as the None their .value slot holds.
+                spoken.append(_speak_meaning(word))
             else:
                 try:
                     spoken.append(str(word()))
@@ -1356,6 +1361,26 @@ def run_talk_mode(sentence: str = None):
         )()
         interpretations = M.Head(interpreted)()
         registry = M.Head(M.Tail(interpreted)())()
+        if M.IdentityCompare(interpretations, M.EmptyList)() is M.truth_value:
+            # The question path reduces parenthesis groups before matching
+            # templates; the meaning side of a training example deserves the
+            # same grammar. Without this, 'mul ( three , sqrt ( seven ) )'
+            # is rejected while the identical shape is understood as a
+            # question -- the trainer is told to use a notation the reader
+            # then refuses.
+            reduced = G.SurfaceReduceGroups(
+                vocabulary, _surface(words), registry,
+            )()
+            reduced_surface = M.Head(reduced)()
+            registry = M.Head(M.Tail(reduced)())()
+            if M.IdentityCompare(
+                reduced_surface, M.EmptyList,
+            )() is M.false_value:
+                interpreted = G.ConverseInterpretations(
+                    vocabulary, reduced_surface, registry,
+                )()
+                interpretations = M.Head(interpreted)()
+                registry = M.Head(M.Tail(interpreted)())()
         if M.IdentityCompare(interpretations, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         if M.IdentityCompare(

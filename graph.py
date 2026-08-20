@@ -9311,7 +9311,255 @@ class SurfaceReduceGroups(M.Edge):
                                 remaining = M.EmptyList
                             else:
                                 inner_chain = M.Reverse(reversed_inner)()
+                                has_comma = M.false_value
+                                comma_scan = inner_chain
+                                while M.IdentityCompare(
+                                    comma_scan,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    if M.Compare(
+                                        M.Head(comma_scan)(),
+                                        M.Char(","),
+                                    )() is M.truth_value:
+                                        has_comma = M.truth_value
+                                        comma_scan = M.EmptyList
+                                    else:
+                                        comma_scan = M.Tail(comma_scan)()
                                 if M.IdentityCompare(
+                                    has_comma,
+                                    M.truth_value,
+                                )() is M.truth_value:
+                                    # A comma marks an argument list, not a
+                                    # grouping: "( three , sqrt seven )" is
+                                    # the tail of "mul ( ... )" and only
+                                    # means anything WITH its function word
+                                    # and brackets. Reducing the whole group
+                                    # destroyed the shape the formal
+                                    # template matches. Instead, reduce each
+                                    # comma-separated ARGUMENT to a single
+                                    # term and keep the brackets and commas,
+                                    # so "mul ( three , sqrt seven )"
+                                    # becomes "mul ( three , <Sqrt(7)> )"
+                                    # and the binary template binds cleanly.
+                                    changed = M.false_value
+                                    arg_failed = M.false_value
+                                    reversed_args = M.EmptyList
+                                    reversed_segment = M.EmptyList
+                                    seg_scan = inner_chain
+                                    while M.IdentityCompare(
+                                        seg_scan,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        piece = M.Head(seg_scan)()
+                                        if M.Compare(
+                                            piece,
+                                            M.Char(","),
+                                        )() is M.truth_value:
+                                            reversed_args = M.Pair(
+                                                M.Reverse(reversed_segment)(),
+                                                reversed_args,
+                                            )
+                                            reversed_segment = M.EmptyList
+                                        else:
+                                            reversed_segment = M.Pair(
+                                                piece,
+                                                reversed_segment,
+                                            )
+                                        seg_scan = M.Tail(seg_scan)()
+                                    reversed_args = M.Pair(
+                                        M.Reverse(reversed_segment)(),
+                                        reversed_args,
+                                    )
+                                    segments = M.Reverse(reversed_args)()
+                                    reversed_rebuilt_args = M.EmptyList
+                                    seg_walk = segments
+                                    while M.IdentityCompare(
+                                        seg_walk,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        segment = M.Head(seg_walk)()
+                                        single = M.false_value
+                                        if M.IdentityCompare(
+                                            segment,
+                                            M.EmptyList,
+                                        )() is M.false_value:
+                                            if M.IdentityCompare(
+                                                M.Tail(segment)(),
+                                                M.EmptyList,
+                                            )() is M.truth_value:
+                                                single = M.truth_value
+                                        if M.IdentityCompare(
+                                            single,
+                                            M.truth_value,
+                                        )() is M.truth_value:
+                                            reversed_rebuilt_args = M.Pair(
+                                                segment,
+                                                reversed_rebuilt_args,
+                                            )
+                                        else:
+                                            valued = ConverseValue(
+                                                vocabulary,
+                                                Surface(segment)(),
+                                                registry,
+                                            )()
+                                            seg_value = M.Head(valued)()
+                                            registry = M.Head(
+                                                M.Tail(valued)(),
+                                            )()
+                                            if M.IdentityCompare(
+                                                seg_value,
+                                                M.EmptyList,
+                                            )() is M.truth_value:
+                                                seg_readings = ConverseInterpretations(
+                                                    vocabulary,
+                                                    Surface(segment)(),
+                                                    registry,
+                                                )()
+                                                seg_list = M.Head(
+                                                    seg_readings,
+                                                )()
+                                                registry = M.Head(
+                                                    M.Tail(seg_readings)(),
+                                                )()
+                                                if M.IdentityCompare(
+                                                    seg_list,
+                                                    M.EmptyList,
+                                                )() is M.false_value:
+                                                    if M.IdentityCompare(
+                                                        M.Tail(seg_list)(),
+                                                        M.EmptyList,
+                                                    )() is M.truth_value:
+                                                        seg_meaning = M.Head(
+                                                            M.Head(
+                                                                seg_list,
+                                                            )(),
+                                                        )()
+                                                        seg_value = M.Head(
+                                                            M.Tail(
+                                                                seg_meaning,
+                                                            )(),
+                                                        )()
+                                            if M.IdentityCompare(
+                                                seg_value,
+                                                M.EmptyList,
+                                            )() is M.truth_value:
+                                                arg_failed = M.truth_value
+                                            else:
+                                                reversed_rebuilt_args = M.Pair(
+                                                    M.Pair(
+                                                        seg_value,
+                                                        M.EmptyList,
+                                                    ),
+                                                    reversed_rebuilt_args,
+                                                )
+                                                changed = M.truth_value
+                                        seg_walk = M.Tail(seg_walk)()
+                                    if M.IdentityCompare(
+                                        arg_failed,
+                                        M.false_value,
+                                    )() is M.truth_value:
+                                        if M.IdentityCompare(
+                                            changed,
+                                            M.truth_value,
+                                        )() is M.truth_value:
+                                            rebuilt_args = M.Reverse(
+                                                reversed_rebuilt_args,
+                                            )()
+                                            rebuilt = M.Tail(remaining)()
+                                            rebuilt = M.Pair(element, rebuilt)
+                                            reversed_group = M.EmptyList
+                                            arg_walk = rebuilt_args
+                                            first_arg = M.truth_value
+                                            while M.IdentityCompare(
+                                                arg_walk,
+                                                M.EmptyList,
+                                            )() is M.false_value:
+                                                if M.IdentityCompare(
+                                                    first_arg,
+                                                    M.false_value,
+                                                )() is M.truth_value:
+                                                    reversed_group = M.Pair(
+                                                        M.Char(","),
+                                                        reversed_group,
+                                                    )
+                                                first_arg = M.false_value
+                                                seg_flush = M.Head(arg_walk)()
+                                                while M.IdentityCompare(
+                                                    seg_flush,
+                                                    M.EmptyList,
+                                                )() is M.false_value:
+                                                    reversed_group = M.Pair(
+                                                        M.Head(seg_flush)(),
+                                                        reversed_group,
+                                                    )
+                                                    seg_flush = M.Tail(
+                                                        seg_flush,
+                                                    )()
+                                                arg_walk = M.Tail(arg_walk)()
+                                            group_walk = reversed_group
+                                            while M.IdentityCompare(
+                                                group_walk,
+                                                M.EmptyList,
+                                            )() is M.false_value:
+                                                rebuilt = M.Pair(
+                                                    M.Head(group_walk)(),
+                                                    rebuilt,
+                                                )
+                                                group_walk = M.Tail(
+                                                    group_walk,
+                                                )()
+                                            rebuilt = M.Pair(
+                                                open_atom,
+                                                rebuilt,
+                                            )
+                                            spliced = reversed_before
+                                            while M.IdentityCompare(
+                                                spliced,
+                                                M.EmptyList,
+                                            )() is M.false_value:
+                                                rebuilt = M.Pair(
+                                                    M.Head(spliced)(),
+                                                    rebuilt,
+                                                )
+                                                spliced = M.Tail(spliced)()
+                                            chain = rebuilt
+                                            reduced_once = M.truth_value
+                                            remaining = M.EmptyList
+                                        else:
+                                            # All arguments already single:
+                                            # nothing to do here. Flush the
+                                            # group into 'before' untouched
+                                            # so the scan can continue past
+                                            # it without reporting failure.
+                                            reversed_before = M.Pair(
+                                                open_atom,
+                                                reversed_before,
+                                            )
+                                            flush = inner_chain
+                                            while M.IdentityCompare(
+                                                flush,
+                                                M.EmptyList,
+                                            )() is M.false_value:
+                                                reversed_before = M.Pair(
+                                                    M.Head(flush)(),
+                                                    reversed_before,
+                                                )
+                                                flush = M.Tail(flush)()
+                                            reversed_before = M.Pair(
+                                                element,
+                                                reversed_before,
+                                            )
+                                            seen_open = M.false_value
+                                            reversed_inner = M.EmptyList
+                                            remaining = M.Tail(remaining)()
+                                    else:
+                                        failed = M.truth_value
+                                        value_failed = M.truth_value
+                                        self.unevaluated = Surface(
+                                            inner_chain,
+                                        )()
+                                        remaining = M.EmptyList
+                                elif M.IdentityCompare(
                                     inner_chain,
                                     M.EmptyList,
                                 )() is M.truth_value:
