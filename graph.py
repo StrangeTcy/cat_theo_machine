@@ -8347,6 +8347,32 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                 ),
             ),
         )()
+        # A radicand may itself be a root. "sqrt ( X )" on its own is not a
+        # sentence and has no value, so the group reducer had nothing to
+        # splice and the whole sentence failed. As a phrase it does have a
+        # meaning -- the Sqrt term -- which is exactly what the surrounding
+        # slot wants.
+        sqrt_phrase = Surface(
+            M.Pair(
+                M.Char("sqrt"),
+                M.Pair(
+                    M.Char("("),
+                    M.Pair(var_a, M.Pair(M.Char(")"), empty)),
+                ),
+            ),
+        )()
+        # Once the inner group has reduced, the radicand is a spliced term and
+        # the brackets are gone: the phrase reaching the reducer is "sqrt X",
+        # not "sqrt ( X )". Both forms mean the same root.
+        sqrt_bare_phrase = Surface(
+            M.Pair(M.Char("sqrt"), M.Pair(var_a, empty)),
+        )()
+        sqrt_phrase_meaning = Meaning(
+            M.Pair(
+                M.SqrtLabel,
+                M.Pair(Surface(M.Pair(var_a, empty))(), empty),
+            ),
+        )()
         equal_sentence = Surface(
             M.Pair(
                 M.Char("is"),
@@ -8375,6 +8401,20 @@ class DefaultCorrespondenceVocabulary(M.Edge):
             ),
         )()
 
+        # The reducer strips the brackets it consumes, so a sentence whose
+        # radicand was a group arrives as "is sqrt X real". The bracketed
+        # form above still matches what the reader typed; this matches what
+        # reduction leaves behind.
+        real_bare_sentence = Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(
+                    M.Char("sqrt"),
+                    M.Pair(var_a, M.Pair(M.Char("real"), empty)),
+                ),
+            ),
+        )()
+
         def _task_meaning(task_name):
             return Meaning(
                 M.Pair(Lmod.TaskLabel, M.Pair(M.Char(task_name), empty)),
@@ -8399,6 +8439,18 @@ class DefaultCorrespondenceVocabulary(M.Edge):
             CompileRuleToLaw(P.Rule(equal_sentence, equal_meaning))(),
             M.Pair(
                 CompileRuleToLaw(P.Rule(real_sentence, real_meaning))(),
+                M.Pair(
+                    CompileRuleToLaw(
+                        P.Rule(sqrt_phrase, sqrt_phrase_meaning),
+                    )(),
+                M.Pair(
+                    CompileRuleToLaw(
+                        P.Rule(sqrt_bare_phrase, sqrt_phrase_meaning),
+                    )(),
+                M.Pair(
+                    CompileRuleToLaw(
+                        P.Rule(real_bare_sentence, real_meaning),
+                    )(),
                 M.Pair(
                     CompileRuleToLaw(P.Rule(sum_sentence, add_meaning))(),
                     M.Pair(
@@ -8476,6 +8528,9 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
+            ),
+            ),
+            ),
             ),
         )
 
@@ -8637,6 +8692,17 @@ class MeaningEvaluate(M.Edge):
                             element = M.Head(chain)()
                             if M.IsNat(element, registry)() is M.truth_value:
                                 value = element
+                            else:
+                                # Group reduction splices whole terms into the
+                                # chain, so a one-element Surface may hold a
+                                # Sqrt rather than a number word. Evaluate it
+                                # as the term it is.
+                                if M.IsPair(element)() is M.truth_value:
+                                    return self._eval(
+                                        element,
+                                        registry,
+                                        next_depth,
+                                    )
                 return M.Pair(value, M.Pair(registry, M.EmptyList))
             arguments = M.Tail(term)()
             is_add = M.TermEqual(label, M.ExprAddLabel)()
@@ -8659,6 +8725,30 @@ class MeaningEvaluate(M.Edge):
                 if M.IdentityCompare(is_add, M.truth_value)() is M.truth_value:
                     return M.Add(left_value, right_value, registry)()
                 return M.Multiply(left_value, right_value, registry)()
+            if M.TermEqual(label, M.SqrtLabel)() is M.truth_value:
+                # A root has no Nat value, but it is a perfectly good term and
+                # the prover takes it as one. Evaluate the radicand so a
+                # nested root loses its Surface wrappers at every depth, then
+                # hand back the Sqrt term itself.
+                inner_pair = self._eval(
+                    M.Head(arguments)(),
+                    registry,
+                    next_depth,
+                )
+                inner_value = M.Head(inner_pair)()
+                registry = M.Head(M.Tail(inner_pair)())()
+                if M.IdentityCompare(
+                    inner_value,
+                    M.EmptyList,
+                )() is M.truth_value:
+                    return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+                return M.Pair(
+                    M.Pair(
+                        M.SqrtLabel,
+                        M.Pair(inner_value, M.EmptyList),
+                    ),
+                    M.Pair(registry, M.EmptyList),
+                )
             return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
         if M.IsNat(term, registry)() is M.truth_value:
             return M.Pair(term, M.Pair(registry, M.EmptyList))
@@ -9250,6 +9340,38 @@ class SurfaceReduceGroups(M.Edge):
                                                 M.Tail(M.Tail(vocabulary)())(),
                                             )(),
                                         )()
+                                    if M.IdentityCompare(
+                                        value,
+                                        M.EmptyList,
+                                    )() is M.truth_value:
+                                        # A group need not denote a number.
+                                        # "sqrt ( three )" has no value, but it
+                                        # does have a meaning, and the sentence
+                                        # around it wants a term in that slot.
+                                        # Splice the term so nesting reads the
+                                        # same as any other radicand.
+                                        inner_readings = ConverseInterpretations(
+                                            vocabulary,
+                                            Surface(inner_chain)(),
+                                            registry,
+                                        )()
+                                        inner_list = M.Head(inner_readings)()
+                                        registry = M.Head(
+                                            M.Tail(inner_readings)(),
+                                        )()
+                                        if M.IdentityCompare(
+                                            inner_list,
+                                            M.EmptyList,
+                                        )() is M.false_value:
+                                            if M.IdentityCompare(
+                                                M.Tail(inner_list)(),
+                                                M.EmptyList,
+                                            )() is M.truth_value:
+                                                only = M.Head(inner_list)()
+                                                reading = M.Head(only)()
+                                                value = M.Head(
+                                                    M.Tail(reading)(),
+                                                )()
                                     if M.IdentityCompare(
                                         value,
                                         M.EmptyList,
