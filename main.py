@@ -1907,6 +1907,19 @@ def run_talk_mode(sentence: str = None):
                 M.Tail(M.Tail(M.Tail(M.Tail(outcome)())())())(),
             )()
             if M.IdentityCompare(answer, M.EmptyList)() is M.truth_value:
+                # No answer Surface exists when the value is symbolic --
+                # Mul(three, Sqrt(2)) has no number word. The meaning is
+                # still the answer; speak it as a term.
+                meaning = M.Head(M.Tail(M.Tail(outcome)())())()
+                evaluated = G.MeaningEvaluate(
+                    meaning,
+                    M.Head(M.Tail(vocabulary)())(),
+                    registry,
+                )()
+                value = M.Head(evaluated)()
+                registry = M.Head(M.Tail(evaluated)())()
+                if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
+                    return _speak_meaning(value)
                 return "I understood, but could not render the answer."
             return _speak_chain(M.Head(M.Tail(answer)())())
         if M.IdentityCompare(label, Lmod.AmbiguousLabel)() is M.truth_value:

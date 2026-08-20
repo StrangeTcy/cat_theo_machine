@@ -8722,6 +8722,23 @@ class MeaningEvaluate(M.Edge):
                 registry = M.Head(M.Tail(right_pair)())()
                 if M.IdentityCompare(right_value, M.EmptyList)() is M.truth_value:
                     return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+                left_nat = M.IsNat(left_value, registry)()
+                right_nat = M.IsNat(right_value, registry)()
+                if M.AndAtom(left_nat, right_nat)() is M.false_value:
+                    # A root has no Nat value and neither does a product
+                    # or sum built on one. The operands are still perfectly
+                    # good terms, so the expression is too: hand back the
+                    # symbolic term, exactly as the Sqrt case below does.
+                    return M.Pair(
+                        M.Pair(
+                            label,
+                            M.Pair(
+                                left_value,
+                                M.Pair(right_value, M.EmptyList),
+                            ),
+                        ),
+                        M.Pair(registry, M.EmptyList),
+                    )
                 if M.IdentityCompare(is_add, M.truth_value)() is M.truth_value:
                     return M.Add(left_value, right_value, registry)()
                 return M.Multiply(left_value, right_value, registry)()
@@ -10554,11 +10571,11 @@ class ValidateCorrespondenceLaws(M.Edge):
                         )() is M.truth_value:
                             verdict = M.false_value
                             remaining = M.EmptyList
-                        elif M.NatEq(
+                        elif self._values_agree(
                             left_value,
                             right_value,
                             registry,
-                        )() is M.false_value:
+                        ) is M.false_value:
                             verdict = M.false_value
                             remaining = M.EmptyList
                         elif M.IdentityCompare(
@@ -10588,6 +10605,18 @@ class ValidateCorrespondenceLaws(M.Edge):
             ),
             results=self.result,
         )
+
+    def _values_agree(self, left_value, right_value, registry):
+        # Nats compare by NatEq; symbolic values (Sqrt(7), Mul(three,
+        # Sqrt(7))) have no Nat reading and compare structurally. Mixed
+        # kinds disagree.
+        left_nat = M.IsNat(left_value, registry)()
+        right_nat = M.IsNat(right_value, registry)()
+        if M.AndAtom(left_nat, right_nat)() is M.truth_value:
+            return M.NatEq(left_value, right_value, registry)()
+        if M.OrAtom(left_nat, right_nat)() is M.truth_value:
+            return M.false_value
+        return M.Compare(left_value, right_value)()
 
     def __call__(self):
         return self.result
