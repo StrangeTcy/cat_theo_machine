@@ -1730,7 +1730,24 @@ def run_talk_mode(sentence: str = None):
                     if runner is None:
                         return "I know the task '" + task_name + "' but cannot run it."
                     print("hyge> running task: " + task_name)
-                    runner()
+                    # A task is a guest in the conversation, not the
+                    # conversation itself. The e2 run proves its theorem and
+                    # then tries to snapshot a 200,000-object graph inside a
+                    # 120-second deadline; the timeout used to escape through
+                    # here and end the session, discarding the proof that had
+                    # just succeeded. A task that fails reports and the prompt
+                    # returns.
+                    try:
+                        runner()
+                    except SnapshotSaveTimeout as timeout_error:
+                        return ("task '" + task_name + "' finished, but saving "
+                                "the snapshot timed out: " + str(timeout_error)
+                                + " The work stands; only the save was lost.")
+                    except KeyboardInterrupt:
+                        raise
+                    except Exception as task_error:
+                        return ("task '" + task_name + "' failed: "
+                                + str(task_error))
                     return "task '" + task_name + "' finished."
                 if M.TermEqual(M.Head(body)(), M.IsRealLabel)() is M.truth_value:
                     subject = M.Head(M.Tail(body)())()
