@@ -41,6 +41,7 @@ else:
     from . import theorem_rules as T
     from . import wire as W
     from . import session as Sess
+    from . import daemon as Dmn
     from .testsuite import install_default_tests
 
 
@@ -1191,6 +1192,10 @@ def run_talk_mode(sentence: str = None):
     # daemon is the only writer of activations; talk submits and reads.
     talk_checkpoint_path = os.path.join(SNAPSHOT_DIR, "talk_state.wire")
     talk_mark_path = os.path.join(SNAPSHOT_DIR, "talk_state.mark")
+    # A running daemon announces itself with a liveness file it writes at
+    # start and removes at exit. The inbox cannot serve as that signal: the
+    # daemon consumes it, so its absence is ambiguous.
+    daemon_live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
     talk_ledger = G.FiringLedger(M.AllConstructors)
     # Lesson lines already folded into the checkpoint above. The mark is
     # only trusted when the checkpoint it describes exists: without the
@@ -1570,6 +1575,17 @@ def run_talk_mode(sentence: str = None):
                 )() is M.truth_value:
                     entry = candidate
                 approved_entries = M.Tail(approved_entries)()
+            # With a daemon running, approval is a submission rather than an
+            # act: the daemon is the only writer of the shared state, so it
+            # takes the activation decision through the ordinary gates. Talk
+            # mode standalone keeps activating in-process, so nothing about
+            # single-process use changes.
+            if os.path.exists(daemon_live_path):
+                Dmn.submit_to_inbox(SNAPSHOT_DIR, proposal_store)
+                _debug("submitted to the daemon inbox; it will activate")
+                _persist_talk_state()
+                return ("Recorded and submitted. The daemon will activate it "
+                        "on its next cycle.")
             _debug("activating through ActivateProposal; "
                    "recording the Next splice in the learned version")
             activated = G.ActivateProposal(
@@ -2037,13 +2053,20 @@ def main():
         default="talk",
         choices=[
             "talk", "cold", "warm", "test", "inspect", "search-worker",
-            "ingest",
+            "ingest", "daemon",
         ],
         help=(
             "Boot mode: talk (default; natural-language interaction through "
             "correspondence laws), cold (from packs), warm (from snapshot), "
-            "test, inspect, search-worker, or ingest (training records)"
+            "test, inspect, search-worker, ingest (training records), or "
+            "daemon (cycle the shared talk state beside a conversation)"
         ),
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="daemon mode: worker processes per cycle (0 = single process)",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -2095,6 +2118,18 @@ def main():
             if args.arg1 is None:
                 raise RuntimeError("ingest requires a training-records file path")
             run_ingest_mode(args.arg1)
+        elif args.mode == "daemon":
+            # arg1: how many cycles to run. arg2: how many worker processes
+            # each cycle fans out to, zero for a single-process cycle.
+            # arg1 is a GMP count text and stays one. arg2 is a host process
+            # count -- multiprocessing needs an int the same way a PID or an
+            # exit code does -- so argparse produces it directly rather than
+            # this code converting a machine numeral into one.
+            Dmn.run_daemon(
+                SNAPSHOT_DIR,
+                M.GMPRep("100" if args.arg1 is None else args.arg1),
+                worker_count=args.workers,
+            )
         else:
             run_test_mode(debug_enabled)
     except KeyboardInterrupt:

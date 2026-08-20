@@ -38,6 +38,9 @@ from . import wire as Wmod
 DAEMON_POLL_SECONDS = 0.5
 DAEMON_STATE_NAME = "talk_state.wire"
 DAEMON_INBOX_NAME = "talk_inbox.wire"
+# Presence of this file means a daemon is cycling. The inbox cannot serve
+# as that signal: the daemon consumes it, so its absence is ambiguous.
+DAEMON_LIVE_NAME = "talk_daemon.live"
 
 DAEMON_STOP_CYCLES = M.Char("daemon-stop-max-cycles")
 DAEMON_STOP_SAFETY = M.Char("daemon-stop-safety-refusal")
@@ -238,7 +241,8 @@ def daemon_budget(graph_version):
     )
 
 
-def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS):
+def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS,
+               worker_count=0):
     """Cycle the shared state until the cycle cap or a safety refusal.
 
     `max_cycles` is a GMP count text. Every cycle: fold the inbox, run one
@@ -258,6 +262,9 @@ def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS):
             graph_version = M.Head(restored)()
             proposal_store = M.Head(M.Tail(restored)())()
             ledger = M.Head(M.Tail(M.Tail(restored)())())()
+    live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
+    with open(live_path, "w", encoding="utf-8") as handle:
+        handle.write(str(os.getpid()))
     print("daemon: cycling shared state at " + state_path, flush=True)
 
     cycles_text = "0"
@@ -292,12 +299,28 @@ def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS):
                 print("daemon: refused by the safety floor: " + refusal, flush=True)
                 stop_reason = DAEMON_STOP_SAFETY
             else:
-                outcome = Gmod.AutonomyCycle(
-                    graph_version,
-                    proposal_store,
-                    ledger,
-                    daemon_budget(graph_version),
-                )()
+                # With workers, the cycle fans generation and firing out
+                # through Step 45's distributed_cycle: worker budgets have
+                # max_activations forced to Zero, claims are replayed against
+                # the coordinator version rather than transplanted, and the
+                # single in-process AutonomyCycle is still the only place
+                # activation happens. Without workers it is that cycle alone.
+                if worker_count:
+                    outcome = Wmod.distributed_cycle(
+                        graph_version,
+                        proposal_store,
+                        ledger,
+                        daemon_budget(graph_version),
+                        M.EmptyList,
+                        worker_count,
+                    )
+                else:
+                    outcome = Gmod.AutonomyCycle(
+                        graph_version,
+                        proposal_store,
+                        ledger,
+                        daemon_budget(graph_version),
+                    )()
                 graph_version = M.Head(outcome)()
                 proposal_store = M.Head(M.Tail(outcome)())()
                 report = M.Head(M.Tail(M.Tail(outcome)())())()
@@ -314,6 +337,8 @@ def run_daemon(snapshot_dir, max_cycles, poll_seconds=DAEMON_POLL_SECONDS):
                 time.sleep(poll_seconds)
                 cycling = M.truth_value
 
+    if os.path.exists(live_path):
+        os.remove(live_path)
     print("daemon: " + stop_reason(), flush=True)
     return M.Pair(
         graph_version,
