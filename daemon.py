@@ -258,12 +258,34 @@ class DaemonMergeInbox(M.Edge):
         return self.result
 
 
+# How much the graph may grow in one cycle. A ceiling at the current node
+# count is not a budget, it is a prohibition: the first firing that adds a
+# node trips it and the cycle ends having done nothing, which is exactly
+# what every reported cycle did.
+DAEMON_NODE_HEADROOM = M.GMPRep("64")
+
+
 def daemon_budget(graph_version):
-    """A conservative per-cycle budget: fire a little, activate a little."""
+    """A per-cycle budget with room to actually do something.
+
+    max_nodes is the current node count plus headroom, so a firing that
+    grows the graph is allowed rather than refused before it starts.
+    """
     one = M.Head(M.Succ(M.Zero, M.AllConstructors)())()
     two = M.Head(M.Succ(one, M.AllConstructors)())()
-    node_ceiling = M.Head(
-        M.Count(Gmod.GraphNodes(graph_version)(), M.AllConstructors)(),
+    current_text = M.GMPRepText(
+        M.NatRepOf(
+            M.Head(M.Count(Gmod.GraphNodes(graph_version)(), M.AllConstructors)())(),
+            M.AllConstructors,
+        )(),
+    )()
+    node_ceiling = Gmod.MineNatFromGMPRep(
+        M.GMPRep(
+            Gmod.GMPAddText(
+                current_text,
+                M.GMPRepText(DAEMON_NODE_HEADROOM)(),
+            )(),
+        ),
     )()
     return M.Pair(
         M.Pair(Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY, M.Pair(two, M.EmptyList)),
@@ -284,6 +306,42 @@ def daemon_budget(graph_version):
                     ),
                     M.EmptyList,
                 ),
+            ),
+        ),
+    )
+
+
+def daemon_generator_config(graph_version):
+    """Switch mining on. Without this the daemon cannot propose anything.
+
+    AutonomyCycle only mines handles or compositions when the config says
+    so, and the daemon passed EmptyList -- so every cycle reported
+    "proposed 0 handle(s) and 0 composition(s)" not because there was
+    nothing to find but because looking was disabled. The distributed
+    cycle then had nothing for its workers to divide.
+
+    Handle mining censuses candidate patterns across a version history;
+    the current version is that history until a Next chain accumulates.
+    """
+    return M.Pair(
+        M.Pair(
+            Gmod.AUTONOMY_GENERATE_HANDLES_KEY,
+            M.Pair(M.truth_value, M.EmptyList),
+        ),
+        M.Pair(
+            M.Pair(
+                Gmod.AUTONOMY_GENERATE_COMPOSITIONS_KEY,
+                M.Pair(M.truth_value, M.EmptyList),
+            ),
+            M.Pair(
+                M.Pair(
+                    Gmod.AUTONOMY_GENERATOR_VERSIONS_KEY,
+                    M.Pair(
+                        M.Pair(graph_version, M.EmptyList),
+                        M.EmptyList,
+                    ),
+                ),
+                M.EmptyList,
             ),
         ),
     )
@@ -397,7 +455,7 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                         proposal_store,
                         ledger,
                         daemon_budget(graph_version),
-                        M.EmptyList,
+                        daemon_generator_config(graph_version),
                         worker_count,
                     )
                 else:
@@ -406,6 +464,7 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                         proposal_store,
                         ledger,
                         daemon_budget(graph_version),
+                        daemon_generator_config(graph_version),
                     )()
                 graph_version = M.Head(outcome)()
                 proposal_store = M.Head(M.Tail(outcome)())()
