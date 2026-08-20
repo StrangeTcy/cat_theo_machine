@@ -1763,17 +1763,45 @@ def run_talk_mode(sentence: str = None):
                             radicand = M.Head(evaluated)()
                             registry = M.Head(M.Tail(evaluated)())()
                             if M.IdentityCompare(radicand, M.EmptyList)() is M.false_value:
+                                # Proving a root takes minutes, and every
+                                # word of it used to be swallowed: the boot
+                                # is wrapped in redirect_stdout and the
+                                # search console is switched off. A silent
+                                # prompt is indistinguishable from a hung
+                                # one, so say what is happening and when it
+                                # finishes.
+                                print(
+                                    "hyge> understood the proposition; "
+                                    "proving it now",
+                                    flush=True,
+                                )
+                                proof_started_at = time.time()
                                 if proof_runtime is M.EmptyList:
                                     # The proof runtime always cold-boots from
                                     # packs: snapshot-rehydrated rule chains
                                     # lose their Edge wrappers and crash
                                     # Prove on the next session.
+                                    print(
+                                        "hyge> loading the theorem packs "
+                                        "(first proof this session)",
+                                        flush=True,
+                                    )
+                                    boot_started_at = time.time()
                                     quiet_boot = io.StringIO()
                                     with redirect_stdout(quiet_boot):
                                         proof_runtime, _proof_packs = boot_from_packs(
                                             PACK_PATHS,
                                             _runtime_namespace(),
                                         )
+                                    print(
+                                        "hyge> packs loaded in "
+                                        + format(
+                                            time.time() - boot_started_at,
+                                            ".1f",
+                                        )
+                                        + " s; searching for a derivation",
+                                        flush=True,
+                                    )
                                     proof_runtime.graph._search_disable_console = (
                                         M.truth_value
                                     )
@@ -1792,6 +1820,15 @@ def run_talk_mode(sentence: str = None):
                                     M.Pair(start, M.EmptyList),
                                 )
                                 derivation = proof_runtime.prove(start, goal)
+                                print(
+                                    "hyge> search finished in "
+                                    + format(
+                                        time.time() - proof_started_at,
+                                        ".1f",
+                                    )
+                                    + " s",
+                                    flush=True,
+                                )
                                 if record:
                                     _log_lesson(line)
                                 if M.IdentityCompare(
