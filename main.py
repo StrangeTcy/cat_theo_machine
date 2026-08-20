@@ -39,6 +39,8 @@ else:
     from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
+    from . import wire as W
+    from . import session as Sess
     from .testsuite import install_default_tests
 
 
@@ -1184,6 +1186,17 @@ def run_talk_mode(sentence: str = None):
     examples = M.EmptyList
     proposal_store = G.ProposalStore(M.EmptyList)()
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+    # Talk state is checkpoint-backed so that a cycling process and this
+    # conversation share one version rather than two disjoint ones. The
+    # daemon is the only writer of activations; talk submits and reads.
+    talk_checkpoint_path = os.path.join(SNAPSHOT_DIR, "talk_state.wire")
+    talk_ledger = G.FiringLedger(M.AllConstructors)
+    if os.path.exists(talk_checkpoint_path):
+        restored = W.load_checkpoint(talk_checkpoint_path)
+        if M.IdentityCompare(restored, M.EmptyList)() is M.false_value:
+            learned_version = M.Head(restored)()
+            proposal_store = M.Head(M.Tail(restored)())()
+            talk_ledger = M.Head(M.Tail(M.Tail(restored)())())()
     pending_queue = []
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
@@ -1481,6 +1494,40 @@ def run_talk_mode(sentence: str = None):
         _debug("no new candidate survived validation; waiting for more evidence")
         return "Recorded. I need more examples before I can propose a rule."
 
+    def _render_refusal(reason):
+        """One line naming the violated bound, its measure, and the reading.
+
+        A refusal is not a rejection: the proposal stays in the store,
+        still approved, and activates unchanged once the bound is raised.
+        """
+        if M.IsPair(reason)() is M.false_value:
+            return "Refused, and no reason term was recorded."
+        if M.TermEqual(
+            M.Head(reason)(), Lmod.ReasonSafetyLabel,
+        )() is M.false_value:
+            return "Refused before the safety floor; the proposal stays pending."
+        invariant = M.Head(M.Tail(reason)())()
+        return (
+            "Refused by the safety floor: "
+            + G.SafetyInvariantName(invariant)()()
+            + " (measure "
+            + G.SafetyInvariantMeasure(invariant)()()
+            + ", bound "
+            + M.GMPRepText(G.SafetyInvariantBound(invariant)())()
+            + "). The proposal stays pending and activates unchanged once "
+            + "the bound is raised."
+        )
+
+    def _persist_talk_state():
+        """Write the shared checkpoint. Atomic: save_checkpoint uses os.replace."""
+        W.save_checkpoint(
+            talk_checkpoint_path,
+            learned_version,
+            proposal_store,
+            talk_ledger,
+        )
+        _debug("talk state written to " + talk_checkpoint_path)
+
     def _handle_decision(line, record=True):
         nonlocal proposal_store, learned_version, decided_laws
         if not pending_queue:
@@ -1512,9 +1559,18 @@ def run_talk_mode(sentence: str = None):
                 approved_entries = M.Tail(approved_entries)()
             _debug("activating through ActivateProposal; "
                    "recording the Next splice in the learned version")
-            activated = G.ActivateProposal(learned_version, entry)()
-            learned_version = M.Head(activated)()
+            activated = G.ActivateProposal(
+                learned_version, entry, proposal_store,
+            )()
+            installed_version = M.Head(activated)()
+            refusal = M.Head(M.Tail(activated)())()
+            if M.IdentityCompare(installed_version, M.EmptyList)() is M.truth_value:
+                _extend_vocabulary()
+                _persist_talk_state()
+                return _render_refusal(refusal)
+            learned_version = installed_version
             _extend_vocabulary()
+            _persist_talk_state()
             _debug("vocabulary rebuilt from installed correspondence laws; "
                    "rule persists via the lesson transcript")
             outcome = "Recorded and activated. The rule is now part of my grammar."

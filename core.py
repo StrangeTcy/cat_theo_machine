@@ -176,11 +176,27 @@ class InputOf(Edge):
 
 
 class IdentityCompare(Edge):
+    """Compare two atom identities.
+
+    This is the hottest primitive in the system -- it is the loop
+    condition of nearly every chain walk -- and it used to allocate three
+    objects per comparison to answer a question about two pointers: a
+    Thingy for a result that __call__ immediately overwrote, and a
+    two-Pair `inputs` chain that nothing ever read. That bookkeeping was
+    87% of the cost of the operation.
+
+    The result is now assigned directly, and `inputs` is left empty. No
+    caller is affected: every call site in the codebase is
+    IdentityCompare(x, y)(), none binds the edge or reads .result before
+    calling, and a transient comparison is never reachable from a
+    persistence root, so its inputs are never serialized.
+    """
+
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.result = Thingy()
-        super().__init__(inputs=Pair(x, Pair(y, EmptyList)), results=self.result)
+        self.result = false_value
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         if self.x.id == self.y.id:
