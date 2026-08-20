@@ -8865,6 +8865,273 @@ class ConverseValue(M.Edge):
         return self.result
 
 
+class SurfaceOperatorWords(M.Edge):
+    """The infix words the vocabulary's binary templates are keyed on."""
+
+    def __init__(self, vocabulary):
+        self.result = M.Pair(
+            M.Char("plus"),
+            M.Pair(
+                M.Char("times"),
+                M.Pair(M.Char("minus"), M.EmptyList),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(vocabulary, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceChainHasWord(M.Edge):
+    """Membership by word value rather than object identity."""
+
+    def __init__(self, chain, word):
+        self.result = M.false_value
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.Compare(M.Head(remaining)(), word)() is M.truth_value:
+                self.result = M.truth_value
+                remaining = M.EmptyList
+            else:
+                remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(chain, M.Pair(word, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceFoldChainedOperator(M.Edge):
+    """Rewrite `a OP b OP c` as `( a OP b ) OP c`, left-associating.
+
+    The correspondence laws are strictly binary: "two times two" has one
+    interpretation and "two times two times two" has none, which surfaced
+    as "no correspondence law for that shape" -- true, but only because
+    nothing had grouped the chain. Parenthesising by hand already worked,
+    so this supplies the grouping the reader would otherwise have to type.
+
+    One fold per call, leftmost first; the caller re-reduces, so a longer
+    chain folds one step at a time. A chain with fewer than two operators
+    is returned unchanged, and the operator words must be the same one --
+    mixing "plus" and "times" would impose a precedence this has no
+    grounds to choose.
+    """
+
+    def __init__(self, chain, operator_words):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        first_index_text = ""
+        second_index_text = ""
+        first_word = M.EmptyList
+        seen_text = "0"
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                word = M.Head(remaining)()
+                # Compare, not ChainHasTerm: M.Char does not intern, so a
+                # word read from a sentence is a different object from the
+                # same word in the operator list, and identity would miss it.
+                if SurfaceChainHasWord(operator_words, word)() is M.truth_value:
+                    if M.IdentityCompare(first_word, M.EmptyList)() is M.truth_value:
+                        first_word = word
+                        first_index_text = scan_text
+                    elif M.Compare(word, first_word)() is M.truth_value:
+                        if GMPEqualText(second_index_text, "")() is M.truth_value:
+                            second_index_text = scan_text
+                scan_text = GMPSuccText(scan_text)()
+                remaining = M.Tail(remaining)()
+        self.result = chain
+        if GMPEqualText(second_index_text, "")() is M.false_value:
+            # The group opens at the operand immediately before the first
+            # operator, not at the start of the sentence: "is two times two
+            # times two" must fold to "is ( two times two ) times two", or
+            # the leading words are swallowed into a group that cannot be
+            # evaluated -- which is how a question became a group failure.
+            open_index_text = "0"
+            if GMPLessText("0", first_index_text)() is M.truth_value:
+                open_index_text = GMPSubText(first_index_text, "1")()
+            reversed_output = M.EmptyList
+            cursor_text = "0"
+            remaining = chain
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if GMPEqualText(cursor_text, open_index_text)() is M.truth_value:
+                    reversed_output = M.Pair(M.Char("("), reversed_output)
+                if GMPEqualText(cursor_text, second_index_text)() is M.truth_value:
+                    reversed_output = M.Pair(M.Char(")"), reversed_output)
+                    while M.IdentityCompare(
+                        remaining,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        reversed_output = M.Pair(M.Head(remaining)(), reversed_output)
+                        remaining = M.Tail(remaining)()
+                else:
+                    reversed_output = M.Pair(M.Head(remaining)(), reversed_output)
+                    cursor_text = GMPSuccText(cursor_text)()
+                    remaining = M.Tail(remaining)()
+            self.result = Reverse(reversed_output)()
+        super().__init__(
+            inputs=M.Pair(chain, M.Pair(operator_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceDigitRunValue(M.Edge):
+    """A chain that is entirely digit words, read as one Nat.
+
+    Only a chain of two or more digit words qualifies: a single word is
+    already handled by the ordinary correspondence laws, and any non-digit
+    word means this is a sentence rather than a numeral.
+    """
+
+    def __init__(self, chain, digit_words):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        digits_text = ""
+        counted_text = "0"
+        all_digits = M.truth_value
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                all_digits = M.false_value
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                digit = SurfaceDigitOfWord(M.Head(remaining)(), digit_words)()
+                if M.IdentityCompare(digit, M.EmptyList)() is M.truth_value:
+                    all_digits = M.false_value
+                    remaining = M.EmptyList
+                else:
+                    digits_text = digits_text + digit()
+                    counted_text = GMPSuccText(counted_text)()
+                    remaining = M.Tail(remaining)()
+        self.result = M.EmptyList
+        if M.IdentityCompare(all_digits, M.truth_value)() is M.truth_value:
+            if GMPLessText("1", counted_text)() is M.truth_value:
+                self.result = MineNatFromGMPRep(M.GMPRep(digits_text))()
+        super().__init__(
+            inputs=M.Pair(chain, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceJoinDigitWords(M.Edge):
+    """Fold runs of adjacent digit words into single multi-digit numerals.
+
+    The tokenizer rewrites each digit of a numeral separately, so "64"
+    arrives as "six four". No correspondence law relates two number words
+    standing side by side, so every multi-digit numeral was unevaluable --
+    "sqrt(64)" and "(64)" alike -- and the failure was reported as
+    unbalanced parentheses. This is the inverse of RenderNatSurface, which
+    already turns a Nat into a chain of digit words.
+
+    A run of one word is left exactly as it was, so single digits and every
+    documented spelled-out form are untouched. Only runs of two or more are
+    joined, and the join is the concatenation of their digit characters.
+    """
+
+    def __init__(self, chain, digit_words):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_output = M.EmptyList
+        pending_text = ""
+        pending_words = M.EmptyList
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                word = M.Head(remaining)()
+                digit = SurfaceDigitOfWord(word, digit_words)()
+                if M.IdentityCompare(digit, M.EmptyList)() is M.false_value:
+                    pending_text = pending_text + digit()
+                    pending_words = M.Pair(word, pending_words)
+                else:
+                    reversed_output = SurfaceFlushDigits(
+                        reversed_output,
+                        pending_text,
+                        pending_words,
+                    )()
+                    pending_text = ""
+                    pending_words = M.EmptyList
+                    reversed_output = M.Pair(word, reversed_output)
+                remaining = M.Tail(remaining)()
+        reversed_output = SurfaceFlushDigits(
+            reversed_output,
+            pending_text,
+            pending_words,
+        )()
+        self.result = Reverse(reversed_output)()
+        super().__init__(
+            inputs=M.Pair(chain, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceDigitOfWord(M.Edge):
+    """The digit character a number word names, or EmptyList."""
+
+    def __init__(self, word, digit_words):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        scan_text = "0"
+        remaining = digit_words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining)()
+                if M.Compare(M.Head(M.Tail(entry)())(), word)() is M.truth_value:
+                    self.result = M.Head(entry)()
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(word, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceFlushDigits(M.Edge):
+    """Emit a pending digit run: joined when several, verbatim when one."""
+
+    def __init__(self, reversed_output, pending_text, pending_words):
+        self.result = reversed_output
+        if M.IdentityCompare(pending_words, M.EmptyList)() is M.false_value:
+            single = M.IdentityCompare(M.Tail(pending_words)(), M.EmptyList)()
+            if M.IdentityCompare(single, M.truth_value)() is M.truth_value:
+                self.result = M.Pair(M.Head(pending_words)(), reversed_output)
+            else:
+                self.result = M.Pair(M.Char(pending_text), reversed_output)
+        super().__init__(
+            inputs=M.Pair(reversed_output, M.Pair(pending_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class SurfaceReduceGroups(M.Edge):
     """Reduce innermost parenthesis groups to their evaluated Nat values.
 
@@ -8874,11 +9141,32 @@ class SurfaceReduceGroups(M.Edge):
     """
 
     def __init__(self, vocabulary, surface_term, registry):
+        self.unevaluated = M.EmptyList
         cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
         open_symbol = M.Char("(")
         close_symbol = M.Char(")")
         chain = M.Head(M.Tail(surface_term)())()
+        # The correspondence laws are binary, so an unparenthesized chain
+        # like "two times two times two" has no interpretation at all.
+        # Left-associate it into the grouping the reader would otherwise
+        # have to type; the loop below then reduces those groups normally.
+        operator_words = SurfaceOperatorWords(vocabulary)()
+        fold_text = "0"
+        folding = M.truth_value
+        while M.IdentityCompare(folding, M.truth_value)() is M.truth_value:
+            folding = M.false_value
+            if GMPLessText(fold_text, cap_text)() is M.truth_value:
+                fold_text = GMPSuccText(fold_text)()
+                folded = SurfaceFoldChainedOperator(chain, operator_words)()
+                if M.TermEqual(folded, chain)() is M.false_value:
+                    chain = folded
+                    folding = M.truth_value
         failed = M.false_value
+        # Distinguish a bracket-matching failure from a group whose contents
+        # simply could not be evaluated. Both used to surface as "your
+        # parentheses do not balance", which is false whenever the brackets
+        # are fine and merely their contents are not understood.
+        value_failed = M.false_value
         pass_text = "0"
         reducing = M.truth_value
         while M.IdentityCompare(reducing, M.truth_value)() is M.truth_value:
@@ -8951,7 +9239,24 @@ class SurfaceReduceGroups(M.Edge):
                                         value,
                                         M.EmptyList,
                                     )() is M.truth_value:
+                                        # "64" reaches here as "six four":
+                                        # the tokenizer splits every digit and
+                                        # no law relates two number words side
+                                        # by side. A run of digit words has a
+                                        # direct reading as one numeral.
+                                        value = SurfaceDigitRunValue(
+                                            inner_chain,
+                                            M.Head(
+                                                M.Tail(M.Tail(vocabulary)())(),
+                                            )(),
+                                        )()
+                                    if M.IdentityCompare(
+                                        value,
+                                        M.EmptyList,
+                                    )() is M.truth_value:
                                         failed = M.truth_value
+                                        value_failed = M.truth_value
+                                        self.unevaluated = Surface(inner_chain)()
                                         remaining = M.EmptyList
                                     else:
                                         rebuilt = M.Tail(remaining)()
@@ -8987,6 +9292,7 @@ class SurfaceReduceGroups(M.Edge):
         reduced_surface = M.EmptyList
         if M.IdentityCompare(failed, M.false_value)() is M.truth_value:
             reduced_surface = Surface(chain)()
+        self.value_failed = value_failed
         self.result = M.Pair(reduced_surface, M.Pair(registry, M.EmptyList))
         super().__init__(
             inputs=M.Pair(
@@ -9186,25 +9492,40 @@ class Converse(M.Edge):
             direct_interpretations = M.Head(direct)()
             registry = M.Head(M.Tail(direct)())()
             reduced_surface = surface_term
+            group_value_failed = M.false_value
+            unevaluated_group = M.EmptyList
             if M.IdentityCompare(
                 direct_interpretations,
                 M.EmptyList,
             )() is M.truth_value:
-                reduced = SurfaceReduceGroups(
+                reducer = SurfaceReduceGroups(
                     vocabulary,
                     surface_term,
                     registry,
-                )()
+                )
+                reduced = reducer()
                 reduced_surface = M.Head(reduced)()
                 registry = M.Head(M.Tail(reduced)())()
+                group_value_failed = reducer.value_failed
+                unevaluated_group = reducer.unevaluated
             if M.IdentityCompare(reduced_surface, M.EmptyList)() is M.truth_value:
-                outcome = NotUnderstood(
-                    surface_term,
-                    M.Pair(
-                        Lmod.ReasonGroupLabel,
-                        M.Pair(surface_term, M.EmptyList),
-                    ),
-                )()
+                # Balanced brackets whose contents did not evaluate are a
+                # different failure from brackets that do not match, and
+                # saying the wrong one sends the reader hunting a typo that
+                # is not there.
+                group_reason = M.Pair(
+                    Lmod.ReasonGroupLabel,
+                    M.Pair(surface_term, M.EmptyList),
+                )
+                if M.IdentityCompare(
+                    group_value_failed,
+                    M.truth_value,
+                )() is M.truth_value:
+                    group_reason = M.Pair(
+                        Lmod.ReasonGroupValueLabel,
+                        M.Pair(unevaluated_group, M.EmptyList),
+                    )
+                outcome = NotUnderstood(surface_term, group_reason)()
             else:
                 interpretations = direct_interpretations
                 if M.IdentityCompare(

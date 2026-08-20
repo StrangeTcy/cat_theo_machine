@@ -1813,6 +1813,12 @@ def run_talk_mode(sentence: str = None):
             return "I do not know the word: " + unknown
         if M.IdentityCompare(
             reason_label,
+            Lmod.ReasonGroupValueLabel,
+        )() is M.truth_value:
+            return ("The parentheses balance, but I cannot evaluate what is "
+                    "inside them: " + _speak_chain(M.Head(M.Tail(reason)())()))
+        if M.IdentityCompare(
+            reason_label,
             Lmod.ReasonGroupLabel,
         )() is M.truth_value:
             return "The parentheses in that sentence do not balance."

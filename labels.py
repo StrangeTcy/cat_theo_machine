@@ -1083,6 +1083,10 @@ class SignedRationalLabel(ConstructorLabel):
     pass
 
 
+class ReasonGroupValueLabel(ConstructorLabel):
+    pass
+
+
 class SelfModelLabel(ConstructorLabel):
     pass
 
@@ -1477,6 +1481,7 @@ FireLabel = FireLabel()
 NextLabel = NextLabel()
 FiringRecordLabel = FiringRecordLabel()
 SignedRationalLabel = SignedRationalLabel()
+ReasonGroupValueLabel = ReasonGroupValueLabel()
 SelfModelLabel = SelfModelLabel()
 SafetyInvariantLabel = SafetyInvariantLabel()
 ReasonSafetyLabel = ReasonSafetyLabel()
@@ -1931,6 +1936,7 @@ def sync_from_namespace(namespace):
         "NextLabel",
         "FiringRecordLabel",
         "SignedRationalLabel",
+        "ReasonGroupValueLabel",
         "SelfModelLabel",
         "SafetyInvariantLabel",
         "ReasonSafetyLabel",
