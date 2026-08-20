@@ -1763,6 +1763,18 @@ def run_talk_mode(sentence: str = None):
                             radicand = M.Head(evaluated)()
                             registry = M.Head(M.Tail(evaluated)())()
                             if M.IdentityCompare(radicand, M.EmptyList)() is M.false_value:
+                                # Replayed lines are lessons being folded
+                                # back in, not questions being asked now.
+                                # A proof leaves no persistent state, so
+                                # re-proving one at boot spends minutes to
+                                # produce nothing -- and it printed proof
+                                # chatter before the user said anything.
+                                # Old logs still contain question lines;
+                                # skip them here rather than punishing
+                                # every boot for a line logged before
+                                # questions stopped being logged.
+                                if not record:
+                                    return "yes (recorded question; not re-proved during replay)"
                                 # Proving a root takes minutes, and every
                                 # word of it used to be swallowed: the boot
                                 # is wrapped in redirect_stdout and the
@@ -1829,8 +1841,14 @@ def run_talk_mode(sentence: str = None):
                                     + " s",
                                     flush=True,
                                 )
-                                if record:
-                                    _log_lesson(line)
+                                # Questions are not lessons. A proof leaves
+                                # nothing persistent -- the derivation lives
+                                # in this session's proof runtime -- so a
+                                # logged question only makes every later
+                                # boot re-prove it for minutes and discard
+                                # the result. Teaching lines and decisions
+                                # are logged where they happen; this line
+                                # is not.
                                 if M.IdentityCompare(
                                     derivation,
                                     M.EmptyList,
