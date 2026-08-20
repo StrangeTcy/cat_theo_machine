@@ -1190,13 +1190,27 @@ def run_talk_mode(sentence: str = None):
     # conversation share one version rather than two disjoint ones. The
     # daemon is the only writer of activations; talk submits and reads.
     talk_checkpoint_path = os.path.join(SNAPSHOT_DIR, "talk_state.wire")
+    talk_mark_path = os.path.join(SNAPSHOT_DIR, "talk_state.mark")
     talk_ledger = G.FiringLedger(M.AllConstructors)
+    # Lesson lines already folded into the checkpoint above. The mark is
+    # only trusted when the checkpoint it describes exists: without the
+    # folded state, every line must be replayed. Any doubt replays more,
+    # never fewer -- a lesson skipped in error is silently forgotten.
+    replay_mark_text = "0"
     if os.path.exists(talk_checkpoint_path):
         restored = W.load_checkpoint(talk_checkpoint_path)
         if M.IdentityCompare(restored, M.EmptyList)() is M.false_value:
             learned_version = M.Head(restored)()
             proposal_store = M.Head(M.Tail(restored)())()
             talk_ledger = M.Head(M.Tail(M.Tail(restored)())())()
+            if os.path.exists(talk_mark_path):
+                try:
+                    with open(talk_mark_path, "r", encoding="utf-8") as stream:
+                        replay_mark_text = M.GMPRepText(
+                            M.GMPRep(stream.read().strip()),
+                        )()
+                except (OSError, ValueError):
+                    replay_mark_text = "0"
     pending_queue = []
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
@@ -1205,7 +1219,6 @@ def run_talk_mode(sentence: str = None):
     last_goal = M.EmptyList
     last_proof_registry = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
-    proof_snapshot_path = os.path.join(SNAPSHOT_DIR, "talk_proofs_snapshot.json")
 
     TASK_RUNNERS = {
         "self-diagnostics": lambda: run_test_mode(False),
@@ -1786,18 +1799,34 @@ def run_talk_mode(sentence: str = None):
         return "I know those words but have no correspondence law for that shape."
 
     replayed = 0
+    skipped = 0
     if os.path.exists(lesson_path):
         try:
             with open(lesson_path, "r", encoding="utf-8") as stream:
                 lesson_lines = [item.strip() for item in stream.read().splitlines()]
         except OSError:
             lesson_lines = []
+        # Replay only lines the checkpoint has not already absorbed. The
+        # cursor counts non-blank lines, matching how the mark was written,
+        # so blank-line edits cannot shift the boundary.
+        cursor_text = "0"
         debug_enabled = False
         for lesson in lesson_lines:
             if lesson:
-                _respond(lesson, record=False)
-                replayed = replayed + 1
+                if G.GMPLessText(cursor_text, replay_mark_text)() is M.truth_value:
+                    skipped = skipped + 1
+                else:
+                    _respond(lesson, record=False)
+                    replayed = replayed + 1
+                cursor_text = G.GMPSuccText(cursor_text)()
         debug_enabled = True
+        if replayed:
+            _persist_talk_state()
+            try:
+                with open(talk_mark_path, "w", encoding="utf-8") as stream:
+                    stream.write(cursor_text)
+            except OSError:
+                pass
 
     if sentence is not None:
         answer = _respond(sentence)
