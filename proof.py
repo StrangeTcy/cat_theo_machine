@@ -1814,17 +1814,25 @@ class OrderRules(M.Edge):
 
 class Step(M.Edge):
     def __init__(self, current, action, next_term, registry):
+        # Change B of the snapshot-cost plan: Step no longer registers in
+        # the constructor tree. Measured over the e2 proof, the TreeLookup
+        # dedup never hit once (10 calls -> 10 entries) while the insert
+        # paid TreePatriciaPath tokenization on the largest keys in the
+        # system (205-700 tokens each). The readers -- StepCurrent /
+        # StepAction / StepNext via GetConstructor -- resolve through the
+        # node attribute set here, never through the tree.
+        #
+        # LOAD-BEARING CONSEQUENCE: .constructor is not serialized, and
+        # the registry entry was its only persistent record. Proof
+        # runtimes always cold-boot from packs (the invariant behind the
+        # sqrt fix, commit 73efb13), so nothing reads step structure
+        # after a reload today. Whoever implements snapshot proof-replay
+        # must either restore Step registration here or serialize
+        # .constructor in the snapshot codec.
         args = M.Pair(current, M.Pair(action, M.Pair(next_term, M.EmptyList)))
-        key = M.Pair(StepLabel, args)
-        existing = M.TreeLookup(registry, key, registry)()
-        if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
-            node = M.Atom()
-            constructed = M.ConstructedBy(node, StepLabel, args, registry)()
-            new_registry = M.Head(M.Tail(constructed)())()
-        else:
-            node = existing
-            new_registry = registry
-        self.result = M.Pair(node, M.Pair(new_registry, M.EmptyList))
+        node = M.Atom()
+        node.constructor = M.Pair(StepLabel, args)
+        self.result = M.Pair(node, M.Pair(registry, M.EmptyList))
         super().__init__(inputs=M.Pair(current, M.Pair(action, M.Pair(next_term, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
