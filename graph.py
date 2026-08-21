@@ -8415,6 +8415,31 @@ class DefaultCorrespondenceVocabulary(M.Edge):
             ),
         )()
 
+        even_meaning = Meaning(
+            M.Pair(
+                Lmod.EvenPropLabel,
+                M.Pair(Surface(M.Pair(var_a, empty))(), empty),
+            ),
+        )()
+        odd_meaning = Meaning(
+            M.Pair(
+                Lmod.OddPropLabel,
+                M.Pair(Surface(M.Pair(var_a, empty))(), empty),
+            ),
+        )()
+        even_sentence = Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(var_a, M.Pair(M.Char("even"), empty)),
+            ),
+        )()
+        odd_sentence = Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(var_a, M.Pair(M.Char("odd"), empty)),
+            ),
+        )()
+
         def _task_meaning(task_name):
             return Meaning(
                 M.Pair(Lmod.TaskLabel, M.Pair(M.Char(task_name), empty)),
@@ -8437,6 +8462,10 @@ class DefaultCorrespondenceVocabulary(M.Edge):
 
         templates = M.Pair(
             CompileRuleToLaw(P.Rule(equal_sentence, equal_meaning))(),
+            M.Pair(
+                CompileRuleToLaw(P.Rule(even_sentence, even_meaning))(),
+            M.Pair(
+                CompileRuleToLaw(P.Rule(odd_sentence, odd_meaning))(),
             M.Pair(
                 CompileRuleToLaw(P.Rule(real_sentence, real_meaning))(),
                 M.Pair(
@@ -8528,6 +8557,8 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
+            ),
+            ),
             ),
             ),
             ),
@@ -10216,15 +10247,49 @@ class ConversePropositionInterpretations(M.Edge):
 
 
 class PropositionEvaluate(M.Edge):
-    """Evaluate a proposition Meaning to the machine truth atoms."""
+    """Evaluate a proposition Meaning to the machine truth atoms.
+
+    Even/Odd propositions evaluate through WitnessSearchEven: the verdict
+    arrives with first-class evidence (Confirmed with a Witness, or
+    Refuted with a reason), retained on self.evidence for the caller."""
 
     def __init__(self, meaning_term, word_entries, registry):
         value = M.EmptyList
+        self.evidence = M.EmptyList
         body = meaning_term
         if M.IsPair(body)() is M.truth_value:
             if M.TermEqual(M.Head(body)(), Lmod.MeaningLabel)() is M.truth_value:
                 body = M.Head(M.Tail(body)())()
         if M.IsPair(body)() is M.truth_value:
+            is_even_prop = M.TermEqual(M.Head(body)(), Lmod.EvenPropLabel)()
+            is_odd_prop = M.TermEqual(M.Head(body)(), Lmod.OddPropLabel)()
+            if M.OrAtom(is_even_prop, is_odd_prop)() is M.truth_value:
+                evaluated = MeaningEvaluate(
+                    M.Head(M.Tail(body)())(),
+                    word_entries,
+                    registry,
+                )()
+                subject = M.Head(evaluated)()
+                registry = M.Head(M.Tail(evaluated)())()
+                if M.IdentityCompare(subject, M.EmptyList)() is M.false_value:
+                    searched = WitnessSearchEven(
+                        body,
+                        subject,
+                        registry,
+                        odd=is_odd_prop,
+                    )()
+                    value = M.Head(searched)()
+                    self.evidence = M.Head(M.Tail(searched)())()
+                    registry = M.Head(M.Tail(M.Tail(searched)())())()
+                self.result = M.Pair(value, M.Pair(registry, M.EmptyList))
+                super().__init__(
+                    inputs=M.Pair(
+                        meaning_term,
+                        M.Pair(word_entries, M.Pair(registry, M.EmptyList)),
+                    ),
+                    results=self.result,
+                )
+                return
             if M.TermEqual(M.Head(body)(), Lmod.EqualLabel)() is M.truth_value:
                 arguments = M.Tail(body)()
                 left = MeaningEvaluate(
@@ -10796,6 +10861,90 @@ class InstalledCorrespondenceLaws(M.Edge):
                 remaining = M.Tail(remaining)()
         self.result = M.Reverse(reversed_laws)()
         super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+WITNESS_SEARCH_CAP = M.GMPRep("50")
+
+
+class WitnessSearchEven(M.Edge):
+    """Bounded witness search for Even(n): find k with k+k = n.
+
+    Returns Pair(verdict, Pair(evidence, Pair(registry, EmptyList))).
+    verdict is truth/false; evidence is Confirmed(prop, Witness(k)) or
+    Refuted(prop, no-witness) -- first-class terms, not silent absences.
+    The search walks k = 0,1,2,... under WITNESS_SEARCH_CAP; a cap hit
+    refutes nothing and returns EmptyList verdict (the machine does not
+    know), because absence of search is not absence of witness.
+    """
+
+    def __init__(self, prop_term, n, registry, odd=M.false_value):
+        cap_text = M.GMPRepText(WITNESS_SEARCH_CAP)()
+        n_rep = M.NatRepOf(n, registry)()
+        verdict = M.EmptyList
+        evidence = M.EmptyList
+        if M.IdentityCompare(n_rep, M.EmptyList)() is M.false_value:
+            n_text = M.GMPRepText(n_rep)()
+            k_text = "0"
+            searching = M.truth_value
+            while M.IdentityCompare(searching, M.truth_value)() is M.truth_value:
+                searching = M.false_value
+                if GMPEqualText(k_text, cap_text)() is M.truth_value:
+                    pass
+                else:
+                    double_text = GMPAddText(k_text, k_text)()
+                    candidate_text = double_text
+                    if M.IdentityCompare(odd, M.truth_value)() is M.truth_value:
+                        candidate_text = GMPSuccText(double_text)()
+                    if GMPEqualText(candidate_text, n_text)() is M.truth_value:
+                        witness_pair = M.NatFromRep(
+                            M.GMPRep(k_text),
+                            registry,
+                        )()
+                        witness_nat = M.Head(witness_pair)()
+                        registry = M.Head(M.Tail(witness_pair)())()
+                        verdict = M.truth_value
+                        evidence = M.Pair(
+                            Lmod.ConfirmedLabel,
+                            M.Pair(
+                                prop_term,
+                                M.Pair(
+                                    M.Pair(
+                                        Lmod.WitnessLabel,
+                                        M.Pair(witness_nat, M.EmptyList),
+                                    ),
+                                    M.EmptyList,
+                                ),
+                            ),
+                        )
+                    elif GMPLessText(n_text, candidate_text)() is M.truth_value:
+                        # Candidates grow monotonically; passing n proves
+                        # no witness exists. This refutation is exact, not
+                        # a cap artifact.
+                        verdict = M.false_value
+                        evidence = M.Pair(
+                            Lmod.RefutedLabel,
+                            M.Pair(
+                                prop_term,
+                                M.Pair(M.Char("no-witness"), M.EmptyList),
+                            ),
+                        )
+                    else:
+                        k_text = GMPSuccText(k_text)()
+                        searching = M.truth_value
+        self.result = M.Pair(
+            verdict,
+            M.Pair(evidence, M.Pair(registry, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                prop_term,
+                M.Pair(n, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result

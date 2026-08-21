@@ -1785,6 +1785,52 @@ def run_talk_mode(sentence: str = None):
         body = M.Head(M.Tail(meaning)())()
         word_entries = M.Head(M.Tail(vocabulary)())()
         if M.IsPair(body)() is M.truth_value:
+            is_even_prop = M.TermEqual(M.Head(body)(), Lmod.EvenPropLabel)()
+            is_odd_prop = M.TermEqual(M.Head(body)(), Lmod.OddPropLabel)()
+            if M.OrAtom(is_even_prop, is_odd_prop)() is M.truth_value:
+                concept = "even" if is_even_prop is M.truth_value else "odd"
+                evaluated = G.MeaningEvaluate(
+                    M.Head(M.Tail(body)())(), word_entries, registry,
+                )()
+                subject = M.Head(evaluated)()
+                registry = M.Head(M.Tail(evaluated)())()
+                if M.IdentityCompare(subject, M.EmptyList)() is M.truth_value:
+                    return "I could not re-evaluate the subject to explain it."
+                searched = G.WitnessSearchEven(
+                    body, subject, registry, odd=is_odd_prop,
+                )()
+                verdict = M.Head(searched)()
+                evidence = M.Head(M.Tail(searched)())()
+                registry = M.Head(M.Tail(M.Tail(searched)())())()
+                subject_text = _speak_meaning(subject)
+                if M.IdentityCompare(verdict, M.truth_value)() is M.truth_value:
+                    witness = M.Head(M.Tail(M.Tail(evidence)())())()
+                    witness_nat = M.Head(M.Tail(witness)())()
+                    witness_text = _speak_meaning(witness_nat)
+                    if concept == "even":
+                        return (
+                            "because " + subject_text + " = "
+                            + witness_text + " + " + witness_text
+                            + ": the witness " + witness_text
+                            + " confirms it is even."
+                        )
+                    return (
+                        "because " + subject_text + " = "
+                        + witness_text + " + " + witness_text + " + 1"
+                        + ": the witness " + witness_text
+                        + " confirms it is odd."
+                    )
+                if M.IdentityCompare(verdict, M.false_value)() is M.truth_value:
+                    return (
+                        "because no k with "
+                        + ("k + k" if concept == "even" else "k + k + 1")
+                        + " = " + subject_text
+                        + " exists: refuted, no witness."
+                    )
+                return (
+                    "the witness search hit its cap before deciding; "
+                    "I do not know."
+                )
             if M.TermEqual(M.Head(body)(), Lmod.EqualLabel)() is M.truth_value:
                 left = M.Head(M.Tail(body)())()
                 right = M.Head(M.Tail(M.Tail(body)())())()

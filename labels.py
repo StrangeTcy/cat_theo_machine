@@ -1147,6 +1147,26 @@ class DefinitionLabel(ConstructorLabel):
     pass
 
 
+class EvenPropLabel(ConstructorLabel):
+    pass
+
+
+class OddPropLabel(ConstructorLabel):
+    pass
+
+
+class ConfirmedLabel(ConstructorLabel):
+    pass
+
+
+class RefutedLabel(ConstructorLabel):
+    pass
+
+
+class WitnessLabel(ConstructorLabel):
+    pass
+
+
 class CostSavingsLabel(ConstructorLabel):
     pass
 
@@ -1501,6 +1521,11 @@ ContractLabel = ContractLabel()
 ReasonContractLabel = ReasonContractLabel()
 RobustnessLabel = RobustnessLabel()
 DefinitionLabel = DefinitionLabel()
+EvenPropLabel = EvenPropLabel()
+OddPropLabel = OddPropLabel()
+ConfirmedLabel = ConfirmedLabel()
+RefutedLabel = RefutedLabel()
+WitnessLabel = WitnessLabel()
 CostSavingsLabel = CostSavingsLabel()
 ReuseLabel = ReuseLabel()
 NoveltyLabel = NoveltyLabel()
@@ -1957,6 +1982,11 @@ def sync_from_namespace(namespace):
         "ReasonContractLabel",
         "RobustnessLabel",
         "DefinitionLabel",
+        "EvenPropLabel",
+        "OddPropLabel",
+        "ConfirmedLabel",
+        "RefutedLabel",
+        "WitnessLabel",
         "CostSavingsLabel",
         "ReuseLabel",
         "NoveltyLabel",
