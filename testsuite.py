@@ -5633,6 +5633,239 @@ class ConverseDefaultModeTest(M.Edge):
         return self.result
 
 
+class ChartParserTest(M.Edge):
+    """The formal notation reads by chart, and the chart is not its parser.
+
+    Signatures become productions and the notation's brackets and commas
+    are words inside them, so nesting, arity and refusal are all one
+    fact: whether some production spans the input. The last check writes
+    a production the signature generator would never emit -- prefix, no
+    brackets, recursive -- and parses it through the same saturation,
+    which is the difference between a grammar engine and a reader for
+    one notation.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        signatures = M.Pair(
+            Gmod.ConstructorSignature(M.Char("mul"), M.ExprMulLabel, M.two)(),
+            M.Pair(
+                Gmod.ConstructorSignature(
+                    M.Char("divides"), Lmod.DivideLabel, M.two,
+                )(),
+                empty,
+            ),
+        )
+
+        flat_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("two"),
+                    M.Pair(
+                        M.Char(","),
+                        M.Pair(M.Char("three"), M.Pair(M.Char(")"), empty)),
+                    ),
+                ),
+            ),
+        )
+        nested_chain = M.Pair(
+            M.Char("divides"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("one"),
+                    M.Pair(
+                        M.Char(","),
+                        M.Pair(
+                            M.Char("mul"),
+                            M.Pair(
+                                M.Char("("),
+                                M.Pair(
+                                    M.Char("two"),
+                                    M.Pair(
+                                        M.Char(","),
+                                        M.Pair(
+                                            M.Char("three"),
+                                            M.Pair(
+                                                M.Char(")"),
+                                                M.Pair(M.Char(")"), empty),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        arity_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(")"), empty)),
+            ),
+        )
+        unsignatured_chain = M.Pair(
+            M.Char("notaword"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(")"), empty)),
+            ),
+        )
+        unbalanced_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(","), empty)),
+            ),
+        )
+        prefix_chain = M.Pair(
+            M.Char("root"),
+            M.Pair(M.Char("root"), M.Pair(M.Char("nine"), empty)),
+        )
+
+        flat_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, flat_chain, registry,
+        )()
+        registry = M.Head(M.Tail(flat_read)())()
+        flat_terms = M.Head(flat_read)()
+
+        nested_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, nested_chain, registry,
+        )()
+        registry = M.Head(M.Tail(nested_read)())()
+        nested_terms = M.Head(nested_read)()
+
+        arity_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, arity_chain, registry,
+        )()
+        registry = M.Head(M.Tail(arity_read)())()
+        arity_terms = M.Head(arity_read)()
+
+        unsignatured_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, unsignatured_chain, registry,
+        )()
+        registry = M.Head(M.Tail(unsignatured_read)())()
+        unsignatured_terms = M.Head(unsignatured_read)()
+
+        unbalanced_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, unbalanced_chain, registry,
+        )()
+        registry = M.Head(M.Tail(unbalanced_read)())()
+        unbalanced_terms = M.Head(unbalanced_read)()
+
+        # A grammar no signature could have produced: one symbol, one
+        # recursive slot, no brackets. Nothing about the engine changes.
+        prefix_variable = M.Pair(M.VarTag, M.Pair(M.Atom(), empty))
+        prefix_production = Gmod.Production(
+            Gmod.CHART_TERM_CATEGORY,
+            M.Pair(
+                Gmod.WordSymbol(M.Char("root"))(),
+                M.Pair(
+                    Gmod.CategorySymbol(
+                        Gmod.CHART_TERM_CATEGORY, prefix_variable,
+                    )(),
+                    empty,
+                ),
+            ),
+            M.Pair(M.SqrtLabel, M.Pair(prefix_variable, empty)),
+        )()
+        prefix_chart = Gmod.ChartSaturate(
+            M.Pair(prefix_production, empty),
+            Gmod.ChartSeedConstituents(
+                M.Head(M.Tail(vocabulary)())(),
+                M.Head(M.Tail(M.Tail(vocabulary)())())(),
+                Gmod.CHART_TERM_CATEGORY,
+                prefix_chain,
+            )(),
+            Gmod.ChartCells(prefix_chain)(),
+        )
+        prefix_terms = Gmod.ChartSpanningTerms(
+            prefix_chart(), Gmod.CHART_TERM_CATEGORY, prefix_chain,
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(flat_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(flat_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(flat_terms)())(),
+            M.ExprMulLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Head(flat_terms)())())(),
+            M.two,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Tail(M.Head(flat_terms)())())())(),
+            M.three,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(nested_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(nested_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(nested_terms)())(),
+            Lmod.DivideLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Head(nested_terms)())())(),
+            M.one,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(
+                M.Head(M.Tail(M.Tail(M.Head(nested_terms)())())())(),
+            )(),
+            M.ExprMulLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(arity_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unsignatured_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unbalanced_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(prefix_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(prefix_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(prefix_terms)())(),
+            M.SqrtLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(M.Tail(M.Head(prefix_terms)())())())(),
+            M.SqrtLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            prefix_chart.saturated,
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ConversePropositionTest(M.Edge):
     """Phase 7: Converse evaluates equality and retains IsReal query terms."""
 
@@ -13453,6 +13686,14 @@ def install_default_tests(graph):
             "toy_correspondence_round_trip_test",
             empty,
             ToyCorrespondenceRoundTripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "chart_parser_test",
+            empty,
+            ChartParserTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

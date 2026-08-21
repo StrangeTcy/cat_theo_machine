@@ -9084,9 +9084,10 @@ class ConstructorSignature(M.Edge):
 
     The formal notation "mul ( a , b )" was one hand-written template per
     constructor, so a constructor the packs knew about had no formal form
-    until someone added a branch. A signature is that form as data: the
-    reader below builds the term from it, so every constructor a pack
-    emits is writable the moment it is loaded.
+    until someone added a branch. A signature is that form as data:
+    FormalProductions below turns it into a production of the grammar, so
+    every constructor a pack emits is writable the moment it is loaded and
+    nothing in the parser mentions it.
     """
 
     def __init__(self, word, constructor, arity):
@@ -9142,12 +9143,694 @@ class SignatureArity(M.Edge):
         return self.result
 
 
-class SignatureFor(M.Edge):
-    """The signature whose word is `word`, or EmptyList."""
+# The chart's own limits. A pass that adds nothing is the fixed point;
+# CHART_PASS_CAP is what stops a grammar whose productions keep feeding
+# each other, so a cycle in the productions is a bounded failure rather
+# than a host recursion error.
+CHART_PASS_CAP = M.GMPRep("50")
 
-    def __init__(self, signatures, word):
+# The category the formal notation is written in. An argument is the
+# same category as the whole application, which is the entire reason
+# nesting needs no machinery.
+CHART_TERM_CATEGORY = M.Char("term")
+
+# The notation's function words. These carry no meaning of their own and
+# no branch of their own: they appear in productions exactly the way
+# "mul" does, as words to be matched in order.
+FORMAL_OPEN_WORD = M.Char("(")
+FORMAL_CLOSE_WORD = M.Char(")")
+FORMAL_SEPARATOR_WORD = M.Char(",")
+
+
+class WordSymbol(M.Edge):
+    """A production symbol matching one literal word of the input.
+
+    Pair(WordSymbolLabel, Pair(word, EmptyList)).
+    """
+
+    def __init__(self, word):
+        self.result = M.Pair(
+            Lmod.WordSymbolLabel,
+            M.Pair(word, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(word, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CategorySymbol(M.Edge):
+    """A production symbol matching a constituent of one category.
+
+    Pair(CategorySymbolLabel, Pair(category, Pair(variable, EmptyList))).
+    The variable is the slot the matched constituent's term binds to, so
+    the production's template can name what the symbol found.
+    """
+
+    def __init__(self, category, variable):
+        self.result = M.Pair(
+            Lmod.CategorySymbolLabel,
+            M.Pair(category, M.Pair(variable, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(category, M.Pair(variable, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Production(M.Edge):
+    """One grammar rule: a category, a symbol sequence, and a template.
+
+    Pair(ProductionLabel, Pair(category, Pair(symbols, Pair(template,
+    EmptyList)))). The symbols say what stands next to what; the
+    template says what the result term is, built by the same Instantiate
+    every law's right-hand side is built by. A grammar is a chain of
+    these and nothing else -- there is no production that is a branch in
+    the parser instead.
+    """
+
+    def __init__(self, category, symbols, template):
+        self.result = M.Pair(
+            Lmod.ProductionLabel,
+            M.Pair(
+                category,
+                M.Pair(symbols, M.Pair(template, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                category,
+                M.Pair(symbols, M.Pair(template, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProductionCategory(M.Edge):
+    def __init__(self, production):
+        self.result = M.Head(M.Tail(production)())()
+        super().__init__(
+            inputs=M.Pair(production, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProductionSymbols(M.Edge):
+    def __init__(self, production):
+        self.result = M.Head(M.Tail(M.Tail(production)())())()
+        super().__init__(
+            inputs=M.Pair(production, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProductionTemplate(M.Edge):
+    def __init__(self, production):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(production)())())())()
+        super().__init__(
+            inputs=M.Pair(production, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Constituent(M.Edge):
+    """One reading of one span: a category, a term, and the two cells.
+
+    Pair(ConstituentLabel, Pair(category, Pair(term, Pair(start,
+    Pair(after, EmptyList))))). `start` is the cell it begins at and
+    `after` the cell it ends before, so a constituent is a fact about a
+    span rather than about a position in a scan.
+    """
+
+    def __init__(self, category, term, start, after):
+        self.result = M.Pair(
+            Lmod.ConstituentLabel,
+            M.Pair(
+                category,
+                M.Pair(term, M.Pair(start, M.Pair(after, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                category,
+                M.Pair(term, M.Pair(start, M.Pair(after, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentCategory(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(M.Tail(constituent)())()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentTerm(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(M.Tail(M.Tail(constituent)())())()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentStart(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(constituent)())())())()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentAfter(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(constituent)())())())(),
+        )()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartCells(M.Edge):
+    """The cells of a token chain: every position a span may start or end at.
+
+    A cell is named by the suffix of the chain that begins there -- the
+    chain itself is the first cell and EmptyList the cell past the last
+    word. Two spans are the same span exactly when their cells are the
+    same objects, so nothing counts positions and nothing compares
+    counts.
+    """
+
+    def __init__(self, chain):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_cells = M.EmptyList
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                reversed_cells = M.Pair(remaining, reversed_cells)
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(M.Pair(M.EmptyList, reversed_cells))()
+        super().__init__(
+            inputs=M.Pair(chain, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSymbolMatches(M.Edge):
+    """Every way one symbol sequence can be matched starting at one cell.
+
+    Returns a chain of Pair(bindings, Pair(after, EmptyList)): the
+    bindings the category symbols made and the cell the match ended
+    before. Every way, not the first way -- two readings of the same
+    words are two matches here, and choosing between them is not this
+    edge's business.
+
+    A word symbol consumes one input word; a category symbol consumes a
+    constituent already in the chart and hands its term to the template
+    through the symbol's variable. The recursion is over the symbol
+    chain, which shrinks at every step, so it ends when the symbols run
+    out.
+    """
+
+    def __init__(self, symbols, cell, constituents):
         cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
         self.result = M.EmptyList
+        if M.IdentityCompare(symbols, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(
+                M.Pair(M.EmptyList, M.Pair(cell, M.EmptyList)),
+                M.EmptyList,
+            )
+        else:
+            symbol = M.Head(symbols)()
+            rest_symbols = M.Tail(symbols)()
+            if M.TermEqual(
+                M.Head(symbol)(),
+                Lmod.WordSymbolLabel,
+            )() is M.truth_value:
+                if M.IdentityCompare(cell, M.EmptyList)() is M.false_value:
+                    if M.Compare(
+                        M.Head(cell)(),
+                        M.Head(M.Tail(symbol)())(),
+                    )() is M.truth_value:
+                        self.result = ChartSymbolMatches(
+                            rest_symbols,
+                            M.Tail(cell)(),
+                            constituents,
+                        )()
+            elif M.TermEqual(
+                M.Head(symbol)(),
+                Lmod.CategorySymbolLabel,
+            )() is M.truth_value:
+                category = M.Head(M.Tail(symbol)())()
+                variable = M.Head(M.Tail(M.Tail(symbol)())())()
+                reversed_matches = M.EmptyList
+                scan_text = "0"
+                remaining = constituents
+                while M.IdentityCompare(
+                    remaining, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                        remaining = M.EmptyList
+                    else:
+                        scan_text = GMPSuccText(scan_text)()
+                        constituent = M.Head(remaining)()
+                        if M.IdentityCompare(
+                            ConstituentStart(constituent)(), cell,
+                        )() is M.truth_value:
+                            if M.Compare(
+                                ConstituentCategory(constituent)(), category,
+                            )() is M.truth_value:
+                                tail_matches = ChartSymbolMatches(
+                                    rest_symbols,
+                                    ConstituentAfter(constituent)(),
+                                    constituents,
+                                )()
+                                tail_scan_text = "0"
+                                remaining_tail = tail_matches
+                                while M.IdentityCompare(
+                                    remaining_tail, M.EmptyList,
+                                )() is M.false_value:
+                                    if GMPEqualText(
+                                        tail_scan_text, cap_text,
+                                    )() is M.truth_value:
+                                        remaining_tail = M.EmptyList
+                                    else:
+                                        tail_scan_text = GMPSuccText(
+                                            tail_scan_text,
+                                        )()
+                                        tail_match = M.Head(remaining_tail)()
+                                        reversed_matches = M.Pair(
+                                            M.Pair(
+                                                M.Pair(
+                                                    M.Pair(
+                                                        variable,
+                                                        M.Pair(
+                                                            ConstituentTerm(
+                                                                constituent,
+                                                            )(),
+                                                            M.EmptyList,
+                                                        ),
+                                                    ),
+                                                    M.Head(tail_match)(),
+                                                ),
+                                                M.Tail(tail_match)(),
+                                            ),
+                                            reversed_matches,
+                                        )
+                                        remaining_tail = M.Tail(
+                                            remaining_tail,
+                                        )()
+                        remaining = M.Tail(remaining)()
+                self.result = M.Reverse(reversed_matches)()
+        super().__init__(
+            inputs=M.Pair(
+                symbols,
+                M.Pair(cell, M.Pair(constituents, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartAddConstituent(M.Edge):
+    """Add a constituent unless one exactly like it is already present.
+
+    Two constituents are the same when they are the same category over
+    the same two cells carrying structurally equal terms. Two readings
+    of one span with different terms are both kept: ambiguity is a fact
+    about the sentence, and collapsing it here would be the parser
+    choosing on the reader's behalf.
+
+    Returns Pair(constituents, Pair(added, EmptyList)).
+    """
+
+    def __init__(self, constituents, constituent):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        category = ConstituentCategory(constituent)()
+        term = ConstituentTerm(constituent)()
+        start = ConstituentStart(constituent)()
+        after = ConstituentAfter(constituent)()
+        self.capped = M.false_value
+        present = M.false_value
+        scan_text = "0"
+        remaining = constituents
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                self.capped = M.truth_value
+                present = M.truth_value
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                other = M.Head(remaining)()
+                if M.IdentityCompare(
+                    ConstituentStart(other)(), start,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        ConstituentAfter(other)(), after,
+                    )() is M.truth_value:
+                        if M.Compare(
+                            ConstituentCategory(other)(), category,
+                        )() is M.truth_value:
+                            if M.TermEqual(
+                                ConstituentTerm(other)(), term,
+                            )() is M.truth_value:
+                                present = M.truth_value
+                if M.IdentityCompare(present, M.truth_value)() is M.truth_value:
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        self.added = M.false_value
+        grown = constituents
+        if M.IdentityCompare(present, M.false_value)() is M.truth_value:
+            grown = M.Pair(constituent, constituents)
+            self.added = M.truth_value
+        self.result = M.Pair(grown, M.Pair(self.added, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(constituents, M.Pair(constituent, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSaturate(M.Edge):
+    """Close a set of constituents under a set of productions.
+
+    One pass tries every production at every cell against every
+    constituent the chart already holds; a pass that adds nothing is the
+    fixed point. This loop knows nothing about what any production says.
+    Brackets, separators, argument order and arity live in the
+    productions; the loop is the same loop whatever they are, which is
+    the whole difference between a grammar and a parser written by hand.
+
+    `saturated` is truth only when a pass added nothing before the pass
+    cap ran out and no addition hit the chart's own size cap, so an
+    unfinished parse is visible rather than silently partial.
+    """
+
+    def __init__(self, productions, seeds, cells):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        pass_cap_text = M.GMPRepText(CHART_PASS_CAP)()
+        constituents = seeds
+        self.saturated = M.false_value
+        self.capped = M.false_value
+        pass_text = "0"
+        growing = M.truth_value
+        while M.IdentityCompare(growing, M.truth_value)() is M.truth_value:
+            if GMPEqualText(pass_text, pass_cap_text)() is M.truth_value:
+                growing = M.false_value
+            else:
+                pass_text = GMPSuccText(pass_text)()
+                growing = M.false_value
+                production_scan_text = "0"
+                remaining_productions = productions
+                while M.IdentityCompare(
+                    remaining_productions, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        production_scan_text, cap_text,
+                    )() is M.truth_value:
+                        remaining_productions = M.EmptyList
+                    else:
+                        production_scan_text = GMPSuccText(
+                            production_scan_text,
+                        )()
+                        production = M.Head(remaining_productions)()
+                        category = ProductionCategory(production)()
+                        symbols = ProductionSymbols(production)()
+                        template = ProductionTemplate(production)()
+                        cell_scan_text = "0"
+                        remaining_cells = cells
+                        while M.IdentityCompare(
+                            remaining_cells, M.EmptyList,
+                        )() is M.false_value:
+                            if GMPEqualText(
+                                cell_scan_text, cap_text,
+                            )() is M.truth_value:
+                                remaining_cells = M.EmptyList
+                            else:
+                                cell_scan_text = GMPSuccText(cell_scan_text)()
+                                cell = M.Head(remaining_cells)()
+                                matches = ChartSymbolMatches(
+                                    symbols, cell, constituents,
+                                )()
+                                match_scan_text = "0"
+                                remaining_matches = matches
+                                while M.IdentityCompare(
+                                    remaining_matches, M.EmptyList,
+                                )() is M.false_value:
+                                    if GMPEqualText(
+                                        match_scan_text, cap_text,
+                                    )() is M.truth_value:
+                                        remaining_matches = M.EmptyList
+                                    else:
+                                        match_scan_text = GMPSuccText(
+                                            match_scan_text,
+                                        )()
+                                        match = M.Head(remaining_matches)()
+                                        after = M.Head(M.Tail(match)())()
+                                        if M.IdentityCompare(
+                                            after, cell,
+                                        )() is M.false_value:
+                                            addition = ChartAddConstituent(
+                                                constituents,
+                                                Constituent(
+                                                    category,
+                                                    M.Head(
+                                                        M.Instantiate(
+                                                            template,
+                                                            M.Head(match)(),
+                                                        )(),
+                                                    )(),
+                                                    cell,
+                                                    after,
+                                                )(),
+                                            )
+                                            constituents = M.Head(addition())()
+                                            if M.IdentityCompare(
+                                                addition.added,
+                                                M.truth_value,
+                                            )() is M.truth_value:
+                                                growing = M.truth_value
+                                            if M.IdentityCompare(
+                                                addition.capped,
+                                                M.truth_value,
+                                            )() is M.truth_value:
+                                                self.capped = M.truth_value
+                                        remaining_matches = M.Tail(
+                                            remaining_matches,
+                                        )()
+                                remaining_cells = M.Tail(remaining_cells)()
+                        remaining_productions = M.Tail(remaining_productions)()
+                if M.IdentityCompare(growing, M.false_value)() is M.truth_value:
+                    if M.IdentityCompare(
+                        self.capped, M.false_value,
+                    )() is M.truth_value:
+                        self.saturated = M.truth_value
+        self.result = constituents
+        super().__init__(
+            inputs=M.Pair(
+                productions,
+                M.Pair(seeds, M.Pair(cells, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSpanningTerms(M.Edge):
+    """Every term of one category whose constituent covers the whole chain."""
+
+    def __init__(self, constituents, category, chain):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_terms = M.EmptyList
+        scan_text = "0"
+        remaining = constituents
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                constituent = M.Head(remaining)()
+                if M.IdentityCompare(
+                    ConstituentStart(constituent)(), chain,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        ConstituentAfter(constituent)(), M.EmptyList,
+                    )() is M.truth_value:
+                        if M.Compare(
+                            ConstituentCategory(constituent)(), category,
+                        )() is M.truth_value:
+                            reversed_terms = M.Pair(
+                                ConstituentTerm(constituent)(),
+                                reversed_terms,
+                            )
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_terms)()
+        super().__init__(
+            inputs=M.Pair(
+                constituents,
+                M.Pair(category, M.Pair(chain, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSeedConstituents(M.Edge):
+    """The lexical constituents of a chain: what the words mean on their own.
+
+    One constituent per word the vocabulary resolves, and one per run of
+    adjacent digit words, because a numeral is a lexical item that
+    happens to span several cells. Everything above this is productions;
+    this is the only place a word's own meaning is consulted.
+    """
+
+    def __init__(self, word_entries, digit_words, category, chain):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_seeds = M.EmptyList
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                word = M.Head(remaining)()
+                value = CorrespondenceResolveWord(
+                    word_entries,
+                    Surface(M.Pair(word, M.EmptyList))(),
+                )()
+                if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
+                    reversed_seeds = M.Pair(
+                        Constituent(
+                            category, value, remaining, M.Tail(remaining)(),
+                        )(),
+                        reversed_seeds,
+                    )
+                reversed_run = M.EmptyList
+                run_scan_text = "0"
+                run_remaining = remaining
+                while M.IdentityCompare(
+                    run_remaining, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        run_scan_text, cap_text,
+                    )() is M.truth_value:
+                        run_remaining = M.EmptyList
+                    else:
+                        run_scan_text = GMPSuccText(run_scan_text)()
+                        digit = SurfaceDigitOfWord(
+                            M.Head(run_remaining)(), digit_words,
+                        )()
+                        if M.IdentityCompare(
+                            digit, M.EmptyList,
+                        )() is M.truth_value:
+                            run_remaining = M.EmptyList
+                        else:
+                            reversed_run = M.Pair(
+                                M.Head(run_remaining)(), reversed_run,
+                            )
+                            run_remaining = M.Tail(run_remaining)()
+                            run_value = SurfaceDigitRunValue(
+                                M.Reverse(reversed_run)(), digit_words,
+                            )()
+                            if M.IdentityCompare(
+                                run_value, M.EmptyList,
+                            )() is M.false_value:
+                                reversed_seeds = M.Pair(
+                                    Constituent(
+                                        category,
+                                        run_value,
+                                        remaining,
+                                        run_remaining,
+                                    )(),
+                                    reversed_seeds,
+                                )
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_seeds)()
+        super().__init__(
+            inputs=M.Pair(
+                word_entries,
+                M.Pair(
+                    digit_words,
+                    M.Pair(category, M.Pair(chain, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FormalProductions(M.Edge):
+    """The formal notation as productions, generated from the signatures.
+
+    "mul ( a , b )" used to be a scan for an open bracket, a depth
+    counter, a split on commas at depth zero and an arity check after
+    the fact -- one grammar written as control flow. A signature is now
+    one production: the word, an open bracket, an argument category per
+    argument with separators between them, a close bracket, and a
+    template putting the matched arguments under the constructor.
+
+    Arity is not checked, it is matched: a production with two argument
+    slots does not match one argument. Nesting is not implemented at
+    all: an argument is the same category the whole application is, so
+    the chart has already read the inner application by the time the
+    outer one asks for it. Brackets and commas are words in a
+    production, the same as "mul" is.
+
+    Returns Pair(productions, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, signatures, category, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_productions = M.EmptyList
         scan_text = "0"
         remaining = signatures
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -9156,13 +9839,71 @@ class SignatureFor(M.Edge):
             else:
                 scan_text = GMPSuccText(scan_text)()
                 signature = M.Head(remaining)()
-                if M.Compare(SignatureWord(signature)(), word)() is M.truth_value:
-                    self.result = signature
-                    remaining = M.EmptyList
-                else:
-                    remaining = M.Tail(remaining)()
+                reversed_symbols = M.Pair(
+                    WordSymbol(FORMAL_OPEN_WORD)(),
+                    M.Pair(
+                        WordSymbol(SignatureWord(signature)())(),
+                        M.EmptyList,
+                    ),
+                )
+                reversed_variables = M.EmptyList
+                separated = M.false_value
+                arity_scan_text = "0"
+                remaining_arity = SignatureArity(signature)()
+                while M.NatEq(
+                    remaining_arity, M.Zero, registry,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        arity_scan_text, cap_text,
+                    )() is M.truth_value:
+                        remaining_arity = M.Zero
+                    else:
+                        arity_scan_text = GMPSuccText(arity_scan_text)()
+                        if M.IdentityCompare(
+                            separated, M.truth_value,
+                        )() is M.truth_value:
+                            reversed_symbols = M.Pair(
+                                WordSymbol(FORMAL_SEPARATOR_WORD)(),
+                                reversed_symbols,
+                            )
+                        variable = M.Pair(
+                            M.VarTag, M.Pair(M.Atom(), M.EmptyList),
+                        )
+                        reversed_symbols = M.Pair(
+                            CategorySymbol(category, variable)(),
+                            reversed_symbols,
+                        )
+                        reversed_variables = M.Pair(
+                            variable, reversed_variables,
+                        )
+                        separated = M.truth_value
+                        stepped = M.NatPred(remaining_arity, registry)()
+                        remaining_arity = M.Head(stepped)()
+                        registry = M.Head(M.Tail(stepped)())()
+                reversed_symbols = M.Pair(
+                    WordSymbol(FORMAL_CLOSE_WORD)(), reversed_symbols,
+                )
+                reversed_productions = M.Pair(
+                    Production(
+                        category,
+                        M.Reverse(reversed_symbols)(),
+                        M.Pair(
+                            SignatureConstructor(signature)(),
+                            M.Reverse(reversed_variables)(),
+                        ),
+                    )(),
+                    reversed_productions,
+                )
+                remaining = M.Tail(remaining)()
+        self.result = M.Pair(
+            M.Reverse(reversed_productions)(),
+            M.Pair(registry, M.EmptyList),
+        )
         super().__init__(
-            inputs=M.Pair(signatures, M.Pair(word, M.EmptyList)),
+            inputs=M.Pair(
+                signatures,
+                M.Pair(category, M.Pair(registry, M.EmptyList)),
+            ),
             results=self.result,
         )
 
@@ -9170,171 +9911,45 @@ class SignatureFor(M.Edge):
         return self.result
 
 
-class ConverseFormalTerm(M.Edge):
-    """Read "name ( arg , arg , ... )" for any constructor with a signature.
+class FormalTermReadings(M.Edge):
+    """Read "name ( arg , arg )" by chart, as the first client of the chart.
 
-    The formal notation used to be one template law per constructor --
-    "mul ( ?a , ?b )" and "add ( ?a , ?b )" and nothing else -- so a
-    trainer could not write a relation the machine had no branch for.
-    That is the bootstrapping wall: teaching by example needs a meaning
-    side, and the meaning side had a fixed vocabulary.
+    The formal notation gets no reader of its own. Its signatures become
+    productions, the vocabulary seeds the words, and the same saturation
+    that any other grammar runs through produces the terms. Every term
+    spanning the whole chain is returned, so an ambiguous notation
+    reports both readings instead of one of them.
 
-    This reads the shape from the signature instead. The word names a
-    constructor of known arity; the arguments are the comma-separated
-    spans between the brackets, each read by whatever reads a nested
-    argument -- a Nat word, a number, or a formal term of its own, so
-    "divides ( one , mul ( two , three ) )" nests without further
-    machinery.
-
-    Returns Pair(term, Pair(registry, EmptyList)), or EmptyList when the
-    chain is not a formal application or an argument does not read.
+    Returns Pair(terms, Pair(registry, EmptyList)). An empty chain of
+    terms means the words do not spell an application: a word with no
+    signature, a wrong count of arguments and a missing bracket are all
+    the same answer here, which is that no production spans the input.
     """
 
-    def __init__(self, signatures, word_entries, chain, registry):
-        self.result = M.EmptyList
-        open_symbol = M.Char("(")
-        close_symbol = M.Char(")")
-        comma_symbol = M.Char(",")
-        if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
-            head_word = M.Head(chain)()
-            rest = M.Tail(chain)()
-            signature = SignatureFor(signatures, head_word)()
-            if M.IdentityCompare(signature, M.EmptyList)() is M.false_value:
-                if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
-                    if M.Compare(M.Head(rest)(), open_symbol)() is M.truth_value:
-                        depth_text = "0"
-                        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
-                        scan_text = "0"
-                        reversed_args = M.EmptyList
-                        reversed_current = M.EmptyList
-                        closed = M.false_value
-                        remaining = M.Tail(rest)()
-                        while M.IdentityCompare(
-                            remaining, M.EmptyList,
-                        )() is M.false_value:
-                            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
-                                remaining = M.EmptyList
-                            else:
-                                scan_text = GMPSuccText(scan_text)()
-                                element = M.Head(remaining)()
-                                if M.Compare(
-                                    element, open_symbol,
-                                )() is M.truth_value:
-                                    depth_text = GMPSuccText(depth_text)()
-                                    reversed_current = M.Pair(
-                                        element, reversed_current,
-                                    )
-                                elif M.Compare(
-                                    element, close_symbol,
-                                )() is M.truth_value:
-                                    if GMPEqualText(
-                                        depth_text, "0",
-                                    )() is M.truth_value:
-                                        closed = M.truth_value
-                                        remaining = M.EmptyList
-                                    else:
-                                        depth_text = GMPSubText(
-                                            depth_text, "1",
-                                        )()
-                                        reversed_current = M.Pair(
-                                            element, reversed_current,
-                                        )
-                                elif M.Compare(
-                                    element, comma_symbol,
-                                )() is M.truth_value:
-                                    if GMPEqualText(
-                                        depth_text, "0",
-                                    )() is M.truth_value:
-                                        reversed_args = M.Pair(
-                                            M.Reverse(reversed_current)(),
-                                            reversed_args,
-                                        )
-                                        reversed_current = M.EmptyList
-                                    else:
-                                        reversed_current = M.Pair(
-                                            element, reversed_current,
-                                        )
-                                else:
-                                    reversed_current = M.Pair(
-                                        element, reversed_current,
-                                    )
-                                if M.IdentityCompare(
-                                    remaining, M.EmptyList,
-                                )() is M.false_value:
-                                    remaining = M.Tail(remaining)()
-                        if M.IdentityCompare(closed, M.truth_value)() is M.truth_value:
-                            if M.IdentityCompare(
-                                reversed_current, M.EmptyList,
-                            )() is M.false_value:
-                                reversed_args = M.Pair(
-                                    M.Reverse(reversed_current)(),
-                                    reversed_args,
-                                )
-                            argument_chains = M.Reverse(reversed_args)()
-                            reversed_terms = M.EmptyList
-                            failed = M.false_value
-                            counted = M.Zero
-                            remaining_args = argument_chains
-                            while M.IdentityCompare(
-                                remaining_args, M.EmptyList,
-                            )() is M.false_value:
-                                argument = M.Head(remaining_args)()
-                                nested = ConverseFormalTerm(
-                                    signatures,
-                                    word_entries,
-                                    argument,
-                                    registry,
-                                )()
-                                if M.IdentityCompare(
-                                    nested, M.EmptyList,
-                                )() is M.false_value:
-                                    reversed_terms = M.Pair(
-                                        M.Head(nested)(), reversed_terms,
-                                    )
-                                    registry = M.Head(M.Tail(nested)())()
-                                else:
-                                    value = CorrespondenceResolveWord(
-                                        word_entries,
-                                        Surface(argument)(),
-                                    )()
-                                    if M.IdentityCompare(
-                                        value, M.EmptyList,
-                                    )() is M.truth_value:
-                                        value = SurfaceDigitRunValue(
-                                            argument, word_entries,
-                                        )()
-                                    if M.IdentityCompare(
-                                        value, M.EmptyList,
-                                    )() is M.truth_value:
-                                        failed = M.truth_value
-                                        remaining_args = M.EmptyList
-                                    else:
-                                        reversed_terms = M.Pair(
-                                            value, reversed_terms,
-                                        )
-                                if M.IdentityCompare(
-                                    remaining_args, M.EmptyList,
-                                )() is M.false_value:
-                                    stepped = M.Succ(counted, registry)()
-                                    counted = M.Head(stepped)()
-                                    registry = M.Head(M.Tail(stepped)())()
-                                    remaining_args = M.Tail(remaining_args)()
-                            if M.IdentityCompare(failed, M.false_value)() is M.truth_value:
-                                arity = SignatureArity(signature)()
-                                if M.NatEq(counted, arity, registry)() is M.truth_value:
-                                    term = M.Pair(
-                                        SignatureConstructor(signature)(),
-                                        M.Reverse(reversed_terms)(),
-                                    )
-                                    self.result = M.Pair(
-                                        term,
-                                        M.Pair(registry, M.EmptyList),
-                                    )
+    def __init__(self, signatures, vocabulary, chain, registry):
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        generated = FormalProductions(
+            signatures, CHART_TERM_CATEGORY, registry,
+        )()
+        registry = M.Head(M.Tail(generated)())()
+        chart = ChartSaturate(
+            M.Head(generated)(),
+            ChartSeedConstituents(
+                word_entries, digit_words, CHART_TERM_CATEGORY, chain,
+            )(),
+            ChartCells(chain)(),
+        )
+        self.saturated = chart.saturated
+        self.result = M.Pair(
+            ChartSpanningTerms(chart(), CHART_TERM_CATEGORY, chain)(),
+            M.Pair(registry, M.EmptyList),
+        )
         super().__init__(
             inputs=M.Pair(
                 signatures,
                 M.Pair(
-                    word_entries,
+                    vocabulary,
                     M.Pair(chain, M.Pair(registry, M.EmptyList)),
                 ),
             ),

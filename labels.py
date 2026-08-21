@@ -1447,6 +1447,22 @@ class DefinitionCountedLabel(ConstructorLabel):
     pass
 
 
+class ProductionLabel(ConstructorLabel):
+    pass
+
+
+class WordSymbolLabel(ConstructorLabel):
+    pass
+
+
+class CategorySymbolLabel(ConstructorLabel):
+    pass
+
+
+class ConstituentLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1807,6 +1823,10 @@ DistinctLabel = DistinctLabel()
 SignatureLabel = SignatureLabel()
 DefinitionGenusLabel = DefinitionGenusLabel()
 DefinitionCountedLabel = DefinitionCountedLabel()
+ProductionLabel = ProductionLabel()
+WordSymbolLabel = WordSymbolLabel()
+CategorySymbolLabel = CategorySymbolLabel()
+ConstituentLabel = ConstituentLabel()
 
 
 def sync_from_namespace(namespace):
@@ -1814,6 +1834,10 @@ def sync_from_namespace(namespace):
         "SignatureLabel",
         "DefinitionGenusLabel",
         "DefinitionCountedLabel",
+        "ProductionLabel",
+        "WordSymbolLabel",
+        "CategorySymbolLabel",
+        "ConstituentLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",
