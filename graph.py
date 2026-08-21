@@ -11426,6 +11426,162 @@ class RulePatternHeads(M.Edge):
         return self.result
 
 
+class DefinitionBodyConstructors(M.Edge):
+    """The pack constructors a definition body names, in body order.
+
+    A taught body is a chain of words. A word denotes pack structure when
+    a bridge links it to a constructor, so this walks the body, asks
+    BridgeFor about each word (and its singular, since "three sides"
+    grounds on "side"), and keeps the constructors it finds. Stop words
+    and the defined term contribute nothing. Duplicates collapse to first
+    appearance, so "a figure with three sides" yields each named
+    constructor once.
+    """
+
+    def __init__(self, graph_version, definition):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        term_word = DefinitionTerm(definition)()
+        body = DefinitionBody(definition)()
+        reversed_found = M.EmptyList
+        scan_text = "0"
+        chain = M.Head(M.Tail(body)())()
+        while M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                chain = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                word = M.Head(chain)()
+                skip = M.false_value
+                if M.Compare(word, term_word)() is M.truth_value:
+                    skip = M.truth_value
+                if M.IdentityCompare(skip, M.false_value)() is M.truth_value:
+                    if ChainHasWordStructural(
+                        DEFINITION_STOP_WORDS,
+                        word,
+                    )() is M.truth_value:
+                        skip = M.truth_value
+                if M.IdentityCompare(skip, M.false_value)() is M.truth_value:
+                    bridge = BridgeFor(graph_version, word)()
+                    if M.IdentityCompare(
+                        bridge, M.EmptyList,
+                    )() is M.truth_value:
+                        singular = WordSingular(word)()
+                        if M.IdentityCompare(
+                            singular, M.EmptyList,
+                        )() is M.false_value:
+                            bridge = BridgeFor(graph_version, singular)()
+                    if M.IdentityCompare(
+                        bridge, M.EmptyList,
+                    )() is M.false_value:
+                        constructor = BridgeConstructor(bridge)()
+                        if ChainHasTerm(
+                            M.Reverse(reversed_found)(),
+                            constructor,
+                        )() is M.false_value:
+                            reversed_found = M.Pair(
+                                constructor,
+                                reversed_found,
+                            )
+                chain = M.Tail(chain)()
+        self.result = M.Reverse(reversed_found)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CompileDefinitionToLaws(M.Edge):
+    """A taught definition becomes the same rule shape the packs author.
+
+    "a triangle is a figure with three sides" is not prose to be recited.
+    Its subject bridges to TriangleLabel and its body names constructors
+    through their own bridges, so the definition asserts that whatever is
+    a triangle is also each of those things. That is exactly the pack
+    ontology's own form:
+
+        pattern      Triangle(?shape)
+        replacement  Polygon(?shape)
+
+    One rule per named body constructor, each compiled through the same
+    CompileRuleToLaw the packs go through, so a taught concept enters the
+    rule graph as structure rather than as a sentence. Returns EmptyList
+    when the subject has no bridge or the body names nothing: a definition
+    the machine cannot ground stays a definition and is not guessed at.
+    """
+
+    def __init__(self, graph_version, definition):
+        self.result = M.EmptyList
+        subject_bridge = BridgeFor(
+            graph_version,
+            DefinitionTerm(definition)(),
+        )()
+        if M.IdentityCompare(
+            subject_bridge, M.EmptyList,
+        )() is M.false_value:
+            subject = BridgeConstructor(subject_bridge)()
+            shape = M.Pair(
+                M.VarTag,
+                M.Pair(M.Char("shape"), M.EmptyList),
+            )
+            pattern = M.Pair(subject, M.Pair(shape, M.EmptyList))
+            reversed_laws = M.EmptyList
+            remaining = DefinitionBodyConstructors(
+                graph_version,
+                definition,
+            )()
+            while M.IdentityCompare(
+                remaining, M.EmptyList,
+            )() is M.false_value:
+                constructor = M.Head(remaining)()
+                replacement = M.Pair(
+                    constructor,
+                    M.Pair(shape, M.EmptyList),
+                )
+                law = CompileRuleToLaw(P.Rule(pattern, replacement))()
+                if M.IdentityCompare(law, M.EmptyList)() is M.false_value:
+                    reversed_laws = M.Pair(law, reversed_laws)
+                remaining = M.Tail(remaining)()
+            self.result = M.Reverse(reversed_laws)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallDefinitionLaws(M.Edge):
+    """Install every law a definition compiles to; return the new version.
+
+    The version is threaded through InstallLaw one law at a time, so a
+    taught concept lands in the same place pack laws land and the search
+    considers it on the same terms. A definition that compiles to nothing
+    leaves the version untouched.
+    """
+
+    def __init__(self, graph_version, definition):
+        current = graph_version
+        installed_count = M.Zero
+        remaining = CompileDefinitionToLaws(graph_version, definition)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            current = InstallLaw(current, M.Head(remaining)())()
+            stepped = M.Succ(installed_count, M.AllConstructors)()
+            installed_count = M.Head(stepped)()
+            remaining = M.Tail(remaining)()
+        self.result = M.Pair(current, M.Pair(installed_count, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class InstallDefinition(M.Edge):
     """Splice a Definition node into the version; append-only Next history.
 

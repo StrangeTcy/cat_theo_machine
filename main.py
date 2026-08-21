@@ -1454,6 +1454,23 @@ def run_talk_mode(sentence: str = None):
                 )
             )
         learned_version = new_version
+        # A word may already be bridged when its definition arrives -- the
+        # trainer defined it after linking, or is refining an earlier
+        # definition. Either way the subject already names a constructor,
+        # so the definition is groundable now and should reach the rule
+        # graph without waiting for a bridge question that will not come.
+        definition_law_line = ""
+        law_result = G.InstallDefinitionLaws(learned_version, definition)()
+        learned_version = M.Head(law_result)()
+        definition_law_count = M.Head(M.Tail(law_result)())()
+        definition_law_text = M.GMPRepText(
+            M.NatRepOf(definition_law_count, registry)(),
+        )()
+        if G.GMPEqualText(definition_law_text, "0")() is M.false_value:
+            definition_law_line = (
+                " It compiled to " + definition_law_text
+                + " law(s); the prover now rewrites with them."
+            )
         if record:
             _log_lesson(line)
         _persist_talk_state()
@@ -1464,6 +1481,7 @@ def run_talk_mode(sentence: str = None):
             return (
                 "Recorded: a " + term_text + " is "
                 + " ".join(rest) + ". Every word in it is grounded."
+                + definition_law_line
                 + _propose_bridge(term_text)
             )
         spoken = []
@@ -1479,6 +1497,7 @@ def run_talk_mode(sentence: str = None):
             + ". Define "
             + ("it" if len(spoken) == 1 else "them")
             + " with 'definition: a " + spoken[0] + " is ...'."
+            + definition_law_line
             + _propose_bridge(term_text)
         )
 
@@ -1685,10 +1704,28 @@ def run_talk_mode(sentence: str = None):
             return "Recorded; the word stays unlinked."
         installed = G.InstallBridge(learned_version, word, constructor)()
         learned_version = M.Head(installed)()
+        # The bridge is what makes the definition groundable: its subject
+        # now names a constructor, so the body's own bridged words can be
+        # asserted of it. Compile the definition into laws and install
+        # them, so a taught concept enters the rule graph the search reads
+        # rather than sitting beside it as a recitable sentence.
+        law_line = ""
+        definition = G.DefinitionFor(learned_version, word)()
+        if M.IdentityCompare(definition, M.EmptyList)() is M.false_value:
+            law_result = G.InstallDefinitionLaws(learned_version, definition)()
+            learned_version = M.Head(law_result)()
+            law_count = M.Head(M.Tail(law_result)())()
+            law_text = M.GMPRepText(M.NatRepOf(law_count, registry)())()
+            if G.GMPEqualText(law_text, "0")() is M.false_value:
+                law_line = (
+                    " The definition compiled to " + law_text
+                    + " law(s); the prover now rewrites with them."
+                )
         _persist_talk_state()
         return (
             "Linked: '" + str(word()) + "' now names the pack constructor. "
             "'what is " + str(word()) + "' can answer from the ontology."
+            + law_line
         )
 
     def _speak_label(label):
