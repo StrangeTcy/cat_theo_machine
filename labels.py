@@ -1435,6 +1435,18 @@ class TaoProblem11PerimeterValueLabel(ConstructorLabel):
     pass
 
 
+class SignatureLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionGenusLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionCountedLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1792,10 +1804,16 @@ TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
 TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
 TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
 DistinctLabel = DistinctLabel()
+SignatureLabel = SignatureLabel()
+DefinitionGenusLabel = DefinitionGenusLabel()
+DefinitionCountedLabel = DefinitionCountedLabel()
 
 
 def sync_from_namespace(namespace):
     for name in (
+        "SignatureLabel",
+        "DefinitionGenusLabel",
+        "DefinitionCountedLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",

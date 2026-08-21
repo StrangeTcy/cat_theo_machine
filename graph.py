@@ -3709,6 +3709,123 @@ class CompileRuleToLaw(M.Edge):
         return self.result
 
 
+class EncodePremisesAsGraph(M.Edge):
+    """One graph holding every premise of a multi-premise rule.
+
+    EncodeTermAsGraph turns a single term into Hypergraph(subterms, edges).
+    A conjunction of premises is the union of those: every premise's
+    subterms are nodes of the one L-side, every premise's applications are
+    its edges, and a variable occurring in two premises is one node in the
+    union because subterm occurrences are compared structurally. That
+    sharing is what makes the conjunction mean "the same shape" rather
+    than "some shape each" -- Polygon(?s) and Edges(?s, three) constrain
+    one ?s precisely because ?s appears once in the merged node store.
+    """
+
+    def __init__(self, premises):
+        nodes = M.EmptyList
+        edges = M.EmptyList
+        remaining = premises
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            encoded = EncodeTermAsGraph(M.Head(remaining)())()
+            nodes = ChainAddMissing(nodes, GraphNodes(encoded)())()
+            edges = ChainAddMissing(edges, GraphEdges(encoded)())()
+            remaining = M.Tail(remaining)()
+        self.result = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(nodes, M.Pair(edges, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(premises, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SharedSubtermsAcross(M.Edge):
+    """Subterms shared between a premise chain and one replacement term.
+
+    The interface K of a multi-premise law: what the premises and the
+    conclusion have in common, which is what must be preserved when the
+    law fires. Collected in premise order, duplicates dropped, so the K
+    of a single-premise rule is exactly what SharedSubterms already gives.
+    """
+
+    def __init__(self, premises, replacement):
+        right_subterms = TermSubterms(replacement)()
+        reversed_shared = M.EmptyList
+        remaining = premises
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            candidates = TermSubterms(M.Head(remaining)())()
+            while M.IdentityCompare(
+                candidates, M.EmptyList,
+            )() is M.false_value:
+                candidate = M.Head(candidates)()
+                if ChainHasTerm(right_subterms, candidate)() is M.truth_value:
+                    if ChainHasTerm(
+                        reversed_shared, candidate,
+                    )() is M.false_value:
+                        reversed_shared = M.Pair(candidate, reversed_shared)
+                candidates = M.Tail(candidates)()
+            remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_shared)()
+        super().__init__(
+            inputs=M.Pair(premises, M.Pair(replacement, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CompileMultiRuleToLaw(M.Edge):
+    """A multi-premise rule becomes a Law whose L-side is a conjunction.
+
+    CompileRuleToLaw refuses anything with more than one premise, because
+    its L is EncodeTermAsGraph of a single term. The refusal is not a
+    principle -- the L/K/R shape has room for a conjunction, since L is
+    already a node-and-edge store rather than a term. Building it needs
+    three things and nothing more:
+
+      L  the union of the premise encodings (EncodePremisesAsGraph)
+      K  the subterms the premises share with the conclusion
+      R  the conclusion's own encoding, unchanged
+
+    The K-maps stay identity Sends into each side, exactly as the single
+    premise case, because K is a subset of both stores by construction.
+    """
+
+    def __init__(self, rule):
+        self.result = self._compile(rule)
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def _compile(self, rule):
+        premises = P.RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        replacement = P.RuleReplacement(rule)()
+        if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        left = EncodePremisesAsGraph(premises)()
+        right = EncodeTermAsGraph(replacement)()
+        shared = SharedSubtermsAcross(premises, replacement)()
+        interface = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(shared, M.Pair(M.EmptyList, M.EmptyList)),
+        )
+        sends = IdentitySendsFor(shared)()
+        k_to_left = Map(interface, left, sends)()
+        k_to_right = Map(interface, right, sends)()
+        return Law(
+            left, interface, right, k_to_left, k_to_right, M.EmptyList,
+        )()
+
+    def __call__(self):
+        return self.result
+
+
 class UncompiledRules(M.Edge):
     """Step 12 term-native record of rules skipped from the trigonometry pack."""
 
@@ -8240,6 +8357,82 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         empty = M.EmptyList
         var_a = M.Pair(M.VarTag, M.Pair(M.Char("?a"), empty))
         var_b = M.Pair(M.VarTag, M.Pair(M.Char("?b"), empty))
+        var_c = M.Pair(M.VarTag, M.Pair(M.Char("?c"), empty))
+
+        # A definition body is a sentence, so it is read the way every
+        # other sentence is read: by correspondence templates that are
+        # themselves laws. The relation words were a host list and the
+        # parse a hand-written state machine; each shape below is one law
+        # instead, so a new phrasing is a new template rather than a new
+        # branch, and induction can learn one from examples.
+        genus_meaning = Meaning(
+            M.Pair(
+                M.DefinitionGenusLabel,
+                M.Pair(Surface(M.Pair(var_a, empty))(), empty),
+            ),
+        )()
+        counted_meaning = Meaning(
+            M.Pair(
+                M.DefinitionCountedLabel,
+                M.Pair(
+                    Surface(M.Pair(var_a, empty))(),
+                    M.Pair(
+                        Surface(M.Pair(var_b, empty))(),
+                        M.Pair(Surface(M.Pair(var_c, empty))(), empty),
+                    ),
+                ),
+            ),
+        )()
+        genus_body = Surface(M.Pair(M.Char("a"), M.Pair(var_a, empty)))()
+        genus_body_bare = Surface(M.Pair(var_a, empty))()
+        with_body = Surface(
+            M.Pair(
+                M.Char("a"),
+                M.Pair(
+                    var_a,
+                    M.Pair(
+                        M.Char("with"),
+                        M.Pair(var_b, M.Pair(var_c, empty)),
+                    ),
+                ),
+            ),
+        )()
+        having_body = Surface(
+            M.Pair(
+                M.Char("a"),
+                M.Pair(
+                    var_a,
+                    M.Pair(
+                        M.Char("having"),
+                        M.Pair(var_b, M.Pair(var_c, empty)),
+                    ),
+                ),
+            ),
+        )()
+        has_body = Surface(
+            M.Pair(
+                M.Char("a"),
+                M.Pair(
+                    var_a,
+                    M.Pair(
+                        M.Char("has"),
+                        M.Pair(var_b, M.Pair(var_c, empty)),
+                    ),
+                ),
+            ),
+        )()
+        whose_body = Surface(
+            M.Pair(
+                M.Char("a"),
+                M.Pair(
+                    var_a,
+                    M.Pair(
+                        M.Char("whose"),
+                        M.Pair(var_b, M.Pair(var_c, empty)),
+                    ),
+                ),
+            ),
+        )()
 
         add_meaning = Meaning(
             M.Pair(
@@ -8461,6 +8654,18 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         sqrt_meaning = _task_meaning("sqrt")
 
         templates = M.Pair(
+            CompileRuleToLaw(P.Rule(with_body, counted_meaning))(),
+            M.Pair(
+            CompileRuleToLaw(P.Rule(having_body, counted_meaning))(),
+            M.Pair(
+            CompileRuleToLaw(P.Rule(has_body, counted_meaning))(),
+            M.Pair(
+            CompileRuleToLaw(P.Rule(whose_body, counted_meaning))(),
+            M.Pair(
+            CompileRuleToLaw(P.Rule(genus_body, genus_meaning))(),
+            M.Pair(
+            CompileRuleToLaw(P.Rule(genus_body_bare, genus_meaning))(),
+            M.Pair(
             CompileRuleToLaw(P.Rule(equal_sentence, equal_meaning))(),
             M.Pair(
                 CompileRuleToLaw(P.Rule(even_sentence, even_meaning))(),
@@ -8557,6 +8762,12 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
+            ),
+            ),
+            ),
+            ),
+            ),
+            ),
             ),
             ),
             ),
@@ -8858,6 +9069,274 @@ class RenderNatSurface(M.Edge):
             inputs=M.Pair(
                 nat,
                 M.Pair(digit_words, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstructorSignature(M.Edge):
+    """A constructor, the word that names it, and how many arguments it takes.
+
+    Pair(SignatureLabel, Pair(word, Pair(constructor, Pair(arity, Empty)))).
+
+    The formal notation "mul ( a , b )" was one hand-written template per
+    constructor, so a constructor the packs knew about had no formal form
+    until someone added a branch. A signature is that form as data: the
+    reader below builds the term from it, so every constructor a pack
+    emits is writable the moment it is loaded.
+    """
+
+    def __init__(self, word, constructor, arity):
+        self.result = M.Pair(
+            Lmod.SignatureLabel,
+            M.Pair(
+                word,
+                M.Pair(constructor, M.Pair(arity, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                word,
+                M.Pair(constructor, M.Pair(arity, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SignatureWord(M.Edge):
+    def __init__(self, signature):
+        self.result = M.Head(M.Tail(signature)())()
+        super().__init__(
+            inputs=M.Pair(signature, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SignatureConstructor(M.Edge):
+    def __init__(self, signature):
+        self.result = M.Head(M.Tail(M.Tail(signature)())())()
+        super().__init__(
+            inputs=M.Pair(signature, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SignatureArity(M.Edge):
+    def __init__(self, signature):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(signature)())())())()
+        super().__init__(
+            inputs=M.Pair(signature, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SignatureFor(M.Edge):
+    """The signature whose word is `word`, or EmptyList."""
+
+    def __init__(self, signatures, word):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        scan_text = "0"
+        remaining = signatures
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                signature = M.Head(remaining)()
+                if M.Compare(SignatureWord(signature)(), word)() is M.truth_value:
+                    self.result = signature
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(signatures, M.Pair(word, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConverseFormalTerm(M.Edge):
+    """Read "name ( arg , arg , ... )" for any constructor with a signature.
+
+    The formal notation used to be one template law per constructor --
+    "mul ( ?a , ?b )" and "add ( ?a , ?b )" and nothing else -- so a
+    trainer could not write a relation the machine had no branch for.
+    That is the bootstrapping wall: teaching by example needs a meaning
+    side, and the meaning side had a fixed vocabulary.
+
+    This reads the shape from the signature instead. The word names a
+    constructor of known arity; the arguments are the comma-separated
+    spans between the brackets, each read by whatever reads a nested
+    argument -- a Nat word, a number, or a formal term of its own, so
+    "divides ( one , mul ( two , three ) )" nests without further
+    machinery.
+
+    Returns Pair(term, Pair(registry, EmptyList)), or EmptyList when the
+    chain is not a formal application or an argument does not read.
+    """
+
+    def __init__(self, signatures, word_entries, chain, registry):
+        self.result = M.EmptyList
+        open_symbol = M.Char("(")
+        close_symbol = M.Char(")")
+        comma_symbol = M.Char(",")
+        if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+            head_word = M.Head(chain)()
+            rest = M.Tail(chain)()
+            signature = SignatureFor(signatures, head_word)()
+            if M.IdentityCompare(signature, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                    if M.Compare(M.Head(rest)(), open_symbol)() is M.truth_value:
+                        depth_text = "0"
+                        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+                        scan_text = "0"
+                        reversed_args = M.EmptyList
+                        reversed_current = M.EmptyList
+                        closed = M.false_value
+                        remaining = M.Tail(rest)()
+                        while M.IdentityCompare(
+                            remaining, M.EmptyList,
+                        )() is M.false_value:
+                            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                                remaining = M.EmptyList
+                            else:
+                                scan_text = GMPSuccText(scan_text)()
+                                element = M.Head(remaining)()
+                                if M.Compare(
+                                    element, open_symbol,
+                                )() is M.truth_value:
+                                    depth_text = GMPSuccText(depth_text)()
+                                    reversed_current = M.Pair(
+                                        element, reversed_current,
+                                    )
+                                elif M.Compare(
+                                    element, close_symbol,
+                                )() is M.truth_value:
+                                    if GMPEqualText(
+                                        depth_text, "0",
+                                    )() is M.truth_value:
+                                        closed = M.truth_value
+                                        remaining = M.EmptyList
+                                    else:
+                                        depth_text = GMPSubText(
+                                            depth_text, "1",
+                                        )()
+                                        reversed_current = M.Pair(
+                                            element, reversed_current,
+                                        )
+                                elif M.Compare(
+                                    element, comma_symbol,
+                                )() is M.truth_value:
+                                    if GMPEqualText(
+                                        depth_text, "0",
+                                    )() is M.truth_value:
+                                        reversed_args = M.Pair(
+                                            M.Reverse(reversed_current)(),
+                                            reversed_args,
+                                        )
+                                        reversed_current = M.EmptyList
+                                    else:
+                                        reversed_current = M.Pair(
+                                            element, reversed_current,
+                                        )
+                                else:
+                                    reversed_current = M.Pair(
+                                        element, reversed_current,
+                                    )
+                                if M.IdentityCompare(
+                                    remaining, M.EmptyList,
+                                )() is M.false_value:
+                                    remaining = M.Tail(remaining)()
+                        if M.IdentityCompare(closed, M.truth_value)() is M.truth_value:
+                            if M.IdentityCompare(
+                                reversed_current, M.EmptyList,
+                            )() is M.false_value:
+                                reversed_args = M.Pair(
+                                    M.Reverse(reversed_current)(),
+                                    reversed_args,
+                                )
+                            argument_chains = M.Reverse(reversed_args)()
+                            reversed_terms = M.EmptyList
+                            failed = M.false_value
+                            counted = M.Zero
+                            remaining_args = argument_chains
+                            while M.IdentityCompare(
+                                remaining_args, M.EmptyList,
+                            )() is M.false_value:
+                                argument = M.Head(remaining_args)()
+                                nested = ConverseFormalTerm(
+                                    signatures,
+                                    word_entries,
+                                    argument,
+                                    registry,
+                                )()
+                                if M.IdentityCompare(
+                                    nested, M.EmptyList,
+                                )() is M.false_value:
+                                    reversed_terms = M.Pair(
+                                        M.Head(nested)(), reversed_terms,
+                                    )
+                                    registry = M.Head(M.Tail(nested)())()
+                                else:
+                                    value = CorrespondenceResolveWord(
+                                        word_entries,
+                                        Surface(argument)(),
+                                    )()
+                                    if M.IdentityCompare(
+                                        value, M.EmptyList,
+                                    )() is M.truth_value:
+                                        value = SurfaceDigitRunValue(
+                                            argument, word_entries,
+                                        )()
+                                    if M.IdentityCompare(
+                                        value, M.EmptyList,
+                                    )() is M.truth_value:
+                                        failed = M.truth_value
+                                        remaining_args = M.EmptyList
+                                    else:
+                                        reversed_terms = M.Pair(
+                                            value, reversed_terms,
+                                        )
+                                if M.IdentityCompare(
+                                    remaining_args, M.EmptyList,
+                                )() is M.false_value:
+                                    stepped = M.Succ(counted, registry)()
+                                    counted = M.Head(stepped)()
+                                    registry = M.Head(M.Tail(stepped)())()
+                                    remaining_args = M.Tail(remaining_args)()
+                            if M.IdentityCompare(failed, M.false_value)() is M.truth_value:
+                                arity = SignatureArity(signature)()
+                                if M.NatEq(counted, arity, registry)() is M.truth_value:
+                                    term = M.Pair(
+                                        SignatureConstructor(signature)(),
+                                        M.Reverse(reversed_terms)(),
+                                    )
+                                    self.result = M.Pair(
+                                        term,
+                                        M.Pair(registry, M.EmptyList),
+                                    )
+        super().__init__(
+            inputs=M.Pair(
+                signatures,
+                M.Pair(
+                    word_entries,
+                    M.Pair(chain, M.Pair(registry, M.EmptyList)),
+                ),
             ),
             results=self.result,
         )
@@ -11426,66 +11905,82 @@ class RulePatternHeads(M.Edge):
         return self.result
 
 
-class DefinitionBodyConstructors(M.Edge):
-    """The pack constructors a definition body names, in body order.
+class DefinitionBodyReading(M.Edge):
+    """The Meaning a definition body parses to, through the ordinary templates.
 
-    A taught body is a chain of words. A word denotes pack structure when
-    a bridge links it to a constructor, so this walks the body, asks
-    BridgeFor about each word (and its singular, since "three sides"
-    grounds on "side"), and keeps the constructors it finds. Stop words
-    and the defined term contribute nothing. Duplicates collapse to first
-    appearance, so "a figure with three sides" yields each named
-    constructor once.
+    The body is a sentence and is read like one: ConverseInterpretations
+    runs the correspondence templates against it, and the definition-body
+    templates in the vocabulary turn "a polygon with three sides" into
+    DefinitionCounted(polygon, three, sides) and "a shape" into
+    DefinitionGenus(shape). A body with no reading, or with disagreeing
+    readings, yields EmptyList -- the machine does not pick one for the
+    trainer.
+
+    This replaces a host-side word list and a hand-written state machine.
+    A new phrasing is now a new template law, not a new branch.
     """
 
-    def __init__(self, graph_version, definition):
-        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
-        term_word = DefinitionTerm(definition)()
+    def __init__(self, definition, vocabulary, registry):
+        self.result = M.EmptyList
         body = DefinitionBody(definition)()
-        reversed_found = M.EmptyList
-        scan_text = "0"
-        chain = M.Head(M.Tail(body)())()
-        while M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
-            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
-                chain = M.EmptyList
-            else:
-                scan_text = GMPSuccText(scan_text)()
-                word = M.Head(chain)()
-                skip = M.false_value
-                if M.Compare(word, term_word)() is M.truth_value:
-                    skip = M.truth_value
-                if M.IdentityCompare(skip, M.false_value)() is M.truth_value:
-                    if ChainHasWordStructural(
-                        DEFINITION_STOP_WORDS,
-                        word,
-                    )() is M.truth_value:
-                        skip = M.truth_value
-                if M.IdentityCompare(skip, M.false_value)() is M.truth_value:
-                    bridge = BridgeFor(graph_version, word)()
-                    if M.IdentityCompare(
-                        bridge, M.EmptyList,
-                    )() is M.truth_value:
-                        singular = WordSingular(word)()
-                        if M.IdentityCompare(
-                            singular, M.EmptyList,
-                        )() is M.false_value:
-                            bridge = BridgeFor(graph_version, singular)()
-                    if M.IdentityCompare(
-                        bridge, M.EmptyList,
-                    )() is M.false_value:
-                        constructor = BridgeConstructor(bridge)()
-                        if ChainHasTerm(
-                            M.Reverse(reversed_found)(),
-                            constructor,
-                        )() is M.false_value:
-                            reversed_found = M.Pair(
-                                constructor,
-                                reversed_found,
-                            )
-                chain = M.Tail(chain)()
-        self.result = M.Reverse(reversed_found)()
+        readings = M.Head(
+            ConverseInterpretations(vocabulary, body, registry)(),
+        )()
+        if M.IdentityCompare(readings, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(
+                M.Tail(readings)(), M.EmptyList,
+            )() is M.truth_value:
+                self.result = M.Head(M.Head(readings)())()
         super().__init__(
-            inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
+            inputs=M.Pair(
+                definition,
+                M.Pair(vocabulary, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingWordConstructor(M.Edge):
+    """The constructor a slot of a parsed reading names, or EmptyList.
+
+    A template slot holds a Surface of one word. The word denotes pack
+    structure when a bridge links it -- directly, or through its singular,
+    so "sides" grounds on "side".
+    """
+
+    def __init__(self, graph_version, slot):
+        self.result = M.EmptyList
+        chain = M.Head(M.Tail(slot)())()
+        if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+            word = M.Head(chain)()
+            bridge = BridgeFor(graph_version, word)()
+            if M.IdentityCompare(bridge, M.EmptyList)() is M.truth_value:
+                singular = WordSingular(word)()
+                if M.IdentityCompare(
+                    singular, M.EmptyList,
+                )() is M.false_value:
+                    bridge = BridgeFor(graph_version, singular)()
+            if M.IdentityCompare(bridge, M.EmptyList)() is M.false_value:
+                self.result = BridgeConstructor(bridge)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(slot, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingWordNat(M.Edge):
+    """The Nat a slot of a parsed reading names, or EmptyList."""
+
+    def __init__(self, slot, word_entries):
+        self.result = CorrespondenceResolveWord(word_entries, slot)()
+        super().__init__(
+            inputs=M.Pair(slot, M.Pair(word_entries, M.EmptyList)),
             results=self.result,
         )
 
@@ -11512,7 +12007,11 @@ class CompileDefinitionToLaws(M.Edge):
     the machine cannot ground stays a definition and is not guessed at.
     """
 
-    def __init__(self, graph_version, definition):
+    def __init__(self, graph_version, definition,
+                 vocabulary=M.EmptyList, registry=M.EmptyList):
+        word_entries = M.EmptyList
+        if M.IdentityCompare(vocabulary, M.EmptyList)() is M.false_value:
+            word_entries = M.Head(M.Tail(vocabulary)())()
         self.result = M.EmptyList
         subject_bridge = BridgeFor(
             graph_version,
@@ -11528,22 +12027,93 @@ class CompileDefinitionToLaws(M.Edge):
             )
             pattern = M.Pair(subject, M.Pair(shape, M.EmptyList))
             reversed_laws = M.EmptyList
-            remaining = DefinitionBodyConstructors(
-                graph_version,
+            reversed_premises = M.EmptyList
+            # The body is read by the ordinary correspondence templates,
+            # so what arrives here is a Meaning term -- a graph -- not a
+            # chain of words to scan. DefinitionGenus(x) says the subject
+            # IS an x; DefinitionCounted(x, n, y) says it is an x with n
+            # y's. Each becomes a forward rule over a shared ?shape.
+            reading = DefinitionBodyReading(
                 definition,
+                vocabulary,
+                registry,
             )()
-            while M.IdentityCompare(
-                remaining, M.EmptyList,
-            )() is M.false_value:
-                constructor = M.Head(remaining)()
-                replacement = M.Pair(
-                    constructor,
-                    M.Pair(shape, M.EmptyList),
-                )
-                law = CompileRuleToLaw(P.Rule(pattern, replacement))()
-                if M.IdentityCompare(law, M.EmptyList)() is M.false_value:
-                    reversed_laws = M.Pair(law, reversed_laws)
-                remaining = M.Tail(remaining)()
+            if M.IdentityCompare(reading, M.EmptyList)() is M.false_value:
+                body_term = M.Head(M.Tail(reading)())()
+                reading_head = M.Head(body_term)()
+                genus_slot = M.Head(M.Tail(body_term)())()
+                genus = ReadingWordConstructor(graph_version, genus_slot)()
+                if M.IdentityCompare(genus, M.EmptyList)() is M.false_value:
+                    replacement = M.Pair(genus, M.Pair(shape, M.EmptyList))
+                    reversed_premises = M.Pair(
+                        replacement, reversed_premises,
+                    )
+                    rule = P.Rule(pattern, replacement)
+                    law = CompileRuleToLaw(rule)()
+                    if M.IdentityCompare(
+                        law, M.EmptyList,
+                    )() is M.false_value:
+                        # Carry the rule beside its law: a version stores
+                        # laws and a runtime fires rules, and nothing
+                        # decompiles one into the other.
+                        reversed_laws = M.Pair(
+                            M.Pair(law, M.Pair(rule, M.EmptyList)),
+                            reversed_laws,
+                        )
+                if M.IdentityCompare(
+                    reading_head, M.DefinitionCountedLabel,
+                )() is M.truth_value:
+                    rest = M.Tail(M.Tail(body_term)())()
+                    count_slot = M.Head(rest)()
+                    noun_slot = M.Head(M.Tail(rest)())()
+                    counted = ReadingWordNat(count_slot, word_entries)()
+                    noun = ReadingWordConstructor(graph_version, noun_slot)()
+                    if M.IdentityCompare(
+                        counted, M.EmptyList,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            noun, M.EmptyList,
+                        )() is M.false_value:
+                            replacement = M.Pair(
+                                noun,
+                                M.Pair(
+                                    shape,
+                                    M.Pair(counted, M.EmptyList),
+                                ),
+                            )
+                            reversed_premises = M.Pair(
+                                replacement, reversed_premises,
+                            )
+                            rule = P.Rule(pattern, replacement)
+                            law = CompileRuleToLaw(rule)()
+                            if M.IdentityCompare(
+                                law, M.EmptyList,
+                            )() is M.false_value:
+                                reversed_laws = M.Pair(
+                                    M.Pair(law, M.Pair(rule, M.EmptyList)),
+                                    reversed_laws,
+                                )
+            # A definition is a biconditional. The forward arrows above say
+            # what a triangle is; this is the arrow back -- from a polygon
+            # that has three edges, conclude a triangle. It is genuinely
+            # multi-premise, which is why the conjunctive compiler exists.
+            premises = M.Reverse(reversed_premises)()
+            if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(
+                    M.Tail(premises)(), M.EmptyList,
+                )() is M.false_value:
+                    converse = P.MultiRule(premises, pattern)
+                    converse_law = CompileMultiRuleToLaw(converse)()
+                    if M.IdentityCompare(
+                        converse_law, M.EmptyList,
+                    )() is M.false_value:
+                        reversed_laws = M.Pair(
+                            M.Pair(
+                                converse_law,
+                                M.Pair(converse, M.EmptyList),
+                            ),
+                            reversed_laws,
+                        )
             self.result = M.Reverse(reversed_laws)()
         super().__init__(
             inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
@@ -11563,18 +12133,82 @@ class InstallDefinitionLaws(M.Edge):
     leaves the version untouched.
     """
 
-    def __init__(self, graph_version, definition):
+    def __init__(self, graph_version, definition,
+                 vocabulary=M.EmptyList, registry=M.EmptyList):
         current = graph_version
         installed_count = M.Zero
-        remaining = CompileDefinitionToLaws(graph_version, definition)()
+        remaining = CompileDefinitionToLaws(
+            graph_version, definition, vocabulary, registry,
+        )()
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            current = InstallLaw(current, M.Head(remaining)())()
+            current = InstallLaw(current, M.Head(M.Head(remaining)())())()
             stepped = M.Succ(installed_count, M.AllConstructors)()
             installed_count = M.Head(stepped)()
             remaining = M.Tail(remaining)()
         self.result = M.Pair(current, M.Pair(installed_count, M.EmptyList))
         super().__init__(
             inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionRulesFor(M.Edge):
+    """The rewrite rules a definition compiles to, without installing them.
+
+    A version stores laws; a proof runtime fires rules. Both come from the
+    same compilation, so this hands the rule side to whoever needs to
+    teach a runtime what the trainer taught the conversation.
+    """
+
+    def __init__(self, graph_version, definition,
+                 vocabulary=M.EmptyList, registry=M.EmptyList):
+        reversed_rules = M.EmptyList
+        remaining = CompileDefinitionToLaws(
+            graph_version, definition, vocabulary, registry,
+        )()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            pair = M.Head(remaining)()
+            reversed_rules = M.Pair(M.Head(M.Tail(pair)())(), reversed_rules)
+            remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_rules)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TaughtDefinitionRules(M.Edge):
+    """Every rule every installed Definition in a version compiles to.
+
+    The conversation and the prover kept two rule sets: laws taught here
+    never reached the pack-booted runtime that answers 'solve the tao
+    triangle problem', so a taught concept could not participate in a
+    proof. This is the whole taught ontology in the form a runtime
+    accepts, so the two sets can be made one.
+    """
+
+    def __init__(self, graph_version,
+                 vocabulary=M.EmptyList, registry=M.EmptyList):
+        reversed_rules = M.EmptyList
+        remaining = InstalledDefinitions(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            definition = M.Head(remaining)()
+            rules = DefinitionRulesFor(
+                graph_version, definition, vocabulary, registry,
+            )()
+            while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+                reversed_rules = M.Pair(M.Head(rules)(), reversed_rules)
+                rules = M.Tail(rules)()
+            remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_rules)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
             results=self.result,
         )
 

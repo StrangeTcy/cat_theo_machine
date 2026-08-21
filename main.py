@@ -816,6 +816,11 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         label = "resumed derivation checkpoint"
     else:
         runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        # A comparison worker is a whole proof in its own process. It boots
+        # from packs like any other, so it needs the taught rules too --
+        # otherwise a search that fans out loses exactly the concepts the
+        # trainer added.
+        _teach_runtime_taught_rules(runtime)
         registry = M.FromContextGetConstructors(runtime.graph)()
         worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
         label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
@@ -1044,6 +1049,50 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
     return 0
 
+def _teach_runtime_taught_rules(runtime, taught_version=M.EmptyList):
+    """Give a pack-booted runtime the rules the trainer taught.
+
+    The conversation compiles definitions into laws in its own version;
+    a proof cold-boots from packs and never saw them, so a taught concept
+    could not take part in a proof. Every proof boot passes through here:
+    cold mode, the conversation's own proof runtime, and the daemon's,
+    so no mode is the one where teaching quietly does not apply.
+
+    A caller holding the live taught version hands it over; anyone else
+    reads the shared checkpoint, which is where that version persists.
+    Rules go in through the ordinary add_rule -- the same door the packs
+    came in by.
+    """
+    if M.IdentityCompare(taught_version, M.EmptyList)() is M.truth_value:
+        checkpoint_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_STATE_NAME)
+        if os.path.exists(checkpoint_path) is False:
+            return M.Zero
+        restored = W.load_checkpoint(checkpoint_path)
+        if M.IdentityCompare(restored, M.EmptyList)() is M.truth_value:
+            return M.Zero
+        taught_version = M.Head(restored)()
+    taught_count = M.Zero
+    remaining = G.TaughtDefinitionRules(
+        taught_version,
+        G.DefaultCorrespondenceVocabulary()(),
+        M.FromContextGetConstructors(runtime.graph)(),
+    )()
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        runtime.graph.add_rule(M.Head(remaining)())
+        stepped = M.Succ(taught_count, M.FromContextGetConstructors(runtime.graph)())()
+        taught_count = M.Head(stepped)()
+        remaining = M.Tail(remaining)()
+    taught_text = M.GMPRepText(
+        M.NatRepOf(taught_count, M.FromContextGetConstructors(runtime.graph)())(),
+    )()
+    if G.GMPEqualText(taught_text, "0")() is M.false_value:
+        print(
+            "taught rules added to this proof: " + taught_text,
+            flush=True,
+        )
+    return taught_count
+
+
 def run_cold_mode(
     debug: bool = False,
     filter_name: str = "tao",
@@ -1070,6 +1119,8 @@ def run_cold_mode(
 
     for pack_info in runtime.pack_summaries():
         print("loaded pack:", pack_info)
+
+    _teach_runtime_taught_rules(runtime)
 
     try:
         theorem_results = _run_theorem_agenda(runtime, _theorem_agenda(packs, filter_name), "Cold theorem agenda", debug=debug)
@@ -1460,7 +1511,12 @@ def run_talk_mode(sentence: str = None):
         # so the definition is groundable now and should reach the rule
         # graph without waiting for a bridge question that will not come.
         definition_law_line = ""
-        law_result = G.InstallDefinitionLaws(learned_version, definition)()
+        law_result = G.InstallDefinitionLaws(
+            learned_version,
+            definition,
+            vocabulary,
+            registry,
+        )()
         learned_version = M.Head(law_result)()
         definition_law_count = M.Head(M.Tail(law_result)())()
         definition_law_text = M.GMPRepText(
@@ -1712,7 +1768,12 @@ def run_talk_mode(sentence: str = None):
         law_line = ""
         definition = G.DefinitionFor(learned_version, word)()
         if M.IdentityCompare(definition, M.EmptyList)() is M.false_value:
-            law_result = G.InstallDefinitionLaws(learned_version, definition)()
+            law_result = G.InstallDefinitionLaws(
+                learned_version,
+                definition,
+                vocabulary,
+                registry,
+            )()
             learned_version = M.Head(law_result)()
             law_count = M.Head(M.Tail(law_result)())()
             law_text = M.GMPRepText(M.NatRepOf(law_count, registry)())()
@@ -2289,6 +2350,14 @@ def run_talk_mode(sentence: str = None):
                                         M.FromContextGetAllRules(
                                             proof_runtime.graph,
                                         )(),
+                                    )
+                                    # This is the boot a conversation
+                                    # proves through, and the trainer is
+                                    # sitting right here: teach it what
+                                    # they taught before it searches.
+                                    _teach_runtime_taught_rules(
+                                        proof_runtime,
+                                        learned_version,
                                     )
                                     print(
                                         "hyge> packs loaded in "
