@@ -1217,6 +1217,7 @@ def run_talk_mode(sentence: str = None):
                 except (OSError, ValueError):
                     replay_mark_text = "0"
     pending_queue = []
+    pending_bridge = M.EmptyList
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
     last_outcome = M.EmptyList
@@ -1463,6 +1464,7 @@ def run_talk_mode(sentence: str = None):
             return (
                 "Recorded: a " + term_text + " is "
                 + " ".join(rest) + ". Every word in it is grounded."
+                + _propose_bridge(term_text)
             )
         spoken = []
         remaining_open = open_words
@@ -1477,7 +1479,78 @@ def run_talk_mode(sentence: str = None):
             + ". Define "
             + ("it" if len(spoken) == 1 else "them")
             + " with 'definition: a " + spoken[0] + " is ...'."
+            + _propose_bridge(term_text)
         )
+
+    def _pack_constructor_for(term_text):
+        """The pack label named after this word, or EmptyList.
+
+        Pack constructors are published on the machine namespace as
+        <Word>Label singletons; the lookup capitalises the word the same
+        way the packs do. This is how the machine NOTICES a taught word
+        already names pack structure -- the noticing is mechanical, the
+        linking is gated on the trainer.
+        """
+        label_name = term_text.capitalize() + "Label"
+        candidate = getattr(Lmod, label_name, None)
+        if candidate is None:
+            candidate = getattr(M, label_name, None)
+        if candidate is None:
+            return M.EmptyList
+        if getattr(candidate, "id", None) is None:
+            return M.EmptyList
+        return candidate
+
+    def _propose_bridge(term_text):
+        nonlocal pending_bridge
+        constructor = _pack_constructor_for(term_text)
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return ""
+        existing = G.BridgeFor(learned_version, M.Char(term_text))()
+        if M.IdentityCompare(existing, M.EmptyList)() is M.false_value:
+            return ""
+        pending_bridge = M.Pair(
+            M.Char(term_text),
+            M.Pair(constructor, M.EmptyList),
+        )
+        return (
+            " The packs also know '" + term_text + "' as a constructor "
+            "with its own ontology; shall I link the word to it? "
+            "(bridge yes/bridge no)"
+        )
+
+    def _handle_bridge_decision(line, record=True):
+        nonlocal pending_bridge, learned_version
+        if M.IdentityCompare(pending_bridge, M.EmptyList)() is M.truth_value:
+            return "There is no bridge awaiting a decision."
+        if record:
+            _log_lesson(line)
+        word = M.Head(pending_bridge)()
+        constructor = M.Head(M.Tail(pending_bridge)())()
+        pending_bridge = M.EmptyList
+        if line.strip().lower() == "bridge no":
+            return "Recorded; the word stays unlinked."
+        installed = G.InstallBridge(learned_version, word, constructor)()
+        learned_version = M.Head(installed)()
+        _persist_talk_state()
+        return (
+            "Linked: '" + str(word()) + "' now names the pack constructor. "
+            "'what is " + str(word()) + "' can answer from the ontology."
+        )
+
+    def _speak_label(label):
+        for label_name in dir(Lmod) + dir(M):
+            if label_name.endswith("Label"):
+                source = Lmod if hasattr(Lmod, label_name) else M
+                if getattr(source, label_name) is label:
+                    spoken = label_name[:-5]
+                    out = []
+                    for ch in spoken:
+                        if ch.isupper() and out:
+                            out.append(" ")
+                        out.append(ch.lower())
+                    return "".join(out)
+        return "?"
 
     def _handle_what_is(line):
         words = _tokens(line)
@@ -1486,13 +1559,50 @@ def run_talk_mode(sentence: str = None):
         if len(content) != 1:
             return None
         term_text = content[0]
+        bridge = G.BridgeFor(learned_version, M.Char(term_text))()
+        ontology_line = ""
+        if M.IdentityCompare(bridge, M.EmptyList)() is M.false_value:
+            if proof_runtime is not M.EmptyList:
+                constructor = G.BridgeConstructor(bridge)()
+                facts = G.OntologyFactsFor(
+                    M.FromContextGetAllRules(proof_runtime.graph)(),
+                    constructor,
+                    registry,
+                )()
+                spoken_facts = []
+                remaining_facts = facts
+                while M.IdentityCompare(
+                    remaining_facts, M.EmptyList,
+                )() is M.false_value:
+                    spoken_facts.append(_speak_label(M.Head(remaining_facts)()))
+                    remaining_facts = M.Tail(remaining_facts)()
+                if spoken_facts:
+                    ontology_line = (
+                        " The packs add: a " + term_text + " "
+                        + "; ".join(
+                            "is a " + f if f in ("polygon",)
+                            else "has " + f for f in spoken_facts
+                        )
+                        + "."
+                    )
+            else:
+                ontology_line = (
+                    " (linked to the pack constructor; ask again after a "
+                    "proof has loaded the packs to hear its ontology)"
+                )
         definition = G.DefinitionFor(learned_version, M.Char(term_text))()
         if M.IdentityCompare(definition, M.EmptyList)() is M.truth_value:
+            if ontology_line:
+                return (
+                    "I have no taught definition of '" + term_text + "'."
+                    + ontology_line
+                )
             return "I have no definition of '" + term_text + "'."
         body = G.DefinitionBody(definition)()
         answer = (
             "a " + term_text + " is "
             + _speak_chain(M.Head(M.Tail(body)())())
+            + ontology_line
         )
         open_words = G.DefinitionOpenDependencies(
             learned_version, definition, vocabulary, registry,
@@ -1883,6 +1993,8 @@ def run_talk_mode(sentence: str = None):
         if lowered in ("yes", "no"):
             if pending_queue:
                 return _handle_decision(lowered, record=record)
+        if lowered.strip() in ("bridge yes", "bridge no"):
+            return _handle_bridge_decision(lowered.strip(), record=record)
         if lowered.strip() in ("why", "why?", "explain", "explain?"):
             return _explain_last()
         words = _tokens(line)

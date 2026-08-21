@@ -11232,6 +11232,161 @@ class ChainHasWordStructural(M.Edge):
         return self.result
 
 
+class BridgeFor(M.Edge):
+    """The Corresponds node linking `word` to a constructor, or EmptyList.
+
+    A bridge is Pair(CorrespondsLabel, Pair(Surface([word]),
+    Pair(label, Pair(EmptyList, EmptyList)))) spliced into the learned
+    version: the word's meaning IS the pack constructor, recorded as a
+    version node so it persists through the same checkpoint as every
+    definition and law.
+    """
+
+    def __init__(self, graph_version, word):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        scan_text = "0"
+        remaining = GraphNodes(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                node = M.Head(remaining)()
+                if M.IsPair(node)() is M.truth_value:
+                    if M.TermEqual(
+                        M.Head(node)(),
+                        Lmod.CorrespondsLabel,
+                    )() is M.truth_value:
+                        node_surface = M.Head(M.Tail(node)())()
+                        chain = M.Head(M.Tail(node_surface)())()
+                        if M.IdentityCompare(
+                            chain, M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                M.Head(chain)(), word,
+                            )() is M.truth_value:
+                                self.result = node
+                                remaining = M.EmptyList
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(word, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BridgeConstructor(M.Edge):
+    """The constructor label a bridge node points at."""
+
+    def __init__(self, bridge):
+        self.result = M.Head(M.Tail(M.Tail(bridge)())())()
+        super().__init__(
+            inputs=M.Pair(bridge, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallBridge(M.Edge):
+    """Splice a word-to-constructor Corresponds node into the version.
+
+    Returns Pair(new_version, EmptyList), or the unchanged version with
+    the existing bridge at the tail when the word is already linked.
+    """
+
+    def __init__(self, graph_version, word, constructor_label):
+        existing = BridgeFor(graph_version, word)()
+        if M.IdentityCompare(existing, M.EmptyList)() is M.false_value:
+            self.result = M.Pair(graph_version, M.Pair(existing, M.EmptyList))
+        else:
+            bridge = Corresponds(
+                Surface(M.Pair(word, M.EmptyList))(),
+                constructor_label,
+                M.EmptyList,
+            )()
+            next_version = GraphVersion(
+                M.Pair(bridge, GraphNodes(graph_version)()),
+                GraphEdges(graph_version)(),
+                GraphVersionInvariants(graph_version)(),
+            )()
+            self.result = M.Pair(next_version, M.EmptyList)
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(word, M.Pair(constructor_label, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+ONTOLOGY_FACT_CAP = M.GMPRep("200")
+
+
+class OntologyFactsFor(M.Edge):
+    """Replacement heads of every installed rule whose pattern names `label`.
+
+    The pack ontology is a rule graph: TriangleLabel(shape) rewrites to
+    PolygonLabel(shape), EdgesLabel(shape), and so on. Those replacement
+    heads ARE the constructor's ontology facts -- what a triangle is and
+    has, exactly as the packs authored it. Walks the rule tree entries
+    under ONTOLOGY_FACT_CAP; duplicate heads collapse to first appearance.
+    """
+
+    def __init__(self, rules_tree, label, registry):
+        cap_text = M.GMPRepText(ONTOLOGY_FACT_CAP)()
+        reversed_facts = M.EmptyList
+        scan_text = "0"
+        entries = M.TreeEntries(rules_tree)()
+        while M.IdentityCompare(entries, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                entries = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                rule = M.Head(M.Tail(M.Head(entries)())())()
+                pattern = M.Head(M.Head(rule.inputs)())()
+                if M.IsPair(pattern)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(pattern)(), label,
+                    )() is M.truth_value:
+                        # Head() of the replacement term unwraps straight
+                        # to the constructor label atom: the fact itself.
+                        fact_head = M.Head(
+                            M.Head(M.Tail(rule.inputs)())(),
+                        )()
+                        if M.IdentityCompare(
+                            fact_head, M.EmptyList,
+                        )() is M.false_value:
+                            if ChainHasTerm(
+                                M.Reverse(reversed_facts)(),
+                                fact_head,
+                            )() is M.false_value:
+                                reversed_facts = M.Pair(
+                                    fact_head,
+                                    reversed_facts,
+                                )
+                entries = M.Tail(entries)()
+        self.result = M.Reverse(reversed_facts)()
+        super().__init__(
+            inputs=M.Pair(
+                rules_tree,
+                M.Pair(label, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class InstallDefinition(M.Edge):
     """Splice a Definition node into the version; append-only Next history.
 
