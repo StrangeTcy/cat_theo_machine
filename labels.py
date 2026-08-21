@@ -1143,6 +1143,10 @@ class RobustnessLabel(ConstructorLabel):
     pass
 
 
+class DefinitionLabel(ConstructorLabel):
+    pass
+
+
 class CostSavingsLabel(ConstructorLabel):
     pass
 
@@ -1496,6 +1500,7 @@ ReasonUncountersignedLabel = ReasonUncountersignedLabel()
 ContractLabel = ContractLabel()
 ReasonContractLabel = ReasonContractLabel()
 RobustnessLabel = RobustnessLabel()
+DefinitionLabel = DefinitionLabel()
 CostSavingsLabel = CostSavingsLabel()
 ReuseLabel = ReuseLabel()
 NoveltyLabel = NoveltyLabel()
@@ -1951,6 +1956,7 @@ def sync_from_namespace(namespace):
         "ContractLabel",
         "ReasonContractLabel",
         "RobustnessLabel",
+        "DefinitionLabel",
         "CostSavingsLabel",
         "ReuseLabel",
         "NoveltyLabel",

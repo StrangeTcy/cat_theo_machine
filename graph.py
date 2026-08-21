@@ -10801,6 +10801,319 @@ class InstalledCorrespondenceLaws(M.Edge):
         return self.result
 
 
+class Definition(M.Edge):
+    """A taught definition: one term names a surface phrase built of words.
+
+    Pair(DefinitionLabel, Pair(term_word, Pair(body_surface, EmptyList))).
+    The body is an ordinary Surface chain; its words are the definition's
+    dependencies, and each dependency is either defined (a word entry, a
+    template mention, or another Definition) or an open hole the machine
+    should ask about. Definitions live as nodes in the learned version, so
+    they persist through the same checkpoint as every learned law.
+    """
+
+    def __init__(self, term_word, body_surface):
+        self.result = M.Pair(
+            Lmod.DefinitionLabel,
+            M.Pair(term_word, M.Pair(body_surface, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(term_word, M.Pair(body_surface, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsDefinition(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(
+                M.Head(term)(),
+                Lmod.DefinitionLabel,
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionTerm(M.Edge):
+    def __init__(self, definition):
+        self.result = M.Head(M.Tail(definition)())()
+        super().__init__(
+            inputs=M.Pair(definition, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionBody(M.Edge):
+    def __init__(self, definition):
+        self.result = M.Head(M.Tail(M.Tail(definition)())())()
+        super().__init__(
+            inputs=M.Pair(definition, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledDefinitions(M.Edge):
+    """Every Definition node in a version, in store order."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_definitions = M.EmptyList
+        scan_text = "0"
+        remaining = GraphNodes(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                node = M.Head(remaining)()
+                if IsDefinition(node)() is M.truth_value:
+                    reversed_definitions = M.Pair(node, reversed_definitions)
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_definitions)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionFor(M.Edge):
+    """The Definition whose term is `word`, or EmptyList."""
+
+    def __init__(self, graph_version, word):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        scan_text = "0"
+        remaining = InstalledDefinitions(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                definition = M.Head(remaining)()
+                if M.Compare(DefinitionTerm(definition)(), word)() is M.truth_value:
+                    self.result = definition
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(word, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+DEFINITION_STOP_WORDS = M.Pair(
+    M.Char("a"),
+    M.Pair(
+        M.Char("an"),
+        M.Pair(
+            M.Char("the"),
+            M.Pair(
+                M.Char("is"),
+                M.Pair(
+                    M.Char("are"),
+                    M.Pair(
+                        M.Char("with"),
+                        M.Pair(
+                            M.Char("of"),
+                            M.Pair(
+                                M.Char("and"),
+                                M.Pair(
+                                    M.Char("that"),
+                                    M.Pair(
+                                        M.Char("which"),
+                                        M.Pair(
+                                            M.Char("has"),
+                                            M.Pair(
+                                                M.Char("have"),
+                                                M.EmptyList,
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ),
+)
+
+
+class DefinitionOpenDependencies(M.Edge):
+    """Body words that are neither vocabulary, stop words, numbers, the
+    defined term itself, nor covered by another installed Definition.
+
+    These are the holes: the words the machine should ask about next.
+    Order follows the body; duplicates collapse to first appearance.
+    """
+
+    def __init__(self, graph_version, definition, vocabulary, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        term_word = DefinitionTerm(definition)()
+        body = DefinitionBody(definition)()
+        reversed_open = M.EmptyList
+        scan_text = "0"
+        chain = M.Head(M.Tail(body)())()
+        while M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                chain = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                word = M.Head(chain)()
+                known = M.false_value
+                if M.Compare(word, term_word)() is M.truth_value:
+                    known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    if ChainHasWordStructural(
+                        DEFINITION_STOP_WORDS,
+                        word,
+                    )() is M.truth_value:
+                        known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    single = Surface(M.Pair(word, M.EmptyList))()
+                    unknown = SurfaceUnknownWords(
+                        vocabulary,
+                        single,
+                        registry,
+                    )()
+                    if M.IdentityCompare(unknown, M.EmptyList)() is M.truth_value:
+                        known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    defined = DefinitionFor(graph_version, word)()
+                    if M.IdentityCompare(defined, M.EmptyList)() is M.false_value:
+                        known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    # 'three sides' depends on the concept 'side': a plural
+                    # surface form is grounded by its singular definition.
+                    singular = WordSingular(word)()
+                    if M.IdentityCompare(singular, M.EmptyList)() is M.false_value:
+                        defined = DefinitionFor(graph_version, singular)()
+                        if M.IdentityCompare(
+                            defined, M.EmptyList,
+                        )() is M.false_value:
+                            known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    if ChainHasWordStructural(
+                        M.Reverse(reversed_open)(),
+                        word,
+                    )() is M.false_value:
+                        reversed_open = M.Pair(word, reversed_open)
+                chain = M.Tail(chain)()
+        self.result = M.Reverse(reversed_open)()
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(
+                    definition,
+                    M.Pair(vocabulary, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordSingular(M.Edge):
+    """The singular Char for a plural word atom, or EmptyList.
+
+    Chars carry their symbol at the host boundary by construction; this
+    reads that boundary the same way the tokenizer wrote it. Only the
+    plain '-s' form is folded -- irregular plurals stay open holes, which
+    is the machine asking rather than guessing.
+    """
+
+    def __init__(self, word):
+        self.result = M.EmptyList
+        symbol = getattr(word, "symbol", None)
+        if symbol is not None:
+            if len(symbol) > 2 and symbol.endswith("s") and not symbol.endswith("ss"):
+                self.result = M.Char(symbol[:-1])
+        super().__init__(inputs=M.Pair(word, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ChainHasWordStructural(M.Edge):
+    """Structural membership for word atoms (Compare, not identity)."""
+
+    def __init__(self, chain, word):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.false_value
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                if M.Compare(M.Head(remaining)(), word)() is M.truth_value:
+                    self.result = M.truth_value
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(chain, M.Pair(word, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallDefinition(M.Edge):
+    """Splice a Definition node into the version; append-only Next history.
+
+    Returns Pair(new_version, EmptyList). A definition for an
+    already-defined term returns the version unchanged and the existing
+    Definition at the head of the tail for the caller to report.
+    """
+
+    def __init__(self, graph_version, definition):
+        existing = DefinitionFor(
+            graph_version,
+            DefinitionTerm(definition)(),
+        )()
+        if M.IdentityCompare(existing, M.EmptyList)() is M.false_value:
+            self.result = M.Pair(graph_version, M.Pair(existing, M.EmptyList))
+        else:
+            next_version = GraphVersion(
+                M.Pair(definition, GraphNodes(graph_version)()),
+                GraphEdges(graph_version)(),
+                GraphVersionInvariants(graph_version)(),
+            )()
+            self.result = M.Pair(next_version, M.EmptyList)
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(definition, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class VocabularyWithTemplates(M.Edge):
     """Extend a vocabulary's template chain with additional compiled laws."""
 

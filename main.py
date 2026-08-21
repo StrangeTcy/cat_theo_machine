@@ -1411,6 +1411,106 @@ def run_talk_mode(sentence: str = None):
             remaining = M.Tail(remaining)()
         return count
 
+    def _handle_definition(line, record=True):
+        nonlocal learned_version, registry
+        body = line.split(":", 1)[1].strip()
+        words = _tokens(body)
+        if not words:
+            return "A definition is 'definition: a TERM is ...'."
+        # The defined term is the first non-article word; everything after
+        # the copula is the body. 'a triangle is a figure with three sides'
+        # -> term 'triangle', body 'a figure with three sides'.
+        articles = ("a", "an", "the")
+        index = 0
+        while index < len(words) and words[index] in articles:
+            index = index + 1
+        if index >= len(words):
+            return "I could not find the term being defined."
+        term_text = words[index]
+        rest = words[index + 1:]
+        if rest and rest[0] in ("is", "are"):
+            rest = rest[1:]
+        if not rest:
+            return "The definition of '" + term_text + "' has no body."
+        term_word = M.Char(term_text)
+        body_chain = M.EmptyList
+        for word in reversed(rest):
+            body_chain = M.Pair(M.Char(word), body_chain)
+        definition = G.Definition(
+            term_word,
+            G.Surface(body_chain)(),
+        )()
+        installed = G.InstallDefinition(learned_version, definition)()
+        new_version = M.Head(installed)()
+        existing = M.Head(M.Tail(installed)())() if M.IdentityCompare(
+            M.Tail(installed)(), M.EmptyList,
+        )() is M.false_value else M.EmptyList
+        if M.IdentityCompare(existing, M.EmptyList)() is M.false_value:
+            return (
+                "I already have a definition of '" + term_text + "': "
+                + _speak_chain(
+                    M.Head(M.Tail(G.DefinitionBody(existing)())())(),
+                )
+            )
+        learned_version = new_version
+        if record:
+            _log_lesson(line)
+        _persist_talk_state()
+        open_words = G.DefinitionOpenDependencies(
+            learned_version, definition, vocabulary, registry,
+        )()
+        if M.IdentityCompare(open_words, M.EmptyList)() is M.truth_value:
+            return (
+                "Recorded: a " + term_text + " is "
+                + " ".join(rest) + ". Every word in it is grounded."
+            )
+        spoken = []
+        remaining_open = open_words
+        while M.IdentityCompare(remaining_open, M.EmptyList)() is M.false_value:
+            spoken.append(str(M.Head(remaining_open)()()))
+            remaining_open = M.Tail(remaining_open)()
+        return (
+            "Recorded: a " + term_text + " is " + " ".join(rest) + ". "
+            + "But I do not know what "
+            + " or ".join("'" + w + "'" for w in spoken)
+            + " " + ("is" if len(spoken) == 1 else "are")
+            + ". Define "
+            + ("it" if len(spoken) == 1 else "them")
+            + " with 'definition: a " + spoken[0] + " is ...'."
+        )
+
+    def _handle_what_is(line):
+        words = _tokens(line)
+        # accepted shapes: 'what is a triangle', 'what is triangle'
+        content = [w for w in words if w not in ("what", "is", "a", "an", "the")]
+        if len(content) != 1:
+            return None
+        term_text = content[0]
+        definition = G.DefinitionFor(learned_version, M.Char(term_text))()
+        if M.IdentityCompare(definition, M.EmptyList)() is M.truth_value:
+            return "I have no definition of '" + term_text + "'."
+        body = G.DefinitionBody(definition)()
+        answer = (
+            "a " + term_text + " is "
+            + _speak_chain(M.Head(M.Tail(body)())())
+        )
+        open_words = G.DefinitionOpenDependencies(
+            learned_version, definition, vocabulary, registry,
+        )()
+        if M.IdentityCompare(open_words, M.EmptyList)() is M.false_value:
+            spoken = []
+            remaining_open = open_words
+            while M.IdentityCompare(
+                remaining_open, M.EmptyList,
+            )() is M.false_value:
+                spoken.append(str(M.Head(remaining_open)()()))
+                remaining_open = M.Tail(remaining_open)()
+            answer = (
+                answer + " (still undefined: "
+                + ", ".join(spoken) + ")"
+            )
+        return answer
+
     def _handle_training(line, record=True):
         nonlocal examples, proposal_store, registry
         body = line.split(":", 1)[1].strip()
@@ -1728,6 +1828,12 @@ def run_talk_mode(sentence: str = None):
         lowered = line.lower()
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
+        if lowered.startswith("definition:"):
+            return _handle_definition(line, record=record)
+        if lowered.startswith("what is "):
+            spoken_definition = _handle_what_is(line)
+            if spoken_definition is not None:
+                return spoken_definition
         if lowered in ("yes", "no"):
             if pending_queue:
                 return _handle_decision(lowered, record=record)
