@@ -229,7 +229,15 @@ class MergeBindings(Edge):
         found_flag = Head(found)()
         found_val = Tail(found)()
         if Compare(found_flag, truth_value)() is truth_value:
+            # The matcher itself equates constructor-less atoms structurally
+            # (Compare: Char('four') matches Char('four')), so a repeated
+            # variable must accept two bindings the matcher would have
+            # accepted individually. TermEqual is identity on atoms and
+            # rejected every repeated-variable pattern over words, since
+            # each occurrence in a chain is a fresh Char.
             if TermEqual(found_val, val)() is truth_value:
+                return self._merge(base, Tail(extra)())
+            if Compare(found_val, val)() is truth_value:
                 return self._merge(base, Tail(extra)())
             return Pair(false_value, EmptyList)
         new_base = Pair(b, base)
