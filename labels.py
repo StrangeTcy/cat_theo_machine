@@ -1463,6 +1463,10 @@ class ConstituentLabel(ConstructorLabel):
     pass
 
 
+class ReadingPolicyLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1827,6 +1831,7 @@ ProductionLabel = ProductionLabel()
 WordSymbolLabel = WordSymbolLabel()
 CategorySymbolLabel = CategorySymbolLabel()
 ConstituentLabel = ConstituentLabel()
+ReadingPolicyLabel = ReadingPolicyLabel()
 
 
 def sync_from_namespace(namespace):
@@ -1838,6 +1843,7 @@ def sync_from_namespace(namespace):
         "WordSymbolLabel",
         "CategorySymbolLabel",
         "ConstituentLabel",
+        "ReadingPolicyLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import multiprocessing
 
 from . import context as Ctx
@@ -1563,7 +1564,19 @@ class SendHost(M.Edge):
 
 
 class MappedHostForPat(M.Edge):
-    """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList)."""
+    """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList).
+
+    This is the innermost question of the matcher -- asked once per
+    candidate per frontier state -- and it used to answer it by walking
+    two terms structurally. A pattern element is the same object every
+    time it is asked about: it comes out of the pattern graph, and a
+    Send was built around that very object. So identity settles nearly
+    every case, and TermEqual is only reached for the elements identity
+    misses, which keeps the answer exactly what it was.
+
+    IsSend was likewise a whole Edge -- an allocation carrying a UUID --
+    per item scanned, to compare one head against one label singleton.
+    """
 
     def __init__(self, root, pat):
         self.result = self._lookup(root, pat)
@@ -1573,9 +1586,15 @@ class MappedHostForPat(M.Edge):
         remaining = root
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             item = M.Head(remaining)()
-            if IsSend(item)() is M.truth_value:
-                if M.TermEqual(SendPat(item)(), pat)() is M.truth_value:
-                    return M.Pair(M.truth_value, SendHost(item)())
+            if M.IsPair(item)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(item)(), Lmod.SendLabel,
+                )() is M.truth_value:
+                    sent = SendPat(item)()
+                    if M.IdentityCompare(sent, pat)() is M.truth_value:
+                        return M.Pair(M.truth_value, SendHost(item)())
+                    if M.TermEqual(sent, pat)() is M.truth_value:
+                        return M.Pair(M.truth_value, SendHost(item)())
             remaining = M.Tail(remaining)()
         return M.Pair(M.false_value, M.EmptyList)
 
@@ -3826,6 +3845,67 @@ class CompileMultiRuleToLaw(M.Edge):
         return self.result
 
 
+class CompileDeductionToLaw(M.Edge):
+    """A monotone rule: the premises stay, the conclusion is added.
+
+    CompileMultiRuleToLaw sets K to the subterms the premises share with
+    the conclusion, so firing deletes every premise element the
+    conclusion does not mention. That is exactly right for a rewrite --
+    the redex is consumed -- and exactly wrong for a deduction. A parse
+    rule compiled that way eats its own daughters, and a fact derived
+    once could never be used twice.
+
+    Here K is the whole of L and R is L together with the conclusion.
+    Nothing is deleted, one fact is added, and the K-maps are identity
+    Sends over every element of L rather than over the shared subterms
+    only. Everything else -- the ledger, the obligations, the firing
+    record, the proposal lifecycle -- is the ordinary law machinery,
+    because this is an ordinary Law.
+    """
+
+    def __init__(self, rule):
+        self.result = self._compile(rule)
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def _compile(self, rule):
+        premises = P.RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        replacement = P.RuleReplacement(rule)()
+        if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        left = EncodePremisesAsGraph(premises)()
+        conclusion = EncodeTermAsGraph(replacement)()
+        right = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                ChainAddMissing(GraphNodes(left)(), GraphNodes(conclusion)())(),
+                M.Pair(
+                    ChainAddMissing(
+                        GraphEdges(left)(), GraphEdges(conclusion)(),
+                    )(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        interface = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                GraphNodes(left)(),
+                M.Pair(GraphEdges(left)(), M.EmptyList),
+            ),
+        )
+        sends = IdentitySendsFor(GraphElements(interface)())()
+        k_to_left = Map(interface, left, sends)()
+        k_to_right = Map(interface, right, sends)()
+        return Law(
+            left, interface, right, k_to_left, k_to_right, M.EmptyList,
+        )()
+
+    def __call__(self):
+        return self.result
+
+
 class UncompiledRules(M.Edge):
     """Step 12 term-native record of rules skipped from the trigonometry pack."""
 
@@ -4362,6 +4442,196 @@ class FireAny(M.Edge):
                     M.Pair(ledger, M.Pair(ordering, M.EmptyList)),
                 ),
             ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+LAW_SATURATION_PASS_CAP = M.GMPRep("50")
+LAW_MATCH_CAP = M.GMPRep("2000")
+
+
+class CompletedMatches(M.Edge):
+    """Every completed match of a pattern graph in a host version.
+
+    FirstCompletedMatch stops at the first, which is what a rewrite
+    wants: fire it, and the next call sees a changed graph. A deduction
+    wants all of them, because every match is a fact waiting to be
+    derived and none of them invalidates the others. Same frontier, same
+    MapExtensionAlternatives, no early return.
+    """
+
+    def __init__(self, pattern, host, cap_text):
+        pending = GraphElements(pattern)()
+        cursor = SearchMatchCursor(M.EmptyList, pattern, host, pending)()
+        start = SearchState(M.EmptyList, M.EmptyList, M.EmptyList, M.one, cursor)()
+        reversed_matches = M.EmptyList
+        scan_text = "0"
+        frontier = M.Pair(start, M.EmptyList)
+        while M.IdentityCompare(frontier, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                frontier = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                state = M.Head(frontier)()
+                frontier = M.Tail(frontier)()
+                cursor = SearchStateCursor(state)()
+                if SearchMatchCursorComplete(cursor)() is M.truth_value:
+                    mapping = Map(pattern, host, SearchMatchCursorRoot(cursor)())()
+                    if MapSendsEveryElement(mapping, pattern)() is M.truth_value:
+                        reversed_matches = M.Pair(mapping, reversed_matches)
+                else:
+                    pending = SearchMatchCursorPending(cursor)()
+                    pat = M.Head(pending)()
+                    rest = M.Tail(pending)()
+                    mapping = Map(pattern, host, SearchMatchCursorRoot(cursor)())()
+                    alternatives = MapExtensionAlternatives(mapping, pat, host)()
+                    while M.IdentityCompare(
+                        alternatives, M.EmptyList,
+                    )() is M.false_value:
+                        alternative = M.Head(alternatives)()
+                        root = M.Head(
+                            M.Tail(M.Tail(M.Tail(alternative)())())(),
+                        )()
+                        found = MappedHostForPat(root, pat)()
+                        if M.IdentityCompare(
+                            M.Head(found)(), M.truth_value,
+                        )() is M.truth_value:
+                            if GraphElementCompatible(
+                                pat, M.Tail(found)(),
+                            )() is M.truth_value:
+                                child_cursor = SearchMatchCursor(
+                                    root, pattern, host, rest,
+                                )()
+                                frontier = M.Pair(
+                                    SearchState(
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.one,
+                                        child_cursor,
+                                    )(),
+                                    frontier,
+                                )
+                        alternatives = M.Tail(alternatives)()
+        self.result = M.Reverse(reversed_matches)()
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(host, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SaturateLaws(M.Edge):
+    """Fire every law at every match until nothing new is derived.
+
+    FireAny fires the first law with a completed match and hands back a
+    version; in a loop that is a rewrite engine. It never reaches a
+    fixed point on monotone laws, for two reasons visible in FireLaw:
+    the insertion stage appends the R elements unconditionally, so the
+    same conclusion is added again on every firing, and the first match
+    stays the first match, so no other law is ever reached. Saturation
+    is a different discipline over the same firings -- every match of
+    every law, each fired once, and a firing whose conclusion is already
+    in the store is not a firing at all.
+
+    Laws are passed in rather than read from the version. InstallLaw
+    puts a law's own L, K and R elements into the node store, so a
+    pattern sitting in the same version its facts live in would match
+    other patterns and derive facts about them. Facts live in the
+    version; laws live in the store they were installed in.
+
+    `saturated` is truth only when a pass fired nothing before the pass
+    cap ran out.
+    """
+
+    def __init__(self, version, laws, ledger, dangling_mode):
+        pass_cap_text = M.GMPRepText(LAW_SATURATION_PASS_CAP)()
+        match_cap_text = M.GMPRepText(LAW_MATCH_CAP)()
+        scan_cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.saturated = M.false_value
+        current = version
+        pass_text = "0"
+        growing = M.truth_value
+        while M.IdentityCompare(growing, M.truth_value)() is M.truth_value:
+            if GMPEqualText(pass_text, pass_cap_text)() is M.truth_value:
+                growing = M.false_value
+            else:
+                pass_text = GMPSuccText(pass_text)()
+                growing = M.false_value
+                law_scan_text = "0"
+                remaining_laws = laws
+                while M.IdentityCompare(
+                    remaining_laws, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        law_scan_text, scan_cap_text,
+                    )() is M.truth_value:
+                        remaining_laws = M.EmptyList
+                    else:
+                        law_scan_text = GMPSuccText(law_scan_text)()
+                        law = M.Head(remaining_laws)()
+                        match_scan_text = "0"
+                        remaining_matches = CompletedMatches(
+                            LawLeft(law)(), current, match_cap_text,
+                        )()
+                        while M.IdentityCompare(
+                            remaining_matches, M.EmptyList,
+                        )() is M.false_value:
+                            if GMPEqualText(
+                                match_scan_text, scan_cap_text,
+                            )() is M.truth_value:
+                                remaining_matches = M.EmptyList
+                            else:
+                                match_scan_text = GMPSuccText(match_scan_text)()
+                                bindings = LawMatchBindings(
+                                    law, M.Head(remaining_matches)(),
+                                )()
+                                active = law
+                                if M.IdentityCompare(
+                                    bindings, M.EmptyList,
+                                )() is M.false_value:
+                                    active = InstantiateLaw(law, bindings)()
+                                if M.IdentityCompare(
+                                    active, M.EmptyList,
+                                )() is M.false_value:
+                                    missing = ChainWithout(
+                                        GraphNodes(LawRight(active)())(),
+                                        GraphNodes(current)(),
+                                    )()
+                                    if M.IdentityCompare(
+                                        missing, M.EmptyList,
+                                    )() is M.false_value:
+                                        fresh = FirstCompletedMatch(
+                                            LawLeft(active)(), current,
+                                        )()
+                                        if M.IdentityCompare(
+                                            fresh, M.EmptyList,
+                                        )() is M.false_value:
+                                            fired = FireLaw(
+                                                current,
+                                                active,
+                                                fresh,
+                                                dangling_mode,
+                                                ledger,
+                                            )()
+                                            committed = M.Head(fired)()
+                                            if M.IdentityCompare(
+                                                committed, M.EmptyList,
+                                            )() is M.false_value:
+                                                current = committed
+                                                growing = M.truth_value
+                                remaining_matches = M.Tail(remaining_matches)()
+                        remaining_laws = M.Tail(remaining_laws)()
+                if M.IdentityCompare(growing, M.false_value)() is M.truth_value:
+                    self.saturated = M.truth_value
+        self.result = current
+        super().__init__(
+            inputs=M.Pair(version, M.Pair(laws, M.EmptyList)),
             results=self.result,
         )
 
@@ -8231,6 +8501,399 @@ class GenerateCompositionProposals(M.Edge):
         return self.result
 
 
+class ReadingPolicy(M.Edge):
+    """What counts as a word, stated as data rather than as string surgery.
+
+    Pair(ReadingPolicyLabel, Pair(separators, Pair(discarded,
+    Pair(standalone, Pair(foldings, EmptyList))))).
+
+    Reading a typed line used to be a chain of host replaces: lowercase
+    the line, blank out the sentence punctuation, pad the brackets and
+    the comma with spaces, split on whitespace, spell out any word that
+    is all digits. Six decisions about what a word is, made in Python
+    before the machine saw anything, and none of them stateable,
+    retirable or learnable. A pack that wanted a semicolon for a
+    separator would have had to edit the reader.
+
+    Each of those decisions is a chain here. Separators end a word.
+    Discarded characters end a word and are dropped. Standalone
+    characters end a word and are one themselves -- which is the whole
+    of why a comma is a word. Foldings say which character stands for
+    which, so case is a correspondence rather than a method call.
+    """
+
+    def __init__(self, separators, discarded, standalone, foldings):
+        self.result = M.Pair(
+            Lmod.ReadingPolicyLabel,
+            M.Pair(
+                separators,
+                M.Pair(discarded, M.Pair(standalone, M.Pair(foldings, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                separators,
+                M.Pair(discarded, M.Pair(standalone, M.Pair(foldings, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicySeparators(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(M.Tail(policy)())()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicyDiscarded(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(M.Tail(M.Tail(policy)())())()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicyStandalone(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(policy)())())())()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicyFoldings(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(policy)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefaultReadingPolicy(M.Edge):
+    """The reader's own decisions, as the chains a pack could replace.
+
+    These reproduce exactly what the host replaces used to do: space,
+    tab and newline break a word; a full stop, question mark and
+    exclamation mark break one and vanish; a bracket or a comma is a
+    word standing alone; and each capital stands for its small letter.
+    """
+
+    def __init__(self):
+        empty = M.EmptyList
+        separators = M.Pair(
+            M.Char(" "),
+            M.Pair(M.Char("\t"), M.Pair(M.Char("\n"), M.Pair(M.Char("\r"), empty))),
+        )
+        discarded = M.Pair(
+            M.Char("."),
+            M.Pair(M.Char("?"), M.Pair(M.Char("!"), empty)),
+        )
+        standalone = M.Pair(
+            M.Char("("),
+            M.Pair(M.Char(")"), M.Pair(M.Char(","), empty)),
+        )
+        foldings = empty
+        foldings = M.Pair(M.Pair(M.Char("Z"), M.Pair(M.Char("z"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("Y"), M.Pair(M.Char("y"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("X"), M.Pair(M.Char("x"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("W"), M.Pair(M.Char("w"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("V"), M.Pair(M.Char("v"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("U"), M.Pair(M.Char("u"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("T"), M.Pair(M.Char("t"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("S"), M.Pair(M.Char("s"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("R"), M.Pair(M.Char("r"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("Q"), M.Pair(M.Char("q"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("P"), M.Pair(M.Char("p"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("O"), M.Pair(M.Char("o"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("N"), M.Pair(M.Char("n"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("M"), M.Pair(M.Char("m"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("L"), M.Pair(M.Char("l"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("K"), M.Pair(M.Char("k"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("J"), M.Pair(M.Char("j"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("I"), M.Pair(M.Char("i"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("H"), M.Pair(M.Char("h"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("G"), M.Pair(M.Char("g"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("F"), M.Pair(M.Char("f"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("E"), M.Pair(M.Char("e"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("D"), M.Pair(M.Char("d"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("C"), M.Pair(M.Char("c"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("B"), M.Pair(M.Char("b"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("A"), M.Pair(M.Char("a"), empty)), foldings)
+        self.result = ReadingPolicy(separators, discarded, standalone, foldings)()
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FoldCharacter(M.Edge):
+    """The character this one stands for, or itself when nothing says."""
+
+    def __init__(self, character, foldings):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = character
+        scan_text = "0"
+        remaining = foldings
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining)()
+                if M.Compare(M.Head(entry)(), character)() is M.truth_value:
+                    self.result = M.Head(M.Tail(entry)())()
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(character, M.Pair(foldings, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordForDigitCharacter(M.Edge):
+    """The number word a digit character names, or EmptyList.
+
+    The inverse of SurfaceDigitOfWord, over the same chain, so the
+    reader and the printer agree by construction about which digit is
+    which word.
+    """
+
+    def __init__(self, character, digit_words):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        scan_text = "0"
+        remaining = digit_words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining)()
+                if M.Compare(M.Head(entry)(), character)() is M.truth_value:
+                    self.result = M.Head(M.Tail(entry)())()
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(character, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordsOfStream(M.Edge):
+    """A stream of characters as words, by the policy and nothing else.
+
+    The host boundary and the word rule in one place, because splitting
+    a line into one-character atoms and then concatenating them back
+    into a word is ceremony: it allocates a Char and three identities
+    per character to arrive at the string it started from. What the
+    policy decides is data -- these chains -- and what the host does is
+    read.
+
+    Characters arrive one at a time from the stream, so no host
+    container is walked. Each is folded through the policy, then asked
+    of the policy's chains: a separator ends the run, a discarded
+    character ends it and is gone, a standalone character ends it and
+    is a word itself, which is the whole of why a comma is a word. A
+    finished run that is entirely digits becomes one number word per
+    digit through the same chain RenderNatSurface prints with, so
+    reader and printer agree by construction; a run that is not stays
+    whole, so e2 and sqrt2 survive.
+    """
+
+    def __init__(self, stream, policy, digit_words):
+        separators = ReadingPolicySeparators(policy)()
+        discarded = ReadingPolicyDiscarded(policy)()
+        standalone = ReadingPolicyStandalone(policy)()
+        foldings = ReadingPolicyFoldings(policy)()
+        reversed_words = M.EmptyList
+        run_text = ""
+        run_digits = M.EmptyList
+        all_digits = M.truth_value
+        reading = M.truth_value
+        while M.IdentityCompare(reading, M.truth_value)() is M.truth_value:
+            symbol = stream.read(1)
+            if symbol == "":
+                reading = M.false_value
+                character = M.Head(separators)()
+            else:
+                character = FoldCharacter(M.Char(symbol), foldings)()
+            ends_run = M.false_value
+            stands_alone = M.false_value
+            if SurfaceChainHasWord(separators, character)() is M.truth_value:
+                ends_run = M.truth_value
+            elif SurfaceChainHasWord(discarded, character)() is M.truth_value:
+                ends_run = M.truth_value
+            elif SurfaceChainHasWord(standalone, character)() is M.truth_value:
+                ends_run = M.truth_value
+                stands_alone = M.truth_value
+            if M.IdentityCompare(ends_run, M.false_value)() is M.truth_value:
+                digit_word = WordForDigitCharacter(character, digit_words)()
+                if M.IdentityCompare(digit_word, M.EmptyList)() is M.truth_value:
+                    all_digits = M.false_value
+                else:
+                    run_digits = M.Pair(digit_word, run_digits)
+                run_text = run_text + character()
+            else:
+                if run_text != "":
+                    if M.IdentityCompare(all_digits, M.truth_value)() is M.truth_value:
+                        spelled = M.Reverse(run_digits)()
+                        while M.IdentityCompare(
+                            spelled, M.EmptyList,
+                        )() is M.false_value:
+                            reversed_words = M.Pair(
+                                M.Head(spelled)(), reversed_words,
+                            )
+                            spelled = M.Tail(spelled)()
+                    else:
+                        reversed_words = M.Pair(M.Char(run_text), reversed_words)
+                run_text = ""
+                run_digits = M.EmptyList
+                all_digits = M.truth_value
+                if M.IdentityCompare(stands_alone, M.truth_value)() is M.truth_value:
+                    reversed_words = M.Pair(character, reversed_words)
+        self.result = M.Reverse(reversed_words)()
+        super().__init__(
+            inputs=M.Pair(policy, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordsOfText(M.Edge):
+    """Host text as words: the one place a stream is made of a string."""
+
+    def __init__(self, text, policy, digit_words):
+        self.result = WordsOfStream(io.StringIO(text), policy, digit_words)()
+        super().__init__(
+            inputs=M.Pair(policy, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordChainWithout(M.Edge):
+    """The words of a chain that are not in `unwanted`."""
+
+    def __init__(self, words, unwanted):
+        reversed_kept = M.EmptyList
+        remaining = words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            word = M.Head(remaining)()
+            if SurfaceChainHasWord(unwanted, word)() is M.false_value:
+                reversed_kept = M.Pair(word, reversed_kept)
+            remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_kept)()
+        super().__init__(
+            inputs=M.Pair(words, M.Pair(unwanted, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SoleWord(M.Edge):
+    """The one word of a chain, or EmptyList when there is not exactly one.
+
+    "what is a triangle" asks about one term. Reading that used to be a
+    host comprehension over a host list and a length check; the question
+    it answers is about a chain, and this is that question.
+    """
+
+    def __init__(self, words):
+        self.result = M.EmptyList
+        if M.IdentityCompare(words, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Tail(words)(), M.EmptyList)() is M.truth_value:
+                self.result = M.Head(words)()
+        super().__init__(
+            inputs=M.Pair(words, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionTermAndBody(M.Edge):
+    """Split "a triangle is a polygon ..." into its term and its body.
+
+    Leading articles are skipped, the next word is the term being
+    defined, a copula after it is dropped, and what remains is the body.
+    Returns Pair(term, Pair(body, EmptyList)), or EmptyList when there
+    is no term or no body left to define it with.
+
+    The console did this by walking an index over a host list and
+    slicing it, then building the very chain it had just taken apart.
+    The articles and the copulas are chains here, so a reader that says
+    "one triangle is ..." is a longer chain rather than a longer tuple
+    in Python.
+    """
+
+    def __init__(self, words, articles, copulas):
+        self.result = M.EmptyList
+        remaining = words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if SurfaceChainHasWord(articles, M.Head(remaining)())() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            else:
+                term = M.Head(remaining)()
+                body = M.Tail(remaining)()
+                if M.IdentityCompare(body, M.EmptyList)() is M.false_value:
+                    if SurfaceChainHasWord(
+                        copulas, M.Head(body)(),
+                    )() is M.truth_value:
+                        body = M.Tail(body)()
+                if M.IdentityCompare(body, M.EmptyList)() is M.false_value:
+                    self.result = M.Pair(term, M.Pair(body, M.EmptyList))
+                remaining = M.EmptyList
+        super().__init__(
+            inputs=M.Pair(
+                words, M.Pair(articles, M.Pair(copulas, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceOfText(M.Edge):
+    """A typed line as a Surface, through the policy."""
+
+    def __init__(self, text, policy, digit_words):
+        self.words = WordsOfText(text, policy, digit_words)()
+        self.result = Surface(self.words)()
+        super().__init__(
+            inputs=M.Pair(policy, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class Surface(M.Edge):
     """A surface form: an ordered Pair chain of symbol atoms."""
 
@@ -9343,13 +10006,13 @@ class ConstituentAfter(M.Edge):
 
 
 class ChartCells(M.Edge):
-    """The cells of a token chain: every position a span may start or end at.
+    """The cells of a word chain: every position a span may start or end at.
 
-    A cell is named by the suffix of the chain that begins there -- the
-    chain itself is the first cell and EmptyList the cell past the last
-    word. Two spans are the same span exactly when their cells are the
-    same objects, so nothing counts positions and nothing compares
-    counts.
+    A cell is a position, named by the suffix of the chain that begins
+    there -- the chain itself is the first cell and EmptyList the cell
+    past the last word. Two spans are the same span exactly when their
+    cells are the same objects, so nothing counts positions and nothing
+    compares counts.
     """
 
     def __init__(self, chain):
@@ -9722,12 +10385,12 @@ class ChartSpanningTerms(M.Edge):
 
 
 class ChartSeedConstituents(M.Edge):
-    """The lexical constituents of a chain: what the words mean on their own.
+    """What the words of a chain mean standing on their own.
 
     One constituent per word the vocabulary resolves, and one per run of
-    adjacent digit words, because a numeral is a lexical item that
-    happens to span several cells. Everything above this is productions;
-    this is the only place a word's own meaning is consulted.
+    adjacent digit words, since "six four" is one number spanning two
+    cells and no production says so. This is the only place a word's own
+    meaning is consulted; everything above it is productions.
     """
 
     def __init__(self, word_entries, digit_words, category, chain):
@@ -9916,9 +10579,10 @@ class FormalTermReadings(M.Edge):
 
     The formal notation gets no reader of its own. Its signatures become
     productions, the vocabulary seeds the words, and the same saturation
-    that any other grammar runs through produces the terms. Every term
-    spanning the whole chain is returned, so an ambiguous notation
-    reports both readings instead of one of them.
+    that any other grammar runs through produces the terms. Takes a
+    Surface, as every other reader in this file does, and returns every
+    term spanning the whole of it, so an ambiguous notation reports both
+    readings instead of one of them.
 
     Returns Pair(terms, Pair(registry, EmptyList)). An empty chain of
     terms means the words do not spell an application: a word with no
@@ -9926,9 +10590,10 @@ class FormalTermReadings(M.Edge):
     the same answer here, which is that no production spans the input.
     """
 
-    def __init__(self, signatures, vocabulary, chain, registry):
+    def __init__(self, signatures, vocabulary, surface_term, registry):
         word_entries = M.Head(M.Tail(vocabulary)())()
         digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        chain = M.Head(M.Tail(surface_term)())()
         generated = FormalProductions(
             signatures, CHART_TERM_CATEGORY, registry,
         )()
@@ -9950,7 +10615,7 @@ class FormalTermReadings(M.Edge):
                 signatures,
                 M.Pair(
                     vocabulary,
-                    M.Pair(chain, M.Pair(registry, M.EmptyList)),
+                    M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
                 ),
             ),
             results=self.result,
@@ -13757,14 +14422,24 @@ class MapExtensionAlternatives(M.Edge):
         if M.IdentityCompare(source, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        # Nodes and edges are two views of one store: EncodeTermAsGraph
+        # puts every application in both, so a fact appeared twice in
+        # this chain and every match through it was found twice over.
+        # Four completed mappings for one join, on a pattern with two
+        # applications, is 2^2 -- and the duplicates cost the same as
+        # the real ones to explore.
         reversed_collected = M.EmptyList
         remaining = probe._normalize_store(GraphNodes(source)())
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
+            candidate = M.Head(remaining)()
+            if self._already_collected(reversed_collected, candidate) is M.false_value:
+                reversed_collected = M.Pair(candidate, reversed_collected)
             remaining = M.Tail(remaining)()
         remaining = probe._normalize_store(GraphEdges(source)())
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
+            candidate = M.Head(remaining)()
+            if self._already_collected(reversed_collected, candidate) is M.false_value:
+                reversed_collected = M.Pair(candidate, reversed_collected)
             remaining = M.Tail(remaining)()
         collected = M.EmptyList
         while M.IdentityCompare(reversed_collected, M.EmptyList)() is M.false_value:
@@ -13772,21 +14447,58 @@ class MapExtensionAlternatives(M.Edge):
             reversed_collected = M.Tail(reversed_collected)()
         return collected
 
+    def _already_collected(self, collected, candidate):
+        remaining = collected
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Head(remaining)(), candidate)() is M.truth_value:
+                return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
     def _alternatives(self, mapping, pat, host_graph):
+        # Shape first, but only where shape is decisive. Every candidate
+        # used to be put through the whole of MapExtendOneStep -- graph
+        # membership scans, apart checks, positional agreement -- when a
+        # mismatched constructor label settles it immediately.
+        #
+        # The filter is deliberately narrower than GraphElementCompatible,
+        # which rejects a bare unlabelled pattern node against everything
+        # -- Compare on two value-less atoms is false -- while
+        # MapExtendOneStep admits it and the pattern census counts on
+        # that. Two applications with different labels cannot be sent to
+        # one another whatever else is true, and that is the case worth
+        # excluding; everything else still goes to MapExtendOneStep to
+        # decide, exactly as before.
         reversed_hits = M.EmptyList
         remaining = self._candidates(mapping, host_graph)
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             candidate = M.Head(remaining)()
-            extended = MapExtendOneStep(mapping, pat, candidate)()
-            if M.IsPair(extended)() is M.truth_value:
-                if M.TermEqual(M.Head(extended)(), Lmod.MapLabel)() is M.truth_value:
-                    reversed_hits = M.Pair(extended, reversed_hits)
+            if self._labels_permit(pat, candidate) is M.truth_value:
+                extended = MapExtendOneStep(mapping, pat, candidate)()
+                if M.IsPair(extended)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(extended)(), Lmod.MapLabel,
+                    )() is M.truth_value:
+                        reversed_hits = M.Pair(extended, reversed_hits)
             remaining = M.Tail(remaining)()
         ordered = M.EmptyList
         while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
             ordered = M.Pair(M.Head(reversed_hits)(), ordered)
             reversed_hits = M.Tail(reversed_hits)()
         return ordered
+
+    def _labels_permit(self, pat, candidate):
+        if P.IsVarPattern(pat)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(pat)() is M.false_value:
+            return M.truth_value
+        if M.IsPair(candidate)() is M.false_value:
+            return M.truth_value
+        pat_head = M.Head(pat)()
+        candidate_head = M.Head(candidate)()
+        if M.IdentityCompare(pat_head, candidate_head)() is M.truth_value:
+            return M.truth_value
+        return M.TermEqual(pat_head, candidate_head)()
 
     def __call__(self):
         return self.result
@@ -13897,9 +14609,19 @@ class MapExtendOneStep(M.Edge):
         return GraphEdges(graph)()
 
     def _chain_has_term(self, chain, term):
+        # Identity first. This is asked most often about an element that
+        # came out of the very store being searched -- a pattern element
+        # against the pattern graph, a host element against the host --
+        # so the answer is nearly always the same object, and walking two
+        # terms structurally to discover that was the matcher's single
+        # largest cost. TermEqual still decides everything identity
+        # misses, so the answer is unchanged.
         remaining = chain
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if M.TermEqual(M.Head(remaining)(), term)() is M.truth_value:
+            candidate = M.Head(remaining)()
+            if M.IdentityCompare(candidate, term)() is M.truth_value:
+                return M.truth_value
+            if M.TermEqual(candidate, term)() is M.truth_value:
                 return M.truth_value
             remaining = M.Tail(remaining)()
         return M.false_value
@@ -13912,12 +14634,17 @@ class MapExtendOneStep(M.Edge):
         return self._chain_has_term(edges, term)
 
     def _is_send(self, term):
-        return IsSend(term)()
+        # IsSend is an Edge, so asking it allocates an atom and an
+        # identity per item scanned, to compare one head against one
+        # label singleton.
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(term)(), Lmod.SendLabel)()
 
     def _is_apart(self, term):
         if M.IsPair(term)() is M.false_value:
             return M.false_value
-        if M.TermEqual(M.Head(term)(), Lmod.ApartLabel)() is M.truth_value:
+        if M.IdentityCompare(M.Head(term)(), Lmod.ApartLabel)() is M.truth_value:
             return M.truth_value
         return M.false_value
 
@@ -13955,7 +14682,7 @@ class MapExtendOneStep(M.Edge):
             if self._is_send(item) is M.truth_value:
                 other_pat = self._send_pat(item)
                 other_host = self._send_host(item)
-                if M.TermEqual(other_host, host)() is M.truth_value:
+                if M.IdentityCompare(other_host, host)() is M.truth_value:
                     if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
                         return M.truth_value
                     if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
@@ -13970,7 +14697,7 @@ class MapExtendOneStep(M.Edge):
             if self._is_send(item) is M.truth_value:
                 other_pat = self._send_pat(item)
                 other_host = self._send_host(item)
-                if M.TermEqual(other_host, host)() is M.truth_value:
+                if M.IdentityCompare(other_host, host)() is M.truth_value:
                     if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
                         return Apart(pat, other_pat)()
                     if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
@@ -13981,7 +14708,7 @@ class MapExtendOneStep(M.Edge):
     def _step(self):
         if M.IsPair(self.mapping)() is M.false_value:
             return Miss(self.pat, ReasonShape(self.mapping)())()
-        if M.TermEqual(M.Head(self.mapping)(), Lmod.MapLabel)() is M.false_value:
+        if M.IdentityCompare(M.Head(self.mapping)(), Lmod.MapLabel)() is M.false_value:
             return Miss(self.pat, ReasonShape(self.mapping)())()
         pattern_graph = self._mapping_pattern_graph()
         host_graph = self._mapping_host_graph()

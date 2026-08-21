@@ -5633,6 +5633,139 @@ class ConverseDefaultModeTest(M.Edge):
         return self.result
 
 
+class ReadingPolicyTest(M.Edge):
+    """A typed line becomes words by the policy, not by string surgery.
+
+    One line exercises every decision the host replaces used to make:
+    a capital folded, a bracket and a comma standing alone as words, an
+    all-digit run spelled out, a word with a digit in it left whole, and
+    a full stop dropped. The policy is the chains in
+    DefaultReadingPolicy, so a pack changing them changes the reader.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        policy = Gmod.DefaultReadingPolicy()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+
+        read = Gmod.WordsOfText("Mul ( 64 , sqrt2 ).", policy, digit_words)()
+        expected = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("six"),
+                    M.Pair(
+                        M.Char("four"),
+                        M.Pair(
+                            M.Char(","),
+                            M.Pair(
+                                M.Char("sqrt2"),
+                                M.Pair(M.Char(")"), empty),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        blank = Gmod.WordsOfText("   ", policy, digit_words)()
+        surface = Gmod.SurfaceOfText("two plus two", policy, digit_words)()
+
+        self.result = M.truth_value
+        # Words are Chars, and Char identity is Compare -- TermEqual holds
+        # two Chars apart by object, which is why every word test in this
+        # file asks Compare.
+        if M.Compare(read, expected)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(blank, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(surface)(), Lmod.SurfaceLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Head(M.Tail(surface)())())(), M.Char("two"),
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class DeductionLawTest(M.Edge):
+    """A monotone law keeps its premises, adds its conclusion, and stops.
+
+    CompileMultiRuleToLaw deletes every premise element the conclusion
+    does not mention, which is right for a rewrite and wrong for a
+    deduction. CompileDeductionToLaw sets K to the whole of L, so the
+    firing is additive. SaturateLaws then fires it once and reaches a
+    fixed point: the second attempt is skipped because the conclusion is
+    already in the store, which is what stops a monotone law from firing
+    forever.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        variable = M.Pair(M.VarTag, M.Pair(M.Char("?x"), empty))
+        fact = M.Pair(M.SqrtLabel, M.Pair(M.nine, empty))
+        law = Gmod.CompileDeductionToLaw(
+            Pmod.MultiRule(
+                M.Pair(M.Pair(M.SqrtLabel, M.Pair(variable, empty)), empty),
+                M.Pair(M.ExprAddLabel, M.Pair(variable, M.Pair(variable, empty))),
+            ),
+        )()
+        encoded = Gmod.EncodeTermAsGraph(fact)()
+        version = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(), Gmod.GraphEdges(encoded)(), empty,
+        )()
+        saturation = Gmod.SaturateLaws(
+            version, M.Pair(law, empty), empty, Gmod.DanglingForbid()(),
+        )
+        after = saturation()
+        again = Gmod.SaturateLaws(
+            after, M.Pair(law, empty), empty, Gmod.DanglingForbid()(),
+        )
+        settled = again()
+        derived = M.Pair(M.ExprAddLabel, M.Pair(M.nine, M.Pair(M.nine, empty)))
+
+        self.result = M.truth_value
+        if Gmod.IsLawTerm(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(Gmod.LawLeft(law)())(),
+            Gmod.GraphNodes(Gmod.LawInterface(law)())(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            saturation.saturated, M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(after)(), fact)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(after)(), derived,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(settled)(), Gmod.GraphNodes(after)(),
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ChartParserTest(M.Edge):
     """The formal notation reads by chart, and the chart is not its parser.
 
@@ -5730,31 +5863,31 @@ class ChartParserTest(M.Edge):
         )
 
         flat_read = Gmod.FormalTermReadings(
-            signatures, vocabulary, flat_chain, registry,
+            signatures, vocabulary, Gmod.Surface(flat_chain)(), registry,
         )()
         registry = M.Head(M.Tail(flat_read)())()
         flat_terms = M.Head(flat_read)()
 
         nested_read = Gmod.FormalTermReadings(
-            signatures, vocabulary, nested_chain, registry,
+            signatures, vocabulary, Gmod.Surface(nested_chain)(), registry,
         )()
         registry = M.Head(M.Tail(nested_read)())()
         nested_terms = M.Head(nested_read)()
 
         arity_read = Gmod.FormalTermReadings(
-            signatures, vocabulary, arity_chain, registry,
+            signatures, vocabulary, Gmod.Surface(arity_chain)(), registry,
         )()
         registry = M.Head(M.Tail(arity_read)())()
         arity_terms = M.Head(arity_read)()
 
         unsignatured_read = Gmod.FormalTermReadings(
-            signatures, vocabulary, unsignatured_chain, registry,
+            signatures, vocabulary, Gmod.Surface(unsignatured_chain)(), registry,
         )()
         registry = M.Head(M.Tail(unsignatured_read)())()
         unsignatured_terms = M.Head(unsignatured_read)()
 
         unbalanced_read = Gmod.FormalTermReadings(
-            signatures, vocabulary, unbalanced_chain, registry,
+            signatures, vocabulary, Gmod.Surface(unbalanced_chain)(), registry,
         )()
         registry = M.Head(M.Tail(unbalanced_read)())()
         unbalanced_terms = M.Head(unbalanced_read)()
@@ -13686,6 +13819,22 @@ def install_default_tests(graph):
             "toy_correspondence_round_trip_test",
             empty,
             ToyCorrespondenceRoundTripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "reading_policy_test",
+            empty,
+            ReadingPolicyTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "deduction_law_test",
+            empty,
+            DeductionLawTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
