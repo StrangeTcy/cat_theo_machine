@@ -1482,24 +1482,109 @@ def run_talk_mode(sentence: str = None):
             + _propose_bridge(term_text)
         )
 
-    def _pack_constructor_for(term_text):
-        """The pack label named after this word, or EmptyList.
+    def _pack_concept_index():
+        """Machine chain of Pair(word, Pair(label, Empty)) from the packs.
 
-        Pack constructors are published on the machine namespace as
-        <Word>Label singletons; the lookup capitalises the word the same
-        way the packs do. This is how the machine NOTICES a taught word
-        already names pack structure -- the noticing is mechanical, the
-        linking is gated on the trainer.
+        Reads each pack source's rule patterns at the YAML boundary --
+        the same boundary the pack loader itself parses at -- and
+        records, for every constructor that HEADS a rule pattern, the
+        word it is spoken as. Only constructors carrying actual rules
+        enter the index: a label no rule fires on is bookkeeping, not a
+        concept, and never generates a bridge proposal. The index is a
+        Pair chain of machine terms; the host contributes parsing only.
         """
-        label_name = term_text.capitalize() + "Label"
-        candidate = getattr(Lmod, label_name, None)
-        if candidate is None:
-            candidate = getattr(M, label_name, None)
-        if candidate is None:
-            return M.EmptyList
-        if getattr(candidate, "id", None) is None:
-            return M.EmptyList
-        return candidate
+        import yaml
+
+        namespace = _runtime_namespace()
+        index_chain = M.EmptyList
+        name_chain = M.EmptyList
+        seen = M.EmptyList
+        named = M.EmptyList
+
+        def _spoken(name):
+            out = []
+            for ch in name[:-5]:
+                if ch.isupper() and out:
+                    out.append(" ")
+                out.append(ch.lower())
+            return "".join(out)
+
+        def _rule_heads(spec):
+            if not spec:
+                return
+            call = spec.get("call") or {}
+            head = call.get("head") or {}
+            name = head.get("sym")
+            if name:
+                yield name
+            for arg in call.get("args") or ():
+                if "call" in (arg or {}):
+                    for inner in _rule_heads(arg):
+                        yield inner
+
+        for pack_path in PACK_PATHS:
+            try:
+                with open(pack_path, "r", encoding="utf-8") as stream:
+                    data = yaml.safe_load(stream.read())
+            except OSError:
+                continue
+            if not data:
+                continue
+            for rule in data.get("rules") or ():
+                pattern_head = None
+                pattern = rule.get("pattern") or {}
+                call = pattern.get("call") or {}
+                head = call.get("head") or {}
+                pattern_head = head.get("sym")
+                for name in list(_rule_heads(pattern)) + list(
+                    _rule_heads(rule.get("replacement") or {}),
+                ):
+                    if not name.endswith("Label") or name not in namespace:
+                        continue
+                    label_atom = namespace[name]
+                    spoken_word = M.Char(_spoken(name))
+                    if G.ChainHasWordStructural(
+                        named, spoken_word,
+                    )() is M.false_value:
+                        named = M.Pair(spoken_word, named)
+                        name_chain = M.Pair(
+                            M.Pair(spoken_word, M.Pair(label_atom, M.EmptyList)),
+                            name_chain,
+                        )
+                if not pattern_head or not pattern_head.endswith("Label"):
+                    continue
+                if pattern_head not in namespace:
+                    continue
+                word = M.Char(pattern_head[:-5].lower())
+                if G.ChainHasWordStructural(seen, word)() is M.truth_value:
+                    continue
+                seen = M.Pair(word, seen)
+                index_chain = M.Pair(
+                    M.Pair(word, M.Pair(namespace[pattern_head], M.EmptyList)),
+                    index_chain,
+                )
+        return M.Pair(index_chain, M.Pair(name_chain, M.EmptyList))
+
+    pack_concept_bundle = _pack_concept_index()
+    pack_concepts = M.Head(pack_concept_bundle)()
+    pack_label_names = M.Head(M.Tail(pack_concept_bundle)())()
+
+    def _pack_constructor_for(term_text):
+        """The rule-bearing pack constructor this word names, or EmptyList.
+
+        Walks the pack-concept index -- constructors that head rule
+        patterns in the pack sources -- and matches the word
+        structurally. The noticing reads pack structure; the linking
+        stays gated on the trainer.
+        """
+        word = M.Char(term_text)
+        remaining = pack_concepts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            if M.Compare(M.Head(entry)(), word)() is M.truth_value:
+                return M.Head(M.Tail(entry)())()
+            remaining = M.Tail(remaining)()
+        return M.EmptyList
 
     def _propose_bridge(term_text):
         nonlocal pending_bridge
@@ -1539,17 +1624,13 @@ def run_talk_mode(sentence: str = None):
         )
 
     def _speak_label(label):
-        for label_name in dir(Lmod) + dir(M):
-            if label_name.endswith("Label"):
-                source = Lmod if hasattr(Lmod, label_name) else M
-                if getattr(source, label_name) is label:
-                    spoken = label_name[:-5]
-                    out = []
-                    for ch in spoken:
-                        if ch.isupper() and out:
-                            out.append(" ")
-                        out.append(ch.lower())
-                    return "".join(out)
+        """The spoken word for a pack label, from the pack-concept index."""
+        remaining = pack_label_names
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            if M.Head(M.Tail(entry)())() is label:
+                return str(M.Head(entry)()())
+            remaining = M.Tail(remaining)()
         return "?"
 
     def _handle_what_is(line):
