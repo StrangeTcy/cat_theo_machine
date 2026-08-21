@@ -1482,16 +1482,86 @@ def run_talk_mode(sentence: str = None):
             + _propose_bridge(term_text)
         )
 
-    def _pack_concept_index():
-        """Machine chain of Pair(word, Pair(label, Empty)) from the packs.
+    def _spoken_from_label_name(name):
+        out = []
+        for ch in name[:-5]:
+            if ch.isupper() and out:
+                out.append(" ")
+            out.append(ch.lower())
+        return "".join(out)
 
-        Reads each pack source's rule patterns at the YAML boundary --
-        the same boundary the pack loader itself parses at -- and
-        records, for every constructor that HEADS a rule pattern, the
-        word it is spoken as. Only constructors carrying actual rules
-        enter the index: a label no rule fires on is bookkeeping, not a
-        concept, and never generates a bridge proposal. The index is a
-        Pair chain of machine terms; the host contributes parsing only.
+    def _word_chain_text(word_chain):
+        out = []
+        remaining_chars = word_chain
+        while M.IdentityCompare(remaining_chars, M.EmptyList)() is M.false_value:
+            out.append(str(M.Head(remaining_chars)()()))
+            remaining_chars = M.Tail(remaining_chars)()
+        return "".join(out)
+
+    def _pack_concept_index(loaded_packs, rules_tree):
+        """Bridge-noticing index from loader-emitted symbol maps.
+
+        Every LoadedPack carries symbol_map: the Pair(word_chain,
+        Pair(atom, Empty)) chain of associations its compilation
+        crossed the host boundary for, emitted by the loader at the
+        single legitimate crossing point. This index walks those
+        chains and keeps the atoms that HEAD an installed rule's
+        pattern (RulePatternHeads on the loaded rule tree): only
+        rule-bearing constructors are concepts worth offering. No
+        namespace consultation, no source re-parsing: the loader
+        vouched for every entry.
+
+        Returns Pair(concept_chain, Pair(name_chain, EmptyList)) --
+        concepts for the bridge proposal, names for speaking labels.
+        """
+        rule_heads = G.RulePatternHeads(rules_tree, registry)()
+        index_chain = M.EmptyList
+        name_chain = M.EmptyList
+        seen = M.EmptyList
+        named = M.EmptyList
+        for pack in loaded_packs:
+            remaining = pack.symbol_map
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                entry = M.Head(remaining)()
+                word_chain = M.Head(entry)()
+                atom = M.Head(M.Tail(entry)())()
+                name_text = _word_chain_text(word_chain)
+                if name_text.endswith("Label"):
+                    spoken_word = M.Char(_spoken_from_label_name(name_text))
+                    if G.ChainHasWordStructural(
+                        named, spoken_word,
+                    )() is M.false_value:
+                        named = M.Pair(spoken_word, named)
+                        name_chain = M.Pair(
+                            M.Pair(spoken_word, M.Pair(atom, M.EmptyList)),
+                            name_chain,
+                        )
+                    if G.ChainHasTerm(rule_heads, atom)() is M.truth_value:
+                        concept_word = M.Char(name_text[:-5].lower())
+                        if G.ChainHasWordStructural(
+                            seen, concept_word,
+                        )() is M.false_value:
+                            seen = M.Pair(concept_word, seen)
+                            index_chain = M.Pair(
+                                M.Pair(
+                                    concept_word,
+                                    M.Pair(atom, M.EmptyList),
+                                ),
+                                index_chain,
+                            )
+                remaining = M.Tail(remaining)()
+        return M.Pair(index_chain, M.Pair(name_chain, M.EmptyList))
+
+    def _bootstrap_concept_index():
+        """Bootstrap fallback: the same index from pack SOURCES.
+
+        Talk mode boots without loaded packs, so there are no
+        loader-emitted symbol maps to read yet. Until the first proof
+        boot supersedes it through _adopt_pack_concepts, this fallback
+        parses the pack sources at the YAML boundary and resolves
+        names through the runtime namespace -- the Step-36 shape:
+        the host implementation demoted to bootstrap, the
+        loader-vouched chains the installed reader.
         """
         import yaml
 
@@ -1501,15 +1571,7 @@ def run_talk_mode(sentence: str = None):
         seen = M.EmptyList
         named = M.EmptyList
 
-        def _spoken(name):
-            out = []
-            for ch in name[:-5]:
-                if ch.isupper() and out:
-                    out.append(" ")
-                out.append(ch.lower())
-            return "".join(out)
-
-        def _rule_heads(spec):
+        def _heads(spec):
             if not spec:
                 return
             call = spec.get("call") or {}
@@ -1519,7 +1581,7 @@ def run_talk_mode(sentence: str = None):
                 yield name
             for arg in call.get("args") or ():
                 if "call" in (arg or {}):
-                    for inner in _rule_heads(arg):
+                    for inner in _heads(arg):
                         yield inner
 
         for pack_path in PACK_PATHS:
@@ -1531,24 +1593,23 @@ def run_talk_mode(sentence: str = None):
             if not data:
                 continue
             for rule in data.get("rules") or ():
-                pattern_head = None
                 pattern = rule.get("pattern") or {}
-                call = pattern.get("call") or {}
-                head = call.get("head") or {}
-                pattern_head = head.get("sym")
-                for name in list(_rule_heads(pattern)) + list(
-                    _rule_heads(rule.get("replacement") or {}),
+                pattern_head = ((pattern.get("call") or {}).get("head") or {}).get("sym")
+                for name in list(_heads(pattern)) + list(
+                    _heads(rule.get("replacement") or {}),
                 ):
                     if not name.endswith("Label") or name not in namespace:
                         continue
-                    label_atom = namespace[name]
-                    spoken_word = M.Char(_spoken(name))
+                    spoken_word = M.Char(_spoken_from_label_name(name))
                     if G.ChainHasWordStructural(
                         named, spoken_word,
                     )() is M.false_value:
                         named = M.Pair(spoken_word, named)
                         name_chain = M.Pair(
-                            M.Pair(spoken_word, M.Pair(label_atom, M.EmptyList)),
+                            M.Pair(
+                                spoken_word,
+                                M.Pair(namespace[name], M.EmptyList),
+                            ),
                             name_chain,
                         )
                 if not pattern_head or not pattern_head.endswith("Label"):
@@ -1565,9 +1626,16 @@ def run_talk_mode(sentence: str = None):
                 )
         return M.Pair(index_chain, M.Pair(name_chain, M.EmptyList))
 
-    pack_concept_bundle = _pack_concept_index()
-    pack_concepts = M.Head(pack_concept_bundle)()
-    pack_label_names = M.Head(M.Tail(pack_concept_bundle)())()
+    _bootstrap_bundle = _bootstrap_concept_index()
+    pack_concepts = M.Head(_bootstrap_bundle)()
+    pack_label_names = M.Head(M.Tail(_bootstrap_bundle)())()
+
+    def _adopt_pack_concepts(loaded_packs, rules_tree):
+        nonlocal pack_concepts, pack_label_names
+        bundle = _pack_concept_index(loaded_packs, rules_tree)
+        pack_concepts = M.Head(bundle)()
+        pack_label_names = M.Head(M.Tail(bundle)())()
+
 
     def _pack_constructor_for(term_text):
         """The rule-bearing pack constructor this word names, or EmptyList.
@@ -2175,6 +2243,16 @@ def run_talk_mode(sentence: str = None):
                                             PACK_PATHS,
                                             _runtime_namespace(),
                                         )
+                                    # The loader emitted each pack's
+                                    # symbol_map during this boot; adopt
+                                    # them so bridge noticing and label
+                                    # speech read loader-vouched terms.
+                                    _adopt_pack_concepts(
+                                        proof_runtime.loaded_packs,
+                                        M.FromContextGetAllRules(
+                                            proof_runtime.graph,
+                                        )(),
+                                    )
                                     print(
                                         "hyge> packs loaded in "
                                         + format(

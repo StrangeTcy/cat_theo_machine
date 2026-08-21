@@ -11387,6 +11387,45 @@ class OntologyFactsFor(M.Edge):
         return self.result
 
 
+class RulePatternHeads(M.Edge):
+    """Every constructor atom heading an installed rule's pattern.
+
+    Walks the loaded rule tree under ONTOLOGY_FACT_CAP; duplicates
+    collapse by identity. This is the machine's own answer to 'which
+    constructors do rules fire on' -- the filter the bridge noticing
+    uses, read from loaded structure rather than re-parsed sources.
+    """
+
+    def __init__(self, rules_tree, registry):
+        cap_text = M.GMPRepText(ONTOLOGY_FACT_CAP)()
+        reversed_heads = M.EmptyList
+        scan_text = "0"
+        entries = M.TreeEntries(rules_tree)()
+        while M.IdentityCompare(entries, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                entries = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                rule = M.Head(M.Tail(M.Head(entries)())())()
+                pattern = M.Head(M.Head(rule.inputs)())()
+                if M.IsPair(pattern)() is M.truth_value:
+                    head = M.Head(pattern)()
+                    if ChainHasTerm(
+                        M.Reverse(reversed_heads)(),
+                        head,
+                    )() is M.false_value:
+                        reversed_heads = M.Pair(head, reversed_heads)
+                entries = M.Tail(entries)()
+        self.result = M.Reverse(reversed_heads)()
+        super().__init__(
+            inputs=M.Pair(rules_tree, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class InstallDefinition(M.Edge):
     """Splice a Definition node into the version; append-only Next history.
 
