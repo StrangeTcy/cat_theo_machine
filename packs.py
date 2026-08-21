@@ -82,6 +82,9 @@ class LoadedPack:
         self.schema_map = schema_map
         self.examples = examples
         self.phi = phi
+        # Machine chain of Pair(word_chain, Pair(atom, EmptyList)):
+        # every symbol this pack's compilation resolved, as terms.
+        self.symbol_map = M.EmptyList
 
 
 class PackLoader:
@@ -96,6 +99,15 @@ class PackLoader:
     def __init__(self, namespace):
         self.namespace = namespace
         self.string_table = PackStringTable()
+        # The one place host text meets machine atoms. Every `sym:`
+        # resolution is recorded here as Pair(word_chain, Pair(atom,
+        # EmptyList)) -- the association itself as a machine term, so
+        # nothing downstream ever needs to consult a module namespace
+        # to learn what a name denotes. word_chain is the symbol text
+        # as interned Char atoms, the same interning every `char:` in
+        # a pack already receives.
+        self.symbol_map = M.EmptyList
+        self._symbol_map_names = ()
 
     def _chain(self, items):
         L = M.EmptyList
@@ -114,7 +126,17 @@ class PackLoader:
             name = spec["sym"]
             if name not in self.namespace:
                 raise RuntimeError(f"Unknown symbol in pack: {name}")
-            return self.namespace[name]
+            atom = self.namespace[name]
+            if name not in self._symbol_map_names:
+                self._symbol_map_names = self._symbol_map_names + (name,)
+                self.symbol_map = M.Pair(
+                    M.Pair(
+                        self.string_table.encode(name),
+                        M.Pair(atom, M.EmptyList),
+                    ),
+                    self.symbol_map,
+                )
+            return atom
 
         if "var" in spec:
             name = spec["var"]
@@ -206,6 +228,12 @@ class PackLoader:
 
         if not isinstance(data, dict):
             raise RuntimeError("Pack must be a mapping/object")
+
+        # Each pack's symbol_map lists the associations THIS pack's
+        # compilation crossed the boundary for; the loader is shared
+        # across packs, so the recorder resets per load.
+        self.symbol_map = M.EmptyList
+        self._symbol_map_names = ()
 
         if data.get("format") != "hyge-pack":
             raise RuntimeError("Wrong pack format")
@@ -319,7 +347,7 @@ class PackLoader:
         )
         loaded_pack_names.store(name, M.truth_value)
 
-        return LoadedPack(
+        loaded = LoadedPack(
             name=name,
             description=description,
             requires=requires,
@@ -329,6 +357,8 @@ class PackLoader:
             examples=examples,
             phi=phi,
         )
+        loaded.symbol_map = self.symbol_map
+        return loaded
 
     def load_pack_file(self, path, graph):
         import yaml
