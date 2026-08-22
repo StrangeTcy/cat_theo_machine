@@ -1224,8 +1224,6 @@ class TreePatriciaInsert(Edge):
         entry = Head(entries)()
         if IdentityCompare(self._bucket_entry_exact_key(entry), exact_key)() is truth_value:
             return Pair(next_entry, Tail(entries)())
-        if TreeTermEqual(self._bucket_entry_exact_key(entry), exact_key)() is truth_value:
-            return Pair(next_entry, Tail(entries)())
         return Pair(entry, self._upsert_bucket_entries(Tail(entries)(), exact_key, key, fact))
 
     def _insert_into_leaf(self, tree, path, exact_key, key, fact):
