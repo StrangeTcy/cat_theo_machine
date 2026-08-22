@@ -1,0 +1,318 @@
+format: hyge-pack
+version: 1
+
+name: number-theory
+description: Divisibility, parity, modulo and gcd as knowledge-rewrite laws (rung 1 of the curriculum ladder)
+requires: []
+
+phi:
+  list: []
+
+# Knowledge-board rules in the engel style: premises are consumed by
+# the firing, the replacement is the new board contribution. Two
+# measured constraints shape this pack. Re-asserting all premises in
+# every replacement stalls search (a one-step proof passed 540 s; the
+# consuming form proves it in ~4 s). And bidirectional definitional
+# pairs (even <-> divides) would create two-cycles the search re-enters
+# forever -- so the pack speaks ONE canonical direction: Divides is the
+# hub, and parity, modulo and gcd all translate INTO divisibility
+# language. Rendering divisibility back into parity words is the talk
+# side's job, not a search rule.
+#
+# A third constraint gates the exercises: divides_sum and
+# divides_product are GENERATIVE -- they mint terms (Divides(3, 6+9)
+# enables Divides(3, 6+(6+9)) without end), so saturating search over
+# them diverges by construction (measured: OOM at 4 GB). They are
+# exercised by directed application -- one JoinPremises, one
+# ApplyKnowledgeRewrite, goal coverage checked -- the consumption
+# pattern rung 2's obligation discharge uses.
+rules:
+  - id: even_means_two_divides
+    premises:
+      - call:
+          head: {sym: EvenPropLabel}
+          args: [{var: n}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{sym: two}, {var: n}]
+
+  - id: divides_transitive
+    premises:
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: b}, {var: c}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: a}, {var: c}]
+
+  - id: divides_sum
+    premises:
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: a}, {var: c}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args:
+              - {var: a}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args: [{var: b}, {var: c}]
+
+  - id: divides_product
+    premises:
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: c}, {var: d}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args:
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args: [{var: a}, {var: c}]
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args: [{var: b}, {var: d}]
+
+  - id: zero_remainder_means_divides
+    premises:
+      - call:
+          head: {sym: ModuloLabel}
+          args: [{var: n}, {var: m}, {sym: Zero}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: m}, {var: n}]
+
+  - id: gcd_divides_both
+    premises:
+      - call:
+          head: {sym: GcdLabel}
+          args: [{var: a}, {var: b}, {var: g}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: g}, {var: a}]
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: g}, {var: b}]
+
+examples:
+  # Goals are the end board: what the firing chain leaves behind.
+  - id: nt_even_to_divides
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: EvenPropLabel}
+                  args: [{sym: six}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: six}]
+
+  - id: nt_divides_transitive
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: four}]
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: four}, {sym: eight}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: eight}]
+
+  - id: nt_divides_sum
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: three}, {sym: six}]
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: three}, {sym: nine}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args:
+                    - {sym: three}
+                    - call:
+                        head: {sym: ExprAddLabel}
+                        args: [{sym: six}, {sym: nine}]
+
+  - id: nt_divides_product
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: four}]
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: three}, {sym: nine}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args:
+                    - call:
+                        head: {sym: ExprMulLabel}
+                        args: [{sym: two}, {sym: three}]
+                    - call:
+                        head: {sym: ExprMulLabel}
+                        args: [{sym: four}, {sym: nine}]
+
+  - id: nt_mod_zero_to_divides
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: ModuloLabel}
+                  args: [{sym: nine}, {sym: three}, {sym: Zero}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: three}, {sym: nine}]
+
+  - id: nt_gcd_divides_both
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: GcdLabel}
+                  args: [{sym: four}, {sym: six}, {sym: two}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: four}]
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: six}]
+
+  # Two-step chain: parity becomes divisibility, then transitivity
+  # carries it through an already-known divisibility.
+  - id: nt_even_chain
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: EvenPropLabel}
+                  args: [{sym: four}]
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: four}, {sym: eight}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: eight}]
+
+  # Two-step chain: zero remainder becomes divisibility, then
+  # transitivity through a recorded divisor.
+  - id: nt_mod_chain
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: ModuloLabel}
+                  args: [{sym: six}, {sym: three}, {sym: Zero}]
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: one}, {sym: three}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: one}, {sym: six}]
+
+  # Three-step chain: gcd projects both divisibilities, then the sum
+  # lemma combines them.
+  - id: nt_gcd_sum_chain
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: GcdLabel}
+                  args: [{sym: four}, {sym: six}, {sym: two}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args:
+                    - {sym: two}
+                    - call:
+                        head: {sym: ExprAddLabel}
+                        args: [{sym: four}, {sym: six}]

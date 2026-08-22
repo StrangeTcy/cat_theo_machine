@@ -1167,6 +1167,18 @@ class WitnessLabel(ConstructorLabel):
     pass
 
 
+class DividesLabel(ConstructorLabel):
+    pass
+
+
+class ModuloLabel(ConstructorLabel):
+    pass
+
+
+class GcdLabel(ConstructorLabel):
+    pass
+
+
 class CostSavingsLabel(ConstructorLabel):
     pass
 
@@ -1538,6 +1550,9 @@ OddPropLabel = OddPropLabel()
 ConfirmedLabel = ConfirmedLabel()
 RefutedLabel = RefutedLabel()
 WitnessLabel = WitnessLabel()
+DividesLabel = DividesLabel()
+ModuloLabel = ModuloLabel()
+GcdLabel = GcdLabel()
 CostSavingsLabel = CostSavingsLabel()
 ReuseLabel = ReuseLabel()
 NoveltyLabel = NoveltyLabel()
@@ -2005,6 +2020,9 @@ def sync_from_namespace(namespace):
         "ConfirmedLabel",
         "RefutedLabel",
         "WitnessLabel",
+        "DividesLabel",
+        "ModuloLabel",
+        "GcdLabel",
         "CostSavingsLabel",
         "ReuseLabel",
         "NoveltyLabel",
