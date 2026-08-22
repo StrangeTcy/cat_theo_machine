@@ -6196,6 +6196,262 @@ class GrammarCompositionTest(M.Edge):
         return self.result
 
 
+class DefinitionNodeTest(M.Edge):
+    """The destination exists: the prime definition, as a graph.
+
+    Hand-built, before any lexicon. The definiendum is prime over
+    Category(nat); one binder variable is allocated by FreshenTemplate
+    for this definition's scope; the conditions are NonNegative(self),
+    the hole where Divides waits, and the restriction "only" keeps as
+    scope. Every self is the same variable object; the term round-trips
+    through a snapshot with that sharing intact; the well-formedness
+    certificate accepts it and rejects a binder whose self is not a
+    variable; and the shape is declared with a ConstructorSignature the
+    formal reader turns into a production like any constructor's.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        scope = M.Char("definition-scope-1")
+        var_self = M.Pair(M.VarTag, M.Pair(M.Char("?self"), empty))
+        fresh = Gmod.FreshenTemplate(
+            M.Pair(var_self, M.Pair(var_self, empty)), scope,
+        )
+        fresh_one = M.Head(fresh.instantiated)()
+        fresh_two = M.Head(M.Tail(fresh.instantiated)())()
+
+        concept = M.Char("prime")
+        nat = M.Char("nat")
+        one = M.Char("one")
+
+        non_negative = M.Pair(
+            Lmod.NonNegativeLabel, M.Pair(fresh_one, empty),
+        )
+        hole = Gmod.Hole(
+            Lmod.DividesLabel,
+            M.Pair(one, M.Pair(fresh_one, empty)),
+            Lmod.NoDefinitionInstalledLabel,
+        )()
+        restriction = Gmod.ExactFillers(
+            Lmod.DividesLabel,
+            fresh_one,
+            M.Char("divisor"),
+            M.Pair(one, M.Pair(fresh_one, empty)),
+        )()
+        conditions = M.Pair(
+            non_negative, M.Pair(hole, M.Pair(restriction, empty)),
+        )
+        node = Gmod.DefinitionNode(
+            Gmod.Definiendum(concept, Gmod.CategoryTerm(nat)())(),
+            Gmod.Binder(scope, fresh_one)(),
+            conditions,
+        )()
+        broken = Gmod.DefinitionNode(
+            Gmod.Definiendum(concept, Gmod.CategoryTerm(nat)())(),
+            Gmod.Binder(scope, concept)(),
+            conditions,
+        )()
+
+        signature = Gmod.ConstructorSignature(
+            M.Char("definition"), Lmod.DefinitionNodeLabel, M.three,
+        )()
+        generated = Gmod.FormalProductions(
+            M.Pair(signature, empty), Gmod.CHART_TERM_CATEGORY, registry,
+        )()
+        productions = M.Head(generated)()
+        registry = M.Head(M.Tail(generated)())()
+
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        codec = SnapshotCodec(namespace)
+        snapshot = codec.capture_objects({"definition": node})
+        loaded = codec.load_snapshot(snapshot).roots["definition"]
+
+        loaded_self = Gmod.BinderSelf(Gmod.DefinitionNodeBinder(loaded)())()
+        loaded_conditions = Gmod.DefinitionNodeConditions(loaded)()
+        loaded_hole = M.Head(M.Tail(loaded_conditions)())()
+        loaded_hole_self = M.Head(
+            M.Tail(Gmod.HoleArguments(loaded_hole)())(),
+        )()
+        loaded_restriction = M.Head(M.Tail(M.Tail(loaded_conditions)())())()
+        loaded_restriction_self = M.Head(
+            M.Tail(M.Tail(loaded_restriction)())(),
+        )()
+        loaded_allowed = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(loaded_restriction)())())())(),
+        )()
+        loaded_allowed_self = M.Head(M.Tail(loaded_allowed)())()
+        loaded_definiendum = Gmod.DefinitionNodeDefiniendum(loaded)()
+        loaded_concept = M.Head(M.Tail(loaded_definiendum)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(fresh_one, fresh_two)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.DefinitionNodeWellFormed(node)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.DefinitionNodeWellFormed(broken)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.BinderSelf(Gmod.DefinitionNodeBinder(node)())(), fresh_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(Gmod.HoleArguments(hole)())())(), fresh_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(M.Tail(restriction)())())(), fresh_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(loaded, node, M.AllConstructors)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            loaded_hole_self, loaded_self,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            loaded_restriction_self, loaded_self,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            loaded_allowed_self, loaded_self,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(loaded_concept, one)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(productions, empty)() is M.truth_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LexicalSpansTest(M.Edge):
+    """The definition line, read by index: one reading per known form.
+
+    The client emits one ObservedSymbolStep per character of the whole
+    typed line -- colon and spaces included; nothing tokenizes. The
+    trie holds the four forms the plan names -- number, divisible, one,
+    itself -- so exactly those spans read, at the cursors an
+    independent scan of the line says they occupy, the agenda empties,
+    and nothing enumerates the store.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        text = "definition: a prime number is divisible only by one and itself"
+        words = ("number", "divisible", "one", "itself")
+
+        symbols = {}
+        for ch in set(text):
+            symbols[ch] = M.Char(ch)
+        cursors = {}
+        cursor_index = {}
+        for i in range(len(text) + 1):
+            cursors[i] = M.GMPRep(str(i))
+            cursor_index[cursors[i].id] = i
+
+        utterance = M.Char("utt:definition-line")
+        steps_reversed = empty
+        for i in range(len(text)):
+            steps_reversed = M.Pair(
+                Gmod.ObservedSymbolStep(
+                    utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+                )(),
+                steps_reversed,
+            )
+        steps = M.Reverse(steps_reversed)()
+
+        root = M.Char("root")
+        states = {}
+        arcs_reversed = empty
+        for word in words:
+            state = root
+            for ch in word:
+                key = (state.id, ch)
+                if key not in states:
+                    nxt = M.Char("st:" + word + ":" + ch)
+                    states[key] = nxt
+                    arcs_reversed = M.Pair(
+                        Gmod.FormArc(state, symbols[ch], nxt)(),
+                        arcs_reversed,
+                    )
+                state = states[key]
+            states[("final", word)] = state
+        arcs = M.Reverse(arcs_reversed)()
+
+        word_of_category = {}
+        senses_reversed = empty
+        categories = {
+            "number": "CategoryNoun",
+            "divisible": "RelAdj",
+            "one": "Numeral",
+            "itself": "ReflexivePron",
+        }
+        for word in words:
+            category = M.Char(categories[word])
+            word_of_category[category.id] = word
+            senses_reversed = M.Pair(
+                Gmod.FormSense(
+                    states[("final", word)], category, M.Char("meaning:" + word),
+                )(),
+                senses_reversed,
+            )
+        senses = M.Reverse(senses_reversed)()
+
+        engine = Gmod.RecogniseForms(steps, arcs, senses, root, empty)
+        result = engine()
+        readings = M.Head(result)()
+        agenda_term = M.Head(M.Tail(M.Tail(result)())())()
+
+        expected = set()
+        for i in range(len(text)):
+            for word in words:
+                if text.startswith(word, i):
+                    expected.add((word, i, i + len(word)))
+
+        found = set()
+        remaining = readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading = M.Head(remaining)()
+            category = M.Head(M.Tail(reading)())()
+            start_at = M.Head(M.Tail(M.Tail(reading)())())()
+            end_at = M.Head(M.Tail(M.Tail(M.Tail(reading)())())())()
+            found.add((
+                word_of_category[category.id],
+                cursor_index[start_at.id],
+                cursor_index[end_at.id],
+            ))
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if found != expected:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(agenda_term)())(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ChartParserTest(M.Edge):
     """The formal notation reads by chart, and the chart is not its parser.
 
@@ -14289,6 +14545,22 @@ def install_default_tests(graph):
             "grammar_composition_test",
             empty,
             GrammarCompositionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "definition_node_test",
+            empty,
+            DefinitionNodeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "lexical_spans_test",
+            empty,
+            LexicalSpansTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

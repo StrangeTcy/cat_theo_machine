@@ -1523,6 +1523,38 @@ class ComposeMeaningLabel(ConstructorLabel):
     pass
 
 
+class DefinitionNodeLabel(ConstructorLabel):
+    pass
+
+
+class DefiniendumLabel(ConstructorLabel):
+    pass
+
+
+class CategoryLabel(ConstructorLabel):
+    pass
+
+
+class BinderLabel(ConstructorLabel):
+    pass
+
+
+class DividesLabel(ConstructorLabel):
+    pass
+
+
+class HoleLabel(ConstructorLabel):
+    pass
+
+
+class NoDefinitionInstalledLabel(ConstructorLabel):
+    pass
+
+
+class ExactFillersLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1902,6 +1934,14 @@ ObservedByLabel = ObservedByLabel()
 BinaryProductionLabel = BinaryProductionLabel()
 FreshenedLabel = FreshenedLabel()
 ComposeMeaningLabel = ComposeMeaningLabel()
+DefinitionNodeLabel = DefinitionNodeLabel()
+DefiniendumLabel = DefiniendumLabel()
+CategoryLabel = CategoryLabel()
+BinderLabel = BinderLabel()
+DividesLabel = DividesLabel()
+HoleLabel = HoleLabel()
+NoDefinitionInstalledLabel = NoDefinitionInstalledLabel()
+ExactFillersLabel = ExactFillersLabel()
 
 
 def sync_from_namespace(namespace):
@@ -1928,6 +1968,14 @@ def sync_from_namespace(namespace):
         "BinaryProductionLabel",
         "FreshenedLabel",
         "ComposeMeaningLabel",
+        "DefinitionNodeLabel",
+        "DefiniendumLabel",
+        "CategoryLabel",
+        "BinderLabel",
+        "DividesLabel",
+        "HoleLabel",
+        "NoDefinitionInstalledLabel",
+        "ExactFillersLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",

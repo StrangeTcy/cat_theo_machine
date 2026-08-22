@@ -14098,6 +14098,344 @@ class DefinitionBody(M.Edge):
         return self.result
 
 
+class DefinitionNode(M.Edge):
+    """A definition as a graph: what is defined, under which self, on what terms.
+
+    Pair(DefinitionNodeLabel, Pair(definiendum, Pair(binder,
+    Pair(conditions, EmptyList)))). The definiendum is a typed term,
+    Definiendum(concept, Category(atom)), not a word; the binder holds
+    one scope and one fresh variable that every reflexive in the
+    conditions resolves to; the conditions are a chain of predicate
+    terms, in which an undefined predicate stays as a Hole rather than
+    disappearing. The shape is declared with a ConstructorSignature, so
+    the formal reader writes and reads it like any constructor. This is
+    what a definition Reading's meaning is: the graph is the output of
+    parsing, not a byproduct of it.
+    """
+
+    def __init__(self, definiendum, binder, conditions):
+        self.result = M.Pair(
+            Lmod.DefinitionNodeLabel,
+            M.Pair(
+                definiendum, M.Pair(binder, M.Pair(conditions, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                definiendum, M.Pair(binder, M.Pair(conditions, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeDefiniendum(M.Edge):
+    def __init__(self, node):
+        self.result = M.Head(M.Tail(node)())()
+        super().__init__(inputs=M.Pair(node, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeBinder(M.Edge):
+    def __init__(self, node):
+        self.result = M.Head(M.Tail(M.Tail(node)())())()
+        super().__init__(inputs=M.Pair(node, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeConditions(M.Edge):
+    def __init__(self, node):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(node)())())())()
+        super().__init__(inputs=M.Pair(node, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Definiendum(M.Edge):
+    """The thing defined: a concept over a category, not a word."""
+
+    def __init__(self, concept, category):
+        self.result = M.Pair(
+            Lmod.DefiniendumLabel,
+            M.Pair(concept, M.Pair(category, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(concept, M.Pair(category, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CategoryTerm(M.Edge):
+    """Category(atom): the sort a definiendum is over."""
+
+    def __init__(self, category):
+        self.result = M.Pair(
+            Lmod.CategoryLabel, M.Pair(category, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(category, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Binder(M.Edge):
+    """One scope and the fresh self every reflexive resolves to.
+
+    Pair(BinderLabel, Pair(scope, Pair(self, EmptyList))). The self is
+    one variable object shared by every condition that mentions it;
+    the scope tells this definition's applications apart from the next.
+    """
+
+    def __init__(self, scope, self_variable):
+        self.result = M.Pair(
+            Lmod.BinderLabel,
+            M.Pair(scope, M.Pair(self_variable, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(scope, M.Pair(self_variable, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BinderScope(M.Edge):
+    def __init__(self, binder):
+        self.result = M.Head(M.Tail(binder)())()
+        super().__init__(inputs=M.Pair(binder, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BinderSelf(M.Edge):
+    def __init__(self, binder):
+        self.result = M.Head(M.Tail(M.Tail(binder)())())()
+        super().__init__(inputs=M.Pair(binder, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Divides(M.Edge):
+    """Divides(divisor, number): the divisibility predicate."""
+
+    def __init__(self, divisor, number):
+        self.result = M.Pair(
+            Lmod.DividesLabel,
+            M.Pair(divisor, M.Pair(number, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(divisor, M.Pair(number, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Hole(M.Edge):
+    """An undefined predicate kept as a named gap in a formed graph.
+
+    Pair(HoleLabel, Pair(predicate, Pair(arguments, Pair(reason,
+    EmptyList)))). The predicate is its label, the arguments are the
+    chain it would take, and the reason says why it is open. A hole is
+    what lets the graph exist before every word in it is defined; the
+    dependency question is then read off the hole, not off the words.
+    """
+
+    def __init__(self, predicate, arguments, reason):
+        self.result = M.Pair(
+            Lmod.HoleLabel,
+            M.Pair(
+                predicate, M.Pair(arguments, M.Pair(reason, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                predicate, M.Pair(arguments, M.Pair(reason, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class HolePredicate(M.Edge):
+    def __init__(self, hole):
+        self.result = M.Head(M.Tail(hole)())()
+        super().__init__(inputs=M.Pair(hole, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HoleArguments(M.Edge):
+    def __init__(self, hole):
+        self.result = M.Head(M.Tail(M.Tail(hole)())())()
+        super().__init__(inputs=M.Pair(hole, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExactFillers(M.Edge):
+    """A restriction kept as scope, not flattened to a quantifier.
+
+    "only" becomes one of these rather than a ForAll, so the parse
+    records what was said and a normalization law can expand it later.
+
+    Pair(ExactFillersLabel, Pair(relation, Pair(fixed, Pair(role,
+    Pair(allowed, EmptyList))))). Of the relation, the fixed argument
+    stays, the role named is the one being restricted, and the allowed
+    chain holds everything that may fill it. The parser records what
+    was said; expanding this into a quantifier is a normalization law's
+    job, checked on its own.
+    """
+
+    def __init__(self, relation, fixed, role, allowed):
+        self.result = M.Pair(
+            Lmod.ExactFillersLabel,
+            M.Pair(
+                relation,
+                M.Pair(fixed, M.Pair(role, M.Pair(allowed, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                relation,
+                M.Pair(fixed, M.Pair(role, M.Pair(allowed, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeWellFormed(M.Edge):
+    """One certificate: this term is a well-formed definition graph.
+
+    The checks are the shape itself: the label; three slots exactly; a
+    definiendum of two slots whose second is a Category term; a binder
+    of two slots whose second slot is a variable; conditions that are a
+    chain of terms. Nothing here knows any predicate -- a hole is as
+    well-formed as a defined condition, because a hole is the point.
+    """
+
+    def __init__(self, node):
+        self.result = M.false_value
+        if M.IsPair(node)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(node)(), Lmod.DefinitionNodeLabel,
+            )() is M.truth_value:
+                slots = M.Tail(node)()
+                if M.IdentityCompare(slots, M.EmptyList)() is M.false_value:
+                    rest_one = M.Tail(slots)()
+                    if M.IdentityCompare(
+                        rest_one, M.EmptyList,
+                    )() is M.false_value:
+                        rest_two = M.Tail(rest_one)()
+                        if M.IdentityCompare(
+                            rest_two, M.EmptyList,
+                        )() is M.false_value:
+                            if M.IdentityCompare(
+                                M.Tail(rest_two)(), M.EmptyList,
+                            )() is M.truth_value:
+                                definiendum = M.Head(slots)()
+                                binder = M.Head(rest_one)()
+                                conditions = M.Head(rest_two)()
+                                if self._definiendum_ok(definiendum) is M.truth_value:
+                                    if self._binder_ok(binder) is M.truth_value:
+                                        if self._conditions_ok(conditions) is M.truth_value:
+                                            self.result = M.truth_value
+        super().__init__(
+            inputs=M.Pair(node, M.EmptyList), results=self.result,
+        )
+
+    def _definiendum_ok(self, definiendum):
+        if M.IsPair(definiendum)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(definiendum)(), Lmod.DefiniendumLabel,
+        )() is M.false_value:
+            return M.false_value
+        slots = M.Tail(definiendum)()
+        if M.IdentityCompare(slots, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        rest = M.Tail(slots)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.false_value:
+            return M.false_value
+        category = M.Head(rest)()
+        if M.IsPair(category)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(category)(), Lmod.CategoryLabel,
+        )() is M.false_value:
+            return M.false_value
+        category_slots = M.Tail(category)()
+        if M.IdentityCompare(
+            category_slots, M.EmptyList,
+        )() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Tail(category_slots)(), M.EmptyList,
+        )() is M.false_value:
+            return M.false_value
+        return M.truth_value
+
+    def _binder_ok(self, binder):
+        if M.IsPair(binder)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(binder)(), Lmod.BinderLabel,
+        )() is M.false_value:
+            return M.false_value
+        slots = M.Tail(binder)()
+        if M.IdentityCompare(slots, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        rest = M.Tail(slots)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.false_value:
+            return M.false_value
+        self_variable = M.Head(rest)()
+        if M.IsPair(self_variable)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(self_variable)(), M.VarTag,
+        )() is M.false_value:
+            return M.false_value
+        return M.truth_value
+
+    def _conditions_ok(self, conditions):
+        walker = conditions
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            if M.IsPair(M.Head(walker)())() is M.false_value:
+                return M.false_value
+            walker = M.Tail(walker)()
+        return M.truth_value
+
+    def __call__(self):
+        return self.result
+
+
 class InstalledDefinitions(M.Edge):
     """Every Definition node in a version, in store order."""
 
