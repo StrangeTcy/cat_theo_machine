@@ -5633,6 +5633,802 @@ class ConverseDefaultModeTest(M.Edge):
         return self.result
 
 
+class ReadingPolicyTest(M.Edge):
+    """A typed line becomes words by the policy, not by string surgery.
+
+    One line exercises every decision the host replaces used to make:
+    a capital folded, a bracket and a comma standing alone as words, an
+    all-digit run spelled out, a word with a digit in it left whole, and
+    a full stop dropped. The policy is the chains in
+    DefaultReadingPolicy, so a pack changing them changes the reader.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        policy = Gmod.DefaultReadingPolicy()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+
+        read = Gmod.WordsOfText("Mul ( 64 , sqrt2 ).", policy, digit_words)()
+        expected = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("six"),
+                    M.Pair(
+                        M.Char("four"),
+                        M.Pair(
+                            M.Char(","),
+                            M.Pair(
+                                M.Char("sqrt2"),
+                                M.Pair(M.Char(")"), empty),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        blank = Gmod.WordsOfText("   ", policy, digit_words)()
+        surface = Gmod.SurfaceOfText("two plus two", policy, digit_words)()
+
+        self.result = M.truth_value
+        # Words are Chars, and Char identity is Compare -- TermEqual holds
+        # two Chars apart by object, which is why every word test in this
+        # file asks Compare.
+        if M.Compare(read, expected)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(blank, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(surface)(), Lmod.SurfaceLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Head(M.Tail(surface)())())(), M.Char("two"),
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class DeductionLawTest(M.Edge):
+    """A monotone law keeps its premises, adds its conclusion, and stops.
+
+    CompileMultiRuleToLaw deletes every premise element the conclusion
+    does not mention, which is right for a rewrite and wrong for a
+    deduction. CompileDeductionToLaw sets K to the whole of L, so the
+    firing is additive. SaturateLaws then fires it once and reaches a
+    fixed point: the second attempt is skipped because the conclusion is
+    already in the store, which is what stops a monotone law from firing
+    forever.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        variable = M.Pair(M.VarTag, M.Pair(M.Char("?x"), empty))
+        fact = M.Pair(M.SqrtLabel, M.Pair(M.nine, empty))
+        law = Gmod.CompileDeductionToLaw(
+            Pmod.MultiRule(
+                M.Pair(M.Pair(M.SqrtLabel, M.Pair(variable, empty)), empty),
+                M.Pair(M.ExprAddLabel, M.Pair(variable, M.Pair(variable, empty))),
+            ),
+        )()
+        encoded = Gmod.EncodeTermAsGraph(fact)()
+        version = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(), Gmod.GraphEdges(encoded)(), empty,
+        )()
+        saturation = Gmod.SaturateLaws(
+            version, M.Pair(law, empty), empty, Gmod.DanglingForbid()(),
+        )
+        after = saturation()
+        again = Gmod.SaturateLaws(
+            after, M.Pair(law, empty), empty, Gmod.DanglingForbid()(),
+        )
+        settled = again()
+        derived = M.Pair(M.ExprAddLabel, M.Pair(M.nine, M.Pair(M.nine, empty)))
+
+        self.result = M.truth_value
+        if Gmod.IsLawTerm(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(Gmod.LawLeft(law)())(),
+            Gmod.GraphNodes(Gmod.LawInterface(law)())(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            saturation.saturated, M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(after)(), fact)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(after)(), derived,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(settled)(), Gmod.GraphNodes(after)(),
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class RecogniseFormsTest(M.Edge):
+    """The reader's deduction runs by index and agenda, not by search.
+
+    The same three-premise rule the generic matcher was asked for --
+    FormScan, ObservedSymbolStep, FormArc to FormScan -- is compiled to
+    two ordinary monotone laws and executed through DeductionPlan
+    records over red-black indexes. Every fact enters through one
+    insert that dedupes on the declared keys and queues a delta; the
+    agenda runs to empty, which is quiescence. Nothing enumerates the
+    store, and nothing asks the generic matcher anything.
+
+    Over "a prime" the shared trie yields the determiner "a" over
+    cursors zero to one and the noun "prime" over two to seven, and
+    nothing else: the space kills its scan at the root, and no other
+    path reaches a stated state.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        utterance = M.Char("utt:a prime")
+        sym_a = M.Char("a")
+        sym_space = M.Char(" ")
+        sym_p = M.Char("p")
+        sym_r = M.Char("r")
+        sym_i = M.Char("i")
+        sym_m = M.Char("m")
+        sym_e = M.Char("e")
+        c0 = M.GMPRep("0")
+        c1 = M.GMPRep("1")
+        c2 = M.GMPRep("2")
+        c3 = M.GMPRep("3")
+        c4 = M.GMPRep("4")
+        c5 = M.GMPRep("5")
+        c6 = M.GMPRep("6")
+        c7 = M.GMPRep("7")
+
+        steps = M.Pair(
+            Gmod.ObservedSymbolStep(utterance, c0, sym_a, c1)(),
+            M.Pair(
+                Gmod.ObservedSymbolStep(utterance, c1, sym_space, c2)(),
+                M.Pair(
+                    Gmod.ObservedSymbolStep(utterance, c2, sym_p, c3)(),
+                    M.Pair(
+                        Gmod.ObservedSymbolStep(utterance, c3, sym_r, c4)(),
+                        M.Pair(
+                            Gmod.ObservedSymbolStep(utterance, c4, sym_i, c5)(),
+                            M.Pair(
+                                Gmod.ObservedSymbolStep(
+                                    utterance, c5, sym_m, c6,
+                                )(),
+                                M.Pair(
+                                    Gmod.ObservedSymbolStep(
+                                        utterance, c6, sym_e, c7,
+                                    )(),
+                                    empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        root = M.Char("root")
+        s_a = M.Char("s:a")
+        s_p = M.Char("s:p")
+        s_pr = M.Char("s:pr")
+        s_pri = M.Char("s:pri")
+        s_prim = M.Char("s:prim")
+        s_prime = M.Char("s:prime")
+        arcs = M.Pair(
+            Gmod.FormArc(root, sym_a, s_a)(),
+            M.Pair(
+                Gmod.FormArc(root, sym_p, s_p)(),
+                M.Pair(
+                    Gmod.FormArc(s_p, sym_r, s_pr)(),
+                    M.Pair(
+                        Gmod.FormArc(s_pr, sym_i, s_pri)(),
+                        M.Pair(
+                            Gmod.FormArc(s_pri, sym_m, s_prim)(),
+                            M.Pair(
+                                Gmod.FormArc(s_prim, sym_e, s_prime)(),
+                                empty,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        det = M.Char("det")
+        noun = M.Char("noun")
+        mean_a = M.Char("sense:a")
+        mean_prime = M.Char("sense:prime")
+        senses = M.Pair(
+            Gmod.FormSense(s_a, det, mean_a)(),
+            M.Pair(Gmod.FormSense(s_prime, noun, mean_prime)(), empty),
+        )
+
+        engine = Gmod.RecogniseForms(steps, arcs, senses, root, empty)
+        result = engine()
+        readings = M.Head(result)()
+        firings = M.Head(M.Tail(result)())()
+        agenda_term = M.Head(M.Tail(M.Tail(result)())())()
+        agenda_facts = M.Head(M.Tail(agenda_term)())()
+
+        expected_det = Gmod.Reading(det, c0, c1, mean_a)()
+        expected_noun = Gmod.Reading(noun, c2, c7, mean_prime)()
+        reading_count = "0"
+        remaining = readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading_count = Gmod.GMPSuccText(reading_count)()
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if Gmod.IsLawTerm(engine.scan_law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsLawTerm(engine.sense_law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_det)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_noun)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(reading_count, "2")() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(firings, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(agenda_term)(), Lmod.DeltaAgendaLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(agenda_facts, empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPLessText("0", engine.index_lookups_text)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class FreshenTemplateTest(M.Edge):
+    """One application of a template gets fresh variables, correctly.
+
+    A template that uses one variable twice and another once must
+    receive the same fresh variable in the first two positions and a
+    different one in the third; the recognised VarTag shape must
+    survive; the scope must ride along; and a second application, under
+    another scope, must receive its own variables. The binding chain is
+    the provenance: the old variable maps to exactly the fresh variable
+    that replaced it.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        scope_one = M.Char("scope-one")
+        scope_two = M.Char("scope-two")
+        var_x = M.Pair(M.VarTag, M.Pair(M.Char("?x"), empty))
+        var_y = M.Pair(M.VarTag, M.Pair(M.Char("?y"), empty))
+        template = M.Pair(var_x, M.Pair(var_x, M.Pair(var_y, empty)))
+
+        first = Gmod.FreshenTemplate(template, scope_one)
+        second = Gmod.FreshenTemplate(template, scope_two)
+
+        first_one = M.Head(first.instantiated)()
+        first_two = M.Head(M.Tail(first.instantiated)())()
+        first_three = M.Head(M.Tail(M.Tail(first.instantiated)())())()
+        second_one = M.Head(second.instantiated)()
+
+        binding_found = M.false_value
+        walker = first.bindings_chain
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            entry = M.Head(walker)()
+            if M.IdentityCompare(M.Head(entry)(), var_x)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Tail(entry)(), first_one,
+                )() is M.truth_value:
+                    binding_found = M.truth_value
+            walker = M.Tail(walker)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(first_one, first_two)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(first_one, first_three)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IsPair(first_one)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(first_one)(), M.VarTag,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(first_one)())(), scope_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(first_one, second_one)() is M.truth_value:
+            self.result = M.false_value
+        elif binding_found is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GrammarCompositionTest(M.Edge):
+    """Readings compose by index, and every firing freshens its template.
+
+    Over "a prime", with the space a form of its own, the grammar
+
+        det sp -> detb      noun-final forms as before
+        detb noun -> np
+        sp noun -> spn      one template variable, used twice
+
+    must yield six readings: the three leaf readings, detb over zero to
+    two, np over zero to seven, and spn over one to seven. The spn
+    meaning is the same atom twice, which is the sharing FreshenTemplate
+    guarantees; the np meaning is the detb meaning inside it, which is
+    composition closing over its own output through the same indexes.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        utterance = M.Char("utt:a prime")
+        sym_a = M.Char("a")
+        sym_space = M.Char(" ")
+        sym_p = M.Char("p")
+        sym_r = M.Char("r")
+        sym_i = M.Char("i")
+        sym_m = M.Char("m")
+        sym_e = M.Char("e")
+        c0 = M.GMPRep("0")
+        c1 = M.GMPRep("1")
+        c2 = M.GMPRep("2")
+        c3 = M.GMPRep("3")
+        c4 = M.GMPRep("4")
+        c5 = M.GMPRep("5")
+        c6 = M.GMPRep("6")
+        c7 = M.GMPRep("7")
+
+        steps = M.Pair(
+            Gmod.ObservedSymbolStep(utterance, c0, sym_a, c1)(),
+            M.Pair(
+                Gmod.ObservedSymbolStep(utterance, c1, sym_space, c2)(),
+                M.Pair(
+                    Gmod.ObservedSymbolStep(utterance, c2, sym_p, c3)(),
+                    M.Pair(
+                        Gmod.ObservedSymbolStep(utterance, c3, sym_r, c4)(),
+                        M.Pair(
+                            Gmod.ObservedSymbolStep(utterance, c4, sym_i, c5)(),
+                            M.Pair(
+                                Gmod.ObservedSymbolStep(
+                                    utterance, c5, sym_m, c6,
+                                )(),
+                                M.Pair(
+                                    Gmod.ObservedSymbolStep(
+                                        utterance, c6, sym_e, c7,
+                                    )(),
+                                    empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        root = M.Char("root")
+        s_a = M.Char("s:a")
+        s_sp = M.Char("s:sp")
+        s_p = M.Char("s:p")
+        s_pr = M.Char("s:pr")
+        s_pri = M.Char("s:pri")
+        s_prim = M.Char("s:prim")
+        s_prime = M.Char("s:prime")
+        arcs = M.Pair(
+            Gmod.FormArc(root, sym_a, s_a)(),
+            M.Pair(
+                Gmod.FormArc(root, sym_space, s_sp)(),
+                M.Pair(
+                    Gmod.FormArc(root, sym_p, s_p)(),
+                    M.Pair(
+                        Gmod.FormArc(s_p, sym_r, s_pr)(),
+                        M.Pair(
+                            Gmod.FormArc(s_pr, sym_i, s_pri)(),
+                            M.Pair(
+                                Gmod.FormArc(s_pri, sym_m, s_prim)(),
+                                M.Pair(
+                                    Gmod.FormArc(s_prim, sym_e, s_prime)(),
+                                    empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        det = M.Char("det")
+        sp_cat = M.Char("sp")
+        noun = M.Char("noun")
+        detb = M.Char("detb")
+        np_cat = M.Char("np")
+        spn_cat = M.Char("spn")
+        mean_a = M.Char("sense:a")
+        mean_sp = M.Char("sense:sp")
+        mean_prime = M.Char("sense:prime")
+        senses = M.Pair(
+            Gmod.FormSense(s_a, det, mean_a)(),
+            M.Pair(
+                Gmod.FormSense(s_sp, sp_cat, mean_sp)(),
+                M.Pair(Gmod.FormSense(s_prime, noun, mean_prime)(), empty),
+            ),
+        )
+
+        var_t1 = M.Pair(M.VarTag, M.Pair(M.Char("?t1"), empty))
+        var_t2 = M.Pair(M.VarTag, M.Pair(M.Char("?t2"), empty))
+        var_ts = M.Pair(M.VarTag, M.Pair(M.Char("?ts"), empty))
+        productions = M.Pair(
+            Gmod.BinaryProduction(
+                det, sp_cat, detb, M.Pair(var_t1, M.Pair(var_t2, empty)),
+            )(),
+            M.Pair(
+                Gmod.BinaryProduction(
+                    detb, noun, np_cat, M.Pair(var_t1, M.Pair(var_t2, empty)),
+                )(),
+                M.Pair(
+                    Gmod.BinaryProduction(
+                        sp_cat,
+                        noun,
+                        spn_cat,
+                        M.Pair(var_ts, M.Pair(var_ts, empty)),
+                    )(),
+                    empty,
+                ),
+            ),
+        )
+
+        engine = Gmod.RecogniseForms(steps, arcs, senses, root, productions)
+        result = engine()
+        readings = M.Head(result)()
+        agenda_term = M.Head(M.Tail(M.Tail(result)())())()
+
+        expected_detb_meaning = M.Pair(mean_a, M.Pair(mean_sp, empty))
+        expected_np_meaning = M.Pair(
+            expected_detb_meaning, M.Pair(mean_prime, empty),
+        )
+        expected_det = Gmod.Reading(det, c0, c1, mean_a)()
+        expected_sp = Gmod.Reading(sp_cat, c1, c2, mean_sp)()
+        expected_noun = Gmod.Reading(noun, c2, c7, mean_prime)()
+        expected_detb = Gmod.Reading(
+            detb, c0, c2, expected_detb_meaning,
+        )()
+        expected_np = Gmod.Reading(np_cat, c0, c7, expected_np_meaning)()
+
+        reading_count = "0"
+        spn_shared = M.false_value
+        spn_seen = M.false_value
+        remaining = readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading = M.Head(remaining)()
+            reading_count = Gmod.GMPSuccText(reading_count)()
+            category = M.Head(M.Tail(reading)())()
+            if M.IdentityCompare(category, spn_cat)() is M.truth_value:
+                spn_seen = M.truth_value
+                meaning = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(reading)())())())(),
+                )()
+                spn_shared = M.IdentityCompare(
+                    M.Head(meaning)(), M.Head(M.Tail(meaning)())(),
+                )()
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if Gmod.GMPEqualText(reading_count, "6")() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_det)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_sp)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_noun)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_detb)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_np)() is M.false_value:
+            self.result = M.false_value
+        elif spn_seen is M.false_value:
+            self.result = M.false_value
+        elif spn_shared is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(agenda_term)())(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(engine.freshen_count_text, "3")() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsLawTerm(engine.compose_law)() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ChartParserTest(M.Edge):
+    """The formal notation reads by chart, and the chart is not its parser.
+
+    Signatures become productions and the notation's brackets and commas
+    are words inside them, so nesting, arity and refusal are all one
+    fact: whether some production spans the input. The last check writes
+    a production the signature generator would never emit -- prefix, no
+    brackets, recursive -- and parses it through the same saturation,
+    which is the difference between a grammar engine and a reader for
+    one notation.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        signatures = M.Pair(
+            Gmod.ConstructorSignature(M.Char("mul"), M.ExprMulLabel, M.two)(),
+            M.Pair(
+                Gmod.ConstructorSignature(
+                    M.Char("divides"), Lmod.DivideLabel, M.two,
+                )(),
+                empty,
+            ),
+        )
+
+        flat_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("two"),
+                    M.Pair(
+                        M.Char(","),
+                        M.Pair(M.Char("three"), M.Pair(M.Char(")"), empty)),
+                    ),
+                ),
+            ),
+        )
+        nested_chain = M.Pair(
+            M.Char("divides"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("one"),
+                    M.Pair(
+                        M.Char(","),
+                        M.Pair(
+                            M.Char("mul"),
+                            M.Pair(
+                                M.Char("("),
+                                M.Pair(
+                                    M.Char("two"),
+                                    M.Pair(
+                                        M.Char(","),
+                                        M.Pair(
+                                            M.Char("three"),
+                                            M.Pair(
+                                                M.Char(")"),
+                                                M.Pair(M.Char(")"), empty),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        arity_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(")"), empty)),
+            ),
+        )
+        unsignatured_chain = M.Pair(
+            M.Char("notaword"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(")"), empty)),
+            ),
+        )
+        unbalanced_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(","), empty)),
+            ),
+        )
+        prefix_chain = M.Pair(
+            M.Char("root"),
+            M.Pair(M.Char("root"), M.Pair(M.Char("nine"), empty)),
+        )
+
+        flat_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(flat_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(flat_read)())()
+        flat_terms = M.Head(flat_read)()
+
+        nested_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(nested_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(nested_read)())()
+        nested_terms = M.Head(nested_read)()
+
+        arity_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(arity_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(arity_read)())()
+        arity_terms = M.Head(arity_read)()
+
+        unsignatured_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(unsignatured_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(unsignatured_read)())()
+        unsignatured_terms = M.Head(unsignatured_read)()
+
+        unbalanced_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(unbalanced_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(unbalanced_read)())()
+        unbalanced_terms = M.Head(unbalanced_read)()
+
+        # A grammar no signature could have produced: one symbol, one
+        # recursive slot, no brackets. Nothing about the engine changes.
+        prefix_variable = M.Pair(M.VarTag, M.Pair(M.Atom(), empty))
+        prefix_production = Gmod.Production(
+            Gmod.CHART_TERM_CATEGORY,
+            M.Pair(
+                Gmod.WordSymbol(M.Char("root"))(),
+                M.Pair(
+                    Gmod.CategorySymbol(
+                        Gmod.CHART_TERM_CATEGORY, prefix_variable,
+                    )(),
+                    empty,
+                ),
+            ),
+            M.Pair(M.SqrtLabel, M.Pair(prefix_variable, empty)),
+        )()
+        prefix_chart = Gmod.ChartSaturate(
+            M.Pair(prefix_production, empty),
+            Gmod.ChartSeedConstituents(
+                M.Head(M.Tail(vocabulary)())(),
+                M.Head(M.Tail(M.Tail(vocabulary)())())(),
+                Gmod.CHART_TERM_CATEGORY,
+                prefix_chain,
+            )(),
+            Gmod.ChartCells(prefix_chain)(),
+        )
+        prefix_terms = Gmod.ChartSpanningTerms(
+            prefix_chart(), Gmod.CHART_TERM_CATEGORY, prefix_chain,
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(flat_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(flat_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(flat_terms)())(),
+            M.ExprMulLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Head(flat_terms)())())(),
+            M.two,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Tail(M.Head(flat_terms)())())())(),
+            M.three,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(nested_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(nested_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(nested_terms)())(),
+            Lmod.DivideLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Head(nested_terms)())())(),
+            M.one,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(
+                M.Head(M.Tail(M.Tail(M.Head(nested_terms)())())())(),
+            )(),
+            M.ExprMulLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(arity_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unsignatured_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unbalanced_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(prefix_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(prefix_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(prefix_terms)())(),
+            M.SqrtLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(M.Tail(M.Head(prefix_terms)())())())(),
+            M.SqrtLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            prefix_chart.saturated,
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ConversePropositionTest(M.Edge):
     """Phase 7: Converse evaluates equality and retains IsReal query terms."""
 
@@ -13453,6 +14249,54 @@ def install_default_tests(graph):
             "toy_correspondence_round_trip_test",
             empty,
             ToyCorrespondenceRoundTripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "reading_policy_test",
+            empty,
+            ReadingPolicyTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "deduction_law_test",
+            empty,
+            DeductionLawTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "recognise_forms_test",
+            empty,
+            RecogniseFormsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "freshen_template_test",
+            empty,
+            FreshenTemplateTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "grammar_composition_test",
+            empty,
+            GrammarCompositionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "chart_parser_test",
+            empty,
+            ChartParserTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

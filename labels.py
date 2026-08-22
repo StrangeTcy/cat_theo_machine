@@ -1447,6 +1447,82 @@ class DefinitionCountedLabel(ConstructorLabel):
     pass
 
 
+class ProductionLabel(ConstructorLabel):
+    pass
+
+
+class WordSymbolLabel(ConstructorLabel):
+    pass
+
+
+class CategorySymbolLabel(ConstructorLabel):
+    pass
+
+
+class ConstituentLabel(ConstructorLabel):
+    pass
+
+
+class ReadingPolicyLabel(ConstructorLabel):
+    pass
+
+
+class ObservedSymbolStepLabel(ConstructorLabel):
+    pass
+
+
+class FormArcLabel(ConstructorLabel):
+    pass
+
+
+class FormSenseLabel(ConstructorLabel):
+    pass
+
+
+class FormScanLabel(ConstructorLabel):
+    pass
+
+
+class ReadingLabel(ConstructorLabel):
+    pass
+
+
+class IndexSpecLabel(ConstructorLabel):
+    pass
+
+
+class DeductionPlanLabel(ConstructorLabel):
+    pass
+
+
+class DeltaAgendaLabel(ConstructorLabel):
+    pass
+
+
+class IndexedFiringLabel(ConstructorLabel):
+    pass
+
+
+class LexiconRootLabel(ConstructorLabel):
+    pass
+
+
+class ObservedByLabel(ConstructorLabel):
+    pass
+
+
+class BinaryProductionLabel(ConstructorLabel):
+    pass
+
+
+class FreshenedLabel(ConstructorLabel):
+    pass
+
+
+class ComposeMeaningLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1807,6 +1883,25 @@ DistinctLabel = DistinctLabel()
 SignatureLabel = SignatureLabel()
 DefinitionGenusLabel = DefinitionGenusLabel()
 DefinitionCountedLabel = DefinitionCountedLabel()
+ProductionLabel = ProductionLabel()
+WordSymbolLabel = WordSymbolLabel()
+CategorySymbolLabel = CategorySymbolLabel()
+ConstituentLabel = ConstituentLabel()
+ReadingPolicyLabel = ReadingPolicyLabel()
+ObservedSymbolStepLabel = ObservedSymbolStepLabel()
+FormArcLabel = FormArcLabel()
+FormSenseLabel = FormSenseLabel()
+FormScanLabel = FormScanLabel()
+ReadingLabel = ReadingLabel()
+IndexSpecLabel = IndexSpecLabel()
+DeductionPlanLabel = DeductionPlanLabel()
+DeltaAgendaLabel = DeltaAgendaLabel()
+IndexedFiringLabel = IndexedFiringLabel()
+LexiconRootLabel = LexiconRootLabel()
+ObservedByLabel = ObservedByLabel()
+BinaryProductionLabel = BinaryProductionLabel()
+FreshenedLabel = FreshenedLabel()
+ComposeMeaningLabel = ComposeMeaningLabel()
 
 
 def sync_from_namespace(namespace):
@@ -1814,6 +1909,25 @@ def sync_from_namespace(namespace):
         "SignatureLabel",
         "DefinitionGenusLabel",
         "DefinitionCountedLabel",
+        "ProductionLabel",
+        "WordSymbolLabel",
+        "CategorySymbolLabel",
+        "ConstituentLabel",
+        "ReadingPolicyLabel",
+        "ObservedSymbolStepLabel",
+        "FormArcLabel",
+        "FormSenseLabel",
+        "FormScanLabel",
+        "ReadingLabel",
+        "IndexSpecLabel",
+        "DeductionPlanLabel",
+        "DeltaAgendaLabel",
+        "IndexedFiringLabel",
+        "LexiconRootLabel",
+        "ObservedByLabel",
+        "BinaryProductionLabel",
+        "FreshenedLabel",
+        "ComposeMeaningLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",
