@@ -2178,7 +2178,13 @@ class SearchBFS(Search):
             if M.IdentityCompare(memo_status, SearchSuccessLabel)() is M.truth_value:
                 memo_plan = SearchMemoEntryPlan(memo_hit)()
                 self._stage_debug("memo hit")
-                return self._reverse(M.Pair(memo_plan, plan_rev), M.EmptyList)
+                # memo_plan is a forward plan chain. Splice its items after the
+                # reversed in-progress plan rather than nesting the whole chain
+                # as one item: BuildDerivation has no branch for a nested plan
+                # chain, and _apply_theorem_rule_at_root then treats the chain
+                # as a rule, reaching RuleReplacement(CompiledRuleRaw(chain))
+                # and dereferencing .inputs on a bare Pair.
+                return self._reverse(plan_rev, memo_plan)
             self._stage_debug("memo failure hit")
             return M.EmptyList
 
