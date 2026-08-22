@@ -6498,6 +6498,8 @@ class DefinitionProductionTest(M.Edge):
         nat_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())()
         divisor_role = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())()
         alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+        adj_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())())()
         symbols = {}
         alphabet_walker = alphabet
         while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
@@ -6521,6 +6523,36 @@ class DefinitionProductionTest(M.Edge):
         steps = M.Reverse(steps_reversed)()
 
         engine = Gmod.RecogniseForms(steps, arcs, senses, root, productions)
+        gap = Gmod.LexicalGap(
+            M.Head(engine.result)(), productions, spc_category,
+        )()
+        gap_symbols = empty
+        gap_start = M.Head(gap)()
+        gap_end = M.Head(M.Tail(gap)())()
+        gap_walker = gap_end
+        while M.IdentityCompare(gap_walker, gap_start)() is M.false_value:
+            step_back = empty
+            search = steps
+            while M.IdentityCompare(search, empty)() is M.false_value:
+                candidate_step = M.Head(search)()
+                if M.IdentityCompare(
+                    Gmod.ObservedStepAfter(candidate_step)(), gap_walker,
+                )() is M.truth_value:
+                    step_back = candidate_step
+                    search = empty
+                else:
+                    search = M.Tail(search)()
+            gap_symbols = M.Pair(
+                Gmod.ObservedStepSymbol(step_back)(), gap_symbols,
+            )
+            gap_walker = Gmod.ObservedStepBefore(step_back)()
+        provisional = Gmod.ProvisionalWord(
+            root, gap_symbols,
+            M.Head(M.Tail(M.Tail(gap)())())(), prime_concept,
+        )()
+        engine.Learn(
+            M.Head(provisional)(), M.Pair(M.Head(M.Tail(provisional)())(), empty),
+        )
         result = engine()
         readings = M.Head(result)()
         agenda_term = M.Head(M.Tail(M.Tail(result)())())()
@@ -6545,7 +6577,8 @@ class DefinitionProductionTest(M.Edge):
                     whole = meaning
 
         expected_definiendum = Gmod.Definiendum(
-            prime_concept, Gmod.CategoryTerm(nat_category)(),
+            Gmod.Hole(prime_concept, empty, Lmod.NoDefinitionInstalledLabel)(),
+            Gmod.CategoryTerm(nat_category)(),
         )()
 
         selves = []
@@ -6768,15 +6801,59 @@ class IncrementalParseTest(M.Edge):
             cursor_index[cursors[i].id] = i
         utterance = M.Char("utt:definition-line")
 
+        steps_reversed = empty
+        for i in range(len(text)):
+            steps_reversed = M.Pair(
+                Gmod.ObservedSymbolStep(
+                    utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+                )(),
+                steps_reversed,
+            )
+        steps = M.Reverse(steps_reversed)()
         engine = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
 
-        mid_np = M.false_value
-        mid_definitions = "0"
         for i in range(26):
             engine.Observe(utterance, cursors[i], symbols[text[i]], cursors[i + 1])
             engine.Drain()
+        mid_gap = Gmod.LexicalGap(
+            M.Head(engine.result)(), productions, M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())(),
+        )()
+        mid_gap_is_adjective = M.false_value
+        if M.IdentityCompare(mid_gap, empty)() is M.false_value:
+            if M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(mid_gap)())())(), M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())())(),
+            )() is M.truth_value:
+                mid_gap_is_adjective = M.truth_value
+        mid_symbols = empty
+        gap_start = M.Head(mid_gap)()
+        gap_end = M.Head(M.Tail(mid_gap)())()
+        gap_walker = gap_end
+        while M.IdentityCompare(gap_walker, gap_start)() is M.false_value:
+            step_back = empty
+            search = steps
+            while M.IdentityCompare(search, empty)() is M.false_value:
+                candidate_step = M.Head(search)()
+                if M.IdentityCompare(
+                    Gmod.ObservedStepAfter(candidate_step)(), gap_walker,
+                )() is M.truth_value:
+                    step_back = candidate_step
+                    search = empty
+                else:
+                    search = M.Tail(search)()
+            mid_symbols = M.Pair(
+                Gmod.ObservedStepSymbol(step_back)(), mid_symbols,
+            )
+            gap_walker = Gmod.ObservedStepBefore(step_back)()
+        provisional = Gmod.ProvisionalWord(
+            root, mid_symbols,
+            M.Head(M.Tail(M.Tail(mid_gap)())())(), M.Char("prime"),
+        )()
+        engine.Learn(
+            M.Head(provisional)(), M.Pair(M.Head(M.Tail(provisional)())(), empty),
+        )
         mid_readings = M.Head(engine.result)()
         mid_agenda = M.Head(M.Tail(M.Tail(engine.result)())())()
+        mid_np = M.false_value
         remaining = mid_readings
         while M.IdentityCompare(remaining, empty)() is M.false_value:
             reading = M.Head(remaining)()
@@ -6821,7 +6898,9 @@ class IncrementalParseTest(M.Edge):
                     presupposition_over_self = M.truth_value
 
         self.result = M.truth_value
-        if mid_np is M.false_value:
+        if mid_gap_is_adjective is M.false_value:
+            self.result = M.false_value
+        elif mid_np is M.false_value:
             self.result = M.false_value
         elif M.IdentityCompare(
             M.Head(M.Tail(mid_agenda)())(), empty,
@@ -6840,6 +6919,208 @@ class IncrementalParseTest(M.Edge):
         elif Gmod.GMPEqualText(
             engine.facts_inserted_text, engine.delta_popped_text,
         )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LexicalGrowthTest(M.Edge):
+    """The loop: a word that is not a form becomes one, through use.
+
+    The fragment carries no entry for its own definiendum -- no
+    hand-authored prime vocabulary exists. The line parses to
+    quiescence and leaves a word-shaped hole between two spaces; the
+    grammar reads backwards across the boundary and says the hole
+    wants an adjective; ProvisionalWord turns the hole into arcs and a
+    sense whose meaning is a Hole; Learn feeds them through the delta
+    agenda -- sixty-three facts, no re-observation, no restart -- and
+    the chart completes: three definition readings, the spanning one
+    well formed, NonNegative over the binder's self, Divides(one,
+    self), ExactFillers over the same self, and the definiendum itself
+    the hole that names the new word. A second engine built with the
+    promoted sense -- the same arcs, the word's concept atom as the
+    meaning -- parses the line again with no gap at all and the
+    concept itself as definiendum.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        text = "definition: a prime number is divisible only by one and itself"
+
+        bundle = Gmod.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        prime_concept = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+        adj_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())())()
+
+        symbols = {}
+        alphabet_walker = alphabet
+        while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
+            symbol_atom = M.Head(alphabet_walker)()
+            symbols[symbol_atom()] = symbol_atom
+            alphabet_walker = M.Tail(alphabet_walker)()
+
+        cursors = {}
+        cursor_index = {}
+        for i in range(len(text) + 1):
+            cursors[i] = M.GMPRep(str(i))
+            cursor_index[cursors[i].id] = i
+        utterance = M.Char("utt:definition-line")
+
+        engine = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+        for i in range(len(text)):
+            engine.Observe(
+                utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+            )
+        engine.Drain()
+
+        gap = Gmod.LexicalGap(
+            M.Head(engine.result)(), productions, spc_category,
+        )()
+        gap_is_adjective = M.false_value
+        if M.IdentityCompare(gap, empty)() is M.false_value:
+            if M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(gap)())())(), adj_category,
+            )() is M.truth_value:
+                gap_is_adjective = M.truth_value
+
+        steps_reversed = empty
+        for i in range(len(text)):
+            steps_reversed = M.Pair(
+                Gmod.ObservedSymbolStep(
+                    utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+                )(),
+                steps_reversed,
+            )
+        steps = M.Reverse(steps_reversed)()
+        gap_symbols = empty
+        gap_start = M.Head(gap)()
+        gap_end = M.Head(M.Tail(gap)())()
+        gap_walker = gap_end
+        while M.IdentityCompare(gap_walker, gap_start)() is M.false_value:
+            step_back = empty
+            search = steps
+            while M.IdentityCompare(search, empty)() is M.false_value:
+                candidate_step = M.Head(search)()
+                if M.IdentityCompare(
+                    Gmod.ObservedStepAfter(candidate_step)(), gap_walker,
+                )() is M.truth_value:
+                    step_back = candidate_step
+                    search = empty
+                else:
+                    search = M.Tail(search)()
+            gap_symbols = M.Pair(
+                Gmod.ObservedStepSymbol(step_back)(), gap_symbols,
+            )
+            gap_walker = Gmod.ObservedStepBefore(step_back)()
+
+        facts_before = engine.facts_inserted_text
+        provisional = Gmod.ProvisionalWord(
+            root, gap_symbols, adj_category, prime_concept,
+        )()
+        engine.Learn(
+            M.Head(provisional)(), M.Pair(M.Head(M.Tail(provisional)())(), empty),
+        )
+        facts_after = engine.facts_inserted_text
+
+        readings = M.Head(engine.result)()
+        definition_count = "0"
+        counting = readings
+        while M.IdentityCompare(counting, empty)() is M.false_value:
+            reading = M.Head(counting)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), def_category,
+            )() is M.truth_value:
+                definition_count = Gmod.GMPSuccText(definition_count)()
+            counting = M.Tail(counting)()
+
+        top = Gmod.SpanningDefinitionReading(
+            readings, def_category, cursors[0], cursors[len(text)],
+        )()
+        phase_one_ok = M.false_value
+        if M.IdentityCompare(top, empty)() is M.false_value:
+            if Gmod.DefinitionNodeWellFormed(top)() is M.truth_value:
+                concept = M.Head(
+                    M.Tail(Gmod.DefinitionNodeDefiniendum(top)())(),
+                )()
+                if M.IsPair(concept)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(concept)(), Lmod.HoleLabel,
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(M.Tail(concept)())(), prime_concept,
+                        )() is M.truth_value:
+                            phase_one_ok = M.truth_value
+        dependencies = empty
+        if M.IdentityCompare(top, empty)() is M.false_value:
+            holed = Gmod.PredicateHoles(
+                Gmod.DefinitionNodeConditions(top)(),
+                M.Pair(Lmod.NonNegativeLabel, empty),
+            )()
+            dependencies = M.Head(M.Tail(holed)())()
+
+        final_state = M.Head(M.Tail(M.Tail(provisional)())())()
+        permanent_sense = Gmod.FormSense(final_state, adj_category, prime_concept)()
+        second = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+        second.Learn(M.Head(provisional)(), M.Pair(permanent_sense, empty))
+        for i in range(len(text)):
+            second.Observe(
+                utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+            )
+        second.Drain()
+        second_gap = Gmod.LexicalGap(
+            M.Head(second.result)(), productions, spc_category,
+        )()
+        second_definitions = "0"
+        counting = M.Head(second.result)()
+        while M.IdentityCompare(counting, empty)() is M.false_value:
+            reading = M.Head(counting)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), def_category,
+            )() is M.truth_value:
+                second_definitions = Gmod.GMPSuccText(second_definitions)()
+            counting = M.Tail(counting)()
+        second_top = Gmod.SpanningDefinitionReading(
+            M.Head(second.result)(), def_category, cursors[0], cursors[len(text)],
+        )()
+        phase_two_ok = M.false_value
+        if M.IdentityCompare(second_gap, empty)() is M.truth_value:
+            if M.IdentityCompare(second_top, empty)() is M.false_value:
+                concept_two = M.Head(
+                    M.Tail(Gmod.DefinitionNodeDefiniendum(second_top)())(),
+                )()
+                if M.IdentityCompare(concept_two, prime_concept)() is M.truth_value:
+                    phase_two_ok = M.truth_value
+
+        self.result = M.truth_value
+        if gap_is_adjective is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(definition_count, "3")() is M.false_value:
+            self.result = M.false_value
+        elif phase_one_ok is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(dependencies)(), Lmod.DividesLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPLessText(facts_before, facts_after)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(second_definitions, "3")() is M.false_value:
+            self.result = M.false_value
+        elif phase_two_ok is M.false_value:
             self.result = M.false_value
         elif Gmod.GMPEqualText(
             engine.full_store_enumerations_text, "0",
@@ -14977,6 +15258,14 @@ def install_default_tests(graph):
             "incremental_parse_test",
             empty,
             IncrementalParseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "lexical_growth_test",
+            empty,
+            LexicalGrowthTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
