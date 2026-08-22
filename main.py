@@ -1625,7 +1625,20 @@ def run_talk_mode(sentence: str = None):
                 cursors[0], cursors[len(line)],
             )()
         conditions = G.DefinitionNodeConditions(top)()
+        # A predicate is defined when something says what it means.
+        # NonNegative is structural; everything else earns its place
+        # from the pack-concept index -- the constructors that HEAD
+        # rules in the loaded packs. Divides stops being a hole the
+        # moment number-theory.pack's laws speak for it: the parsed
+        # definition and the proving substrate meet at one atom.
         defined = M.Pair(Lmod.NonNegativeLabel, M.EmptyList)
+        concept_walker = pack_concepts
+        while M.IdentityCompare(concept_walker, M.EmptyList)() is M.false_value:
+            defined = M.Pair(
+                M.Head(M.Tail(M.Head(concept_walker)())())(),
+                defined,
+            )
+            concept_walker = M.Tail(concept_walker)()
         holed = G.PredicateHoles(conditions, defined)()
         holed_conditions = M.Head(holed)()
         dependencies = M.Head(M.Tail(holed)())()
@@ -1807,9 +1820,156 @@ def run_talk_mode(sentence: str = None):
                 M.Head(engine.result)(), question_category,
                 cursors[0], cursors[len(line)],
             )()
+        def _render_term(term, depth=0):
+            if depth > 6:
+                return "..."
+            if M.IsPair(term)() is M.truth_value:
+                return ("(" + _render_term(M.Head(term)(), depth + 1) + " "
+                        + _render_term(M.Tail(term)(), depth + 1) + ")")
+            if term is M.EmptyList:
+                return "-"
+            spoken = _label_spoken(term)
+            if spoken != "something":
+                return spoken
+            try:
+                value = term()
+                if value is not None:
+                    return str(value)
+            except Exception:
+                pass
+            return "?"
+        _debug("question meaning: " + _render_term(top))
+        # The reading's subject rides in a Hole when the word was
+        # learned mid-parse: Hole(word, ...). A number word resolves to
+        # its Nat through the correspondence vocabulary -- the same
+        # atom the packs count with.
+        subject_word = M.EmptyList
+        if M.IsPair(top)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(top)(), Lmod.HoleLabel,
+            )() is M.truth_value:
+                subject_word = G.HolePredicate(top)()
+        if M.IdentityCompare(subject_word, M.EmptyList)() is M.truth_value:
+            return (
+                "The question parses, but I cannot find its subject."
+            )
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        subject_nat = G.CorrespondenceResolveWord(
+            word_entries,
+            G.Surface(M.Pair(subject_word, M.EmptyList))(),
+        )()
+        if M.IdentityCompare(subject_nat, M.EmptyList)() is M.truth_value:
+            return (
+                "The question parses, but '" + str(subject_word())
+                + "' does not name a number I know."
+            )
+        # Find the installed DefinitionNode. The learned version's node
+        # store holds installed chains as single elements; walk one
+        # level into any element that is itself a chain of terms.
+        definition_node = M.EmptyList
+        node_probe = G.GraphNodes(learned_version)()
+        while M.IdentityCompare(node_probe, M.EmptyList)() is M.false_value:
+            candidate = M.Head(node_probe)()
+            if M.IsPair(candidate)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(candidate)(), Lmod.DefinitionNodeLabel,
+                )() is M.truth_value:
+                    definition_node = candidate
+                elif M.IsPair(M.Head(candidate)())() is M.truth_value:
+                    inner_probe = candidate
+                    while M.IdentityCompare(
+                        inner_probe, M.EmptyList,
+                    )() is M.false_value:
+                        inner = M.Head(inner_probe)()
+                        if M.IsPair(inner)() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(inner)(), Lmod.DefinitionNodeLabel,
+                            )() is M.truth_value:
+                                definition_node = inner
+                        inner_probe = M.Tail(inner_probe)()
+            node_probe = M.Tail(node_probe)()
+        if M.IdentityCompare(definition_node, M.EmptyList)() is M.truth_value:
+            return (
+                "The question parses. I cannot answer it yet: no "
+                "installed definition speaks for it."
+            )
+        # The primality shape: an ExactFillers condition restricting
+        # Divides. Resolve its allowed chain -- number words through
+        # the vocabulary, the reflexive to the subject -- and ask
+        # ExactDivisorRestriction, the bounded walk whose refutation
+        # carries the offending divisor as a witness.
+        conditions = G.DefinitionNodeConditions(definition_node)()
+        exact = M.EmptyList
+        condition_probe = conditions
+        while M.IdentityCompare(
+            condition_probe, M.EmptyList,
+        )() is M.false_value:
+            condition = M.Head(condition_probe)()
+            if M.IsPair(condition)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(condition)(), Lmod.ExactFillersLabel,
+                )() is M.truth_value:
+                    exact = condition
+            condition_probe = M.Tail(condition_probe)()
+        if M.IdentityCompare(exact, M.EmptyList)() is M.truth_value:
+            return (
+                "The question parses and the definition is installed, "
+                "but its conditions carry no restriction I can check."
+            )
+        allowed = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(exact)())())())(),
+        )()
+        # In the installed node every reflexive was resolved to the
+        # binder's variable (ResolveReflexives): "itself" IS the bound
+        # self. Under this question the self is the subject, so the
+        # binder variable resolves to the subject's Nat; number words
+        # resolve through the vocabulary.
+        binder_variable = G.BinderSelf(
+            G.DefinitionNodeBinder(definition_node)(),
+        )()
+        allowed_nats = M.EmptyList
+        allowed_probe = allowed
+        while M.IdentityCompare(
+            allowed_probe, M.EmptyList,
+        )() is M.false_value:
+            item = M.Head(allowed_probe)()
+            resolved = M.EmptyList
+            if item is binder_variable:
+                resolved = subject_nat
+            elif M.IsPair(item)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(item)(), Lmod.ReflexiveLabel,
+                )() is M.truth_value:
+                    resolved = subject_nat
+            else:
+                resolved = G.CorrespondenceResolveWord(
+                    word_entries,
+                    G.Surface(M.Pair(item, M.EmptyList))(),
+                )()
+            if M.IdentityCompare(resolved, M.EmptyList)() is M.false_value:
+                allowed_nats = M.Pair(resolved, allowed_nats)
+            allowed_probe = M.Tail(allowed_probe)()
+        searched = G.ExactDivisorRestriction(
+            top, subject_nat, allowed_nats, registry,
+        )()
+        verdict = M.Head(searched)()
+        evidence = M.Head(M.Tail(searched)())()
+        if M.IdentityCompare(verdict, M.truth_value)() is M.truth_value:
+            return (
+                "Yes: every divisor of " + str(subject_word())
+                + " is among the allowed ones."
+            )
+        if M.IdentityCompare(verdict, M.false_value)() is M.truth_value:
+            witness = M.Head(M.Tail(M.Tail(evidence)())())()
+            witness_nat = M.Head(M.Tail(witness)())()
+            witness_rep = M.NatRepOf(witness_nat, registry)()
+            return (
+                "No: " + M.GMPRepText(witness_rep)() + " divides "
+                + str(subject_word())
+                + " and is not among the allowed divisors."
+            )
         return (
-            "The question parses. I cannot answer it yet: the definitions it "
-            "rests on are still open."
+            "The search hit its cap before deciding; I do not know."
         )
 
     def _handle_definition(line, record=True):
@@ -2014,9 +2174,24 @@ def run_talk_mode(sentence: str = None):
             for rule in data.get("rules") or ():
                 pattern = rule.get("pattern") or {}
                 pattern_head = ((pattern.get("call") or {}).get("head") or {}).get("sym")
-                for name in list(_heads(pattern)) + list(
+                premise_heads = []
+                for premise in rule.get("premises") or ():
+                    premise_head = (
+                        (premise.get("call") or {}).get("head") or {}
+                    ).get("sym")
+                    if premise_head:
+                        premise_heads.append(premise_head)
+                # A multi-premise rule fires on its premise heads the
+                # way a pattern rule fires on its pattern head: both
+                # make the constructor a concept rules speak for.
+                if pattern_head is None and premise_heads:
+                    pattern_head = premise_heads[0]
+                spec_heads = list(_heads(pattern)) + list(
                     _heads(rule.get("replacement") or {}),
-                ):
+                )
+                for premise in rule.get("premises") or ():
+                    spec_heads.extend(_heads(premise))
+                for name in spec_heads:
                     if not name.endswith("Label") or name not in namespace:
                         continue
                     spoken_word = M.Char(_spoken_from_label_name(name))

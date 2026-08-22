@@ -9196,6 +9196,19 @@ class DefinitionFragment(M.Edge):
         sym_u = M.Char("u")
         sym_v = M.Char("v")
         sym_y = M.Char("y")
+        # Letters no fragment word uses, carried so the gap loop can
+        # OBSERVE unknown words that contain them ("six", "eight",
+        # "twenty"): a word the lexicon lacks is a gap to learn, but a
+        # letter the alphabet lacks kills the whole line unread.
+        sym_c = M.Char("c")
+        sym_g = M.Char("g")
+        sym_h = M.Char("h")
+        sym_j = M.Char("j")
+        sym_k = M.Char("k")
+        sym_q = M.Char("q")
+        sym_w = M.Char("w")
+        sym_x = M.Char("x")
+        sym_z = M.Char("z")
         sym_colon = M.Char(":")
         sym_space = M.Char(" ")
 
@@ -9367,7 +9380,7 @@ class DefinitionFragment(M.Edge):
             walker = M.Tail(walker)()
         productions = M.Reverse(productions_reversed)()
 
-        alphabet = M.Pair(sym_a, M.Pair(sym_b, M.Pair(sym_d, M.Pair(sym_e, M.Pair(sym_f, M.Pair(sym_i, M.Pair(sym_l, M.Pair(sym_m, M.Pair(sym_n, M.Pair(sym_o, M.Pair(sym_p, M.Pair(sym_r, M.Pair(sym_s, M.Pair(sym_t, M.Pair(sym_u, M.Pair(sym_v, M.Pair(sym_y, M.Pair(sym_colon, M.Pair(sym_space, empty)))))))))))))))))))
+        alphabet = M.Pair(sym_a, M.Pair(sym_b, M.Pair(sym_c, M.Pair(sym_d, M.Pair(sym_e, M.Pair(sym_f, M.Pair(sym_g, M.Pair(sym_h, M.Pair(sym_i, M.Pair(sym_j, M.Pair(sym_k, M.Pair(sym_l, M.Pair(sym_m, M.Pair(sym_n, M.Pair(sym_o, M.Pair(sym_p, M.Pair(sym_q, M.Pair(sym_r, M.Pair(sym_s, M.Pair(sym_t, M.Pair(sym_u, M.Pair(sym_v, M.Pair(sym_w, M.Pair(sym_x, M.Pair(sym_y, M.Pair(sym_z, M.Pair(sym_colon, M.Pair(sym_space, empty))))))))))))))))))))))))))))
         self.result = M.Pair(
             arcs,
             M.Pair(
@@ -14926,6 +14939,218 @@ class InstalledCorrespondenceLaws(M.Edge):
 
 
 WITNESS_SEARCH_CAP = M.GMPRep("50")
+
+
+class WitnessSearchDivides(M.Edge):
+    """Bounded witness search for Divides(d, n): find k with d*k = n.
+
+    Returns Pair(verdict, Pair(evidence, Pair(registry, EmptyList))),
+    the WitnessSearchEven contract exactly: verdict truth/false/Empty,
+    evidence Confirmed(prop, Witness(k)) or Refuted(prop, no-witness),
+    refutation exact (candidates d*k grow monotonically past n), a cap
+    hit answering EmptyList because absence of search is not absence
+    of witness. d = 0 answers only when n = 0 (witness 0); the
+    candidate never grows, so the walk is capped rather than watched.
+    """
+
+    def __init__(self, prop_term, divisor, n, registry):
+        cap_text = M.GMPRepText(WITNESS_SEARCH_CAP)()
+        d_rep = M.NatRepOf(divisor, registry)()
+        n_rep = M.NatRepOf(n, registry)()
+        verdict = M.EmptyList
+        evidence = M.EmptyList
+        if M.IdentityCompare(d_rep, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(n_rep, M.EmptyList)() is M.false_value:
+                d_text = M.GMPRepText(d_rep)()
+                n_text = M.GMPRepText(n_rep)()
+                k_text = "0"
+                candidate_text = "0"
+                searching = M.truth_value
+                while M.IdentityCompare(
+                    searching, M.truth_value,
+                )() is M.truth_value:
+                    searching = M.false_value
+                    if GMPEqualText(k_text, cap_text)() is M.truth_value:
+                        pass
+                    elif GMPEqualText(candidate_text, n_text)() is M.truth_value:
+                        witness_pair = M.NatFromRep(
+                            M.GMPRep(k_text), registry,
+                        )()
+                        witness_nat = M.Head(witness_pair)()
+                        registry = M.Head(M.Tail(witness_pair)())()
+                        verdict = M.truth_value
+                        evidence = M.Pair(
+                            Lmod.ConfirmedLabel,
+                            M.Pair(
+                                prop_term,
+                                M.Pair(
+                                    M.Pair(
+                                        Lmod.WitnessLabel,
+                                        M.Pair(witness_nat, M.EmptyList),
+                                    ),
+                                    M.EmptyList,
+                                ),
+                            ),
+                        )
+                    elif GMPLessText(n_text, candidate_text)() is M.truth_value:
+                        verdict = M.false_value
+                        evidence = M.Pair(
+                            Lmod.RefutedLabel,
+                            M.Pair(
+                                prop_term,
+                                M.Pair(M.Char("no-witness"), M.EmptyList),
+                            ),
+                        )
+                    elif GMPEqualText(d_text, "0")() is M.truth_value:
+                        # 0*k never grows: n != 0 is refuted now, not
+                        # at the cap.
+                        verdict = M.false_value
+                        evidence = M.Pair(
+                            Lmod.RefutedLabel,
+                            M.Pair(
+                                prop_term,
+                                M.Pair(M.Char("no-witness"), M.EmptyList),
+                            ),
+                        )
+                    else:
+                        k_text = GMPSuccText(k_text)()
+                        candidate_text = GMPAddText(candidate_text, d_text)()
+                        searching = M.truth_value
+        self.result = M.Pair(
+            verdict,
+            M.Pair(evidence, M.Pair(registry, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                prop_term,
+                M.Pair(divisor, M.Pair(n, M.Pair(registry, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ExactDivisorRestriction(M.Edge):
+    """Check every divisor of n lies in the allowed chain.
+
+    The primality shape, spoken generally: the parsed definition says
+    'Divides restricted to exactly these fillers', and this edge asks
+    whether n satisfies it. Walks d = 1..n under WITNESS_SEARCH_CAP;
+    d divides n is decided by the same monotone multiple-walk as
+    WitnessSearchDivides; a divisor outside `allowed_nats` refutes with
+    that divisor as witness -- the counterexample is evidence, not a
+    silent false. All divisors allowed confirms. n's rep missing or
+    the cap reached before n answers EmptyList: not knowing is not no.
+
+    Returns Pair(verdict, Pair(evidence, Pair(registry, EmptyList))).
+    """
+
+    def __init__(self, prop_term, n, allowed_nats, registry):
+        cap_text = M.GMPRepText(WITNESS_SEARCH_CAP)()
+        n_rep = M.NatRepOf(n, registry)()
+        verdict = M.EmptyList
+        evidence = M.EmptyList
+        if M.IdentityCompare(n_rep, M.EmptyList)() is M.false_value:
+            n_text = M.GMPRepText(n_rep)()
+            allowed_texts = M.EmptyList
+            allowed_walker = allowed_nats
+            while M.IdentityCompare(
+                allowed_walker, M.EmptyList,
+            )() is M.false_value:
+                allowed_rep = M.NatRepOf(M.Head(allowed_walker)(), registry)()
+                if M.IdentityCompare(allowed_rep, M.EmptyList)() is M.false_value:
+                    allowed_texts = M.Pair(
+                        M.Char(M.GMPRepText(allowed_rep)()), allowed_texts,
+                    )
+                allowed_walker = M.Tail(allowed_walker)()
+            d_text = "1"
+            counterexample_text = ""
+            complete = M.false_value
+            walking = M.truth_value
+            while M.IdentityCompare(walking, M.truth_value)() is M.truth_value:
+                walking = M.false_value
+                if GMPEqualText(d_text, cap_text)() is M.truth_value:
+                    pass
+                elif GMPLessText(n_text, d_text)() is M.truth_value:
+                    complete = M.truth_value
+                else:
+                    multiple_text = d_text
+                    divides = M.false_value
+                    stepping = M.truth_value
+                    while M.IdentityCompare(
+                        stepping, M.truth_value,
+                    )() is M.truth_value:
+                        stepping = M.false_value
+                        if GMPEqualText(multiple_text, n_text)() is M.truth_value:
+                            divides = M.truth_value
+                        elif GMPLessText(multiple_text, n_text)() is M.truth_value:
+                            multiple_text = GMPAddText(multiple_text, d_text)()
+                            stepping = M.truth_value
+                    if M.IdentityCompare(divides, M.truth_value)() is M.truth_value:
+                        allowed_here = M.false_value
+                        allowed_probe = allowed_texts
+                        while M.IdentityCompare(
+                            allowed_probe, M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                M.Head(allowed_probe)(), M.Char(d_text),
+                            )() is M.truth_value:
+                                allowed_here = M.truth_value
+                                allowed_probe = M.EmptyList
+                            else:
+                                allowed_probe = M.Tail(allowed_probe)()
+                        if M.IdentityCompare(
+                            allowed_here, M.false_value,
+                        )() is M.truth_value:
+                            counterexample_text = d_text
+                    if counterexample_text == "":
+                        d_text = GMPSuccText(d_text)()
+                        walking = M.truth_value
+            if counterexample_text != "":
+                witness_pair = M.NatFromRep(
+                    M.GMPRep(counterexample_text), registry,
+                )()
+                witness_nat = M.Head(witness_pair)()
+                registry = M.Head(M.Tail(witness_pair)())()
+                verdict = M.false_value
+                evidence = M.Pair(
+                    Lmod.RefutedLabel,
+                    M.Pair(
+                        prop_term,
+                        M.Pair(
+                            M.Pair(
+                                Lmod.WitnessLabel,
+                                M.Pair(witness_nat, M.EmptyList),
+                            ),
+                            M.EmptyList,
+                        ),
+                    ),
+                )
+            elif M.IdentityCompare(complete, M.truth_value)() is M.truth_value:
+                verdict = M.truth_value
+                evidence = M.Pair(
+                    Lmod.ConfirmedLabel,
+                    M.Pair(
+                        prop_term,
+                        M.Pair(M.Char("all-divisors-allowed"), M.EmptyList),
+                    ),
+                )
+        self.result = M.Pair(
+            verdict,
+            M.Pair(evidence, M.Pair(registry, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                prop_term,
+                M.Pair(n, M.Pair(allowed_nats, M.Pair(registry, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 
 
 class WitnessSearchEven(M.Edge):

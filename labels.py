@@ -1563,10 +1563,6 @@ class BinderLabel(ConstructorLabel):
     pass
 
 
-class DividesLabel(ConstructorLabel):
-    pass
-
-
 class HoleLabel(ConstructorLabel):
     pass
 
@@ -1988,7 +1984,6 @@ DefinitionNodeLabel = DefinitionNodeLabel()
 DefiniendumLabel = DefiniendumLabel()
 CategoryLabel = CategoryLabel()
 BinderLabel = BinderLabel()
-DividesLabel = DividesLabel()
 HoleLabel = HoleLabel()
 NoDefinitionInstalledLabel = NoDefinitionInstalledLabel()
 ExactFillersLabel = ExactFillersLabel()
