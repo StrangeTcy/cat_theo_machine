@@ -567,6 +567,10 @@ def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, ru
 
 def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget=20):
     registry = M.FromContextGetConstructors(runtime.graph)()
+    # The planner/search budget is a machine Nat, never a host int. Every other
+    # caller of PlannerRun passes M.one / M.nine / M.five; the host default here
+    # leaked a Python int into SearchBurst._nat_text, which dereferences .id.
+    machine_budget = M.Head(M.NatFromRep(M.GMPRep(str(step_budget)), registry)())()
     problem_statement = TrainingRecordProblemStatement(record)()
     record_id_text = _record_id_text(problem_statement, registry)
     start = TrainingRecordMeaningStructure(record)()
@@ -601,7 +605,7 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
             methods = M.Pair(hint, M.EmptyList)
         problem = Plannermod.PlannerProblem(start, conclusion_goal, rules, heuristic, methods)()
         state = Plannermod.PlannerState(problem, registry)()
-        final_state = Plannermod.PlannerRun(runtime.graph, state, step_budget)()
+        final_state = Plannermod.PlannerRun(runtime.graph, state, machine_budget)()
         planner_root_status = _planner_root_status(final_state)
         if M.IdentityCompare(hint, M.EmptyList)() is M.false_value:
             alternative_status = _planner_alternative_status(final_state, hint)
