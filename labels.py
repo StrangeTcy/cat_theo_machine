@@ -1171,6 +1171,18 @@ class DividesLabel(ConstructorLabel):
     pass
 
 
+class InductionLabel(ConstructorLabel):
+    pass
+
+
+class BaseCaseLabel(ConstructorLabel):
+    pass
+
+
+class StepCaseLabel(ConstructorLabel):
+    pass
+
+
 class ModuloLabel(ConstructorLabel):
     pass
 
@@ -1551,6 +1563,9 @@ ConfirmedLabel = ConfirmedLabel()
 RefutedLabel = RefutedLabel()
 WitnessLabel = WitnessLabel()
 DividesLabel = DividesLabel()
+InductionLabel = InductionLabel()
+BaseCaseLabel = BaseCaseLabel()
+StepCaseLabel = StepCaseLabel()
 ModuloLabel = ModuloLabel()
 GcdLabel = GcdLabel()
 CostSavingsLabel = CostSavingsLabel()
@@ -2021,6 +2036,9 @@ def sync_from_namespace(namespace):
         "RefutedLabel",
         "WitnessLabel",
         "DividesLabel",
+        "InductionLabel",
+        "BaseCaseLabel",
+        "StepCaseLabel",
         "ModuloLabel",
         "GcdLabel",
         "CostSavingsLabel",

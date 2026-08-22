@@ -19,13 +19,14 @@ phi:
 # language. Rendering divisibility back into parity words is the talk
 # side's job, not a search rule.
 #
-# A third constraint gates the exercises: divides_sum and
-# divides_product are GENERATIVE -- they mint terms (Divides(3, 6+9)
-# enables Divides(3, 6+(6+9)) without end), so saturating search over
-# them diverges by construction (measured: OOM at 4 GB). They are
-# exercised by directed application -- one JoinPremises, one
-# ApplyKnowledgeRewrite, goal coverage checked -- the consumption
-# pattern rung 2's obligation discharge uses.
+# A third constraint gates the exercises: divides_sum,
+# divides_product, mul_one_fold and mul_succ_fold are GENERATIVE --
+# they mint terms (Divides(3, 6+9) enables Divides(3, 6+(6+9)) without
+# end), so saturating search over them diverges by construction
+# (measured: OOM at 4 GB). They are exercised by directed application
+# -- one JoinPremises, one ApplyKnowledgeRewrite, goal coverage
+# checked -- the consumption pattern rung 2's obligation discharge
+# uses.
 rules:
   - id: even_means_two_divides
     premises:
@@ -89,6 +90,60 @@ rules:
               - call:
                   head: {sym: ExprMulLabel}
                   args: [{var: b}, {var: d}]
+
+  # a = a * 1, folding direction only (the unfold would two-cycle).
+  # This is the base-case lemma of rung-2 induction at base one.
+  - id: mul_one_fold
+    premises:
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: x}, {var: a}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args:
+              - {var: x}
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args:
+                    - {var: a}
+                    - call:
+                        head: {sym: SuccLabel}
+                        args: [{sym: Zero}]
+
+  # Distribution at the fact level, folding direction only: a divisor
+  # of a*b + a divides a*(b+1). The unfold direction would pair with
+  # this into a two-cycle (the measured OOM class), so it stays out.
+  # This is the step-case lemma of rung-2 induction: the hypothesis
+  # Divides(x, Mul(a, k)) plus Divides(x, a) reach the successor
+  # through divides_sum and this fold.
+  - id: mul_succ_fold
+    premises:
+      - call:
+          head: {sym: DividesLabel}
+          args:
+            - {var: x}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - call:
+                      head: {sym: ExprMulLabel}
+                      args: [{var: a}, {var: b}]
+                  - {var: a}
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args:
+              - {var: x}
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args:
+                    - {var: a}
+                    - call:
+                        head: {sym: SuccLabel}
+                        args: [{var: b}]
 
   - id: zero_remainder_means_divides
     premises:
