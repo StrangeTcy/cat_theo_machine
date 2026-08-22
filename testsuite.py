@@ -5633,6 +5633,1739 @@ class ConverseDefaultModeTest(M.Edge):
         return self.result
 
 
+class ReadingPolicyTest(M.Edge):
+    """A typed line becomes words by the policy, not by string surgery.
+
+    One line exercises every decision the host replaces used to make:
+    a capital folded, a bracket and a comma standing alone as words, an
+    all-digit run spelled out, a word with a digit in it left whole, and
+    a full stop dropped. The policy is the chains in
+    DefaultReadingPolicy, so a pack changing them changes the reader.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        policy = Gmod.DefaultReadingPolicy()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+
+        read = Gmod.WordsOfText("Mul ( 64 , sqrt2 ).", policy, digit_words)()
+        expected = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("six"),
+                    M.Pair(
+                        M.Char("four"),
+                        M.Pair(
+                            M.Char(","),
+                            M.Pair(
+                                M.Char("sqrt2"),
+                                M.Pair(M.Char(")"), empty),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        blank = Gmod.WordsOfText("   ", policy, digit_words)()
+        surface = Gmod.SurfaceOfText("two plus two", policy, digit_words)()
+
+        self.result = M.truth_value
+        # Words are Chars, and Char identity is Compare -- TermEqual holds
+        # two Chars apart by object, which is why every word test in this
+        # file asks Compare.
+        if M.Compare(read, expected)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(blank, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(surface)(), Lmod.SurfaceLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Head(M.Tail(surface)())())(), M.Char("two"),
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class DeductionLawTest(M.Edge):
+    """A monotone law keeps its premises, adds its conclusion, and stops.
+
+    CompileMultiRuleToLaw deletes every premise element the conclusion
+    does not mention, which is right for a rewrite and wrong for a
+    deduction. CompileDeductionToLaw sets K to the whole of L, so the
+    firing is additive. SaturateLaws then fires it once and reaches a
+    fixed point: the second attempt is skipped because the conclusion is
+    already in the store, which is what stops a monotone law from firing
+    forever.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        variable = M.Pair(M.VarTag, M.Pair(M.Char("?x"), empty))
+        fact = M.Pair(M.SqrtLabel, M.Pair(M.nine, empty))
+        law = Gmod.CompileDeductionToLaw(
+            Pmod.MultiRule(
+                M.Pair(M.Pair(M.SqrtLabel, M.Pair(variable, empty)), empty),
+                M.Pair(M.ExprAddLabel, M.Pair(variable, M.Pair(variable, empty))),
+            ),
+        )()
+        encoded = Gmod.EncodeTermAsGraph(fact)()
+        version = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(), Gmod.GraphEdges(encoded)(), empty,
+        )()
+        saturation = Gmod.SaturateLaws(
+            version, M.Pair(law, empty), empty, Gmod.DanglingForbid()(),
+        )
+        after = saturation()
+        again = Gmod.SaturateLaws(
+            after, M.Pair(law, empty), empty, Gmod.DanglingForbid()(),
+        )
+        settled = again()
+        derived = M.Pair(M.ExprAddLabel, M.Pair(M.nine, M.Pair(M.nine, empty)))
+
+        self.result = M.truth_value
+        if Gmod.IsLawTerm(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(Gmod.LawLeft(law)())(),
+            Gmod.GraphNodes(Gmod.LawInterface(law)())(),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.LawMapsComplete(law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            saturation.saturated, M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(after)(), fact)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.GraphNodes(after)(), derived,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.GraphNodes(settled)(), Gmod.GraphNodes(after)(),
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class RecogniseFormsTest(M.Edge):
+    """The reader's deduction runs by index and agenda, not by search.
+
+    The same three-premise rule the generic matcher was asked for --
+    FormScan, ObservedSymbolStep, FormArc to FormScan -- is compiled to
+    two ordinary monotone laws and executed through DeductionPlan
+    records over red-black indexes. Every fact enters through one
+    insert that dedupes on the declared keys and queues a delta; the
+    agenda runs to empty, which is quiescence. Nothing enumerates the
+    store, and nothing asks the generic matcher anything.
+
+    Over "a prime" the shared trie yields the determiner "a" over
+    cursors zero to one and the noun "prime" over two to seven, and
+    nothing else: the space kills its scan at the root, and no other
+    path reaches a stated state.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        utterance = M.Char("utt:a prime")
+        sym_a = M.Char("a")
+        sym_space = M.Char(" ")
+        sym_p = M.Char("p")
+        sym_r = M.Char("r")
+        sym_i = M.Char("i")
+        sym_m = M.Char("m")
+        sym_e = M.Char("e")
+        c0 = M.GMPRep("0")
+        c1 = M.GMPRep("1")
+        c2 = M.GMPRep("2")
+        c3 = M.GMPRep("3")
+        c4 = M.GMPRep("4")
+        c5 = M.GMPRep("5")
+        c6 = M.GMPRep("6")
+        c7 = M.GMPRep("7")
+
+        steps = M.Pair(
+            Gmod.ObservedSymbolStep(utterance, c0, sym_a, c1)(),
+            M.Pair(
+                Gmod.ObservedSymbolStep(utterance, c1, sym_space, c2)(),
+                M.Pair(
+                    Gmod.ObservedSymbolStep(utterance, c2, sym_p, c3)(),
+                    M.Pair(
+                        Gmod.ObservedSymbolStep(utterance, c3, sym_r, c4)(),
+                        M.Pair(
+                            Gmod.ObservedSymbolStep(utterance, c4, sym_i, c5)(),
+                            M.Pair(
+                                Gmod.ObservedSymbolStep(
+                                    utterance, c5, sym_m, c6,
+                                )(),
+                                M.Pair(
+                                    Gmod.ObservedSymbolStep(
+                                        utterance, c6, sym_e, c7,
+                                    )(),
+                                    empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        root = M.Char("root")
+        s_a = M.Char("s:a")
+        s_p = M.Char("s:p")
+        s_pr = M.Char("s:pr")
+        s_pri = M.Char("s:pri")
+        s_prim = M.Char("s:prim")
+        s_prime = M.Char("s:prime")
+        arcs = M.Pair(
+            Gmod.FormArc(root, sym_a, s_a)(),
+            M.Pair(
+                Gmod.FormArc(root, sym_p, s_p)(),
+                M.Pair(
+                    Gmod.FormArc(s_p, sym_r, s_pr)(),
+                    M.Pair(
+                        Gmod.FormArc(s_pr, sym_i, s_pri)(),
+                        M.Pair(
+                            Gmod.FormArc(s_pri, sym_m, s_prim)(),
+                            M.Pair(
+                                Gmod.FormArc(s_prim, sym_e, s_prime)(),
+                                empty,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        det = M.Char("det")
+        noun = M.Char("noun")
+        mean_a = M.Char("sense:a")
+        mean_prime = M.Char("sense:prime")
+        senses = M.Pair(
+            Gmod.FormSense(s_a, det, mean_a)(),
+            M.Pair(Gmod.FormSense(s_prime, noun, mean_prime)(), empty),
+        )
+
+        engine = Gmod.RecogniseForms(steps, arcs, senses, root, empty)
+        result = engine()
+        readings = M.Head(result)()
+        firings = M.Head(M.Tail(result)())()
+        agenda_term = M.Head(M.Tail(M.Tail(result)())())()
+        agenda_facts = M.Head(M.Tail(agenda_term)())()
+
+        expected_det = Gmod.Reading(det, c0, c1, mean_a)()
+        expected_noun = Gmod.Reading(noun, c2, c7, mean_prime)()
+        reading_count = "0"
+        remaining = readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading_count = Gmod.GMPSuccText(reading_count)()
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if Gmod.IsLawTerm(engine.scan_law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsLawTerm(engine.sense_law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_det)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_noun)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(reading_count, "2")() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(firings, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(agenda_term)(), Lmod.DeltaAgendaLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(agenda_facts, empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPLessText("0", engine.index_lookups_text)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class FreshenTemplateTest(M.Edge):
+    """One application of a template gets fresh variables, correctly.
+
+    A template that uses one variable twice and another once must
+    receive the same fresh variable in the first two positions and a
+    different one in the third; the recognised VarTag shape must
+    survive; the scope must ride along; and a second application, under
+    another scope, must receive its own variables. The binding chain is
+    the provenance: the old variable maps to exactly the fresh variable
+    that replaced it.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        scope_one = M.Char("scope-one")
+        scope_two = M.Char("scope-two")
+        var_x = M.Pair(M.VarTag, M.Pair(M.Char("?x"), empty))
+        var_y = M.Pair(M.VarTag, M.Pair(M.Char("?y"), empty))
+        template = M.Pair(var_x, M.Pair(var_x, M.Pair(var_y, empty)))
+
+        first = Gmod.FreshenTemplate(template, scope_one)
+        second = Gmod.FreshenTemplate(template, scope_two)
+
+        first_one = M.Head(first.instantiated)()
+        first_two = M.Head(M.Tail(first.instantiated)())()
+        first_three = M.Head(M.Tail(M.Tail(first.instantiated)())())()
+        second_one = M.Head(second.instantiated)()
+
+        binding_found = M.false_value
+        walker = first.bindings_chain
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            entry = M.Head(walker)()
+            if M.IdentityCompare(M.Head(entry)(), var_x)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Tail(entry)(), first_one,
+                )() is M.truth_value:
+                    binding_found = M.truth_value
+            walker = M.Tail(walker)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(first_one, first_two)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(first_one, first_three)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IsPair(first_one)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(first_one)(), M.VarTag,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(first_one)())(), scope_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(first_one, second_one)() is M.truth_value:
+            self.result = M.false_value
+        elif binding_found is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GrammarCompositionTest(M.Edge):
+    """Readings compose by index, and every firing freshens its template.
+
+    Over "a prime", with the space a form of its own, the grammar
+
+        det sp -> detb      noun-final forms as before
+        detb noun -> np
+        sp noun -> spn      one template variable, used twice
+
+    must yield six readings: the three leaf readings, detb over zero to
+    two, np over zero to seven, and spn over one to seven. The spn
+    meaning is the same atom twice, which is the sharing FreshenTemplate
+    guarantees; the np meaning is the detb meaning inside it, which is
+    composition closing over its own output through the same indexes.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        utterance = M.Char("utt:a prime")
+        sym_a = M.Char("a")
+        sym_space = M.Char(" ")
+        sym_p = M.Char("p")
+        sym_r = M.Char("r")
+        sym_i = M.Char("i")
+        sym_m = M.Char("m")
+        sym_e = M.Char("e")
+        c0 = M.GMPRep("0")
+        c1 = M.GMPRep("1")
+        c2 = M.GMPRep("2")
+        c3 = M.GMPRep("3")
+        c4 = M.GMPRep("4")
+        c5 = M.GMPRep("5")
+        c6 = M.GMPRep("6")
+        c7 = M.GMPRep("7")
+
+        steps = M.Pair(
+            Gmod.ObservedSymbolStep(utterance, c0, sym_a, c1)(),
+            M.Pair(
+                Gmod.ObservedSymbolStep(utterance, c1, sym_space, c2)(),
+                M.Pair(
+                    Gmod.ObservedSymbolStep(utterance, c2, sym_p, c3)(),
+                    M.Pair(
+                        Gmod.ObservedSymbolStep(utterance, c3, sym_r, c4)(),
+                        M.Pair(
+                            Gmod.ObservedSymbolStep(utterance, c4, sym_i, c5)(),
+                            M.Pair(
+                                Gmod.ObservedSymbolStep(
+                                    utterance, c5, sym_m, c6,
+                                )(),
+                                M.Pair(
+                                    Gmod.ObservedSymbolStep(
+                                        utterance, c6, sym_e, c7,
+                                    )(),
+                                    empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        root = M.Char("root")
+        s_a = M.Char("s:a")
+        s_sp = M.Char("s:sp")
+        s_p = M.Char("s:p")
+        s_pr = M.Char("s:pr")
+        s_pri = M.Char("s:pri")
+        s_prim = M.Char("s:prim")
+        s_prime = M.Char("s:prime")
+        arcs = M.Pair(
+            Gmod.FormArc(root, sym_a, s_a)(),
+            M.Pair(
+                Gmod.FormArc(root, sym_space, s_sp)(),
+                M.Pair(
+                    Gmod.FormArc(root, sym_p, s_p)(),
+                    M.Pair(
+                        Gmod.FormArc(s_p, sym_r, s_pr)(),
+                        M.Pair(
+                            Gmod.FormArc(s_pr, sym_i, s_pri)(),
+                            M.Pair(
+                                Gmod.FormArc(s_pri, sym_m, s_prim)(),
+                                M.Pair(
+                                    Gmod.FormArc(s_prim, sym_e, s_prime)(),
+                                    empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        det = M.Char("det")
+        sp_cat = M.Char("sp")
+        noun = M.Char("noun")
+        detb = M.Char("detb")
+        np_cat = M.Char("np")
+        spn_cat = M.Char("spn")
+        mean_a = M.Char("sense:a")
+        mean_sp = M.Char("sense:sp")
+        mean_prime = M.Char("sense:prime")
+        senses = M.Pair(
+            Gmod.FormSense(s_a, det, mean_a)(),
+            M.Pair(
+                Gmod.FormSense(s_sp, sp_cat, mean_sp)(),
+                M.Pair(Gmod.FormSense(s_prime, noun, mean_prime)(), empty),
+            ),
+        )
+
+        var_t1 = M.Pair(M.VarTag, M.Pair(M.Char("?t1"), empty))
+        var_t2 = M.Pair(M.VarTag, M.Pair(M.Char("?t2"), empty))
+        var_ts = M.Pair(M.VarTag, M.Pair(M.Char("?ts"), empty))
+        productions = M.Pair(
+            Gmod.BinaryProduction(
+                det, sp_cat, detb, M.Pair(var_t1, M.Pair(var_t2, empty)),
+            )(),
+            M.Pair(
+                Gmod.BinaryProduction(
+                    detb, noun, np_cat, M.Pair(var_t1, M.Pair(var_t2, empty)),
+                )(),
+                M.Pair(
+                    Gmod.BinaryProduction(
+                        sp_cat,
+                        noun,
+                        spn_cat,
+                        M.Pair(var_ts, M.Pair(var_ts, empty)),
+                    )(),
+                    empty,
+                ),
+            ),
+        )
+
+        engine = Gmod.RecogniseForms(steps, arcs, senses, root, productions)
+        result = engine()
+        readings = M.Head(result)()
+        agenda_term = M.Head(M.Tail(M.Tail(result)())())()
+
+        expected_detb_meaning = M.Pair(mean_a, M.Pair(mean_sp, empty))
+        expected_np_meaning = M.Pair(
+            expected_detb_meaning, M.Pair(mean_prime, empty),
+        )
+        expected_det = Gmod.Reading(det, c0, c1, mean_a)()
+        expected_sp = Gmod.Reading(sp_cat, c1, c2, mean_sp)()
+        expected_noun = Gmod.Reading(noun, c2, c7, mean_prime)()
+        expected_detb = Gmod.Reading(
+            detb, c0, c2, expected_detb_meaning,
+        )()
+        expected_np = Gmod.Reading(np_cat, c0, c7, expected_np_meaning)()
+
+        reading_count = "0"
+        spn_shared = M.false_value
+        spn_seen = M.false_value
+        remaining = readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading = M.Head(remaining)()
+            reading_count = Gmod.GMPSuccText(reading_count)()
+            category = M.Head(M.Tail(reading)())()
+            if M.IdentityCompare(category, spn_cat)() is M.truth_value:
+                spn_seen = M.truth_value
+                meaning = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(reading)())())())(),
+                )()
+                spn_shared = M.IdentityCompare(
+                    M.Head(meaning)(), M.Head(M.Tail(meaning)())(),
+                )()
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if Gmod.GMPEqualText(reading_count, "6")() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_det)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_sp)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_noun)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_detb)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(readings, expected_np)() is M.false_value:
+            self.result = M.false_value
+        elif spn_seen is M.false_value:
+            self.result = M.false_value
+        elif spn_shared is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(agenda_term)())(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(engine.freshen_count_text, "3")() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsLawTerm(engine.compose_law)() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeTest(M.Edge):
+    """The destination exists: the prime definition, as a graph.
+
+    Hand-built, before any lexicon. The definiendum is prime over
+    Category(nat); one binder variable is allocated by FreshenTemplate
+    for this definition's scope; the conditions are NonNegative(self),
+    the hole where Divides waits, and the restriction "only" keeps as
+    scope. Every self is the same variable object; the term round-trips
+    through a snapshot with that sharing intact; the well-formedness
+    certificate accepts it and rejects a binder whose self is not a
+    variable; and the shape is declared with a ConstructorSignature the
+    formal reader turns into a production like any constructor's.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        scope = M.Char("definition-scope-1")
+        var_self = M.Pair(M.VarTag, M.Pair(M.Char("?self"), empty))
+        fresh = Gmod.FreshenTemplate(
+            M.Pair(var_self, M.Pair(var_self, empty)), scope,
+        )
+        fresh_one = M.Head(fresh.instantiated)()
+        fresh_two = M.Head(M.Tail(fresh.instantiated)())()
+
+        concept = M.Char("prime")
+        nat = M.Char("nat")
+        one = M.Char("one")
+
+        non_negative = M.Pair(
+            Lmod.NonNegativeLabel, M.Pair(fresh_one, empty),
+        )
+        hole = Gmod.Hole(
+            Lmod.DividesLabel,
+            M.Pair(one, M.Pair(fresh_one, empty)),
+            Lmod.NoDefinitionInstalledLabel,
+        )()
+        restriction = Gmod.ExactFillers(
+            Lmod.DividesLabel,
+            fresh_one,
+            M.Char("divisor"),
+            M.Pair(one, M.Pair(fresh_one, empty)),
+        )()
+        conditions = M.Pair(
+            non_negative, M.Pair(hole, M.Pair(restriction, empty)),
+        )
+        node = Gmod.DefinitionNode(
+            Gmod.Definiendum(concept, Gmod.CategoryTerm(nat)())(),
+            Gmod.Binder(scope, fresh_one)(),
+            conditions,
+        )()
+        broken = Gmod.DefinitionNode(
+            Gmod.Definiendum(concept, Gmod.CategoryTerm(nat)())(),
+            Gmod.Binder(scope, concept)(),
+            conditions,
+        )()
+
+        signature = Gmod.ConstructorSignature(
+            M.Char("definition"), Lmod.DefinitionNodeLabel, M.three,
+        )()
+        generated = Gmod.FormalProductions(
+            M.Pair(signature, empty), Gmod.CHART_TERM_CATEGORY, registry,
+        )()
+        productions = M.Head(generated)()
+        registry = M.Head(M.Tail(generated)())()
+
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        codec = SnapshotCodec(namespace)
+        snapshot = codec.capture_objects({"definition": node})
+        loaded = codec.load_snapshot(snapshot).roots["definition"]
+
+        loaded_self = Gmod.BinderSelf(Gmod.DefinitionNodeBinder(loaded)())()
+        loaded_conditions = Gmod.DefinitionNodeConditions(loaded)()
+        loaded_hole = M.Head(M.Tail(loaded_conditions)())()
+        loaded_hole_self = M.Head(
+            M.Tail(Gmod.HoleArguments(loaded_hole)())(),
+        )()
+        loaded_restriction = M.Head(M.Tail(M.Tail(loaded_conditions)())())()
+        loaded_restriction_self = M.Head(
+            M.Tail(M.Tail(loaded_restriction)())(),
+        )()
+        loaded_allowed = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(loaded_restriction)())())())(),
+        )()
+        loaded_allowed_self = M.Head(M.Tail(loaded_allowed)())()
+        loaded_definiendum = Gmod.DefinitionNodeDefiniendum(loaded)()
+        loaded_concept = M.Head(M.Tail(loaded_definiendum)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(fresh_one, fresh_two)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.DefinitionNodeWellFormed(node)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.DefinitionNodeWellFormed(broken)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.BinderSelf(Gmod.DefinitionNodeBinder(node)())(), fresh_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(Gmod.HoleArguments(hole)())())(), fresh_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(M.Tail(restriction)())())(), fresh_one,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(loaded, node, M.AllConstructors)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            loaded_hole_self, loaded_self,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            loaded_restriction_self, loaded_self,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            loaded_allowed_self, loaded_self,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(loaded_concept, one)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(productions, empty)() is M.truth_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LexicalSpansTest(M.Edge):
+    """The definition line, read by index: one reading per known form.
+
+    The client emits one ObservedSymbolStep per character of the whole
+    typed line -- colon and spaces included; nothing tokenizes. The
+    trie holds the four forms the plan names -- number, divisible, one,
+    itself -- so exactly those spans read, at the cursors an
+    independent scan of the line says they occupy, the agenda empties,
+    and nothing enumerates the store.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        text = "definition: a prime number is divisible only by one and itself"
+        words = ("number", "divisible", "one", "itself")
+
+        symbols = {}
+        for ch in set(text):
+            symbols[ch] = M.Char(ch)
+        cursors = {}
+        cursor_index = {}
+        for i in range(len(text) + 1):
+            cursors[i] = M.GMPRep(str(i))
+            cursor_index[cursors[i].id] = i
+
+        utterance = M.Char("utt:definition-line")
+        steps_reversed = empty
+        for i in range(len(text)):
+            steps_reversed = M.Pair(
+                Gmod.ObservedSymbolStep(
+                    utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+                )(),
+                steps_reversed,
+            )
+        steps = M.Reverse(steps_reversed)()
+
+        root = M.Char("root")
+        states = {}
+        arcs_reversed = empty
+        for word in words:
+            state = root
+            for ch in word:
+                key = (state.id, ch)
+                if key not in states:
+                    nxt = M.Char("st:" + word + ":" + ch)
+                    states[key] = nxt
+                    arcs_reversed = M.Pair(
+                        Gmod.FormArc(state, symbols[ch], nxt)(),
+                        arcs_reversed,
+                    )
+                state = states[key]
+            states[("final", word)] = state
+        arcs = M.Reverse(arcs_reversed)()
+
+        word_of_category = {}
+        senses_reversed = empty
+        categories = {
+            "number": "CategoryNoun",
+            "divisible": "RelAdj",
+            "one": "Numeral",
+            "itself": "ReflexivePron",
+        }
+        for word in words:
+            category = M.Char(categories[word])
+            word_of_category[category.id] = word
+            senses_reversed = M.Pair(
+                Gmod.FormSense(
+                    states[("final", word)], category, M.Char("meaning:" + word),
+                )(),
+                senses_reversed,
+            )
+        senses = M.Reverse(senses_reversed)()
+
+        engine = Gmod.RecogniseForms(steps, arcs, senses, root, empty)
+        result = engine()
+        readings = M.Head(result)()
+        agenda_term = M.Head(M.Tail(M.Tail(result)())())()
+
+        expected = set()
+        for i in range(len(text)):
+            for word in words:
+                if text.startswith(word, i):
+                    expected.add((word, i, i + len(word)))
+
+        found = set()
+        remaining = readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading = M.Head(remaining)()
+            category = M.Head(M.Tail(reading)())()
+            start_at = M.Head(M.Tail(M.Tail(reading)())())()
+            end_at = M.Head(M.Tail(M.Tail(M.Tail(reading)())())())()
+            found.add((
+                word_of_category[category.id],
+                cursor_index[start_at.id],
+                cursor_index[end_at.id],
+            ))
+            remaining = M.Tail(remaining)()
+
+        self.result = M.truth_value
+        if found != expected:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(agenda_term)())(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionProductionTest(M.Edge):
+    """The line becomes the definition graph: self bound, only scoped, holes named.
+
+    The fragment's grammar is twenty-one binary productions over the
+    thirteen forms of the lexicon. The adjective composes over the
+    category noun into a lexical noun phrase carrying the noun's
+    category and its presuppositions; "by" names the divisor role;
+    "itself" is a reflexive marker; the restriction production wraps
+    the role and the fillers; and the definition production's meaning
+    marker builds DefinitionNode with what no template can bind: one
+    scope and one fresh self per firing. The presuppositions become
+    conditions over that self, the reflexives among the fillers resolve
+    to it -- one variable object in the application and in the
+    restriction alike -- and "only" stays ExactFillers rather than
+    becoming a quantifier in the parser.
+
+    The line has three definition readings -- from "prime number",
+    from "a prime number", and from the whole line -- and the one
+    spanning the input carries exactly the conditions the schema test
+    built by hand: NonNegative(self), Divides(one, self),
+    ExactFillers(Divides, self, divisor, [one, self]). Marking
+    undefined predicates then holes Divides -- NonNegative is installed
+    by the geometry pack, ExactFillers is structure -- and the open
+    dependencies read off the formed graph are Divides alone. The
+    machine's answer stops being "I do not know the word divisible"
+    and becomes: the graph is formed, and it needs a definition of
+    Divides.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        text = "definition: a prime number is divisible only by one and itself"
+
+        bundle = Gmod.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        one = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())()
+        prime_concept = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())()
+        nat_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())()
+        divisor_role = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+        adj_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())())()
+        symbols = {}
+        alphabet_walker = alphabet
+        while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
+            symbol_atom = M.Head(alphabet_walker)()
+            symbols[symbol_atom()] = symbol_atom
+            alphabet_walker = M.Tail(alphabet_walker)()
+        cursors = {}
+        cursor_index = {}
+        for i in range(len(text) + 1):
+            cursors[i] = M.GMPRep(str(i))
+            cursor_index[cursors[i].id] = i
+        utterance = M.Char("utt:definition-line")
+        steps_reversed = empty
+        for i in range(len(text)):
+            steps_reversed = M.Pair(
+                Gmod.ObservedSymbolStep(
+                    utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+                )(),
+                steps_reversed,
+            )
+        steps = M.Reverse(steps_reversed)()
+
+        engine = Gmod.RecogniseForms(steps, arcs, senses, root, productions)
+        gap = Gmod.LexicalGap(
+            M.Head(engine.result)(), productions, spc_category,
+        )()
+        gap_symbols = empty
+        gap_start = M.Head(gap)()
+        gap_end = M.Head(M.Tail(gap)())()
+        gap_walker = gap_end
+        while M.IdentityCompare(gap_walker, gap_start)() is M.false_value:
+            step_back = empty
+            search = steps
+            while M.IdentityCompare(search, empty)() is M.false_value:
+                candidate_step = M.Head(search)()
+                if M.IdentityCompare(
+                    Gmod.ObservedStepAfter(candidate_step)(), gap_walker,
+                )() is M.truth_value:
+                    step_back = candidate_step
+                    search = empty
+                else:
+                    search = M.Tail(search)()
+            gap_symbols = M.Pair(
+                Gmod.ObservedStepSymbol(step_back)(), gap_symbols,
+            )
+            gap_walker = Gmod.ObservedStepBefore(step_back)()
+        provisional = Gmod.ProvisionalWord(
+            root, gap_symbols,
+            M.Head(M.Tail(M.Tail(gap)())())(), prime_concept,
+        )()
+        engine.Learn(
+            M.Head(provisional)(), M.Pair(M.Head(M.Tail(provisional)())(), empty),
+        )
+        result = engine()
+        readings = M.Head(result)()
+        agenda_term = M.Head(M.Tail(M.Tail(result)())())()
+
+        definitions = []
+        remaining = readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading = M.Head(remaining)()
+            category = M.Head(M.Tail(reading)())()
+            if M.IdentityCompare(category, def_category)() is M.truth_value:
+                definitions.append((
+                    M.Head(M.Tail(M.Tail(reading)())())(),
+                    M.Head(M.Tail(M.Tail(M.Tail(reading)())())())(),
+                    M.Head(M.Tail(M.Tail(M.Tail(M.Tail(reading)())())())())(),
+                ))
+            remaining = M.Tail(remaining)()
+
+        whole = empty
+        for start_at, end_at, meaning in definitions:
+            if cursor_index[start_at.id] == 0:
+                if cursor_index[end_at.id] == len(text):
+                    whole = meaning
+
+        expected_definiendum = Gmod.Definiendum(
+            Gmod.Hole(prime_concept, empty, Lmod.NoDefinitionInstalledLabel)(),
+            Gmod.CategoryTerm(nat_category)(),
+        )()
+
+        selves = []
+        for _, _, meaning in definitions:
+            selves.append(
+                Gmod.BinderSelf(Gmod.DefinitionNodeBinder(meaning)())(),
+            )
+        distinct_selves = M.truth_value
+        if M.IdentityCompare(selves[0], selves[1])() is M.truth_value:
+            distinct_selves = M.false_value
+        if M.IdentityCompare(selves[0], selves[2])() is M.truth_value:
+            distinct_selves = M.false_value
+
+        whole_well_formed = M.false_value
+        whole_definiendum_matches = M.false_value
+        whole_binder_self_is_var = M.false_value
+        conditions_match = M.false_value
+        holed_matches = M.false_value
+        dependencies_match = M.false_value
+        if M.IdentityCompare(whole, empty)() is M.false_value:
+            whole_well_formed = Gmod.DefinitionNodeWellFormed(whole)()
+            if M.TermEqual(
+                Gmod.DefinitionNodeDefiniendum(whole)(), expected_definiendum,
+            )() is M.truth_value:
+                whole_definiendum_matches = M.truth_value
+            whole_self = Gmod.BinderSelf(
+                Gmod.DefinitionNodeBinder(whole)(),
+            )()
+            if M.IsPair(whole_self)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(whole_self)(), M.VarTag,
+                )() is M.truth_value:
+                    whole_binder_self_is_var = M.truth_value
+
+            conditions = Gmod.DefinitionNodeConditions(whole)()
+            condition_one = M.Head(conditions)()
+            condition_two = M.Head(M.Tail(conditions)())()
+            condition_three = M.Head(M.Tail(M.Tail(conditions)())())()
+            condition_four = M.Tail(M.Tail(M.Tail(conditions)())())()
+            condition_one_ok = M.false_value
+            if M.IdentityCompare(
+                M.Head(condition_one)(), Lmod.NonNegativeLabel,
+            )() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(M.Tail(condition_one)())(), whole_self,
+                )() is M.truth_value:
+                    condition_one_ok = M.truth_value
+            condition_two_ok = M.false_value
+            if M.IdentityCompare(
+                M.Head(condition_two)(), Lmod.DividesLabel,
+            )() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(M.Tail(condition_two)())(), one,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(M.Tail(M.Tail(condition_two)())())(), whole_self,
+                    )() is M.truth_value:
+                        condition_two_ok = M.truth_value
+            condition_three_ok = M.false_value
+            if M.IdentityCompare(
+                M.Head(condition_three)(), Lmod.ExactFillersLabel,
+            )() is M.truth_value:
+                relation = M.Head(M.Tail(condition_three)())()
+                fixed = M.Head(M.Tail(M.Tail(condition_three)())())()
+                role = M.Head(M.Tail(M.Tail(M.Tail(condition_three)())())())()
+                allowed = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(condition_three)())())())(),
+                )()
+                if M.IdentityCompare(
+                    relation, Lmod.DividesLabel,
+                )() is M.truth_value:
+                    if M.IdentityCompare(fixed, whole_self)() is M.truth_value:
+                        if M.IdentityCompare(
+                            role, divisor_role,
+                        )() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(allowed)(), one,
+                            )() is M.truth_value:
+                                if M.IdentityCompare(
+                                    M.Head(M.Tail(allowed)())(), whole_self,
+                                )() is M.truth_value:
+                                    if M.IdentityCompare(
+                                        M.Tail(M.Tail(allowed)())(), empty,
+                                    )() is M.truth_value:
+                                        condition_three_ok = M.truth_value
+            if M.IdentityCompare(condition_four, empty)() is M.truth_value:
+                if condition_one_ok is M.truth_value:
+                    if condition_two_ok is M.truth_value:
+                        if condition_three_ok is M.truth_value:
+                            conditions_match = M.truth_value
+
+            holed = Gmod.PredicateHoles(
+                conditions, M.Pair(Lmod.NonNegativeLabel, empty),
+            )()
+            holed_conditions = M.Head(holed)()
+            holed_holes = M.Head(M.Tail(holed)())()
+            hole_two = M.Head(M.Tail(holed_conditions)())()
+            hole_two_arguments = M.Head(M.Tail(M.Tail(hole_two)())())()
+            holed_matches = M.truth_value
+            if M.IdentityCompare(
+                M.Head(hole_two)(), Lmod.HoleLabel,
+            )() is M.false_value:
+                holed_matches = M.false_value
+            elif M.IdentityCompare(
+                M.Head(M.Tail(hole_two)())(), Lmod.DividesLabel,
+            )() is M.false_value:
+                holed_matches = M.false_value
+            elif M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(M.Tail(hole_two)())())())(),
+                Lmod.NoDefinitionInstalledLabel,
+            )() is M.false_value:
+                holed_matches = M.false_value
+            elif M.IdentityCompare(
+                M.Head(M.Tail(hole_two_arguments)())(), whole_self,
+            )() is M.false_value:
+                holed_matches = M.false_value
+            elif M.IdentityCompare(
+                M.Head(holed_conditions)(), condition_one,
+            )() is M.false_value:
+                holed_matches = M.false_value
+            elif M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(holed_conditions)())())(),
+                condition_three,
+            )() is M.false_value:
+                holed_matches = M.false_value
+            elif M.IdentityCompare(
+                M.Head(holed_holes)(), Lmod.DividesLabel,
+            )() is M.false_value:
+                holed_matches = M.false_value
+
+            holed_node = Gmod.DefinitionNode(
+                Gmod.DefinitionNodeDefiniendum(whole)(),
+                Gmod.DefinitionNodeBinder(whole)(),
+                holed_conditions,
+            )()
+            dependencies = Gmod.DefinitionNodeOpenDependencies(holed_node)()
+            if Gmod.DefinitionNodeWellFormed(holed_node)() is M.truth_value:
+                if M.TermEqual(
+                    dependencies, M.Pair(Lmod.DividesLabel, empty),
+                )() is M.truth_value:
+                    dependencies_match = M.truth_value
+
+        self.result = M.truth_value
+        if len(definitions) != 3:
+            self.result = M.false_value
+        elif M.IdentityCompare(whole, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif whole_well_formed is M.false_value:
+            self.result = M.false_value
+        elif whole_definiendum_matches is M.false_value:
+            self.result = M.false_value
+        elif whole_binder_self_is_var is M.false_value:
+            self.result = M.false_value
+        elif conditions_match is M.false_value:
+            self.result = M.false_value
+        elif holed_matches is M.false_value:
+            self.result = M.false_value
+        elif dependencies_match is M.false_value:
+            self.result = M.false_value
+        elif distinct_selves is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(agenda_term)())(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class IncrementalParseTest(M.Edge):
+    """A conversation keeps arriving, and the parse is not repaid.
+
+    The engine starts with the fragment's lexicon and grammar and no
+    input. The client observes one symbol at a time and drains after
+    each: after "definition: a prime number" the noun phrase over
+    cursors fourteen to twenty-six already reads, the agenda is empty,
+    and no definition exists; after the rest of the line arrives the
+    three definition readings exist, the one spanning the input is
+    well formed with the presupposition over the binder's self, and
+    the fact count equals the batch parse of the same line -- nothing
+    was re-derived to catch up.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        text = "definition: a prime number is divisible only by one and itself"
+
+        bundle = Gmod.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+
+        symbols = {}
+        alphabet_walker = alphabet
+        while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
+            symbol_atom = M.Head(alphabet_walker)()
+            symbols[symbol_atom()] = symbol_atom
+            alphabet_walker = M.Tail(alphabet_walker)()
+
+        cursors = {}
+        cursor_index = {}
+        for i in range(len(text) + 1):
+            cursors[i] = M.GMPRep(str(i))
+            cursor_index[cursors[i].id] = i
+        utterance = M.Char("utt:definition-line")
+
+        steps_reversed = empty
+        for i in range(len(text)):
+            steps_reversed = M.Pair(
+                Gmod.ObservedSymbolStep(
+                    utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+                )(),
+                steps_reversed,
+            )
+        steps = M.Reverse(steps_reversed)()
+        engine = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+
+        for i in range(26):
+            engine.Observe(utterance, cursors[i], symbols[text[i]], cursors[i + 1])
+            engine.Drain()
+        mid_gap = Gmod.LexicalGap(
+            M.Head(engine.result)(), productions, M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())(),
+        )()
+        mid_gap_is_adjective = M.false_value
+        if M.IdentityCompare(mid_gap, empty)() is M.false_value:
+            if M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(mid_gap)())())(), M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())())(),
+            )() is M.truth_value:
+                mid_gap_is_adjective = M.truth_value
+        mid_symbols = empty
+        gap_start = M.Head(mid_gap)()
+        gap_end = M.Head(M.Tail(mid_gap)())()
+        gap_walker = gap_end
+        while M.IdentityCompare(gap_walker, gap_start)() is M.false_value:
+            step_back = empty
+            search = steps
+            while M.IdentityCompare(search, empty)() is M.false_value:
+                candidate_step = M.Head(search)()
+                if M.IdentityCompare(
+                    Gmod.ObservedStepAfter(candidate_step)(), gap_walker,
+                )() is M.truth_value:
+                    step_back = candidate_step
+                    search = empty
+                else:
+                    search = M.Tail(search)()
+            mid_symbols = M.Pair(
+                Gmod.ObservedStepSymbol(step_back)(), mid_symbols,
+            )
+            gap_walker = Gmod.ObservedStepBefore(step_back)()
+        provisional = Gmod.ProvisionalWord(
+            root, mid_symbols,
+            M.Head(M.Tail(M.Tail(mid_gap)())())(), M.Char("prime"),
+        )()
+        engine.Learn(
+            M.Head(provisional)(), M.Pair(M.Head(M.Tail(provisional)())(), empty),
+        )
+        mid_readings = M.Head(engine.result)()
+        mid_agenda = M.Head(M.Tail(M.Tail(engine.result)())())()
+        mid_np = M.false_value
+        remaining = mid_readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading = M.Head(remaining)()
+            start_at = M.Head(M.Tail(M.Tail(reading)())())()
+            end_at = M.Head(M.Tail(M.Tail(M.Tail(reading)())())())()
+            if cursor_index[start_at.id] == 14:
+                if cursor_index[end_at.id] == 26:
+                    mid_np = M.truth_value
+            remaining = M.Tail(remaining)()
+
+        for i in range(26, len(text)):
+            engine.Observe(utterance, cursors[i], symbols[text[i]], cursors[i + 1])
+        final_result = engine.Drain()
+        final_readings = M.Head(final_result)()
+        final_agenda = M.Head(M.Tail(M.Tail(final_result)())())()
+
+        definition_count = "0"
+        remaining = final_readings
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            reading = M.Head(remaining)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), def_category,
+            )() is M.truth_value:
+                definition_count = Gmod.GMPSuccText(definition_count)()
+            remaining = M.Tail(remaining)()
+
+        top = Gmod.SpanningDefinitionReading(
+            final_readings, def_category, cursors[0], cursors[len(text)],
+        )()
+        top_well_formed = M.false_value
+        presupposition_over_self = M.false_value
+        if M.IdentityCompare(top, empty)() is M.false_value:
+            top_well_formed = Gmod.DefinitionNodeWellFormed(top)()
+            whole_self = Gmod.BinderSelf(Gmod.DefinitionNodeBinder(top)())()
+            first_condition = M.Head(Gmod.DefinitionNodeConditions(top)())()
+            if M.IdentityCompare(
+                M.Head(first_condition)(), Lmod.NonNegativeLabel,
+            )() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(M.Tail(first_condition)())(), whole_self,
+                )() is M.truth_value:
+                    presupposition_over_self = M.truth_value
+
+        self.result = M.truth_value
+        if mid_gap_is_adjective is M.false_value:
+            self.result = M.false_value
+        elif mid_np is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(mid_agenda)())(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(definition_count, "3")() is M.false_value:
+            self.result = M.false_value
+        elif top_well_formed is M.false_value:
+            self.result = M.false_value
+        elif presupposition_over_self is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(M.Tail(final_agenda)())(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LexicalGrowthTest(M.Edge):
+    """The loop: a word that is not a form becomes one, through use.
+
+    The fragment carries no entry for its own definiendum -- no
+    hand-authored prime vocabulary exists. The line parses to
+    quiescence and leaves a word-shaped hole between two spaces; the
+    grammar reads backwards across the boundary and says the hole
+    wants an adjective; ProvisionalWord turns the hole into arcs and a
+    sense whose meaning is a Hole; Learn feeds them through the delta
+    agenda -- sixty-three facts, no re-observation, no restart -- and
+    the chart completes: three definition readings, the spanning one
+    well formed, NonNegative over the binder's self, Divides(one,
+    self), ExactFillers over the same self, and the definiendum itself
+    the hole that names the new word. A second engine built with the
+    promoted sense -- the same arcs, the word's concept atom as the
+    meaning -- parses the line again with no gap at all and the
+    concept itself as definiendum.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        text = "definition: a prime number is divisible only by one and itself"
+
+        bundle = Gmod.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        prime_concept = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+        adj_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())())()
+
+        symbols = {}
+        alphabet_walker = alphabet
+        while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
+            symbol_atom = M.Head(alphabet_walker)()
+            symbols[symbol_atom()] = symbol_atom
+            alphabet_walker = M.Tail(alphabet_walker)()
+
+        cursors = {}
+        cursor_index = {}
+        for i in range(len(text) + 1):
+            cursors[i] = M.GMPRep(str(i))
+            cursor_index[cursors[i].id] = i
+        utterance = M.Char("utt:definition-line")
+
+        engine = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+        for i in range(len(text)):
+            engine.Observe(
+                utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+            )
+        engine.Drain()
+
+        gap = Gmod.LexicalGap(
+            M.Head(engine.result)(), productions, spc_category,
+        )()
+        gap_is_adjective = M.false_value
+        if M.IdentityCompare(gap, empty)() is M.false_value:
+            if M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(gap)())())(), adj_category,
+            )() is M.truth_value:
+                gap_is_adjective = M.truth_value
+
+        steps_reversed = empty
+        for i in range(len(text)):
+            steps_reversed = M.Pair(
+                Gmod.ObservedSymbolStep(
+                    utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+                )(),
+                steps_reversed,
+            )
+        steps = M.Reverse(steps_reversed)()
+        gap_symbols = empty
+        gap_start = M.Head(gap)()
+        gap_end = M.Head(M.Tail(gap)())()
+        gap_walker = gap_end
+        while M.IdentityCompare(gap_walker, gap_start)() is M.false_value:
+            step_back = empty
+            search = steps
+            while M.IdentityCompare(search, empty)() is M.false_value:
+                candidate_step = M.Head(search)()
+                if M.IdentityCompare(
+                    Gmod.ObservedStepAfter(candidate_step)(), gap_walker,
+                )() is M.truth_value:
+                    step_back = candidate_step
+                    search = empty
+                else:
+                    search = M.Tail(search)()
+            gap_symbols = M.Pair(
+                Gmod.ObservedStepSymbol(step_back)(), gap_symbols,
+            )
+            gap_walker = Gmod.ObservedStepBefore(step_back)()
+
+        facts_before = engine.facts_inserted_text
+        provisional = Gmod.ProvisionalWord(
+            root, gap_symbols, adj_category, prime_concept,
+        )()
+        engine.Learn(
+            M.Head(provisional)(), M.Pair(M.Head(M.Tail(provisional)())(), empty),
+        )
+        facts_after = engine.facts_inserted_text
+
+        readings = M.Head(engine.result)()
+        definition_count = "0"
+        counting = readings
+        while M.IdentityCompare(counting, empty)() is M.false_value:
+            reading = M.Head(counting)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), def_category,
+            )() is M.truth_value:
+                definition_count = Gmod.GMPSuccText(definition_count)()
+            counting = M.Tail(counting)()
+
+        top = Gmod.SpanningDefinitionReading(
+            readings, def_category, cursors[0], cursors[len(text)],
+        )()
+        phase_one_ok = M.false_value
+        if M.IdentityCompare(top, empty)() is M.false_value:
+            if Gmod.DefinitionNodeWellFormed(top)() is M.truth_value:
+                concept = M.Head(
+                    M.Tail(Gmod.DefinitionNodeDefiniendum(top)())(),
+                )()
+                if M.IsPair(concept)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(concept)(), Lmod.HoleLabel,
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(M.Tail(concept)())(), prime_concept,
+                        )() is M.truth_value:
+                            phase_one_ok = M.truth_value
+        dependencies = empty
+        if M.IdentityCompare(top, empty)() is M.false_value:
+            holed = Gmod.PredicateHoles(
+                Gmod.DefinitionNodeConditions(top)(),
+                M.Pair(Lmod.NonNegativeLabel, empty),
+            )()
+            dependencies = M.Head(M.Tail(holed)())()
+
+        final_state = M.Head(M.Tail(M.Tail(provisional)())())()
+        permanent_sense = Gmod.FormSense(final_state, adj_category, prime_concept)()
+        second = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+        second.Learn(M.Head(provisional)(), M.Pair(permanent_sense, empty))
+        for i in range(len(text)):
+            second.Observe(
+                utterance, cursors[i], symbols[text[i]], cursors[i + 1],
+            )
+        second.Drain()
+        second_gap = Gmod.LexicalGap(
+            M.Head(second.result)(), productions, spc_category,
+        )()
+        second_definitions = "0"
+        counting = M.Head(second.result)()
+        while M.IdentityCompare(counting, empty)() is M.false_value:
+            reading = M.Head(counting)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), def_category,
+            )() is M.truth_value:
+                second_definitions = Gmod.GMPSuccText(second_definitions)()
+            counting = M.Tail(counting)()
+        second_top = Gmod.SpanningDefinitionReading(
+            M.Head(second.result)(), def_category, cursors[0], cursors[len(text)],
+        )()
+        phase_two_ok = M.false_value
+        if M.IdentityCompare(second_gap, empty)() is M.truth_value:
+            if M.IdentityCompare(second_top, empty)() is M.false_value:
+                concept_two = M.Head(
+                    M.Tail(Gmod.DefinitionNodeDefiniendum(second_top)())(),
+                )()
+                if M.IdentityCompare(concept_two, prime_concept)() is M.truth_value:
+                    phase_two_ok = M.truth_value
+
+        self.result = M.truth_value
+        if gap_is_adjective is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(definition_count, "3")() is M.false_value:
+            self.result = M.false_value
+        elif phase_one_ok is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(dependencies)(), Lmod.DividesLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPLessText(facts_before, facts_after)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(second_definitions, "3")() is M.false_value:
+            self.result = M.false_value
+        elif phase_two_ok is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.full_store_enumerations_text, "0",
+        )() is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ChartParserTest(M.Edge):
+    """The formal notation reads by chart, and the chart is not its parser.
+
+    Signatures become productions and the notation's brackets and commas
+    are words inside them, so nesting, arity and refusal are all one
+    fact: whether some production spans the input. The last check writes
+    a production the signature generator would never emit -- prefix, no
+    brackets, recursive -- and parses it through the same saturation,
+    which is the difference between a grammar engine and a reader for
+    one notation.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        signatures = M.Pair(
+            Gmod.ConstructorSignature(M.Char("mul"), M.ExprMulLabel, M.two)(),
+            M.Pair(
+                Gmod.ConstructorSignature(
+                    M.Char("divides"), Lmod.DivideLabel, M.two,
+                )(),
+                empty,
+            ),
+        )
+
+        flat_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("two"),
+                    M.Pair(
+                        M.Char(","),
+                        M.Pair(M.Char("three"), M.Pair(M.Char(")"), empty)),
+                    ),
+                ),
+            ),
+        )
+        nested_chain = M.Pair(
+            M.Char("divides"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(
+                    M.Char("one"),
+                    M.Pair(
+                        M.Char(","),
+                        M.Pair(
+                            M.Char("mul"),
+                            M.Pair(
+                                M.Char("("),
+                                M.Pair(
+                                    M.Char("two"),
+                                    M.Pair(
+                                        M.Char(","),
+                                        M.Pair(
+                                            M.Char("three"),
+                                            M.Pair(
+                                                M.Char(")"),
+                                                M.Pair(M.Char(")"), empty),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        arity_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(")"), empty)),
+            ),
+        )
+        unsignatured_chain = M.Pair(
+            M.Char("notaword"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(")"), empty)),
+            ),
+        )
+        unbalanced_chain = M.Pair(
+            M.Char("mul"),
+            M.Pair(
+                M.Char("("),
+                M.Pair(M.Char("two"), M.Pair(M.Char(","), empty)),
+            ),
+        )
+        prefix_chain = M.Pair(
+            M.Char("root"),
+            M.Pair(M.Char("root"), M.Pair(M.Char("nine"), empty)),
+        )
+
+        flat_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(flat_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(flat_read)())()
+        flat_terms = M.Head(flat_read)()
+
+        nested_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(nested_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(nested_read)())()
+        nested_terms = M.Head(nested_read)()
+
+        arity_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(arity_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(arity_read)())()
+        arity_terms = M.Head(arity_read)()
+
+        unsignatured_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(unsignatured_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(unsignatured_read)())()
+        unsignatured_terms = M.Head(unsignatured_read)()
+
+        unbalanced_read = Gmod.FormalTermReadings(
+            signatures, vocabulary, Gmod.Surface(unbalanced_chain)(), registry,
+        )()
+        registry = M.Head(M.Tail(unbalanced_read)())()
+        unbalanced_terms = M.Head(unbalanced_read)()
+
+        # A grammar no signature could have produced: one symbol, one
+        # recursive slot, no brackets. Nothing about the engine changes.
+        prefix_variable = M.Pair(M.VarTag, M.Pair(M.Atom(), empty))
+        prefix_production = Gmod.Production(
+            Gmod.CHART_TERM_CATEGORY,
+            M.Pair(
+                Gmod.WordSymbol(M.Char("root"))(),
+                M.Pair(
+                    Gmod.CategorySymbol(
+                        Gmod.CHART_TERM_CATEGORY, prefix_variable,
+                    )(),
+                    empty,
+                ),
+            ),
+            M.Pair(M.SqrtLabel, M.Pair(prefix_variable, empty)),
+        )()
+        prefix_chart = Gmod.ChartSaturate(
+            M.Pair(prefix_production, empty),
+            Gmod.ChartSeedConstituents(
+                M.Head(M.Tail(vocabulary)())(),
+                M.Head(M.Tail(M.Tail(vocabulary)())())(),
+                Gmod.CHART_TERM_CATEGORY,
+                prefix_chain,
+            )(),
+            Gmod.ChartCells(prefix_chain)(),
+        )
+        prefix_terms = Gmod.ChartSpanningTerms(
+            prefix_chart(), Gmod.CHART_TERM_CATEGORY, prefix_chain,
+        )()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(flat_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(flat_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(flat_terms)())(),
+            M.ExprMulLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Head(flat_terms)())())(),
+            M.two,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Tail(M.Head(flat_terms)())())())(),
+            M.three,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(nested_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(nested_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(nested_terms)())(),
+            Lmod.DivideLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            M.Head(M.Tail(M.Head(nested_terms)())())(),
+            M.one,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(
+                M.Head(M.Tail(M.Tail(M.Head(nested_terms)())())())(),
+            )(),
+            M.ExprMulLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(arity_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unsignatured_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unbalanced_terms, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(prefix_terms, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Tail(prefix_terms)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(prefix_terms)())(),
+            M.SqrtLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            M.Head(M.Head(M.Tail(M.Head(prefix_terms)())())())(),
+            M.SqrtLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            prefix_chart.saturated,
+            M.truth_value,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ConversePropositionTest(M.Edge):
     """Phase 7: Converse evaluates equality and retains IsReal query terms."""
 
@@ -13453,6 +15186,94 @@ def install_default_tests(graph):
             "toy_correspondence_round_trip_test",
             empty,
             ToyCorrespondenceRoundTripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "reading_policy_test",
+            empty,
+            ReadingPolicyTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "deduction_law_test",
+            empty,
+            DeductionLawTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "recognise_forms_test",
+            empty,
+            RecogniseFormsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "freshen_template_test",
+            empty,
+            FreshenTemplateTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "grammar_composition_test",
+            empty,
+            GrammarCompositionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "definition_node_test",
+            empty,
+            DefinitionNodeTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "lexical_spans_test",
+            empty,
+            LexicalSpansTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "definition_production_test",
+            empty,
+            DefinitionProductionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "incremental_parse_test",
+            empty,
+            IncrementalParseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "lexical_growth_test",
+            empty,
+            LexicalGrowthTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "chart_parser_test",
+            empty,
+            ChartParserTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

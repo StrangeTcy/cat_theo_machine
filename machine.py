@@ -389,6 +389,17 @@ class Instantiate(Edge):
 
 
 class IsPair(Edge):
+    """Is this term a Pair?
+
+    The second hottest primitive after IdentityCompare, and it used to
+    allocate a two-Pair `inputs` chain -- three atoms, three identities
+    -- to answer a question about one pointer, and nothing ever read
+    that chain. IdentityCompare had the same surgery for the same
+    reason: the result is assigned directly, `inputs` is left empty, and
+    no caller is affected, because every call site is IsPair(x)() and a
+    transient predicate is never reachable from a persistence root.
+    """
+
     def __init__(self, x):
         try:
             Head(x)()
@@ -397,7 +408,7 @@ class IsPair(Edge):
         except Exception:
             atom_result = false_value
         self.result = atom_result
-        super().__init__(inputs=Pair(x, EmptyList), results=self.result)
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         return self.result

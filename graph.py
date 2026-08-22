@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import multiprocessing
 
 from . import context as Ctx
@@ -7,6 +8,7 @@ from . import machine as M
 from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
+from . import trees as Tmod
 from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPRepDigitList, GMPSubText, GMPSuccText
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
 from .search.model import (
@@ -1563,7 +1565,19 @@ class SendHost(M.Edge):
 
 
 class MappedHostForPat(M.Edge):
-    """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList)."""
+    """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList).
+
+    This is the innermost question of the matcher -- asked once per
+    candidate per frontier state -- and it used to answer it by walking
+    two terms structurally. A pattern element is the same object every
+    time it is asked about: it comes out of the pattern graph, and a
+    Send was built around that very object. So identity settles nearly
+    every case, and TermEqual is only reached for the elements identity
+    misses, which keeps the answer exactly what it was.
+
+    IsSend was likewise a whole Edge -- an allocation carrying a UUID --
+    per item scanned, to compare one head against one label singleton.
+    """
 
     def __init__(self, root, pat):
         self.result = self._lookup(root, pat)
@@ -1573,9 +1587,15 @@ class MappedHostForPat(M.Edge):
         remaining = root
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             item = M.Head(remaining)()
-            if IsSend(item)() is M.truth_value:
-                if M.TermEqual(SendPat(item)(), pat)() is M.truth_value:
-                    return M.Pair(M.truth_value, SendHost(item)())
+            if M.IsPair(item)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(item)(), Lmod.SendLabel,
+                )() is M.truth_value:
+                    sent = SendPat(item)()
+                    if M.IdentityCompare(sent, pat)() is M.truth_value:
+                        return M.Pair(M.truth_value, SendHost(item)())
+                    if M.TermEqual(sent, pat)() is M.truth_value:
+                        return M.Pair(M.truth_value, SendHost(item)())
             remaining = M.Tail(remaining)()
         return M.Pair(M.false_value, M.EmptyList)
 
@@ -3826,6 +3846,67 @@ class CompileMultiRuleToLaw(M.Edge):
         return self.result
 
 
+class CompileDeductionToLaw(M.Edge):
+    """A monotone rule: the premises stay, the conclusion is added.
+
+    CompileMultiRuleToLaw sets K to the subterms the premises share with
+    the conclusion, so firing deletes every premise element the
+    conclusion does not mention. That is exactly right for a rewrite --
+    the redex is consumed -- and exactly wrong for a deduction. A parse
+    rule compiled that way eats its own daughters, and a fact derived
+    once could never be used twice.
+
+    Here K is the whole of L and R is L together with the conclusion.
+    Nothing is deleted, one fact is added, and the K-maps are identity
+    Sends over every element of L rather than over the shared subterms
+    only. Everything else -- the ledger, the obligations, the firing
+    record, the proposal lifecycle -- is the ordinary law machinery,
+    because this is an ordinary Law.
+    """
+
+    def __init__(self, rule):
+        self.result = self._compile(rule)
+        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
+
+    def _compile(self, rule):
+        premises = P.RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        replacement = P.RuleReplacement(rule)()
+        if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        left = EncodePremisesAsGraph(premises)()
+        conclusion = EncodeTermAsGraph(replacement)()
+        right = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                ChainAddMissing(GraphNodes(left)(), GraphNodes(conclusion)())(),
+                M.Pair(
+                    ChainAddMissing(
+                        GraphEdges(left)(), GraphEdges(conclusion)(),
+                    )(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        interface = M.Pair(
+            M.HypergraphLabel,
+            M.Pair(
+                GraphNodes(left)(),
+                M.Pair(GraphEdges(left)(), M.EmptyList),
+            ),
+        )
+        sends = IdentitySendsFor(GraphElements(interface)())()
+        k_to_left = Map(interface, left, sends)()
+        k_to_right = Map(interface, right, sends)()
+        return Law(
+            left, interface, right, k_to_left, k_to_right, M.EmptyList,
+        )()
+
+    def __call__(self):
+        return self.result
+
+
 class UncompiledRules(M.Edge):
     """Step 12 term-native record of rules skipped from the trigonometry pack."""
 
@@ -4362,6 +4443,196 @@ class FireAny(M.Edge):
                     M.Pair(ledger, M.Pair(ordering, M.EmptyList)),
                 ),
             ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+LAW_SATURATION_PASS_CAP = M.GMPRep("50")
+LAW_MATCH_CAP = M.GMPRep("2000")
+
+
+class CompletedMatches(M.Edge):
+    """Every completed match of a pattern graph in a host version.
+
+    FirstCompletedMatch stops at the first, which is what a rewrite
+    wants: fire it, and the next call sees a changed graph. A deduction
+    wants all of them, because every match is a fact waiting to be
+    derived and none of them invalidates the others. Same frontier, same
+    MapExtensionAlternatives, no early return.
+    """
+
+    def __init__(self, pattern, host, cap_text):
+        pending = GraphElements(pattern)()
+        cursor = SearchMatchCursor(M.EmptyList, pattern, host, pending)()
+        start = SearchState(M.EmptyList, M.EmptyList, M.EmptyList, M.one, cursor)()
+        reversed_matches = M.EmptyList
+        scan_text = "0"
+        frontier = M.Pair(start, M.EmptyList)
+        while M.IdentityCompare(frontier, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                frontier = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                state = M.Head(frontier)()
+                frontier = M.Tail(frontier)()
+                cursor = SearchStateCursor(state)()
+                if SearchMatchCursorComplete(cursor)() is M.truth_value:
+                    mapping = Map(pattern, host, SearchMatchCursorRoot(cursor)())()
+                    if MapSendsEveryElement(mapping, pattern)() is M.truth_value:
+                        reversed_matches = M.Pair(mapping, reversed_matches)
+                else:
+                    pending = SearchMatchCursorPending(cursor)()
+                    pat = M.Head(pending)()
+                    rest = M.Tail(pending)()
+                    mapping = Map(pattern, host, SearchMatchCursorRoot(cursor)())()
+                    alternatives = MapExtensionAlternatives(mapping, pat, host)()
+                    while M.IdentityCompare(
+                        alternatives, M.EmptyList,
+                    )() is M.false_value:
+                        alternative = M.Head(alternatives)()
+                        root = M.Head(
+                            M.Tail(M.Tail(M.Tail(alternative)())())(),
+                        )()
+                        found = MappedHostForPat(root, pat)()
+                        if M.IdentityCompare(
+                            M.Head(found)(), M.truth_value,
+                        )() is M.truth_value:
+                            if GraphElementCompatible(
+                                pat, M.Tail(found)(),
+                            )() is M.truth_value:
+                                child_cursor = SearchMatchCursor(
+                                    root, pattern, host, rest,
+                                )()
+                                frontier = M.Pair(
+                                    SearchState(
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.EmptyList,
+                                        M.one,
+                                        child_cursor,
+                                    )(),
+                                    frontier,
+                                )
+                        alternatives = M.Tail(alternatives)()
+        self.result = M.Reverse(reversed_matches)()
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(host, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SaturateLaws(M.Edge):
+    """Fire every law at every match until nothing new is derived.
+
+    FireAny fires the first law with a completed match and hands back a
+    version; in a loop that is a rewrite engine. It never reaches a
+    fixed point on monotone laws, for two reasons visible in FireLaw:
+    the insertion stage appends the R elements unconditionally, so the
+    same conclusion is added again on every firing, and the first match
+    stays the first match, so no other law is ever reached. Saturation
+    is a different discipline over the same firings -- every match of
+    every law, each fired once, and a firing whose conclusion is already
+    in the store is not a firing at all.
+
+    Laws are passed in rather than read from the version. InstallLaw
+    puts a law's own L, K and R elements into the node store, so a
+    pattern sitting in the same version its facts live in would match
+    other patterns and derive facts about them. Facts live in the
+    version; laws live in the store they were installed in.
+
+    `saturated` is truth only when a pass fired nothing before the pass
+    cap ran out.
+    """
+
+    def __init__(self, version, laws, ledger, dangling_mode):
+        pass_cap_text = M.GMPRepText(LAW_SATURATION_PASS_CAP)()
+        match_cap_text = M.GMPRepText(LAW_MATCH_CAP)()
+        scan_cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.saturated = M.false_value
+        current = version
+        pass_text = "0"
+        growing = M.truth_value
+        while M.IdentityCompare(growing, M.truth_value)() is M.truth_value:
+            if GMPEqualText(pass_text, pass_cap_text)() is M.truth_value:
+                growing = M.false_value
+            else:
+                pass_text = GMPSuccText(pass_text)()
+                growing = M.false_value
+                law_scan_text = "0"
+                remaining_laws = laws
+                while M.IdentityCompare(
+                    remaining_laws, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        law_scan_text, scan_cap_text,
+                    )() is M.truth_value:
+                        remaining_laws = M.EmptyList
+                    else:
+                        law_scan_text = GMPSuccText(law_scan_text)()
+                        law = M.Head(remaining_laws)()
+                        match_scan_text = "0"
+                        remaining_matches = CompletedMatches(
+                            LawLeft(law)(), current, match_cap_text,
+                        )()
+                        while M.IdentityCompare(
+                            remaining_matches, M.EmptyList,
+                        )() is M.false_value:
+                            if GMPEqualText(
+                                match_scan_text, scan_cap_text,
+                            )() is M.truth_value:
+                                remaining_matches = M.EmptyList
+                            else:
+                                match_scan_text = GMPSuccText(match_scan_text)()
+                                bindings = LawMatchBindings(
+                                    law, M.Head(remaining_matches)(),
+                                )()
+                                active = law
+                                if M.IdentityCompare(
+                                    bindings, M.EmptyList,
+                                )() is M.false_value:
+                                    active = InstantiateLaw(law, bindings)()
+                                if M.IdentityCompare(
+                                    active, M.EmptyList,
+                                )() is M.false_value:
+                                    missing = ChainWithout(
+                                        GraphNodes(LawRight(active)())(),
+                                        GraphNodes(current)(),
+                                    )()
+                                    if M.IdentityCompare(
+                                        missing, M.EmptyList,
+                                    )() is M.false_value:
+                                        fresh = FirstCompletedMatch(
+                                            LawLeft(active)(), current,
+                                        )()
+                                        if M.IdentityCompare(
+                                            fresh, M.EmptyList,
+                                        )() is M.false_value:
+                                            fired = FireLaw(
+                                                current,
+                                                active,
+                                                fresh,
+                                                dangling_mode,
+                                                ledger,
+                                            )()
+                                            committed = M.Head(fired)()
+                                            if M.IdentityCompare(
+                                                committed, M.EmptyList,
+                                            )() is M.false_value:
+                                                current = committed
+                                                growing = M.truth_value
+                                remaining_matches = M.Tail(remaining_matches)()
+                        remaining_laws = M.Tail(remaining_laws)()
+                if M.IdentityCompare(growing, M.false_value)() is M.truth_value:
+                    self.saturated = M.truth_value
+        self.result = current
+        super().__init__(
+            inputs=M.Pair(version, M.Pair(laws, M.EmptyList)),
             results=self.result,
         )
 
@@ -8231,6 +8502,2698 @@ class GenerateCompositionProposals(M.Edge):
         return self.result
 
 
+class ObservedSymbolStep(M.Edge):
+    """One symbol observed between two cursors.
+
+    Pair(ObservedSymbolStepLabel, Pair(utterance, Pair(before,
+    Pair(symbol, Pair(after, EmptyList))))). The client emits one of
+    these per symbol as it arrives. It establishes no words, guesses no
+    boundaries, normalises nothing and discards nothing -- it records
+    what was observed, in order.
+    """
+
+    def __init__(self, utterance, before, symbol, after):
+        self.result = M.Pair(
+            Lmod.ObservedSymbolStepLabel,
+            M.Pair(
+                utterance,
+                M.Pair(before, M.Pair(symbol, M.Pair(after, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                utterance,
+                M.Pair(before, M.Pair(symbol, M.Pair(after, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ObservedStepBefore(M.Edge):
+    def __init__(self, step):
+        self.result = M.Head(M.Tail(M.Tail(step)())())()
+        super().__init__(inputs=M.Pair(step, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ObservedStepSymbol(M.Edge):
+    def __init__(self, step):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(step)())())())()
+        super().__init__(inputs=M.Pair(step, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ObservedStepAfter(M.Edge):
+    def __init__(self, step):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(step)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(step, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FormArc(M.Edge):
+    """One step of a shared form trie: state, symbol, next state."""
+
+    def __init__(self, state, symbol, next_state):
+        self.result = M.Pair(
+            Lmod.FormArcLabel,
+            M.Pair(state, M.Pair(symbol, M.Pair(next_state, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                state, M.Pair(symbol, M.Pair(next_state, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FormSense(M.Edge):
+    """A form state that spells something: its category and its meaning."""
+
+    def __init__(self, state, category, meaning):
+        self.result = M.Pair(
+            Lmod.FormSenseLabel,
+            M.Pair(state, M.Pair(category, M.Pair(meaning, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                state, M.Pair(category, M.Pair(meaning, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FormScan(M.Edge):
+    """A recognition in progress: trie state, where it began, where it is."""
+
+    def __init__(self, state, start, cursor):
+        self.result = M.Pair(
+            Lmod.FormScanLabel,
+            M.Pair(state, M.Pair(start, M.Pair(cursor, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(state, M.Pair(start, M.Pair(cursor, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Reading(M.Edge):
+    """A meaning found over an interval of the observed input."""
+
+    def __init__(self, category, start, end, meaning):
+        self.result = M.Pair(
+            Lmod.ReadingLabel,
+            M.Pair(
+                category, M.Pair(start, M.Pair(end, M.Pair(meaning, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                category, M.Pair(start, M.Pair(end, M.Pair(meaning, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ObservedStepUtterance(M.Edge):
+    def __init__(self, step):
+        self.result = M.Head(M.Tail(step)())()
+        super().__init__(inputs=M.Pair(step, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ObservedBy(M.Edge):
+    """Provenance: which event stream the observations came from.
+
+    Pair(ObservedByLabel, Pair(utterance, Pair(stream, EmptyList))). The
+    client states where its ObservedSymbolStep facts came from; the
+    machine stores the claim and derives nothing from it.
+    """
+
+    def __init__(self, utterance, stream):
+        self.result = M.Pair(
+            Lmod.ObservedByLabel,
+            M.Pair(utterance, M.Pair(stream, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(utterance, M.Pair(stream, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LexiconRoot(M.Edge):
+    """The one shared trie root a language's forms hang from."""
+
+    def __init__(self, language, root):
+        self.result = M.Pair(
+            Lmod.LexiconRootLabel,
+            M.Pair(language, M.Pair(root, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(language, M.Pair(root, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IndexSpec(M.Edge):
+    """A declared index: a relation and the argument chain keying it.
+
+    Pair(IndexSpecLabel, Pair(relation, Pair(keys, EmptyList))). The
+    engine builds exactly the indexes it declares here and answers every
+    premise from one; a spec without a root behind it would be a claim,
+    so none is recorded that is not kept.
+    """
+
+    def __init__(self, relation, keys):
+        self.result = M.Pair(
+            Lmod.IndexSpecLabel,
+            M.Pair(relation, M.Pair(keys, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(relation, M.Pair(keys, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DeductionPlan(M.Edge):
+    """The execution certificate for one trigger position of a law.
+
+    Pair(DeductionPlanLabel, Pair(law, Pair(trigger, Pair(lookups,
+    Pair(conclusion, EmptyList))))). The law stays the authoritative
+    statement; the plan says which premise the delta arrives on, which
+    declared indexes the other premises are answered from, and what
+    relation the conclusion carries. One plan exists per premise
+    position the engine executes; PlansByTriggerRelation holds them by
+    trigger label.
+    """
+
+    def __init__(self, law, trigger, lookups, conclusion):
+        self.result = M.Pair(
+            Lmod.DeductionPlanLabel,
+            M.Pair(
+                law,
+                M.Pair(trigger, M.Pair(lookups, M.Pair(conclusion, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                law,
+                M.Pair(trigger, M.Pair(lookups, M.Pair(conclusion, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DeltaAgenda(M.Edge):
+    """The pending delta facts. Empty is quiescence."""
+
+    def __init__(self, facts):
+        self.result = M.Pair(Lmod.DeltaAgendaLabel, M.Pair(facts, M.EmptyList))
+        super().__init__(inputs=M.Pair(facts, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IndexedFiring(M.Edge):
+    """One firing of a law by index: its premises and its conclusion.
+
+    Pair(IndexedFiringLabel, Pair(law, Pair(premises, Pair(bindings,
+    Pair(conclusion, EmptyList))))). The bindings slot stays empty until
+    templates carry variables; every join here is by identity, so there
+    is nothing else to record yet.
+    """
+
+    def __init__(self, law, premises, bindings, conclusion):
+        self.result = M.Pair(
+            Lmod.IndexedFiringLabel,
+            M.Pair(
+                law,
+                M.Pair(
+                    premises,
+                    M.Pair(bindings, M.Pair(conclusion, M.EmptyList)),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                law,
+                M.Pair(
+                    premises,
+                    M.Pair(bindings, M.Pair(conclusion, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BinaryProduction(M.Edge):
+    """One binary grammar production: categories and a meaning template.
+
+    Pair(BinaryProductionLabel, Pair(left, Pair(right, Pair(result,
+    Pair(template, EmptyList))))). The template's variables bind the
+    daughter meanings in order of first appearance: the first distinct
+    variable takes the left daughter's meaning, the second the right
+    daughter's, and one variable appearing twice shares one meaning in
+    both places. A template that must keep the right daughter alone --
+    a determiner or a command word dropped from the meaning -- cannot
+    say so with a bare variable, since one variable binds to the left
+    daughter; it says so with Pair(ProjectRightLabel,
+    Pair(inner_template, EmptyList)), under which the first distinct
+    variable of the inner template takes the right daughter's meaning.
+    Every firing runs the template through FreshenTemplate before
+    anything binds, so two applications of one production never share
+    a variable.
+    """
+
+    def __init__(self, left, right, result, template):
+        self.result = M.Pair(
+            Lmod.BinaryProductionLabel,
+            M.Pair(
+                left,
+                M.Pair(
+                    right,
+                    M.Pair(result, M.Pair(template, M.EmptyList)),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                left,
+                M.Pair(
+                    right,
+                    M.Pair(result, M.Pair(template, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Freshened(M.Edge):
+    """The record of one freshening: template, scope, bindings, result."""
+
+    def __init__(self, template, scope, bindings, instantiated):
+        self.result = M.Pair(
+            Lmod.FreshenedLabel,
+            M.Pair(
+                template,
+                M.Pair(
+                    scope,
+                    M.Pair(
+                        bindings, M.Pair(instantiated, M.EmptyList),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                template,
+                M.Pair(
+                    scope,
+                    M.Pair(
+                        bindings, M.Pair(instantiated, M.EmptyList),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FreshenTemplate(M.Edge):
+    """Allocate fresh variables for one application of a template.
+
+    The walk collects each distinct variable of the template by
+    identity, in order of first appearance; allocates one new variable
+    per distinct variable -- Pair(VarTag, Pair(scope, Pair(old,
+    EmptyList))), so the recognised VarTag shape is kept and the scope
+    tells applications apart -- builds the old-to-new binding chain,
+    and rebuilds the template through it. Two occurrences of one old
+    variable receive the same new variable; two applications receive
+    different ones, whatever the scope atoms are.
+    """
+
+    def __init__(self, template, scope):
+        empty = M.EmptyList
+
+        distinct = empty
+        stack = M.Pair(template, empty)
+        while M.IdentityCompare(stack, empty)() is M.false_value:
+            node = M.Head(stack)()
+            stack = M.Tail(stack)()
+            if M.IsPair(node)() is M.truth_value:
+                if M.IdentityCompare(M.Head(node)(), M.VarTag)() is M.truth_value:
+                    present = M.false_value
+                    walker = distinct
+                    while M.IdentityCompare(walker, empty)() is M.false_value:
+                        if M.IdentityCompare(
+                            M.Head(walker)(), node,
+                        )() is M.truth_value:
+                            present = M.truth_value
+                            walker = empty
+                        else:
+                            walker = M.Tail(walker)()
+                    if present is M.false_value:
+                        distinct = M.Pair(node, distinct)
+                else:
+                    stack = M.Pair(M.Tail(node)(), stack)
+                    stack = M.Pair(M.Head(node)(), stack)
+
+        bindings = empty
+        walker = distinct
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            old_variable = M.Head(walker)()
+            fresh_variable = M.Pair(
+                M.VarTag, M.Pair(scope, M.Pair(old_variable, empty)),
+            )
+            bindings = M.Pair(M.Pair(old_variable, fresh_variable), bindings)
+            walker = M.Tail(walker)()
+
+        self.bindings_chain = bindings
+        self.instantiated = self._rebuild(template, bindings)
+        self.result = Freshened(
+            template, scope, bindings, self.instantiated,
+        )()
+        super().__init__(
+            inputs=M.Pair(template, M.Pair(scope, empty)),
+            results=self.result,
+        )
+
+    def _rebuild(self, node, bindings):
+        if M.IsPair(node)() is M.truth_value:
+            if M.IdentityCompare(M.Head(node)(), M.VarTag)() is M.truth_value:
+                walker = bindings
+                while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+                    entry = M.Head(walker)()
+                    if M.IdentityCompare(
+                        M.Head(entry)(), node,
+                    )() is M.truth_value:
+                        return M.Tail(entry)()
+                    walker = M.Tail(walker)()
+                return node
+            return M.Pair(
+                self._rebuild(M.Head(node)(), bindings),
+                self._rebuild(M.Tail(node)(), bindings),
+            )
+        return node
+
+    def __call__(self):
+        return self.result
+
+
+class ResolveReflexives(M.Edge):
+    """Replace every reflexive marker in a term with one variable.
+
+    Pair(ReflexiveLabel, ...) anywhere in the term becomes the given
+    variable -- the same object at every site, which is the sharing a
+    definition's self needs: "one and itself" must read as [one, self]
+    with the self in the application and the self in the restriction
+    being one variable. Every other structure is preserved and leaves
+    are untouched.
+    """
+
+    def __init__(self, term, variable):
+        self.result = self._resolve(term, variable)
+        super().__init__(
+            inputs=M.Pair(term, M.Pair(variable, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _resolve(self, node, variable):
+        if M.IsPair(node)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(node)(), Lmod.ReflexiveLabel,
+            )() is M.truth_value:
+                return variable
+            return M.Pair(
+                self._resolve(M.Head(node)(), variable),
+                self._resolve(M.Tail(node)(), variable),
+            )
+        return node
+
+    def __call__(self):
+        return self.result
+
+
+class PredicateHoles(M.Edge):
+    """Keep undefined predicates as holes inside a formed chain.
+
+    Pair(conditions, defined_labels) -> Pair(conditions_with_holes,
+    Pair(hole_predicates, EmptyList)). A condition is holed when its
+    label is installed nowhere and it is not the structural
+    ExactFillers, which is scope rather than a predicate. The
+    arguments move inside the hole unchanged and the reason is
+    NoDefinitionInstalled; the predicate labels chain, in condition
+    order with duplicates dropped, is the open-dependency report. A
+    hole is the difference between lexical ignorance and a formed
+    graph with a named gap: the graph exists, the gap is in it.
+    """
+
+    def __init__(self, conditions, defined_labels):
+        empty = M.EmptyList
+        reversed_conditions = empty
+        reversed_holes = empty
+        walker = conditions
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            condition = M.Head(walker)()
+            label = M.Head(condition)()
+            keep = M.false_value
+            if M.IdentityCompare(
+                label, Lmod.ExactFillersLabel,
+            )() is M.truth_value:
+                keep = M.truth_value
+            else:
+                defined_walker = defined_labels
+                while M.IdentityCompare(
+                    defined_walker, empty,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        label, M.Head(defined_walker)(),
+                    )() is M.truth_value:
+                        keep = M.truth_value
+                        defined_walker = empty
+                    else:
+                        defined_walker = M.Tail(defined_walker)()
+            if keep is M.truth_value:
+                reversed_conditions = M.Pair(condition, reversed_conditions)
+            else:
+                holed = M.Pair(
+                    Lmod.HoleLabel,
+                    M.Pair(
+                        label,
+                        M.Pair(
+                            M.Tail(condition)(),
+                            M.Pair(
+                                Lmod.NoDefinitionInstalledLabel, empty,
+                            ),
+                        ),
+                    ),
+                )
+                reversed_conditions = M.Pair(holed, reversed_conditions)
+                present = M.false_value
+                hole_walker = reversed_holes
+                while M.IdentityCompare(
+                    hole_walker, empty,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        label, M.Head(hole_walker)(),
+                    )() is M.truth_value:
+                        present = M.truth_value
+                        hole_walker = empty
+                    else:
+                        hole_walker = M.Tail(hole_walker)()
+                if present is M.false_value:
+                    reversed_holes = M.Pair(label, reversed_holes)
+            walker = M.Tail(walker)()
+        self.result = M.Pair(
+            M.Reverse(reversed_conditions)(),
+            M.Pair(M.Reverse(reversed_holes)(), empty),
+        )
+        super().__init__(
+            inputs=M.Pair(conditions, M.Pair(defined_labels, empty)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeOpenDependencies(M.Edge):
+    """The open dependencies of a formed definition graph, read off it.
+
+    Walks the conditions; a Hole's predicate is an open dependency.
+    Order follows the conditions; duplicates drop. This is the report
+    that replaces asking about unknown words: the graph was formed, and
+    these are the predicates it still needs definitions for.
+    """
+
+    def __init__(self, node):
+        empty = M.EmptyList
+        reversed_dependencies = empty
+        walker = DefinitionNodeConditions(node)()
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            condition = M.Head(walker)()
+            if M.IdentityCompare(
+                M.Head(condition)(), Lmod.HoleLabel,
+            )() is M.truth_value:
+                predicate = M.Head(M.Tail(condition)())()
+                present = M.false_value
+                dependency_walker = reversed_dependencies
+                while M.IdentityCompare(
+                    dependency_walker, empty,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        predicate, M.Head(dependency_walker)(),
+                    )() is M.truth_value:
+                        present = M.truth_value
+                        dependency_walker = empty
+                    else:
+                        dependency_walker = M.Tail(dependency_walker)()
+                if present is M.false_value:
+                    reversed_dependencies = M.Pair(
+                        predicate, reversed_dependencies,
+                    )
+            walker = M.Tail(walker)()
+        self.result = M.Reverse(reversed_dependencies)()
+        super().__init__(
+            inputs=M.Pair(node, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SpanningDefinitionReading(M.Edge):
+    """The definition reading that spans exactly the given cursors."""
+
+    def __init__(self, readings, category, start, end):
+        empty = M.EmptyList
+        self.result = empty
+        walker = readings
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            reading = M.Head(walker)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), category,
+            )() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(M.Tail(M.Tail(reading)())())(), start,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(M.Tail(M.Tail(M.Tail(reading)())())())(), end,
+                    )() is M.truth_value:
+                        self.result = M.Head(
+                            M.Tail(M.Tail(M.Tail(M.Tail(reading)())())())(),
+                        )()
+                        walker = empty
+                    else:
+                        walker = M.Tail(walker)()
+                else:
+                    walker = M.Tail(walker)()
+            else:
+                walker = M.Tail(walker)()
+        super().__init__(
+            inputs=M.Pair(
+                readings,
+                M.Pair(category, M.Pair(start, M.Pair(end, empty))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionFragment(M.Edge):
+    """The definition fragment's lexicon and grammar, as facts.
+
+    Thirteen forms: the command word, the colon, the space, the
+    article, the adjective, the category noun carrying its category
+    and its NonNegative presupposition, the copula, the relation
+    adjective naming Divides, the restriction, the role preposition
+    naming the divisor, the numeral, the conjunction, the reflexive.
+    Thirty-seven binary productions compose them -- glue that eats the
+    spaces and the colon, the adjective over the noun into a lexical
+    noun phrase, coordination in either order, the restriction, and
+    two definition shapes -- the head-noun order ("a prime number is
+    divisible...") and the predicate-nominal order ("a prime is a
+    number divisible..."), where the category rides after the copula.
+    The fragment carries no entry for either shape's definiendum: a
+    word that is not a form is a gap, and the gap is filled by the
+    loop, not by hand. The trie states
+    are found through nested red-black trees, the same shape the
+    engine indexes arcs by.
+
+    Returns Pair(arcs, Pair(senses, Pair(productions, Pair(root,
+    Pair(def_category, Pair(one, Pair(prime, Pair(nat,
+    Pair(divisor, Pair(alphabet, EmptyList))))))))) -- the atoms
+    callers assert against ride after the facts, and the alphabet is
+    the fragment's canonical symbols: an observed step only matches
+    the trie if the client emits these atoms, because index keys are
+    identities, not texts.
+    """
+
+    def __init__(self):
+        empty = M.EmptyList
+
+        sym_a = M.Char("a")
+        sym_b = M.Char("b")
+        sym_d = M.Char("d")
+        sym_e = M.Char("e")
+        sym_f = M.Char("f")
+        sym_i = M.Char("i")
+        sym_l = M.Char("l")
+        sym_m = M.Char("m")
+        sym_n = M.Char("n")
+        sym_o = M.Char("o")
+        sym_p = M.Char("p")
+        sym_r = M.Char("r")
+        sym_s = M.Char("s")
+        sym_t = M.Char("t")
+        sym_u = M.Char("u")
+        sym_v = M.Char("v")
+        sym_y = M.Char("y")
+        sym_colon = M.Char(":")
+        sym_space = M.Char(" ")
+
+        word_definition = M.Pair(sym_d, M.Pair(sym_e, M.Pair(sym_f, M.Pair(sym_i, M.Pair(sym_n, M.Pair(sym_i, M.Pair(sym_t, M.Pair(sym_i, M.Pair(sym_o, M.Pair(sym_n, empty))))))))))
+
+        word_colon = M.Pair(sym_colon, empty)
+
+        word_space = M.Pair(sym_space, empty)
+
+        word_a = M.Pair(sym_a, empty)
+
+
+        word_number = M.Pair(sym_n, M.Pair(sym_u, M.Pair(sym_m, M.Pair(sym_b, M.Pair(sym_e, M.Pair(sym_r, empty))))))
+
+        word_is = M.Pair(sym_i, M.Pair(sym_s, empty))
+
+        word_divisible = M.Pair(sym_d, M.Pair(sym_i, M.Pair(sym_v, M.Pair(sym_i, M.Pair(sym_s, M.Pair(sym_i, M.Pair(sym_b, M.Pair(sym_l, M.Pair(sym_e, empty)))))))))
+
+        word_only = M.Pair(sym_o, M.Pair(sym_n, M.Pair(sym_l, M.Pair(sym_y, empty))))
+
+        word_by = M.Pair(sym_b, M.Pair(sym_y, empty))
+
+        word_one = M.Pair(sym_o, M.Pair(sym_n, M.Pair(sym_e, empty)))
+
+        word_and = M.Pair(sym_a, M.Pair(sym_n, M.Pair(sym_d, empty)))
+
+        word_itself = M.Pair(sym_i, M.Pair(sym_t, M.Pair(sym_s, M.Pair(sym_e, M.Pair(sym_l, M.Pair(sym_f, empty))))))
+
+        one = M.Char("one")
+        prime = M.Char("prime")
+        nat = M.Char("nat")
+        divisor = M.Char("divisor")
+        number_chunk = M.Pair(
+            CategoryTerm(nat)(),
+            M.Pair(M.Pair(Lmod.NonNegativeLabel, empty), empty),
+        )
+
+        cat_cw = M.Char("CW")
+        cat_col = M.Char("COL")
+        cat_spc = M.Char("SPC")
+        cat_det = M.Char("DET")
+        cat_adj = M.Char("ADJ")
+        cat_cn = M.Char("CN")
+        cat_cop = M.Char("COP")
+        cat_radj = M.Char("RADJ")
+        cat_rop = M.Char("ROP")
+        cat_p = M.Char("P")
+        cat_num = M.Char("NUM")
+        cat_conj = M.Char("CONJ")
+        cat_rpron = M.Char("RPRON")
+        cat_adjg = M.Char("ADJG")
+        cat_detg = M.Char("DETG")
+        cat_cwg = M.Char("CWG")
+        cat_cwgg = M.Char("CWGG")
+        cat_np = M.Char("NP")
+        cat_npg = M.Char("NPG")
+        cat_sbj = M.Char("SBJ")
+        cat_copg = M.Char("COPG")
+        cat_numg = M.Char("NUMG")
+        cat_conjg = M.Char("CONJG")
+        cat_cjpron = M.Char("CJPRON")
+        cat_coord = M.Char("COORD")
+        cat_pg = M.Char("PG")
+        cat_pp = M.Char("PP")
+        cat_ropg = M.Char("ROPG")
+        cat_rpred = M.Char("RPRED")
+        cat_radg = M.Char("RADJG")
+        cat_pred = M.Char("PRED")
+        cat_def = M.Char("DEF")
+        cat_sbare = M.Char("SBARE")
+        cat_sbareg = M.Char("SBAREG")
+        cat_sbare2 = M.Char("SBARE2")
+        cat_sbare2g = M.Char("SBARE2G")
+        cat_rprong = M.Char("RPRONG")
+        cat_cjnum = M.Char("CJNUM")
+        cat_ncat = M.Char("NCAT")
+        cat_ncatg = M.Char("NCATG")
+        cat_prednom = M.Char("PREDNOM")
+        cat_qsubj = M.Char("QSUBJ")
+        cat_question = M.Char("QUESTION")
+
+
+        entries = M.Pair(M.Pair(word_definition, M.Pair(cat_cw, M.Char("definition"))), M.Pair(M.Pair(word_colon, M.Pair(cat_col, M.Char(":"))), M.Pair(M.Pair(word_space, M.Pair(cat_spc, M.Char(" "))), M.Pair(M.Pair(word_a, M.Pair(cat_det, M.Char("a"))), M.Pair(M.Pair(word_number, M.Pair(cat_cn, number_chunk)), M.Pair(M.Pair(word_is, M.Pair(cat_cop, M.Char("is"))), M.Pair(M.Pair(word_divisible, M.Pair(cat_radj, Lmod.DividesLabel)), M.Pair(M.Pair(word_only, M.Pair(cat_rop, M.Char("only"))), M.Pair(M.Pair(word_by, M.Pair(cat_p, divisor)), M.Pair(M.Pair(word_one, M.Pair(cat_num, one)), M.Pair(M.Pair(word_and, M.Pair(cat_conj, M.Char("and"))), M.Pair(M.Pair(word_itself, M.Pair(cat_rpron, M.Pair(Lmod.ReflexiveLabel, empty))), empty))))))))))))
+
+        root = M.Char("frag-root")
+        self._state_counter_text = "0"
+        tree = empty
+        arcs_reversed = empty
+        senses_reversed = empty
+        walker = entries
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            entry = M.Head(walker)()
+            outcome = self._extend_trie(
+                tree, arcs_reversed, root, M.Head(entry)(),
+            )
+            tree = M.Head(outcome)()
+            arcs_reversed = M.Head(M.Tail(outcome)())()
+            final_state = M.Head(M.Tail(M.Tail(outcome)())())()
+            senses_reversed = M.Pair(
+                FormSense(
+                    final_state,
+                    M.Head(M.Tail(entry)())(),
+                    M.Tail(M.Tail(entry)())(),
+                )(),
+                senses_reversed,
+            )
+            walker = M.Tail(walker)()
+        arcs = M.Reverse(arcs_reversed)()
+        senses = M.Reverse(senses_reversed)()
+
+        kind_left = M.Char("kind-left")
+        kind_project = M.Char("kind-project")
+        kind_pair = M.Char("kind-pair")
+        kind_np = M.Char("kind-np")
+        kind_restriction = M.Char("kind-restriction")
+        kind_definition = M.Char("kind-definition")
+        specs = M.Pair(M.Pair(cat_adj, M.Pair(cat_spc, M.Pair(cat_adjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_adjg, M.Pair(cat_cn, M.Pair(cat_np, M.Pair(kind_np, empty)))), M.Pair(M.Pair(cat_det, M.Pair(cat_spc, M.Pair(cat_detg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_adj, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cw, M.Pair(cat_col, M.Pair(cat_cwg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwg, M.Pair(cat_spc, M.Pair(cat_cwgg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_sbare, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cop, M.Pair(cat_spc, M.Pair(cat_copg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_copg, M.Pair(cat_numg, M.Pair(cat_qsubj, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_copg, M.Pair(cat_sbj, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_npg, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_np, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_num, M.Pair(cat_spc, M.Pair(cat_numg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conj, M.Pair(cat_spc, M.Pair(cat_conjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_rpron, M.Pair(cat_cjpron, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_numg, M.Pair(cat_cjpron, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_p, M.Pair(cat_spc, M.Pair(cat_pg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_pg, M.Pair(cat_coord, M.Pair(cat_pp, M.Pair(kind_restriction, empty)))), M.Pair(M.Pair(cat_rop, M.Pair(cat_spc, M.Pair(cat_ropg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ropg, M.Pair(cat_pp, M.Pair(cat_rpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_radj, M.Pair(cat_spc, M.Pair(cat_radg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_radg, M.Pair(cat_rpred, M.Pair(cat_pred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_pred, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare, M.Pair(cat_spc, M.Pair(cat_sbareg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbareg, M.Pair(cat_copg, M.Pair(cat_sbare2, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_spc, M.Pair(cat_sbare2g, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare2g, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_rpron, M.Pair(cat_spc, M.Pair(cat_rprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_num, M.Pair(cat_cjnum, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_rprong, M.Pair(cat_cjnum, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_cn, M.Pair(cat_ncat, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_ncat, M.Pair(cat_spc, M.Pair(cat_ncatg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ncatg, M.Pair(cat_pred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), empty)))))))))))))))))))))))))))))))))))))
+
+        self._production_counter_text = "0"
+        productions_reversed = empty
+        walker = specs
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            spec = M.Head(walker)()
+            kind = M.Head(M.Tail(M.Tail(M.Tail(spec)())())())()
+            first = M.Pair(
+                M.VarTag,
+                M.Pair(
+                    M.Char("?frag" + self._production_counter_text + "a"), empty,
+                ),
+            )
+            second = M.Pair(
+                M.VarTag,
+                M.Pair(
+                    M.Char("?frag" + self._production_counter_text + "b"), empty,
+                ),
+            )
+            if M.IdentityCompare(kind, kind_left)() is M.truth_value:
+                built = first
+            elif M.IdentityCompare(kind, kind_project)() is M.truth_value:
+                built = M.Pair(Lmod.ProjectRightLabel, M.Pair(second, empty))
+            elif M.IdentityCompare(kind, kind_pair)() is M.truth_value:
+                built = M.Pair(first, M.Pair(second, empty))
+            elif M.IdentityCompare(kind, kind_np)() is M.truth_value:
+                built = M.Pair(
+                    Lmod.LexicalNpLabel, M.Pair(first, M.Pair(second, empty)),
+                )
+            elif M.IdentityCompare(kind, kind_restriction)() is M.truth_value:
+                built = M.Pair(
+                    Lmod.RestrictionLabel,
+                    M.Pair(first, M.Pair(second, empty)),
+                )
+            else:
+                built = M.Pair(
+                    Lmod.DefinitionMeaningLabel,
+                    M.Pair(first, M.Pair(second, empty)),
+                )
+            productions_reversed = M.Pair(
+                BinaryProduction(
+                    M.Head(spec)(),
+                    M.Head(M.Tail(spec)())(),
+                    M.Head(M.Tail(M.Tail(spec)())())(),
+                    built,
+                )(),
+                productions_reversed,
+            )
+            self._production_counter_text = GMPSuccText(
+                self._production_counter_text,
+            )()
+            walker = M.Tail(walker)()
+        productions = M.Reverse(productions_reversed)()
+
+        alphabet = M.Pair(sym_a, M.Pair(sym_b, M.Pair(sym_d, M.Pair(sym_e, M.Pair(sym_f, M.Pair(sym_i, M.Pair(sym_l, M.Pair(sym_m, M.Pair(sym_n, M.Pair(sym_o, M.Pair(sym_p, M.Pair(sym_r, M.Pair(sym_s, M.Pair(sym_t, M.Pair(sym_u, M.Pair(sym_v, M.Pair(sym_y, M.Pair(sym_colon, M.Pair(sym_space, empty)))))))))))))))))))
+        self.result = M.Pair(
+            arcs,
+            M.Pair(
+                senses,
+                M.Pair(
+                    productions,
+                    M.Pair(
+                        root,
+                        M.Pair(
+                            cat_def,
+                            M.Pair(
+                                one,
+                                M.Pair(
+                                    prime,
+                                    M.Pair(
+                                        nat,
+                                        M.Pair(
+                                            divisor,
+                                            M.Pair(
+                                                alphabet,
+                                                M.Pair(
+                                                    cat_spc,
+                                                    M.Pair(cat_adj, empty),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=empty, results=self.result)
+
+    def _extend_trie(self, tree, arcs_reversed, state, word_chain):
+        empty = M.EmptyList
+        if M.IdentityCompare(word_chain, empty)() is M.truth_value:
+            return M.Pair(
+                tree, M.Pair(arcs_reversed, M.Pair(state, empty)),
+            )
+        symbol = M.Head(word_chain)()
+        by_symbol = Tmod.IdentityRedBlackLookupValue(tree, state)()
+        if M.IdentityCompare(by_symbol, empty)() is M.truth_value:
+            by_symbol = M.EmptyList
+        next_state = Tmod.IdentityRedBlackLookupValue(by_symbol, symbol)()
+        if M.IdentityCompare(next_state, empty)() is M.truth_value:
+            next_state = M.Char("frag-st-" + self._state_counter_text)
+            self._state_counter_text = GMPSuccText(self._state_counter_text)()
+            arcs_reversed = M.Pair(
+                FormArc(state, symbol, next_state)(), arcs_reversed,
+            )
+            tree = Tmod.IdentityRedBlackInsert(
+                tree,
+                state,
+                Tmod.IdentityRedBlackInsert(by_symbol, symbol, next_state)(),
+            )()
+        return self._extend_trie(
+            tree, arcs_reversed, next_state, M.Tail(word_chain)(),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LexicalGap(M.Edge):
+    """The word-shaped hole between readings, and the category the grammar asks to fill it.
+
+    Pair(readings, Pair(productions, Pair(spc_category, EmptyList))) ->
+    Pair(start, Pair(end, Pair(category, EmptyList))), or EmptyList.
+
+    A gap is a run between two space readings that no reading covers;
+    spaces are observed events, so the run between two of them is a
+    word-shaped hole, not a tokenized word. The category is read
+    backwards through the grammar: the reading that starts where the
+    right space ends anchors a production's right daughter; the left
+    daughter then wants to end where the right space begins; and the
+    glue production (word, space, left-daughter) says which
+    word-category spans the gap. One backward step and one hop of
+    glue -- what the grammar says at the boundary, no more.
+    """
+
+    def __init__(self, readings, productions, spc_category):
+        empty = M.EmptyList
+        self.result = empty
+
+        spaces_reversed = empty
+        walker = readings
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            reading = M.Head(walker)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), spc_category,
+            )() is M.truth_value:
+                spaces_reversed = M.Pair(reading, spaces_reversed)
+            walker = M.Tail(walker)()
+        spaces = M.Reverse(spaces_reversed)()
+
+        outer = spaces
+        while M.IdentityCompare(outer, empty)() is M.false_value:
+            if M.IdentityCompare(self.result, empty)() is M.false_value:
+                outer = empty
+            else:
+                space_a = M.Head(outer)()
+                gap_start = M.Head(M.Tail(M.Tail(M.Tail(space_a)())())())()
+                inner = spaces
+                while M.IdentityCompare(inner, empty)() is M.false_value:
+                    if M.IdentityCompare(self.result, empty)() is M.false_value:
+                        inner = empty
+                    else:
+                        space_b = M.Head(inner)()
+                        gap_end = M.Head(M.Tail(M.Tail(space_b)())())()
+                        forward = GMPLessText(
+                            M.GMPRepText(gap_start)(),
+                            M.GMPRepText(gap_end)(),
+                        )()
+                        if forward is M.truth_value:
+                            uncovered = M.truth_value
+                            check = readings
+                            while M.IdentityCompare(check, empty)() is M.false_value:
+                                other = M.Head(check)()
+                                other_start = M.Head(M.Tail(M.Tail(other)())())()
+                                other_end = M.Head(M.Tail(M.Tail(M.Tail(other)())())())()
+                                starts_before_end = GMPLessText(
+                                    M.GMPRepText(other_start)(),
+                                    M.GMPRepText(gap_end)(),
+                                )()
+                                ends_after_start = GMPLessText(
+                                    M.GMPRepText(gap_start)(),
+                                    M.GMPRepText(other_end)(),
+                                )()
+                                if starts_before_end is M.truth_value:
+                                    if ends_after_start is M.truth_value:
+                                        uncovered = M.false_value
+                                check = M.Tail(check)()
+                            if uncovered is M.truth_value:
+                                self._infer_category(
+                                    readings, productions, space_b,
+                                    gap_start, gap_end,
+                                )
+                                if M.IdentityCompare(
+                                    self.result, empty,
+                                )() is M.truth_value:
+                                    self._infer_category_from_left(
+                                        readings, productions, spc_category,
+                                        gap_start, gap_end,
+                                    )
+                        inner = M.Tail(inner)()
+                outer = M.Tail(outer)()
+
+        super().__init__(
+            inputs=M.Pair(
+                readings,
+                M.Pair(productions, M.Pair(spc_category, empty)),
+            ),
+            results=self.result,
+        )
+
+    def _infer_category(self, readings, productions, space_b, gap_start, gap_end):
+        empty = M.EmptyList
+        anchor_start = M.Head(M.Tail(M.Tail(M.Tail(space_b)())())())()
+        walker = readings
+        anchor_category = empty
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            reading = M.Head(walker)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(reading)())())(), anchor_start,
+            )() is M.truth_value:
+                anchor_category = M.Head(M.Tail(reading)())()
+                walker = empty
+            else:
+                walker = M.Tail(walker)()
+        if M.IdentityCompare(anchor_category, empty)() is M.truth_value:
+            return
+        outer = productions
+        while M.IdentityCompare(outer, empty)() is M.false_value:
+            production = M.Head(outer)()
+            right_category = M.Head(M.Tail(M.Tail(production)())())()
+            if M.IdentityCompare(right_category, anchor_category)() is M.truth_value:
+                left_category = M.Head(M.Tail(production)())()
+                inner = productions
+                while M.IdentityCompare(inner, empty)() is M.false_value:
+                    glue = M.Head(inner)()
+                    glue_left = M.Head(M.Tail(glue)())()
+                    glue_result = M.Head(M.Tail(M.Tail(M.Tail(glue)())())())()
+                    if M.IdentityCompare(glue_result, left_category)() is M.truth_value:
+                        self.result = M.Pair(
+                            gap_start,
+                            M.Pair(gap_end, M.Pair(glue_left, empty)),
+                        )
+                        inner = empty
+                        outer = empty
+                    else:
+                        inner = M.Tail(inner)()
+            else:
+                outer = M.Tail(outer)()
+
+    def _infer_category_from_left(
+        self, readings, productions, spc_category, gap_start, gap_end,
+    ):
+        """The other half of the boundary read.
+
+        The right-anchored half asks what the reading after the hole
+        wants to its left; this half asks what the reading that ends
+        where the hole begins wants to its right. A production whose
+        left daughter is that category names the wanted category as
+        its right daughter, and the wanted one must be a word
+        category -- one that glues with a space to its right.
+        Production order is the grammar's precedence when two
+        productions want different things at the same boundary; the
+        chart, not the inference, has the final word.
+        """
+        empty = M.EmptyList
+        walker = readings
+        anchor_category = empty
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            reading = M.Head(walker)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(reading)())(), spc_category,
+            )() is M.truth_value:
+                walker = M.Tail(walker)()
+            elif M.IdentityCompare(
+                M.Head(M.Tail(M.Tail(M.Tail(reading)())())())(), gap_start,
+            )() is M.truth_value:
+                anchor_category = M.Head(M.Tail(reading)())()
+                walker = empty
+            else:
+                walker = M.Tail(walker)()
+        if M.IdentityCompare(anchor_category, empty)() is M.truth_value:
+            return
+        outer = productions
+        while M.IdentityCompare(outer, empty)() is M.false_value:
+            production = M.Head(outer)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(production)())(), anchor_category,
+            )() is M.truth_value:
+                wanted = M.Head(M.Tail(M.Tail(production)())())()
+                inner = productions
+                while M.IdentityCompare(inner, empty)() is M.false_value:
+                    glue = M.Head(inner)()
+                    glue_left = M.Head(M.Tail(glue)())()
+                    glue_right = M.Head(M.Tail(M.Tail(glue)())())()
+                    glue_result = M.Head(M.Tail(M.Tail(M.Tail(glue)())())())()
+                    glue_is_space = M.IdentityCompare(
+                        glue_right, spc_category,
+                    )() is M.truth_value
+                    word_direct = M.IdentityCompare(
+                        glue_left, wanted,
+                    )() is M.truth_value and glue_is_space
+                    word_glued = M.IdentityCompare(
+                        glue_result, wanted,
+                    )() is M.truth_value and glue_is_space
+                    if word_direct:
+                        self.result = M.Pair(
+                            gap_start,
+                            M.Pair(gap_end, M.Pair(wanted, empty)),
+                        )
+                        inner = empty
+                        outer = empty
+                    elif word_glued:
+                        self.result = M.Pair(
+                            gap_start,
+                            M.Pair(gap_end, M.Pair(glue_left, empty)),
+                        )
+                        inner = empty
+                        outer = empty
+                    else:
+                        inner = M.Tail(inner)()
+            else:
+                outer = M.Tail(outer)()
+
+    def __call__(self):
+        return self.result
+
+
+class ProvisionalWord(M.Edge):
+    """A gap becomes lexicon: arcs for its symbols, and a sense with a hole.
+
+    Pair(root, Pair(symbols, Pair(category, Pair(word, EmptyList)))) ->
+    Pair(arcs, Pair(sense, Pair(final_state, EmptyList))). The states
+    are fresh, the arcs spell the gap's symbols from the root, and the
+    sense's meaning is Hole(word, EmptyList, NoDefinitionInstalled):
+    the category came from the grammar, the meaning is not known yet,
+    and the definition the word appears in is what will supply it.
+    Learn the arcs and the sense into the running engine and drain;
+    the chart completes without anything re-observing.
+    """
+
+    def __init__(self, root, symbols, category, word):
+        empty = M.EmptyList
+        arcs_reversed = empty
+        state = root
+        counter_text = "0"
+        walker = symbols
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            next_state = M.Char("gap-st-" + counter_text)
+            counter_text = GMPSuccText(counter_text)()
+            arcs_reversed = M.Pair(
+                FormArc(state, M.Head(walker)(), next_state)(),
+                arcs_reversed,
+            )
+            state = next_state
+            walker = M.Tail(walker)()
+        sense = FormSense(
+            state, category, Hole(word, empty, Lmod.NoDefinitionInstalledLabel)(),
+        )()
+        self.result = M.Pair(
+            M.Reverse(arcs_reversed)(),
+            M.Pair(sense, M.Pair(state, empty)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                root,
+                M.Pair(
+                    symbols,
+                    M.Pair(category, M.Pair(word, empty)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RecogniseForms(M.Edge):
+    """The reader's deduction, run by index and delta instead of by search.
+
+    Three ordinary monotone laws, compiled by CompileDeductionToLaw and
+    left whole:
+
+        FormScan(?f, ?start, ?cur),
+        ObservedSymbolStep(?u, ?cur, ?sym, ?next),
+        FormArc(?f, ?sym, ?f2)
+            ->  FormScan(?f2, ?start, ?next)
+
+        FormScan(?f, ?start, ?cur),
+        FormSense(?f, ?cat, ?mean)
+            ->  Reading(?cat, ?start, ?cur, ?mean)
+
+        Reading(?a, ?start, ?mid, ?ma),
+        BinaryProduction(?a, ?b, ?c, ?t),
+        Reading(?b, ?mid, ?end, ?mb)
+            ->  Reading(?c, ?start, ?end, composed)
+
+    The laws stay authoritative; the engine never reads them back to
+    run. Each is executed through the DeductionPlan records keyed by
+    trigger relation in PlansByTriggerRelation: a plan names its
+    trigger premise, one lookup step per remaining premise -- an
+    IndexSpec together with that premise's variable pattern -- and the
+    conclusion template. The interpreter binds the trigger's arguments,
+    resolves each lookup's key positions from those bindings, walks the
+    index chains, checks the remaining bound arguments by identity,
+    instantiates the conclusion, and inserts it. One plan exists per
+    premise position of the first two laws, so facts arrive in any
+    order: a late arc finds the scans waiting for it, a late sense the
+    scans at its state. Composition is triggered by either daughter.
+    The one position not executed is a production arriving after
+    readings exist.
+
+    Every fact enters through one insert that deduplicates on the
+    relation's first declared index -- a lookup by the declared keys
+    and a value comparison along the small chain it returns --
+    maintains every declared index, and queues itself on the
+    DeltaAgenda. The loop pops until the agenda is empty, which is
+    quiescence; no pass ever rereads the store, and nothing asks the
+    generic matcher anything. The indexes are red-black trees keyed on
+    atoms, the one structure here with sublinear fan-out. All observed
+    steps must belong to one utterance, and composition refuses a
+    daughter of zero width: readings over an empty span would compose
+    with themselves forever.
+    """
+
+    def __init__(self, steps, arcs, senses, root, productions):
+        empty = M.EmptyList
+
+        self.facts_inserted_text = "0"
+        self.delta_popped_text = "0"
+        self.index_lookups_text = "0"
+        self.facts_returned_text = "0"
+        self.conclusions_attempted_text = "0"
+        self.new_conclusions_text = "0"
+        self.full_store_enumerations_text = "0"
+        self.freshen_count_text = "0"
+        self.definition_count_text = "0"
+
+        var_f = M.Pair(M.VarTag, M.Pair(M.Char("?f"), empty))
+        var_start = M.Pair(M.VarTag, M.Pair(M.Char("?start"), empty))
+        var_cur = M.Pair(M.VarTag, M.Pair(M.Char("?cur"), empty))
+        var_u = M.Pair(M.VarTag, M.Pair(M.Char("?u"), empty))
+        var_sym = M.Pair(M.VarTag, M.Pair(M.Char("?sym"), empty))
+        var_next = M.Pair(M.VarTag, M.Pair(M.Char("?next"), empty))
+        var_f2 = M.Pair(M.VarTag, M.Pair(M.Char("?f2"), empty))
+        var_g = M.Pair(M.VarTag, M.Pair(M.Char("?g"), empty))
+        var_s2 = M.Pair(M.VarTag, M.Pair(M.Char("?s2"), empty))
+        var_c2 = M.Pair(M.VarTag, M.Pair(M.Char("?c2"), empty))
+        var_cat = M.Pair(M.VarTag, M.Pair(M.Char("?cat"), empty))
+        var_mean = M.Pair(M.VarTag, M.Pair(M.Char("?mean"), empty))
+        var_ra = M.Pair(M.VarTag, M.Pair(M.Char("?ra"), empty))
+        var_rb = M.Pair(M.VarTag, M.Pair(M.Char("?rb"), empty))
+        var_rc = M.Pair(M.VarTag, M.Pair(M.Char("?rc"), empty))
+        var_rs = M.Pair(M.VarTag, M.Pair(M.Char("?rs"), empty))
+        var_re = M.Pair(M.VarTag, M.Pair(M.Char("?re"), empty))
+        var_rmid = M.Pair(M.VarTag, M.Pair(M.Char("?rmid"), empty))
+        var_rma = M.Pair(M.VarTag, M.Pair(M.Char("?rma"), empty))
+        var_rmb = M.Pair(M.VarTag, M.Pair(M.Char("?rmb"), empty))
+        var_rt = M.Pair(M.VarTag, M.Pair(M.Char("?rt"), empty))
+        self._compose_start_var = var_rs
+        self._compose_mid_var = var_rmid
+        self._compose_end_var = var_re
+
+        self.scan_law = CompileDeductionToLaw(
+            P.MultiRule(
+                M.Pair(
+                    M.Pair(
+                        Lmod.FormScanLabel,
+                        M.Pair(var_f, M.Pair(var_start, M.Pair(var_cur, empty))),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.ObservedSymbolStepLabel,
+                            M.Pair(
+                                var_u,
+                                M.Pair(
+                                    var_cur,
+                                    M.Pair(var_sym, M.Pair(var_next, empty)),
+                                ),
+                            ),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Lmod.FormArcLabel,
+                                M.Pair(
+                                    var_f,
+                                    M.Pair(var_sym, M.Pair(var_f2, empty)),
+                                ),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ),
+                M.Pair(
+                    Lmod.FormScanLabel,
+                    M.Pair(var_f2, M.Pair(var_start, M.Pair(var_next, empty))),
+                ),
+            ),
+        )()
+        self.sense_law = CompileDeductionToLaw(
+            P.MultiRule(
+                M.Pair(
+                    M.Pair(
+                        Lmod.FormScanLabel,
+                        M.Pair(var_g, M.Pair(var_s2, M.Pair(var_c2, empty))),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.FormSenseLabel,
+                            M.Pair(
+                                var_g,
+                                M.Pair(var_cat, M.Pair(var_mean, empty)),
+                            ),
+                        ),
+                        empty,
+                    ),
+                ),
+                M.Pair(
+                    Lmod.ReadingLabel,
+                    M.Pair(
+                        var_cat,
+                        M.Pair(
+                            var_s2,
+                            M.Pair(var_c2, M.Pair(var_mean, empty)),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        self.compose_law = CompileDeductionToLaw(
+            P.MultiRule(
+                M.Pair(
+                    M.Pair(
+                        Lmod.ReadingLabel,
+                        M.Pair(
+                            var_ra,
+                            M.Pair(
+                                var_rs,
+                                M.Pair(var_rmid, M.Pair(var_rma, empty)),
+                            ),
+                        ),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.BinaryProductionLabel,
+                            M.Pair(
+                                var_ra,
+                                M.Pair(
+                                    var_rb,
+                                    M.Pair(var_rc, M.Pair(var_rt, empty)),
+                                ),
+                            ),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Lmod.ReadingLabel,
+                                M.Pair(
+                                    var_rb,
+                                    M.Pair(
+                                        var_rmid,
+                                        M.Pair(var_re, M.Pair(var_rmb, empty)),
+                                    ),
+                                ),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ),
+                M.Pair(
+                    Lmod.ReadingLabel,
+                    M.Pair(
+                        var_rc,
+                        M.Pair(
+                            var_rs,
+                            M.Pair(
+                                var_re,
+                                M.Pair(
+                                    M.Pair(
+                                        Lmod.ComposeMeaningLabel,
+                                        M.Pair(
+                                            var_rt,
+                                            M.Pair(
+                                                var_rma,
+                                                M.Pair(var_rmb, empty),
+                                            ),
+                                        ),
+                                    ),
+                                    empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+
+        self.step_index_spec = IndexSpec(
+            Lmod.ObservedSymbolStepLabel, M.Pair(M.GMPRep("1"), empty),
+        )()
+        self.arc_index_spec = IndexSpec(
+            Lmod.FormArcLabel,
+            M.Pair(M.GMPRep("0"), M.Pair(M.GMPRep("1"), empty)),
+        )()
+        self.sense_index_spec = IndexSpec(
+            Lmod.FormSenseLabel, M.Pair(M.GMPRep("0"), empty),
+        )()
+        self.scan_cursor_index_spec = IndexSpec(
+            Lmod.FormScanLabel, M.Pair(M.GMPRep("2"), empty),
+        )()
+        self.scan_state_index_spec = IndexSpec(
+            Lmod.FormScanLabel, M.Pair(M.GMPRep("0"), empty),
+        )()
+        self.reading_start_index_spec = IndexSpec(
+            Lmod.ReadingLabel,
+            M.Pair(M.GMPRep("0"), M.Pair(M.GMPRep("1"), empty)),
+        )()
+        self.reading_end_index_spec = IndexSpec(
+            Lmod.ReadingLabel,
+            M.Pair(M.GMPRep("0"), M.Pair(M.GMPRep("2"), empty)),
+        )()
+        self.production_left_index_spec = IndexSpec(
+            Lmod.BinaryProductionLabel, M.Pair(M.GMPRep("0"), empty),
+        )()
+        self.production_right_index_spec = IndexSpec(
+            Lmod.BinaryProductionLabel, M.Pair(M.GMPRep("1"), empty),
+        )()
+        self.index_specs = M.Pair(
+            self.step_index_spec,
+            M.Pair(
+                self.arc_index_spec,
+                M.Pair(
+                    self.sense_index_spec,
+                    M.Pair(
+                        self.scan_cursor_index_spec,
+                        M.Pair(
+                            self.scan_state_index_spec,
+                            M.Pair(
+                                self.reading_start_index_spec,
+                                M.Pair(
+                                    self.reading_end_index_spec,
+                                    M.Pair(
+                                        self.production_left_index_spec,
+                                        M.Pair(
+                                            self.production_right_index_spec,
+                                            empty,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        scan_pattern = M.Pair(
+            Lmod.FormScanLabel,
+            M.Pair(var_f, M.Pair(var_start, M.Pair(var_cur, empty))),
+        )
+        step_pattern = M.Pair(
+            Lmod.ObservedSymbolStepLabel,
+            M.Pair(
+                var_u,
+                M.Pair(var_cur, M.Pair(var_sym, M.Pair(var_next, empty))),
+            ),
+        )
+        arc_pattern = M.Pair(
+            Lmod.FormArcLabel,
+            M.Pair(var_f, M.Pair(var_sym, M.Pair(var_f2, empty))),
+        )
+        sense_pattern = M.Pair(
+            Lmod.FormSenseLabel,
+            M.Pair(var_f, M.Pair(var_cat, M.Pair(var_mean, empty))),
+        )
+        reading_a_pattern = M.Pair(
+            Lmod.ReadingLabel,
+            M.Pair(
+                var_ra,
+                M.Pair(var_rs, M.Pair(var_rmid, M.Pair(var_rma, empty))),
+            ),
+        )
+        production_pattern = M.Pair(
+            Lmod.BinaryProductionLabel,
+            M.Pair(
+                var_ra,
+                M.Pair(var_rb, M.Pair(var_rc, M.Pair(var_rt, empty))),
+            ),
+        )
+        reading_b_pattern = M.Pair(
+            Lmod.ReadingLabel,
+            M.Pair(
+                var_rb,
+                M.Pair(var_rmid, M.Pair(var_re, M.Pair(var_rmb, empty))),
+            ),
+        )
+        scan_conclusion = M.Pair(
+            Lmod.FormScanLabel,
+            M.Pair(var_f2, M.Pair(var_start, M.Pair(var_next, empty))),
+        )
+        reading_conclusion = M.Pair(
+            Lmod.ReadingLabel,
+            M.Pair(
+                var_cat,
+                M.Pair(var_start, M.Pair(var_cur, M.Pair(var_mean, empty))),
+            ),
+        )
+        compose_conclusion = M.Pair(
+            Lmod.ReadingLabel,
+            M.Pair(
+                var_rc,
+                M.Pair(
+                    var_rs,
+                    M.Pair(
+                        var_re,
+                        M.Pair(
+                            M.Pair(
+                                Lmod.ComposeMeaningLabel,
+                                M.Pair(
+                                    var_rt,
+                                    M.Pair(var_rma, M.Pair(var_rmb, empty)),
+                                ),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        self.plan_from_scan = DeductionPlan(
+            self.scan_law,
+            scan_pattern,
+            M.Pair(
+                M.Pair(
+                    self.step_index_spec, M.Pair(step_pattern, empty),
+                ),
+                M.Pair(
+                    M.Pair(self.arc_index_spec, M.Pair(arc_pattern, empty)),
+                    empty,
+                ),
+            ),
+            scan_conclusion,
+        )()
+        self.plan_from_step = DeductionPlan(
+            self.scan_law,
+            step_pattern,
+            M.Pair(
+                M.Pair(
+                    self.scan_cursor_index_spec,
+                    M.Pair(scan_pattern, empty),
+                ),
+                M.Pair(
+                    M.Pair(self.arc_index_spec, M.Pair(arc_pattern, empty)),
+                    empty,
+                ),
+            ),
+            scan_conclusion,
+        )()
+        self.plan_from_arc = DeductionPlan(
+            self.scan_law,
+            arc_pattern,
+            M.Pair(
+                M.Pair(
+                    self.scan_state_index_spec, M.Pair(scan_pattern, empty),
+                ),
+                M.Pair(
+                    M.Pair(self.step_index_spec, M.Pair(step_pattern, empty)),
+                    empty,
+                ),
+            ),
+            scan_conclusion,
+        )()
+        self.plan_sense_from_scan = DeductionPlan(
+            self.sense_law,
+            scan_pattern,
+            M.Pair(
+                M.Pair(self.sense_index_spec, M.Pair(sense_pattern, empty)),
+                empty,
+            ),
+            reading_conclusion,
+        )()
+        self.plan_sense_from_sense = DeductionPlan(
+            self.sense_law,
+            sense_pattern,
+            M.Pair(
+                M.Pair(
+                    self.scan_state_index_spec, M.Pair(scan_pattern, empty),
+                ),
+                empty,
+            ),
+            reading_conclusion,
+        )()
+        self.plan_from_left_daughter = DeductionPlan(
+            self.compose_law,
+            reading_a_pattern,
+            M.Pair(
+                M.Pair(
+                    self.production_left_index_spec,
+                    M.Pair(production_pattern, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        self.reading_start_index_spec,
+                        M.Pair(reading_b_pattern, empty),
+                    ),
+                    empty,
+                ),
+            ),
+            compose_conclusion,
+        )()
+        self.plan_from_right_daughter = DeductionPlan(
+            self.compose_law,
+            reading_b_pattern,
+            M.Pair(
+                M.Pair(
+                    self.production_right_index_spec,
+                    M.Pair(production_pattern, empty),
+                ),
+                M.Pair(
+                    M.Pair(
+                        self.reading_end_index_spec,
+                        M.Pair(reading_a_pattern, empty),
+                    ),
+                    empty,
+                ),
+            ),
+            compose_conclusion,
+        )()
+        self.plans = M.Pair(
+            self.plan_from_scan,
+            M.Pair(
+                self.plan_from_step,
+                M.Pair(
+                    self.plan_from_arc,
+                    M.Pair(
+                        self.plan_sense_from_scan,
+                        M.Pair(
+                            self.plan_sense_from_sense,
+                            M.Pair(
+                                self.plan_from_left_daughter,
+                                M.Pair(self.plan_from_right_daughter, empty),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        plans_by_trigger = empty
+        plans_by_trigger = Tmod.IdentityRedBlackInsert(
+            plans_by_trigger,
+            Lmod.FormScanLabel,
+            M.Pair(
+                self.plan_from_scan,
+                M.Pair(self.plan_sense_from_scan, empty),
+            ),
+        )()
+        plans_by_trigger = Tmod.IdentityRedBlackInsert(
+            plans_by_trigger,
+            Lmod.ObservedSymbolStepLabel,
+            M.Pair(self.plan_from_step, empty),
+        )()
+        plans_by_trigger = Tmod.IdentityRedBlackInsert(
+            plans_by_trigger,
+            Lmod.FormArcLabel,
+            M.Pair(self.plan_from_arc, empty),
+        )()
+        plans_by_trigger = Tmod.IdentityRedBlackInsert(
+            plans_by_trigger,
+            Lmod.FormSenseLabel,
+            M.Pair(self.plan_sense_from_sense, empty),
+        )()
+        self._plans_by_trigger = Tmod.IdentityRedBlackInsert(
+            plans_by_trigger,
+            Lmod.ReadingLabel,
+            M.Pair(
+                self.plan_from_left_daughter,
+                M.Pair(self.plan_from_right_daughter, empty),
+            ),
+        )()
+
+        registry = empty
+        specs_walker = self.index_specs
+        while M.IdentityCompare(specs_walker, empty)() is M.false_value:
+            spec = M.Head(specs_walker)()
+            registry = M.Pair(M.Pair(spec, M.Pair(empty, empty)), registry)
+            specs_walker = M.Tail(specs_walker)()
+        self._index_registry = M.Reverse(registry)()
+
+        self._agenda = empty
+        self._firings_reversed = empty
+        self._readings_reversed = empty
+        self._root_state = root
+
+        remaining = steps
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            self._insert(M.Head(remaining)())
+            remaining = M.Tail(remaining)()
+        remaining = arcs
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            self._insert(M.Head(remaining)())
+            remaining = M.Tail(remaining)()
+        remaining = senses
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            self._insert(M.Head(remaining)())
+            remaining = M.Tail(remaining)()
+        remaining = productions
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            self._insert(M.Head(remaining)())
+            remaining = M.Tail(remaining)()
+        remaining = steps
+        while M.IdentityCompare(remaining, empty)() is M.false_value:
+            cursor = ObservedStepBefore(M.Head(remaining)())()
+            self._insert(FormScan(root, cursor, cursor)())
+            remaining = M.Tail(remaining)()
+
+        self._steps_index_root = self._root_for(self.step_index_spec)
+        self._arcs_index_root = self._root_for(self.arc_index_spec)
+        self._senses_index_root = self._root_for(self.sense_index_spec)
+
+        self._drain_agenda()
+        self._assemble_result()
+        super().__init__(
+            inputs=M.Pair(
+                steps,
+                M.Pair(
+                    arcs,
+                    M.Pair(
+                        senses, M.Pair(root, M.Pair(productions, empty)),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _drain_agenda(self):
+        empty = M.EmptyList
+        while M.IdentityCompare(self._agenda, empty)() is M.false_value:
+            fact = M.Head(self._agenda)()
+            self._agenda = M.Tail(self._agenda)()
+            self.delta_popped_text = GMPSuccText(self.delta_popped_text)()
+            label = M.Head(fact)()
+            held_plans = self._lookup(self._plans_by_trigger, label)
+            walker = held_plans
+            while M.IdentityCompare(walker, empty)() is M.false_value:
+                self._execute_plan(M.Head(walker)(), fact)
+                walker = M.Tail(walker)()
+
+    def _assemble_result(self):
+        self._steps_index_root = self._root_for(self.step_index_spec)
+        self._arcs_index_root = self._root_for(self.arc_index_spec)
+        self._senses_index_root = self._root_for(self.sense_index_spec)
+        self.result = M.Pair(
+            M.Reverse(self._readings_reversed)(),
+            M.Pair(
+                M.Reverse(self._firings_reversed)(),
+                M.Pair(DeltaAgenda(self._agenda)(), M.EmptyList),
+            ),
+        )
+
+    def Observe(self, utterance, before, symbol, after):
+        """One observed symbol event, and the root scan it seeds.
+
+        The client's whole contract: report each symbol as it arrives.
+        The step enters through the same insert as every fact, and the
+        cursor's scan is seeded whether or not one was there -- the
+        dedupe decides. Drain afterwards to run the delta.
+        """
+        self._insert(ObservedSymbolStep(utterance, before, symbol, after)())
+        return self._insert(FormScan(self._root_state, before, before)())
+
+    def Drain(self):
+        """Run the delta agenda to quiescence; the readings so far are
+        the result. A conversation keeps arriving; this is how it does
+        so without repaying the parse.
+        """
+        self._drain_agenda()
+        self._assemble_result()
+        return self.result
+
+    def Learn(self, arcs, senses):
+        """Teach lexicon facts mid-conversation.
+
+        Arcs and senses enter through the same insert as every fact,
+        the delta agenda carries them, and the drain completes the
+        chart -- nothing re-observes, nothing restarts, and the
+        counters show only the new work.
+        """
+        arcs_walker = arcs
+        while M.IdentityCompare(arcs_walker, M.EmptyList)() is M.false_value:
+            self._insert(M.Head(arcs_walker)())
+            arcs_walker = M.Tail(arcs_walker)()
+        senses_walker = senses
+        while M.IdentityCompare(senses_walker, M.EmptyList)() is M.false_value:
+            self._insert(M.Head(senses_walker)())
+            senses_walker = M.Tail(senses_walker)()
+        return self.Drain()
+
+    def _lookup(self, tree, key):
+        self.index_lookups_text = GMPSuccText(self.index_lookups_text)()
+        return Tmod.IdentityRedBlackLookupValue(tree, key)()
+
+    def _root_for(self, spec):
+        walker = self._index_registry
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            entry = M.Head(walker)()
+            if M.IdentityCompare(M.Head(entry)(), spec)() is M.truth_value:
+                return M.Head(M.Tail(entry)())()
+            walker = M.Tail(walker)()
+        return M.EmptyList
+
+    def _arg_at(self, args, position_text):
+        counter = "0"
+        walker = args
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            if GMPEqualText(counter, position_text)() is M.truth_value:
+                return M.Head(walker)()
+            counter = GMPSuccText(counter)()
+            walker = M.Tail(walker)()
+        return M.EmptyList
+
+    def _binding(self, bindings, variable):
+        walker = bindings
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            entry = M.Head(walker)()
+            if M.IdentityCompare(
+                M.Head(entry)(), variable,
+            )() is M.truth_value:
+                return M.Tail(entry)()
+            walker = M.Tail(walker)()
+        return M.false_value
+
+    def _keys_from_fact(self, spec, fact):
+        keys_reversed = M.EmptyList
+        walker = M.Head(M.Tail(M.Tail(spec)())())()
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            keys_reversed = M.Pair(
+                self._arg_at(
+                    M.Tail(fact)(), M.GMPRepText(M.Head(walker)())(),
+                ),
+                keys_reversed,
+            )
+            walker = M.Tail(walker)()
+        return M.Reverse(keys_reversed)()
+
+    def _keys_from_pattern(self, spec, pattern, bindings):
+        keys_reversed = M.EmptyList
+        walker = M.Head(M.Tail(M.Tail(spec)())())()
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            variable = self._arg_at(
+                M.Tail(pattern)(), M.GMPRepText(M.Head(walker)())(),
+            )
+            value = self._binding(bindings, variable)
+            if value is M.false_value:
+                return M.false_value
+            keys_reversed = M.Pair(value, keys_reversed)
+            walker = M.Tail(walker)()
+        return M.Reverse(keys_reversed)()
+
+    def _index_lookup(self, spec, keys):
+        tree = self._root_for(spec)
+        walker = keys
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(tree, M.EmptyList)() is M.truth_value:
+                return M.EmptyList
+            tree = self._lookup(tree, M.Head(walker)())
+            walker = M.Tail(walker)()
+        return tree
+
+    def _index_insert(self, tree, keys, fact):
+        key = M.Head(keys)()
+        rest = M.Tail(keys)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            held = self._lookup(tree, key)
+            if M.IdentityCompare(held, M.EmptyList)() is M.truth_value:
+                held = M.EmptyList
+            return Tmod.IdentityRedBlackInsert(
+                tree, key, M.Pair(fact, held),
+            )()
+        subtree = self._lookup(tree, key)
+        if M.IdentityCompare(subtree, M.EmptyList)() is M.truth_value:
+            subtree = M.EmptyList
+        return Tmod.IdentityRedBlackInsert(
+            tree, key, self._index_insert(subtree, rest, fact),
+        )()
+
+    def _insert(self, fact):
+        label = M.Head(fact)()
+
+        walker = self._index_registry
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            entry = M.Head(walker)()
+            spec = M.Head(entry)()
+            if M.IdentityCompare(
+                M.Head(M.Tail(spec)())(), label,
+            )() is M.truth_value:
+                keys = self._keys_from_fact(spec, fact)
+                held = self._index_lookup(spec, keys)
+                seen_walker = held
+                while M.IdentityCompare(
+                    seen_walker, M.EmptyList,
+                )() is M.false_value:
+                    if M.TermEqual(M.Head(seen_walker)(), fact)() is M.truth_value:
+                        return M.false_value
+                    seen_walker = M.Tail(seen_walker)()
+                walker = M.EmptyList
+            else:
+                walker = M.Tail(walker)()
+
+        updated = M.EmptyList
+        walker = self._index_registry
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            entry = M.Head(walker)()
+            spec = M.Head(entry)()
+            root = M.Head(M.Tail(entry)())()
+            if M.IdentityCompare(
+                M.Head(M.Tail(spec)())(), label,
+            )() is M.truth_value:
+                root = self._index_insert(
+                    root, self._keys_from_fact(spec, fact), fact,
+                )
+            updated = M.Pair(
+                M.Pair(spec, M.Pair(root, M.EmptyList)), updated,
+            )
+            walker = M.Tail(walker)()
+        self._index_registry = M.Reverse(updated)()
+
+        if M.IdentityCompare(label, Lmod.ReadingLabel)() is M.truth_value:
+            self._readings_reversed = M.Pair(fact, self._readings_reversed)
+
+        self.facts_inserted_text = GMPSuccText(self.facts_inserted_text)()
+        self._agenda = M.Pair(fact, self._agenda)
+        return M.truth_value
+
+    def _match_pattern(self, pattern, fact, bindings):
+        pattern_args = M.Tail(pattern)()
+        fact_args = M.Tail(fact)()
+        extended = bindings
+        while M.IdentityCompare(pattern_args, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(fact_args, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            pattern_arg = M.Head(pattern_args)()
+            fact_arg = M.Head(fact_args)()
+            if M.IsPair(pattern_arg)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(pattern_arg)(), M.VarTag,
+                )() is M.truth_value:
+                    bound = self._binding(extended, pattern_arg)
+                    if bound is M.false_value:
+                        extended = M.Pair(
+                            M.Pair(pattern_arg, fact_arg), extended,
+                        )
+                    else:
+                        if M.IdentityCompare(
+                            bound, fact_arg,
+                        )() is M.false_value:
+                            return M.false_value
+                else:
+                    if M.IdentityCompare(
+                        pattern_arg, fact_arg,
+                    )() is M.false_value:
+                        return M.false_value
+            else:
+                if M.IdentityCompare(
+                    pattern_arg, fact_arg,
+                )() is M.false_value:
+                    return M.false_value
+            pattern_args = M.Tail(pattern_args)()
+            fact_args = M.Tail(fact_args)()
+        if M.IdentityCompare(fact_args, M.EmptyList)() is M.false_value:
+            return M.false_value
+        return extended
+
+    def _execute_plan(self, plan, fact):
+        law = M.Head(M.Tail(plan)())()
+        trigger = M.Head(M.Tail(M.Tail(plan)())())()
+        bindings = self._match_pattern(trigger, fact, M.EmptyList)
+        if bindings is M.false_value:
+            return
+        steps = M.Head(M.Tail(M.Tail(M.Tail(plan)())())())()
+        conclusion = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(plan)())())())())()
+        self._run_steps(
+            steps, bindings, M.Pair(fact, M.EmptyList), conclusion, law,
+        )
+
+    def _run_steps(self, steps, bindings, premises, conclusion, law):
+        if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:
+            self._conclude(conclusion, bindings, premises, law)
+            return
+        step = M.Head(steps)()
+        spec = M.Head(step)()
+        pattern = M.Head(M.Tail(step)())()
+        keys = self._keys_from_pattern(spec, pattern, bindings)
+        if keys is M.false_value:
+            return
+        held = self._index_lookup(spec, keys)
+        walker = held
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            candidate = M.Head(walker)()
+            self.facts_returned_text = GMPSuccText(self.facts_returned_text)()
+            extended = self._match_pattern(pattern, candidate, bindings)
+            if extended is not M.false_value:
+                self._run_steps(
+                    M.Tail(steps)(),
+                    extended,
+                    M.Pair(candidate, premises),
+                    conclusion,
+                    law,
+                )
+            walker = M.Tail(walker)()
+
+    def _conclude(self, conclusion, bindings, premises, law):
+        args_reversed = M.EmptyList
+        walker = M.Tail(conclusion)()
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            built = self._build_arg(M.Head(walker)(), bindings)
+            if built is M.false_value:
+                return
+            args_reversed = M.Pair(built, args_reversed)
+            walker = M.Tail(walker)()
+        fact = M.Pair(M.Head(conclusion)(), M.Reverse(args_reversed)())
+        self.conclusions_attempted_text = GMPSuccText(
+            self.conclusions_attempted_text,
+        )()
+        if self._insert(fact) is M.truth_value:
+            self.new_conclusions_text = GMPSuccText(self.new_conclusions_text)()
+            self._firings_reversed = M.Pair(
+                IndexedFiring(law, premises, bindings, fact)(),
+                self._firings_reversed,
+            )
+
+    def _build_arg(self, arg, bindings):
+        if M.IsPair(arg)() is M.truth_value:
+            if M.IdentityCompare(M.Head(arg)(), M.VarTag)() is M.truth_value:
+                value = self._binding(bindings, arg)
+                if value is M.false_value:
+                    return M.false_value
+                return value
+            if M.IdentityCompare(
+                M.Head(arg)(), Lmod.ComposeMeaningLabel,
+            )() is M.truth_value:
+                meaning = self._compose_meaning(arg, bindings)
+                if meaning is M.false_value:
+                    return M.false_value
+                return self._build_arg(meaning, bindings)
+            if M.IdentityCompare(
+                M.Head(arg)(), Lmod.DefinitionMeaningLabel,
+            )() is M.truth_value:
+                return self._definition_meaning(arg)
+            head_built = self._build_arg(M.Head(arg)(), bindings)
+            if head_built is M.false_value:
+                return M.false_value
+            tail_built = self._build_arg(M.Tail(arg)(), bindings)
+            if tail_built is M.false_value:
+                return M.false_value
+            return M.Pair(head_built, tail_built)
+        return arg
+
+    def _compose_meaning(self, marker, bindings):
+        start = self._binding(bindings, self._compose_start_var)
+        middle = self._binding(bindings, self._compose_mid_var)
+        end = self._binding(bindings, self._compose_end_var)
+        if start is M.false_value or middle is M.false_value:
+            return M.false_value
+        if end is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(start, middle)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(middle, end)() is M.truth_value:
+            return M.false_value
+        template_var = M.Head(M.Tail(marker)())()
+        left_var = M.Head(M.Tail(M.Tail(marker)())())()
+        right_var = M.Head(M.Tail(M.Tail(M.Tail(marker)())())())()
+        template = self._binding(bindings, template_var)
+        left_meaning = self._binding(bindings, left_var)
+        right_meaning = self._binding(bindings, right_var)
+        if template is M.false_value:
+            return M.false_value
+        if left_meaning is M.false_value:
+            return M.false_value
+        if right_meaning is M.false_value:
+            return M.false_value
+        inner_template = template
+        right_first = M.false_value
+        if M.IsPair(template)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(template)(), Lmod.ProjectRightLabel,
+            )() is M.truth_value:
+                inner_template = M.Head(M.Tail(template)())()
+                right_first = M.truth_value
+        scope = M.GMPRep(self.freshen_count_text)
+        self.freshen_count_text = GMPSuccText(self.freshen_count_text)()
+        fresh = FreshenTemplate(inner_template, scope)
+        fresh_bindings = M.EmptyList
+        walker = fresh.bindings_chain
+        slot = "0"
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            entry = M.Head(walker)()
+            fresh_variable = M.Tail(entry)()
+            if GMPEqualText(slot, "0")() is M.truth_value:
+                if right_first is M.truth_value:
+                    fresh_bindings = M.Pair(
+                        M.Pair(fresh_variable, right_meaning), fresh_bindings,
+                    )
+                else:
+                    fresh_bindings = M.Pair(
+                        M.Pair(fresh_variable, left_meaning), fresh_bindings,
+                    )
+            else:
+                if right_first is M.truth_value:
+                    fresh_bindings = M.Pair(
+                        M.Pair(fresh_variable, left_meaning), fresh_bindings,
+                    )
+                else:
+                    fresh_bindings = M.Pair(
+                        M.Pair(fresh_variable, right_meaning), fresh_bindings,
+                    )
+            slot = GMPSuccText(slot)()
+            walker = M.Tail(walker)()
+        return self._instantiate(fresh.instantiated, fresh_bindings)
+
+    def _definition_meaning(self, marker):
+        """The definition production: one scope, one self, and the graph.
+
+        The grammar hands over one of two shapes. With the head-noun
+        order -- "a prime number is divisible..." -- the left daughter
+        is LexicalNp(concept, Pair(category, Pair(presuppositions,
+        EmptyList))) and the right is the predicate chain. With the
+        predicate-nominal order -- "a prime is a number divisible..."
+        -- the left daughter is the bare concept and the right is
+        Pair(chunk, predicate-chain), the category riding after the
+        copula. This side allocates what no template can: the scope and
+        the fresh self. The noun's presuppositions become conditions
+        over that self; the reflexives among the fillers resolve to it,
+        so "one and itself" and "itself and one" both read with one
+        variable object in the application and the restriction alike --
+        and the sample application pairs the self with the filler that
+        is not itself, whichever order was spoken. The restriction
+        becomes ExactFillers(relation, self, role, fillers) rather than
+        a quantifier, because the parser records what was said and
+        normalization is a law's job.
+        """
+        left = M.Head(M.Tail(marker)())()
+        right = M.Head(M.Tail(M.Tail(marker)())())()
+        if M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(marker)())())(), M.EmptyList,
+        )() is M.false_value:
+            return M.false_value
+        predicate_chain = M.EmptyList
+        if M.IsPair(left)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(left)(), Lmod.HoleLabel,
+            )() is M.truth_value:
+                concept = left
+                if M.IsPair(right)() is M.false_value:
+                    return M.false_value
+                chunk = M.Head(right)()
+                predicate_chain = M.Head(M.Tail(right)())()
+                if M.IdentityCompare(
+                    M.Tail(M.Tail(right)())(), M.EmptyList,
+                )() is M.false_value:
+                    return M.false_value
+            elif M.IdentityCompare(
+                M.Head(left)(), Lmod.LexicalNpLabel,
+            )() is M.false_value:
+                return M.false_value
+            else:
+                concept = M.Head(M.Tail(left)())()
+                chunk = M.Head(M.Tail(M.Tail(left)())())()
+                predicate_chain = right
+        else:
+            concept = left
+            if M.IsPair(right)() is M.false_value:
+                return M.false_value
+            chunk = M.Head(right)()
+            predicate_chain = M.Head(M.Tail(right)())()
+            if M.IdentityCompare(
+                M.Tail(M.Tail(right)())(), M.EmptyList,
+            )() is M.false_value:
+                return M.false_value
+        if M.IsPair(chunk)() is M.false_value:
+            return M.false_value
+        category = M.Head(chunk)()
+        presuppositions = M.Tail(chunk)()
+        if M.IdentityCompare(predicate_chain, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        relation = M.Head(predicate_chain)()
+        rest = M.Tail(predicate_chain)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        restriction = M.Head(rest)()
+        if M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.false_value:
+            return M.false_value
+        if M.IsPair(restriction)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(restriction)(), Lmod.RestrictionLabel,
+        )() is M.false_value:
+            return M.false_value
+        role = M.Head(M.Tail(restriction)())()
+        fillers = M.Head(M.Tail(M.Tail(restriction)())())()
+        if M.IdentityCompare(fillers, M.EmptyList)() is M.truth_value:
+            return M.false_value
+
+        scope = M.GMPRep(self.definition_count_text)
+        self.definition_count_text = GMPSuccText(self.definition_count_text)()
+        self_variable = M.Pair(
+            M.VarTag, M.Pair(scope, M.Pair(M.Char("?self"), M.EmptyList)),
+        )
+        resolved_fillers = ResolveReflexives(fillers, self_variable)()
+        chosen_filler = M.EmptyList
+        filler_walker = resolved_fillers
+        while M.IdentityCompare(filler_walker, M.EmptyList)() is M.false_value:
+            candidate_filler = M.Head(filler_walker)()
+            if M.IdentityCompare(
+                candidate_filler, self_variable,
+            )() is M.false_value:
+                chosen_filler = candidate_filler
+                filler_walker = M.EmptyList
+            else:
+                filler_walker = M.Tail(filler_walker)()
+        if M.IdentityCompare(chosen_filler, M.EmptyList)() is M.truth_value:
+            chosen_filler = M.Head(resolved_fillers)()
+
+        conditions_reversed = M.Pair(
+            M.Pair(
+                Lmod.ExactFillersLabel,
+                M.Pair(
+                    relation,
+                    M.Pair(
+                        self_variable,
+                        M.Pair(role, M.Pair(resolved_fillers, M.EmptyList)),
+                    ),
+                ),
+            ),
+            M.EmptyList,
+        )
+        conditions_reversed = M.Pair(
+            M.Pair(
+                relation,
+                M.Pair(
+                    chosen_filler,
+                    M.Pair(self_variable, M.EmptyList),
+                ),
+            ),
+            conditions_reversed,
+        )
+        walker = presuppositions
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            condition_marker = M.Head(walker)()
+            conditions_reversed = M.Pair(
+                M.Pair(
+                    M.Head(condition_marker)(),
+                    M.Pair(self_variable, M.EmptyList),
+                ),
+                conditions_reversed,
+            )
+            walker = M.Tail(walker)()
+        conditions = conditions_reversed
+
+        definiendum = M.Pair(
+            Lmod.DefiniendumLabel,
+            M.Pair(concept, M.Pair(category, M.EmptyList)),
+        )
+        return DefinitionNode(
+            definiendum, Binder(scope, self_variable)(), conditions,
+        )()
+
+    def _instantiate(self, term, bindings):
+        if M.IsPair(term)() is M.truth_value:
+            if M.IdentityCompare(M.Head(term)(), M.VarTag)() is M.truth_value:
+                value = self._binding(bindings, term)
+                if value is M.false_value:
+                    return term
+                return value
+            return M.Pair(
+                self._instantiate(M.Head(term)(), bindings),
+                self._instantiate(M.Tail(term)(), bindings),
+            )
+        return term
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicy(M.Edge):
+    """What counts as a word, stated as data rather than as string surgery.
+
+    Pair(ReadingPolicyLabel, Pair(separators, Pair(discarded,
+    Pair(standalone, Pair(foldings, EmptyList))))).
+
+    Reading a typed line used to be a chain of host replaces: lowercase
+    the line, blank out the sentence punctuation, pad the brackets and
+    the comma with spaces, split on whitespace, spell out any word that
+    is all digits. Six decisions about what a word is, made in Python
+    before the machine saw anything, and none of them stateable,
+    retirable or learnable. A pack that wanted a semicolon for a
+    separator would have had to edit the reader.
+
+    Each of those decisions is a chain here. Separators end a word.
+    Discarded characters end a word and are dropped. Standalone
+    characters end a word and are one themselves -- which is the whole
+    of why a comma is a word. Foldings say which character stands for
+    which, so case is a correspondence rather than a method call.
+    """
+
+    def __init__(self, separators, discarded, standalone, foldings):
+        self.result = M.Pair(
+            Lmod.ReadingPolicyLabel,
+            M.Pair(
+                separators,
+                M.Pair(discarded, M.Pair(standalone, M.Pair(foldings, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                separators,
+                M.Pair(discarded, M.Pair(standalone, M.Pair(foldings, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicySeparators(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(M.Tail(policy)())()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicyDiscarded(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(M.Tail(M.Tail(policy)())())()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicyStandalone(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(policy)())())())()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReadingPolicyFoldings(M.Edge):
+    def __init__(self, policy):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(policy)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(policy, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefaultReadingPolicy(M.Edge):
+    """The reader's own decisions, as the chains a pack could replace.
+
+    These reproduce exactly what the host replaces used to do: space,
+    tab and newline break a word; a full stop, question mark and
+    exclamation mark break one and vanish; a bracket or a comma is a
+    word standing alone; and each capital stands for its small letter.
+    """
+
+    def __init__(self):
+        empty = M.EmptyList
+        separators = M.Pair(
+            M.Char(" "),
+            M.Pair(M.Char("\t"), M.Pair(M.Char("\n"), M.Pair(M.Char("\r"), empty))),
+        )
+        discarded = M.Pair(
+            M.Char("."),
+            M.Pair(M.Char("?"), M.Pair(M.Char("!"), empty)),
+        )
+        standalone = M.Pair(
+            M.Char("("),
+            M.Pair(M.Char(")"), M.Pair(M.Char(","), empty)),
+        )
+        foldings = empty
+        foldings = M.Pair(M.Pair(M.Char("Z"), M.Pair(M.Char("z"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("Y"), M.Pair(M.Char("y"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("X"), M.Pair(M.Char("x"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("W"), M.Pair(M.Char("w"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("V"), M.Pair(M.Char("v"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("U"), M.Pair(M.Char("u"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("T"), M.Pair(M.Char("t"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("S"), M.Pair(M.Char("s"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("R"), M.Pair(M.Char("r"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("Q"), M.Pair(M.Char("q"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("P"), M.Pair(M.Char("p"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("O"), M.Pair(M.Char("o"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("N"), M.Pair(M.Char("n"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("M"), M.Pair(M.Char("m"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("L"), M.Pair(M.Char("l"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("K"), M.Pair(M.Char("k"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("J"), M.Pair(M.Char("j"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("I"), M.Pair(M.Char("i"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("H"), M.Pair(M.Char("h"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("G"), M.Pair(M.Char("g"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("F"), M.Pair(M.Char("f"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("E"), M.Pair(M.Char("e"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("D"), M.Pair(M.Char("d"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("C"), M.Pair(M.Char("c"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("B"), M.Pair(M.Char("b"), empty)), foldings)
+        foldings = M.Pair(M.Pair(M.Char("A"), M.Pair(M.Char("a"), empty)), foldings)
+        self.result = ReadingPolicy(separators, discarded, standalone, foldings)()
+        super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FoldCharacter(M.Edge):
+    """The character this one stands for, or itself when nothing says."""
+
+    def __init__(self, character, foldings):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = character
+        scan_text = "0"
+        remaining = foldings
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining)()
+                if M.Compare(M.Head(entry)(), character)() is M.truth_value:
+                    self.result = M.Head(M.Tail(entry)())()
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(character, M.Pair(foldings, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordForDigitCharacter(M.Edge):
+    """The number word a digit character names, or EmptyList.
+
+    The inverse of SurfaceDigitOfWord, over the same chain, so the
+    reader and the printer agree by construction about which digit is
+    which word.
+    """
+
+    def __init__(self, character, digit_words):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        scan_text = "0"
+        remaining = digit_words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                entry = M.Head(remaining)()
+                if M.Compare(M.Head(entry)(), character)() is M.truth_value:
+                    self.result = M.Head(M.Tail(entry)())()
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        super().__init__(
+            inputs=M.Pair(character, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordsOfStream(M.Edge):
+    """A stream of characters as words, by the policy and nothing else.
+
+    The host boundary and the word rule in one place, because splitting
+    a line into one-character atoms and then concatenating them back
+    into a word is ceremony: it allocates a Char and three identities
+    per character to arrive at the string it started from. What the
+    policy decides is data -- these chains -- and what the host does is
+    read.
+
+    Characters arrive one at a time from the stream, so no host
+    container is walked. Each is folded through the policy, then asked
+    of the policy's chains: a separator ends the run, a discarded
+    character ends it and is gone, a standalone character ends it and
+    is a word itself, which is the whole of why a comma is a word. A
+    finished run that is entirely digits becomes one number word per
+    digit through the same chain RenderNatSurface prints with, so
+    reader and printer agree by construction; a run that is not stays
+    whole, so e2 and sqrt2 survive.
+    """
+
+    def __init__(self, stream, policy, digit_words):
+        separators = ReadingPolicySeparators(policy)()
+        discarded = ReadingPolicyDiscarded(policy)()
+        standalone = ReadingPolicyStandalone(policy)()
+        foldings = ReadingPolicyFoldings(policy)()
+        reversed_words = M.EmptyList
+        run_text = ""
+        run_digits = M.EmptyList
+        all_digits = M.truth_value
+        reading = M.truth_value
+        while M.IdentityCompare(reading, M.truth_value)() is M.truth_value:
+            symbol = stream.read(1)
+            if symbol == "":
+                reading = M.false_value
+                character = M.Head(separators)()
+            else:
+                character = FoldCharacter(M.Char(symbol), foldings)()
+            ends_run = M.false_value
+            stands_alone = M.false_value
+            if SurfaceChainHasWord(separators, character)() is M.truth_value:
+                ends_run = M.truth_value
+            elif SurfaceChainHasWord(discarded, character)() is M.truth_value:
+                ends_run = M.truth_value
+            elif SurfaceChainHasWord(standalone, character)() is M.truth_value:
+                ends_run = M.truth_value
+                stands_alone = M.truth_value
+            if M.IdentityCompare(ends_run, M.false_value)() is M.truth_value:
+                digit_word = WordForDigitCharacter(character, digit_words)()
+                if M.IdentityCompare(digit_word, M.EmptyList)() is M.truth_value:
+                    all_digits = M.false_value
+                else:
+                    run_digits = M.Pair(digit_word, run_digits)
+                run_text = run_text + character()
+            else:
+                if run_text != "":
+                    if M.IdentityCompare(all_digits, M.truth_value)() is M.truth_value:
+                        spelled = M.Reverse(run_digits)()
+                        while M.IdentityCompare(
+                            spelled, M.EmptyList,
+                        )() is M.false_value:
+                            reversed_words = M.Pair(
+                                M.Head(spelled)(), reversed_words,
+                            )
+                            spelled = M.Tail(spelled)()
+                    else:
+                        reversed_words = M.Pair(M.Char(run_text), reversed_words)
+                run_text = ""
+                run_digits = M.EmptyList
+                all_digits = M.truth_value
+                if M.IdentityCompare(stands_alone, M.truth_value)() is M.truth_value:
+                    reversed_words = M.Pair(character, reversed_words)
+        self.result = M.Reverse(reversed_words)()
+        super().__init__(
+            inputs=M.Pair(policy, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordsOfText(M.Edge):
+    """Host text as words: the one place a stream is made of a string."""
+
+    def __init__(self, text, policy, digit_words):
+        self.result = WordsOfStream(io.StringIO(text), policy, digit_words)()
+        super().__init__(
+            inputs=M.Pair(policy, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class WordChainWithout(M.Edge):
+    """The words of a chain that are not in `unwanted`."""
+
+    def __init__(self, words, unwanted):
+        reversed_kept = M.EmptyList
+        remaining = words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            word = M.Head(remaining)()
+            if SurfaceChainHasWord(unwanted, word)() is M.false_value:
+                reversed_kept = M.Pair(word, reversed_kept)
+            remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_kept)()
+        super().__init__(
+            inputs=M.Pair(words, M.Pair(unwanted, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SoleWord(M.Edge):
+    """The one word of a chain, or EmptyList when there is not exactly one.
+
+    "what is a triangle" asks about one term. Reading that used to be a
+    host comprehension over a host list and a length check; the question
+    it answers is about a chain, and this is that question.
+    """
+
+    def __init__(self, words):
+        self.result = M.EmptyList
+        if M.IdentityCompare(words, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Tail(words)(), M.EmptyList)() is M.truth_value:
+                self.result = M.Head(words)()
+        super().__init__(
+            inputs=M.Pair(words, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionTermAndBody(M.Edge):
+    """Split "a triangle is a polygon ..." into its term and its body.
+
+    Leading articles are skipped, the next word is the term being
+    defined, a copula after it is dropped, and what remains is the body.
+    Returns Pair(term, Pair(body, EmptyList)), or EmptyList when there
+    is no term or no body left to define it with.
+
+    The console did this by walking an index over a host list and
+    slicing it, then building the very chain it had just taken apart.
+    The articles and the copulas are chains here, so a reader that says
+    "one triangle is ..." is a longer chain rather than a longer tuple
+    in Python.
+    """
+
+    def __init__(self, words, articles, copulas):
+        self.result = M.EmptyList
+        remaining = words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if SurfaceChainHasWord(articles, M.Head(remaining)())() is M.truth_value:
+                remaining = M.Tail(remaining)()
+            else:
+                term = M.Head(remaining)()
+                body = M.Tail(remaining)()
+                if M.IdentityCompare(body, M.EmptyList)() is M.false_value:
+                    if SurfaceChainHasWord(
+                        copulas, M.Head(body)(),
+                    )() is M.truth_value:
+                        body = M.Tail(body)()
+                if M.IdentityCompare(body, M.EmptyList)() is M.false_value:
+                    self.result = M.Pair(term, M.Pair(body, M.EmptyList))
+                remaining = M.EmptyList
+        super().__init__(
+            inputs=M.Pair(
+                words, M.Pair(articles, M.Pair(copulas, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SurfaceOfText(M.Edge):
+    """A typed line as a Surface, through the policy."""
+
+    def __init__(self, text, policy, digit_words):
+        self.words = WordsOfText(text, policy, digit_words)()
+        self.result = Surface(self.words)()
+        super().__init__(
+            inputs=M.Pair(policy, M.Pair(digit_words, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class Surface(M.Edge):
     """A surface form: an ordered Pair chain of symbol atoms."""
 
@@ -9084,9 +12047,10 @@ class ConstructorSignature(M.Edge):
 
     The formal notation "mul ( a , b )" was one hand-written template per
     constructor, so a constructor the packs knew about had no formal form
-    until someone added a branch. A signature is that form as data: the
-    reader below builds the term from it, so every constructor a pack
-    emits is writable the moment it is loaded.
+    until someone added a branch. A signature is that form as data:
+    FormalProductions below turns it into a production of the grammar, so
+    every constructor a pack emits is writable the moment it is loaded and
+    nothing in the parser mentions it.
     """
 
     def __init__(self, word, constructor, arity):
@@ -9142,12 +12106,694 @@ class SignatureArity(M.Edge):
         return self.result
 
 
-class SignatureFor(M.Edge):
-    """The signature whose word is `word`, or EmptyList."""
+# The chart's own limits. A pass that adds nothing is the fixed point;
+# CHART_PASS_CAP is what stops a grammar whose productions keep feeding
+# each other, so a cycle in the productions is a bounded failure rather
+# than a host recursion error.
+CHART_PASS_CAP = M.GMPRep("50")
 
-    def __init__(self, signatures, word):
+# The category the formal notation is written in. An argument is the
+# same category as the whole application, which is the entire reason
+# nesting needs no machinery.
+CHART_TERM_CATEGORY = M.Char("term")
+
+# The notation's function words. These carry no meaning of their own and
+# no branch of their own: they appear in productions exactly the way
+# "mul" does, as words to be matched in order.
+FORMAL_OPEN_WORD = M.Char("(")
+FORMAL_CLOSE_WORD = M.Char(")")
+FORMAL_SEPARATOR_WORD = M.Char(",")
+
+
+class WordSymbol(M.Edge):
+    """A production symbol matching one literal word of the input.
+
+    Pair(WordSymbolLabel, Pair(word, EmptyList)).
+    """
+
+    def __init__(self, word):
+        self.result = M.Pair(
+            Lmod.WordSymbolLabel,
+            M.Pair(word, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(word, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CategorySymbol(M.Edge):
+    """A production symbol matching a constituent of one category.
+
+    Pair(CategorySymbolLabel, Pair(category, Pair(variable, EmptyList))).
+    The variable is the slot the matched constituent's term binds to, so
+    the production's template can name what the symbol found.
+    """
+
+    def __init__(self, category, variable):
+        self.result = M.Pair(
+            Lmod.CategorySymbolLabel,
+            M.Pair(category, M.Pair(variable, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(category, M.Pair(variable, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Production(M.Edge):
+    """One grammar rule: a category, a symbol sequence, and a template.
+
+    Pair(ProductionLabel, Pair(category, Pair(symbols, Pair(template,
+    EmptyList)))). The symbols say what stands next to what; the
+    template says what the result term is, built by the same Instantiate
+    every law's right-hand side is built by. A grammar is a chain of
+    these and nothing else -- there is no production that is a branch in
+    the parser instead.
+    """
+
+    def __init__(self, category, symbols, template):
+        self.result = M.Pair(
+            Lmod.ProductionLabel,
+            M.Pair(
+                category,
+                M.Pair(symbols, M.Pair(template, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                category,
+                M.Pair(symbols, M.Pair(template, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProductionCategory(M.Edge):
+    def __init__(self, production):
+        self.result = M.Head(M.Tail(production)())()
+        super().__init__(
+            inputs=M.Pair(production, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProductionSymbols(M.Edge):
+    def __init__(self, production):
+        self.result = M.Head(M.Tail(M.Tail(production)())())()
+        super().__init__(
+            inputs=M.Pair(production, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ProductionTemplate(M.Edge):
+    def __init__(self, production):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(production)())())())()
+        super().__init__(
+            inputs=M.Pair(production, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Constituent(M.Edge):
+    """One reading of one span: a category, a term, and the two cells.
+
+    Pair(ConstituentLabel, Pair(category, Pair(term, Pair(start,
+    Pair(after, EmptyList))))). `start` is the cell it begins at and
+    `after` the cell it ends before, so a constituent is a fact about a
+    span rather than about a position in a scan.
+    """
+
+    def __init__(self, category, term, start, after):
+        self.result = M.Pair(
+            Lmod.ConstituentLabel,
+            M.Pair(
+                category,
+                M.Pair(term, M.Pair(start, M.Pair(after, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                category,
+                M.Pair(term, M.Pair(start, M.Pair(after, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentCategory(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(M.Tail(constituent)())()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentTerm(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(M.Tail(M.Tail(constituent)())())()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentStart(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(constituent)())())())()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ConstituentAfter(M.Edge):
+    def __init__(self, constituent):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(constituent)())())())(),
+        )()
+        super().__init__(
+            inputs=M.Pair(constituent, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartCells(M.Edge):
+    """The cells of a word chain: every position a span may start or end at.
+
+    A cell is a position, named by the suffix of the chain that begins
+    there -- the chain itself is the first cell and EmptyList the cell
+    past the last word. Two spans are the same span exactly when their
+    cells are the same objects, so nothing counts positions and nothing
+    compares counts.
+    """
+
+    def __init__(self, chain):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_cells = M.EmptyList
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                reversed_cells = M.Pair(remaining, reversed_cells)
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(M.Pair(M.EmptyList, reversed_cells))()
+        super().__init__(
+            inputs=M.Pair(chain, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSymbolMatches(M.Edge):
+    """Every way one symbol sequence can be matched starting at one cell.
+
+    Returns a chain of Pair(bindings, Pair(after, EmptyList)): the
+    bindings the category symbols made and the cell the match ended
+    before. Every way, not the first way -- two readings of the same
+    words are two matches here, and choosing between them is not this
+    edge's business.
+
+    A word symbol consumes one input word; a category symbol consumes a
+    constituent already in the chart and hands its term to the template
+    through the symbol's variable. The recursion is over the symbol
+    chain, which shrinks at every step, so it ends when the symbols run
+    out.
+    """
+
+    def __init__(self, symbols, cell, constituents):
         cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
         self.result = M.EmptyList
+        if M.IdentityCompare(symbols, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(
+                M.Pair(M.EmptyList, M.Pair(cell, M.EmptyList)),
+                M.EmptyList,
+            )
+        else:
+            symbol = M.Head(symbols)()
+            rest_symbols = M.Tail(symbols)()
+            if M.TermEqual(
+                M.Head(symbol)(),
+                Lmod.WordSymbolLabel,
+            )() is M.truth_value:
+                if M.IdentityCompare(cell, M.EmptyList)() is M.false_value:
+                    if M.Compare(
+                        M.Head(cell)(),
+                        M.Head(M.Tail(symbol)())(),
+                    )() is M.truth_value:
+                        self.result = ChartSymbolMatches(
+                            rest_symbols,
+                            M.Tail(cell)(),
+                            constituents,
+                        )()
+            elif M.TermEqual(
+                M.Head(symbol)(),
+                Lmod.CategorySymbolLabel,
+            )() is M.truth_value:
+                category = M.Head(M.Tail(symbol)())()
+                variable = M.Head(M.Tail(M.Tail(symbol)())())()
+                reversed_matches = M.EmptyList
+                scan_text = "0"
+                remaining = constituents
+                while M.IdentityCompare(
+                    remaining, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                        remaining = M.EmptyList
+                    else:
+                        scan_text = GMPSuccText(scan_text)()
+                        constituent = M.Head(remaining)()
+                        if M.IdentityCompare(
+                            ConstituentStart(constituent)(), cell,
+                        )() is M.truth_value:
+                            if M.Compare(
+                                ConstituentCategory(constituent)(), category,
+                            )() is M.truth_value:
+                                tail_matches = ChartSymbolMatches(
+                                    rest_symbols,
+                                    ConstituentAfter(constituent)(),
+                                    constituents,
+                                )()
+                                tail_scan_text = "0"
+                                remaining_tail = tail_matches
+                                while M.IdentityCompare(
+                                    remaining_tail, M.EmptyList,
+                                )() is M.false_value:
+                                    if GMPEqualText(
+                                        tail_scan_text, cap_text,
+                                    )() is M.truth_value:
+                                        remaining_tail = M.EmptyList
+                                    else:
+                                        tail_scan_text = GMPSuccText(
+                                            tail_scan_text,
+                                        )()
+                                        tail_match = M.Head(remaining_tail)()
+                                        reversed_matches = M.Pair(
+                                            M.Pair(
+                                                M.Pair(
+                                                    M.Pair(
+                                                        variable,
+                                                        M.Pair(
+                                                            ConstituentTerm(
+                                                                constituent,
+                                                            )(),
+                                                            M.EmptyList,
+                                                        ),
+                                                    ),
+                                                    M.Head(tail_match)(),
+                                                ),
+                                                M.Tail(tail_match)(),
+                                            ),
+                                            reversed_matches,
+                                        )
+                                        remaining_tail = M.Tail(
+                                            remaining_tail,
+                                        )()
+                        remaining = M.Tail(remaining)()
+                self.result = M.Reverse(reversed_matches)()
+        super().__init__(
+            inputs=M.Pair(
+                symbols,
+                M.Pair(cell, M.Pair(constituents, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartAddConstituent(M.Edge):
+    """Add a constituent unless one exactly like it is already present.
+
+    Two constituents are the same when they are the same category over
+    the same two cells carrying structurally equal terms. Two readings
+    of one span with different terms are both kept: ambiguity is a fact
+    about the sentence, and collapsing it here would be the parser
+    choosing on the reader's behalf.
+
+    Returns Pair(constituents, Pair(added, EmptyList)).
+    """
+
+    def __init__(self, constituents, constituent):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        category = ConstituentCategory(constituent)()
+        term = ConstituentTerm(constituent)()
+        start = ConstituentStart(constituent)()
+        after = ConstituentAfter(constituent)()
+        self.capped = M.false_value
+        present = M.false_value
+        scan_text = "0"
+        remaining = constituents
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                self.capped = M.truth_value
+                present = M.truth_value
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                other = M.Head(remaining)()
+                if M.IdentityCompare(
+                    ConstituentStart(other)(), start,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        ConstituentAfter(other)(), after,
+                    )() is M.truth_value:
+                        if M.Compare(
+                            ConstituentCategory(other)(), category,
+                        )() is M.truth_value:
+                            if M.TermEqual(
+                                ConstituentTerm(other)(), term,
+                            )() is M.truth_value:
+                                present = M.truth_value
+                if M.IdentityCompare(present, M.truth_value)() is M.truth_value:
+                    remaining = M.EmptyList
+                else:
+                    remaining = M.Tail(remaining)()
+        self.added = M.false_value
+        grown = constituents
+        if M.IdentityCompare(present, M.false_value)() is M.truth_value:
+            grown = M.Pair(constituent, constituents)
+            self.added = M.truth_value
+        self.result = M.Pair(grown, M.Pair(self.added, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(constituents, M.Pair(constituent, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSaturate(M.Edge):
+    """Close a set of constituents under a set of productions.
+
+    One pass tries every production at every cell against every
+    constituent the chart already holds; a pass that adds nothing is the
+    fixed point. This loop knows nothing about what any production says.
+    Brackets, separators, argument order and arity live in the
+    productions; the loop is the same loop whatever they are, which is
+    the whole difference between a grammar and a parser written by hand.
+
+    `saturated` is truth only when a pass added nothing before the pass
+    cap ran out and no addition hit the chart's own size cap, so an
+    unfinished parse is visible rather than silently partial.
+    """
+
+    def __init__(self, productions, seeds, cells):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        pass_cap_text = M.GMPRepText(CHART_PASS_CAP)()
+        constituents = seeds
+        self.saturated = M.false_value
+        self.capped = M.false_value
+        pass_text = "0"
+        growing = M.truth_value
+        while M.IdentityCompare(growing, M.truth_value)() is M.truth_value:
+            if GMPEqualText(pass_text, pass_cap_text)() is M.truth_value:
+                growing = M.false_value
+            else:
+                pass_text = GMPSuccText(pass_text)()
+                growing = M.false_value
+                production_scan_text = "0"
+                remaining_productions = productions
+                while M.IdentityCompare(
+                    remaining_productions, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        production_scan_text, cap_text,
+                    )() is M.truth_value:
+                        remaining_productions = M.EmptyList
+                    else:
+                        production_scan_text = GMPSuccText(
+                            production_scan_text,
+                        )()
+                        production = M.Head(remaining_productions)()
+                        category = ProductionCategory(production)()
+                        symbols = ProductionSymbols(production)()
+                        template = ProductionTemplate(production)()
+                        cell_scan_text = "0"
+                        remaining_cells = cells
+                        while M.IdentityCompare(
+                            remaining_cells, M.EmptyList,
+                        )() is M.false_value:
+                            if GMPEqualText(
+                                cell_scan_text, cap_text,
+                            )() is M.truth_value:
+                                remaining_cells = M.EmptyList
+                            else:
+                                cell_scan_text = GMPSuccText(cell_scan_text)()
+                                cell = M.Head(remaining_cells)()
+                                matches = ChartSymbolMatches(
+                                    symbols, cell, constituents,
+                                )()
+                                match_scan_text = "0"
+                                remaining_matches = matches
+                                while M.IdentityCompare(
+                                    remaining_matches, M.EmptyList,
+                                )() is M.false_value:
+                                    if GMPEqualText(
+                                        match_scan_text, cap_text,
+                                    )() is M.truth_value:
+                                        remaining_matches = M.EmptyList
+                                    else:
+                                        match_scan_text = GMPSuccText(
+                                            match_scan_text,
+                                        )()
+                                        match = M.Head(remaining_matches)()
+                                        after = M.Head(M.Tail(match)())()
+                                        if M.IdentityCompare(
+                                            after, cell,
+                                        )() is M.false_value:
+                                            addition = ChartAddConstituent(
+                                                constituents,
+                                                Constituent(
+                                                    category,
+                                                    M.Head(
+                                                        M.Instantiate(
+                                                            template,
+                                                            M.Head(match)(),
+                                                        )(),
+                                                    )(),
+                                                    cell,
+                                                    after,
+                                                )(),
+                                            )
+                                            constituents = M.Head(addition())()
+                                            if M.IdentityCompare(
+                                                addition.added,
+                                                M.truth_value,
+                                            )() is M.truth_value:
+                                                growing = M.truth_value
+                                            if M.IdentityCompare(
+                                                addition.capped,
+                                                M.truth_value,
+                                            )() is M.truth_value:
+                                                self.capped = M.truth_value
+                                        remaining_matches = M.Tail(
+                                            remaining_matches,
+                                        )()
+                                remaining_cells = M.Tail(remaining_cells)()
+                        remaining_productions = M.Tail(remaining_productions)()
+                if M.IdentityCompare(growing, M.false_value)() is M.truth_value:
+                    if M.IdentityCompare(
+                        self.capped, M.false_value,
+                    )() is M.truth_value:
+                        self.saturated = M.truth_value
+        self.result = constituents
+        super().__init__(
+            inputs=M.Pair(
+                productions,
+                M.Pair(seeds, M.Pair(cells, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSpanningTerms(M.Edge):
+    """Every term of one category whose constituent covers the whole chain."""
+
+    def __init__(self, constituents, category, chain):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_terms = M.EmptyList
+        scan_text = "0"
+        remaining = constituents
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                constituent = M.Head(remaining)()
+                if M.IdentityCompare(
+                    ConstituentStart(constituent)(), chain,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        ConstituentAfter(constituent)(), M.EmptyList,
+                    )() is M.truth_value:
+                        if M.Compare(
+                            ConstituentCategory(constituent)(), category,
+                        )() is M.truth_value:
+                            reversed_terms = M.Pair(
+                                ConstituentTerm(constituent)(),
+                                reversed_terms,
+                            )
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_terms)()
+        super().__init__(
+            inputs=M.Pair(
+                constituents,
+                M.Pair(category, M.Pair(chain, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ChartSeedConstituents(M.Edge):
+    """What the words of a chain mean standing on their own.
+
+    One constituent per word the vocabulary resolves, and one per run of
+    adjacent digit words, since "six four" is one number spanning two
+    cells and no production says so. This is the only place a word's own
+    meaning is consulted; everything above it is productions.
+    """
+
+    def __init__(self, word_entries, digit_words, category, chain):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_seeds = M.EmptyList
+        scan_text = "0"
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                word = M.Head(remaining)()
+                value = CorrespondenceResolveWord(
+                    word_entries,
+                    Surface(M.Pair(word, M.EmptyList))(),
+                )()
+                if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
+                    reversed_seeds = M.Pair(
+                        Constituent(
+                            category, value, remaining, M.Tail(remaining)(),
+                        )(),
+                        reversed_seeds,
+                    )
+                reversed_run = M.EmptyList
+                run_scan_text = "0"
+                run_remaining = remaining
+                while M.IdentityCompare(
+                    run_remaining, M.EmptyList,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        run_scan_text, cap_text,
+                    )() is M.truth_value:
+                        run_remaining = M.EmptyList
+                    else:
+                        run_scan_text = GMPSuccText(run_scan_text)()
+                        digit = SurfaceDigitOfWord(
+                            M.Head(run_remaining)(), digit_words,
+                        )()
+                        if M.IdentityCompare(
+                            digit, M.EmptyList,
+                        )() is M.truth_value:
+                            run_remaining = M.EmptyList
+                        else:
+                            reversed_run = M.Pair(
+                                M.Head(run_remaining)(), reversed_run,
+                            )
+                            run_remaining = M.Tail(run_remaining)()
+                            run_value = SurfaceDigitRunValue(
+                                M.Reverse(reversed_run)(), digit_words,
+                            )()
+                            if M.IdentityCompare(
+                                run_value, M.EmptyList,
+                            )() is M.false_value:
+                                reversed_seeds = M.Pair(
+                                    Constituent(
+                                        category,
+                                        run_value,
+                                        remaining,
+                                        run_remaining,
+                                    )(),
+                                    reversed_seeds,
+                                )
+                remaining = M.Tail(remaining)()
+        self.result = M.Reverse(reversed_seeds)()
+        super().__init__(
+            inputs=M.Pair(
+                word_entries,
+                M.Pair(
+                    digit_words,
+                    M.Pair(category, M.Pair(chain, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FormalProductions(M.Edge):
+    """The formal notation as productions, generated from the signatures.
+
+    "mul ( a , b )" used to be a scan for an open bracket, a depth
+    counter, a split on commas at depth zero and an arity check after
+    the fact -- one grammar written as control flow. A signature is now
+    one production: the word, an open bracket, an argument category per
+    argument with separators between them, a close bracket, and a
+    template putting the matched arguments under the constructor.
+
+    Arity is not checked, it is matched: a production with two argument
+    slots does not match one argument. Nesting is not implemented at
+    all: an argument is the same category the whole application is, so
+    the chart has already read the inner application by the time the
+    outer one asks for it. Brackets and commas are words in a
+    production, the same as "mul" is.
+
+    Returns Pair(productions, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, signatures, category, registry):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        reversed_productions = M.EmptyList
         scan_text = "0"
         remaining = signatures
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -9156,13 +12802,71 @@ class SignatureFor(M.Edge):
             else:
                 scan_text = GMPSuccText(scan_text)()
                 signature = M.Head(remaining)()
-                if M.Compare(SignatureWord(signature)(), word)() is M.truth_value:
-                    self.result = signature
-                    remaining = M.EmptyList
-                else:
-                    remaining = M.Tail(remaining)()
+                reversed_symbols = M.Pair(
+                    WordSymbol(FORMAL_OPEN_WORD)(),
+                    M.Pair(
+                        WordSymbol(SignatureWord(signature)())(),
+                        M.EmptyList,
+                    ),
+                )
+                reversed_variables = M.EmptyList
+                separated = M.false_value
+                arity_scan_text = "0"
+                remaining_arity = SignatureArity(signature)()
+                while M.NatEq(
+                    remaining_arity, M.Zero, registry,
+                )() is M.false_value:
+                    if GMPEqualText(
+                        arity_scan_text, cap_text,
+                    )() is M.truth_value:
+                        remaining_arity = M.Zero
+                    else:
+                        arity_scan_text = GMPSuccText(arity_scan_text)()
+                        if M.IdentityCompare(
+                            separated, M.truth_value,
+                        )() is M.truth_value:
+                            reversed_symbols = M.Pair(
+                                WordSymbol(FORMAL_SEPARATOR_WORD)(),
+                                reversed_symbols,
+                            )
+                        variable = M.Pair(
+                            M.VarTag, M.Pair(M.Atom(), M.EmptyList),
+                        )
+                        reversed_symbols = M.Pair(
+                            CategorySymbol(category, variable)(),
+                            reversed_symbols,
+                        )
+                        reversed_variables = M.Pair(
+                            variable, reversed_variables,
+                        )
+                        separated = M.truth_value
+                        stepped = M.NatPred(remaining_arity, registry)()
+                        remaining_arity = M.Head(stepped)()
+                        registry = M.Head(M.Tail(stepped)())()
+                reversed_symbols = M.Pair(
+                    WordSymbol(FORMAL_CLOSE_WORD)(), reversed_symbols,
+                )
+                reversed_productions = M.Pair(
+                    Production(
+                        category,
+                        M.Reverse(reversed_symbols)(),
+                        M.Pair(
+                            SignatureConstructor(signature)(),
+                            M.Reverse(reversed_variables)(),
+                        ),
+                    )(),
+                    reversed_productions,
+                )
+                remaining = M.Tail(remaining)()
+        self.result = M.Pair(
+            M.Reverse(reversed_productions)(),
+            M.Pair(registry, M.EmptyList),
+        )
         super().__init__(
-            inputs=M.Pair(signatures, M.Pair(word, M.EmptyList)),
+            inputs=M.Pair(
+                signatures,
+                M.Pair(category, M.Pair(registry, M.EmptyList)),
+            ),
             results=self.result,
         )
 
@@ -9170,172 +12874,48 @@ class SignatureFor(M.Edge):
         return self.result
 
 
-class ConverseFormalTerm(M.Edge):
-    """Read "name ( arg , arg , ... )" for any constructor with a signature.
+class FormalTermReadings(M.Edge):
+    """Read "name ( arg , arg )" by chart, as the first client of the chart.
 
-    The formal notation used to be one template law per constructor --
-    "mul ( ?a , ?b )" and "add ( ?a , ?b )" and nothing else -- so a
-    trainer could not write a relation the machine had no branch for.
-    That is the bootstrapping wall: teaching by example needs a meaning
-    side, and the meaning side had a fixed vocabulary.
+    The formal notation gets no reader of its own. Its signatures become
+    productions, the vocabulary seeds the words, and the same saturation
+    that any other grammar runs through produces the terms. Takes a
+    Surface, as every other reader in this file does, and returns every
+    term spanning the whole of it, so an ambiguous notation reports both
+    readings instead of one of them.
 
-    This reads the shape from the signature instead. The word names a
-    constructor of known arity; the arguments are the comma-separated
-    spans between the brackets, each read by whatever reads a nested
-    argument -- a Nat word, a number, or a formal term of its own, so
-    "divides ( one , mul ( two , three ) )" nests without further
-    machinery.
-
-    Returns Pair(term, Pair(registry, EmptyList)), or EmptyList when the
-    chain is not a formal application or an argument does not read.
+    Returns Pair(terms, Pair(registry, EmptyList)). An empty chain of
+    terms means the words do not spell an application: a word with no
+    signature, a wrong count of arguments and a missing bracket are all
+    the same answer here, which is that no production spans the input.
     """
 
-    def __init__(self, signatures, word_entries, chain, registry):
-        self.result = M.EmptyList
-        open_symbol = M.Char("(")
-        close_symbol = M.Char(")")
-        comma_symbol = M.Char(",")
-        if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
-            head_word = M.Head(chain)()
-            rest = M.Tail(chain)()
-            signature = SignatureFor(signatures, head_word)()
-            if M.IdentityCompare(signature, M.EmptyList)() is M.false_value:
-                if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
-                    if M.Compare(M.Head(rest)(), open_symbol)() is M.truth_value:
-                        depth_text = "0"
-                        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
-                        scan_text = "0"
-                        reversed_args = M.EmptyList
-                        reversed_current = M.EmptyList
-                        closed = M.false_value
-                        remaining = M.Tail(rest)()
-                        while M.IdentityCompare(
-                            remaining, M.EmptyList,
-                        )() is M.false_value:
-                            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
-                                remaining = M.EmptyList
-                            else:
-                                scan_text = GMPSuccText(scan_text)()
-                                element = M.Head(remaining)()
-                                if M.Compare(
-                                    element, open_symbol,
-                                )() is M.truth_value:
-                                    depth_text = GMPSuccText(depth_text)()
-                                    reversed_current = M.Pair(
-                                        element, reversed_current,
-                                    )
-                                elif M.Compare(
-                                    element, close_symbol,
-                                )() is M.truth_value:
-                                    if GMPEqualText(
-                                        depth_text, "0",
-                                    )() is M.truth_value:
-                                        closed = M.truth_value
-                                        remaining = M.EmptyList
-                                    else:
-                                        depth_text = GMPSubText(
-                                            depth_text, "1",
-                                        )()
-                                        reversed_current = M.Pair(
-                                            element, reversed_current,
-                                        )
-                                elif M.Compare(
-                                    element, comma_symbol,
-                                )() is M.truth_value:
-                                    if GMPEqualText(
-                                        depth_text, "0",
-                                    )() is M.truth_value:
-                                        reversed_args = M.Pair(
-                                            M.Reverse(reversed_current)(),
-                                            reversed_args,
-                                        )
-                                        reversed_current = M.EmptyList
-                                    else:
-                                        reversed_current = M.Pair(
-                                            element, reversed_current,
-                                        )
-                                else:
-                                    reversed_current = M.Pair(
-                                        element, reversed_current,
-                                    )
-                                if M.IdentityCompare(
-                                    remaining, M.EmptyList,
-                                )() is M.false_value:
-                                    remaining = M.Tail(remaining)()
-                        if M.IdentityCompare(closed, M.truth_value)() is M.truth_value:
-                            if M.IdentityCompare(
-                                reversed_current, M.EmptyList,
-                            )() is M.false_value:
-                                reversed_args = M.Pair(
-                                    M.Reverse(reversed_current)(),
-                                    reversed_args,
-                                )
-                            argument_chains = M.Reverse(reversed_args)()
-                            reversed_terms = M.EmptyList
-                            failed = M.false_value
-                            counted = M.Zero
-                            remaining_args = argument_chains
-                            while M.IdentityCompare(
-                                remaining_args, M.EmptyList,
-                            )() is M.false_value:
-                                argument = M.Head(remaining_args)()
-                                nested = ConverseFormalTerm(
-                                    signatures,
-                                    word_entries,
-                                    argument,
-                                    registry,
-                                )()
-                                if M.IdentityCompare(
-                                    nested, M.EmptyList,
-                                )() is M.false_value:
-                                    reversed_terms = M.Pair(
-                                        M.Head(nested)(), reversed_terms,
-                                    )
-                                    registry = M.Head(M.Tail(nested)())()
-                                else:
-                                    value = CorrespondenceResolveWord(
-                                        word_entries,
-                                        Surface(argument)(),
-                                    )()
-                                    if M.IdentityCompare(
-                                        value, M.EmptyList,
-                                    )() is M.truth_value:
-                                        value = SurfaceDigitRunValue(
-                                            argument, word_entries,
-                                        )()
-                                    if M.IdentityCompare(
-                                        value, M.EmptyList,
-                                    )() is M.truth_value:
-                                        failed = M.truth_value
-                                        remaining_args = M.EmptyList
-                                    else:
-                                        reversed_terms = M.Pair(
-                                            value, reversed_terms,
-                                        )
-                                if M.IdentityCompare(
-                                    remaining_args, M.EmptyList,
-                                )() is M.false_value:
-                                    stepped = M.Succ(counted, registry)()
-                                    counted = M.Head(stepped)()
-                                    registry = M.Head(M.Tail(stepped)())()
-                                    remaining_args = M.Tail(remaining_args)()
-                            if M.IdentityCompare(failed, M.false_value)() is M.truth_value:
-                                arity = SignatureArity(signature)()
-                                if M.NatEq(counted, arity, registry)() is M.truth_value:
-                                    term = M.Pair(
-                                        SignatureConstructor(signature)(),
-                                        M.Reverse(reversed_terms)(),
-                                    )
-                                    self.result = M.Pair(
-                                        term,
-                                        M.Pair(registry, M.EmptyList),
-                                    )
+    def __init__(self, signatures, vocabulary, surface_term, registry):
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        chain = M.Head(M.Tail(surface_term)())()
+        generated = FormalProductions(
+            signatures, CHART_TERM_CATEGORY, registry,
+        )()
+        registry = M.Head(M.Tail(generated)())()
+        chart = ChartSaturate(
+            M.Head(generated)(),
+            ChartSeedConstituents(
+                word_entries, digit_words, CHART_TERM_CATEGORY, chain,
+            )(),
+            ChartCells(chain)(),
+        )
+        self.saturated = chart.saturated
+        self.result = M.Pair(
+            ChartSpanningTerms(chart(), CHART_TERM_CATEGORY, chain)(),
+            M.Pair(registry, M.EmptyList),
+        )
         super().__init__(
             inputs=M.Pair(
                 signatures,
                 M.Pair(
-                    word_entries,
-                    M.Pair(chain, M.Pair(registry, M.EmptyList)),
+                    vocabulary,
+                    M.Pair(surface_term, M.Pair(registry, M.EmptyList)),
                 ),
             ),
             results=self.result,
@@ -11493,6 +15073,344 @@ class DefinitionBody(M.Edge):
         return self.result
 
 
+class DefinitionNode(M.Edge):
+    """A definition as a graph: what is defined, under which self, on what terms.
+
+    Pair(DefinitionNodeLabel, Pair(definiendum, Pair(binder,
+    Pair(conditions, EmptyList)))). The definiendum is a typed term,
+    Definiendum(concept, Category(atom)), not a word; the binder holds
+    one scope and one fresh variable that every reflexive in the
+    conditions resolves to; the conditions are a chain of predicate
+    terms, in which an undefined predicate stays as a Hole rather than
+    disappearing. The shape is declared with a ConstructorSignature, so
+    the formal reader writes and reads it like any constructor. This is
+    what a definition Reading's meaning is: the graph is the output of
+    parsing, not a byproduct of it.
+    """
+
+    def __init__(self, definiendum, binder, conditions):
+        self.result = M.Pair(
+            Lmod.DefinitionNodeLabel,
+            M.Pair(
+                definiendum, M.Pair(binder, M.Pair(conditions, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                definiendum, M.Pair(binder, M.Pair(conditions, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeDefiniendum(M.Edge):
+    def __init__(self, node):
+        self.result = M.Head(M.Tail(node)())()
+        super().__init__(inputs=M.Pair(node, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeBinder(M.Edge):
+    def __init__(self, node):
+        self.result = M.Head(M.Tail(M.Tail(node)())())()
+        super().__init__(inputs=M.Pair(node, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeConditions(M.Edge):
+    def __init__(self, node):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(node)())())())()
+        super().__init__(inputs=M.Pair(node, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Definiendum(M.Edge):
+    """The thing defined: a concept over a category, not a word."""
+
+    def __init__(self, concept, category):
+        self.result = M.Pair(
+            Lmod.DefiniendumLabel,
+            M.Pair(concept, M.Pair(category, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(concept, M.Pair(category, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CategoryTerm(M.Edge):
+    """Category(atom): the sort a definiendum is over."""
+
+    def __init__(self, category):
+        self.result = M.Pair(
+            Lmod.CategoryLabel, M.Pair(category, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(category, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Binder(M.Edge):
+    """One scope and the fresh self every reflexive resolves to.
+
+    Pair(BinderLabel, Pair(scope, Pair(self, EmptyList))). The self is
+    one variable object shared by every condition that mentions it;
+    the scope tells this definition's applications apart from the next.
+    """
+
+    def __init__(self, scope, self_variable):
+        self.result = M.Pair(
+            Lmod.BinderLabel,
+            M.Pair(scope, M.Pair(self_variable, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(scope, M.Pair(self_variable, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BinderScope(M.Edge):
+    def __init__(self, binder):
+        self.result = M.Head(M.Tail(binder)())()
+        super().__init__(inputs=M.Pair(binder, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BinderSelf(M.Edge):
+    def __init__(self, binder):
+        self.result = M.Head(M.Tail(M.Tail(binder)())())()
+        super().__init__(inputs=M.Pair(binder, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class Divides(M.Edge):
+    """Divides(divisor, number): the divisibility predicate."""
+
+    def __init__(self, divisor, number):
+        self.result = M.Pair(
+            Lmod.DividesLabel,
+            M.Pair(divisor, M.Pair(number, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(divisor, M.Pair(number, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Hole(M.Edge):
+    """An undefined predicate kept as a named gap in a formed graph.
+
+    Pair(HoleLabel, Pair(predicate, Pair(arguments, Pair(reason,
+    EmptyList)))). The predicate is its label, the arguments are the
+    chain it would take, and the reason says why it is open. A hole is
+    what lets the graph exist before every word in it is defined; the
+    dependency question is then read off the hole, not off the words.
+    """
+
+    def __init__(self, predicate, arguments, reason):
+        self.result = M.Pair(
+            Lmod.HoleLabel,
+            M.Pair(
+                predicate, M.Pair(arguments, M.Pair(reason, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                predicate, M.Pair(arguments, M.Pair(reason, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class HolePredicate(M.Edge):
+    def __init__(self, hole):
+        self.result = M.Head(M.Tail(hole)())()
+        super().__init__(inputs=M.Pair(hole, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HoleArguments(M.Edge):
+    def __init__(self, hole):
+        self.result = M.Head(M.Tail(M.Tail(hole)())())()
+        super().__init__(inputs=M.Pair(hole, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExactFillers(M.Edge):
+    """A restriction kept as scope, not flattened to a quantifier.
+
+    "only" becomes one of these rather than a ForAll, so the parse
+    records what was said and a normalization law can expand it later.
+
+    Pair(ExactFillersLabel, Pair(relation, Pair(fixed, Pair(role,
+    Pair(allowed, EmptyList))))). Of the relation, the fixed argument
+    stays, the role named is the one being restricted, and the allowed
+    chain holds everything that may fill it. The parser records what
+    was said; expanding this into a quantifier is a normalization law's
+    job, checked on its own.
+    """
+
+    def __init__(self, relation, fixed, role, allowed):
+        self.result = M.Pair(
+            Lmod.ExactFillersLabel,
+            M.Pair(
+                relation,
+                M.Pair(fixed, M.Pair(role, M.Pair(allowed, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                relation,
+                M.Pair(fixed, M.Pair(role, M.Pair(allowed, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionNodeWellFormed(M.Edge):
+    """One certificate: this term is a well-formed definition graph.
+
+    The checks are the shape itself: the label; three slots exactly; a
+    definiendum of two slots whose second is a Category term; a binder
+    of two slots whose second slot is a variable; conditions that are a
+    chain of terms. Nothing here knows any predicate -- a hole is as
+    well-formed as a defined condition, because a hole is the point.
+    """
+
+    def __init__(self, node):
+        self.result = M.false_value
+        if M.IsPair(node)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(node)(), Lmod.DefinitionNodeLabel,
+            )() is M.truth_value:
+                slots = M.Tail(node)()
+                if M.IdentityCompare(slots, M.EmptyList)() is M.false_value:
+                    rest_one = M.Tail(slots)()
+                    if M.IdentityCompare(
+                        rest_one, M.EmptyList,
+                    )() is M.false_value:
+                        rest_two = M.Tail(rest_one)()
+                        if M.IdentityCompare(
+                            rest_two, M.EmptyList,
+                        )() is M.false_value:
+                            if M.IdentityCompare(
+                                M.Tail(rest_two)(), M.EmptyList,
+                            )() is M.truth_value:
+                                definiendum = M.Head(slots)()
+                                binder = M.Head(rest_one)()
+                                conditions = M.Head(rest_two)()
+                                if self._definiendum_ok(definiendum) is M.truth_value:
+                                    if self._binder_ok(binder) is M.truth_value:
+                                        if self._conditions_ok(conditions) is M.truth_value:
+                                            self.result = M.truth_value
+        super().__init__(
+            inputs=M.Pair(node, M.EmptyList), results=self.result,
+        )
+
+    def _definiendum_ok(self, definiendum):
+        if M.IsPair(definiendum)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(definiendum)(), Lmod.DefiniendumLabel,
+        )() is M.false_value:
+            return M.false_value
+        slots = M.Tail(definiendum)()
+        if M.IdentityCompare(slots, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        rest = M.Tail(slots)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.false_value:
+            return M.false_value
+        category = M.Head(rest)()
+        if M.IsPair(category)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(category)(), Lmod.CategoryLabel,
+        )() is M.false_value:
+            return M.false_value
+        category_slots = M.Tail(category)()
+        if M.IdentityCompare(
+            category_slots, M.EmptyList,
+        )() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Tail(category_slots)(), M.EmptyList,
+        )() is M.false_value:
+            return M.false_value
+        return M.truth_value
+
+    def _binder_ok(self, binder):
+        if M.IsPair(binder)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(binder)(), Lmod.BinderLabel,
+        )() is M.false_value:
+            return M.false_value
+        slots = M.Tail(binder)()
+        if M.IdentityCompare(slots, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        rest = M.Tail(slots)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.false_value:
+            return M.false_value
+        self_variable = M.Head(rest)()
+        if M.IsPair(self_variable)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(
+            M.Head(self_variable)(), M.VarTag,
+        )() is M.false_value:
+            return M.false_value
+        return M.truth_value
+
+    def _conditions_ok(self, conditions):
+        walker = conditions
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            if M.IsPair(M.Head(walker)())() is M.false_value:
+                return M.false_value
+            walker = M.Tail(walker)()
+        return M.truth_value
+
+    def __call__(self):
+        return self.result
+
+
 class InstalledDefinitions(M.Edge):
     """Every Definition node in a version, in store order."""
 
@@ -13142,14 +17060,24 @@ class MapExtensionAlternatives(M.Edge):
         if M.IdentityCompare(source, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        # Nodes and edges are two views of one store: EncodeTermAsGraph
+        # puts every application in both, so a fact appeared twice in
+        # this chain and every match through it was found twice over.
+        # Four completed mappings for one join, on a pattern with two
+        # applications, is 2^2 -- and the duplicates cost the same as
+        # the real ones to explore.
         reversed_collected = M.EmptyList
         remaining = probe._normalize_store(GraphNodes(source)())
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
+            candidate = M.Head(remaining)()
+            if self._already_collected(reversed_collected, candidate) is M.false_value:
+                reversed_collected = M.Pair(candidate, reversed_collected)
             remaining = M.Tail(remaining)()
         remaining = probe._normalize_store(GraphEdges(source)())
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
+            candidate = M.Head(remaining)()
+            if self._already_collected(reversed_collected, candidate) is M.false_value:
+                reversed_collected = M.Pair(candidate, reversed_collected)
             remaining = M.Tail(remaining)()
         collected = M.EmptyList
         while M.IdentityCompare(reversed_collected, M.EmptyList)() is M.false_value:
@@ -13157,21 +17085,58 @@ class MapExtensionAlternatives(M.Edge):
             reversed_collected = M.Tail(reversed_collected)()
         return collected
 
+    def _already_collected(self, collected, candidate):
+        remaining = collected
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Head(remaining)(), candidate)() is M.truth_value:
+                return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
     def _alternatives(self, mapping, pat, host_graph):
+        # Shape first, but only where shape is decisive. Every candidate
+        # used to be put through the whole of MapExtendOneStep -- graph
+        # membership scans, apart checks, positional agreement -- when a
+        # mismatched constructor label settles it immediately.
+        #
+        # The filter is deliberately narrower than GraphElementCompatible,
+        # which rejects a bare unlabelled pattern node against everything
+        # -- Compare on two value-less atoms is false -- while
+        # MapExtendOneStep admits it and the pattern census counts on
+        # that. Two applications with different labels cannot be sent to
+        # one another whatever else is true, and that is the case worth
+        # excluding; everything else still goes to MapExtendOneStep to
+        # decide, exactly as before.
         reversed_hits = M.EmptyList
         remaining = self._candidates(mapping, host_graph)
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             candidate = M.Head(remaining)()
-            extended = MapExtendOneStep(mapping, pat, candidate)()
-            if M.IsPair(extended)() is M.truth_value:
-                if M.TermEqual(M.Head(extended)(), Lmod.MapLabel)() is M.truth_value:
-                    reversed_hits = M.Pair(extended, reversed_hits)
+            if self._labels_permit(pat, candidate) is M.truth_value:
+                extended = MapExtendOneStep(mapping, pat, candidate)()
+                if M.IsPair(extended)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(extended)(), Lmod.MapLabel,
+                    )() is M.truth_value:
+                        reversed_hits = M.Pair(extended, reversed_hits)
             remaining = M.Tail(remaining)()
         ordered = M.EmptyList
         while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
             ordered = M.Pair(M.Head(reversed_hits)(), ordered)
             reversed_hits = M.Tail(reversed_hits)()
         return ordered
+
+    def _labels_permit(self, pat, candidate):
+        if P.IsVarPattern(pat)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(pat)() is M.false_value:
+            return M.truth_value
+        if M.IsPair(candidate)() is M.false_value:
+            return M.truth_value
+        pat_head = M.Head(pat)()
+        candidate_head = M.Head(candidate)()
+        if M.IdentityCompare(pat_head, candidate_head)() is M.truth_value:
+            return M.truth_value
+        return M.TermEqual(pat_head, candidate_head)()
 
     def __call__(self):
         return self.result
@@ -13282,9 +17247,19 @@ class MapExtendOneStep(M.Edge):
         return GraphEdges(graph)()
 
     def _chain_has_term(self, chain, term):
+        # Identity first. This is asked most often about an element that
+        # came out of the very store being searched -- a pattern element
+        # against the pattern graph, a host element against the host --
+        # so the answer is nearly always the same object, and walking two
+        # terms structurally to discover that was the matcher's single
+        # largest cost. TermEqual still decides everything identity
+        # misses, so the answer is unchanged.
         remaining = chain
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if M.TermEqual(M.Head(remaining)(), term)() is M.truth_value:
+            candidate = M.Head(remaining)()
+            if M.IdentityCompare(candidate, term)() is M.truth_value:
+                return M.truth_value
+            if M.TermEqual(candidate, term)() is M.truth_value:
                 return M.truth_value
             remaining = M.Tail(remaining)()
         return M.false_value
@@ -13297,12 +17272,17 @@ class MapExtendOneStep(M.Edge):
         return self._chain_has_term(edges, term)
 
     def _is_send(self, term):
-        return IsSend(term)()
+        # IsSend is an Edge, so asking it allocates an atom and an
+        # identity per item scanned, to compare one head against one
+        # label singleton.
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(term)(), Lmod.SendLabel)()
 
     def _is_apart(self, term):
         if M.IsPair(term)() is M.false_value:
             return M.false_value
-        if M.TermEqual(M.Head(term)(), Lmod.ApartLabel)() is M.truth_value:
+        if M.IdentityCompare(M.Head(term)(), Lmod.ApartLabel)() is M.truth_value:
             return M.truth_value
         return M.false_value
 
@@ -13340,7 +17320,7 @@ class MapExtendOneStep(M.Edge):
             if self._is_send(item) is M.truth_value:
                 other_pat = self._send_pat(item)
                 other_host = self._send_host(item)
-                if M.TermEqual(other_host, host)() is M.truth_value:
+                if M.IdentityCompare(other_host, host)() is M.truth_value:
                     if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
                         return M.truth_value
                     if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
@@ -13355,7 +17335,7 @@ class MapExtendOneStep(M.Edge):
             if self._is_send(item) is M.truth_value:
                 other_pat = self._send_pat(item)
                 other_host = self._send_host(item)
-                if M.TermEqual(other_host, host)() is M.truth_value:
+                if M.IdentityCompare(other_host, host)() is M.truth_value:
                     if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
                         return Apart(pat, other_pat)()
                     if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
@@ -13366,7 +17346,7 @@ class MapExtendOneStep(M.Edge):
     def _step(self):
         if M.IsPair(self.mapping)() is M.false_value:
             return Miss(self.pat, ReasonShape(self.mapping)())()
-        if M.TermEqual(M.Head(self.mapping)(), Lmod.MapLabel)() is M.false_value:
+        if M.IdentityCompare(M.Head(self.mapping)(), Lmod.MapLabel)() is M.false_value:
             return Miss(self.pat, ReasonShape(self.mapping)())()
         pattern_graph = self._mapping_pattern_graph()
         host_graph = self._mapping_host_graph()

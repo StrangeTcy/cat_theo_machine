@@ -1471,6 +1471,134 @@ class DefinitionCountedLabel(ConstructorLabel):
     pass
 
 
+class ProductionLabel(ConstructorLabel):
+    pass
+
+
+class WordSymbolLabel(ConstructorLabel):
+    pass
+
+
+class CategorySymbolLabel(ConstructorLabel):
+    pass
+
+
+class ConstituentLabel(ConstructorLabel):
+    pass
+
+
+class ReadingPolicyLabel(ConstructorLabel):
+    pass
+
+
+class ObservedSymbolStepLabel(ConstructorLabel):
+    pass
+
+
+class FormArcLabel(ConstructorLabel):
+    pass
+
+
+class FormSenseLabel(ConstructorLabel):
+    pass
+
+
+class FormScanLabel(ConstructorLabel):
+    pass
+
+
+class ReadingLabel(ConstructorLabel):
+    pass
+
+
+class IndexSpecLabel(ConstructorLabel):
+    pass
+
+
+class DeductionPlanLabel(ConstructorLabel):
+    pass
+
+
+class DeltaAgendaLabel(ConstructorLabel):
+    pass
+
+
+class IndexedFiringLabel(ConstructorLabel):
+    pass
+
+
+class LexiconRootLabel(ConstructorLabel):
+    pass
+
+
+class ObservedByLabel(ConstructorLabel):
+    pass
+
+
+class BinaryProductionLabel(ConstructorLabel):
+    pass
+
+
+class FreshenedLabel(ConstructorLabel):
+    pass
+
+
+class ComposeMeaningLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionNodeLabel(ConstructorLabel):
+    pass
+
+
+class DefiniendumLabel(ConstructorLabel):
+    pass
+
+
+class CategoryLabel(ConstructorLabel):
+    pass
+
+
+class BinderLabel(ConstructorLabel):
+    pass
+
+
+class DividesLabel(ConstructorLabel):
+    pass
+
+
+class HoleLabel(ConstructorLabel):
+    pass
+
+
+class NoDefinitionInstalledLabel(ConstructorLabel):
+    pass
+
+
+class ExactFillersLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionMeaningLabel(ConstructorLabel):
+    pass
+
+
+class ProjectRightLabel(ConstructorLabel):
+    pass
+
+
+class ReflexiveLabel(ConstructorLabel):
+    pass
+
+
+class RestrictionLabel(ConstructorLabel):
+    pass
+
+
+class LexicalNpLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1837,6 +1965,38 @@ DistinctLabel = DistinctLabel()
 SignatureLabel = SignatureLabel()
 DefinitionGenusLabel = DefinitionGenusLabel()
 DefinitionCountedLabel = DefinitionCountedLabel()
+ProductionLabel = ProductionLabel()
+WordSymbolLabel = WordSymbolLabel()
+CategorySymbolLabel = CategorySymbolLabel()
+ConstituentLabel = ConstituentLabel()
+ReadingPolicyLabel = ReadingPolicyLabel()
+ObservedSymbolStepLabel = ObservedSymbolStepLabel()
+FormArcLabel = FormArcLabel()
+FormSenseLabel = FormSenseLabel()
+FormScanLabel = FormScanLabel()
+ReadingLabel = ReadingLabel()
+IndexSpecLabel = IndexSpecLabel()
+DeductionPlanLabel = DeductionPlanLabel()
+DeltaAgendaLabel = DeltaAgendaLabel()
+IndexedFiringLabel = IndexedFiringLabel()
+LexiconRootLabel = LexiconRootLabel()
+ObservedByLabel = ObservedByLabel()
+BinaryProductionLabel = BinaryProductionLabel()
+FreshenedLabel = FreshenedLabel()
+ComposeMeaningLabel = ComposeMeaningLabel()
+DefinitionNodeLabel = DefinitionNodeLabel()
+DefiniendumLabel = DefiniendumLabel()
+CategoryLabel = CategoryLabel()
+BinderLabel = BinderLabel()
+DividesLabel = DividesLabel()
+HoleLabel = HoleLabel()
+NoDefinitionInstalledLabel = NoDefinitionInstalledLabel()
+ExactFillersLabel = ExactFillersLabel()
+DefinitionMeaningLabel = DefinitionMeaningLabel()
+ProjectRightLabel = ProjectRightLabel()
+ReflexiveLabel = ReflexiveLabel()
+RestrictionLabel = RestrictionLabel()
+LexicalNpLabel = LexicalNpLabel()
 
 
 def sync_from_namespace(namespace):
@@ -1844,6 +2004,38 @@ def sync_from_namespace(namespace):
         "SignatureLabel",
         "DefinitionGenusLabel",
         "DefinitionCountedLabel",
+        "ProductionLabel",
+        "WordSymbolLabel",
+        "CategorySymbolLabel",
+        "ConstituentLabel",
+        "ReadingPolicyLabel",
+        "ObservedSymbolStepLabel",
+        "FormArcLabel",
+        "FormSenseLabel",
+        "FormScanLabel",
+        "ReadingLabel",
+        "IndexSpecLabel",
+        "DeductionPlanLabel",
+        "DeltaAgendaLabel",
+        "IndexedFiringLabel",
+        "LexiconRootLabel",
+        "ObservedByLabel",
+        "BinaryProductionLabel",
+        "FreshenedLabel",
+        "ComposeMeaningLabel",
+        "DefinitionNodeLabel",
+        "DefiniendumLabel",
+        "CategoryLabel",
+        "BinderLabel",
+        "DividesLabel",
+        "HoleLabel",
+        "NoDefinitionInstalledLabel",
+        "ExactFillersLabel",
+        "DefinitionMeaningLabel",
+        "ProjectRightLabel",
+        "ReflexiveLabel",
+        "RestrictionLabel",
+        "LexicalNpLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",

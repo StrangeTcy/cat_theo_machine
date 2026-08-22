@@ -1235,6 +1235,15 @@ def run_talk_mode(sentence: str = None):
     meaning is a Task term dispatch the formal runtime modes.
     """
     vocabulary = G.DefaultCorrespondenceVocabulary()()
+    reading_policy = G.DefaultReadingPolicy()()
+    ARTICLE_WORDS = M.Pair(
+        M.Char("a"), M.Pair(M.Char("an"), M.Pair(M.Char("the"), M.EmptyList)),
+    )
+    COPULA_WORDS = M.Pair(M.Char("is"), M.Pair(M.Char("are"), M.EmptyList))
+    WHAT_IS_WORDS = M.Pair(
+        M.Char("what"), M.Pair(M.Char("is"), ARTICLE_WORDS),
+    )
+    reading_digits = M.Head(M.Tail(M.Tail(vocabulary)())())()
     registry = M.AllConstructors
     examples = M.EmptyList
     proposal_store = G.ProposalStore(M.EmptyList)()
@@ -1287,36 +1296,19 @@ def run_talk_mode(sentence: str = None):
         "sqrt": lambda: run_cold_mode(False, "sqrt"),
     }
 
-    def _surface(words):
-        chain = M.EmptyList
-        index = len(words)
-        while index != 0:
-            index = index - 1
-            chain = M.Pair(M.Char(words[index]), chain)
-        return G.Surface(chain)()
+    def _words(text):
+        """A typed line as a chain of words, by the reading policy.
 
-    def _tokens(text):
-        """Split a line into words, spelling out numerals but not name digits.
-
-        The digit substitution used to run over the whole line, so "e2"
-        became "e two" and the task name was destroyed -- the reported
-        failure was "I do not know the word: e". The same substitution now
-        applies only to a word that is entirely digits, so "64" still
-        becomes "six four" while "e2" and "sqrt2" survive intact.
+        This was a chain of host replaces -- lowercase the line, blank
+        the sentence punctuation, pad the brackets and the comma, split
+        on whitespace, spell out any all-digit word -- and then a host
+        list for the callers to slice. Six decisions about what a word
+        is, made where nothing could state them, retire them or learn
+        them, and a comma was a word because of a .replace. They are
+        chains in DefaultReadingPolicy now; WordsOfStream applies them
+        and hands back a chain, which is what every caller below walks.
         """
-        spaced = (text.lower().replace("?", " ").replace("!", " ")
-                  .replace(".", " ").replace("(", " ( ").replace(")", " ) ")
-                  .replace(",", " , "))
-        rebuilt = ""
-        for word in spaced.split():
-            if word.isdigit():
-                word = (word.replace("0", " zero ").replace("1", " one ")
-                        .replace("2", " two ").replace("3", " three ")
-                        .replace("4", " four ").replace("5", " five ")
-                        .replace("6", " six ").replace("7", " seven ")
-                        .replace("8", " eight ").replace("9", " nine "))
-            rebuilt = rebuilt + " " + word
-        return rebuilt.split()
+        return G.WordsOfText(text, reading_policy, reading_digits)()
 
     def _speak_chain(chain):
         spoken = []
@@ -1406,11 +1398,11 @@ def run_talk_mode(sentence: str = None):
 
     def _meaning_of(text):
         nonlocal registry
-        words = _tokens(text)
-        if not words:
+        words = _words(text)
+        if M.IdentityCompare(words, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         interpreted = G.ConverseInterpretations(
-            vocabulary, _surface(words), registry,
+            vocabulary, G.Surface(words)(), registry,
         )()
         interpretations = M.Head(interpreted)()
         registry = M.Head(M.Tail(interpreted)())()
@@ -1422,7 +1414,7 @@ def run_talk_mode(sentence: str = None):
             # question -- the trainer is told to use a notation the reader
             # then refuses.
             reduced = G.SurfaceReduceGroups(
-                vocabulary, _surface(words), registry,
+                vocabulary, G.Surface(words)(), registry,
             )()
             reduced_surface = M.Head(reduced)()
             registry = M.Head(M.Tail(reduced)())()
@@ -1464,31 +1456,382 @@ def run_talk_mode(sentence: str = None):
             remaining = M.Tail(remaining)()
         return count
 
+    def _label_spoken(label):
+        for name, value in vars(Lmod).items():
+            if value is label and name.endswith("Label"):
+                return name[:-5]
+        return "something"
+
+    def _speak_definition_node(node):
+        parts = []
+        walker = G.DefinitionNodeConditions(node)()
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            condition = M.Head(walker)()
+            label = M.Head(condition)()
+            if M.IdentityCompare(
+                label, Lmod.NonNegativeLabel,
+            )() is M.truth_value:
+                parts.append("non-negative")
+            elif M.IdentityCompare(label, Lmod.HoleLabel)() is M.truth_value:
+                parts.append(
+                    "an undefined " + _label_spoken(M.Head(M.Tail(condition)())()),
+                )
+            elif M.IdentityCompare(
+                label, Lmod.ExactFillersLabel,
+            )() is M.truth_value:
+                parts.append("only [one, itself] as divisor")
+            else:
+                parts.append(_label_spoken(label))
+            walker = M.Tail(walker)()
+        definiendum = G.DefinitionNodeDefiniendum(node)()
+        concept = M.Head(M.Tail(definiendum)())()
+        spoken_concept = "?"
+        if M.IsPair(concept)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(concept)(), Lmod.HoleLabel,
+            )() is M.truth_value:
+                word = M.Head(M.Tail(concept)())()
+                spoken_concept = str(word()) + " (new from this line)"
+        else:
+            spoken_concept = str(concept())
+        category_term = M.Head(M.Tail(M.Tail(definiendum)())())()
+        category = M.Head(M.Tail(category_term)())()
+        return (
+            "a " + spoken_concept + " is a " + str(category())
+            + ", " + " and ".join(parts)
+        )
+
+    def _definition_graph_answer(line, record):
+        """Read the line as symbol events; return the answer or None.
+
+        The client observes each character through the indexed engine;
+        the fragment composes what it knows. When a word-shaped hole
+        remains, the grammar says what category wants it, a provisional
+        sense with a hole for a meaning enters through the delta
+        agenda, and the chart completes without anything re-observing.
+        The definition installs in the learned version together with
+        the word's arcs and a permanent sense: the next line that uses
+        the word parses with no gap at all. There is no word-chain
+        fallback to record a definition the reader cannot read.
+        """
+        nonlocal learned_version
+        bundle = G.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        alphabet_walker = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+
+        learned_arcs_reversed = M.EmptyList
+        learned_senses_reversed = M.EmptyList
+        node_walker = G.GraphNodes(learned_version)()
+        while M.IdentityCompare(node_walker, M.EmptyList)() is M.false_value:
+            node = M.Head(node_walker)()
+            if M.IsPair(node)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(node)(), Lmod.FormArcLabel,
+                )() is M.truth_value:
+                    learned_arcs_reversed = M.Pair(node, learned_arcs_reversed)
+                elif M.IdentityCompare(
+                    M.Head(node)(), Lmod.FormSenseLabel,
+                )() is M.truth_value:
+                    learned_senses_reversed = M.Pair(node, learned_senses_reversed)
+            node_walker = M.Tail(node_walker)()
+        all_arcs = arcs
+        arc_walker = M.Reverse(learned_arcs_reversed)()
+        while M.IdentityCompare(arc_walker, M.EmptyList)() is M.false_value:
+            all_arcs = M.Pair(M.Head(arc_walker)(), all_arcs)
+            arc_walker = M.Tail(arc_walker)()
+        all_senses = senses
+        sense_walker = M.Reverse(learned_senses_reversed)()
+        while M.IdentityCompare(sense_walker, M.EmptyList)() is M.false_value:
+            all_senses = M.Pair(M.Head(sense_walker)(), all_senses)
+            sense_walker = M.Tail(sense_walker)()
+
+        symbols = {}
+        alphabet_stepper = alphabet_walker
+        while M.IdentityCompare(alphabet_stepper, M.EmptyList)() is M.false_value:
+            symbol_atom = M.Head(alphabet_stepper)()
+            symbols[str(symbol_atom())] = symbol_atom
+            alphabet_stepper = M.Tail(alphabet_stepper)()
+        covered = M.truth_value
+        index = 0
+        cursors = {}
+        engine = None
+        while index < len(line):
+            ch = line[index]
+            if ch not in symbols:
+                covered = M.false_value
+                index = len(line)
+            else:
+                if engine is None:
+                    engine = G.RecogniseForms(
+                        M.EmptyList, all_arcs, all_senses, root, productions,
+                    )
+                if index not in cursors:
+                    cursors[index] = M.GMPRep(str(index))
+                if index + 1 not in cursors:
+                    cursors[index + 1] = M.GMPRep(str(index + 1))
+                engine.Observe(
+                    M.Char(line), cursors[index], symbols[ch],
+                    cursors[index + 1],
+                )
+                index = index + 1
+        if covered is M.false_value:
+            return None
+        result = engine.Drain()
+        readings = M.Head(result)()
+        top = G.SpanningDefinitionReading(
+            readings, def_category, cursors[0], cursors[len(line)],
+        )()
+
+        provisional = M.EmptyList
+        gap_category = M.EmptyList
+        word_atom = M.EmptyList
+        gap_rounds_text = "0"
+        while M.IdentityCompare(top, M.EmptyList)() is M.truth_value:
+            if G.GMPEqualText(gap_rounds_text, "8")() is M.truth_value:
+                return None
+            gap_rounds_text = G.GMPSuccText(gap_rounds_text)()
+            gap = G.LexicalGap(
+                M.Head(engine.result)(), productions, spc_category,
+            )()
+            if M.IdentityCompare(gap, M.EmptyList)() is M.truth_value:
+                return None
+            gap_start = M.Head(gap)()
+            gap_end = M.Head(M.Tail(gap)())()
+            gap_category = M.Head(M.Tail(M.Tail(gap)())())()
+            start_index = int(M.GMPRepText(gap_start)())
+            end_index = int(M.GMPRepText(gap_end)())
+            gap_symbols_reversed = M.EmptyList
+            walker = end_index - 1
+            while walker >= start_index:
+                gap_symbols_reversed = M.Pair(
+                    symbols[line[walker]], gap_symbols_reversed,
+                )
+                walker = walker - 1
+            word_atom = M.Char(line[start_index:end_index])
+            provisional = G.ProvisionalWord(
+                root, gap_symbols_reversed, gap_category, word_atom,
+            )()
+            engine.Learn(
+                M.Head(provisional)(),
+                M.Pair(M.Head(M.Tail(provisional)())(), M.EmptyList),
+            )
+            top = G.SpanningDefinitionReading(
+                M.Head(engine.result)(), def_category,
+                cursors[0], cursors[len(line)],
+            )()
+        conditions = G.DefinitionNodeConditions(top)()
+        defined = M.Pair(Lmod.NonNegativeLabel, M.EmptyList)
+        holed = G.PredicateHoles(conditions, defined)()
+        holed_conditions = M.Head(holed)()
+        dependencies = M.Head(M.Tail(holed)())()
+        holed_node = G.DefinitionNode(
+            G.DefinitionNodeDefiniendum(top)(),
+            G.DefinitionNodeBinder(top)(),
+            holed_conditions,
+        )()
+
+        installed_reversed = M.Pair(holed_node, M.EmptyList)
+        if M.IdentityCompare(provisional, M.EmptyList)() is M.false_value:
+            final_state = M.Head(M.Tail(M.Tail(provisional)())())()
+            permanent_sense = G.FormSense(
+                final_state, gap_category, word_atom,
+            )()
+            arc_walker = M.Head(provisional)()
+            while M.IdentityCompare(arc_walker, M.EmptyList)() is M.false_value:
+                installed_reversed = M.Pair(
+                    M.Head(arc_walker)(), installed_reversed,
+                )
+                arc_walker = M.Tail(arc_walker)()
+            installed_reversed = M.Pair(permanent_sense, installed_reversed)
+        learned_version = G.GraphVersion(
+            M.Pair(
+                M.Reverse(installed_reversed)(),
+                G.GraphNodes(learned_version)(),
+            ),
+            G.GraphEdges(learned_version)(),
+            G.GraphVersionInvariants(learned_version)(),
+        )()
+        if record:
+            _log_lesson(line)
+        _persist_talk_state()
+        spoken = []
+        dependency_walker = dependencies
+        while M.IdentityCompare(
+            dependency_walker, M.EmptyList,
+        )() is M.false_value:
+            spoken.append(_label_spoken(M.Head(dependency_walker)()))
+            dependency_walker = M.Tail(dependency_walker)()
+        if spoken:
+            return (
+                "I've formed this graph: "
+                + _speak_definition_node(holed_node)
+                + ". But I need definitions of: " + ", ".join(spoken) + "."
+            )
+        return (
+            "I've formed this graph: " + _speak_definition_node(holed_node)
+            + ". Every predicate in it is grounded."
+        )
+
+    def _question_graph_answer(line):
+        """Read a question line as symbol events; return the answer or None.
+
+        The same engine, the same learned lexicon, the same gap loop:
+        a question is a line the question shape must span. When it
+        does, the question parsed -- answering it needs grounded
+        definitions, which the dependencies name.
+        """
+        nonlocal learned_version
+        bundle = G.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+        question_category = M.EmptyList
+        walker = productions
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            production = M.Head(walker)()
+            result_atom = M.Head(M.Tail(M.Tail(M.Tail(production)())())())()
+            if M.IsPair(result_atom)() is M.false_value:
+                if result_atom() == "QUESTION":
+                    question_category = result_atom
+                    walker = M.EmptyList
+                else:
+                    walker = M.Tail(walker)()
+            else:
+                walker = M.Tail(walker)()
+        if M.IdentityCompare(question_category, M.EmptyList)() is M.truth_value:
+            _debug("question: no question category in the grammar")
+            return None
+
+        learned_arcs_reversed = M.EmptyList
+        learned_senses_reversed = M.EmptyList
+        node_walker = G.GraphNodes(learned_version)()
+        while M.IdentityCompare(node_walker, M.EmptyList)() is M.false_value:
+            node = M.Head(node_walker)()
+            if M.IsPair(node)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(node)(), Lmod.FormArcLabel,
+                )() is M.truth_value:
+                    learned_arcs_reversed = M.Pair(node, learned_arcs_reversed)
+                elif M.IdentityCompare(
+                    M.Head(node)(), Lmod.FormSenseLabel,
+                )() is M.truth_value:
+                    learned_senses_reversed = M.Pair(node, learned_senses_reversed)
+            node_walker = M.Tail(node_walker)()
+        all_arcs = arcs
+        arc_walker = M.Reverse(learned_arcs_reversed)()
+        while M.IdentityCompare(arc_walker, M.EmptyList)() is M.false_value:
+            all_arcs = M.Pair(M.Head(arc_walker)(), all_arcs)
+            arc_walker = M.Tail(arc_walker)()
+        all_senses = senses
+        sense_walker = M.Reverse(learned_senses_reversed)()
+        while M.IdentityCompare(sense_walker, M.EmptyList)() is M.false_value:
+            all_senses = M.Pair(M.Head(sense_walker)(), all_senses)
+            sense_walker = M.Tail(sense_walker)()
+
+        symbols = {}
+        alphabet_stepper = alphabet
+        while M.IdentityCompare(alphabet_stepper, M.EmptyList)() is M.false_value:
+            symbol_atom = M.Head(alphabet_stepper)()
+            symbols[str(symbol_atom())] = symbol_atom
+            alphabet_stepper = M.Tail(alphabet_stepper)()
+        covered = M.truth_value
+        index = 0
+        cursors = {}
+        engine = None
+        while index < len(line):
+            ch = line[index]
+            if ch not in symbols:
+                covered = M.false_value
+                index = len(line)
+            else:
+                if engine is None:
+                    engine = G.RecogniseForms(
+                        M.EmptyList, all_arcs, all_senses, root, productions,
+                    )
+                if index not in cursors:
+                    cursors[index] = M.GMPRep(str(index))
+                if index + 1 not in cursors:
+                    cursors[index + 1] = M.GMPRep(str(index + 1))
+                engine.Observe(
+                    M.Char(line), cursors[index], symbols[ch],
+                    cursors[index + 1],
+                )
+                index = index + 1
+        if covered is M.false_value:
+            _debug("question: alphabet does not cover the line")
+            return None
+        engine.Drain()
+        top = G.SpanningDefinitionReading(
+            M.Head(engine.result)(), question_category,
+            cursors[0], cursors[len(line)],
+        )()
+        rounds_text = "0"
+        while M.IdentityCompare(top, M.EmptyList)() is M.truth_value:
+            if G.GMPEqualText(rounds_text, "8")() is M.truth_value:
+                return None
+            rounds_text = G.GMPSuccText(rounds_text)()
+            gap = G.LexicalGap(
+                M.Head(engine.result)(), productions, spc_category,
+            )()
+            if M.IdentityCompare(gap, M.EmptyList)() is M.truth_value:
+                return None
+            gap_start = M.Head(gap)()
+            gap_end = M.Head(M.Tail(gap)())()
+            gap_category = M.Head(M.Tail(M.Tail(gap)())())()
+            start_index = int(M.GMPRepText(gap_start)())
+            end_index = int(M.GMPRepText(gap_end)())
+            gap_symbols_reversed = M.EmptyList
+            walker = end_index - 1
+            while walker >= start_index:
+                gap_symbols_reversed = M.Pair(
+                    symbols[line[walker]], gap_symbols_reversed,
+                )
+                walker = walker - 1
+            provisional = G.ProvisionalWord(
+                root, gap_symbols_reversed, gap_category,
+                M.Char(line[start_index:end_index]),
+            )()
+            engine.Learn(
+                M.Head(provisional)(),
+                M.Pair(M.Head(M.Tail(provisional)())(), M.EmptyList),
+            )
+            top = G.SpanningDefinitionReading(
+                M.Head(engine.result)(), question_category,
+                cursors[0], cursors[len(line)],
+            )()
+        return (
+            "The question parses. I cannot answer it yet: the definitions it "
+            "rests on are still open."
+        )
+
     def _handle_definition(line, record=True):
         nonlocal learned_version, registry
+        graph_answer = _definition_graph_answer(line, record)
+        if graph_answer is not None:
+            return graph_answer
+        return ("I could not read that definition. The line has a word or a "
+                + "shape my grammar does not cover; nothing was recorded.")
         body = line.split(":", 1)[1].strip()
-        words = _tokens(body)
-        if not words:
+        words = _words(body)
+        if M.IdentityCompare(words, M.EmptyList)() is M.truth_value:
             return "A definition is 'definition: a TERM is ...'."
         # The defined term is the first non-article word; everything after
         # the copula is the body. 'a triangle is a figure with three sides'
         # -> term 'triangle', body 'a figure with three sides'.
-        articles = ("a", "an", "the")
-        index = 0
-        while index < len(words) and words[index] in articles:
-            index = index + 1
-        if index >= len(words):
+        split = G.DefinitionTermAndBody(words, ARTICLE_WORDS, COPULA_WORDS)()
+        if M.IdentityCompare(split, M.EmptyList)() is M.truth_value:
             return "I could not find the term being defined."
-        term_text = words[index]
-        rest = words[index + 1:]
-        if rest and rest[0] in ("is", "are"):
-            rest = rest[1:]
-        if not rest:
-            return "The definition of '" + term_text + "' has no body."
-        term_word = M.Char(term_text)
-        body_chain = M.EmptyList
-        for word in reversed(rest):
-            body_chain = M.Pair(M.Char(word), body_chain)
+        term_word = M.Head(split)()
+        term_text = term_word()
+        body_chain = M.Head(M.Tail(split)())()
         definition = G.Definition(
             term_word,
             G.Surface(body_chain)(),
@@ -1537,7 +1880,7 @@ def run_talk_mode(sentence: str = None):
         if M.IdentityCompare(open_words, M.EmptyList)() is M.truth_value:
             return (
                 "Recorded: a " + term_text + " is "
-                + " ".join(rest) + ". Every word in it is grounded."
+                + _speak_chain(body_chain) + ". Every word in it is grounded."
                 + definition_law_line
                 + _propose_bridge(term_text)
             )
@@ -1547,7 +1890,7 @@ def run_talk_mode(sentence: str = None):
             spoken.append(str(M.Head(remaining_open)()()))
             remaining_open = M.Tail(remaining_open)()
         return (
-            "Recorded: a " + term_text + " is " + " ".join(rest) + ". "
+            "Recorded: a " + term_text + " is " + _speak_chain(body_chain) + ". "
             + "But I do not know what "
             + " or ".join("'" + w + "'" for w in spoken)
             + " " + ("is" if len(spoken) == 1 else "are")
@@ -1801,13 +2144,14 @@ def run_talk_mode(sentence: str = None):
         return "?"
 
     def _handle_what_is(line):
-        words = _tokens(line)
         # accepted shapes: 'what is a triangle', 'what is triangle'
-        content = [w for w in words if w not in ("what", "is", "a", "an", "the")]
-        if len(content) != 1:
+        term_word = G.SoleWord(
+            G.WordChainWithout(_words(line), WHAT_IS_WORDS)(),
+        )()
+        if M.IdentityCompare(term_word, M.EmptyList)() is M.truth_value:
             return None
-        term_text = content[0]
-        bridge = G.BridgeFor(learned_version, M.Char(term_text))()
+        term_text = term_word()
+        bridge = G.BridgeFor(learned_version, term_word)()
         ontology_line = ""
         if M.IdentityCompare(bridge, M.EmptyList)() is M.false_value:
             if proof_runtime is not M.EmptyList:
@@ -1875,10 +2219,10 @@ def run_talk_mode(sentence: str = None):
         if "<->" not in body:
             return "A training example is 'training example: WORDS <-> MEANING'."
         surface_text, meaning_text = body.split("<->", 1)
-        surface_words = _tokens(surface_text.strip())
-        if not surface_words:
+        surface_words = _words(surface_text.strip())
+        if M.IdentityCompare(surface_words, M.EmptyList)() is M.truth_value:
             return "The surface side of that example is empty."
-        _debug("reading training pair: '" + " ".join(surface_words)
+        _debug("reading training pair: '" + _speak_chain(surface_words)
                + "' <-> '" + meaning_text.strip() + "'")
         meaning = _meaning_of(meaning_text.strip())
         if M.IdentityCompare(meaning, M.EmptyList)() is M.truth_value:
@@ -1888,7 +2232,7 @@ def run_talk_mode(sentence: str = None):
                 + "'; say it in words or as mul ( a , b ) / add ( a , b )."
             )
         _debug("meaning interpreted as " + _speak_meaning(meaning))
-        surface = _surface(surface_words)
+        surface = G.Surface(surface_words)()
         duplicate = M.false_value
         remaining = examples
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -2234,6 +2578,10 @@ def run_talk_mode(sentence: str = None):
             return _handle_training(line, record=record)
         if lowered.startswith("definition:"):
             return _handle_definition(line, record=record)
+        if lowered.startswith("is "):
+            question_answer = _question_graph_answer(line)
+            if question_answer is not None:
+                return question_answer
         if lowered.startswith("what is "):
             spoken_definition = _handle_what_is(line)
             if spoken_definition is not None:
@@ -2245,10 +2593,10 @@ def run_talk_mode(sentence: str = None):
             return _handle_bridge_decision(lowered.strip(), record=record)
         if lowered.strip() in ("why", "why?", "explain", "explain?"):
             return _explain_last()
-        words = _tokens(line)
-        if not words:
+        words = _words(line)
+        if M.IdentityCompare(words, M.EmptyList)() is M.truth_value:
             return None
-        surface = _surface(words)
+        surface = G.Surface(words)()
         result = G.Converse(vocabulary, surface, registry)()
         outcome = M.Head(result)()
         registry = M.Head(M.Tail(result)())()
