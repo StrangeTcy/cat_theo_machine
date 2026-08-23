@@ -1235,6 +1235,12 @@ def run_talk_mode(sentence: str = None):
     meaning is a Task term dispatch the formal runtime modes.
     """
     vocabulary = G.DefaultCorrespondenceVocabulary()()
+    # One DefinitionFragment for the whole session. Its root and trie
+    # states are identity atoms; a learned word's arcs reference them.
+    # Building a fresh fragment per line would orphan every learned arc
+    # on a root no engine visits again -- structure equal, identity
+    # lost, the same trap as every other identity-keyed store here.
+    definition_fragment = G.DefinitionFragment()()
     reading_policy = G.DefaultReadingPolicy()()
     ARTICLE_WORDS = M.Pair(
         M.Char("a"), M.Pair(M.Char("an"), M.Pair(M.Char("the"), M.EmptyList)),
@@ -1501,7 +1507,7 @@ def run_talk_mode(sentence: str = None):
             + ", " + " and ".join(parts)
         )
 
-    def _definition_graph_answer(line, record):
+    def _definition_graph_answer(line):
         """Read the line as symbol events; return the answer or None.
 
         The client observes each character through the indexed engine;
@@ -1514,8 +1520,7 @@ def run_talk_mode(sentence: str = None):
         the word parses with no gap at all. There is no word-chain
         fallback to record a definition the reader cannot read.
         """
-        nonlocal learned_version
-        bundle = G.DefinitionFragment()()
+        bundle = definition_fragment
         arcs = M.Head(bundle)()
         senses = M.Head(M.Tail(bundle)())()
         productions = M.Head(M.Tail(M.Tail(bundle)())())()
@@ -1580,7 +1585,7 @@ def run_talk_mode(sentence: str = None):
                 )
                 index = index + 1
         if covered is M.false_value:
-            return None
+            return None, learned_version
         result = engine.Drain()
         readings = M.Head(result)()
         top = G.SpanningDefinitionReading(
@@ -1593,13 +1598,13 @@ def run_talk_mode(sentence: str = None):
         gap_rounds_text = "0"
         while M.IdentityCompare(top, M.EmptyList)() is M.truth_value:
             if G.GMPEqualText(gap_rounds_text, "8")() is M.truth_value:
-                return None
+                return None, learned_version
             gap_rounds_text = G.GMPSuccText(gap_rounds_text)()
             gap = G.LexicalGap(
                 M.Head(engine.result)(), productions, spc_category,
             )()
             if M.IdentityCompare(gap, M.EmptyList)() is M.truth_value:
-                return None
+                return None, learned_version
             gap_start = M.Head(gap)()
             gap_end = M.Head(M.Tail(gap)())()
             gap_category = M.Head(M.Tail(M.Tail(gap)())())()
@@ -1661,7 +1666,7 @@ def run_talk_mode(sentence: str = None):
                 )
                 arc_walker = M.Tail(arc_walker)()
             installed_reversed = M.Pair(permanent_sense, installed_reversed)
-        learned_version = G.GraphVersion(
+        next_version = G.GraphVersion(
             M.Pair(
                 M.Reverse(installed_reversed)(),
                 G.GraphNodes(learned_version)(),
@@ -1669,9 +1674,6 @@ def run_talk_mode(sentence: str = None):
             G.GraphEdges(learned_version)(),
             G.GraphVersionInvariants(learned_version)(),
         )()
-        if record:
-            _log_lesson(line)
-        _persist_talk_state()
         spoken = []
         dependency_walker = dependencies
         while M.IdentityCompare(
@@ -1680,15 +1682,17 @@ def run_talk_mode(sentence: str = None):
             spoken.append(_label_spoken(M.Head(dependency_walker)()))
             dependency_walker = M.Tail(dependency_walker)()
         if spoken:
-            return (
+            answer = (
                 "I've formed this graph: "
                 + _speak_definition_node(holed_node)
                 + ". But I need definitions of: " + ", ".join(spoken) + "."
             )
-        return (
-            "I've formed this graph: " + _speak_definition_node(holed_node)
-            + ". Every predicate in it is grounded."
-        )
+        else:
+            answer = (
+                "I've formed this graph: " + _speak_definition_node(holed_node)
+                + ". Every predicate in it is grounded."
+            )
+        return answer, next_version
 
     def _question_graph_answer(line):
         """Read a question line as symbol events; return the answer or None.
@@ -1699,7 +1703,15 @@ def run_talk_mode(sentence: str = None):
         definitions, which the dependencies name.
         """
         nonlocal learned_version
-        bundle = G.DefinitionFragment()()
+        # The one crossing where the typed line becomes symbol events.
+        # A capital I and a trailing ? are typography, not symbols the
+        # grammar carries; normalized here once, where the host string
+        # is converted, and nowhere past this point.
+        line = line.strip().lower()
+        while line.endswith("?"):
+            line = line[:-1]
+        line = line.strip()
+        bundle = definition_fragment
         arcs = M.Head(bundle)()
         senses = M.Head(M.Tail(bundle)())()
         productions = M.Head(M.Tail(M.Tail(bundle)())())()
@@ -1725,18 +1737,36 @@ def run_talk_mode(sentence: str = None):
 
         learned_arcs_reversed = M.EmptyList
         learned_senses_reversed = M.EmptyList
+
+        def _collect_learned(node):
+            nonlocal learned_arcs_reversed, learned_senses_reversed
+            if M.IsPair(node)() is M.false_value:
+                return
+            node_head = M.Head(node)()
+            if M.IdentityCompare(
+                node_head, Lmod.FormArcLabel,
+            )() is M.truth_value:
+                learned_arcs_reversed = M.Pair(node, learned_arcs_reversed)
+            elif M.IdentityCompare(
+                node_head, Lmod.FormSenseLabel,
+            )() is M.truth_value:
+                learned_senses_reversed = M.Pair(
+                    node, learned_senses_reversed,
+                )
+            elif M.IsPair(node_head)() is M.truth_value:
+                # The definition path installs a whole chain of nodes
+                # as one element (arcs, sense, DefinitionNode together);
+                # a chained element's members are nodes too.
+                inner = node
+                while M.IdentityCompare(
+                    inner, M.EmptyList,
+                )() is M.false_value:
+                    _collect_learned(M.Head(inner)())
+                    inner = M.Tail(inner)()
+
         node_walker = G.GraphNodes(learned_version)()
         while M.IdentityCompare(node_walker, M.EmptyList)() is M.false_value:
-            node = M.Head(node_walker)()
-            if M.IsPair(node)() is M.truth_value:
-                if M.IdentityCompare(
-                    M.Head(node)(), Lmod.FormArcLabel,
-                )() is M.truth_value:
-                    learned_arcs_reversed = M.Pair(node, learned_arcs_reversed)
-                elif M.IdentityCompare(
-                    M.Head(node)(), Lmod.FormSenseLabel,
-                )() is M.truth_value:
-                    learned_senses_reversed = M.Pair(node, learned_senses_reversed)
+            _collect_learned(M.Head(node_walker)())
             node_walker = M.Tail(node_walker)()
         all_arcs = arcs
         arc_walker = M.Reverse(learned_arcs_reversed)()
@@ -1789,12 +1819,14 @@ def run_talk_mode(sentence: str = None):
         rounds_text = "0"
         while M.IdentityCompare(top, M.EmptyList)() is M.truth_value:
             if G.GMPEqualText(rounds_text, "8")() is M.truth_value:
+                _debug("question: gap rounds exhausted")
                 return None
             rounds_text = G.GMPSuccText(rounds_text)()
             gap = G.LexicalGap(
                 M.Head(engine.result)(), productions, spc_category,
             )()
             if M.IdentityCompare(gap, M.EmptyList)() is M.truth_value:
+                _debug("question: no lexical gap proposable")
                 return None
             gap_start = M.Head(gap)()
             gap_end = M.Head(M.Tail(gap)())()
@@ -1974,8 +2006,15 @@ def run_talk_mode(sentence: str = None):
 
     def _handle_definition(line, record=True):
         nonlocal learned_version, registry
-        graph_answer = _definition_graph_answer(line, record)
+        # The reader computes; this caller commits. One writer of the
+        # session state, one place the lesson is logged and persisted --
+        # the reader returns (answer, next_version) and mutates nothing.
+        graph_answer, next_version = _definition_graph_answer(line)
         if graph_answer is not None:
+            learned_version = next_version
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
             return graph_answer
         return ("I could not read that definition. The line has a word or a "
                 + "shape my grammar does not cover; nothing was recorded.")
