@@ -1531,18 +1531,35 @@ def run_talk_mode(sentence: str = None):
 
         learned_arcs_reversed = M.EmptyList
         learned_senses_reversed = M.EmptyList
+
+        def _collect_learned(node):
+            nonlocal learned_arcs_reversed, learned_senses_reversed
+            if M.IsPair(node)() is M.false_value:
+                return
+            node_head = M.Head(node)()
+            if M.IdentityCompare(
+                node_head, Lmod.FormArcLabel,
+            )() is M.truth_value:
+                learned_arcs_reversed = M.Pair(node, learned_arcs_reversed)
+            elif M.IdentityCompare(
+                node_head, Lmod.FormSenseLabel,
+            )() is M.truth_value:
+                learned_senses_reversed = M.Pair(
+                    node, learned_senses_reversed,
+                )
+            elif M.IsPair(node_head)() is M.truth_value:
+                # Installed chains hold arcs, sense and DefinitionNode
+                # as one element; their members are nodes too.
+                inner = node
+                while M.IdentityCompare(
+                    inner, M.EmptyList,
+                )() is M.false_value:
+                    _collect_learned(M.Head(inner)())
+                    inner = M.Tail(inner)()
+
         node_walker = G.GraphNodes(learned_version)()
         while M.IdentityCompare(node_walker, M.EmptyList)() is M.false_value:
-            node = M.Head(node_walker)()
-            if M.IsPair(node)() is M.truth_value:
-                if M.IdentityCompare(
-                    M.Head(node)(), Lmod.FormArcLabel,
-                )() is M.truth_value:
-                    learned_arcs_reversed = M.Pair(node, learned_arcs_reversed)
-                elif M.IdentityCompare(
-                    M.Head(node)(), Lmod.FormSenseLabel,
-                )() is M.truth_value:
-                    learned_senses_reversed = M.Pair(node, learned_senses_reversed)
+            _collect_learned(M.Head(node_walker)())
             node_walker = M.Tail(node_walker)()
         all_arcs = arcs
         arc_walker = M.Reverse(learned_arcs_reversed)()
@@ -1602,6 +1619,7 @@ def run_talk_mode(sentence: str = None):
             gap_rounds_text = G.GMPSuccText(gap_rounds_text)()
             gap = G.LexicalGap(
                 M.Head(engine.result)(), productions, spc_category,
+                cursors[len(line)],
             )()
             if M.IdentityCompare(gap, M.EmptyList)() is M.truth_value:
                 return None, learned_version
@@ -1711,6 +1729,54 @@ def run_talk_mode(sentence: str = None):
         while line.endswith("?"):
             line = line[:-1]
         line = line.strip()
+        # An expression subject -- "is (two plus five) prime" -- is
+        # arithmetic inside grammar. The group is cut at the boundary,
+        # evaluated through ConverseValue (all interpretations must
+        # agree; no silent pick), and the line re-enters with the
+        # value's own word. The grammar never sees brackets; the
+        # arithmetic never sees the question shape. Each reader reads
+        # what it owns.
+        open_at = line.find("(")
+        if open_at != -1:
+            close_at = line.rfind(")")
+            if close_at == -1 or close_at < open_at:
+                return "The brackets in that question do not balance."
+            group_words = _words(line[open_at + 1:close_at])
+            if M.IdentityCompare(group_words, M.EmptyList)() is M.truth_value:
+                return "The brackets in that question are empty."
+            group_value = G.ConverseValue(
+                vocabulary,
+                G.Surface(group_words)(),
+                registry,
+            )()
+            value_nat = M.Head(group_value)()
+            if M.IdentityCompare(value_nat, M.EmptyList)() is M.truth_value:
+                return (
+                    "I could not evaluate the bracketed expression to "
+                    "one agreed value."
+                )
+            value_word = M.EmptyList
+            word_entry_probe = M.Head(M.Tail(vocabulary)())()
+            while M.IdentityCompare(
+                word_entry_probe, M.EmptyList,
+            )() is M.false_value:
+                entry = M.Head(word_entry_probe)()
+                if M.NatEq(
+                    M.Head(M.Tail(entry)())(), value_nat, registry,
+                )() is M.truth_value:
+                    value_word = M.Head(entry)()
+                    word_entry_probe = M.EmptyList
+                else:
+                    word_entry_probe = M.Tail(word_entry_probe)()
+            if M.IdentityCompare(value_word, M.EmptyList)() is M.truth_value:
+                return (
+                    "The bracketed expression evaluates beyond the "
+                    "number words I can speak."
+                )
+            line = (
+                line[:open_at].strip() + " " + str(value_word())
+                + " " + line[close_at + 1:].strip()
+            ).strip()
         bundle = definition_fragment
         arcs = M.Head(bundle)()
         senses = M.Head(M.Tail(bundle)())()
@@ -1824,6 +1890,7 @@ def run_talk_mode(sentence: str = None):
             rounds_text = G.GMPSuccText(rounds_text)()
             gap = G.LexicalGap(
                 M.Head(engine.result)(), productions, spc_category,
+                cursors[len(line)],
             )()
             if M.IdentityCompare(gap, M.EmptyList)() is M.truth_value:
                 _debug("question: no lexical gap proposable")

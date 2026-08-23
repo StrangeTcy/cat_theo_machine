@@ -9211,6 +9211,8 @@ class DefinitionFragment(M.Edge):
         sym_z = M.Char("z")
         sym_colon = M.Char(":")
         sym_space = M.Char(" ")
+        sym_open = M.Char("(")
+        sym_close = M.Char(")")
 
         word_definition = M.Pair(sym_d, M.Pair(sym_e, M.Pair(sym_f, M.Pair(sym_i, M.Pair(sym_n, M.Pair(sym_i, M.Pair(sym_t, M.Pair(sym_i, M.Pair(sym_o, M.Pair(sym_n, empty))))))))))
 
@@ -9236,6 +9238,12 @@ class DefinitionFragment(M.Edge):
         word_and = M.Pair(sym_a, M.Pair(sym_n, M.Pair(sym_d, empty)))
 
         word_itself = M.Pair(sym_i, M.Pair(sym_t, M.Pair(sym_s, M.Pair(sym_e, M.Pair(sym_l, M.Pair(sym_f, empty))))))
+
+        word_natural = M.Pair(sym_n, M.Pair(sym_a, M.Pair(sym_t, M.Pair(sym_u, M.Pair(sym_r, M.Pair(sym_a, M.Pair(sym_l, empty)))))))
+
+        word_that = M.Pair(sym_t, M.Pair(sym_h, M.Pair(sym_a, M.Pair(sym_t, empty))))
+
+        word_not = M.Pair(sym_n, M.Pair(sym_o, M.Pair(sym_t, empty)))
 
         one = M.Char("one")
         prime = M.Char("prime")
@@ -9287,11 +9295,18 @@ class DefinitionFragment(M.Edge):
         cat_ncat = M.Char("NCAT")
         cat_ncatg = M.Char("NCATG")
         cat_prednom = M.Char("PREDNOM")
+        cat_relpron = M.Char("RELPRON")
+        cat_neg = M.Char("NEG")
+        cat_relprong = M.Char("RELPRONG")
+        cat_negg = M.Char("NEGG")
+        cat_negpred = M.Char("NEGPRED")
+        cat_negpredg = M.Char("NEGPREDG")
+        cat_relpred = M.Char("RELPRED")
         cat_qsubj = M.Char("QSUBJ")
         cat_question = M.Char("QUESTION")
 
 
-        entries = M.Pair(M.Pair(word_definition, M.Pair(cat_cw, M.Char("definition"))), M.Pair(M.Pair(word_colon, M.Pair(cat_col, M.Char(":"))), M.Pair(M.Pair(word_space, M.Pair(cat_spc, M.Char(" "))), M.Pair(M.Pair(word_a, M.Pair(cat_det, M.Char("a"))), M.Pair(M.Pair(word_number, M.Pair(cat_cn, number_chunk)), M.Pair(M.Pair(word_is, M.Pair(cat_cop, M.Char("is"))), M.Pair(M.Pair(word_divisible, M.Pair(cat_radj, Lmod.DividesLabel)), M.Pair(M.Pair(word_only, M.Pair(cat_rop, M.Char("only"))), M.Pair(M.Pair(word_by, M.Pair(cat_p, divisor)), M.Pair(M.Pair(word_one, M.Pair(cat_num, one)), M.Pair(M.Pair(word_and, M.Pair(cat_conj, M.Char("and"))), M.Pair(M.Pair(word_itself, M.Pair(cat_rpron, M.Pair(Lmod.ReflexiveLabel, empty))), empty))))))))))))
+        entries = M.Pair(M.Pair(word_definition, M.Pair(cat_cw, M.Char("definition"))), M.Pair(M.Pair(word_colon, M.Pair(cat_col, M.Char(":"))), M.Pair(M.Pair(word_space, M.Pair(cat_spc, M.Char(" "))), M.Pair(M.Pair(word_a, M.Pair(cat_det, M.Char("a"))), M.Pair(M.Pair(word_number, M.Pair(cat_cn, number_chunk)), M.Pair(M.Pair(word_is, M.Pair(cat_cop, M.Char("is"))), M.Pair(M.Pair(word_divisible, M.Pair(cat_radj, Lmod.DividesLabel)), M.Pair(M.Pair(word_only, M.Pair(cat_rop, M.Char("only"))), M.Pair(M.Pair(word_by, M.Pair(cat_p, divisor)), M.Pair(M.Pair(word_one, M.Pair(cat_num, one)), M.Pair(M.Pair(word_and, M.Pair(cat_conj, M.Char("and"))), M.Pair(M.Pair(word_itself, M.Pair(cat_rpron, M.Pair(Lmod.ReflexiveLabel, empty))), M.Pair(M.Pair(word_natural, M.Pair(cat_adj, M.Char("natural"))), M.Pair(M.Pair(word_that, M.Pair(cat_relpron, M.Char("that"))), M.Pair(M.Pair(word_not, M.Pair(cat_neg, Lmod.NotLabel)), empty)))))))))))))))
 
         root = M.Char("frag-root")
         self._state_counter_text = "0"
@@ -9325,7 +9340,7 @@ class DefinitionFragment(M.Edge):
         kind_np = M.Char("kind-np")
         kind_restriction = M.Char("kind-restriction")
         kind_definition = M.Char("kind-definition")
-        specs = M.Pair(M.Pair(cat_adj, M.Pair(cat_spc, M.Pair(cat_adjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_adjg, M.Pair(cat_cn, M.Pair(cat_np, M.Pair(kind_np, empty)))), M.Pair(M.Pair(cat_det, M.Pair(cat_spc, M.Pair(cat_detg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_adj, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cw, M.Pair(cat_col, M.Pair(cat_cwg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwg, M.Pair(cat_spc, M.Pair(cat_cwgg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_sbare, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cop, M.Pair(cat_spc, M.Pair(cat_copg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_copg, M.Pair(cat_numg, M.Pair(cat_qsubj, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_copg, M.Pair(cat_sbj, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_npg, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_np, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_num, M.Pair(cat_spc, M.Pair(cat_numg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conj, M.Pair(cat_spc, M.Pair(cat_conjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_rpron, M.Pair(cat_cjpron, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_numg, M.Pair(cat_cjpron, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_p, M.Pair(cat_spc, M.Pair(cat_pg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_pg, M.Pair(cat_coord, M.Pair(cat_pp, M.Pair(kind_restriction, empty)))), M.Pair(M.Pair(cat_rop, M.Pair(cat_spc, M.Pair(cat_ropg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ropg, M.Pair(cat_pp, M.Pair(cat_rpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_radj, M.Pair(cat_spc, M.Pair(cat_radg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_radg, M.Pair(cat_rpred, M.Pair(cat_pred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_pred, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare, M.Pair(cat_spc, M.Pair(cat_sbareg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbareg, M.Pair(cat_copg, M.Pair(cat_sbare2, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_spc, M.Pair(cat_sbare2g, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare2g, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_rpron, M.Pair(cat_spc, M.Pair(cat_rprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_num, M.Pair(cat_cjnum, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_rprong, M.Pair(cat_cjnum, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_cn, M.Pair(cat_ncat, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_ncat, M.Pair(cat_spc, M.Pair(cat_ncatg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ncatg, M.Pair(cat_pred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_adj, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_sbare, M.Pair(cat_question, M.Pair(kind_left, empty)))), empty)))))))))))))))))))))))))))))))))))))))
+        specs = M.Pair(M.Pair(cat_adj, M.Pair(cat_spc, M.Pair(cat_adjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_adjg, M.Pair(cat_cn, M.Pair(cat_np, M.Pair(kind_np, empty)))), M.Pair(M.Pair(cat_det, M.Pair(cat_spc, M.Pair(cat_detg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_adj, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cw, M.Pair(cat_col, M.Pair(cat_cwg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwg, M.Pair(cat_spc, M.Pair(cat_cwgg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_sbare, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cop, M.Pair(cat_spc, M.Pair(cat_copg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_copg, M.Pair(cat_numg, M.Pair(cat_qsubj, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_copg, M.Pair(cat_sbj, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_npg, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_np, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_num, M.Pair(cat_spc, M.Pair(cat_numg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conj, M.Pair(cat_spc, M.Pair(cat_conjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_rpron, M.Pair(cat_cjpron, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_numg, M.Pair(cat_cjpron, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_p, M.Pair(cat_spc, M.Pair(cat_pg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_pg, M.Pair(cat_coord, M.Pair(cat_pp, M.Pair(kind_restriction, empty)))), M.Pair(M.Pair(cat_rop, M.Pair(cat_spc, M.Pair(cat_ropg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ropg, M.Pair(cat_pp, M.Pair(cat_rpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_radj, M.Pair(cat_spc, M.Pair(cat_radg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_radg, M.Pair(cat_rpred, M.Pair(cat_pred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_pred, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare, M.Pair(cat_spc, M.Pair(cat_sbareg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbareg, M.Pair(cat_copg, M.Pair(cat_sbare2, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_spc, M.Pair(cat_sbare2g, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare2g, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_rpron, M.Pair(cat_spc, M.Pair(cat_rprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_num, M.Pair(cat_cjnum, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_rprong, M.Pair(cat_cjnum, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_cn, M.Pair(cat_ncat, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_ncat, M.Pair(cat_spc, M.Pair(cat_ncatg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ncatg, M.Pair(cat_pred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_adj, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_sbare, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_relpron, M.Pair(cat_spc, M.Pair(cat_relprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_relprong, M.Pair(cat_copg, M.Pair(cat_negg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_negg, M.Pair(cat_neg, M.Pair(cat_negpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_negpred, M.Pair(cat_spc, M.Pair(cat_negpredg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_negpredg, M.Pair(cat_adj, M.Pair(cat_relpred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_relpred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), empty)))))))))))))))))))))))))))))))))))))))))))))))
 
         self._production_counter_text = "0"
         productions_reversed = empty
@@ -9380,7 +9395,7 @@ class DefinitionFragment(M.Edge):
             walker = M.Tail(walker)()
         productions = M.Reverse(productions_reversed)()
 
-        alphabet = M.Pair(sym_a, M.Pair(sym_b, M.Pair(sym_c, M.Pair(sym_d, M.Pair(sym_e, M.Pair(sym_f, M.Pair(sym_g, M.Pair(sym_h, M.Pair(sym_i, M.Pair(sym_j, M.Pair(sym_k, M.Pair(sym_l, M.Pair(sym_m, M.Pair(sym_n, M.Pair(sym_o, M.Pair(sym_p, M.Pair(sym_q, M.Pair(sym_r, M.Pair(sym_s, M.Pair(sym_t, M.Pair(sym_u, M.Pair(sym_v, M.Pair(sym_w, M.Pair(sym_x, M.Pair(sym_y, M.Pair(sym_z, M.Pair(sym_colon, M.Pair(sym_space, empty))))))))))))))))))))))))))))
+        alphabet = M.Pair(sym_a, M.Pair(sym_b, M.Pair(sym_c, M.Pair(sym_d, M.Pair(sym_e, M.Pair(sym_f, M.Pair(sym_g, M.Pair(sym_h, M.Pair(sym_i, M.Pair(sym_j, M.Pair(sym_k, M.Pair(sym_l, M.Pair(sym_m, M.Pair(sym_n, M.Pair(sym_o, M.Pair(sym_p, M.Pair(sym_q, M.Pair(sym_r, M.Pair(sym_s, M.Pair(sym_t, M.Pair(sym_u, M.Pair(sym_v, M.Pair(sym_w, M.Pair(sym_x, M.Pair(sym_y, M.Pair(sym_z, M.Pair(sym_colon, M.Pair(sym_space, M.Pair(sym_open, M.Pair(sym_close, empty))))))))))))))))))))))))))))))
         self.result = M.Pair(
             arcs,
             M.Pair(
@@ -9464,7 +9479,8 @@ class LexicalGap(M.Edge):
     glue -- what the grammar says at the boundary, no more.
     """
 
-    def __init__(self, readings, productions, spc_category):
+    def __init__(self, readings, productions, spc_category,
+                 line_end=M.EmptyList):
         empty = M.EmptyList
         self.result = empty
 
@@ -9543,25 +9559,11 @@ class LexicalGap(M.Edge):
         if M.IdentityCompare(self.result, empty)() is M.truth_value:
             # A word that ENDS the line has a left space but no right
             # space, so the two-space scan above never sees it. The
-            # line's end is a boundary the readings already know: the
-            # largest end cursor any reading carries. A run from a
-            # space to that end that no reading covers is the same
+            # readings cannot say where the line ends -- an uncovered
+            # final word leaves no reading over itself -- so the caller
+            # passes the line's final cursor. A run from a space to
+            # that cursor that no reading covers is the same
             # word-shaped hole, read leftward for its category.
-            line_end = empty
-            walker = readings
-            while M.IdentityCompare(walker, empty)() is M.false_value:
-                reading = M.Head(walker)()
-                reading_end = M.Head(
-                    M.Tail(M.Tail(M.Tail(reading)())())(),
-                )()
-                if M.IdentityCompare(line_end, empty)() is M.truth_value:
-                    line_end = reading_end
-                elif GMPLessText(
-                    M.GMPRepText(line_end)(),
-                    M.GMPRepText(reading_end)(),
-                )() is M.truth_value:
-                    line_end = reading_end
-                walker = M.Tail(walker)()
             if M.IdentityCompare(line_end, empty)() is M.false_value:
                 outer = spaces
                 while M.IdentityCompare(outer, empty)() is M.false_value:
