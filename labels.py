@@ -1547,6 +1547,10 @@ class ComposeMeaningLabel(ConstructorLabel):
     pass
 
 
+class EnumerateSubjectsLabel(ConstructorLabel):
+    pass
+
+
 class DefinitionNodeLabel(ConstructorLabel):
     pass
 
@@ -1992,6 +1996,7 @@ ProjectRightLabel = ProjectRightLabel()
 ReflexiveLabel = ReflexiveLabel()
 RestrictionLabel = RestrictionLabel()
 LexicalNpLabel = LexicalNpLabel()
+EnumerateSubjectsLabel = EnumerateSubjectsLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2031,6 +2036,7 @@ def sync_from_namespace(namespace):
         "ReflexiveLabel",
         "RestrictionLabel",
         "LexicalNpLabel",
+        "EnumerateSubjectsLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",

@@ -1466,6 +1466,9 @@ def run_talk_mode(sentence: str = None):
         for name, value in vars(Lmod).items():
             if value is label and name.endswith("Label"):
                 return name[:-5]
+        spoken_value = label()
+        if spoken_value is not None:
+            return str(spoken_value)
         return "something"
 
     def _speak_definition_node(node):
@@ -1486,8 +1489,55 @@ def run_talk_mode(sentence: str = None):
                 label, Lmod.ExactFillersLabel,
             )() is M.truth_value:
                 parts.append("only [one, itself] as divisor")
+            elif M.IdentityCompare(
+                label, Lmod.NotLabel,
+            )() is M.truth_value:
+                # A relative-clause condition: Not(predicate(self)).
+                # The predicate slot is a Hole while the word stands
+                # undefined, the word itself once installed.
+                negated_inner = M.Head(M.Tail(condition)())()
+                negated_predicate = M.Head(negated_inner)()
+                spoken_predicate = _label_spoken(negated_predicate)
+                if M.IsPair(negated_predicate)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(negated_predicate)(), Lmod.HoleLabel,
+                    )() is M.truth_value:
+                        spoken_predicate = (
+                            str(M.Head(M.Tail(negated_predicate)())()())
+                            + " (undefined)"
+                        )
+                parts.append("not " + spoken_predicate)
             else:
-                parts.append(_label_spoken(label))
+                # A two-argument relation over a word reads as
+                # "Divides composite"; while that word is a Hole the
+                # clause's open dependency rides inside the condition,
+                # so speak it with the undefined mark. One-slot
+                # conditions and ExactFillers fall out of the shape
+                # guard and keep the bare label.
+                spoken_relation = _label_spoken(label)
+                arg_rest = M.Tail(condition)()
+                if M.IdentityCompare(
+                    M.Tail(arg_rest)(), M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        M.Tail(M.Tail(arg_rest)())(), M.EmptyList,
+                    )() is M.truth_value:
+                        second_arg = M.Head(M.Tail(arg_rest)())()
+                        if M.IsPair(second_arg)() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(second_arg)(), Lmod.HoleLabel,
+                            )() is M.truth_value:
+                                spoken_relation = (
+                                    spoken_relation + " "
+                                    + str(M.Head(M.Tail(second_arg)())()())
+                                    + " (undefined)"
+                                )
+                        else:
+                            spoken_relation = (
+                                spoken_relation + " "
+                                + _label_spoken(second_arg)
+                            )
+                parts.append(spoken_relation)
             walker = M.Tail(walker)()
         definiendum = G.DefinitionNodeDefiniendum(node)()
         concept = M.Head(M.Tail(definiendum)())()
@@ -1662,7 +1712,58 @@ def run_talk_mode(sentence: str = None):
                 defined,
             )
             concept_walker = M.Tail(concept_walker)()
-        holed = G.PredicateHoles(conditions, defined)()
+        # A concept already defined this session is defined here too:
+        # "a composite is a natural number that is not prime", taught
+        # after prime, must not report prime as a missing definition.
+        # The definiendum of a learned word is still its Hole, so the
+        # defined name is the word inside the hole, not the hole. The
+        # node store holds installed chains as single elements, so
+        # walk one level into any element that is itself a chain.
+        concept_probe = G.GraphNodes(learned_version)()
+        while M.IdentityCompare(concept_probe, M.EmptyList)() is M.false_value:
+            concept_candidate = M.Head(concept_probe)()
+            if M.IsPair(concept_candidate)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(concept_candidate)(), Lmod.DefinitionNodeLabel,
+                )() is M.truth_value:
+                    defined = M.Pair(
+                        M.Head(
+                            M.Tail(M.Head(M.Tail(concept_candidate)())())(),
+                        )(),
+                        defined,
+                    )
+                elif M.IsPair(M.Head(concept_candidate)())() is M.truth_value:
+                    inner_concept_probe = concept_candidate
+                    while M.IdentityCompare(
+                        inner_concept_probe, M.EmptyList,
+                    )() is M.false_value:
+                        inner_concept = M.Head(inner_concept_probe)()
+                        if M.IsPair(inner_concept)() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(inner_concept)(), Lmod.DefinitionNodeLabel,
+                            )() is M.truth_value:
+                                defined = M.Pair(
+                                    M.Head(
+                                        M.Tail(
+                                            M.Head(M.Tail(inner_concept)())(),
+                                        )(),
+                                    )(),
+                                    defined,
+                                )
+                        inner_concept_probe = M.Tail(inner_concept_probe)()
+            concept_probe = M.Tail(concept_probe)()
+        defined_words = M.EmptyList
+        defined_walker = defined
+        while M.IdentityCompare(defined_walker, M.EmptyList)() is M.false_value:
+            defined_entry = M.Head(defined_walker)()
+            if M.IsPair(defined_entry)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(defined_entry)(), Lmod.HoleLabel,
+                )() is M.truth_value:
+                    defined_entry = M.Head(M.Tail(defined_entry)())()
+            defined_words = M.Pair(defined_entry, defined_words)
+            defined_walker = M.Tail(defined_walker)()
+        holed = G.PredicateHoles(conditions, defined_words)()
         holed_conditions = M.Head(holed)()
         dependencies = M.Head(M.Tail(holed)())()
         holed_node = G.DefinitionNode(
@@ -1720,7 +1821,7 @@ def run_talk_mode(sentence: str = None):
         does, the question parsed -- answering it needs grounded
         definitions, which the dependencies name.
         """
-        nonlocal learned_version
+        nonlocal learned_version, registry
         # The one crossing where the typed line becomes symbol events.
         # A capital I and a trailing ? are typography, not symbols the
         # grammar carries; normalized here once, where the host string
@@ -1938,6 +2039,173 @@ def run_talk_mode(sentence: str = None):
                 pass
             return "?"
         _debug("question meaning: " + _render_term(top))
+        # An enumeration question -- "which is prime" -- has no
+        # subject: the marker pairs with the predicate word and asks
+        # for the list, so it cannot borrow the subject path's early
+        # returns. Its own walk finds the installed definition and its
+        # exact-fillers restriction, and the enumeration edge repeats
+        # the yes/no check once per small candidate, through the same
+        # ExactDivisorRestriction, so the list and the verdict can
+        # never drift apart.
+        enumeration_asked = M.false_value
+        enumeration_word = M.EmptyList
+        if M.IsPair(top)() is M.truth_value:
+            if M.IdentityCompare(
+                M.Head(top)(), Lmod.EnumerateSubjectsLabel,
+            )() is M.truth_value:
+                enumeration_asked = M.truth_value
+                enumeration_inner = M.Head(M.Tail(top)())()
+                if M.IsPair(enumeration_inner)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(enumeration_inner)(), Lmod.HoleLabel,
+                    )() is M.truth_value:
+                        enumeration_word = G.HolePredicate(enumeration_inner)()
+                    else:
+                        enumeration_word = enumeration_inner
+                else:
+                    enumeration_word = enumeration_inner
+        if M.IdentityCompare(enumeration_asked, M.truth_value)() is M.truth_value:
+            word_entries = M.Head(M.Tail(vocabulary)())()
+            # The asked word picks the definition: with two installed,
+            # "which is composite" must not answer with prime's
+            # restriction. The definiendum of a learned word is its
+            # Hole; the word inside the hole, or the bare concept
+            # itself, compares by value against the asked word. The
+            # first match wins; none matching means nothing speaks for
+            # the question.
+            enum_definition_node = M.EmptyList
+            enum_node_probe = G.GraphNodes(learned_version)()
+            while M.IdentityCompare(
+                enum_node_probe, M.EmptyList,
+            )() is M.false_value:
+                candidate = M.Head(enum_node_probe)()
+                if M.IsPair(candidate)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(candidate)(), Lmod.DefinitionNodeLabel,
+                    )() is M.truth_value:
+                        enum_found_concept = M.Head(
+                            M.Tail(G.DefinitionNodeDefiniendum(candidate)())(),
+                        )()
+                        enum_found_word = enum_found_concept
+                        if M.IsPair(enum_found_concept)() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(enum_found_concept)(), Lmod.HoleLabel,
+                            )() is M.truth_value:
+                                enum_found_word = M.Head(
+                                    M.Tail(enum_found_concept)(),
+                                )()
+                        if M.Compare(
+                            enum_found_word, enumeration_word,
+                        )() is M.truth_value:
+                            if M.IdentityCompare(
+                                enum_definition_node, M.EmptyList,
+                            )() is M.truth_value:
+                                enum_definition_node = candidate
+                    elif M.IsPair(M.Head(candidate)())() is M.truth_value:
+                        inner_probe = candidate
+                        while M.IdentityCompare(
+                            inner_probe, M.EmptyList,
+                        )() is M.false_value:
+                            inner = M.Head(inner_probe)()
+                            if M.IsPair(inner)() is M.truth_value:
+                                if M.IdentityCompare(
+                                    M.Head(inner)(), Lmod.DefinitionNodeLabel,
+                                )() is M.truth_value:
+                                    enum_found_concept = M.Head(
+                                        M.Tail(
+                                            G.DefinitionNodeDefiniendum(inner)(),
+                                        )(),
+                                    )()
+                                    enum_found_word = enum_found_concept
+                                    if M.IsPair(
+                                        enum_found_concept,
+                                    )() is M.truth_value:
+                                        if M.IdentityCompare(
+                                            M.Head(enum_found_concept)(),
+                                            Lmod.HoleLabel,
+                                        )() is M.truth_value:
+                                            enum_found_word = M.Head(
+                                                M.Tail(enum_found_concept)(),
+                                            )()
+                                    if M.Compare(
+                                        enum_found_word, enumeration_word,
+                                    )() is M.truth_value:
+                                        if M.IdentityCompare(
+                                            enum_definition_node, M.EmptyList,
+                                        )() is M.truth_value:
+                                            enum_definition_node = inner
+                            inner_probe = M.Tail(inner_probe)()
+                enum_node_probe = M.Tail(enum_node_probe)()
+            if M.IdentityCompare(
+                enum_definition_node, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "The question parses. I cannot answer it yet: no "
+                    "installed definition speaks for it."
+                )
+            enum_conditions = G.DefinitionNodeConditions(
+                enum_definition_node,
+            )()
+            enum_exact = M.EmptyList
+            enum_condition_probe = enum_conditions
+            while M.IdentityCompare(
+                enum_condition_probe, M.EmptyList,
+            )() is M.false_value:
+                enum_condition = M.Head(enum_condition_probe)()
+                if M.IsPair(enum_condition)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(enum_condition)(), Lmod.ExactFillersLabel,
+                    )() is M.truth_value:
+                        enum_exact = enum_condition
+                enum_condition_probe = M.Tail(enum_condition_probe)()
+            if M.IdentityCompare(enum_exact, M.EmptyList)() is M.truth_value:
+                return (
+                    "The question parses and the definition is installed, "
+                    "but its conditions carry no restriction I can enumerate."
+                )
+            enum_allowed = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(enum_exact)())())())(),
+            )()
+            enum_binder_variable = G.BinderSelf(
+                G.DefinitionNodeBinder(enum_definition_node)(),
+            )()
+            enumerated = G.EnumerateExactSubjects(
+                top, enum_allowed, enum_binder_variable, word_entries, registry,
+            )()
+            kept = M.Head(enumerated)()
+            registry = M.Head(M.Tail(enumerated)())()
+            enum_digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+            spoken_reversed = M.EmptyList
+            kept_walker = kept
+            while M.IdentityCompare(kept_walker, M.EmptyList)() is M.false_value:
+                spoken_surface = G.RenderNatSurface(
+                    M.Head(kept_walker)(), enum_digit_words, registry,
+                )()
+                spoken_walker = M.Head(M.Tail(spoken_surface)())()
+                while M.IdentityCompare(
+                    spoken_walker, M.EmptyList,
+                )() is M.false_value:
+                    spoken_reversed = M.Pair(
+                        str(M.Head(spoken_walker)()()), spoken_reversed,
+                    )
+                    spoken_walker = M.Tail(spoken_walker)()
+                kept_walker = M.Tail(kept_walker)()
+            if M.IdentityCompare(spoken_reversed, M.EmptyList)() is M.truth_value:
+                return "None of the numbers from one to nine satisfies it."
+            spoken_list = ""
+            remaining_spoken = M.Reverse(spoken_reversed)()
+            while M.IdentityCompare(
+                remaining_spoken, M.EmptyList,
+            )() is M.false_value:
+                if spoken_list == "":
+                    spoken_list = M.Head(remaining_spoken)()
+                else:
+                    spoken_list = spoken_list + " " + M.Head(remaining_spoken)()
+                remaining_spoken = M.Tail(remaining_spoken)()
+            return (
+                "The " + str(enumeration_word()) + " numbers from one to "
+                "nine are: " + spoken_list + "."
+            )
         # The reading's subject rides in a Hole when the word was
         # learned mid-parse: Hole(word, ...). A number word resolves to
         # its Nat through the correspondence vocabulary -- the same
@@ -1962,9 +2230,19 @@ def run_talk_mode(sentence: str = None):
                 "The question parses, but '" + str(subject_word())
                 + "' does not name a number I know."
             )
-        # Find the installed DefinitionNode. The learned version's node
+        # Find the installed DefinitionNode that speaks for the asked
+        # predicate. The reading's meaning is the subject alone, so the
+        # asked word comes from the line's last word -- the one place
+        # the host string still says it. The learned version's node
         # store holds installed chains as single elements; walk one
-        # level into any element that is itself a chain of terms.
+        # level into any element that is itself a chain of terms. As
+        # in the enumeration question, the definiendum of a learned
+        # word is its Hole, and words compare by value.
+        asked_word = M.EmptyList
+        asked_walker = _words(line)
+        while M.IdentityCompare(asked_walker, M.EmptyList)() is M.false_value:
+            asked_word = M.Head(asked_walker)()
+            asked_walker = M.Tail(asked_walker)()
         definition_node = M.EmptyList
         node_probe = G.GraphNodes(learned_version)()
         while M.IdentityCompare(node_probe, M.EmptyList)() is M.false_value:
@@ -1973,7 +2251,20 @@ def run_talk_mode(sentence: str = None):
                 if M.IdentityCompare(
                     M.Head(candidate)(), Lmod.DefinitionNodeLabel,
                 )() is M.truth_value:
-                    definition_node = candidate
+                    found_concept = M.Head(
+                        M.Tail(G.DefinitionNodeDefiniendum(candidate)())(),
+                    )()
+                    found_word = found_concept
+                    if M.IsPair(found_concept)() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(found_concept)(), Lmod.HoleLabel,
+                        )() is M.truth_value:
+                            found_word = M.Head(M.Tail(found_concept)())()
+                    if M.Compare(found_word, asked_word)() is M.truth_value:
+                        if M.IdentityCompare(
+                            definition_node, M.EmptyList,
+                        )() is M.truth_value:
+                            definition_node = candidate
                 elif M.IsPair(M.Head(candidate)())() is M.truth_value:
                     inner_probe = candidate
                     while M.IdentityCompare(
@@ -1984,7 +2275,27 @@ def run_talk_mode(sentence: str = None):
                             if M.IdentityCompare(
                                 M.Head(inner)(), Lmod.DefinitionNodeLabel,
                             )() is M.truth_value:
-                                definition_node = inner
+                                found_concept = M.Head(
+                                    M.Tail(
+                                        G.DefinitionNodeDefiniendum(inner)(),
+                                    )(),
+                                )()
+                                found_word = found_concept
+                                if M.IsPair(found_concept)() is M.truth_value:
+                                    if M.IdentityCompare(
+                                        M.Head(found_concept)(),
+                                        Lmod.HoleLabel,
+                                    )() is M.truth_value:
+                                        found_word = M.Head(
+                                            M.Tail(found_concept)(),
+                                        )()
+                                if M.Compare(
+                                    found_word, asked_word,
+                                )() is M.truth_value:
+                                    if M.IdentityCompare(
+                                        definition_node, M.EmptyList,
+                                    )() is M.truth_value:
+                                        definition_node = inner
                         inner_probe = M.Tail(inner_probe)()
             node_probe = M.Tail(node_probe)()
         if M.IdentityCompare(definition_node, M.EmptyList)() is M.truth_value:
@@ -2854,12 +3165,46 @@ def run_talk_mode(sentence: str = None):
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
+        # Several statements in one line, separated by semicolons, are
+        # several statements: the talk loop owns the line, and the
+        # semicolon is its one statement-level character. Each segment
+        # answers on its own, in the order spoken; an empty segment --
+        # a leading, doubled or trailing semicolon -- separates
+        # nothing and answers nothing.
+        if ";" in line:
+            pieces_reversed = M.EmptyList
+            segment_start = 0
+            scan = 0
+            while scan <= len(line):
+                if scan == len(line) or line[scan] == ";":
+                    segment = line[segment_start:scan].strip()
+                    if segment != "":
+                        segment_answer = _respond(segment, record=record)
+                        if segment_answer is not None:
+                            pieces_reversed = M.Pair(segment_answer, pieces_reversed)
+                    segment_start = scan + 1
+                scan = scan + 1
+            combined = ""
+            uncombined = M.Reverse(pieces_reversed)()
+            while M.IdentityCompare(uncombined, M.EmptyList)() is M.false_value:
+                if combined == "":
+                    combined = M.Head(uncombined)()
+                else:
+                    combined = combined + "\n" + M.Head(uncombined)()
+                uncombined = M.Tail(uncombined)()
+            if combined == "":
+                return None
+            return combined
         lowered = line.lower()
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
         if lowered.startswith("definition:"):
             return _handle_definition(line, record=record)
         if lowered.startswith("is "):
+            question_answer = _question_graph_answer(line)
+            if question_answer is not None:
+                return question_answer
+        if lowered.startswith("which is "):
             question_answer = _question_graph_answer(line)
             if question_answer is not None:
                 return question_answer

@@ -7133,6 +7133,644 @@ class LexicalGrowthTest(M.Edge):
         return self.result
 
 
+class RelativeClauseGrammarTest(M.Edge):
+    """The relative clause composes all the way to the definition.
+
+    "definition: a composite is a natural number that is not prime"
+    built both daughters and stalled: the DefinitionMeaning handover
+    had no branch for the prednom a relative clause produces, so the
+    firing dropped its conclusion. The branch exists now, and this
+    checks the whole shape: the spanning definition exists, is well
+    formed, keeps the presupposition over the binder's self, and
+    carries the clause as Not(hole(prime)(self)) -- "prime" spoken as
+    the one open dependency, read off the graph, not off a word list.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        text = "definition: a composite is a natural number that is not prime"
+
+        bundle = Gmod.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+
+        symbols = {}
+        alphabet_walker = alphabet
+        while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
+            symbol_atom = M.Head(alphabet_walker)()
+            symbols[symbol_atom()] = symbol_atom
+            alphabet_walker = M.Tail(alphabet_walker)()
+
+        cursors = {}
+        position = 0
+        while position <= len(text):
+            cursors[position] = M.GMPRep(str(position))
+            position = position + 1
+
+        utterance = M.Char("utt:relative-clause-line")
+        engine = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+        covered = M.truth_value
+        index = 0
+        while index < len(text):
+            if text[index] not in symbols:
+                covered = M.false_value
+                index = len(text)
+            else:
+                engine.Observe(
+                    utterance, cursors[index], symbols[text[index]],
+                    cursors[index + 1],
+                )
+                index = index + 1
+        engine.Drain()
+
+        top = Gmod.SpanningDefinitionReading(
+            M.Head(engine.result)(), def_category, cursors[0], cursors[len(text)],
+        )()
+        gap_rounds = 0
+        while M.IdentityCompare(top, empty)() is M.truth_value and gap_rounds < 8:
+            gap_rounds = gap_rounds + 1
+            gap = Gmod.LexicalGap(
+                M.Head(engine.result)(), productions, spc_category,
+                cursors[len(text)],
+            )()
+            if M.IdentityCompare(gap, empty)() is M.truth_value:
+                gap_rounds = 8
+            else:
+                gap_category = M.Head(M.Tail(M.Tail(gap)())())()
+                start_index = int(M.GMPRepText(M.Head(gap)())())
+                end_index = int(M.GMPRepText(M.Head(M.Tail(gap)())())())
+                gap_symbols = empty
+                walker = end_index - 1
+                while walker >= start_index:
+                    gap_symbols = M.Pair(symbols[text[walker]], gap_symbols)
+                    walker = walker - 1
+                provisional = Gmod.ProvisionalWord(
+                    root, gap_symbols, gap_category,
+                    M.Char(text[start_index:end_index]),
+                )()
+                engine.Learn(
+                    M.Head(provisional)(),
+                    M.Pair(M.Head(M.Tail(provisional)())(), empty),
+                )
+                top = Gmod.SpanningDefinitionReading(
+                    M.Head(engine.result)(), def_category,
+                    cursors[0], cursors[len(text)],
+                )()
+
+        well_formed = M.false_value
+        presupposition_over_self = M.false_value
+        clause_over_prime_hole = M.false_value
+        dependencies_single_prime = M.false_value
+        if M.IdentityCompare(top, empty)() is M.false_value:
+            well_formed = Gmod.DefinitionNodeWellFormed(top)()
+            whole_self = Gmod.BinderSelf(Gmod.DefinitionNodeBinder(top)())()
+            first_condition = M.Head(Gmod.DefinitionNodeConditions(top)())()
+            if M.IdentityCompare(
+                M.Head(first_condition)(), Lmod.NonNegativeLabel,
+            )() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(M.Tail(first_condition)())(), whole_self,
+                )() is M.truth_value:
+                    presupposition_over_self = M.truth_value
+            condition_walker = Gmod.DefinitionNodeConditions(top)()
+            while M.IdentityCompare(condition_walker, empty)() is M.false_value:
+                condition = M.Head(condition_walker)()
+                if M.IdentityCompare(
+                    M.Head(condition)(), Lmod.NotLabel,
+                )() is M.truth_value:
+                    negated_inner = M.Head(M.Tail(condition)())()
+                    negated_predicate = M.Head(negated_inner)()
+                    if M.IsPair(negated_predicate)() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(negated_predicate)(), Lmod.HoleLabel,
+                        )() is M.truth_value:
+                            if M.Compare(
+                                M.Head(M.Tail(negated_predicate)())(),
+                                M.Char("prime"),
+                            )() is M.truth_value:
+                                clause_over_prime_hole = M.truth_value
+                condition_walker = M.Tail(condition_walker)()
+            holed = Gmod.PredicateHoles(
+                Gmod.DefinitionNodeConditions(top)(),
+                M.Pair(Lmod.NonNegativeLabel, empty),
+            )()
+            holed_node = Gmod.DefinitionNode(
+                Gmod.DefinitionNodeDefiniendum(top)(),
+                Gmod.DefinitionNodeBinder(top)(),
+                M.Head(holed)(),
+            )()
+            dependencies = Gmod.DefinitionNodeOpenDependencies(holed_node)()
+            if M.IdentityCompare(dependencies, empty)() is M.false_value:
+                if M.IdentityCompare(M.Tail(dependencies)(), empty)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(dependencies)(), M.Char("prime"),
+                    )() is M.truth_value:
+                        dependencies_single_prime = M.truth_value
+
+        self.result = M.truth_value
+        if M.IdentityCompare(covered, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(top, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif well_formed is M.false_value:
+            self.result = M.false_value
+        elif presupposition_over_self is M.false_value:
+            self.result = M.false_value
+        elif clause_over_prime_hole is M.false_value:
+            self.result = M.false_value
+        elif dependencies_single_prime is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class EnumerationQuestionTest(M.Edge):
+    """"which is prime" is a question whose answer is a list.
+
+    The enumeration production pairs the marker with the adjective --
+    or with a numeral, when the boundary gap claims one -- and the
+    spanning reading's meaning says so. The enumeration edge then
+    replays the exact-fillers check for each of one through nine, so
+    the spoken list cannot drift from the yes/no verdict: confirmed
+    candidates keep ascending order -- one, two, three, five, seven.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        question_text = "which is prime"
+
+        bundle = Gmod.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+
+        question_category = M.EmptyList
+        production_walker = productions
+        while M.IdentityCompare(production_walker, empty)() is M.false_value:
+            production = M.Head(production_walker)()
+            result_atom = M.Head(M.Tail(M.Tail(M.Tail(production)())())())()
+            if M.IsPair(result_atom)() is M.false_value:
+                if result_atom() == "QUESTION":
+                    question_category = result_atom
+                    production_walker = M.EmptyList
+                else:
+                    production_walker = M.Tail(production_walker)()
+            else:
+                production_walker = M.Tail(production_walker)()
+
+        meaning_enumerates = M.false_value
+        covered = M.false_value
+        if M.IdentityCompare(question_category, M.EmptyList)() is M.false_value:
+            symbols = {}
+            alphabet_walker = alphabet
+            while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
+                symbol_atom = M.Head(alphabet_walker)()
+                symbols[symbol_atom()] = symbol_atom
+                alphabet_walker = M.Tail(alphabet_walker)()
+
+            cursors = {}
+            position = 0
+            while position <= len(question_text):
+                cursors[position] = M.GMPRep(str(position))
+                position = position + 1
+
+            utterance = M.Char("utt:enumeration-question")
+            engine = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+            covered = M.truth_value
+            index = 0
+            while index < len(question_text):
+                if question_text[index] not in symbols:
+                    covered = M.false_value
+                    index = len(question_text)
+                else:
+                    engine.Observe(
+                        utterance, cursors[index],
+                        symbols[question_text[index]], cursors[index + 1],
+                    )
+                    index = index + 1
+            engine.Drain()
+            top = Gmod.SpanningDefinitionReading(
+                M.Head(engine.result)(), question_category,
+                cursors[0], cursors[len(question_text)],
+            )()
+            gap_rounds = 0
+            while M.IdentityCompare(top, empty)() is M.truth_value and gap_rounds < 8:
+                gap_rounds = gap_rounds + 1
+                gap = Gmod.LexicalGap(
+                    M.Head(engine.result)(), productions, spc_category,
+                    cursors[len(question_text)],
+                )()
+                if M.IdentityCompare(gap, empty)() is M.truth_value:
+                    gap_rounds = 8
+                else:
+                    gap_category = M.Head(M.Tail(M.Tail(gap)())())()
+                    start_index = int(M.GMPRepText(M.Head(gap)())())
+                    end_index = int(M.GMPRepText(M.Head(M.Tail(gap)())())())
+                    gap_symbols = empty
+                    walker = end_index - 1
+                    while walker >= start_index:
+                        gap_symbols = M.Pair(
+                            symbols[question_text[walker]], gap_symbols,
+                        )
+                        walker = walker - 1
+                    provisional = Gmod.ProvisionalWord(
+                        root, gap_symbols, gap_category,
+                        M.Char(question_text[start_index:end_index]),
+                    )()
+                    engine.Learn(
+                        M.Head(provisional)(),
+                        M.Pair(M.Head(M.Tail(provisional)())(), empty),
+                    )
+                    top = Gmod.SpanningDefinitionReading(
+                        M.Head(engine.result)(), question_category,
+                        cursors[0], cursors[len(question_text)],
+                    )()
+            if M.IdentityCompare(top, empty)() is M.false_value:
+                if M.IsPair(top)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(top)(), Lmod.EnumerateSubjectsLabel,
+                    )() is M.truth_value:
+                        meaning_enumerates = M.truth_value
+
+        definition_text = "definition: a prime number is divisible only by one and itself"
+        bundle_two = Gmod.DefinitionFragment()()
+        arcs_two = M.Head(bundle_two)()
+        senses_two = M.Head(M.Tail(bundle_two)())()
+        productions_two = M.Head(M.Tail(M.Tail(bundle_two)())())()
+        root_two = M.Head(M.Tail(M.Tail(M.Tail(bundle_two)())())())()
+        def_category_two = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle_two)())())())())()
+        alphabet_two = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle_two)())())())())())())())())())()
+        spc_category_two = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle_two)())())())())())())())())())())()
+
+        symbols_two = {}
+        alphabet_walker_two = alphabet_two
+        while M.IdentityCompare(alphabet_walker_two, empty)() is M.false_value:
+            symbol_atom_two = M.Head(alphabet_walker_two)()
+            symbols_two[symbol_atom_two()] = symbol_atom_two
+            alphabet_walker_two = M.Tail(alphabet_walker_two)()
+
+        cursors_two = {}
+        position_two = 0
+        while position_two <= len(definition_text):
+            cursors_two[position_two] = M.GMPRep(str(position_two))
+            position_two = position_two + 1
+
+        utterance_two = M.Char("utt:enumeration-definition-line")
+        engine_two = Gmod.RecogniseForms(
+            empty, arcs_two, senses_two, root_two, productions_two,
+        )
+        covered_two = M.truth_value
+        index_two = 0
+        while index_two < len(definition_text):
+            if definition_text[index_two] not in symbols_two:
+                covered_two = M.false_value
+                index_two = len(definition_text)
+            else:
+                engine_two.Observe(
+                    utterance_two, cursors_two[index_two],
+                    symbols_two[definition_text[index_two]],
+                    cursors_two[index_two + 1],
+                )
+                index_two = index_two + 1
+        engine_two.Drain()
+        def_top = Gmod.SpanningDefinitionReading(
+            M.Head(engine_two.result)(), def_category_two,
+            cursors_two[0], cursors_two[len(definition_text)],
+        )()
+        gap_rounds_two = 0
+        while M.IdentityCompare(def_top, empty)() is M.truth_value and gap_rounds_two < 8:
+            gap_rounds_two = gap_rounds_two + 1
+            gap_two = Gmod.LexicalGap(
+                M.Head(engine_two.result)(), productions_two,
+                spc_category_two, cursors_two[len(definition_text)],
+            )()
+            if M.IdentityCompare(gap_two, empty)() is M.truth_value:
+                gap_rounds_two = 8
+            else:
+                gap_category_two = M.Head(M.Tail(M.Tail(gap_two)())())()
+                start_index_two = int(M.GMPRepText(M.Head(gap_two)())())
+                end_index_two = int(M.GMPRepText(M.Head(M.Tail(gap_two)())())())
+                gap_symbols_two = empty
+                walker_two = end_index_two - 1
+                while walker_two >= start_index_two:
+                    gap_symbols_two = M.Pair(
+                        symbols_two[definition_text[walker_two]],
+                        gap_symbols_two,
+                    )
+                    walker_two = walker_two - 1
+                provisional_two = Gmod.ProvisionalWord(
+                    root_two, gap_symbols_two, gap_category_two,
+                    M.Char(definition_text[start_index_two:end_index_two]),
+                )()
+                engine_two.Learn(
+                    M.Head(provisional_two)(),
+                    M.Pair(M.Head(M.Tail(provisional_two)())(), empty),
+                )
+                def_top = Gmod.SpanningDefinitionReading(
+                    M.Head(engine_two.result)(), def_category_two,
+                    cursors_two[0], cursors_two[len(definition_text)],
+                )()
+
+        enumerated_reps = M.EmptyList
+        if M.IdentityCompare(def_top, empty)() is M.false_value:
+            conditions = Gmod.DefinitionNodeConditions(def_top)()
+            exact = M.EmptyList
+            condition_walker = conditions
+            while M.IdentityCompare(condition_walker, empty)() is M.false_value:
+                condition = M.Head(condition_walker)()
+                if M.IsPair(condition)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(condition)(), Lmod.ExactFillersLabel,
+                    )() is M.truth_value:
+                        exact = condition
+                condition_walker = M.Tail(condition_walker)()
+            if M.IdentityCompare(exact, empty)() is M.false_value:
+                allowed = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(exact)())())())(),
+                )()
+                binder_variable = Gmod.BinderSelf(
+                    Gmod.DefinitionNodeBinder(def_top)(),
+                )()
+                vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+                word_entries = M.Head(M.Tail(vocabulary)())()
+                enumerated = Gmod.EnumerateExactSubjects(
+                    M.Char("prime-prop"),
+                    allowed, binder_variable, word_entries, registry,
+                )()
+                kept = M.Head(enumerated)()
+                registry = M.Head(M.Tail(enumerated)())()
+                kept_walker = kept
+                while M.IdentityCompare(kept_walker, empty)() is M.false_value:
+                    kept_rep = M.NatRepOf(M.Head(kept_walker)(), registry)()
+                    enumerated_reps = M.Pair(
+                        M.Char(M.GMPRepText(kept_rep)()), enumerated_reps,
+                    )
+                    kept_walker = M.Tail(kept_walker)()
+                enumerated_reps = M.Reverse(enumerated_reps)()
+
+        expected_reps = M.Pair(
+            M.Char("1"),
+            M.Pair(
+                M.Char("2"),
+                M.Pair(
+                    M.Char("3"),
+                    M.Pair(M.Char("5"), M.Pair(M.Char("7"), empty)),
+                ),
+            ),
+        )
+        reps_match = M.truth_value
+        compare_walker_a = enumerated_reps
+        compare_walker_b = expected_reps
+        while M.IdentityCompare(compare_walker_b, empty)() is M.false_value:
+            if M.IdentityCompare(compare_walker_a, empty)() is M.truth_value:
+                reps_match = M.false_value
+                compare_walker_b = M.EmptyList
+            else:
+                if M.Compare(
+                    M.Head(compare_walker_a)(), M.Head(compare_walker_b)(),
+                )() is M.false_value:
+                    reps_match = M.false_value
+                    compare_walker_b = M.EmptyList
+                else:
+                    compare_walker_a = M.Tail(compare_walker_a)()
+                    compare_walker_b = M.Tail(compare_walker_b)()
+        if M.IdentityCompare(compare_walker_a, empty)() is M.false_value:
+            reps_match = M.false_value
+
+        self.result = M.truth_value
+        if meaning_enumerates is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(covered, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(covered_two, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(def_top, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif reps_match is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GapRelativeGrammarTest(M.Edge):
+    """The object-gap relative composes, strand and all.
+
+    "definition: a factor is a number that a composite number is
+    divisible by" failed twice over. The gap scanner never proposed
+    "factor": the lexicon's one-letter entry reads the "a" inside it
+    as DET, and the overlap test counted that letter as coverage, so
+    the word hid behind its own vowel -- coverage now means a reading
+    touching the run's boundary. And the clause itself had no
+    production: the relative pronoun here is the object of a stranded
+    "by", so the grammar pairs the clause's subject with the stranded
+    role, a line-final preposition combines with no trailing space,
+    and the composed condition is relation(self, subject) with the
+    subject's word as the one open dependency, read off the graph.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+
+        text = "definition: a factor is a number that a composite number is divisible by"
+
+        bundle = Gmod.DefinitionFragment()()
+        arcs = M.Head(bundle)()
+        senses = M.Head(M.Tail(bundle)())()
+        productions = M.Head(M.Tail(M.Tail(bundle)())())()
+        root = M.Head(M.Tail(M.Tail(M.Tail(bundle)())())())()
+        def_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())()
+        alphabet = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())()
+        spc_category = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(bundle)())())())())())())())())())())()
+
+        symbols = {}
+        alphabet_walker = alphabet
+        while M.IdentityCompare(alphabet_walker, empty)() is M.false_value:
+            symbol_atom = M.Head(alphabet_walker)()
+            symbols[symbol_atom()] = symbol_atom
+            alphabet_walker = M.Tail(alphabet_walker)()
+
+        cursors = {}
+        position = 0
+        while position <= len(text):
+            cursors[position] = M.GMPRep(str(position))
+            position = position + 1
+
+        utterance = M.Char("utt:gap-relative-line")
+        engine = Gmod.RecogniseForms(empty, arcs, senses, root, productions)
+        covered = M.truth_value
+        index = 0
+        while index < len(text):
+            if text[index] not in symbols:
+                covered = M.false_value
+                index = len(text)
+            else:
+                engine.Observe(
+                    utterance, cursors[index], symbols[text[index]],
+                    cursors[index + 1],
+                )
+                index = index + 1
+        engine.Drain()
+
+        top = Gmod.SpanningDefinitionReading(
+            M.Head(engine.result)(), def_category, cursors[0], cursors[len(text)],
+        )()
+        gap_rounds = 0
+        learned_words = empty
+        while M.IdentityCompare(top, empty)() is M.truth_value and gap_rounds < 8:
+            gap_rounds = gap_rounds + 1
+            gap = Gmod.LexicalGap(
+                M.Head(engine.result)(), productions, spc_category,
+                cursors[len(text)],
+            )()
+            if M.IdentityCompare(gap, empty)() is M.truth_value:
+                gap_rounds = 8
+            else:
+                gap_category = M.Head(M.Tail(M.Tail(gap)())())()
+                start_index = int(M.GMPRepText(M.Head(gap)())())
+                end_index = int(M.GMPRepText(M.Head(M.Tail(gap)())())())
+                learned_words = M.Pair(
+                    M.Char(text[start_index:end_index]), learned_words,
+                )
+                gap_symbols = empty
+                walker = end_index - 1
+                while walker >= start_index:
+                    gap_symbols = M.Pair(symbols[text[walker]], gap_symbols)
+                    walker = walker - 1
+                provisional = Gmod.ProvisionalWord(
+                    root, gap_symbols, gap_category,
+                    M.Char(text[start_index:end_index]),
+                )()
+                engine.Learn(
+                    M.Head(provisional)(),
+                    M.Pair(M.Head(M.Tail(provisional)())(), empty),
+                )
+                top = Gmod.SpanningDefinitionReading(
+                    M.Head(engine.result)(), def_category,
+                    cursors[0], cursors[len(text)],
+                )()
+
+        well_formed = M.false_value
+        presupposition_over_self = M.false_value
+        divides_self_composite_hole = M.false_value
+        dependencies_single_composite = M.false_value
+        both_gaps_learned = M.false_value
+        if M.IdentityCompare(top, empty)() is M.false_value:
+            well_formed = Gmod.DefinitionNodeWellFormed(top)()
+            whole_self = Gmod.BinderSelf(Gmod.DefinitionNodeBinder(top)())()
+            condition_walker = Gmod.DefinitionNodeConditions(top)()
+            while M.IdentityCompare(condition_walker, empty)() is M.false_value:
+                condition = M.Head(condition_walker)()
+                if M.IdentityCompare(
+                    M.Head(condition)(), Lmod.NonNegativeLabel,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(M.Tail(condition)())(), whole_self,
+                    )() is M.truth_value:
+                        presupposition_over_self = M.truth_value
+                elif M.IdentityCompare(
+                    M.Head(condition)(), Lmod.DividesLabel,
+                )() is M.truth_value:
+                    # relation(self, subject): the definiendum binds
+                    # the stranded preposition's slot, so the self is
+                    # the first argument and the clause's subject is
+                    # the second -- a Hole over "composite" while the
+                    # word stands undefined.
+                    second_arg = M.Head(M.Tail(M.Tail(condition)())())()
+                    if M.IdentityCompare(
+                        M.Head(M.Tail(condition)())(), whole_self,
+                    )() is M.truth_value:
+                        if M.IsPair(second_arg)() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(second_arg)(), Lmod.HoleLabel,
+                            )() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(M.Tail(second_arg)())(),
+                                    M.Char("composite"),
+                                )() is M.truth_value:
+                                    divides_self_composite_hole = M.truth_value
+                condition_walker = M.Tail(condition_walker)()
+            holed = Gmod.PredicateHoles(
+                Gmod.DefinitionNodeConditions(top)(),
+                M.Pair(Lmod.NonNegativeLabel, M.Pair(Lmod.DividesLabel, empty)),
+            )()
+            holed_node = Gmod.DefinitionNode(
+                Gmod.DefinitionNodeDefiniendum(top)(),
+                Gmod.DefinitionNodeBinder(top)(),
+                M.Head(holed)(),
+            )()
+            dependencies = Gmod.DefinitionNodeOpenDependencies(holed_node)()
+            if M.IdentityCompare(dependencies, empty)() is M.false_value:
+                if M.IdentityCompare(M.Tail(dependencies)(), empty)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(dependencies)(), M.Char("composite"),
+                    )() is M.truth_value:
+                        dependencies_single_composite = M.truth_value
+
+        factor_seen = M.false_value
+        composite_seen = M.false_value
+        learned_walker = learned_words
+        while M.IdentityCompare(learned_walker, empty)() is M.false_value:
+            if M.Compare(
+                M.Head(learned_walker)(), M.Char("factor"),
+            )() is M.truth_value:
+                factor_seen = M.truth_value
+            if M.Compare(
+                M.Head(learned_walker)(), M.Char("composite"),
+            )() is M.truth_value:
+                composite_seen = M.truth_value
+            learned_walker = M.Tail(learned_walker)()
+        if factor_seen is M.truth_value:
+            if composite_seen is M.truth_value:
+                both_gaps_learned = M.truth_value
+
+        self.result = M.truth_value
+        if M.IdentityCompare(covered, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif both_gaps_learned is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(top, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif well_formed is M.false_value:
+            self.result = M.false_value
+        elif presupposition_over_self is M.false_value:
+            self.result = M.false_value
+        elif divides_self_composite_hole is M.false_value:
+            self.result = M.false_value
+        elif dependencies_single_composite is M.false_value:
+            self.result = M.false_value
+        elif Gmod.GMPEqualText(
+            engine.facts_inserted_text, engine.delta_popped_text,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ChartParserTest(M.Edge):
     """The formal notation reads by chart, and the chart is not its parser.
 
@@ -15266,6 +15904,30 @@ def install_default_tests(graph):
             "lexical_growth_test",
             empty,
             LexicalGrowthTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "relative_clause_grammar_test",
+            empty,
+            RelativeClauseGrammarTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "enumeration_question_test",
+            empty,
+            EnumerationQuestionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "gap_relative_grammar_test",
+            empty,
+            GapRelativeGrammarTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

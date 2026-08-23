@@ -8985,12 +8985,18 @@ class PredicateHoles(M.Edge):
     Pair(conditions, defined_labels) -> Pair(conditions_with_holes,
     Pair(hole_predicates, EmptyList)). A condition is holed when its
     label is installed nowhere and it is not the structural
-    ExactFillers, which is scope rather than a predicate. The
-    arguments move inside the hole unchanged and the reason is
-    NoDefinitionInstalled; the predicate labels chain, in condition
-    order with duplicates dropped, is the open-dependency report. A
-    hole is the difference between lexical ignorance and a formed
-    graph with a named gap: the graph exists, the gap is in it.
+    ExactFillers, which is scope rather than a predicate. A Not-headed
+    condition is kept or holed by its inner predicate instead: the Not
+    itself is connective, not a predicate, and reporting it as the gap
+    would hide which word the clause waits on. The arguments move
+    inside the hole unchanged and the reason is NoDefinitionInstalled;
+    the predicate labels chain, in condition order with duplicates
+    dropped, is the open-dependency report. A condition can keep its
+    label and still wait on a word: a two-argument relation whose
+    second argument is a Hole reports the hole's word -- the
+    object-gap relative's subject rides inside its condition, not at
+    its head. A hole is the difference between lexical ignorance and a
+    formed graph with a named gap: the graph exists, the gap is in it.
     """
 
     def __init__(self, conditions, defined_labels):
@@ -9001,53 +9007,187 @@ class PredicateHoles(M.Edge):
         while M.IdentityCompare(walker, empty)() is M.false_value:
             condition = M.Head(walker)()
             label = M.Head(condition)()
-            keep = M.false_value
-            if M.IdentityCompare(
-                label, Lmod.ExactFillersLabel,
-            )() is M.truth_value:
-                keep = M.truth_value
-            else:
-                defined_walker = defined_labels
-                while M.IdentityCompare(
-                    defined_walker, empty,
-                )() is M.false_value:
+            if M.IdentityCompare(label, Lmod.NotLabel)() is M.truth_value:
+                # A negated condition -- Not(predicate(args)) from a
+                # relative clause -- is kept or holed by its INNER
+                # predicate: holing the Not itself would hide which
+                # word the clause is still waiting on, which is the
+                # whole reason the hole exists.
+                inner = M.Head(M.Tail(condition)())()
+                inner_label = M.Head(inner)()
+                # The predicate of the negated application can itself be
+                # a hole -- a word the grammar learned on the spot has a
+                # Hole for a meaning. That is exactly the dependency a
+                # relative clause leaves open, so the condition is kept
+                # whole and the hole's word is the report.
+                inner_is_hole = M.false_value
+                if M.IsPair(inner_label)() is M.truth_value:
                     if M.IdentityCompare(
-                        label, M.Head(defined_walker)(),
+                        M.Head(inner_label)(), Lmod.HoleLabel,
                     )() is M.truth_value:
-                        keep = M.truth_value
-                        defined_walker = empty
-                    else:
-                        defined_walker = M.Tail(defined_walker)()
-            if keep is M.truth_value:
-                reversed_conditions = M.Pair(condition, reversed_conditions)
-            else:
-                holed = M.Pair(
-                    Lmod.HoleLabel,
-                    M.Pair(
-                        label,
+                        inner_is_hole = M.truth_value
+                inner_keep = M.false_value
+                if inner_is_hole is M.truth_value:
+                    inner_keep = M.truth_value
+                else:
+                    neg_defined_walker = defined_labels
+                    while M.IdentityCompare(
+                        neg_defined_walker, empty,
+                    )() is M.false_value:
+                        # Words are Chars: the same word parsed twice is
+                        # two atoms with one text, so the defined match
+                        # compares by value, not by identity.
+                        if M.Compare(
+                            inner_label, M.Head(neg_defined_walker)(),
+                        )() is M.truth_value:
+                            inner_keep = M.truth_value
+                            neg_defined_walker = empty
+                        else:
+                            neg_defined_walker = M.Tail(neg_defined_walker)()
+                neg_dependency = inner_label
+                if inner_is_hole is M.truth_value:
+                    neg_dependency = M.Head(M.Tail(inner_label)())()
+                if inner_keep is M.truth_value:
+                    reversed_conditions = M.Pair(condition, reversed_conditions)
+                    # A kept condition reports a word only when the keep
+                    # came from the hole: the word stands undefined and
+                    # the clause waits on it. A keep by definition match
+                    # closes the predicate -- reporting it would name a
+                    # gap that is not there.
+                    if inner_is_hole is M.truth_value:
+                        neg_hole_walker = reversed_holes
+                        neg_present = M.false_value
+                        while M.IdentityCompare(
+                            neg_hole_walker, empty,
+                        )() is M.false_value:
+                            if M.Compare(
+                                neg_dependency, M.Head(neg_hole_walker)(),
+                            )() is M.truth_value:
+                                neg_present = M.truth_value
+                                neg_hole_walker = empty
+                            else:
+                                neg_hole_walker = M.Tail(neg_hole_walker)()
+                        if neg_present is M.false_value:
+                            reversed_holes = M.Pair(neg_dependency, reversed_holes)
+                else:
+                    holed_inner = M.Pair(
+                        Lmod.HoleLabel,
                         M.Pair(
-                            M.Tail(condition)(),
+                            inner_label,
                             M.Pair(
-                                Lmod.NoDefinitionInstalledLabel, empty,
+                                M.Tail(inner)(),
+                                M.Pair(Lmod.NoDefinitionInstalledLabel, empty),
                             ),
                         ),
-                    ),
-                )
-                reversed_conditions = M.Pair(holed, reversed_conditions)
-                present = M.false_value
-                hole_walker = reversed_holes
-                while M.IdentityCompare(
-                    hole_walker, empty,
-                )() is M.false_value:
+                    )
+                    reversed_conditions = M.Pair(
+                        M.Pair(Lmod.NotLabel, M.Pair(holed_inner, empty)),
+                        reversed_conditions,
+                    )
+                    neg_hole_walker = reversed_holes
+                    neg_present = M.false_value
+                    while M.IdentityCompare(
+                        neg_hole_walker, empty,
+                    )() is M.false_value:
+                        if M.Compare(
+                            inner_label, M.Head(neg_hole_walker)(),
+                        )() is M.truth_value:
+                            neg_present = M.truth_value
+                            neg_hole_walker = empty
+                        else:
+                            neg_hole_walker = M.Tail(neg_hole_walker)()
+                    if neg_present is M.false_value:
+                        reversed_holes = M.Pair(inner_label, reversed_holes)
+            else:
+                keep = M.false_value
+                if M.IdentityCompare(
+                    label, Lmod.ExactFillersLabel,
+                )() is M.truth_value:
+                    keep = M.truth_value
+                else:
+                    defined_walker = defined_labels
+                    while M.IdentityCompare(
+                        defined_walker, empty,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            label, M.Head(defined_walker)(),
+                        )() is M.truth_value:
+                            keep = M.truth_value
+                            defined_walker = empty
+                        else:
+                            defined_walker = M.Tail(defined_walker)()
+                if keep is M.truth_value:
+                    reversed_conditions = M.Pair(condition, reversed_conditions)
+                    # A kept label is not yet a grounded condition: the
+                    # object-gap relative's relation(self, subject)
+                    # keeps the relation and waits on the subject's
+                    # word inside the second argument. Scan exactly the
+                    # two-slot shape -- ExactFillers and the one-slot
+                    # presuppositions fall out of it -- and dedupe the
+                    # word by comparison, since Chars are minted per
+                    # parse.
+                    arg_rest = M.Tail(condition)()
                     if M.IdentityCompare(
-                        label, M.Head(hole_walker)(),
-                    )() is M.truth_value:
-                        present = M.truth_value
-                        hole_walker = empty
-                    else:
-                        hole_walker = M.Tail(hole_walker)()
-                if present is M.false_value:
-                    reversed_holes = M.Pair(label, reversed_holes)
+                        M.Tail(arg_rest)(), empty,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            M.Tail(M.Tail(arg_rest)())(), empty,
+                        )() is M.truth_value:
+                            second_arg = M.Head(M.Tail(arg_rest)())()
+                            if M.IsPair(second_arg)() is M.truth_value:
+                                if M.IdentityCompare(
+                                    M.Head(second_arg)(), Lmod.HoleLabel,
+                                )() is M.truth_value:
+                                    nested_word = M.Head(
+                                        M.Tail(second_arg)(),
+                                    )()
+                                    nested_present = M.false_value
+                                    nested_walker = reversed_holes
+                                    while M.IdentityCompare(
+                                        nested_walker, empty,
+                                    )() is M.false_value:
+                                        if M.Compare(
+                                            nested_word,
+                                            M.Head(nested_walker)(),
+                                        )() is M.truth_value:
+                                            nested_present = M.truth_value
+                                            nested_walker = empty
+                                        else:
+                                            nested_walker = M.Tail(
+                                                nested_walker,
+                                            )()
+                                    if nested_present is M.false_value:
+                                        reversed_holes = M.Pair(
+                                            nested_word, reversed_holes,
+                                        )
+                else:
+                    holed = M.Pair(
+                        Lmod.HoleLabel,
+                        M.Pair(
+                            label,
+                            M.Pair(
+                                M.Tail(condition)(),
+                                M.Pair(
+                                    Lmod.NoDefinitionInstalledLabel, empty,
+                                ),
+                            ),
+                        ),
+                    )
+                    reversed_conditions = M.Pair(holed, reversed_conditions)
+                    present = M.false_value
+                    hole_walker = reversed_holes
+                    while M.IdentityCompare(
+                        hole_walker, empty,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            label, M.Head(hole_walker)(),
+                        )() is M.truth_value:
+                            present = M.truth_value
+                            hole_walker = empty
+                        else:
+                            hole_walker = M.Tail(hole_walker)()
+                    if present is M.false_value:
+                        reversed_holes = M.Pair(label, reversed_holes)
             walker = M.Tail(walker)()
         self.result = M.Pair(
             M.Reverse(reversed_conditions)(),
@@ -9065,9 +9205,14 @@ class PredicateHoles(M.Edge):
 class DefinitionNodeOpenDependencies(M.Edge):
     """The open dependencies of a formed definition graph, read off it.
 
-    Walks the conditions; a Hole's predicate is an open dependency.
-    Order follows the conditions; duplicates drop. This is the report
-    that replaces asking about unknown words: the graph was formed, and
+    Walks the conditions; a Hole's predicate is an open dependency,
+    and a Hole wrapped in a Not counts the same -- "that is not prime"
+    needs prime defined no less than "that is prime" would. A Hole
+    nested as the second argument of a kept relation counts too --
+    "is divisible by", with the clause's subject undefined, needs the
+    subject's word no less than the bare shapes need theirs. Order
+    follows the conditions; duplicates drop. This is the report that
+    replaces asking about unknown words: the graph was formed, and
     these are the predicates it still needs definitions for.
     """
 
@@ -9078,6 +9223,38 @@ class DefinitionNodeOpenDependencies(M.Edge):
         while M.IdentityCompare(walker, empty)() is M.false_value:
             condition = M.Head(walker)()
             if M.IdentityCompare(
+                M.Head(condition)(), Lmod.NotLabel,
+            )() is M.truth_value:
+                # A negated condition's hole counts the same as a bare
+                # one: "that is not prime" waits on prime exactly as
+                # long as "that is prime" would.
+                negated_inner = M.Head(M.Tail(condition)())()
+                negated_predicate = empty
+                if M.IsPair(negated_inner)() is M.truth_value:
+                    negated_head = M.Head(negated_inner)()
+                    if M.IsPair(negated_head)() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(negated_head)(), Lmod.HoleLabel,
+                        )() is M.truth_value:
+                            negated_predicate = M.Head(M.Tail(negated_head)())()
+                if M.IdentityCompare(negated_predicate, empty)() is M.false_value:
+                    negated_present = M.false_value
+                    negated_walker = reversed_dependencies
+                    while M.IdentityCompare(
+                        negated_walker, empty,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            negated_predicate, M.Head(negated_walker)(),
+                        )() is M.truth_value:
+                            negated_present = M.truth_value
+                            negated_walker = empty
+                        else:
+                            negated_walker = M.Tail(negated_walker)()
+                    if negated_present is M.false_value:
+                        reversed_dependencies = M.Pair(
+                            negated_predicate, reversed_dependencies,
+                        )
+            elif M.IdentityCompare(
                 M.Head(condition)(), Lmod.HoleLabel,
             )() is M.truth_value:
                 predicate = M.Head(M.Tail(condition)())()
@@ -9097,6 +9274,50 @@ class DefinitionNodeOpenDependencies(M.Edge):
                     reversed_dependencies = M.Pair(
                         predicate, reversed_dependencies,
                     )
+            else:
+                # relation(self, subject): the object-gap relative
+                # keeps the relation label and leaves the subject as a
+                # Hole in the second argument. The dependency is that
+                # word; it sits one level under a head that is already
+                # spoken for, so no head-shaped arm would ever name it.
+                arg_rest = M.Tail(condition)()
+                if M.IdentityCompare(
+                    M.Tail(arg_rest)(), empty,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        M.Tail(M.Tail(arg_rest)())(), empty,
+                    )() is M.truth_value:
+                        second_arg = M.Head(M.Tail(arg_rest)())()
+                        if M.IsPair(second_arg)() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(second_arg)(), Lmod.HoleLabel,
+                            )() is M.truth_value:
+                                nested_word = M.Head(
+                                    M.Tail(second_arg)(),
+                                )()
+                                nested_present = M.false_value
+                                nested_walker = reversed_dependencies
+                                while M.IdentityCompare(
+                                    nested_walker, empty,
+                                )() is M.false_value:
+                                    # Words are Chars minted per parse;
+                                    # the same word twice is two atoms
+                                    # with one text, so this dedupe is
+                                    # by value, not by identity.
+                                    if M.Compare(
+                                        nested_word,
+                                        M.Head(nested_walker)(),
+                                    )() is M.truth_value:
+                                        nested_present = M.truth_value
+                                        nested_walker = empty
+                                    else:
+                                        nested_walker = M.Tail(
+                                            nested_walker,
+                                        )()
+                                if nested_present is M.false_value:
+                                    reversed_dependencies = M.Pair(
+                                        nested_word, reversed_dependencies,
+                                    )
             walker = M.Tail(walker)()
         self.result = M.Reverse(reversed_dependencies)()
         super().__init__(
@@ -9150,17 +9371,26 @@ class SpanningDefinitionReading(M.Edge):
 class DefinitionFragment(M.Edge):
     """The definition fragment's lexicon and grammar, as facts.
 
-    Thirteen forms: the command word, the colon, the space, the
+    Sixteen forms: the command word, the colon, the space, the
     article, the adjective, the category noun carrying its category
     and its NonNegative presupposition, the copula, the relation
     adjective naming Divides, the restriction, the role preposition
-    naming the divisor, the numeral, the conjunction, the reflexive.
-    Thirty-seven binary productions compose them -- glue that eats the
-    spaces and the colon, the adjective over the noun into a lexical
-    noun phrase, coordination in either order, the restriction, and
-    two definition shapes -- the head-noun order ("a prime number is
-    divisible...") and the predicate-nominal order ("a prime is a
-    number divisible..."), where the category rides after the copula.
+    naming the divisor, the numeral, the conjunction, the reflexive,
+    the quality adjective, the relative pronoun, the negation, and the
+    question word. Fifty-seven binary productions compose them -- glue
+    that eats the spaces and the colon, the adjective over the noun
+    into a lexical noun phrase, coordination in either order, the
+    restriction, the negated relative clause, the object-gap relative
+    clause, where the pronoun is what the preposition waits for ("a
+    number that a composite number is divisible by"), pairing the
+    clause's subject with the stranded role and letting a line-final
+    preposition combine without its trailing space, two definition
+    shapes -- the head-noun order ("a prime number is divisible...")
+    and the predicate-nominal order ("a prime is a number
+    divisible..."), where the category rides after the copula -- and
+    the enumeration question ("which is prime"), whose marker pairs
+    with the adjective, or with a numeral the gap loop read at the
+    boundary, so the answer is a list rather than a verdict.
     The fragment carries no entry for either shape's definiendum: a
     word that is not a form is a gap, and the gap is filled by the
     loop, not by hand. The trie states
@@ -9245,6 +9475,8 @@ class DefinitionFragment(M.Edge):
 
         word_not = M.Pair(sym_n, M.Pair(sym_o, M.Pair(sym_t, empty)))
 
+        word_which = M.Pair(sym_w, M.Pair(sym_h, M.Pair(sym_i, M.Pair(sym_c, M.Pair(sym_h, empty)))))
+
         one = M.Char("one")
         prime = M.Char("prime")
         nat = M.Char("nat")
@@ -9304,9 +9536,15 @@ class DefinitionFragment(M.Edge):
         cat_relpred = M.Char("RELPRED")
         cat_qsubj = M.Char("QSUBJ")
         cat_question = M.Char("QUESTION")
+        cat_which = M.Char("WHICH")
+        cat_whichg = M.Char("WHICHG")
+        cat_whichis = M.Char("WHICHIS")
+        cat_relsubj = M.Char("RELSUBJ")
+        cat_copradj = M.Char("COPRADJ")
+        cat_reldiv = M.Char("RELDIV")
 
 
-        entries = M.Pair(M.Pair(word_definition, M.Pair(cat_cw, M.Char("definition"))), M.Pair(M.Pair(word_colon, M.Pair(cat_col, M.Char(":"))), M.Pair(M.Pair(word_space, M.Pair(cat_spc, M.Char(" "))), M.Pair(M.Pair(word_a, M.Pair(cat_det, M.Char("a"))), M.Pair(M.Pair(word_number, M.Pair(cat_cn, number_chunk)), M.Pair(M.Pair(word_is, M.Pair(cat_cop, M.Char("is"))), M.Pair(M.Pair(word_divisible, M.Pair(cat_radj, Lmod.DividesLabel)), M.Pair(M.Pair(word_only, M.Pair(cat_rop, M.Char("only"))), M.Pair(M.Pair(word_by, M.Pair(cat_p, divisor)), M.Pair(M.Pair(word_one, M.Pair(cat_num, one)), M.Pair(M.Pair(word_and, M.Pair(cat_conj, M.Char("and"))), M.Pair(M.Pair(word_itself, M.Pair(cat_rpron, M.Pair(Lmod.ReflexiveLabel, empty))), M.Pair(M.Pair(word_natural, M.Pair(cat_adj, M.Char("natural"))), M.Pair(M.Pair(word_that, M.Pair(cat_relpron, M.Char("that"))), M.Pair(M.Pair(word_not, M.Pair(cat_neg, Lmod.NotLabel)), empty)))))))))))))))
+        entries = M.Pair(M.Pair(word_definition, M.Pair(cat_cw, M.Char("definition"))), M.Pair(M.Pair(word_colon, M.Pair(cat_col, M.Char(":"))), M.Pair(M.Pair(word_space, M.Pair(cat_spc, M.Char(" "))), M.Pair(M.Pair(word_a, M.Pair(cat_det, M.Char("a"))), M.Pair(M.Pair(word_number, M.Pair(cat_cn, number_chunk)), M.Pair(M.Pair(word_is, M.Pair(cat_cop, M.Char("is"))), M.Pair(M.Pair(word_divisible, M.Pair(cat_radj, Lmod.DividesLabel)), M.Pair(M.Pair(word_only, M.Pair(cat_rop, M.Char("only"))), M.Pair(M.Pair(word_by, M.Pair(cat_p, divisor)), M.Pair(M.Pair(word_one, M.Pair(cat_num, one)), M.Pair(M.Pair(word_and, M.Pair(cat_conj, M.Char("and"))), M.Pair(M.Pair(word_itself, M.Pair(cat_rpron, M.Pair(Lmod.ReflexiveLabel, empty))), M.Pair(M.Pair(word_natural, M.Pair(cat_adj, M.Char("natural"))), M.Pair(M.Pair(word_that, M.Pair(cat_relpron, M.Char("that"))), M.Pair(M.Pair(word_not, M.Pair(cat_neg, Lmod.NotLabel)), M.Pair(M.Pair(word_which, M.Pair(cat_which, M.Char("which"))), empty))))))))))))))))
 
         root = M.Char("frag-root")
         self._state_counter_text = "0"
@@ -9340,7 +9578,8 @@ class DefinitionFragment(M.Edge):
         kind_np = M.Char("kind-np")
         kind_restriction = M.Char("kind-restriction")
         kind_definition = M.Char("kind-definition")
-        specs = M.Pair(M.Pair(cat_adj, M.Pair(cat_spc, M.Pair(cat_adjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_adjg, M.Pair(cat_cn, M.Pair(cat_np, M.Pair(kind_np, empty)))), M.Pair(M.Pair(cat_det, M.Pair(cat_spc, M.Pair(cat_detg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_adj, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cw, M.Pair(cat_col, M.Pair(cat_cwg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwg, M.Pair(cat_spc, M.Pair(cat_cwgg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_sbare, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cop, M.Pair(cat_spc, M.Pair(cat_copg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_copg, M.Pair(cat_numg, M.Pair(cat_qsubj, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_copg, M.Pair(cat_sbj, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_npg, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_np, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_num, M.Pair(cat_spc, M.Pair(cat_numg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conj, M.Pair(cat_spc, M.Pair(cat_conjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_rpron, M.Pair(cat_cjpron, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_numg, M.Pair(cat_cjpron, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_p, M.Pair(cat_spc, M.Pair(cat_pg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_pg, M.Pair(cat_coord, M.Pair(cat_pp, M.Pair(kind_restriction, empty)))), M.Pair(M.Pair(cat_rop, M.Pair(cat_spc, M.Pair(cat_ropg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ropg, M.Pair(cat_pp, M.Pair(cat_rpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_radj, M.Pair(cat_spc, M.Pair(cat_radg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_radg, M.Pair(cat_rpred, M.Pair(cat_pred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_pred, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare, M.Pair(cat_spc, M.Pair(cat_sbareg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbareg, M.Pair(cat_copg, M.Pair(cat_sbare2, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_spc, M.Pair(cat_sbare2g, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare2g, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_rpron, M.Pair(cat_spc, M.Pair(cat_rprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_num, M.Pair(cat_cjnum, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_rprong, M.Pair(cat_cjnum, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_cn, M.Pair(cat_ncat, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_ncat, M.Pair(cat_spc, M.Pair(cat_ncatg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ncatg, M.Pair(cat_pred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_adj, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_sbare, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_relpron, M.Pair(cat_spc, M.Pair(cat_relprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_relprong, M.Pair(cat_copg, M.Pair(cat_negg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_negg, M.Pair(cat_neg, M.Pair(cat_negpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_negpred, M.Pair(cat_spc, M.Pair(cat_negpredg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_negpredg, M.Pair(cat_adj, M.Pair(cat_relpred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_relpred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), empty)))))))))))))))))))))))))))))))))))))))))))))))
+        kind_enumerate = M.Char("kind-enumerate")
+        specs = M.Pair(M.Pair(cat_adj, M.Pair(cat_spc, M.Pair(cat_adjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_adjg, M.Pair(cat_cn, M.Pair(cat_np, M.Pair(kind_np, empty)))), M.Pair(M.Pair(cat_det, M.Pair(cat_spc, M.Pair(cat_detg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_adj, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cw, M.Pair(cat_col, M.Pair(cat_cwg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwg, M.Pair(cat_spc, M.Pair(cat_cwgg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_np, M.Pair(cat_np, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_cwgg, M.Pair(cat_sbare, M.Pair(cat_sbare, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_cop, M.Pair(cat_spc, M.Pair(cat_copg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_copg, M.Pair(cat_numg, M.Pair(cat_qsubj, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_copg, M.Pair(cat_sbj, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_npg, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_np, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_num, M.Pair(cat_spc, M.Pair(cat_numg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conj, M.Pair(cat_spc, M.Pair(cat_conjg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_rpron, M.Pair(cat_cjpron, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_numg, M.Pair(cat_cjpron, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_p, M.Pair(cat_spc, M.Pair(cat_pg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_pg, M.Pair(cat_coord, M.Pair(cat_pp, M.Pair(kind_restriction, empty)))), M.Pair(M.Pair(cat_rop, M.Pair(cat_spc, M.Pair(cat_ropg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ropg, M.Pair(cat_pp, M.Pair(cat_rpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_radj, M.Pair(cat_spc, M.Pair(cat_radg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_radg, M.Pair(cat_rpred, M.Pair(cat_pred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_pred, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare, M.Pair(cat_spc, M.Pair(cat_sbareg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbareg, M.Pair(cat_copg, M.Pair(cat_sbare2, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_spc, M.Pair(cat_sbare2g, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_sbare2, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_sbare2g, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_rpron, M.Pair(cat_spc, M.Pair(cat_rprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_conjg, M.Pair(cat_num, M.Pair(cat_cjnum, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_rprong, M.Pair(cat_cjnum, M.Pair(cat_coord, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_detg, M.Pair(cat_cn, M.Pair(cat_ncat, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_ncat, M.Pair(cat_spc, M.Pair(cat_ncatg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_ncatg, M.Pair(cat_pred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_adj, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_qsubj, M.Pair(cat_sbare, M.Pair(cat_question, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_np, M.Pair(cat_spc, M.Pair(cat_npg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_relpron, M.Pair(cat_spc, M.Pair(cat_relprong, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_relprong, M.Pair(cat_copg, M.Pair(cat_negg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_negg, M.Pair(cat_neg, M.Pair(cat_negpred, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_negpred, M.Pair(cat_spc, M.Pair(cat_negpredg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_negpredg, M.Pair(cat_adj, M.Pair(cat_relpred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_npg, M.Pair(cat_relpred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_sbj, M.Pair(cat_prednom, M.Pair(cat_def, M.Pair(kind_definition, empty)))), M.Pair(M.Pair(cat_which, M.Pair(cat_spc, M.Pair(cat_whichg, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_whichg, M.Pair(cat_copg, M.Pair(cat_whichis, M.Pair(kind_left, empty)))), M.Pair(M.Pair(cat_whichis, M.Pair(cat_adj, M.Pair(cat_question, M.Pair(kind_enumerate, empty)))), M.Pair(M.Pair(cat_whichis, M.Pair(cat_num, M.Pair(cat_question, M.Pair(kind_enumerate, empty)))), M.Pair(M.Pair(cat_relprong, M.Pair(cat_npg, M.Pair(cat_relsubj, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_copg, M.Pair(cat_radg, M.Pair(cat_copradj, M.Pair(kind_project, empty)))), M.Pair(M.Pair(cat_copradj, M.Pair(cat_pg, M.Pair(cat_reldiv, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_copradj, M.Pair(cat_p, M.Pair(cat_reldiv, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_relsubj, M.Pair(cat_reldiv, M.Pair(cat_relpred, M.Pair(kind_pair, empty)))), M.Pair(M.Pair(cat_ncatg, M.Pair(cat_relpred, M.Pair(cat_prednom, M.Pair(kind_pair, empty)))), empty)))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
         self._production_counter_text = "0"
         productions_reversed = empty
@@ -9374,6 +9613,22 @@ class DefinitionFragment(M.Edge):
                 built = M.Pair(
                     Lmod.RestrictionLabel,
                     M.Pair(first, M.Pair(second, empty)),
+                )
+            elif M.IdentityCompare(kind, kind_enumerate)() is M.truth_value:
+                # The enumeration question says what to do with the
+                # adjective, so the template cannot be the adjective
+                # alone: ProjectRight pairs the marker with the right
+                # daughter, which is the adjective -- a bare variable
+                # would name the left one.
+                built = M.Pair(
+                    Lmod.ProjectRightLabel,
+                    M.Pair(
+                        M.Pair(
+                            Lmod.EnumerateSubjectsLabel,
+                            M.Pair(second, empty),
+                        ),
+                        empty,
+                    ),
                 )
             else:
                 built = M.Pair(
@@ -9468,10 +9723,16 @@ class LexicalGap(M.Edge):
     Pair(readings, Pair(productions, Pair(spc_category, EmptyList))) ->
     Pair(start, Pair(end, Pair(category, EmptyList))), or EmptyList.
 
-    A gap is a run between two space readings that no reading covers;
-    spaces are observed events, so the run between two of them is a
-    word-shaped hole, not a tokenized word. The category is read
-    backwards through the grammar: the reading that starts where the
+    A gap is a run between two space readings that no reading touches
+    at the boundary; spaces are observed events, so the run between
+    two of them is a word-shaped hole, not a tokenized word. The
+    cover test reads the boundary, not the overlap: the lexicon's
+    short entries also match inside unknown words -- "factor" carries
+    a DET reading over its second letter -- and an overlap test would
+    hide every gap that contains an "a", while a run with a known
+    word at either end is evidence the boundary parse consumed. The
+    category is read backwards through the grammar: the reading that
+    starts where the
     right space ends anchors a production's right daughter; the left
     daughter then wants to end where the right space begins; and the
     glue production (word, space, left-daughter) says which
@@ -9520,17 +9781,26 @@ class LexicalGap(M.Edge):
                                 other = M.Head(check)()
                                 other_start = M.Head(M.Tail(M.Tail(other)())())()
                                 other_end = M.Head(M.Tail(M.Tail(M.Tail(other)())())())()
-                                starts_before_end = GMPLessText(
-                                    M.GMPRepText(other_start)(),
-                                    M.GMPRepText(gap_end)(),
-                                )()
-                                ends_after_start = GMPLessText(
-                                    M.GMPRepText(gap_start)(),
-                                    M.GMPRepText(other_end)(),
-                                )()
-                                if starts_before_end is M.truth_value:
-                                    if ends_after_start is M.truth_value:
-                                        uncovered = M.false_value
+                                # A reading covers when it touches the
+                                # run's boundary: the run between two
+                                # spaces is one word, and anything
+                                # parsed starting where the word starts
+                                # or ending where it ends means the
+                                # boundary is consumed. A letter match
+                                # strictly inside -- the DET reading
+                                # over the second letter of "factor" --
+                                # touches neither boundary, so it can
+                                # no longer hide the word around it,
+                                # while the known words inside a longer
+                                # run still suppress it as before.
+                                if M.IdentityCompare(
+                                    other_start, gap_start,
+                                )() is M.truth_value:
+                                    uncovered = M.false_value
+                                elif M.IdentityCompare(
+                                    other_end, gap_end,
+                                )() is M.truth_value:
+                                    uncovered = M.false_value
                                 check = M.Tail(check)()
                             if uncovered is M.truth_value:
                                 # The left context first: what has already
@@ -9593,17 +9863,19 @@ class LexicalGap(M.Edge):
                                 other_end = M.Head(
                                     M.Tail(M.Tail(M.Tail(other)())())(),
                                 )()
-                                starts_before_end = GMPLessText(
-                                    M.GMPRepText(other_start)(),
-                                    M.GMPRepText(line_end)(),
-                                )()
-                                ends_after_start = GMPLessText(
-                                    M.GMPRepText(gap_start)(),
-                                    M.GMPRepText(other_end)(),
-                                )()
-                                if starts_before_end is M.truth_value:
-                                    if ends_after_start is M.truth_value:
-                                        uncovered = M.false_value
+                                # Same boundary rule as the two-space
+                                # scan: a cover touches where the word
+                                # starts or where the line ends, so a
+                                # letter match strictly inside the run
+                                # cannot hide it.
+                                if M.IdentityCompare(
+                                    other_start, gap_start,
+                                )() is M.truth_value:
+                                    uncovered = M.false_value
+                                elif M.IdentityCompare(
+                                    other_end, line_end,
+                                )() is M.truth_value:
+                                    uncovered = M.false_value
                                 check = M.Tail(check)()
                             if uncovered is M.truth_value:
                                 self._infer_category_from_left(
@@ -10751,6 +11023,23 @@ class RecogniseForms(M.Edge):
         becomes ExactFillers(relation, self, role, fillers) rather than
         a quantifier, because the parser records what was said and
         normalization is a law's job.
+
+        A third shape carries the relative clause -- "a composite is a
+        natural number that is not prime": the right daughter is
+        Pair(LexicalNp(genus-adjective, chunk), Pair(relative,
+        EmptyList)) where the relative is Pair(NotLabel, Pair(predicate,
+        EmptyList)). The genus chunk supplies category and
+        presuppositions exactly as the other shapes do; the clause
+        becomes one condition, Not(predicate(self)), kept as the term
+        the sentence spoke -- negation is recordable here; deciding it
+        is a prover's burden, not the parser's.
+
+        A fourth shape carries the object-gap relative -- "a factor is
+        a number that a composite number is divisible by": the genus is
+        the bare category noun, so the chunk heads the right daughter,
+        and the relative carries the clause's subject and the stranded
+        preposition's role. The condition is relation(self, subject) --
+        the definiendum is what the preposition was waiting for.
         """
         left = M.Head(M.Tail(marker)())()
         right = M.Head(M.Tail(M.Tail(marker)())())()
@@ -10758,6 +11047,232 @@ class RecogniseForms(M.Edge):
             M.Tail(M.Tail(M.Tail(marker)())())(), M.EmptyList,
         )() is M.false_value:
             return M.false_value
+        # A relative clause composes the predicate nominal out of two
+        # pieces the plain shapes never produce: Pair(LexicalNp(...),
+        # Pair(relative, EmptyList)) -- "a natural number that is not
+        # prime". The LexicalNp here is the genus, not the subject:
+        # its adjective is descriptive glue and the definiendum is the
+        # left daughter alone. Without this branch the composition
+        # fires and the definition reading is silently dropped -- the
+        # compose stall: daughters exist, the law refuses to conclude.
+        relative_pair = M.EmptyList
+        if M.IsPair(right)() is M.truth_value:
+            right_head = M.Head(right)()
+            if M.IsPair(right_head)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(right_head)(), Lmod.LexicalNpLabel,
+                )() is M.truth_value:
+                    rel_slots = M.Tail(right)()
+                    if M.IdentityCompare(
+                        rel_slots, M.EmptyList,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            M.Tail(rel_slots)(), M.EmptyList,
+                        )() is M.truth_value:
+                            relative_pair = M.Head(rel_slots)()
+        # A fourth shape carries the object-gap relative -- "a factor
+        # is a number that a composite number is divisible by". The
+        # genus is a bare category noun, so the right daughter is
+        # Pair(chunk, Pair(relative, EmptyList)) with the chunk at the
+        # head, and the relative carries the clause's own subject:
+        # Pair(LexicalNp-subject, Pair(Pair(relation, Pair(role,
+        # EmptyList)), EmptyList)). The relative pronoun is the
+        # stranded object of the preposition: the definiendum binds
+        # the divisor slot, relation(self, subject) is the condition.
+        gap_relative_chunk = M.EmptyList
+        if M.IdentityCompare(relative_pair, M.EmptyList)() is M.truth_value:
+            if M.IsPair(right)() is M.truth_value:
+                rel_slots = M.Tail(right)()
+                if M.IdentityCompare(
+                    rel_slots, M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        M.Tail(rel_slots)(), M.EmptyList,
+                    )() is M.truth_value:
+                        relative_item = M.Head(rel_slots)()
+                        if M.IsPair(relative_item)() is M.truth_value:
+                            if M.IsPair(
+                                M.Head(relative_item)(),
+                            )() is M.truth_value:
+                                if M.IdentityCompare(
+                                    M.Head(M.Head(relative_item)())(),
+                                    Lmod.LexicalNpLabel,
+                                )() is M.truth_value:
+                                    gap_relative_chunk = M.Head(right)()
+        if M.IdentityCompare(gap_relative_chunk, M.EmptyList)() is M.false_value:
+            relative_item = M.Head(M.Tail(right)())()
+            subject_meaning = M.Head(relative_item)()
+            spec = M.Head(M.Tail(relative_item)())()
+            if M.IsPair(spec)() is M.false_value:
+                return M.false_value
+            role_slots = M.Tail(spec)()
+            if M.IdentityCompare(role_slots, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            if M.IdentityCompare(
+                M.Tail(role_slots)(), M.EmptyList,
+            )() is M.false_value:
+                return M.false_value
+            if M.Compare(
+                M.Head(role_slots)(), M.Char("divisor"),
+            )() is M.false_value:
+                return M.false_value
+            relation = M.Head(spec)()
+            # The subject NP nests its glue: LexicalNp(det, LexicalNp(
+            # adjective, chunk)). Descend the wrapper; the concept is
+            # the innermost adjective's meaning -- the word the clause
+            # quantifies over, a Hole while it stands undefined.
+            subject_concept = M.EmptyList
+            subject_node = subject_meaning
+            peeling = M.truth_value
+            while peeling is M.truth_value:
+                peeling = M.false_value
+                if M.IsPair(subject_node)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(subject_node)(), Lmod.LexicalNpLabel,
+                    )() is M.truth_value:
+                        inner_second = M.Head(
+                            M.Tail(M.Tail(subject_node)())(),
+                        )()
+                        second_is_np = M.false_value
+                        if M.IsPair(inner_second)() is M.truth_value:
+                            if M.IdentityCompare(
+                                M.Head(inner_second)(), Lmod.LexicalNpLabel,
+                            )() is M.truth_value:
+                                second_is_np = M.truth_value
+                        if second_is_np is M.truth_value:
+                            subject_node = inner_second
+                            peeling = M.truth_value
+                        else:
+                            subject_concept = M.Head(
+                                M.Tail(subject_node)(),
+                            )()
+            if M.IdentityCompare(
+                subject_concept, M.EmptyList,
+            )() is M.truth_value:
+                return M.false_value
+            if M.IsPair(gap_relative_chunk)() is M.false_value:
+                return M.false_value
+            category = M.Head(gap_relative_chunk)()
+            presuppositions = M.Tail(gap_relative_chunk)()
+            concept = left
+            if M.IsPair(left)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(left)(), Lmod.LexicalNpLabel,
+                )() is M.truth_value:
+                    concept = M.Head(M.Tail(left)())()
+            scope = M.GMPRep(self.definition_count_text)
+            self.definition_count_text = GMPSuccText(
+                self.definition_count_text,
+            )()
+            self_variable = M.Pair(
+                M.VarTag, M.Pair(scope, M.Pair(M.Char("?self"), M.EmptyList)),
+            )
+            conditions_reversed = M.Pair(
+                M.Pair(
+                    relation,
+                    M.Pair(self_variable, M.Pair(subject_concept, M.EmptyList)),
+                ),
+                M.EmptyList,
+            )
+            presup_walker = presuppositions
+            while M.IdentityCompare(
+                presup_walker, M.EmptyList,
+            )() is M.false_value:
+                condition_marker = M.Head(presup_walker)()
+                conditions_reversed = M.Pair(
+                    M.Pair(
+                        M.Head(condition_marker)(),
+                        M.Pair(self_variable, M.EmptyList),
+                    ),
+                    conditions_reversed,
+                )
+                presup_walker = M.Tail(presup_walker)()
+            definiendum = M.Pair(
+                Lmod.DefiniendumLabel,
+                M.Pair(concept, M.Pair(category, M.EmptyList)),
+            )
+            return DefinitionNode(
+                definiendum,
+                Binder(scope, self_variable)(),
+                conditions_reversed,
+            )()
+        if M.IdentityCompare(relative_pair, M.EmptyList)() is M.false_value:
+            if M.IsPair(relative_pair)() is M.false_value:
+                return M.false_value
+            if M.IdentityCompare(
+                M.Head(relative_pair)(), Lmod.NotLabel,
+            )() is M.false_value:
+                return M.false_value
+            negated_slots = M.Tail(relative_pair)()
+            if M.IdentityCompare(
+                negated_slots, M.EmptyList,
+            )() is M.truth_value:
+                return M.false_value
+            if M.IdentityCompare(
+                M.Tail(negated_slots)(), M.EmptyList,
+            )() is M.false_value:
+                return M.false_value
+            relative_predicate = M.Head(negated_slots)()
+            genus_slots = M.Tail(right_head)()
+            if M.IdentityCompare(genus_slots, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            genus_rest = M.Tail(genus_slots)()
+            if M.IdentityCompare(genus_rest, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            chunk = M.Head(genus_rest)()
+            if M.IsPair(chunk)() is M.false_value:
+                return M.false_value
+            category = M.Head(chunk)()
+            presuppositions = M.Tail(chunk)()
+            concept = left
+            if M.IsPair(left)() is M.truth_value:
+                if M.IdentityCompare(
+                    M.Head(left)(), Lmod.LexicalNpLabel,
+                )() is M.truth_value:
+                    concept = M.Head(M.Tail(left)())()
+            scope = M.GMPRep(self.definition_count_text)
+            self.definition_count_text = GMPSuccText(
+                self.definition_count_text,
+            )()
+            self_variable = M.Pair(
+                M.VarTag,
+                M.Pair(scope, M.Pair(M.Char("?self"), M.EmptyList)),
+            )
+            conditions_reversed = M.Pair(
+                M.Pair(
+                    Lmod.NotLabel,
+                    M.Pair(
+                        M.Pair(
+                            relative_predicate,
+                            M.Pair(self_variable, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                M.EmptyList,
+            )
+            presup_walker = presuppositions
+            while M.IdentityCompare(
+                presup_walker, M.EmptyList,
+            )() is M.false_value:
+                condition_marker = M.Head(presup_walker)()
+                conditions_reversed = M.Pair(
+                    M.Pair(
+                        M.Head(condition_marker)(),
+                        M.Pair(self_variable, M.EmptyList),
+                    ),
+                    conditions_reversed,
+                )
+                presup_walker = M.Tail(presup_walker)()
+            definiendum = M.Pair(
+                Lmod.DefiniendumLabel,
+                M.Pair(concept, M.Pair(category, M.EmptyList)),
+            )
+            return DefinitionNode(
+                definiendum,
+                Binder(scope, self_variable)(),
+                conditions_reversed,
+            )()
         predicate_chain = M.EmptyList
         if M.IsPair(left)() is M.truth_value:
             if M.IdentityCompare(
@@ -15226,6 +15741,86 @@ class ExactDivisorRestriction(M.Edge):
             inputs=M.Pair(
                 prop_term,
                 M.Pair(n, M.Pair(allowed_nats, M.Pair(registry, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class EnumerateExactSubjects(M.Edge):
+    """The small subjects that satisfy an exact-fillers definition.
+
+    "Which is prime" asks for the list, not for one verdict. The
+    candidates are the numbers one through nine -- the span the
+    correspondence vocabulary can speak as single words. Each
+    candidate re-resolves the definition's allowed chain: the binder's
+    self and any reflexive name the candidate itself, number words go
+    through the vocabulary, and the resolved chain goes to
+    ExactDivisorRestriction, the same checker the yes/no question
+    uses, so the list and the verdict can never drift apart. A
+    candidate whose check hits the search cap answers nothing here --
+    not knowing is not excluded -- and only a confirmed candidate is
+    kept.
+
+    Returns Pair(kept_nat_chain, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, prop_term, allowed_template, binder_variable, word_entries, registry):
+        kept_reversed = M.EmptyList
+        candidate_text = "1"
+        stop_text = "10"
+        while GMPEqualText(candidate_text, stop_text)() is M.false_value:
+            candidate_pair = M.NatFromRep(M.GMPRep(candidate_text), registry)()
+            candidate = M.Head(candidate_pair)()
+            registry = M.Head(M.Tail(candidate_pair)())()
+            allowed_nats_reversed = M.EmptyList
+            probe = allowed_template
+            while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                item = M.Head(probe)()
+                resolved = M.EmptyList
+                if item is binder_variable:
+                    resolved = candidate
+                elif M.IsPair(item)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(item)(), Lmod.ReflexiveLabel,
+                    )() is M.truth_value:
+                        resolved = candidate
+                if M.IdentityCompare(resolved, M.EmptyList)() is M.truth_value:
+                    resolution = CorrespondenceResolveWord(
+                        word_entries,
+                        Surface(M.Pair(item, M.EmptyList))(),
+                    )()
+                    if M.IdentityCompare(
+                        resolution, M.EmptyList,
+                    )() is M.false_value:
+                        resolved = resolution
+                if M.IdentityCompare(resolved, M.EmptyList)() is M.false_value:
+                    allowed_nats_reversed = M.Pair(
+                        resolved, allowed_nats_reversed,
+                    )
+                probe = M.Tail(probe)()
+            searched = ExactDivisorRestriction(
+                prop_term, candidate, allowed_nats_reversed, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(searched)())())()
+            if M.IdentityCompare(
+                M.Head(searched)(), M.truth_value,
+            )() is M.truth_value:
+                kept_reversed = M.Pair(candidate, kept_reversed)
+            candidate_text = GMPSuccText(candidate_text)()
+        self.result = M.Pair(
+            M.Reverse(kept_reversed)(),
+            M.Pair(registry, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                prop_term,
+                M.Pair(
+                    allowed_template,
+                    M.Pair(word_entries, M.Pair(registry, M.EmptyList)),
+                ),
             ),
             results=self.result,
         )
