@@ -2,13 +2,6 @@ from __future__ import annotations
 
 from . import labels as Lmod
 from . import machine as M
-from .language import (
-    GraphVersionEdges,
-    GraphVersionInvariants,
-    GraphVersionNodes,
-    SendPat,
-    SendHost,
-)
 
 
 class IsGraphVersion(M.Edge):
@@ -62,31 +55,6 @@ class EdgeEndpoints(M.Edge):
         return self.result
 
 
-class IsGraphElement(M.Edge):
-    def __init__(self, graph, term):
-        verdict = M.false_value
-        if IsGraphVersion(graph)() is M.truth_value:
-            remaining = GraphVersionNodes(graph)()
-            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-                if M.TermEqual(M.Head(remaining)(), term)() is M.truth_value:
-                    verdict = M.truth_value
-                    remaining = M.EmptyList
-                else:
-                    remaining = M.Tail(remaining)()
-            remaining = GraphVersionEdges(graph)()
-            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-                if M.TermEqual(M.Head(remaining)(), term)() is M.truth_value:
-                    verdict = M.truth_value
-                    remaining = M.EmptyList
-                else:
-                    remaining = M.Tail(remaining)()
-        self.result = verdict
-        super().__init__(inputs=M.Pair(graph, M.Pair(term, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
 class EdgeArity(M.Edge):
     def __init__(self, edge_term):
         count_pair = M.Count(EdgeEndpoints(edge_term)(), M.AllConstructors)()
@@ -101,7 +69,6 @@ class EdgeArity(M.Edge):
 __all__ = (
     "EdgeArity",
     "EdgeEndpoints",
-    "IsGraphElement",
     "IsGraphVersion",
     "IsLaw",
     "IsSend",
