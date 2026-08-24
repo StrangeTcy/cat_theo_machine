@@ -11709,6 +11709,7 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         e2_meaning = _task_meaning("e2")
         coins_meaning = _task_meaning("coins")
         sqrt_meaning = _task_meaning("sqrt")
+        mystery_meaning = _task_meaning("mystery")
 
         templates = M.Pair(
             CompileRuleToLaw(P.Rule(with_body, counted_meaning))(),
@@ -11804,7 +11805,14 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                                                                             "roots", "are",
                                                                             "real",
                                                                         ),
-                                                                        empty,
+                                                                        M.Pair(
+                                                                            _task_law(
+                                                                                mystery_meaning,
+                                                                                "solve", "the",
+                                                                                "mystery",
+                                                                            ),
+                                                                            empty,
+                                                                        ),
                                                                     ),
                                                                 ),
                                                             ),

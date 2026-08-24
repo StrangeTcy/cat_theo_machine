@@ -67,6 +67,7 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "engel-means.pack.yaml"),
     os.path.join(PACK_DIR, "engel-blackboard.pack.yaml"),
     os.path.join(PACK_DIR, "number-theory.pack.yaml"),
+    os.path.join(PACK_DIR, "mystery-micro.pack.yaml"),
 ]
 
 def _latest_snapshot_path():
@@ -454,6 +455,14 @@ def _theorem_agenda(packs, filter_name=None):
         if "engel_e2_final_number_is_odd" in blackboard_pack.examples:
             start, goal = blackboard_pack.examples["engel_e2_final_number_is_odd"]
             cases.append(("engel_e2", start, goal, blackboard_pack.rule_chain, blackboard_pack.phi))
+    if filter_name in ("mystery", "all"):
+        mystery_pack = packs.by_name("mystery-micro")
+        if "mystery_micro_before_reveal" in mystery_pack.examples:
+            start, goal = mystery_pack.examples["mystery_micro_before_reveal"]
+            cases.append(
+                ("mystery micro: contradiction refutes the alibi",
+                 start, goal, mystery_pack.rule_chain, mystery_pack.phi),
+            )
     if filter_name in ("sqrt", "isreal", "sqrt-real", "real", "isreal_sqrt", "isreal-sqrt", "isreal(sqrt())", "all", "sqrt2", "sqrt3", "sqrt4"):
         sqrt_pack = packs.by_name("sqrt-real")
         for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
@@ -3167,7 +3176,7 @@ def run_talk_mode(sentence: str = None):
     print("Teach me: 'training example: double two <-> mul ( two , two )'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
-    print("'prove square roots are real'.")
+    print("'prove square roots are real', 'solve the mystery'.")
     if replayed:
         print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
     if pending_queue:
