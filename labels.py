@@ -2482,6 +2482,35 @@ class CorrespondenceLawLabel(ConstructorLabel):
     pass
 
 
+# Mystery / deduction-domain labels (Rung 1). No reasoning machinery yet:
+# these name the construction heads of a fact stream so a story pack can be
+# authored, and so the sourced-claim / contradiction discipline from the
+# history work can be pointed at testimony. BeforeLabel already exists and
+# is reused for scene ordering (Before(s1, s2)) rather than duplicated.
+class SaysLabel(ConstructorLabel):
+    pass
+
+
+class SceneLabel(ConstructorLabel):
+    pass
+
+
+class AtSceneLabel(ConstructorLabel):
+    pass
+
+
+class SuspectLabel(ConstructorLabel):
+    pass
+
+
+class CulpritLabel(ConstructorLabel):
+    pass
+
+
+class ContradictsLabel(ConstructorLabel):
+    pass
+
+
 LessonLabel = LessonLabel()
 EntryLabel = EntryLabel()
 GroundedExampleLabel = GroundedExampleLabel()
@@ -2503,6 +2532,12 @@ ParticipatesInLabel = ParticipatesInLabel()
 OccursAtLabel = OccursAtLabel()
 ClaimStoreLabel = ClaimStoreLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
+SaysLabel = SaysLabel()
+SceneLabel = SceneLabel()
+AtSceneLabel = AtSceneLabel()
+SuspectLabel = SuspectLabel()
+CulpritLabel = CulpritLabel()
+ContradictsLabel = ContradictsLabel()
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
