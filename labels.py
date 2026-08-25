@@ -2478,6 +2478,94 @@ class ClaimStoreLabel(ConstructorLabel):
     pass
 
 
+class WordLabel(ConstructorLabel):
+    pass
+
+
+class ConceptLabel(ConstructorLabel):
+    pass
+
+
+class IsALabel(ConstructorLabel):
+    pass
+
+
+class PartOfLabel(ConstructorLabel):
+    pass
+
+
+class WornByLabel(ConstructorLabel):
+    pass
+
+
+class LocatedAtLabel(ConstructorLabel):
+    pass
+
+
+class EvidenceForLabel(ConstructorLabel):
+    pass
+
+
+class SupportedLabel(ConstructorLabel):
+    pass
+
+
+class RoleOfLabel(ConstructorLabel):
+    pass
+
+
+class CanAccessLabel(ConstructorLabel):
+    pass
+
+
+class ResponsibleForLabel(ConstructorLabel):
+    pass
+
+
+class OpportunityLabel(ConstructorLabel):
+    pass
+
+
+class ConceptCausesLabel(ConstructorLabel):
+    pass
+
+
+class ResponsibilityRoleLabel(ConstructorLabel):
+    pass
+
+
+class WearableObjectLabel(ConstructorLabel):
+    pass
+
+
+class HouseholdRoleLabel(ConstructorLabel):
+    pass
+
+
+class WeatherEventLabel(ConstructorLabel):
+    pass
+
+
+class WetDirtLabel(ConstructorLabel):
+    pass
+
+
+class DirtLabel(ConstructorLabel):
+    pass
+
+
+class PlaceLabel(ConstructorLabel):
+    pass
+
+
+class PersonLabel(ConstructorLabel):
+    pass
+
+
+class ConceptEventLabel(ConstructorLabel):
+    pass
+
+
 class CorrespondenceLawLabel(ConstructorLabel):
     pass
 
@@ -2502,6 +2590,28 @@ CausesLabel = CausesLabel()
 ParticipatesInLabel = ParticipatesInLabel()
 OccursAtLabel = OccursAtLabel()
 ClaimStoreLabel = ClaimStoreLabel()
+WordLabel = WordLabel()
+ConceptLabel = ConceptLabel()
+IsALabel = IsALabel()
+PartOfLabel = PartOfLabel()
+WornByLabel = WornByLabel()
+LocatedAtLabel = LocatedAtLabel()
+EvidenceForLabel = EvidenceForLabel()
+SupportedLabel = SupportedLabel()
+RoleOfLabel = RoleOfLabel()
+CanAccessLabel = CanAccessLabel()
+ResponsibleForLabel = ResponsibleForLabel()
+OpportunityLabel = OpportunityLabel()
+ConceptCausesLabel = ConceptCausesLabel()
+ResponsibilityRoleLabel = ResponsibilityRoleLabel()
+WearableObjectLabel = WearableObjectLabel()
+HouseholdRoleLabel = HouseholdRoleLabel()
+WeatherEventLabel = WeatherEventLabel()
+WetDirtLabel = WetDirtLabel()
+DirtLabel = DirtLabel()
+PlaceLabel = PlaceLabel()
+PersonLabel = PersonLabel()
+ConceptEventLabel = ConceptEventLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
 
 

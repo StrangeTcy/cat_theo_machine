@@ -162,10 +162,24 @@ class DaemonCountText(M.Edge):
 
     def __init__(self, count):
         self.result = "0"
-        if M.IdentityCompare(count, M.EmptyList)() is M.false_value:
-            rep = M.NatRepOf(count, M.AllConstructors)()
-            if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-                self.result = M.GMPRepText(rep)()
+        candidate = count
+        if M.IsPair(candidate)() is M.truth_value:
+            candidate = M.Head(candidate)()
+            if M.IsPair(candidate)() is M.truth_value:
+                candidate = M.Head(candidate)()
+        rep = M.NatRepOf(candidate, M.AllConstructors)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            self.result = M.GMPRepText(rep)()
+        elif M.IdentityCompare(count, M.EmptyList)() is M.false_value:
+            counted = M.Count(count, M.AllConstructors)()
+            counted_rep = M.NatRepOf(
+                M.Head(counted)(),
+                M.AllConstructors,
+            )()
+            if M.IdentityCompare(
+                counted_rep, M.EmptyList,
+            )() is M.false_value:
+                self.result = M.GMPRepText(counted_rep)()
         super().__init__(inputs=M.Pair(count, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -375,6 +389,12 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     """
     state_path = os.path.join(snapshot_dir, DAEMON_STATE_NAME)
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
+    live_daemon = M.false_value
+    if M.Compare(
+        M.Char(os.environ.get("HYGE_LIVE_DAEMON", "")),
+        M.Char("1"),
+    )() is M.truth_value:
+        live_daemon = M.truth_value
 
     graph_version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     proposal_store = Gmod.ProposalStore(M.EmptyList)()
@@ -405,9 +425,12 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     # condition, and the cap is only a ceiling for when one is wanted.
     bounded = M.false_value
     max_text = "0"
-    if M.IdentityCompare(max_cycles, M.EmptyList)() is M.false_value:
-        bounded = M.truth_value
-        max_text = M.GMPRepText(max_cycles)()
+    if M.IdentityCompare(
+        live_daemon, M.false_value,
+    )() is M.truth_value:
+        if M.IdentityCompare(max_cycles, M.EmptyList)() is M.false_value:
+            bounded = M.truth_value
+            max_text = M.GMPRepText(max_cycles)()
     cycles_text = "0"
     stop_reason = DAEMON_STOP_CYCLES
     cycling = M.truth_value
@@ -422,6 +445,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
             if os.path.exists(inbox_path):
                 submitted = Wmod.load_checkpoint(inbox_path)
                 if M.IdentityCompare(submitted, M.EmptyList)() is M.false_value:
+                    graph_version = Gmod.MergeGraphVersion(
+                        graph_version,
+                        M.Head(submitted)(),
+                    )()
                     merged = DaemonMergeInbox(
                         proposal_store,
                         M.Head(M.Tail(submitted)())(),
@@ -448,13 +475,18 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 # the coordinator version rather than transplanted, and the
                 # single in-process AutonomyCycle is still the only place
                 # activation happens. Without workers it is that cycle alone.
+                generator_config = daemon_generator_config(graph_version)
+                if M.IdentityCompare(
+                    live_daemon, M.truth_value,
+                )() is M.truth_value:
+                    generator_config = M.EmptyList
                 if worker_count:
                     outcome = Wmod.distributed_cycle(
                         graph_version,
                         proposal_store,
                         ledger,
                         daemon_budget(graph_version),
-                        daemon_generator_config(graph_version),
+                        generator_config,
                         worker_count,
                     )
                 else:
@@ -463,7 +495,7 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                         proposal_store,
                         ledger,
                         daemon_budget(graph_version),
-                        daemon_generator_config(graph_version),
+                        generator_config,
                     )()
                 graph_version = M.Head(outcome)()
                 proposal_store = M.Head(M.Tail(outcome)())()
@@ -480,6 +512,11 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 )
                 if DaemonCycleIsQuiescent(report)() is M.truth_value:
                     stop_reason = DAEMON_STOP_QUIESCENT
+                    if M.IdentityCompare(
+                        live_daemon, M.truth_value,
+                    )() is M.truth_value:
+                        time.sleep(poll_seconds)
+                        cycling = M.truth_value
                 else:
                     time.sleep(poll_seconds)
                     cycling = M.truth_value
@@ -493,17 +530,15 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     )
 
 
-def submit_to_inbox(snapshot_dir, proposal_store):
-    """Called by the conversation: drop submissions where the daemon reads.
-
-    The conversation writes only this file, and only ever adds to it.
-    Activation stays on the daemon's side of the boundary.
-    """
+def submit_to_inbox(snapshot_dir, proposal_store, graph_version=M.EmptyList):
+    """Deliver append-only taught graph data and proposals to the daemon."""
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
-    empty_version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+    version = graph_version
+    if M.IdentityCompare(version, M.EmptyList)() is M.truth_value:
+        version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     Wmod.save_checkpoint(
         inbox_path,
-        empty_version,
+        version,
         proposal_store,
         Gmod.FiringLedger(M.AllConstructors),
     )
