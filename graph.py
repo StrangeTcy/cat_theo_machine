@@ -16194,8 +16194,8 @@ class RuleConstructors(M.Edge):
         return self.result
 
 
-class ParseRuleText(M.Edge):
-    """Parse `P(x), Q(x) -> R(x)` into a deduction MultiRule.
+class ParseRuleTextFlat(M.Edge):
+    """Legacy flat parser retained as a regression reference.
 
     Parsing crosses the text boundary through the ordinary reading policy.
     Predicate heads must occur in the supplied constructor chain. Arguments
@@ -16441,6 +16441,310 @@ class ParseRuleText(M.Edge):
             inputs=M.Pair(
                 M.Char(text),
                 M.Pair(reading_policy, M.Pair(digit_words, M.Pair(constructors, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ParseRuleText(M.Edge):
+    """Parse nested predicate applications into one monotone MultiRule.
+
+    The parser is a machine-state walk over the ordinary token chain. A
+    frame on the stack is predicate, reversed arguments, and whether the
+    next item must be an argument. Closing a frame builds its term and
+    returns it to the parent frame, so `Divides(k, Add(a, b))` is handled
+    without a second string parser. Predicate heads are admitted only by
+    the supplied word-to-constructor chain.
+    """
+
+    def __init__(self, text, reading_policy, digit_words, constructors):
+        empty = M.EmptyList
+        tokens = WordsOfText(text, reading_policy, digit_words)()
+        remaining = tokens
+        stack = empty
+        variables = empty
+        premises_reversed = empty
+        conclusion = empty
+        arrow_seen = M.false_value
+        expect_term = M.truth_value
+        reason = empty
+
+        while M.IdentityCompare(reason, empty)() is M.truth_value:
+            if M.IdentityCompare(stack, empty)() is M.false_value:
+                if M.IdentityCompare(remaining, empty)() is M.truth_value:
+                    reason = M.Pair(
+                        M.Char("malformed-rule"),
+                        M.Pair(M.Char("missing-right-parenthesis"), empty),
+                    )
+                else:
+                    frame = M.Head(stack)()
+                    predicate = M.Head(frame)()
+                    arguments_reversed = M.Head(M.Tail(frame)())()
+                    argument_expected = M.Head(
+                        M.Tail(M.Tail(frame)())(),
+                    )()
+                    token = M.Head(remaining)()
+                    if M.IdentityCompare(
+                        argument_expected, M.truth_value,
+                    )() is M.truth_value:
+                        if M.Compare(token, M.Char(")"))() is M.truth_value:
+                            reason = M.Pair(
+                                M.Char("malformed-rule"),
+                                M.Pair(M.Char("empty-arguments"), empty),
+                            )
+                        elif M.Compare(token, M.Char(","))() is M.truth_value:
+                            reason = M.Pair(
+                                M.Char("malformed-rule"),
+                                M.Pair(M.Char("empty-argument"), empty),
+                            )
+                        else:
+                            after_token = M.Tail(remaining)()
+                            nested = M.false_value
+                            if M.IdentityCompare(
+                                after_token, empty,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    M.Head(after_token)(), M.Char("("),
+                                )() is M.truth_value:
+                                    nested = M.truth_value
+                            if M.IdentityCompare(nested, M.truth_value)() is M.truth_value:
+                                nested_frame = M.Pair(
+                                    token,
+                                    M.Pair(
+                                        empty,
+                                        M.Pair(M.truth_value, empty),
+                                    ),
+                                )
+                                stack = M.Pair(nested_frame, stack)
+                                remaining = M.Tail(after_token)()
+                            else:
+                                variable = empty
+                                variable_scan = variables
+                                while M.IdentityCompare(
+                                    variable_scan, empty,
+                                )() is M.false_value:
+                                    variable_entry = M.Head(variable_scan)()
+                                    if M.Compare(
+                                        M.Head(variable_entry)(), token,
+                                    )() is M.truth_value:
+                                        variable = M.Head(
+                                            M.Tail(variable_entry)(),
+                                        )()
+                                        variable_scan = empty
+                                    else:
+                                        variable_scan = M.Tail(variable_scan)()
+                                if M.IdentityCompare(variable, empty)() is M.truth_value:
+                                    variable = M.Pair(
+                                        M.VarTag,
+                                        M.Pair(
+                                            M.Char("?" + token()),
+                                            empty,
+                                        ),
+                                    )
+                                    variables = M.Pair(
+                                        M.Pair(token, M.Pair(variable, empty)),
+                                        variables,
+                                    )
+                                updated_frame = M.Pair(
+                                    predicate,
+                                    M.Pair(
+                                        M.Pair(variable, arguments_reversed),
+                                        M.Pair(M.false_value, empty),
+                                    ),
+                                )
+                                stack = M.Pair(
+                                    updated_frame,
+                                    M.Tail(stack)(),
+                                )
+                                remaining = M.Tail(remaining)()
+                    elif M.Compare(token, M.Char(","))() is M.truth_value:
+                        updated_frame = M.Pair(
+                            predicate,
+                            M.Pair(
+                                arguments_reversed,
+                                M.Pair(M.truth_value, empty),
+                            ),
+                        )
+                        stack = M.Pair(
+                            updated_frame,
+                            M.Tail(stack)(),
+                        )
+                        remaining = M.Tail(remaining)()
+                    elif M.Compare(token, M.Char(")"))() is M.truth_value:
+                        found_constructor = empty
+                        constructor_scan = constructors
+                        while M.IdentityCompare(
+                            constructor_scan, empty,
+                        )() is M.false_value:
+                            constructor_entry = M.Head(constructor_scan)()
+                            if M.Compare(
+                                M.Head(constructor_entry)(), predicate,
+                            )() is M.truth_value:
+                                found_constructor = M.Head(
+                                    M.Tail(constructor_entry)(),
+                                )()
+                                constructor_scan = empty
+                            else:
+                                constructor_scan = M.Tail(constructor_scan)()
+                        if M.IdentityCompare(
+                            found_constructor, empty,
+                        )() is M.truth_value:
+                            reason = M.Pair(
+                                M.Char("unknown-constructor"),
+                                M.Pair(predicate, empty),
+                            )
+                        else:
+                            term = M.Pair(
+                                found_constructor,
+                                M.Reverse(arguments_reversed)(),
+                            )
+                            parent_stack = M.Tail(stack)()
+                            stack = parent_stack
+                            remaining = M.Tail(remaining)()
+                            if M.IdentityCompare(
+                                parent_stack, empty,
+                            )() is M.false_value:
+                                parent = M.Head(parent_stack)()
+                                parent_predicate = M.Head(parent)()
+                                parent_arguments = M.Head(
+                                    M.Tail(parent)(),
+                                )()
+                                parent_updated = M.Pair(
+                                    parent_predicate,
+                                    M.Pair(
+                                        M.Pair(term, parent_arguments),
+                                        M.Pair(M.false_value, empty),
+                                    ),
+                                )
+                                stack = M.Pair(
+                                    parent_updated,
+                                    M.Tail(parent_stack)(),
+                                )
+                            else:
+                                if M.IdentityCompare(
+                                    arrow_seen, M.truth_value,
+                                )() is M.truth_value:
+                                    if M.IdentityCompare(
+                                        conclusion, empty,
+                                    )() is M.false_value:
+                                        reason = M.Pair(
+                                            M.Char("malformed-rule"),
+                                            M.Pair(M.Char("extra-conclusion"), empty),
+                                        )
+                                    else:
+                                        conclusion = term
+                                else:
+                                    premises_reversed = M.Pair(
+                                        term, premises_reversed,
+                                    )
+                                expect_term = M.false_value
+                    else:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(
+                                M.Char("expected-comma-or-right-parenthesis"),
+                                empty,
+                            ),
+                        )
+            elif M.IdentityCompare(remaining, empty)() is M.truth_value:
+                if M.IdentityCompare(arrow_seen, M.truth_value)() is M.false_value:
+                    reason = M.Pair(
+                        M.Char("malformed-rule"),
+                        M.Pair(M.Char("missing-arrow"), empty),
+                    )
+                elif M.IdentityCompare(expect_term, M.truth_value)() is M.truth_value:
+                    reason = M.Pair(
+                        M.Char("malformed-rule"),
+                        M.Pair(M.Char("missing-conclusion"), empty),
+                    )
+                elif M.IdentityCompare(conclusion, empty)() is M.truth_value:
+                    reason = M.Pair(
+                        M.Char("malformed-rule"),
+                        M.Pair(M.Char("missing-conclusion"), empty),
+                    )
+                else:
+                    reason = M.Char("rule-parse-complete")
+            else:
+                token = M.Head(remaining)()
+                if M.Compare(token, M.Char(","))() is M.truth_value:
+                    if M.IdentityCompare(expect_term, M.truth_value)() is M.truth_value:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(M.Char("unexpected-comma"), empty),
+                        )
+                    else:
+                        expect_term = M.truth_value
+                        remaining = M.Tail(remaining)()
+                elif M.Compare(token, M.Char("->"))() is M.truth_value:
+                    if M.IdentityCompare(arrow_seen, M.truth_value)() is M.truth_value:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(M.Char("multiple-arrows"), empty),
+                        )
+                    elif M.IdentityCompare(expect_term, M.truth_value)() is M.truth_value:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(M.Char("missing-premise"), empty),
+                        )
+                    elif M.IdentityCompare(
+                        premises_reversed, empty,
+                    )() is M.truth_value:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(M.Char("missing-premise"), empty),
+                        )
+                    else:
+                        arrow_seen = M.truth_value
+                        expect_term = M.truth_value
+                        remaining = M.Tail(remaining)()
+                elif M.IdentityCompare(expect_term, M.truth_value)() is M.false_value:
+                    reason = M.Pair(
+                        M.Char("malformed-rule"),
+                        M.Pair(M.Char("missing-comma"), empty),
+                    )
+                else:
+                    after_predicate = M.Tail(remaining)()
+                    opened = M.false_value
+                    if M.IdentityCompare(
+                        after_predicate, empty,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(after_predicate)(), M.Char("("),
+                        )() is M.truth_value:
+                            opened = M.truth_value
+                    if M.IdentityCompare(opened, M.truth_value)() is M.false_value:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(M.Char("expected-left-parenthesis"), empty),
+                        )
+                    else:
+                        frame = M.Pair(
+                            token,
+                            M.Pair(
+                                empty,
+                                M.Pair(M.truth_value, empty),
+                            ),
+                        )
+                        stack = M.Pair(frame, stack)
+                        remaining = M.Tail(after_predicate)()
+        if M.Compare(reason, M.Char("rule-parse-complete"))() is M.truth_value:
+            rule = P.MultiRule(
+                M.Reverse(premises_reversed)(),
+                conclusion,
+            )()
+            self.result = M.Pair(rule, M.Pair(empty, empty))
+        else:
+            self.result = M.Pair(empty, M.Pair(reason, empty))
+        super().__init__(
+            inputs=M.Pair(
+                M.Char(text),
+                M.Pair(
+                    reading_policy,
+                    M.Pair(digit_words, M.Pair(constructors, empty)),
+                ),
             ),
             results=self.result,
         )
