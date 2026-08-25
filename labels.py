@@ -1191,6 +1191,34 @@ class GcdLabel(ConstructorLabel):
     pass
 
 
+class CompositeLabel(ConstructorLabel):
+    pass
+
+
+class NontrivialDivisorLabel(ConstructorLabel):
+    pass
+
+
+class SieveStepLabel(ConstructorLabel):
+    pass
+
+
+class SqrtTrialLabel(ConstructorLabel):
+    pass
+
+
+class SieveMemberLabel(ConstructorLabel):
+    pass
+
+
+class ExtensionalEquivalentLabel(ConstructorLabel):
+    pass
+
+
+class ForAllLabel(ConstructorLabel):
+    pass
+
+
 class CostSavingsLabel(ConstructorLabel):
     pass
 
@@ -1692,6 +1720,13 @@ BaseCaseLabel = BaseCaseLabel()
 StepCaseLabel = StepCaseLabel()
 ModuloLabel = ModuloLabel()
 GcdLabel = GcdLabel()
+CompositeLabel = CompositeLabel()
+NontrivialDivisorLabel = NontrivialDivisorLabel()
+SieveStepLabel = SieveStepLabel()
+SqrtTrialLabel = SqrtTrialLabel()
+SieveMemberLabel = SieveMemberLabel()
+ExtensionalEquivalentLabel = ExtensionalEquivalentLabel()
+ForAllLabel = ForAllLabel()
 CostSavingsLabel = CostSavingsLabel()
 ReuseLabel = ReuseLabel()
 NoveltyLabel = NoveltyLabel()
