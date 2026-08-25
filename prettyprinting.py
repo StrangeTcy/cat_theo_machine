@@ -120,6 +120,17 @@ from .labels import (
     EvaluateProblemLabel,
     VerticesLabel,
     WholeLabel,
+    WordLabel,
+    IsALabel,
+    PartOfLabel,
+    WornByLabel,
+    LocatedAtLabel,
+    EvidenceForLabel,
+    SupportedLabel,
+    RoleOfLabel,
+    CanAccessLabel,
+    ResponsibleForLabel,
+    OpportunityLabel,
 )
 from .logic import false_value, truth_value
 from .math.peano import NatEq, NatRepOf
@@ -860,6 +871,28 @@ class PrettyTerm(Edge):
             problem = Head(tail)()
             tag = Head(Tail(tail)())()
             return self._geometry_fact_text(problem, tag)
+        if IdentityCompare(head, WordLabel)() is truth_value:
+            return "Word(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, IsALabel)() is truth_value:
+            return "IsA(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, PartOfLabel)() is truth_value:
+            return "PartOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, WornByLabel)() is truth_value:
+            return "WornBy(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, LocatedAtLabel)() is truth_value:
+            return "LocatedAt(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, EvidenceForLabel)() is truth_value:
+            return "EvidenceFor(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, SupportedLabel)() is truth_value:
+            return "Supported(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, RoleOfLabel)() is truth_value:
+            return "RoleOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, CanAccessLabel)() is truth_value:
+            return "CanAccess(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ResponsibleForLabel)() is truth_value:
+            return "ResponsibleFor(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, OpportunityLabel)() is truth_value:
+            return "Opportunity(" + self._show_args(tail) + ")"
         if IdentityCompare(head, MachineContextLabel)() is truth_value:
             return "Context(...)"
         return None

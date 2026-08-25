@@ -1083,6 +1083,12 @@ def _teach_runtime_taught_rules(runtime, taught_version=M.EmptyList):
         stepped = M.Succ(taught_count, M.FromContextGetConstructors(runtime.graph)())()
         taught_count = M.Head(stepped)()
         remaining = M.Tail(remaining)()
+    remaining = G.InstalledTaughtRules(taught_version)()
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        runtime.graph.add_rule(M.Head(remaining)())
+        stepped = M.Succ(taught_count, M.FromContextGetConstructors(runtime.graph)())()
+        taught_count = M.Head(stepped)()
+        remaining = M.Tail(remaining)()
     taught_text = M.GMPRepText(
         M.NatRepOf(taught_count, M.FromContextGetConstructors(runtime.graph)())(),
     )()
@@ -1283,7 +1289,8 @@ def run_talk_mode(sentence: str = None):
                         )()
                 except (OSError, ValueError):
                     replay_mark_text = "0"
-    pending_queue = []
+    pending_queue = M.EmptyList
+    pending_rule = M.EmptyList
     pending_bridge = M.EmptyList
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
@@ -1292,15 +1299,6 @@ def run_talk_mode(sentence: str = None):
     last_goal = M.EmptyList
     last_proof_registry = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
-
-    TASK_RUNNERS = {
-        "self-diagnostics": lambda: run_test_mode(False),
-        "tao": lambda: run_cold_mode(False, "tao"),
-        "e1": lambda: run_cold_mode(False, "e1"),
-        "e2": lambda: run_cold_mode(False, "e2"),
-        "coins": lambda: run_cold_mode(False, "coins"),
-        "sqrt": lambda: run_cold_mode(False, "sqrt"),
-    }
 
     def _words(text):
         """A typed line as a chain of words, by the reading policy.
@@ -2495,7 +2493,7 @@ def run_talk_mode(sentence: str = None):
         return answer
 
     def _handle_training(line, record=True):
-        nonlocal examples, proposal_store, registry
+        nonlocal examples, proposal_store, registry, pending_queue
         body = line.split(":", 1)[1].strip()
         if "<->" not in body:
             return "A training example is 'training example: WORDS <-> MEANING'."
@@ -2567,11 +2565,17 @@ def run_talk_mode(sentence: str = None):
                 else:
                     prior_laws = M.Tail(prior_laws)()
             already_queued = M.false_value
-            for queued_proposal, _queued_prompt in pending_queue:
+            queued = pending_queue
+            while M.IdentityCompare(queued, M.EmptyList)() is M.false_value:
+                queued_entry = M.Head(queued)()
+                queued_proposal = M.Head(queued_entry)()
                 if M.Compare(
                     G.ProposalLaw(queued_proposal)(), law,
                 )() is M.truth_value:
                     already_queued = M.truth_value
+                    queued = M.EmptyList
+                else:
+                    queued = M.Tail(queued)()
             if M.IdentityCompare(already_decided, M.false_value)() is M.truth_value:
                 if M.IdentityCompare(already_queued, M.false_value)() is M.truth_value:
                     _debug("formulating rule from the candidate...")
@@ -2624,19 +2628,30 @@ def run_talk_mode(sentence: str = None):
                         + "], validated on every recorded example"
                         + " with parse/render round trip; approve? (yes/no)"
                     )
-                    pending_queue.append((proposal, prompt))
+                    pending_entry = M.Pair(
+                        proposal,
+                        M.Pair(prompt, M.EmptyList),
+                    )
+                    pending_queue = M.Reverse(
+                        M.Pair(
+                            pending_entry,
+                            M.Reverse(pending_queue)(),
+                        ),
+                    )()
                     queued_count = queued_count + 1
                     _debug("rule submitted as a pending proposal; "
                            "queued for decision")
             entries = M.Tail(entries)()
-        if pending_queue:
+        if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
+            first_pending = M.Head(pending_queue)()
+            first_prompt = M.Head(M.Tail(first_pending)())()
             if queued_count > 1:
                 return (
-                    "(" + str(len(pending_queue))
+                    "(" + str(_count_chain(pending_queue))
                     + " proposals await decisions; here is the first)\n"
-                    + "hyge> " + pending_queue[0][1]
+                    + "hyge> " + first_prompt
                 )
-            return pending_queue[0][1]
+            return first_prompt
         _debug("no new candidate survived validation; waiting for more evidence")
         return "Recorded. I need more examples before I can propose a rule."
 
@@ -2671,7 +2686,12 @@ def run_talk_mode(sentence: str = None):
         shared version through the inbox instead.
         """
         if os.path.exists(daemon_live_path):
-            _debug("daemon owns the checkpoint; not writing it here")
+            Dmn.submit_to_inbox(
+                SNAPSHOT_DIR,
+                proposal_store,
+                learned_version,
+            )
+            _debug("submitted taught graph data to the daemon inbox")
             return
         W.save_checkpoint(
             talk_checkpoint_path,
@@ -2682,13 +2702,97 @@ def run_talk_mode(sentence: str = None):
         _debug("talk state written to " + talk_checkpoint_path)
 
     def _handle_decision(line, record=True):
-        nonlocal proposal_store, learned_version, decided_laws
-        if not pending_queue:
+        nonlocal proposal_store, learned_version, decided_laws, pending_queue, pending_rule
+        if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
+            decided_proposal = pending_rule
+            pending_rule = M.EmptyList
+            decided_laws = M.Pair(
+                G.ProposalLaw(decided_proposal)(), decided_laws,
+            )
+            if record:
+                _log_lesson(line)
+                _debug("decision '" + line + "' appended to " + lesson_path)
+            if line == "yes":
+                approval = G.Approved(
+                    decided_proposal, M.Char("trainer"),
+                )()
+                proposal_store = G.ProposalStoreAttach(
+                    proposal_store, decided_proposal, approval,
+                )()
+                approved_entries = G.ProposalStoreApproved(proposal_store)()
+                entry = M.EmptyList
+                while M.IdentityCompare(
+                    approved_entries, M.EmptyList,
+                )() is M.false_value:
+                    candidate = M.Head(approved_entries)()
+                    if M.TermEqual(
+                        G.ProposalEntryProposal(candidate)(),
+                        decided_proposal,
+                    )() is M.truth_value:
+                        entry = candidate
+                    approved_entries = M.Tail(approved_entries)()
+                if os.path.exists(daemon_live_path):
+                    rule_origin = G.ProposalOrigin(decided_proposal)()
+                    if M.IsPair(rule_origin)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(rule_origin)(), M.Char("case-split"),
+                        )() is M.truth_value:
+                            learned_version = G.InstallCaseSplit(
+                                learned_version,
+                                G.ProposalLaw(decided_proposal)(),
+                            )()
+                        else:
+                            source_premises = M.Head(M.Tail(rule_origin)())()
+                            source_replacement = M.Head(
+                                M.Tail(M.Tail(rule_origin)())(),
+                            )()
+                            learned_version = G.InstallTaughtRuleSource(
+                                learned_version,
+                                source_premises,
+                                source_replacement,
+                            )()
+                    _persist_talk_state()
+                    return (
+                        "Recorded and submitted. The daemon will activate it "
+                        "on its next cycle."
+                    )
+                activated = G.ActivateProposal(
+                    learned_version,
+                    entry,
+                    proposal_store,
+                )()
+                installed_version = M.Head(activated)()
+                refusal = M.Head(M.Tail(activated)())()
+                if M.IdentityCompare(
+                    installed_version, M.EmptyList,
+                )() is M.truth_value:
+                    _persist_talk_state()
+                    return _render_refusal(refusal)
+                learned_version = installed_version
+                _extend_vocabulary()
+                _persist_talk_state()
+                return (
+                    "Recorded and activated. The deduction is now installed "
+                    "in the graph."
+                )
+            rejection = G.Rejected(
+                decided_proposal,
+                M.Char("trainer"),
+                M.Char("declined"),
+            )()
+            proposal_store = G.ProposalStoreAttach(
+                proposal_store, decided_proposal, rejection,
+            )()
+            _persist_talk_state()
+            return "Recorded the rejection. The deduction stays out of the graph."
+        if M.IdentityCompare(pending_queue, M.EmptyList)() is M.truth_value:
             return "There is no proposal awaiting a decision."
         if record:
             _log_lesson(line)
             _debug("decision '" + line + "' appended to " + lesson_path)
-        decided_proposal, _decided_prompt = pending_queue.pop(0)
+        decided_entry = M.Head(pending_queue)()
+        decided_proposal = M.Head(decided_entry)()
+        pending_queue = M.Tail(pending_queue)()
         decided_laws = M.Pair(
             G.ProposalLaw(decided_proposal)(), decided_laws,
         )
@@ -2716,10 +2820,7 @@ def run_talk_mode(sentence: str = None):
             # mode standalone keeps activating in-process, so nothing about
             # single-process use changes.
             if os.path.exists(daemon_live_path):
-                # Submit only. Writing talk_state.wire here would make two
-                # processes writers of one file and lose whichever wrote
-                # first; the daemon owns that file and folds the inbox in.
-                Dmn.submit_to_inbox(SNAPSHOT_DIR, proposal_store)
+                _persist_talk_state()
                 _debug("submitted to the daemon inbox; it will activate")
                 return ("Recorded and submitted. The daemon will activate it "
                         "on its next cycle.")
@@ -2750,8 +2851,9 @@ def run_talk_mode(sentence: str = None):
                 proposal_store, decided_proposal, rejection,
             )()
             outcome = "Recorded the rejection. The rule stays out of my grammar."
-        if pending_queue:
-            outcome = outcome + "\nhyge> " + pending_queue[0][1]
+        if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
+            first_pending = M.Head(pending_queue)()
+            outcome = outcome + "\nhyge> " + M.Head(M.Tail(first_pending)())()
         return outcome
 
     def _explain_last():
@@ -2854,7 +2956,434 @@ def run_talk_mode(sentence: str = None):
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
+        nonlocal pending_rule, learned_version, proposal_store
         lowered = line.lower()
+        if lowered.startswith("word:"):
+            parsed_word = G.ParseWordText(
+                line[5:].strip(),
+                reading_policy,
+                reading_digits,
+            )()
+            word_facts = M.Head(parsed_word)()
+            word_reason = M.Head(M.Tail(parsed_word)())()
+            if M.IdentityCompare(word_facts, M.EmptyList)() is M.truth_value:
+                detail = M.EmptyList
+                if M.IsPair(word_reason)() is M.truth_value:
+                    detail = M.Head(M.Tail(word_reason)())()
+                if M.IdentityCompare(detail, M.EmptyList)() is M.false_value:
+                    return "I could not parse that word lesson (" + str(detail()) + ")."
+                return "I could not parse that word lesson."
+            while M.IdentityCompare(word_facts, M.EmptyList)() is M.false_value:
+                installed_word_fact = G.InstallTaughtFact(
+                    learned_version,
+                    M.Head(word_facts)(),
+                )()
+                learned_version = M.Head(installed_word_fact)()
+                word_facts = M.Tail(word_facts)()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return "Recorded word grounding: " + line[5:].strip()
+        if lowered.startswith("query:"):
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_query = G.ParseRuleText(
+                line[6:].strip(),
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            goal = M.Head(parsed_query)()
+            reason = M.Head(M.Tail(parsed_query)())()
+            if M.IdentityCompare(goal, M.EmptyList)() is M.truth_value:
+                detail = M.EmptyList
+                if M.IsPair(reason)() is M.truth_value:
+                    detail = M.Head(M.Tail(reason)())()
+                if M.IdentityCompare(detail, M.EmptyList)() is M.false_value:
+                    return (
+                        "I could not parse that query ("
+                        + str(detail())
+                        + "). Use Predicate(constant)."
+                    )
+                return "I could not parse that query. Use Predicate(constant)."
+            recorded_case_conclusions = G.InstalledCaseConclusions(
+                learned_version,
+            )()
+            recorded_case = M.EmptyList
+            while M.IdentityCompare(
+                recorded_case_conclusions, M.EmptyList,
+            )() is M.false_value:
+                candidate_case = M.Head(recorded_case_conclusions)()
+                if M.Compare(
+                    G.CaseConclusionCandidate(candidate_case)(),
+                    goal,
+                )() is M.truth_value:
+                    recorded_case = candidate_case
+                    recorded_case_conclusions = M.EmptyList
+                else:
+                    recorded_case_conclusions = M.Tail(
+                        recorded_case_conclusions,
+                    )()
+            if M.IdentityCompare(recorded_case, M.EmptyList)() is M.false_value:
+                return (
+                    "yes; " + line[6:].strip()
+                    + " is already recorded as a case-elimination conclusion."
+                )
+            facts = G.InstalledTaughtFacts(learned_version)()
+            rules = G.InstalledTaughtRules(learned_version)()
+            case_splits = G.InstalledCaseSplits(learned_version)()
+            case_relevant = M.false_value
+            relevance_scan = case_splits
+            while M.IdentityCompare(
+                relevance_scan, M.EmptyList,
+            )() is M.false_value:
+                relevance_candidates = M.Head(
+                    M.Tail(G.CaseSplitExactlyOne(
+                        M.Head(relevance_scan)(),
+                    )())(),
+                )()
+                while M.IdentityCompare(
+                    relevance_candidates, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(relevance_candidates)(), goal,
+                    )() is M.truth_value:
+                        case_relevant = M.truth_value
+                        relevance_candidates = M.EmptyList
+                    else:
+                        relevance_candidates = M.Tail(relevance_candidates)()
+                relevance_scan = M.Tail(relevance_scan)()
+            if M.IdentityCompare(case_relevant, M.truth_value)() is M.truth_value:
+                case_query = G.CaseSplitQuery(
+                    facts,
+                    rules,
+                    case_splits,
+                    goal,
+                )()
+                case_status = M.Head(case_query)()
+                case_kind = M.Head(M.Tail(case_query)())()
+                case_conclusion = M.Head(
+                    M.Tail(M.Tail(case_query)())(),
+                )()
+                if M.Compare(
+                    case_kind, M.Char("all-branches-refuted"),
+                )() is M.truth_value:
+                    return (
+                        "no; all ExactlyOne branches were refuted while "
+                        + "checking " + line[6:].strip() + "."
+                    )
+                if M.Compare(
+                    case_kind, M.Char("multiple-consistent-cases"),
+                )() is M.truth_value:
+                    return (
+                        "no; multiple ExactlyOne branches remain consistent, "
+                        + "so " + line[6:].strip() + " is not established."
+                    )
+                if M.IdentityCompare(
+                    case_status, M.truth_value,
+                )() is M.truth_value:
+                    learned_version = G.InstallCaseConclusion(
+                        learned_version,
+                        case_conclusion,
+                    )()
+                    _persist_talk_state()
+                    return (
+                        "yes; established " + line[6:].strip()
+                        + " by case elimination. The case conclusion was recorded."
+                    )
+                return (
+                    "no; the one consistent branch does not prove "
+                    + line[6:].strip() + "."
+                )
+            growing = M.truth_value
+            rounds_text = "0"
+            while M.IdentityCompare(
+                growing, M.truth_value,
+            )() is M.truth_value:
+                if G.GMPEqualText(rounds_text, "200")() is M.truth_value:
+                    growing = M.false_value
+                else:
+                    rounds_text = G.GMPSuccText(rounds_text)()
+                    growing = M.false_value
+                    remaining_rules = rules
+                    while M.IdentityCompare(
+                        remaining_rules, M.EmptyList,
+                    )() is M.false_value:
+                        taught_rule = M.Head(remaining_rules)()
+                        bindings = P.JoinPremises(
+                            P.RulePremises(taught_rule)(),
+                            facts,
+                            M.EmptyList,
+                        )()
+                        while M.IdentityCompare(
+                            bindings, M.EmptyList,
+                        )() is M.false_value:
+                            binding = M.Head(bindings)()
+                            instantiated = M.Instantiate(
+                                P.RuleReplacement(taught_rule)(),
+                                binding,
+                            )()
+                            derived = M.Head(instantiated)()
+                            seen = M.false_value
+                            fact_scan = facts
+                            while M.IdentityCompare(
+                                fact_scan, M.EmptyList,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    M.Head(fact_scan)(), derived,
+                                )() is M.truth_value:
+                                    seen = M.truth_value
+                                    fact_scan = M.EmptyList
+                                else:
+                                    fact_scan = M.Tail(fact_scan)()
+                            if M.IdentityCompare(
+                                seen, M.false_value,
+                            )() is M.truth_value:
+                                instantiated_premises = P.InstantiateFactList(
+                                    P.RulePremises(taught_rule)(),
+                                    binding,
+                                )()
+                                taught_derivation = G.TaughtDerivation(
+                                    derived,
+                                    taught_rule,
+                                    instantiated_premises,
+                                )()
+                                learned_version = G.InstallTaughtDerivation(
+                                    learned_version,
+                                    taught_derivation,
+                                )()
+                                facts = M.Pair(derived, facts)
+                                growing = M.truth_value
+                            bindings = M.Tail(bindings)()
+                        remaining_rules = M.Tail(remaining_rules)()
+            goal_found = M.false_value
+            fact_scan = facts
+            while M.IdentityCompare(
+                fact_scan, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(M.Head(fact_scan)(), goal)() is M.truth_value:
+                    goal_found = M.truth_value
+                    fact_scan = M.EmptyList
+                else:
+                    fact_scan = M.Tail(fact_scan)()
+            last_goal = goal
+            last_proof_registry = registry
+            last_derivation = M.EmptyList
+            last_outcome = M.EmptyList
+            _persist_talk_state()
+            if M.IdentityCompare(goal_found, M.truth_value)() is M.truth_value:
+                return (
+                    "yes; derived " + line[6:].strip()
+                    + " from the taught facts and approved rules."
+                )
+            return "no; I could not derive " + line[6:].strip() + "."
+            start = M.Knowledge(facts)()
+            if proof_runtime is M.EmptyList:
+                print(
+                    "hyge> loading the theorem runtime for the taught facts and rules",
+                    flush=True,
+                )
+                quiet_boot = io.StringIO()
+                with redirect_stdout(quiet_boot):
+                    proof_runtime, _proof_packs = boot_from_packs(
+                        PACK_PATHS,
+                        _runtime_namespace(),
+                    )
+                _adopt_pack_concepts(
+                    proof_runtime.loaded_packs,
+                    M.FromContextGetAllRules(proof_runtime.graph)(),
+                )
+                _teach_runtime_taught_rules(
+                    proof_runtime,
+                    learned_version,
+                )
+                proof_runtime.graph._search_disable_console = M.truth_value
+                proof_runtime.graph._search_disable_progress_ticker = M.truth_value
+                registry = M.FromContextGetConstructors(
+                    proof_runtime.graph,
+                )()
+            derivation = proof_runtime.prove(start, goal)
+            last_goal = goal
+            last_proof_registry = M.FromContextGetConstructors(
+                proof_runtime.graph,
+            )()
+            last_derivation = derivation
+            last_outcome = M.EmptyList
+            if M.IdentityCompare(
+                derivation, M.EmptyList,
+            )() is M.false_value:
+                return "yes\n" + P.ExplainDerivation(
+                    derivation,
+                    goal,
+                    last_proof_registry,
+                )()
+            return "no; I could not derive " + line[6:].strip() + "."
+        if lowered.startswith("fact:"):
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_fact = G.ParseRuleText(
+                line[5:].strip(),
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            fact = M.Head(parsed_fact)()
+            reason = M.Head(M.Tail(parsed_fact)())()
+            if M.IdentityCompare(fact, M.EmptyList)() is M.truth_value:
+                detail = M.EmptyList
+                if M.IsPair(reason)() is M.truth_value:
+                    detail = M.Head(M.Tail(reason)())()
+                if M.IdentityCompare(detail, M.EmptyList)() is M.false_value:
+                    return (
+                        "I could not parse that fact ("
+                        + str(detail())
+                        + "). Use Predicate(constant)."
+                    )
+                return "I could not parse that fact. Use Predicate(constant)."
+            installed_fact = G.InstallTaughtFact(learned_version, fact)()
+            learned_version = M.Head(installed_fact)()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return "Recorded fact: " + line[5:].strip()
+        if lowered.startswith("rule:"):
+            if M.IdentityCompare(
+                pending_rule, M.EmptyList,
+            )() is M.false_value:
+                return "Please approve or reject the pending rule first."
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            case_prefix = M.Char(line[5:].strip()[:6].lower())
+            if M.Compare(case_prefix, M.Char("one of"))() is M.truth_value:
+                parsed_case = G.ParseRuleText(
+                    line[5:].strip()[6:].strip(),
+                    reading_policy,
+                    reading_digits,
+                    known_constructors,
+                    M.Char("exactly-one"),
+                )()
+                case_split = M.Head(parsed_case)()
+                case_reason = M.Head(M.Tail(parsed_case)())()
+                if M.IdentityCompare(
+                    case_split, M.EmptyList,
+                )() is M.truth_value:
+                    case_detail = M.EmptyList
+                    if M.IsPair(case_reason)() is M.truth_value:
+                        case_detail = M.Head(M.Tail(case_reason)())()
+                    if M.IdentityCompare(
+                        case_detail, M.EmptyList,
+                    )() is M.false_value:
+                        return (
+                            "I could not parse that case split ("
+                            + str(case_detail())
+                            + "). Use one of P(a), Q(a), R(a)."
+                        )
+                    return "I could not parse that case split. Use one of P(a), Q(a), R(a)."
+                exactly_one = G.CaseSplitExactlyOne(case_split)()
+                split_warning = ""
+                known_facts = G.InstalledTaughtFacts(learned_version)()
+                known_rules = G.InstalledTaughtRules(learned_version)()
+                split_check = G.CaseSplitQuery(
+                    known_facts,
+                    known_rules,
+                    M.Pair(case_split, M.EmptyList),
+                    M.EmptyList,
+                )()
+                if M.Compare(
+                    M.Head(M.Tail(split_check)())(),
+                    M.Char("all-branches-refuted"),
+                )() is M.truth_value:
+                    split_warning = (
+                        " Warning: all branches of this split are already "
+                        "refuted by the recorded facts."
+                    )
+                case_origin = M.Pair(
+                    M.Char("case-split"),
+                    M.Pair(exactly_one, M.EmptyList),
+                )
+                case_proposal = G.Proposal(
+                    case_split,
+                    case_origin,
+                )()
+                proposal_store = G.ProposalStoreSubmit(
+                    proposal_store,
+                    case_proposal,
+                )()
+                pending_rule = case_proposal
+                if record:
+                    _log_lesson(line)
+                _persist_talk_state()
+                return (
+                    "I propose a case split over "
+                    + line[5:].strip()[6:].strip()
+                    + ". It creates one proof branch per candidate."
+                    + split_warning
+                    + " Approve? (yes/no)"
+                )
+            parsed_rule = G.ParseRuleText(
+                line[5:].strip(),
+                reading_policy,
+                reading_digits,
+                known_constructors,
+            )()
+            rule = M.Head(parsed_rule)()
+            reason = M.Head(M.Tail(parsed_rule)())()
+            if M.IdentityCompare(rule, M.EmptyList)() is M.truth_value:
+                if M.IsPair(reason)() is M.truth_value:
+                    reason_kind = M.Head(reason)()
+                    if M.Compare(
+                        reason_kind,
+                        M.Char("unknown-constructor"),
+                    )() is M.truth_value:
+                        unknown = M.Head(M.Tail(reason)())()
+                        return (
+                            "I do not know the constructor '"
+                            + str(unknown())
+                            + "'. Teach its definition first."
+                        )
+                    detail = M.Head(M.Tail(reason)())()
+                    return (
+                        "I could not parse that rule ("
+                        + str(detail())
+                        + "). Use P(x), Q(x) -> R(x)."
+                    )
+                return "I could not parse that rule. Use P(x), Q(x) -> R(x)."
+            law = G.CompileDeductionToLaw(rule)()
+            if M.IdentityCompare(law, M.EmptyList)() is M.truth_value:
+                return (
+                    "I could not compile that rule as a monotone deduction; "
+                    "it needs at least one premise and one conclusion."
+                )
+            rule_origin = M.Pair(
+                M.Char("dialogue-rule"),
+                M.Pair(
+                    P.RulePremises(rule)(),
+                    M.Pair(P.RuleReplacement(rule)(), M.EmptyList),
+                ),
+            )
+            proposal = G.Proposal(law, rule_origin)()
+            proposal_store = G.ProposalStoreSubmit(
+                proposal_store,
+                proposal,
+            )()
+            pending_rule = proposal
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return (
+                "I propose a deduction rule: "
+                + line[5:].strip()
+                + ". It keeps every premise and adds the conclusion. "
+                + "Approve? (yes/no)"
+            )
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
         if lowered.startswith("definition:"):
@@ -2868,10 +3397,88 @@ def run_talk_mode(sentence: str = None):
             if spoken_definition is not None:
                 return spoken_definition
         if lowered in ("yes", "no"):
-            if pending_queue:
+            if M.IdentityCompare(
+                pending_rule, M.EmptyList,
+            )() is M.false_value:
+                return _handle_decision(lowered, record=record)
+            if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
                 return _handle_decision(lowered, record=record)
         if lowered.strip() in ("bridge yes", "bridge no"):
             return _handle_bridge_decision(lowered.strip(), record=record)
+        if lowered.startswith("why:"):
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_why = G.ParseRuleText(
+                line[4:].strip(),
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            why_target = M.Head(parsed_why)()
+            why_conclusions = G.InstalledCaseConclusions(learned_version)()
+            why_conclusion = M.EmptyList
+            while M.IdentityCompare(
+                why_conclusions, M.EmptyList,
+            )() is M.false_value:
+                candidate_conclusion = M.Head(why_conclusions)()
+                if M.Compare(
+                    G.CaseConclusionCandidate(candidate_conclusion)(),
+                    why_target,
+                )() is M.truth_value:
+                    why_conclusion = candidate_conclusion
+                    why_conclusions = M.EmptyList
+                else:
+                    why_conclusions = M.Tail(why_conclusions)()
+            if M.IdentityCompare(
+                why_conclusion, M.EmptyList,
+            )() is M.false_value:
+                exact_one_term = G.CaseSplitExactlyOne(
+                    G.CaseConclusionSplit(why_conclusion)(),
+                )()
+                return (
+                    "case conclusion: " + line[4:].strip()
+                    + " was established by the only consistent branch of "
+                    + M.PrettyTerm(exact_one_term, M.AllConstructors)()
+                    + "; refuted candidates: "
+                    + M.PrettyTerm(
+                        G.CaseConclusionRefuted(why_conclusion)(),
+                        M.AllConstructors,
+                    )()
+                )
+            why_derivations = G.InstalledTaughtDerivations(learned_version)()
+            why_derivation = M.EmptyList
+            while M.IdentityCompare(
+                why_derivations, M.EmptyList,
+            )() is M.false_value:
+                candidate_derivation = M.Head(why_derivations)()
+                if M.Compare(
+                    G.DerivationDerived(candidate_derivation)(),
+                    why_target,
+                )() is M.truth_value:
+                    why_derivation = candidate_derivation
+                    why_derivations = M.EmptyList
+                else:
+                    why_derivations = M.Tail(why_derivations)()
+            if M.IdentityCompare(
+                why_derivation, M.EmptyList,
+            )() is M.false_value:
+                return (
+                    "because " + line[4:].strip()
+                    + " was derived by "
+                    + P.PrettyRule(
+                        G.DerivationRule(why_derivation)(),
+                        M.AllConstructors,
+                    )()
+                    + " from "
+                    + M.PrettyTerm(
+                        G.DerivationPremises(why_derivation)(),
+                        M.AllConstructors,
+                    )()
+                )
+            return "There is no recorded derivation for " + line[4:].strip() + "."
         if lowered.strip() in ("why", "why?", "explain", "explain?"):
             return _explain_last()
         words = _words(line)
@@ -2892,8 +3499,25 @@ def run_talk_mode(sentence: str = None):
             if M.IsPair(body)() is M.truth_value:
                 if M.TermEqual(M.Head(body)(), Lmod.TaskLabel)() is M.truth_value:
                     task_name = str(M.Head(M.Tail(body)())()())
-                    runner = TASK_RUNNERS.get(task_name)
-                    if runner is None:
+                    task_atom = M.Char(task_name)
+                    known_task = M.false_value
+                    if M.Compare(
+                        task_atom, M.Char("self-diagnostics"),
+                    )() is M.truth_value:
+                        known_task = M.truth_value
+                    elif M.Compare(task_atom, M.Char("tao"))() is M.truth_value:
+                        known_task = M.truth_value
+                    elif M.Compare(task_atom, M.Char("e1"))() is M.truth_value:
+                        known_task = M.truth_value
+                    elif M.Compare(task_atom, M.Char("e2"))() is M.truth_value:
+                        known_task = M.truth_value
+                    elif M.Compare(task_atom, M.Char("coins"))() is M.truth_value:
+                        known_task = M.truth_value
+                    elif M.Compare(task_atom, M.Char("sqrt"))() is M.truth_value:
+                        known_task = M.truth_value
+                    if M.IdentityCompare(
+                        known_task, M.false_value,
+                    )() is M.truth_value:
                         return "I know the task '" + task_name + "' but cannot run it."
                     print("hyge> running task: " + task_name)
                     # A task is a guest in the conversation, not the
@@ -2904,7 +3528,20 @@ def run_talk_mode(sentence: str = None):
                     # just succeeded. A task that fails reports and the prompt
                     # returns.
                     try:
-                        runner()
+                        if M.Compare(
+                            task_atom, M.Char("self-diagnostics"),
+                        )() is M.truth_value:
+                            run_test_mode(False)
+                        elif M.Compare(task_atom, M.Char("tao"))() is M.truth_value:
+                            run_cold_mode(False, "tao")
+                        elif M.Compare(task_atom, M.Char("e1"))() is M.truth_value:
+                            run_cold_mode(False, "e1")
+                        elif M.Compare(task_atom, M.Char("e2"))() is M.truth_value:
+                            run_cold_mode(False, "e2")
+                        elif M.Compare(task_atom, M.Char("coins"))() is M.truth_value:
+                            run_cold_mode(False, "coins")
+                        elif M.Compare(task_atom, M.Char("sqrt"))() is M.truth_value:
+                            run_cold_mode(False, "sqrt")
                     except SnapshotSaveTimeout as timeout_error:
                         return ("task '" + task_name + "' finished, but saving "
                                 "the snapshot timed out: " + str(timeout_error)
@@ -3165,15 +3802,20 @@ def run_talk_mode(sentence: str = None):
     print("'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
     print("Parentheses group subexpressions: 'two times (two plus two)'.")
     print("Teach me: 'training example: double two <-> mul ( two , two )'.")
+    print("Teach facts: 'fact: Human(alice)'.")
+    print("Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.")
+    print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.")
+    print("Ask taught rules: 'query: Sage(alice)'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
     print("'prove square roots are real'.")
     if replayed:
         print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
-    if pending_queue:
-        print("hyge> (" + str(len(pending_queue)) + " proposal(s) from the "
-              "replayed lessons still await your decision)")
-        print("hyge> " + pending_queue[0][1])
+    if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
+        first_pending = M.Head(pending_queue)()
+        print("hyge> (" + str(_count_chain(pending_queue))
+              + " proposal(s) from the replayed lessons still await your decision)")
+        print("hyge> " + M.Head(M.Tail(first_pending)())())
     while True:
         try:
             line = input("you> ")
@@ -3374,22 +4016,24 @@ def run_live_mode(requested_workers):
     # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
     # only exists in the re-exec branch above, so it is recomputed here.
     import_root = os.path.dirname(PACKAGE_DIR)
+    import shlex
+
+    daemon_command = (
+        "HYGE_LIVE_DAEMON=1 exec "
+        + shlex.quote(sys.executable)
+        + " -u -m "
+        + shlex.quote(__package__ + ".main")
+        + " daemon --workers "
+        + shlex.quote(str(requested_workers))
+    )
     daemon_child = subprocess.Popen(
-        [
-            sys.executable,
-            "-u",
-            "-m",
-            "hyge.main",
-            "daemon",
-            "--workers",
-            str(requested_workers),
-        ],
+        daemon_command,
         cwd=import_root,
-        env=dict(os.environ, PYTHONPATH=import_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
+        shell=True,
     )
 
     def drain():

@@ -2402,7 +2402,7 @@ class BuildDerivation(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
@@ -2625,14 +2625,14 @@ class ExplainDerivation(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
     def _goal_reached(self, current):
         if IsKnowledge(current)() is M.truth_value:
             return self._knowledge_has_fact(KnowledgeFacts(current)(), self.goal)
-        return M.TermEqual(current, self.goal)()
+        return M.Compare(current, self.goal)()
 
     def __call__(self):
         return self.result
@@ -2949,7 +2949,7 @@ class Prove(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
