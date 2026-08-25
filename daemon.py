@@ -162,10 +162,24 @@ class DaemonCountText(M.Edge):
 
     def __init__(self, count):
         self.result = "0"
-        if M.IdentityCompare(count, M.EmptyList)() is M.false_value:
-            rep = M.NatRepOf(count, M.AllConstructors)()
-            if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-                self.result = M.GMPRepText(rep)()
+        candidate = count
+        if M.IsPair(candidate)() is M.truth_value:
+            candidate = M.Head(candidate)()
+            if M.IsPair(candidate)() is M.truth_value:
+                candidate = M.Head(candidate)()
+        rep = M.NatRepOf(candidate, M.AllConstructors)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            self.result = M.GMPRepText(rep)()
+        elif M.IdentityCompare(count, M.EmptyList)() is M.false_value:
+            counted = M.Count(count, M.AllConstructors)()
+            counted_rep = M.NatRepOf(
+                M.Head(counted)(),
+                M.AllConstructors,
+            )()
+            if M.IdentityCompare(
+                counted_rep, M.EmptyList,
+            )() is M.false_value:
+                self.result = M.GMPRepText(counted_rep)()
         super().__init__(inputs=M.Pair(count, M.EmptyList), results=self.result)
 
     def __call__(self):
