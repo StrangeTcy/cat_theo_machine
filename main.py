@@ -2983,6 +2983,29 @@ def run_talk_mode(sentence: str = None):
                         + "). Use Predicate(constant)."
                     )
                 return "I could not parse that query. Use Predicate(constant)."
+            recorded_case_conclusions = G.InstalledCaseConclusions(
+                learned_version,
+            )()
+            recorded_case = M.EmptyList
+            while M.IdentityCompare(
+                recorded_case_conclusions, M.EmptyList,
+            )() is M.false_value:
+                candidate_case = M.Head(recorded_case_conclusions)()
+                if M.Compare(
+                    G.CaseConclusionCandidate(candidate_case)(),
+                    goal,
+                )() is M.truth_value:
+                    recorded_case = candidate_case
+                    recorded_case_conclusions = M.EmptyList
+                else:
+                    recorded_case_conclusions = M.Tail(
+                        recorded_case_conclusions,
+                    )()
+            if M.IdentityCompare(recorded_case, M.EmptyList)() is M.false_value:
+                return (
+                    "yes; " + line[6:].strip()
+                    + " is already recorded as a case-elimination conclusion."
+                )
             facts = G.InstalledTaughtFacts(learned_version)()
             rules = G.InstalledTaughtRules(learned_version)()
             case_splits = G.InstalledCaseSplits(learned_version)()
@@ -2994,18 +3017,39 @@ def run_talk_mode(sentence: str = None):
                     goal,
                 )()
                 case_status = M.Head(case_query)()
+                case_kind = M.Head(M.Tail(case_query)())()
+                case_conclusion = M.Head(
+                    M.Tail(M.Tail(case_query)())(),
+                )()
+                if M.Compare(
+                    case_kind, M.Char("all-branches-refuted"),
+                )() is M.truth_value:
+                    return (
+                        "no; all ExactlyOne branches were refuted while "
+                        + "checking " + line[6:].strip() + "."
+                    )
+                if M.Compare(
+                    case_kind, M.Char("multiple-consistent-cases"),
+                )() is M.truth_value:
+                    return (
+                        "no; multiple ExactlyOne branches remain consistent, "
+                        + "so " + line[6:].strip() + " is not established."
+                    )
                 if M.IdentityCompare(
                     case_status, M.truth_value,
                 )() is M.truth_value:
+                    learned_version = G.InstallCaseConclusion(
+                        learned_version,
+                        case_conclusion,
+                    )()
+                    _persist_talk_state()
                     return (
-                        "yes; case analysis derives "
-                        + line[6:].strip()
-                        + " from the consistent ExactlyOne branch."
+                        "yes; established " + line[6:].strip()
+                        + " by case elimination. The case conclusion was recorded."
                     )
                 return (
-                    "no; case analysis does not establish "
-                    + line[6:].strip()
-                    + "."
+                    "no; the one consistent branch does not prove "
+                    + line[6:].strip() + "."
                 )
             growing = M.truth_value
             rounds_text = "0"
@@ -3282,6 +3326,50 @@ def run_talk_mode(sentence: str = None):
                 return _handle_decision(lowered, record=record)
         if lowered.strip() in ("bridge yes", "bridge no"):
             return _handle_bridge_decision(lowered.strip(), record=record)
+        if lowered.startswith("why:"):
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_why = G.ParseRuleText(
+                line[4:].strip(),
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            why_target = M.Head(parsed_why)()
+            why_conclusions = G.InstalledCaseConclusions(learned_version)()
+            why_conclusion = M.EmptyList
+            while M.IdentityCompare(
+                why_conclusions, M.EmptyList,
+            )() is M.false_value:
+                candidate_conclusion = M.Head(why_conclusions)()
+                if M.Compare(
+                    G.CaseConclusionCandidate(candidate_conclusion)(),
+                    why_target,
+                )() is M.truth_value:
+                    why_conclusion = candidate_conclusion
+                    why_conclusions = M.EmptyList
+                else:
+                    why_conclusions = M.Tail(why_conclusions)()
+            if M.IdentityCompare(
+                why_conclusion, M.EmptyList,
+            )() is M.false_value:
+                exact_one_term = G.CaseSplitExactlyOne(
+                    G.CaseConclusionSplit(why_conclusion)(),
+                )()
+                return (
+                    "case conclusion: " + line[4:].strip()
+                    + " was established by the only consistent branch of "
+                    + M.PrettyTerm(exact_one_term, M.AllConstructors)()
+                    + "; refuted candidates: "
+                    + M.PrettyTerm(
+                        G.CaseConclusionRefuted(why_conclusion)(),
+                        M.AllConstructors,
+                    )()
+                )
+            return "There is no recorded case-elimination conclusion for " + line[4:].strip() + "."
         if lowered.strip() in ("why", "why?", "explain", "explain?"):
             return _explain_last()
         words = _words(line)

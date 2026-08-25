@@ -630,12 +630,148 @@ class CaseSplitBranches(M.Edge):
         return self.result
 
 
+class CaseConclusion(M.Edge):
+    """A recorded conclusion established by one surviving case branch."""
+
+    def __init__(self, split, candidate, refuted_candidates):
+        self.result = M.Pair(
+            M.Char("case-conclusion"),
+            M.Pair(
+                split,
+                M.Pair(
+                    candidate,
+                    M.Pair(refuted_candidates, M.EmptyList),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                split,
+                M.Pair(candidate, M.Pair(refuted_candidates, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsCaseConclusion(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(
+                M.Head(term)(), M.Char("case-conclusion"),
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CaseConclusionSplit(M.Edge):
+    def __init__(self, conclusion):
+        self.result = M.Head(M.Tail(conclusion)())()
+        super().__init__(inputs=M.Pair(conclusion, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CaseConclusionCandidate(M.Edge):
+    def __init__(self, conclusion):
+        self.result = M.Head(M.Tail(M.Tail(conclusion)())())()
+        super().__init__(inputs=M.Pair(conclusion, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CaseConclusionRefuted(M.Edge):
+    def __init__(self, conclusion):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(conclusion)())())(),
+        )()
+        super().__init__(inputs=M.Pair(conclusion, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledCaseConclusions(M.Edge):
+    """Recover previously recorded case-elimination conclusions."""
+
+    def __init__(self, graph_version):
+        reversed_conclusions = M.EmptyList
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.IsPair(node_head)() is M.truth_value:
+                    nested = node
+                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                        agenda = M.Pair(M.Head(nested)(), agenda)
+                        nested = M.Tail(nested)()
+                elif M.Compare(
+                    node_head, M.Char("case-conclusion"),
+                )() is M.truth_value:
+                    reversed_conclusions = M.Pair(
+                        node,
+                        reversed_conclusions,
+                    )
+        self.result = M.Reverse(reversed_conclusions)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallCaseConclusion(M.Edge):
+    """Persist a case-elimination conclusion with its provenance."""
+
+    def __init__(self, graph_version, conclusion):
+        existing = InstalledCaseConclusions(graph_version)()
+        found = M.false_value
+        remaining = existing
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.Compare(
+                CaseConclusionCandidate(M.Head(remaining)())(),
+                CaseConclusionCandidate(conclusion)(),
+            )() is M.truth_value:
+                found = M.truth_value
+                remaining = M.EmptyList
+            else:
+                remaining = M.Tail(remaining)()
+        if M.IdentityCompare(found, M.truth_value)() is M.truth_value:
+            self.result = graph_version
+        else:
+            self.result = GraphVersion(
+                M.Pair(conclusion, GraphNodes(graph_version)()),
+                GraphEdges(graph_version)(),
+                GraphVersionInvariants(graph_version)(),
+            )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(conclusion, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class CaseSplitQuery(M.Edge):
     """Evaluate a goal across the consistent branches of a CaseSplit."""
 
     def __init__(self, facts, rules, splits, goal):
         empty = M.EmptyList
         consistent_candidates = empty
+        refuted_candidates = empty
         consistent_count = M.Zero
         goal_count = M.Zero
         split_scan = splits
@@ -768,20 +904,52 @@ class CaseSplitQuery(M.Edge):
                             goal_count, M.AllConstructors,
                         )()
                         goal_count = M.Head(next_goal_count)()
+                else:
+                    refuted_candidates = M.Pair(
+                        candidate,
+                        refuted_candidates,
+                    )
                 branch_scan = M.Tail(branch_scan)()
             split_scan = M.Tail(split_scan)()
 
         status = M.false_value
+        kind = M.Char("all-branches-refuted")
+        conclusion = empty
         if M.IdentityCompare(consistent_count, M.Zero)() is M.false_value:
             if M.NatEq(
                 consistent_count,
-                goal_count,
+                M.one,
                 M.AllConstructors,
             )() is M.truth_value:
-                status = M.truth_value
+                kind = M.Char("one-consistent-case")
+                if M.NatEq(
+                    goal_count,
+                    M.one,
+                    M.AllConstructors,
+                )() is M.truth_value:
+                    status = M.truth_value
+                    split = M.Head(splits)()
+                    conclusion = CaseConclusion(
+                        split,
+                        goal,
+                        M.Reverse(refuted_candidates)(),
+                    )()
+                else:
+                    kind = M.Char("consistent-case-does-not-prove-goal")
+            else:
+                kind = M.Char("multiple-consistent-cases")
         self.result = M.Pair(
             status,
-            M.Pair(M.Reverse(consistent_candidates)(), M.EmptyList),
+            M.Pair(
+                kind,
+                M.Pair(
+                    conclusion,
+                    M.Pair(
+                        M.Reverse(refuted_candidates)(),
+                        M.Pair(M.Reverse(consistent_candidates)(), empty),
+                    ),
+                ),
+            ),
         )
         super().__init__(
             inputs=M.Pair(
