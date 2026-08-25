@@ -2734,15 +2734,23 @@ def run_talk_mode(sentence: str = None):
                 if os.path.exists(daemon_live_path):
                     rule_origin = G.ProposalOrigin(decided_proposal)()
                     if M.IsPair(rule_origin)() is M.truth_value:
-                        source_premises = M.Head(M.Tail(rule_origin)())()
-                        source_replacement = M.Head(
-                            M.Tail(M.Tail(rule_origin)())(),
-                        )()
-                        learned_version = G.InstallTaughtRuleSource(
-                            learned_version,
-                            source_premises,
-                            source_replacement,
-                        )()
+                        if M.Compare(
+                            M.Head(rule_origin)(), M.Char("case-split"),
+                        )() is M.truth_value:
+                            learned_version = G.InstallCaseSplit(
+                                learned_version,
+                                G.ProposalLaw(decided_proposal)(),
+                            )()
+                        else:
+                            source_premises = M.Head(M.Tail(rule_origin)())()
+                            source_replacement = M.Head(
+                                M.Tail(M.Tail(rule_origin)())(),
+                            )()
+                            learned_version = G.InstallTaughtRuleSource(
+                                learned_version,
+                                source_premises,
+                                source_replacement,
+                            )()
                     _persist_talk_state()
                     return (
                         "Recorded and submitted. The daemon will activate it "
@@ -2977,6 +2985,28 @@ def run_talk_mode(sentence: str = None):
                 return "I could not parse that query. Use Predicate(constant)."
             facts = G.InstalledTaughtFacts(learned_version)()
             rules = G.InstalledTaughtRules(learned_version)()
+            case_splits = G.InstalledCaseSplits(learned_version)()
+            if M.IdentityCompare(case_splits, M.EmptyList)() is M.false_value:
+                case_query = G.CaseSplitQuery(
+                    facts,
+                    rules,
+                    case_splits,
+                    goal,
+                )()
+                case_status = M.Head(case_query)()
+                if M.IdentityCompare(
+                    case_status, M.truth_value,
+                )() is M.truth_value:
+                    return (
+                        "yes; case analysis derives "
+                        + line[6:].strip()
+                        + " from the consistent ExactlyOne branch."
+                    )
+                return (
+                    "no; case analysis does not establish "
+                    + line[6:].strip()
+                    + "."
+                )
             growing = M.truth_value
             rounds_text = "0"
             while M.IdentityCompare(
@@ -3126,6 +3156,55 @@ def run_talk_mode(sentence: str = None):
                 learned_version,
                 pack_concepts,
             )()
+            case_prefix = M.Char(line[5:].strip()[:6].lower())
+            if M.Compare(case_prefix, M.Char("one of"))() is M.truth_value:
+                parsed_case = G.ParseRuleText(
+                    line[5:].strip()[6:].strip(),
+                    reading_policy,
+                    reading_digits,
+                    known_constructors,
+                    M.Char("exactly-one"),
+                )()
+                case_split = M.Head(parsed_case)()
+                case_reason = M.Head(M.Tail(parsed_case)())()
+                if M.IdentityCompare(
+                    case_split, M.EmptyList,
+                )() is M.truth_value:
+                    case_detail = M.EmptyList
+                    if M.IsPair(case_reason)() is M.truth_value:
+                        case_detail = M.Head(M.Tail(case_reason)())()
+                    if M.IdentityCompare(
+                        case_detail, M.EmptyList,
+                    )() is M.false_value:
+                        return (
+                            "I could not parse that case split ("
+                            + str(case_detail())
+                            + "). Use one of P(a), Q(a), R(a)."
+                        )
+                    return "I could not parse that case split. Use one of P(a), Q(a), R(a)."
+                exactly_one = G.CaseSplitExactlyOne(case_split)()
+                case_origin = M.Pair(
+                    M.Char("case-split"),
+                    M.Pair(exactly_one, M.EmptyList),
+                )
+                case_proposal = G.Proposal(
+                    case_split,
+                    case_origin,
+                )()
+                proposal_store = G.ProposalStoreSubmit(
+                    proposal_store,
+                    case_proposal,
+                )()
+                pending_rule = case_proposal
+                if record:
+                    _log_lesson(line)
+                _persist_talk_state()
+                return (
+                    "I propose a case split over "
+                    + line[5:].strip()[6:].strip()
+                    + ". It creates one proof branch per candidate. "
+                    + "Approve? (yes/no)"
+                )
             parsed_rule = G.ParseRuleText(
                 line[5:].strip(),
                 reading_policy,
