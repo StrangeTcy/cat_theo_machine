@@ -963,6 +963,110 @@ class CaseSplitQuery(M.Edge):
         return self.result
 
 
+class TaughtDerivation(M.Edge):
+    """Provenance for a fact produced by a taught monotone rule."""
+
+    def __init__(self, derived, rule, premises):
+        self.result = M.Pair(
+            M.Char("taught-derivation"),
+            M.Pair(
+                derived,
+                M.Pair(rule, M.Pair(premises, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                derived,
+                M.Pair(rule, M.Pair(premises, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationDerived(M.Edge):
+    def __init__(self, derivation):
+        self.result = M.Head(M.Tail(derivation)())()
+        super().__init__(inputs=M.Pair(derivation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationRule(M.Edge):
+    def __init__(self, derivation):
+        self.result = M.Head(M.Tail(M.Tail(derivation)())())()
+        super().__init__(inputs=M.Pair(derivation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationPremises(M.Edge):
+    def __init__(self, derivation):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(derivation)())())(),
+        )()
+        super().__init__(inputs=M.Pair(derivation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledTaughtDerivations(M.Edge):
+    """Recover persisted rule-firing provenance."""
+
+    def __init__(self, graph_version):
+        reversed_derivations = M.EmptyList
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.IsPair(node_head)() is M.truth_value:
+                    nested = node
+                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                        agenda = M.Pair(M.Head(nested)(), agenda)
+                        nested = M.Tail(nested)()
+                elif M.Compare(
+                    node_head, M.Char("taught-derivation"),
+                )() is M.truth_value:
+                    reversed_derivations = M.Pair(
+                        node,
+                        reversed_derivations,
+                    )
+        self.result = M.Reverse(reversed_derivations)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallTaughtDerivation(M.Edge):
+    """Persist one rule-firing provenance record."""
+
+    def __init__(self, graph_version, derivation):
+        next_version = GraphVersion(
+            M.Pair(derivation, GraphNodes(graph_version)()),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        self.result = next_version
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(derivation, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class TaughtFact(M.Edge):
     """A ground fact taught at the dialogue boundary."""
 
@@ -17166,7 +17270,7 @@ class ParseRuleTextFlat(M.Edge):
                                         )
                                     expect_term = M.false_value
                                     remaining = argument_remaining
-        if M.IdentityCompare(reason, M.EmptyList)() is M.true_value:
+        if M.IdentityCompare(reason, M.EmptyList)() is M.truth_value:
             if M.IdentityCompare(arrow_seen, M.truth_value)() is M.false_value:
                 reason = M.Pair(
                     M.Char("malformed-rule"),
@@ -17632,6 +17736,161 @@ class ParseRuleText(M.Edge):
 
 
 ONTOLOGY_FACT_CAP = M.GMPRep("200")
+
+
+class ParseWordText(M.Edge):
+    """Parse one constrained word-teaching sentence into ontology facts."""
+
+    def __init__(self, text, reading_policy, digit_words):
+        empty = M.EmptyList
+        words = WordsOfText(text, reading_policy, digit_words)()
+        self.result = M.Pair(empty, M.Pair(empty, empty))
+        if M.IdentityCompare(words, empty)() is M.false_value:
+            surface = M.Head(words)()
+            rest = M.Tail(words)()
+            if M.IdentityCompare(rest, empty)() is M.false_value:
+                relation_word = M.Head(rest)()
+                remaining = M.Tail(rest)()
+                accepted = M.false_value
+                concept_text = ""
+                first_concept = M.truth_value
+                concept_scan = remaining
+                if M.Compare(
+                    relation_word, M.Char("means"),
+                )() is M.truth_value:
+                    while M.IdentityCompare(concept_scan, empty)() is M.false_value:
+                        concept_word = M.Head(concept_scan)()
+                        if M.IdentityCompare(
+                            first_concept, M.truth_value,
+                        )() is M.false_value:
+                            concept_text = concept_text + "_"
+                        concept_text = concept_text + concept_word()
+                        first_concept = M.false_value
+                        concept_scan = M.Tail(concept_scan)()
+                    if M.Compare(
+                        M.Char(concept_text), M.Char(""),
+                    )() is M.false_value:
+                        accepted = M.truth_value
+                        word_fact = M.Pair(
+                            M.Char("word"),
+                            M.Pair(
+                                surface,
+                                M.Pair(M.Char(concept_text), empty),
+                            ),
+                        )
+                        self.result = M.Pair(
+                            M.Pair(word_fact, empty),
+                            M.Pair(empty, empty),
+                        )
+                else:
+                    copula = M.false_value
+                    if M.Compare(
+                        relation_word, M.Char("is"),
+                    )() is M.truth_value:
+                        copula = M.truth_value
+                    elif M.Compare(
+                        relation_word, M.Char("are"),
+                    )() is M.truth_value:
+                        copula = M.truth_value
+                    if M.IdentityCompare(copula, M.truth_value)() is M.truth_value:
+                        if M.IdentityCompare(remaining, empty)() is M.false_value:
+                            article = M.Head(remaining)()
+                            article_word = M.false_value
+                            if M.Compare(article, M.Char("a"))() is M.truth_value:
+                                article_word = M.truth_value
+                            elif M.Compare(article, M.Char("an"))() is M.truth_value:
+                                article_word = M.truth_value
+                            elif M.Compare(article, M.Char("the"))() is M.truth_value:
+                                article_word = M.truth_value
+                            if M.IdentityCompare(article_word, M.truth_value)() is M.truth_value:
+                                remaining = M.Tail(remaining)()
+                        worn = M.false_value
+                        if M.IdentityCompare(remaining, empty)() is M.false_value:
+                            if M.Compare(
+                                M.Head(remaining)(), M.Char("worn"),
+                            )() is M.truth_value:
+                                after_worn = M.Tail(remaining)()
+                                if M.IdentityCompare(
+                                    after_worn, empty,
+                                )() is M.false_value:
+                                    if M.Compare(
+                                        M.Head(after_worn)(), M.Char("by"),
+                                    )() is M.truth_value:
+                                        worn = M.truth_value
+                                        remaining = M.Tail(after_worn)()
+                        concept_scan = remaining
+                        while M.IdentityCompare(concept_scan, empty)() is M.false_value:
+                            concept_word = M.Head(concept_scan)()
+                            if M.IdentityCompare(
+                                first_concept, M.truth_value,
+                            )() is M.false_value:
+                                concept_text = concept_text + "_"
+                            concept_text = concept_text + concept_word()
+                            first_concept = M.false_value
+                            concept_scan = M.Tail(concept_scan)()
+                        if M.Compare(
+                            M.Char(concept_text), M.Char(""),
+                        )() is M.false_value:
+                            accepted = M.truth_value
+                            word_fact = M.Pair(
+                                M.Char("word"),
+                                M.Pair(surface, M.Pair(surface, empty)),
+                            )
+                            if M.IdentityCompare(worn, M.truth_value)() is M.truth_value:
+                                relation_fact = M.Pair(
+                                    M.Char("wornby"),
+                                    M.Pair(
+                                        surface,
+                                        M.Pair(M.Char(concept_text), empty),
+                                    ),
+                                )
+                            else:
+                                relation_fact = M.Pair(
+                                    M.Char("isa"),
+                                    M.Pair(
+                                        surface,
+                                        M.Pair(M.Char(concept_text), empty),
+                                    ),
+                                )
+                            self.result = M.Pair(
+                                M.Pair(
+                                    word_fact,
+                                    M.Pair(relation_fact, empty),
+                                ),
+                                M.Pair(empty, empty),
+                            )
+                if M.IdentityCompare(accepted, M.truth_value)() is M.false_value:
+                    self.result = M.Pair(
+                        empty,
+                        M.Pair(
+                            M.Pair(
+                                M.Char("malformed-word"),
+                                M.Pair(M.Char("expected-means-or-is"), empty),
+                            ),
+                            empty,
+                        ),
+                    )
+            else:
+                self.result = M.Pair(
+                    empty,
+                    M.Pair(
+                        M.Pair(
+                            M.Char("malformed-word"),
+                            M.Pair(M.Char("missing-relation"), empty),
+                        ),
+                        empty,
+                    ),
+                )
+        super().__init__(
+            inputs=M.Pair(
+                M.Char(text),
+                M.Pair(reading_policy, M.Pair(digit_words, empty)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 
 
 class OntologyFactsFor(M.Edge):

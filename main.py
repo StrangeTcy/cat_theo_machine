@@ -2958,6 +2958,32 @@ def run_talk_mode(sentence: str = None):
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
         nonlocal pending_rule, learned_version, proposal_store
         lowered = line.lower()
+        if lowered.startswith("word:"):
+            parsed_word = G.ParseWordText(
+                line[5:].strip(),
+                reading_policy,
+                reading_digits,
+            )()
+            word_facts = M.Head(parsed_word)()
+            word_reason = M.Head(M.Tail(parsed_word)())()
+            if M.IdentityCompare(word_facts, M.EmptyList)() is M.truth_value:
+                detail = M.EmptyList
+                if M.IsPair(word_reason)() is M.truth_value:
+                    detail = M.Head(M.Tail(word_reason)())()
+                if M.IdentityCompare(detail, M.EmptyList)() is M.false_value:
+                    return "I could not parse that word lesson (" + str(detail()) + ")."
+                return "I could not parse that word lesson."
+            while M.IdentityCompare(word_facts, M.EmptyList)() is M.false_value:
+                installed_word_fact = G.InstallTaughtFact(
+                    learned_version,
+                    M.Head(word_facts)(),
+                )()
+                learned_version = M.Head(installed_word_fact)()
+                word_facts = M.Tail(word_facts)()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return "Recorded word grounding: " + line[5:].strip()
         if lowered.startswith("query:"):
             known_constructors = G.RuleConstructors(
                 learned_version,
@@ -3116,6 +3142,19 @@ def run_talk_mode(sentence: str = None):
                             if M.IdentityCompare(
                                 seen, M.false_value,
                             )() is M.truth_value:
+                                instantiated_premises = P.InstantiateFactList(
+                                    P.RulePremises(taught_rule)(),
+                                    binding,
+                                )()
+                                taught_derivation = G.TaughtDerivation(
+                                    derived,
+                                    taught_rule,
+                                    instantiated_premises,
+                                )()
+                                learned_version = G.InstallTaughtDerivation(
+                                    learned_version,
+                                    taught_derivation,
+                                )()
                                 facts = M.Pair(derived, facts)
                                 growing = M.truth_value
                             bindings = M.Tail(bindings)()
@@ -3134,6 +3173,7 @@ def run_talk_mode(sentence: str = None):
             last_proof_registry = registry
             last_derivation = M.EmptyList
             last_outcome = M.EmptyList
+            _persist_talk_state()
             if M.IdentityCompare(goal_found, M.truth_value)() is M.truth_value:
                 return (
                     "yes; derived " + line[6:].strip()
@@ -3408,7 +3448,37 @@ def run_talk_mode(sentence: str = None):
                         M.AllConstructors,
                     )()
                 )
-            return "There is no recorded case-elimination conclusion for " + line[4:].strip() + "."
+            why_derivations = G.InstalledTaughtDerivations(learned_version)()
+            why_derivation = M.EmptyList
+            while M.IdentityCompare(
+                why_derivations, M.EmptyList,
+            )() is M.false_value:
+                candidate_derivation = M.Head(why_derivations)()
+                if M.Compare(
+                    G.DerivationDerived(candidate_derivation)(),
+                    why_target,
+                )() is M.truth_value:
+                    why_derivation = candidate_derivation
+                    why_derivations = M.EmptyList
+                else:
+                    why_derivations = M.Tail(why_derivations)()
+            if M.IdentityCompare(
+                why_derivation, M.EmptyList,
+            )() is M.false_value:
+                return (
+                    "because " + line[4:].strip()
+                    + " was derived by "
+                    + P.PrettyRule(
+                        G.DerivationRule(why_derivation)(),
+                        M.AllConstructors,
+                    )()
+                    + " from "
+                    + M.PrettyTerm(
+                        G.DerivationPremises(why_derivation)(),
+                        M.AllConstructors,
+                    )()
+                )
+            return "There is no recorded derivation for " + line[4:].strip() + "."
         if lowered.strip() in ("why", "why?", "explain", "explain?"):
             return _explain_last()
         words = _words(line)
@@ -3733,6 +3803,7 @@ def run_talk_mode(sentence: str = None):
     print("Parentheses group subexpressions: 'two times (two plus two)'.")
     print("Teach me: 'training example: double two <-> mul ( two , two )'.")
     print("Teach facts: 'fact: Human(alice)'.")
+    print("Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.")
     print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.")
     print("Ask taught rules: 'query: Sage(alice)'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
