@@ -18091,12 +18091,15 @@ class GapOpen(M.Edge):
         known_word = M.false_value
         known_concept = M.false_value
         usage = M.false_value
+        fact_head_match = M.false_value
         scan = facts
         while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
             fact = M.Head(scan)()
             if M.IsPair(fact)() is M.truth_value:
                 head = M.Head(fact)()
                 args = M.Tail(fact)()
+                if M.Compare(head, target)() is M.truth_value:
+                    fact_head_match = M.truth_value
                 if M.Compare(head, Lmod.WordLabel)() is M.truth_value:
                     if M.IdentityCompare(args, M.EmptyList)() is M.false_value:
                         if M.Compare(M.Head(args)(), target)() is M.truth_value:
@@ -18135,6 +18138,46 @@ class GapOpen(M.Edge):
         elif M.Compare(gap_head, Lmod.NoUsageExampleLabel)() is M.truth_value:
             if M.IdentityCompare(usage, M.truth_value)() is M.false_value:
                 self.result = M.truth_value
+        elif M.Compare(gap_head, Lmod.NoParentLabel)() is M.truth_value:
+            if M.IdentityCompare(known_word, M.truth_value)() is M.false_value:
+                if M.IdentityCompare(
+                    known_concept, M.truth_value,
+                )() is M.false_value:
+                    self.result = M.truth_value
+        elif M.Compare(gap_head, Lmod.DanglingReferenceLabel)() is M.truth_value:
+            self.result = M.truth_value
+            rule_scan = InstalledTaughtRules(graph_version)()
+            while M.IdentityCompare(rule_scan, M.EmptyList)() is M.false_value:
+                rule_replacement = P.RuleReplacement(
+                    M.Head(rule_scan)(),
+                )()
+                if M.IsPair(rule_replacement)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(rule_replacement)(), target,
+                    )() is M.truth_value:
+                        self.result = M.false_value
+                        rule_scan = M.EmptyList
+                if M.IdentityCompare(rule_scan, M.EmptyList)() is M.false_value:
+                    rule_scan = M.Tail(rule_scan)()
+            if M.IdentityCompare(self.result, M.truth_value)() is M.truth_value:
+                if M.IdentityCompare(
+                    fact_head_match, M.truth_value,
+                )() is M.truth_value:
+                    self.result = M.false_value
+        elif M.Compare(gap_head, Lmod.MissingRenderLawLabel)() is M.truth_value:
+            self.result = M.truth_value
+            law_scan = GapRenderLaws()()
+            while M.IdentityCompare(law_scan, M.EmptyList)() is M.false_value:
+                law = M.Head(law_scan)()
+                law_pattern = M.Head(GraphNodes(LawLeft(law)())())()
+                if M.IsPair(law_pattern)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(law_pattern)(), target,
+                    )() is M.truth_value:
+                        self.result = M.false_value
+                        law_scan = M.EmptyList
+                if M.IdentityCompare(law_scan, M.EmptyList)() is M.false_value:
+                    law_scan = M.Tail(law_scan)()
         super().__init__(
             inputs=M.Pair(gap, M.Pair(graph_version, M.EmptyList)),
             results=self.result,
@@ -18152,6 +18195,7 @@ class DetectVocabularyGaps(M.Edge):
         reversed_undefined = M.EmptyList
         reversed_modifiers = M.EmptyList
         reversed_usage = M.EmptyList
+        reversed_constants = M.EmptyList
         scan = facts
         while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
             fact = M.Head(scan)()
@@ -18275,13 +18319,192 @@ class DetectVocabularyGaps(M.Edge):
                                 ),
                                 reversed_usage,
                             )
+                else:
+                    arg_stack = M.Pair(args, M.EmptyList)
+                    while M.IdentityCompare(
+                        arg_stack, M.EmptyList,
+                    )() is M.false_value:
+                        arg_chain = M.Head(arg_stack)()
+                        arg_stack = M.Tail(arg_stack)()
+                        while M.IdentityCompare(
+                            arg_chain, M.EmptyList,
+                        )() is M.false_value:
+                            arg_item = M.Head(arg_chain)()
+                            if M.IsPair(arg_item)() is M.truth_value:
+                                arg_stack = M.Pair(
+                                    M.Tail(arg_item)(), arg_stack,
+                                )
+                            else:
+                                if ChainHasTerm(
+                                    reversed_constants, arg_item,
+                                )() is M.false_value:
+                                    reversed_constants = M.Pair(
+                                        arg_item, reversed_constants,
+                                    )
+                            arg_chain = M.Tail(arg_chain)()
             scan = M.Tail(scan)()
+        reversed_noparent = M.EmptyList
+        constant_scan = reversed_constants
+        while M.IdentityCompare(constant_scan, M.EmptyList)() is M.false_value:
+            constant = M.Head(constant_scan)()
+            constant_word = M.false_value
+            constant_isa = M.false_value
+            known_scan = facts
+            while M.IdentityCompare(known_scan, M.EmptyList)() is M.false_value:
+                known_fact = M.Head(known_scan)()
+                if M.IsPair(known_fact)() is M.truth_value:
+                    known_head = M.Head(known_fact)()
+                    known_args = M.Tail(known_fact)()
+                    if M.Compare(known_head, Lmod.WordLabel)() is M.truth_value:
+                        if M.IdentityCompare(
+                            known_args, M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                M.Head(known_args)(), constant,
+                            )() is M.truth_value:
+                                constant_word = M.truth_value
+                            if M.IdentityCompare(
+                                M.Tail(known_args)(), M.EmptyList,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    M.Head(M.Tail(known_args)())(), constant,
+                                )() is M.truth_value:
+                                    constant_word = M.truth_value
+                    elif M.Compare(known_head, Lmod.IsALabel)() is M.truth_value:
+                        if M.IdentityCompare(
+                            known_args, M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                M.Head(known_args)(), constant,
+                            )() is M.truth_value:
+                                constant_isa = M.truth_value
+                            if M.IdentityCompare(
+                                M.Tail(known_args)(), M.EmptyList,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    M.Head(M.Tail(known_args)())(), constant,
+                                )() is M.truth_value:
+                                    constant_isa = M.truth_value
+                known_scan = M.Tail(known_scan)()
+            if M.IdentityCompare(constant_word, M.truth_value)() is M.false_value:
+                if M.IdentityCompare(
+                    constant_isa, M.truth_value,
+                )() is M.false_value:
+                    reversed_noparent = M.Pair(
+                        M.Pair(
+                            Lmod.NoParentLabel,
+                            M.Pair(constant, M.EmptyList),
+                        ),
+                        reversed_noparent,
+                    )
+            constant_scan = M.Tail(constant_scan)()
+        reversed_dangling = M.EmptyList
+        taught_rules = InstalledTaughtRules(graph_version)()
+        rule_scan = taught_rules
+        while M.IdentityCompare(rule_scan, M.EmptyList)() is M.false_value:
+            taught_rule = M.Head(rule_scan)()
+            rule_premises = P.RulePremises(taught_rule)()
+            rule_replacement = P.RuleReplacement(taught_rule)()
+            rule_signature = M.Pair(
+                rule_premises, M.Pair(rule_replacement, M.EmptyList),
+            )
+            premise_scan = rule_premises
+            while M.IdentityCompare(
+                premise_scan, M.EmptyList,
+            )() is M.false_value:
+                premise = M.Head(premise_scan)()
+                if M.IsPair(premise)() is M.truth_value:
+                    premise_head = M.Head(premise)()
+                    derivable = M.false_value
+                    fact_scan = facts
+                    while M.IdentityCompare(
+                        fact_scan, M.EmptyList,
+                    )() is M.false_value:
+                        fact_candidate = M.Head(fact_scan)()
+                        if M.IsPair(fact_candidate)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(fact_candidate)(), premise_head,
+                            )() is M.truth_value:
+                                derivable = M.truth_value
+                                fact_scan = M.EmptyList
+                        if M.IdentityCompare(
+                            fact_scan, M.EmptyList,
+                        )() is M.false_value:
+                            fact_scan = M.Tail(fact_scan)()
+                    if M.IdentityCompare(
+                        derivable, M.false_value,
+                    )() is M.truth_value:
+                        head_scan = taught_rules
+                        while M.IdentityCompare(
+                            head_scan, M.EmptyList,
+                        )() is M.false_value:
+                            other_replacement = P.RuleReplacement(
+                                M.Head(head_scan)(),
+                            )()
+                            if M.IsPair(other_replacement)() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(other_replacement)(), premise_head,
+                                )() is M.truth_value:
+                                    derivable = M.truth_value
+                                    head_scan = M.EmptyList
+                            if M.IdentityCompare(
+                                head_scan, M.EmptyList,
+                            )() is M.false_value:
+                                head_scan = M.Tail(head_scan)()
+                    if M.IdentityCompare(
+                        derivable, M.false_value,
+                    )() is M.truth_value:
+                        already = M.false_value
+                        dup_scan = reversed_dangling
+                        while M.IdentityCompare(
+                            dup_scan, M.EmptyList,
+                        )() is M.false_value:
+                            dup_gap = M.Head(dup_scan)()
+                            if M.Compare(
+                                M.Head(M.Tail(dup_gap)())(), premise_head,
+                            )() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(
+                                        M.Tail(M.Tail(dup_gap)())(),
+                                    )(),
+                                    rule_signature,
+                                )() is M.truth_value:
+                                    already = M.truth_value
+                                    dup_scan = M.EmptyList
+                            if M.IdentityCompare(
+                                dup_scan, M.EmptyList,
+                            )() is M.false_value:
+                                dup_scan = M.Tail(dup_scan)()
+                        if M.IdentityCompare(
+                            already, M.false_value,
+                        )() is M.truth_value:
+                            reversed_dangling = M.Pair(
+                                M.Pair(
+                                    Lmod.DanglingReferenceLabel,
+                                    M.Pair(
+                                        premise_head,
+                                        M.Pair(rule_signature, M.EmptyList),
+                                    ),
+                                ),
+                                reversed_dangling,
+                            )
+                premise_scan = M.Tail(premise_scan)()
+            rule_scan = M.Tail(rule_scan)()
         all_reversed = M.EmptyList
         for_chain = M.Pair(
             M.Reverse(reversed_undefined)(),
             M.Pair(
                 M.Reverse(reversed_modifiers)(),
-                M.Pair(M.Reverse(reversed_usage)(), M.EmptyList),
+                M.Pair(
+                    M.Reverse(reversed_usage)(),
+                    M.Pair(
+                        M.Reverse(reversed_noparent)(),
+                        M.Pair(
+                            M.Reverse(reversed_dangling)(),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
             ),
         )
         chain_scan = for_chain
@@ -18418,6 +18641,677 @@ class RenderGapQuestion(M.Edge):
             else:
                 laws = M.Tail(laws)()
         super().__init__(inputs=M.Pair(gap, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GapTarget(M.Edge):
+    """The primary concept term a gap is about."""
+
+    def __init__(self, gap):
+        self.result = M.EmptyList
+        if M.IsPair(gap)() is M.truth_value:
+            target_chain = M.Tail(gap)()
+            if M.IdentityCompare(
+                target_chain, M.EmptyList,
+            )() is M.false_value:
+                self.result = M.Head(target_chain)()
+        super().__init__(inputs=M.Pair(gap, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleMentionCount(M.Edge):
+    """How many installed rules mention a term in premises or replacement.
+
+    A mention counts the whole premise or replacement term, its
+    predicate head, and its argument structure -- the target can be a
+    concept in argument position or a predicate symbol in head
+    position.
+    """
+
+    def __init__(self, term, graph_version):
+        count_text = "0"
+        if M.IdentityCompare(term, M.EmptyList)() is M.false_value:
+            rule_scan = InstalledTaughtRules(graph_version)()
+            while M.IdentityCompare(
+                rule_scan, M.EmptyList,
+            )() is M.false_value:
+                taught_rule = M.Head(rule_scan)()
+                mentioned = M.false_value
+                premise_scan = P.RulePremises(taught_rule)()
+                while M.IdentityCompare(
+                    premise_scan, M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        mentioned, M.truth_value,
+                    )() is M.truth_value:
+                        premise_scan = M.EmptyList
+                    else:
+                        premise = M.Head(premise_scan)()
+                        if M.Compare(
+                            premise, term,
+                        )() is M.truth_value:
+                            mentioned = M.truth_value
+                        elif M.IsPair(premise)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(premise)(), term,
+                            )() is M.truth_value:
+                                mentioned = M.truth_value
+                        if M.IdentityCompare(
+                            mentioned, M.truth_value,
+                        )() is M.false_value:
+                            if TermContains(
+                                premise, term,
+                            )() is M.truth_value:
+                                mentioned = M.truth_value
+                        premise_scan = M.Tail(premise_scan)()
+                if M.IdentityCompare(
+                    mentioned, M.truth_value,
+                )() is M.false_value:
+                    replacement = P.RuleReplacement(taught_rule)()
+                    if M.Compare(
+                        replacement, term,
+                    )() is M.truth_value:
+                        mentioned = M.truth_value
+                    elif M.IsPair(replacement)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(replacement)(), term,
+                        )() is M.truth_value:
+                            mentioned = M.truth_value
+                    if M.IdentityCompare(
+                        mentioned, M.truth_value,
+                    )() is M.false_value:
+                        if TermContains(
+                            replacement, term,
+                        )() is M.truth_value:
+                            mentioned = M.truth_value
+                if M.IdentityCompare(
+                    mentioned, M.truth_value,
+                )() is M.truth_value:
+                    count_text = GMPSuccText(count_text)()
+                rule_scan = M.Tail(rule_scan)()
+        self.result = M.Char(count_text)
+        super().__init__(
+            inputs=M.Pair(term, M.Pair(graph_version, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GapRankPriority(M.Edge):
+    """Depth rank of a gap type in the asking priority chain.
+
+    Deep structural gaps come first (they spawn further structure when
+    closed); leaf gaps follow (cheap to close). The priority order is
+    itself machine data -- this chain.
+    """
+
+    def __init__(self, gap):
+        priority_chain = M.Pair(
+            Lmod.UndefinedConceptLabel,
+            M.Pair(
+                Lmod.NoParentLabel,
+                M.Pair(
+                    Lmod.UngroundedModifierLabel,
+                    M.Pair(
+                        Lmod.NoUsageExampleLabel,
+                        M.Pair(
+                            Lmod.DanglingReferenceLabel,
+                            M.Pair(
+                                Lmod.MissingRenderLawLabel,
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        self.result = M.Char("9")
+        gap_head = M.EmptyList
+        if M.IsPair(gap)() is M.truth_value:
+            gap_head = M.Head(gap)()
+        position_text = "0"
+        chain_scan = priority_chain
+        while M.IdentityCompare(chain_scan, M.EmptyList)() is M.false_value:
+            if M.Compare(M.Head(chain_scan)(), gap_head)() is M.truth_value:
+                self.result = M.Char(position_text)
+                chain_scan = M.EmptyList
+            else:
+                position_text = GMPSuccText(position_text)()
+                chain_scan = M.Tail(chain_scan)()
+        super().__init__(inputs=M.Pair(gap, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RankGaps(M.Edge):
+    """Order open gaps by blast radius as inspectable machine data.
+
+    Ranking keys, in order: rule-mention count of the gap target
+    (descending), whether the target blocks the pending query goal,
+    then the gap-type depth priority, then detection order. The ranked
+    chain holds RankedGaps records and is built by chain insertion --
+    no host sort.
+    """
+
+    def __init__(self, gaps, goal, graph_version):
+        ranked = M.EmptyList
+        scan = gaps
+        while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+            gap = M.Head(scan)()
+            gap_target = GapTarget(gap)()
+            gap_count = RuleMentionCount(gap_target, graph_version)()
+            gap_count_text = gap_count()
+            gap_blocking = M.Char("no")
+            if M.IsPair(goal)() is M.truth_value:
+                if TermContains(goal, gap_target)() is M.truth_value:
+                    gap_blocking = M.Char("yes")
+            entry = M.Pair(
+                Lmod.RankedGapsLabel,
+                M.Pair(
+                    gap,
+                    M.Pair(gap_count, M.Pair(gap_blocking, M.EmptyList)),
+                ),
+            )
+            gap_priority_text = GapRankPriority(gap)()()
+            prefix_reversed = M.EmptyList
+            cursor = ranked
+            rest = M.EmptyList
+            placed = M.false_value
+            while M.IdentityCompare(
+                cursor, M.EmptyList,
+            )() is M.false_value:
+                if M.IdentityCompare(placed, M.truth_value)() is M.truth_value:
+                    cursor = M.EmptyList
+                else:
+                    existing = M.Head(cursor)()
+                    existing_gap = M.Head(M.Tail(existing)())()
+                    existing_count_text = (
+                        M.Head(M.Tail(M.Tail(existing)())())()
+                    )()
+                    existing_blocking = M.Head(
+                        M.Tail(M.Tail(M.Tail(existing)())())(),
+                    )()
+                    existing_priority_text = GapRankPriority(existing_gap)()()
+                    entry_first = M.false_value
+                    if GMPLessText(
+                        existing_count_text, gap_count_text,
+                    )() is M.truth_value:
+                        entry_first = M.truth_value
+                    elif GMPEqualText(
+                        existing_count_text, gap_count_text,
+                    )() is M.truth_value:
+                        if M.Compare(
+                            gap_blocking, M.Char("yes"),
+                        )() is M.truth_value:
+                            if M.Compare(
+                                existing_blocking, M.Char("yes"),
+                            )() is M.false_value:
+                                entry_first = M.truth_value
+                        if M.IdentityCompare(
+                            entry_first, M.false_value,
+                        )() is M.truth_value:
+                            if M.Compare(
+                                gap_blocking, existing_blocking,
+                            )() is M.truth_value:
+                                if GMPLessText(
+                                    gap_priority_text,
+                                    existing_priority_text,
+                                )() is M.truth_value:
+                                    entry_first = M.truth_value
+                    if M.IdentityCompare(
+                        entry_first, M.truth_value,
+                    )() is M.truth_value:
+                        placed = M.truth_value
+                        rest = cursor
+                        cursor = M.EmptyList
+                    else:
+                        prefix_reversed = M.Pair(
+                            existing, prefix_reversed,
+                        )
+                        cursor = M.Tail(cursor)()
+            chain = M.Pair(entry, rest)
+            while M.IdentityCompare(
+                prefix_reversed, M.EmptyList,
+            )() is M.false_value:
+                chain = M.Pair(M.Head(prefix_reversed)(), chain)
+                prefix_reversed = M.Tail(prefix_reversed)()
+            ranked = chain
+            scan = M.Tail(scan)()
+        self.result = ranked
+        super().__init__(
+            inputs=M.Pair(
+                gaps, M.Pair(goal, M.Pair(graph_version, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class MissingRenderLawKnown(M.Edge):
+    """Whether a MissingRenderLaw record already covers a gap type."""
+
+    def __init__(self, graph_version, gap_head):
+        self.result = M.false_value
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.Compare(
+                    node_head, Lmod.MissingRenderLawLabel,
+                )() is M.truth_value:
+                    recorded_head = M.Head(M.Tail(node)())()
+                    if M.Compare(recorded_head, gap_head)() is M.truth_value:
+                        self.result = M.truth_value
+                        agenda = M.EmptyList
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(gap_head, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallMissingRenderLaw(M.Edge):
+    """Record MissingRenderLaw(gap_type) for a gap with no render law."""
+
+    def __init__(self, graph_version, gap_head):
+        self.result = GraphVersion(
+            M.Pair(
+                M.Pair(
+                    Lmod.MissingRenderLawLabel,
+                    M.Pair(gap_head, M.EmptyList),
+                ),
+                GraphNodes(graph_version)(),
+            ),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(gap_head, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallRankGaps(M.Edge):
+    """Store one ranked-gap chain in the learned graph for inspection."""
+
+    def __init__(self, graph_version, ranked):
+        self.result = GraphVersion(
+            M.Pair(
+                M.Pair(Lmod.RankedGapsLabel, M.Pair(ranked, M.EmptyList)),
+                GraphNodes(graph_version)(),
+            ),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(ranked, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class AskedQuestion(M.Edge):
+    """A gap question the machine asked, with its render law name."""
+
+    def __init__(self, gap, surface, law_name):
+        self.result = M.Pair(
+            Lmod.AskedQuestionLabel,
+            M.Pair(gap, M.Pair(surface, M.Pair(law_name, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                gap, M.Pair(surface, M.Pair(law_name, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallAskedQuestion(M.Edge):
+    """Persist one asked-question record in the learned graph."""
+
+    def __init__(self, graph_version, record):
+        self.result = GraphVersion(
+            M.Pair(record, GraphNodes(graph_version)()),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(record, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledAskedQuestions(M.Edge):
+    """Recover every asked-question record from the learned graph."""
+
+    def __init__(self, graph_version):
+        reversed_records = M.EmptyList
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.IsPair(node_head)() is M.truth_value:
+                    nested = node
+                    while M.IdentityCompare(
+                        nested, M.EmptyList,
+                    )() is M.false_value:
+                        agenda = M.Pair(M.Head(nested)(), agenda)
+                        nested = M.Tail(nested)()
+                elif M.Compare(
+                    node_head, Lmod.AskedQuestionLabel,
+                )() is M.truth_value:
+                    reversed_records = M.Pair(node, reversed_records)
+        self.result = M.Reverse(reversed_records)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RenderAcknowledgement(M.Edge):
+    """Render an acknowledgement through the acknowledgement render law.
+
+    The utterance is produced by a correspondence law from an
+    Acknowledged meaning term -- no host string is the machine's voice.
+    """
+
+    def __init__(self, term):
+        var_t = M.Pair(M.VarTag, M.Pair(M.Char("?t"), M.EmptyList))
+        pattern = M.Pair(
+            Lmod.AcknowledgedLabel,
+            M.Pair(var_t, M.EmptyList),
+        )
+        template = M.Pair(
+            Lmod.SurfaceLabel,
+            M.Pair(
+                M.Pair(M.Char("noted"), M.Pair(M.Char("."), M.EmptyList)),
+                M.EmptyList,
+            ),
+        )
+        law = CompileRuleToLaw(P.Rule(pattern, template))()
+        meaning = M.Pair(
+            Lmod.AcknowledgedLabel,
+            M.Pair(term, M.EmptyList),
+        )
+        self.result = CorrespondenceApply(law, meaning)()
+        super().__init__(
+            inputs=M.Pair(term, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GapLawName(M.Edge):
+    """The inspectable name of the render law that rendered a question."""
+
+    def __init__(self, law):
+        self.result = M.Char("unknown")
+        law_scan = GapRenderLaws()()
+        position_text = "0"
+        while M.IdentityCompare(law_scan, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(
+                M.Head(law_scan)(), law,
+            )() is M.truth_value:
+                if GMPEqualText(position_text, "0")() is M.truth_value:
+                    self.result = M.Char("what-is")
+                elif GMPEqualText(position_text, "1")() is M.truth_value:
+                    self.result = M.Char("define")
+                elif GMPEqualText(position_text, "2")() is M.truth_value:
+                    self.result = M.Char("usage-example")
+                law_scan = M.EmptyList
+            else:
+                position_text = GMPSuccText(position_text)()
+                law_scan = M.Tail(law_scan)()
+        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InspectGaps(M.Edge):
+    """One full gap inspection turn over the learned graph.
+
+    Refreshes pending gaps: an open gap with no render law is recorded
+    as MissingRenderLaw and stays silent -- it does not block the
+    queue; an answerable gap stays pending. When nothing renderable
+    remains pending, the vocabulary is re-inspected and only gaps in
+    the neighborhood of the just-taught term -- the gap target occurs
+    inside it -- enter the queue. The refreshed gaps are ranked by
+    blast radius into an inspectable ranked chain stored in the graph,
+    and the first renderable ranked gap becomes the question to ask.
+    """
+
+    def __init__(self, pending_gaps, goal, graph_version, taught_term):
+        version = graph_version
+        kept_reversed = M.EmptyList
+        pending_scan = pending_gaps
+        while M.IdentityCompare(
+            pending_scan, M.EmptyList,
+        )() is M.false_value:
+            gap = M.Head(pending_scan)()
+            if M.IdentityCompare(
+                GapOpen(gap, version)(), M.truth_value,
+            )() is M.truth_value:
+                rendered_gap = RenderGapQuestion(gap)()
+                if M.IdentityCompare(
+                    rendered_gap, M.EmptyList,
+                )() is M.false_value:
+                    kept_reversed = M.Pair(gap, kept_reversed)
+                else:
+                    gap_head = M.EmptyList
+                    if M.IsPair(gap)() is M.truth_value:
+                        gap_head = M.Head(gap)()
+                    if M.IdentityCompare(
+                        MissingRenderLawKnown(version, gap_head)(),
+                        M.truth_value,
+                    )() is M.false_value:
+                        version = InstallMissingRenderLaw(
+                            version, gap_head,
+                        )()
+            pending_scan = M.Tail(pending_scan)()
+        open_gaps = M.Reverse(kept_reversed)()
+        if M.IdentityCompare(open_gaps, M.EmptyList)() is M.truth_value:
+            detected_gaps = DetectVocabularyGaps(version)()
+            detect_scan = detected_gaps
+            detected_reversed = M.EmptyList
+            while M.IdentityCompare(
+                detect_scan, M.EmptyList,
+            )() is M.false_value:
+                gap = M.Head(detect_scan)()
+                version = InstallGap(version, gap)()
+                if TermContains(
+                    taught_term, GapTarget(gap)(),
+                )() is M.truth_value:
+                    rendered_gap = RenderGapQuestion(gap)()
+                    if M.IdentityCompare(
+                        rendered_gap, M.EmptyList,
+                    )() is M.false_value:
+                        detected_reversed = M.Pair(gap, detected_reversed)
+                    else:
+                        gap_head = M.EmptyList
+                        if M.IsPair(gap)() is M.truth_value:
+                            gap_head = M.Head(gap)()
+                        if M.IdentityCompare(
+                            MissingRenderLawKnown(version, gap_head)(),
+                            M.truth_value,
+                        )() is M.false_value:
+                            version = InstallMissingRenderLaw(
+                                version, gap_head,
+                            )()
+                detect_scan = M.Tail(detect_scan)()
+            open_gaps = M.Reverse(detected_reversed)()
+        ranked = RankGaps(open_gaps, goal, version)()
+        version = InstallRankGaps(version, ranked)()
+        ask = M.EmptyList
+        ranked_scan = ranked
+        while M.IdentityCompare(
+            ranked_scan, M.EmptyList,
+        )() is M.false_value:
+            if M.IdentityCompare(ask, M.EmptyList)() is M.false_value:
+                ranked_scan = M.EmptyList
+            else:
+                ranked_record = M.Head(ranked_scan)()
+                gap = M.Head(M.Tail(ranked_record)())()
+                rendered_gap = RenderGapQuestion(gap)()
+                if M.IdentityCompare(
+                    rendered_gap, M.EmptyList,
+                )() is M.false_value:
+                    ask = M.Pair(
+                        M.Head(rendered_gap)(),
+                        M.Pair(
+                            gap,
+                            M.Pair(
+                                GapLawName(
+                                    M.Head(M.Tail(rendered_gap)())(),
+                                )(),
+                                M.EmptyList,
+                            ),
+                        ),
+                    )
+                ranked_scan = M.Tail(ranked_scan)()
+        self.result = M.Pair(
+            version,
+            M.Pair(
+                open_gaps,
+                M.Pair(ranked, M.Pair(ask, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                pending_gaps,
+                M.Pair(
+                    goal,
+                    M.Pair(
+                        graph_version,
+                        M.Pair(taught_term, M.EmptyList),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationTree(M.Edge):
+    """Expand one rule firing into a premise derivation tree.
+
+    Each premise that was itself derived by a taught rule gets its own
+    subtree; taught facts stay leaves. Depth is bounded by a machine
+    counter, though firing provenance is acyclic by construction.
+    """
+
+    def __init__(self, derivation, graph_version, depth_text):
+        children_reversed = M.EmptyList
+        if GMPEqualText(depth_text, "50")() is M.false_value:
+            all_derivations = InstalledTaughtDerivations(graph_version)()
+            premise_scan = DerivationPremises(derivation)()
+            while M.IdentityCompare(
+                premise_scan, M.EmptyList,
+            )() is M.false_value:
+                premise = M.Head(premise_scan)()
+                derivation_scan = all_derivations
+                premise_derivation = M.EmptyList
+                while M.IdentityCompare(
+                    derivation_scan, M.EmptyList,
+                )() is M.false_value:
+                    candidate = M.Head(derivation_scan)()
+                    if M.Compare(
+                        DerivationDerived(candidate)(), premise,
+                    )() is M.truth_value:
+                        premise_derivation = candidate
+                        derivation_scan = M.EmptyList
+                    else:
+                        derivation_scan = M.Tail(derivation_scan)()
+                if M.IdentityCompare(
+                    premise_derivation, M.EmptyList,
+                )() is M.false_value:
+                    children_reversed = M.Pair(
+                        DerivationTree(
+                            premise_derivation,
+                            graph_version,
+                            GMPSuccText(depth_text)(),
+                        )(),
+                        children_reversed,
+                    )
+                premise_scan = M.Tail(premise_scan)()
+        self.result = M.Pair(
+            M.Char("derivation-tree"),
+            M.Pair(
+                derivation,
+                M.Pair(M.Reverse(children_reversed)(), M.EmptyList),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                derivation,
+                M.Pair(
+                    graph_version,
+                    M.Pair(depth_text, M.EmptyList),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationTreeText(M.Edge):
+    """Display text for one derivation tree, expanded recursively."""
+
+    def __init__(self, tree):
+        derivation = M.Head(M.Tail(tree)())()
+        children = M.Head(M.Tail(M.Tail(tree)())())()
+        text = (
+            M.PrettyTerm(DerivationDerived(derivation)(), M.AllConstructors)()
+            + " was derived by "
+            + P.PrettyRule(
+                DerivationRule(derivation)(), M.AllConstructors,
+            )()
+            + " from "
+            + M.PrettyTerm(
+                DerivationPremises(derivation)(), M.AllConstructors,
+            )()
+        )
+        child_scan = children
+        while M.IdentityCompare(child_scan, M.EmptyList)() is M.false_value:
+            text = text + "; " + DerivationTreeText(M.Head(child_scan)())()
+            child_scan = M.Tail(child_scan)()
+        self.result = text
+        super().__init__(inputs=M.Pair(tree, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result

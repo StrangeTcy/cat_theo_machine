@@ -138,6 +138,9 @@ from .labels import (
     NoParentLabel,
     DanglingReferenceLabel,
     MissingRenderLawLabel,
+    RankedGapsLabel,
+    AskedQuestionLabel,
+    AcknowledgedLabel,
 )
 from .logic import false_value, truth_value
 from .math.peano import NatEq, NatRepOf
@@ -914,6 +917,12 @@ class PrettyTerm(Edge):
             return "DanglingReference(" + self._show_args(tail) + ")"
         if IdentityCompare(head, MissingRenderLawLabel)() is truth_value:
             return "MissingRenderLaw(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, RankedGapsLabel)() is truth_value:
+            return "RankedGaps(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, AskedQuestionLabel)() is truth_value:
+            return "AskedQuestion(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, AcknowledgedLabel)() is truth_value:
+            return "Acknowledged(" + self._show_args(tail) + ")"
         if IdentityCompare(head, MachineContextLabel)() is truth_value:
             return "Context(...)"
         return None

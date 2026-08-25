@@ -1292,10 +1292,6 @@ def run_talk_mode(sentence: str = None):
     pending_queue = M.EmptyList
     pending_rule = M.EmptyList
     pending_gaps = M.EmptyList
-    asked_questions = M.EmptyList
-    last_asked_gap = M.EmptyList
-    last_asked_law = M.EmptyList
-    last_asked_surface = M.EmptyList
     pending_bridge = M.EmptyList
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
@@ -2708,6 +2704,7 @@ def run_talk_mode(sentence: str = None):
 
     def _handle_decision(line, record=True):
         nonlocal proposal_store, learned_version, decided_laws, pending_queue, pending_rule
+        nonlocal pending_gaps
         if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
             decided_proposal = pending_rule
             pending_rule = M.EmptyList
@@ -2775,6 +2772,43 @@ def run_talk_mode(sentence: str = None):
                     return _render_refusal(refusal)
                 learned_version = installed_version
                 _extend_vocabulary()
+                rule_origin = G.ProposalOrigin(decided_proposal)()
+                taught_rule_terms = M.EmptyList
+                if M.IsPair(rule_origin)() is M.truth_value:
+                    taught_rule_terms = M.Pair(
+                        M.Head(M.Tail(rule_origin)())(),
+                        M.Pair(
+                            M.Head(M.Tail(M.Tail(rule_origin)())())(),
+                            M.EmptyList,
+                        ),
+                    )
+                inspection = G.InspectGaps(
+                    pending_gaps,
+                    last_goal,
+                    learned_version,
+                    taught_rule_terms,
+                )()
+                learned_version = M.Head(inspection)()
+                pending_gaps = M.Head(M.Tail(inspection)())()
+                gap_ask = M.Head(
+                    M.Tail(M.Tail(M.Tail(inspection)())())(),
+                )()
+                if M.IdentityCompare(gap_ask, M.EmptyList)() is M.false_value:
+                    learned_version = G.InstallAskedQuestion(
+                        learned_version,
+                        G.AskedQuestion(
+                            M.Head(M.Tail(gap_ask)())(),
+                            M.Head(gap_ask)(),
+                            M.Head(M.Tail(M.Tail(gap_ask)())())(),
+                        )(),
+                    )()
+                    _persist_talk_state()
+                    return (
+                        "Recorded and activated. "
+                        + _speak_chain(
+                            M.Head(M.Tail(M.Head(gap_ask)())())(),
+                        )
+                    )
                 _persist_talk_state()
                 return (
                     "Recorded and activated. The deduction is now installed "
@@ -2962,7 +2996,7 @@ def run_talk_mode(sentence: str = None):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
         nonlocal pending_rule, learned_version, proposal_store
-        nonlocal pending_gaps, asked_questions, last_asked_gap, last_asked_law, last_asked_surface
+        nonlocal pending_gaps
         lowered = line.lower()
         if lowered.startswith("word:"):
             parsed_word = G.ParseWordText(
@@ -2971,6 +3005,7 @@ def run_talk_mode(sentence: str = None):
                 reading_digits,
             )()
             word_facts = M.Head(parsed_word)()
+            taught_terms = word_facts
             word_reason = M.Head(M.Tail(parsed_word)())()
             if M.IdentityCompare(word_facts, M.EmptyList)() is M.truth_value:
                 detail = M.EmptyList
@@ -2988,49 +3023,38 @@ def run_talk_mode(sentence: str = None):
                 word_facts = M.Tail(word_facts)()
             if record:
                 _log_lesson(line)
-            open_reversed = M.EmptyList
-            gap_scan = pending_gaps
-            while M.IdentityCompare(gap_scan, M.EmptyList)() is M.false_value:
-                gap = M.Head(gap_scan)()
-                if M.IdentityCompare(
-                    G.GapOpen(gap, learned_version)(),
-                    M.truth_value,
-                )() is M.truth_value:
-                    open_reversed = M.Pair(gap, open_reversed)
-                gap_scan = M.Tail(gap_scan)()
-            pending_gaps = M.Reverse(open_reversed)()
-            if M.IdentityCompare(pending_gaps, M.EmptyList)() is M.truth_value:
-                detected_gaps = G.DetectVocabularyGaps(learned_version)()
-                pending_gaps = detected_gaps
-                gap_scan = detected_gaps
-                while M.IdentityCompare(gap_scan, M.EmptyList)() is M.false_value:
-                    learned_version = G.InstallGap(
-                        learned_version,
-                        M.Head(gap_scan)(),
-                    )()
-                    gap_scan = M.Tail(gap_scan)()
-            _persist_talk_state()
-            if M.IdentityCompare(pending_gaps, M.EmptyList)() is M.false_value:
-                rendered_gap = G.RenderGapQuestion(
-                    M.Head(pending_gaps)(),
+            inspection = G.InspectGaps(
+                pending_gaps,
+                last_goal,
+                learned_version,
+                taught_terms,
+            )()
+            learned_version = M.Head(inspection)()
+            pending_gaps = M.Head(M.Tail(inspection)())()
+            gap_ask = M.Head(
+                M.Tail(M.Tail(M.Tail(inspection)())())(),
+            )()
+            if M.IdentityCompare(gap_ask, M.EmptyList)() is M.false_value:
+                learned_version = G.InstallAskedQuestion(
+                    learned_version,
+                    G.AskedQuestion(
+                        M.Head(M.Tail(gap_ask)())(),
+                        M.Head(gap_ask)(),
+                        M.Head(M.Tail(M.Tail(gap_ask)())())(),
+                    )(),
                 )()
-                if M.IdentityCompare(rendered_gap, M.EmptyList)() is M.false_value:
-                    last_asked_gap = M.Head(pending_gaps)()
-                    last_asked_surface = M.Head(rendered_gap)()
-                    last_asked_law = M.Head(M.Tail(rendered_gap)())()
-                    asked_questions = M.Pair(
-                        M.Pair(
-                            last_asked_gap,
-                            M.Pair(
-                                last_asked_surface,
-                                M.Pair(last_asked_law, M.EmptyList),
-                            ),
-                        ),
-                        asked_questions,
-                    )
-                    return _speak_chain(
-                        M.Head(M.Tail(last_asked_surface)())(),
-                    )
+                _persist_talk_state()
+                return _speak_chain(
+                    M.Head(M.Tail(M.Head(gap_ask)())())(),
+                )
+            _persist_talk_state()
+            acknowledged = G.RenderAcknowledgement(
+                M.Head(M.Tail(M.Head(M.Head(parsed_word)())())())(),
+            )()
+            if M.IdentityCompare(acknowledged, M.EmptyList)() is M.false_value:
+                return _speak_chain(
+                    M.Head(M.Tail(acknowledged)())(),
+                )
             return "Recorded word grounding: " + line[5:].strip()
         if lowered.startswith("query:"):
             known_constructors = G.RuleConstructors(
@@ -3332,39 +3356,36 @@ def run_talk_mode(sentence: str = None):
             learned_version = M.Head(installed_fact)()
             if record:
                 _log_lesson(line)
-            open_reversed = M.EmptyList
-            gap_scan = pending_gaps
-            while M.IdentityCompare(gap_scan, M.EmptyList)() is M.false_value:
-                gap = M.Head(gap_scan)()
-                if M.IdentityCompare(
-                    G.GapOpen(gap, learned_version)(),
-                    M.truth_value,
-                )() is M.truth_value:
-                    open_reversed = M.Pair(gap, open_reversed)
-                gap_scan = M.Tail(gap_scan)()
-            pending_gaps = M.Reverse(open_reversed)()
-            _persist_talk_state()
-            if M.IdentityCompare(pending_gaps, M.EmptyList)() is M.false_value:
-                rendered_gap = G.RenderGapQuestion(
-                    M.Head(pending_gaps)(),
+            inspection = G.InspectGaps(
+                pending_gaps,
+                last_goal,
+                learned_version,
+                fact,
+            )()
+            learned_version = M.Head(inspection)()
+            pending_gaps = M.Head(M.Tail(inspection)())()
+            gap_ask = M.Head(
+                M.Tail(M.Tail(M.Tail(inspection)())())(),
+            )()
+            if M.IdentityCompare(gap_ask, M.EmptyList)() is M.false_value:
+                learned_version = G.InstallAskedQuestion(
+                    learned_version,
+                    G.AskedQuestion(
+                        M.Head(M.Tail(gap_ask)())(),
+                        M.Head(gap_ask)(),
+                        M.Head(M.Tail(M.Tail(gap_ask)())())(),
+                    )(),
                 )()
-                if M.IdentityCompare(rendered_gap, M.EmptyList)() is M.false_value:
-                    last_asked_gap = M.Head(pending_gaps)()
-                    last_asked_surface = M.Head(rendered_gap)()
-                    last_asked_law = M.Head(M.Tail(rendered_gap)())()
-                    asked_questions = M.Pair(
-                        M.Pair(
-                            last_asked_gap,
-                            M.Pair(
-                                last_asked_surface,
-                                M.Pair(last_asked_law, M.EmptyList),
-                            ),
-                        ),
-                        asked_questions,
-                    )
-                    return _speak_chain(
-                        M.Head(M.Tail(last_asked_surface)())(),
-                    )
+                _persist_talk_state()
+                return _speak_chain(
+                    M.Head(M.Tail(M.Head(gap_ask)())())(),
+                )
+            _persist_talk_state()
+            acknowledged = G.RenderAcknowledgement(fact)()
+            if M.IdentityCompare(acknowledged, M.EmptyList)() is M.false_value:
+                return _speak_chain(
+                    M.Head(M.Tail(acknowledged)())(),
+                )
             return "Recorded fact: " + line[5:].strip()
         if lowered.startswith("rule:"):
             if M.IdentityCompare(
@@ -3522,17 +3543,19 @@ def run_talk_mode(sentence: str = None):
         if lowered.startswith("why:"):
             asked_text = line[4:].strip()
             asked_surface = G.Surface(_words(asked_text))()
-            asked_scan = asked_questions
+            asked_scan = G.InstalledAskedQuestions(learned_version)()
             asked_gap = M.EmptyList
             asked_law = M.EmptyList
             while M.IdentityCompare(
                 asked_scan, M.EmptyList,
             )() is M.false_value:
                 asked_entry = M.Head(asked_scan)()
-                asked_gap_candidate = M.Head(asked_entry)()
-                asked_surface_entry = M.Head(M.Tail(asked_entry)())()
-                asked_law_entry = M.Head(
+                asked_gap_candidate = M.Head(M.Tail(asked_entry)())()
+                asked_surface_entry = M.Head(
                     M.Tail(M.Tail(asked_entry)())(),
+                )()
+                asked_law_entry = M.Head(
+                    M.Tail(M.Tail(M.Tail(asked_entry)())())(),
                 )()
                 asked_chain = M.Head(M.Tail(asked_surface_entry)())()
                 asked_normalized = G.Surface(
@@ -3660,18 +3683,13 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(
                 why_derivation, M.EmptyList,
             )() is M.false_value:
+                derivation_tree = G.DerivationTree(
+                    why_derivation,
+                    learned_version,
+                    "0",
+                )()
                 return (
-                    "because " + line[4:].strip()
-                    + " was derived by "
-                    + P.PrettyRule(
-                        G.DerivationRule(why_derivation)(),
-                        M.AllConstructors,
-                    )()
-                    + " from "
-                    + M.PrettyTerm(
-                        G.DerivationPremises(why_derivation)(),
-                        M.AllConstructors,
-                    )()
+                    "because " + G.DerivationTreeText(derivation_tree)()
                 )
             return "There is no recorded derivation for " + line[4:].strip() + "."
         if lowered.strip() in ("why", "why?", "explain", "explain?"):

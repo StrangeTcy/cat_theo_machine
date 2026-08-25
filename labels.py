@@ -2554,6 +2554,18 @@ class MissingRenderLawLabel(ConstructorLabel):
     pass
 
 
+class RankedGapsLabel(ConstructorLabel):
+    pass
+
+
+class AskedQuestionLabel(ConstructorLabel):
+    pass
+
+
+class AcknowledgedLabel(ConstructorLabel):
+    pass
+
+
 class ConceptCausesLabel(ConstructorLabel):
     pass
 
@@ -2641,6 +2653,9 @@ NoUsageExampleLabel = NoUsageExampleLabel()
 NoParentLabel = NoParentLabel()
 DanglingReferenceLabel = DanglingReferenceLabel()
 MissingRenderLawLabel = MissingRenderLawLabel()
+RankedGapsLabel = RankedGapsLabel()
+AskedQuestionLabel = AskedQuestionLabel()
+AcknowledgedLabel = AcknowledgedLabel()
 ConceptCausesLabel = ConceptCausesLabel()
 ResponsibilityRoleLabel = ResponsibilityRoleLabel()
 WearableObjectLabel = WearableObjectLabel()
