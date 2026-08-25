@@ -20,6 +20,20 @@ from .search.model import (
     SearchStateCursor,
 )
 
+from .language import (
+    Apart, Fire, GraphVersion, GraphVersionEdges, GraphVersionInvariants,
+    GraphVersionNodes, Law, LawInterface, LawKToLeft, LawKToRight, LawLeft,
+    LawObligations, LawRight, Map, Next, Send, SendHost, SendPat,
+)
+from .grammar import EdgeArity, EdgeEndpoints, IsGraphVersion, IsLaw, IsSend
+from .firing import (
+    FiringRecord, FiringRecordEdgesAfter, FiringRecordEdgesBefore, FiringRecordG0,
+    FiringRecordG1, FiringRecordLaw, FiringRecordNodesAfter,
+    FiringRecordNodesBefore, FiringRecordTrace, FiringRecordTraceSteps,
+)
+from .mining import MineNatFromGMPRep, MineNatSuccessor
+from .deduction import DeductionPlan, DeltaAgenda, IndexedFiring
+
 
 class Hypergraph:
     def __init__(self, constructor_registry, rep_label=M.HypergraphLabel, rep_args=None):
@@ -302,52 +316,10 @@ class Boundary(M.Edge):
         return self.result
 
 
-class Map(M.Edge):
-    def __init__(self, pattern_graph, host_graph, root):
-        self.result = M.Pair(Lmod.MapLabel, M.Pair(pattern_graph, M.Pair(host_graph, M.Pair(root, M.EmptyList))))
-        super().__init__(inputs=M.Pair(pattern_graph, M.Pair(host_graph, M.Pair(root, M.EmptyList))), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Send(M.Edge):
-    def __init__(self, pat, host):
-        self.result = M.Pair(Lmod.SendLabel, M.Pair(pat, M.Pair(host, M.EmptyList)))
-        super().__init__(inputs=M.Pair(pat, M.Pair(host, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Apart(M.Edge):
-    def __init__(self, left, right):
-        self.result = M.Pair(Lmod.ApartLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
-        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
 class Miss(M.Edge):
     def __init__(self, pat, reason):
         self.result = M.Pair(Lmod.MissLabel, M.Pair(pat, M.Pair(reason, M.EmptyList)))
         super().__init__(inputs=M.Pair(pat, M.Pair(reason, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Law(M.Edge):
-    def __init__(self, left, interface, right, k_to_left_map, k_to_right_map, obligations):
-        self.result = M.Pair(
-            Lmod.LawLabel,
-            M.Pair(left, M.Pair(interface, M.Pair(right, M.Pair(k_to_left_map, M.Pair(k_to_right_map, M.Pair(obligations, M.EmptyList))))))
-        )
-        super().__init__(
-            inputs=M.Pair(left, M.Pair(interface, M.Pair(right, M.Pair(k_to_left_map, M.Pair(k_to_right_map, M.Pair(obligations, M.EmptyList)))))),
-            results=self.result
-        )
 
     def __call__(self):
         return self.result
@@ -1400,82 +1372,6 @@ class CheckObligationUnchecked(M.Edge):
         return self.result
 
 
-class Fire(M.Edge):
-    def __init__(self, law, mapping):
-        self.result = M.Pair(Lmod.FireLabel, M.Pair(law, M.Pair(mapping, M.EmptyList)))
-        super().__init__(inputs=M.Pair(law, M.Pair(mapping, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Next(M.Edge):
-    def __init__(self, g0, fire, g1):
-        self.result = M.Pair(Lmod.NextLabel, M.Pair(g0, M.Pair(fire, M.Pair(g1, M.EmptyList))))
-        super().__init__(inputs=M.Pair(g0, M.Pair(fire, M.Pair(g1, M.EmptyList))), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class GraphVersion(M.Edge):
-    def __init__(self, node_store, edge_store, invariant_store):
-        self.node_store = node_store
-        self.edge_store = edge_store
-        self.invariant_store = invariant_store
-        self.result = M.Pair(
-            Lmod.GraphVersionLabel,
-            M.Pair(node_store, M.Pair(edge_store, M.Pair(invariant_store, M.EmptyList)))
-        )
-        super().__init__(
-            inputs=M.Pair(node_store, M.Pair(edge_store, M.Pair(invariant_store, M.EmptyList))),
-            results=self.result
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class IsGraphVersion(M.Edge):
-    def __init__(self, graph):
-        atom_result = M.false_value
-        if M.IsPair(graph)() is M.truth_value:
-            if M.TermEqual(M.Head(graph)(), Lmod.GraphVersionLabel)() is M.truth_value:
-                atom_result = M.truth_value
-        self.result = atom_result
-        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class GraphVersionNodes(M.Edge):
-    def __init__(self, graph):
-        self.result = M.Head(M.Tail(graph)())()
-        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class GraphVersionEdges(M.Edge):
-    def __init__(self, graph):
-        self.result = M.Head(M.Tail(M.Tail(graph)())())()
-        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class GraphVersionInvariants(M.Edge):
-    def __init__(self, graph):
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(graph)())())())()
-        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
 class GraphNodes(M.Edge):
     """
     The one canonical way to read a graph's node store.
@@ -1533,37 +1429,6 @@ class GraphEdges(M.Edge):
         return self.result
 
 
-class IsSend(M.Edge):
-    def __init__(self, term):
-        atom_result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(M.Head(term)(), Lmod.SendLabel)() is M.truth_value:
-                atom_result = M.truth_value
-        self.result = atom_result
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class SendPat(M.Edge):
-    def __init__(self, term):
-        self.result = M.Head(M.Tail(term)())()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class SendHost(M.Edge):
-    def __init__(self, term):
-        self.result = M.Head(M.Tail(M.Tail(term)())())()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
 class MappedHostForPat(M.Edge):
     """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList).
 
@@ -1598,20 +1463,6 @@ class MappedHostForPat(M.Edge):
                         return M.Pair(M.truth_value, SendHost(item)())
             remaining = M.Tail(remaining)()
         return M.Pair(M.false_value, M.EmptyList)
-
-    def __call__(self):
-        return self.result
-
-
-class EdgeEndpoints(M.Edge):
-    """The ordered endpoint chain an edge term references."""
-
-    def __init__(self, edge_term):
-        atom_result = M.EmptyList
-        if M.IsPair(edge_term)() is M.truth_value:
-            atom_result = M.Tail(edge_term)()
-        self.result = atom_result
-        super().__init__(inputs=M.Pair(edge_term, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -1730,60 +1581,6 @@ class IsLawTerm(M.Edge):
                 atom_result = M.truth_value
         self.result = atom_result
         super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class LawLeft(M.Edge):
-    def __init__(self, law):
-        self.result = M.Head(M.Tail(law)())()
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class LawInterface(M.Edge):
-    def __init__(self, law):
-        self.result = M.Head(M.Tail(M.Tail(law)())())()
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class LawRight(M.Edge):
-    def __init__(self, law):
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(law)())())())()
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class LawKToLeft(M.Edge):
-    def __init__(self, law):
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())()
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class LawKToRight(M.Edge):
-    def __init__(self, law):
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())()
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class LawObligations(M.Edge):
-    def __init__(self, law):
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())())()
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -4640,207 +4437,6 @@ class SaturateLaws(M.Edge):
         return self.result
 
 
-class FiringRecord(M.Edge):
-    """A committed firing together with its exact graph and trace counts."""
-
-    def __init__(
-        self,
-        law,
-        g0,
-        g1,
-        trace,
-        nodes_before,
-        nodes_after,
-        edges_before,
-        edges_after,
-        trace_steps,
-    ):
-        self.result = M.Pair(
-            Lmod.FiringRecordLabel,
-            M.Pair(
-                law,
-                M.Pair(
-                    g0,
-                    M.Pair(
-                        g1,
-                        M.Pair(
-                            trace,
-                            M.Pair(
-                                nodes_before,
-                                M.Pair(
-                                    nodes_after,
-                                    M.Pair(
-                                        edges_before,
-                                        M.Pair(
-                                            edges_after,
-                                            M.Pair(trace_steps, M.EmptyList),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        super().__init__(
-            inputs=M.Pair(
-                law,
-                M.Pair(
-                    g0,
-                    M.Pair(
-                        g1,
-                        M.Pair(
-                            trace,
-                            M.Pair(
-                                nodes_before,
-                                M.Pair(
-                                    nodes_after,
-                                    M.Pair(
-                                        edges_before,
-                                        M.Pair(
-                                            edges_after,
-                                            M.Pair(trace_steps, M.EmptyList),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordLaw(M.Edge):
-    def __init__(self, record):
-        self.result = M.Head(M.Tail(record)())()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordG0(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordG1(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordTrace(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordNodesBefore(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordNodesAfter(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordEdgesBefore(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordEdgesAfter(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class FiringRecordTraceSteps(M.Edge):
-    def __init__(self, record):
-        args = M.Tail(record)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        args = M.Tail(args)()
-        self.result = M.Head(args)()
-        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
 class SignedRational(M.Edge):
     """Exact signed rational (positive_total - negative_total) / samples."""
 
@@ -7341,36 +6937,6 @@ class PatternCensus(M.Edge):
 MINE_CANDIDATE_CAP = M.GMPRep("200")
 
 
-class MineNatFromGMPRep(M.Edge):
-    """Convert a GMP machine value to a cached machine Nat."""
-
-    def __init__(self, rep):
-        result = M.Atom()
-        result.value = rep
-        self.result = result
-        super().__init__(inputs=M.Pair(rep, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class MineNatSuccessor(M.Edge):
-    """Increment a mining Nat without materializing a deep successor key."""
-
-    def __init__(self, number, registry):
-        rep = M.NatRepOf(number, registry)()
-        next_text = GMPSuccText(M.GMPRepText(rep)())()
-        successor = MineNatFromGMPRep(M.GMPRep(next_text))()
-        self.result = M.Pair(successor, M.Pair(registry, M.EmptyList))
-        super().__init__(
-            inputs=M.Pair(number, M.Pair(registry, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
 class MineNatAdd(M.Edge):
     """Add mining Nats while retaining their bounded cached representation."""
 
@@ -8701,84 +8267,6 @@ class IndexSpec(M.Edge):
         )
         super().__init__(
             inputs=M.Pair(relation, M.Pair(keys, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class DeductionPlan(M.Edge):
-    """The execution certificate for one trigger position of a law.
-
-    Pair(DeductionPlanLabel, Pair(law, Pair(trigger, Pair(lookups,
-    Pair(conclusion, EmptyList))))). The law stays the authoritative
-    statement; the plan says which premise the delta arrives on, which
-    declared indexes the other premises are answered from, and what
-    relation the conclusion carries. One plan exists per premise
-    position the engine executes; PlansByTriggerRelation holds them by
-    trigger label.
-    """
-
-    def __init__(self, law, trigger, lookups, conclusion):
-        self.result = M.Pair(
-            Lmod.DeductionPlanLabel,
-            M.Pair(
-                law,
-                M.Pair(trigger, M.Pair(lookups, M.Pair(conclusion, M.EmptyList))),
-            ),
-        )
-        super().__init__(
-            inputs=M.Pair(
-                law,
-                M.Pair(trigger, M.Pair(lookups, M.Pair(conclusion, M.EmptyList))),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class DeltaAgenda(M.Edge):
-    """The pending delta facts. Empty is quiescence."""
-
-    def __init__(self, facts):
-        self.result = M.Pair(Lmod.DeltaAgendaLabel, M.Pair(facts, M.EmptyList))
-        super().__init__(inputs=M.Pair(facts, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class IndexedFiring(M.Edge):
-    """One firing of a law by index: its premises and its conclusion.
-
-    Pair(IndexedFiringLabel, Pair(law, Pair(premises, Pair(bindings,
-    Pair(conclusion, EmptyList))))). The bindings slot stays empty until
-    templates carry variables; every join here is by identity, so there
-    is nothing else to record yet.
-    """
-
-    def __init__(self, law, premises, bindings, conclusion):
-        self.result = M.Pair(
-            Lmod.IndexedFiringLabel,
-            M.Pair(
-                law,
-                M.Pair(
-                    premises,
-                    M.Pair(bindings, M.Pair(conclusion, M.EmptyList)),
-                ),
-            ),
-        )
-        super().__init__(
-            inputs=M.Pair(
-                law,
-                M.Pair(
-                    premises,
-                    M.Pair(bindings, M.Pair(conclusion, M.EmptyList)),
-                ),
-            ),
             results=self.result,
         )
 
@@ -11709,6 +11197,7 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         e2_meaning = _task_meaning("e2")
         coins_meaning = _task_meaning("coins")
         sqrt_meaning = _task_meaning("sqrt")
+        mystery_meaning = _task_meaning("mystery")
 
         templates = M.Pair(
             CompileRuleToLaw(P.Rule(with_body, counted_meaning))(),
@@ -11804,7 +11293,14 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                                                                             "roots", "are",
                                                                             "real",
                                                                         ),
-                                                                        empty,
+                                                                        M.Pair(
+                                                                            _task_law(
+                                                                                mystery_meaning,
+                                                                                "solve", "the",
+                                                                                "mystery",
+                                                                            ),
+                                                                            empty,
+                                                                        ),
                                                                     ),
                                                                 ),
                                                             ),
