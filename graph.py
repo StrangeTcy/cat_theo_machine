@@ -16386,6 +16386,52 @@ class Divides(M.Edge):
         return self.result
 
 
+class ForAll(M.Edge):
+    """ForAll(variable, body): the universal statement shape.
+
+    Pair(ForAllLabel, Pair(variable, Pair(body, EmptyList))). The
+    variable is the bound nat the body ranges over. The extensional
+    equivalence of the two learned sieves is stated in this shape and
+    discharged by induction (planner.Induction); the statement rides
+    the knowledge graph so later sessions retrieve it, not code.
+    """
+
+    def __init__(self, variable, body):
+        self.result = M.Pair(
+            Lmod.ForAllLabel,
+            M.Pair(variable, M.Pair(body, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(variable, M.Pair(body, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ForAllVariable(M.Edge):
+    def __init__(self, quantified):
+        self.result = M.Head(M.Tail(quantified)())()
+        super().__init__(
+            inputs=M.Pair(quantified, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ForAllBody(M.Edge):
+    def __init__(self, quantified):
+        self.result = M.Head(M.Tail(M.Tail(quantified)())())()
+        super().__init__(
+            inputs=M.Pair(quantified, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class Hole(M.Edge):
     """An undefined predicate kept as a named gap in a formed graph.
 

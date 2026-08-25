@@ -170,6 +170,58 @@ rules:
             head: {sym: DividesLabel}
             args: [{var: g}, {var: b}]
 
+  # Square-root factor bound, the sieve-equivalence lemma. Spoken in
+  # the hub language: a composite natural is witnessed by a nontrivial
+  # proper divisor i of n (Divides(i, n), 1 < i, i < n -- the two
+  # strict comparisons as NatLess facts); the conclusion keeps the same
+  # n and names its small factor. The bound is NatLess in successor
+  # form -- at-or-below Sqrt(n) is strict-below Succ(Sqrt(n)) -- and
+  # the divisibility argument order stays divisor-then-number. The
+  # rule is idempotent, not generative: the number argument of every
+  # produced Divides is the same n the premises carried, so a re-firing
+  # can only reproduce the same three facts; no term depth is ever
+  # minted. Exercised by directed application like the other
+  # consumption-pattern rules.
+  - id: sqrt_factor_bound
+    premises:
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: i}, {var: n}]
+      - call:
+          head: {sym: NatLessLabel}
+          args: [{sym: one}, {var: i}]
+      - call:
+          head: {sym: NatLessLabel}
+          args: [{var: i}, {var: n}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args:
+              - call:
+                  head: {sym: SmallFactorLabel}
+                  args: [{var: n}]
+              - {var: n}
+        - call:
+            head: {sym: NatLessLabel}
+            args:
+              - {sym: one}
+              - call:
+                  head: {sym: SmallFactorLabel}
+                  args: [{var: n}]
+        - call:
+            head: {sym: NatLessLabel}
+            args:
+              - call:
+                  head: {sym: SmallFactorLabel}
+                  args: [{var: n}]
+              - call:
+                  head: {sym: SuccLabel}
+                  args:
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args: [{var: n}]
+
 examples:
   # Goals are the end board: what the firing chain leaves behind.
   - id: nt_even_to_divides
@@ -371,3 +423,55 @@ examples:
                     - call:
                         head: {sym: ExprAddLabel}
                         args: [{sym: four}, {sym: six}]
+
+  # Directed firing of the square-root factor bound: four is
+  # composite witnessed by Divides(two, four) with 1 < two < four; one
+  # firing must leave the small-factor triple on the board --
+  # SmallFactor(four) divides four, is above one, and sits strict-below
+  # Succ(Sqrt(four)), the successor form of at-or-below Sqrt(four).
+  - id: nt_sqrt_factor_bound
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args: [{sym: two}, {sym: four}]
+              - call:
+                  head: {sym: NatLessLabel}
+                  args: [{sym: one}, {sym: two}]
+              - call:
+                  head: {sym: NatLessLabel}
+                  args: [{sym: two}, {sym: four}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: DividesLabel}
+                  args:
+                    - call:
+                        head: {sym: SmallFactorLabel}
+                        args: [{sym: four}]
+                    - {sym: four}
+              - call:
+                  head: {sym: NatLessLabel}
+                  args:
+                    - {sym: one}
+                    - call:
+                        head: {sym: SmallFactorLabel}
+                        args: [{sym: four}]
+              - call:
+                  head: {sym: NatLessLabel}
+                  args:
+                    - call:
+                        head: {sym: SmallFactorLabel}
+                        args: [{sym: four}]
+                    - call:
+                        head: {sym: SuccLabel}
+                        args:
+                          - call:
+                              head: {sym: SqrtLabel}
+                              args: [{sym: four}]

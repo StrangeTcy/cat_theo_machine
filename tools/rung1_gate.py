@@ -44,6 +44,7 @@ SEARCH_EXERCISES = (
 DIRECTED_EXERCISES = (
     ("nt_divides_sum", "divides_sum"),
     ("nt_divides_product", "divides_product"),
+    ("nt_sqrt_factor_bound", "sqrt_factor_bound"),
 )
 
 
