@@ -1,0 +1,125 @@
+format: hyge-training-records
+version: 1
+
+# Sieve equivalence -- the two learned sieves of Eratosthenes.
+#
+# One training record: the structural skeleton of the equivalence
+# curriculum. Two definitions are taught in the live session: the step
+# sieve begins at two, selects the least unprocessed survivor by
+# NatLess, and strikes every later value divisible by that survivor;
+# the square-root trial sieve retains n >= 2 precisely when no
+# candidate divisor i from two through Sqrt(n) satisfies Divides(i, n).
+#
+# The meaning structure is the witness board the square-root factor
+# lemma consumes: nine is composite witnessed by a nontrivial proper
+# divisor three. The strategy hint is the induction method for the
+# equivalence ForAll(n, Iff(StepSieve(n), TrialSieve(n))) -- base
+# zero, pattern the Iff of the two learned memberships. The
+# conclusion goal the record proves is the step-case lemma firing:
+# one application of sqrt_factor_bound turns the witness board into
+# the bounded-factor triple. The universal theorem itself rides the
+# lesson transcript's registration and the live membership walks.
+
+records:
+  - id: sieve_equivalence_sqrt_lemma
+    problem_statement:
+      text: >-
+        Two sieves of Eratosthenes are taught: the step sieve begins at
+        two, selects the least unprocessed survivor by NatLess, and
+        strikes every later value divisible by that survivor; the
+        square-root trial sieve retains n >= 2 precisely when no
+        candidate divisor i from two through Sqrt(n) satisfies
+        Divides(i, n). Prove their extensional equivalence
+        ForAll(n, Iff(StepSieve(n), TrialSieve(n))) by induction over
+        the naturals: zero and one are rejected boundary cases, two is
+        the first retained value, and the square-root factor lemma
+        carries the successor step -- any composite has a nontrivial
+        divisor bounded by Sqrt(n).
+    meaning_structure:
+      start:
+        call:
+          head: {sym: KnowledgeLabel}
+          args:
+            - list:
+                - call:
+                    head: {sym: NatLessLabel}
+                    args: [{sym: one}, {sym: three}]
+                - call:
+                    head: {sym: DividesLabel}
+                    args: [{sym: three}, {sym: nine}]
+                - call:
+                    head: {sym: NatLessLabel}
+                    args: [{sym: three}, {sym: nine}]
+    strategy_hint:
+      method:
+        call:
+          head: {sym: InductionLabel}
+          args:
+            - {var: n}
+            - {sym: Zero}
+            - call:
+                head: {sym: IffLabel}
+                args:
+                  - call:
+                      head: {sym: StepSieveLabel}
+                      args: [{var: n}]
+                  - call:
+                      head: {sym: TrialSieveLabel}
+                      args: [{var: n}]
+    obligation_skeleton:
+      - id: witness_board
+        text: >-
+          The composite witness holds as taught: nine has the
+          nontrivial proper divisor three. The square-root factor
+          lemma consumes exactly this shape; its directed firing is
+          the pack's own exercise nt_sqrt_factor_bound, because the
+          number-theory chain is generative and saturating search
+          over it diverges by construction.
+        goal:
+          call:
+            head: {sym: KnowledgeLabel}
+            args:
+              - list:
+                  - call:
+                      head: {sym: DividesLabel}
+                      args: [{sym: three}, {sym: nine}]
+      - id: base_boundary
+        text: >-
+          Base and boundary: zero and one are rejected below two by
+          both learned sieves; two is the first retained value, kept
+          by both.
+      - id: step_case
+        text: >-
+          Successor step under the induction hypothesis for all
+          previously processed naturals. Sieve-to-trial: survival
+          means no earlier divisor struck n, so no divisor from two
+          through Sqrt(n) divides it. Trial-to-sieve, contrapositively:
+          failure to survive supplies an earlier nontrivial divisor,
+          and sqrt_factor_bound bounds some divisor of any composite
+          by Sqrt(n), which the step process strikes.
+      - id: conclusion
+        text: >-
+          ForAll(n, Iff(StepSieve(n), TrialSieve(n))) -- registered in
+          the live session's knowledge graph and retrieved by later
+          sessions.
+    test_instances:
+      - id: boundary_zero
+        description: "zero is below two; the learned boundary clauses reject it"
+        moves: "none"
+        final_number: "0"
+        expected_parity: rejected
+      - id: boundary_one
+        description: "one is below two; the learned boundary clauses reject it; the start-at-one formulation fails here"
+        moves: "none"
+        final_number: "1"
+        expected_parity: rejected
+      - id: first_kept_two
+        description: "two begins the step sieve and meets no trial candidate"
+        moves: "none"
+        final_number: "2"
+        expected_parity: kept
+      - id: square_nine
+        description: "three divides nine at the square-root boundary; the witness board of this record"
+        moves: "strike by three"
+        final_number: "9"
+        expected_parity: rejected

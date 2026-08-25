@@ -25,3 +25,4 @@ rule: TrialSieveKept(n), Divides(k, n), NatLess(one, k), NatLess(k, n) -> TrialR
 yes
 rule: StepSieveKept(n) -> NatLess(one, n)
 yes
+fact: forall(n, iff(StepSieveKept(n), TrialSieveKept(n)))
