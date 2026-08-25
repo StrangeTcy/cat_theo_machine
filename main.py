@@ -3009,7 +3009,28 @@ def run_talk_mode(sentence: str = None):
             facts = G.InstalledTaughtFacts(learned_version)()
             rules = G.InstalledTaughtRules(learned_version)()
             case_splits = G.InstalledCaseSplits(learned_version)()
-            if M.IdentityCompare(case_splits, M.EmptyList)() is M.false_value:
+            case_relevant = M.false_value
+            relevance_scan = case_splits
+            while M.IdentityCompare(
+                relevance_scan, M.EmptyList,
+            )() is M.false_value:
+                relevance_candidates = M.Head(
+                    M.Tail(G.CaseSplitExactlyOne(
+                        M.Head(relevance_scan)(),
+                    )())(),
+                )()
+                while M.IdentityCompare(
+                    relevance_candidates, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(relevance_candidates)(), goal,
+                    )() is M.truth_value:
+                        case_relevant = M.truth_value
+                        relevance_candidates = M.EmptyList
+                    else:
+                        relevance_candidates = M.Tail(relevance_candidates)()
+                relevance_scan = M.Tail(relevance_scan)()
+            if M.IdentityCompare(case_relevant, M.truth_value)() is M.truth_value:
                 case_query = G.CaseSplitQuery(
                     facts,
                     rules,
@@ -3227,6 +3248,23 @@ def run_talk_mode(sentence: str = None):
                         )
                     return "I could not parse that case split. Use one of P(a), Q(a), R(a)."
                 exactly_one = G.CaseSplitExactlyOne(case_split)()
+                split_warning = ""
+                known_facts = G.InstalledTaughtFacts(learned_version)()
+                known_rules = G.InstalledTaughtRules(learned_version)()
+                split_check = G.CaseSplitQuery(
+                    known_facts,
+                    known_rules,
+                    M.Pair(case_split, M.EmptyList),
+                    M.EmptyList,
+                )()
+                if M.Compare(
+                    M.Head(M.Tail(split_check)())(),
+                    M.Char("all-branches-refuted"),
+                )() is M.truth_value:
+                    split_warning = (
+                        " Warning: all branches of this split are already "
+                        "refuted by the recorded facts."
+                    )
                 case_origin = M.Pair(
                     M.Char("case-split"),
                     M.Pair(exactly_one, M.EmptyList),
@@ -3246,8 +3284,9 @@ def run_talk_mode(sentence: str = None):
                 return (
                     "I propose a case split over "
                     + line[5:].strip()[6:].strip()
-                    + ". It creates one proof branch per candidate. "
-                    + "Approve? (yes/no)"
+                    + ". It creates one proof branch per candidate."
+                    + split_warning
+                    + " Approve? (yes/no)"
                 )
             parsed_rule = G.ParseRuleText(
                 line[5:].strip(),

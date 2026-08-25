@@ -17240,10 +17240,16 @@ class ParseRuleText(M.Edge):
                                         M.Pair(
                                             M.Char("s"),
                                             M.Pair(
-                                                M.Char("x"),
+                                                M.Char("t"),
                                                 M.Pair(
-                                                    M.Char("y"),
-                                                    M.Pair(M.Char("z"), empty),
+                                                    M.Char("x"),
+                                                    M.Pair(
+                                                        M.Char("y"),
+                                                        M.Pair(
+                                                            M.Char("z"),
+                                                            empty,
+                                                        ),
+                                                    ),
                                                 ),
                                             ),
                                         ),
