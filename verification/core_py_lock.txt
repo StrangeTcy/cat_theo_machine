@@ -1,0 +1,15 @@
+core.py content lock
+====================
+
+Recorded at reset to arena/01a038e4-cat-theo-machine tip be7ead7.
+core.py must remain byte-for-byte untouched on this feature branch.
+
+Verification is file-content comparison against this recorded value;
+no diff-style inspection is used.
+
+file: core.py
+sha256: bea26c780027a15c4d684a0d4bb9cd80916e53cab6274eb40311e33dbeb66106
+bytes: 7475
+
+Every checkpoint on arena/01a03a43-cat-theo-machine re-hashes core.py
+and compares against the digest above before committing.
