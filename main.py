@@ -2686,7 +2686,12 @@ def run_talk_mode(sentence: str = None):
         shared version through the inbox instead.
         """
         if os.path.exists(daemon_live_path):
-            _debug("daemon owns the checkpoint; not writing it here")
+            Dmn.submit_to_inbox(
+                SNAPSHOT_DIR,
+                proposal_store,
+                learned_version,
+            )
+            _debug("submitted taught graph data to the daemon inbox")
             return
         W.save_checkpoint(
             talk_checkpoint_path,
@@ -2727,7 +2732,18 @@ def run_talk_mode(sentence: str = None):
                         entry = candidate
                     approved_entries = M.Tail(approved_entries)()
                 if os.path.exists(daemon_live_path):
-                    Dmn.submit_to_inbox(SNAPSHOT_DIR, proposal_store)
+                    rule_origin = G.ProposalOrigin(decided_proposal)()
+                    if M.IsPair(rule_origin)() is M.truth_value:
+                        source_premises = M.Head(M.Tail(rule_origin)())()
+                        source_replacement = M.Head(
+                            M.Tail(M.Tail(rule_origin)())(),
+                        )()
+                        learned_version = G.InstallTaughtRuleSource(
+                            learned_version,
+                            source_premises,
+                            source_replacement,
+                        )()
+                    _persist_talk_state()
                     return (
                         "Recorded and submitted. The daemon will activate it "
                         "on its next cycle."
@@ -2796,10 +2812,7 @@ def run_talk_mode(sentence: str = None):
             # mode standalone keeps activating in-process, so nothing about
             # single-process use changes.
             if os.path.exists(daemon_live_path):
-                # Submit only. Writing talk_state.wire here would make two
-                # processes writers of one file and lose whichever wrote
-                # first; the daemon owns that file and folds the inbox in.
-                Dmn.submit_to_inbox(SNAPSHOT_DIR, proposal_store)
+                _persist_talk_state()
                 _debug("submitted to the daemon inbox; it will activate")
                 return ("Recorded and submitted. The daemon will activate it "
                         "on its next cycle.")
@@ -2935,9 +2948,176 @@ def run_talk_mode(sentence: str = None):
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
+        nonlocal pending_rule, learned_version, proposal_store
         lowered = line.lower()
+        if lowered.startswith("query:"):
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_query = G.ParseRuleText(
+                line[6:].strip(),
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            goal = M.Head(parsed_query)()
+            reason = M.Head(M.Tail(parsed_query)())()
+            if M.IdentityCompare(goal, M.EmptyList)() is M.truth_value:
+                detail = M.EmptyList
+                if M.IsPair(reason)() is M.truth_value:
+                    detail = M.Head(M.Tail(reason)())()
+                if M.IdentityCompare(detail, M.EmptyList)() is M.false_value:
+                    return (
+                        "I could not parse that query ("
+                        + str(detail())
+                        + "). Use Predicate(constant)."
+                    )
+                return "I could not parse that query. Use Predicate(constant)."
+            facts = G.InstalledTaughtFacts(learned_version)()
+            rules = G.InstalledTaughtRules(learned_version)()
+            growing = M.truth_value
+            rounds_text = "0"
+            while M.IdentityCompare(
+                growing, M.truth_value,
+            )() is M.truth_value:
+                if G.GMPEqualText(rounds_text, "200")() is M.truth_value:
+                    growing = M.false_value
+                else:
+                    rounds_text = G.GMPSuccText(rounds_text)()
+                    growing = M.false_value
+                    remaining_rules = rules
+                    while M.IdentityCompare(
+                        remaining_rules, M.EmptyList,
+                    )() is M.false_value:
+                        taught_rule = M.Head(remaining_rules)()
+                        bindings = P.JoinPremises(
+                            P.RulePremises(taught_rule)(),
+                            facts,
+                            M.EmptyList,
+                        )()
+                        while M.IdentityCompare(
+                            bindings, M.EmptyList,
+                        )() is M.false_value:
+                            binding = M.Head(bindings)()
+                            instantiated = M.Instantiate(
+                                P.RuleReplacement(taught_rule)(),
+                                binding,
+                            )()
+                            derived = M.Head(instantiated)()
+                            seen = M.false_value
+                            fact_scan = facts
+                            while M.IdentityCompare(
+                                fact_scan, M.EmptyList,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    M.Head(fact_scan)(), derived,
+                                )() is M.truth_value:
+                                    seen = M.truth_value
+                                    fact_scan = M.EmptyList
+                                else:
+                                    fact_scan = M.Tail(fact_scan)()
+                            if M.IdentityCompare(
+                                seen, M.false_value,
+                            )() is M.truth_value:
+                                facts = M.Pair(derived, facts)
+                                growing = M.truth_value
+                            bindings = M.Tail(bindings)()
+                        remaining_rules = M.Tail(remaining_rules)()
+            goal_found = M.false_value
+            fact_scan = facts
+            while M.IdentityCompare(
+                fact_scan, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(M.Head(fact_scan)(), goal)() is M.truth_value:
+                    goal_found = M.truth_value
+                    fact_scan = M.EmptyList
+                else:
+                    fact_scan = M.Tail(fact_scan)()
+            last_goal = goal
+            last_proof_registry = registry
+            last_derivation = M.EmptyList
+            last_outcome = M.EmptyList
+            if M.IdentityCompare(goal_found, M.truth_value)() is M.truth_value:
+                return (
+                    "yes; derived " + line[6:].strip()
+                    + " from the taught facts and approved rules."
+                )
+            return "no; I could not derive " + line[6:].strip() + "."
+            start = M.Knowledge(facts)()
+            if proof_runtime is M.EmptyList:
+                print(
+                    "hyge> loading the theorem runtime for the taught facts and rules",
+                    flush=True,
+                )
+                quiet_boot = io.StringIO()
+                with redirect_stdout(quiet_boot):
+                    proof_runtime, _proof_packs = boot_from_packs(
+                        PACK_PATHS,
+                        _runtime_namespace(),
+                    )
+                _adopt_pack_concepts(
+                    proof_runtime.loaded_packs,
+                    M.FromContextGetAllRules(proof_runtime.graph)(),
+                )
+                _teach_runtime_taught_rules(
+                    proof_runtime,
+                    learned_version,
+                )
+                proof_runtime.graph._search_disable_console = M.truth_value
+                proof_runtime.graph._search_disable_progress_ticker = M.truth_value
+                registry = M.FromContextGetConstructors(
+                    proof_runtime.graph,
+                )()
+            derivation = proof_runtime.prove(start, goal)
+            last_goal = goal
+            last_proof_registry = M.FromContextGetConstructors(
+                proof_runtime.graph,
+            )()
+            last_derivation = derivation
+            last_outcome = M.EmptyList
+            if M.IdentityCompare(
+                derivation, M.EmptyList,
+            )() is M.false_value:
+                return "yes\n" + P.ExplainDerivation(
+                    derivation,
+                    goal,
+                    last_proof_registry,
+                )()
+            return "no; I could not derive " + line[6:].strip() + "."
+        if lowered.startswith("fact:"):
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_fact = G.ParseRuleText(
+                line[5:].strip(),
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            fact = M.Head(parsed_fact)()
+            reason = M.Head(M.Tail(parsed_fact)())()
+            if M.IdentityCompare(fact, M.EmptyList)() is M.truth_value:
+                detail = M.EmptyList
+                if M.IsPair(reason)() is M.truth_value:
+                    detail = M.Head(M.Tail(reason)())()
+                if M.IdentityCompare(detail, M.EmptyList)() is M.false_value:
+                    return (
+                        "I could not parse that fact ("
+                        + str(detail())
+                        + "). Use Predicate(constant)."
+                    )
+                return "I could not parse that fact. Use Predicate(constant)."
+            installed_fact = G.InstallTaughtFact(learned_version, fact)()
+            learned_version = M.Head(installed_fact)()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return "Recorded fact: " + line[5:].strip()
         if lowered.startswith("rule:"):
-            nonlocal pending_rule, learned_version, proposal_store
             if M.IdentityCompare(
                 pending_rule, M.EmptyList,
             )() is M.false_value:
@@ -3346,7 +3526,9 @@ def run_talk_mode(sentence: str = None):
     print("'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
     print("Parentheses group subexpressions: 'two times (two plus two)'.")
     print("Teach me: 'training example: double two <-> mul ( two , two )'.")
-    print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'; constructors must be known.")
+    print("Teach facts: 'fact: Human(alice)'.")
+    print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.")
+    print("Ask taught rules: 'query: Sage(alice)'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
     print("'prove square roots are real'.")

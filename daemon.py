@@ -431,6 +431,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
             if os.path.exists(inbox_path):
                 submitted = Wmod.load_checkpoint(inbox_path)
                 if M.IdentityCompare(submitted, M.EmptyList)() is M.false_value:
+                    graph_version = Gmod.MergeGraphVersion(
+                        graph_version,
+                        M.Head(submitted)(),
+                    )()
                     merged = DaemonMergeInbox(
                         proposal_store,
                         M.Head(M.Tail(submitted)())(),
@@ -457,13 +461,18 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 # the coordinator version rather than transplanted, and the
                 # single in-process AutonomyCycle is still the only place
                 # activation happens. Without workers it is that cycle alone.
+                generator_config = daemon_generator_config(graph_version)
+                if M.IdentityCompare(
+                    live_daemon, M.truth_value,
+                )() is M.truth_value:
+                    generator_config = M.EmptyList
                 if worker_count:
                     outcome = Wmod.distributed_cycle(
                         graph_version,
                         proposal_store,
                         ledger,
                         daemon_budget(graph_version),
-                        daemon_generator_config(graph_version),
+                        generator_config,
                         worker_count,
                     )
                 else:
@@ -472,7 +481,7 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                         proposal_store,
                         ledger,
                         daemon_budget(graph_version),
-                        daemon_generator_config(graph_version),
+                        generator_config,
                     )()
                 graph_version = M.Head(outcome)()
                 proposal_store = M.Head(M.Tail(outcome)())()
@@ -507,17 +516,15 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     )
 
 
-def submit_to_inbox(snapshot_dir, proposal_store):
-    """Called by the conversation: drop submissions where the daemon reads.
-
-    The conversation writes only this file, and only ever adds to it.
-    Activation stays on the daemon's side of the boundary.
-    """
+def submit_to_inbox(snapshot_dir, proposal_store, graph_version=M.EmptyList):
+    """Deliver append-only taught graph data and proposals to the daemon."""
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
-    empty_version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+    version = graph_version
+    if M.IdentityCompare(version, M.EmptyList)() is M.truth_value:
+        version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     Wmod.save_checkpoint(
         inbox_path,
-        empty_version,
+        version,
         proposal_store,
         Gmod.FiringLedger(M.AllConstructors),
     )

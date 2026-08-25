@@ -483,6 +483,23 @@ class TaughtRule(M.Edge):
         return self.result
 
 
+class TaughtFact(M.Edge):
+    """A ground fact taught at the dialogue boundary."""
+
+    def __init__(self, fact):
+        self.result = M.Pair(
+            M.Char("taught-fact"),
+            M.Pair(fact, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(fact, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class JustifiedBy(M.Edge):
     def __init__(self, proposal, evidence):
         self.result = M.Pair(
@@ -1569,6 +1586,36 @@ class GraphEdges(M.Edge):
             return M.EmptyList
         args = M.Tail(constructor)()
         return M.Head(M.Tail(args)())()
+
+    def __call__(self):
+        return self.result
+
+
+class MergeGraphVersion(M.Edge):
+    """Merge append-only graph data delivered through the live inbox."""
+
+    def __init__(self, current, submitted):
+        if M.IdentityCompare(submitted, M.EmptyList)() is M.truth_value:
+            self.result = current
+        else:
+            self.result = GraphVersion(
+                ChainAddMissing(
+                    GraphNodes(current)(),
+                    GraphNodes(submitted)(),
+                )(),
+                ChainAddMissing(
+                    GraphEdges(current)(),
+                    GraphEdges(submitted)(),
+                )(),
+                ChainAddMissing(
+                    GraphVersionInvariants(current)(),
+                    GraphVersionInvariants(submitted)(),
+                )(),
+            )()
+        super().__init__(
+            inputs=M.Pair(current, M.Pair(submitted, M.EmptyList)),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result
@@ -3338,6 +3385,15 @@ class AutonomyCycle(M.Edge):
             if M.IdentityCompare(pending, M.truth_value)() is M.truth_value:
                 impact = ClassifyProposal(proposal)()
                 disposition = M.EmptyList
+                origin = ProposalOrigin(proposal)()
+                if M.IsPair(origin)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(origin)(), M.Char("dialogue-rule"),
+                    )() is M.truth_value:
+                        # The trainer already supplied the human approval in
+                        # the conversation. The daemon must not ask the
+                        # autonomy policy to approve that same rule again.
+                        disposition = M.Char("auto")
                 if M.Compare(impact, M.Char("policy_change"))() is M.truth_value:
                     disposition = M.Char("human")
                 remaining_policy = policy
@@ -4197,6 +4253,88 @@ class InstalledLaws(M.Edge):
             remaining = M.Tail(remaining)()
         self.result = Reverse(reversed_laws)()
         super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledTaughtFacts(M.Edge):
+    """Recover ground facts taught at the dialogue boundary."""
+
+    def __init__(self, graph_version):
+        reversed_facts = M.EmptyList
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.IsPair(node_head)() is M.truth_value:
+                    nested = node
+                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                        agenda = M.Pair(M.Head(nested)(), agenda)
+                        nested = M.Tail(nested)()
+                elif M.Compare(
+                    node_head, M.Char("taught-fact"),
+                )() is M.truth_value:
+                    fact = M.Head(M.Tail(node)())()
+                    if ChainHasTerm(
+                        M.Reverse(reversed_facts)(), fact,
+                    )() is M.false_value:
+                        reversed_facts = M.Pair(fact, reversed_facts)
+        self.result = M.Reverse(reversed_facts)()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallTaughtFact(M.Edge):
+    """Append one ground fact to the learned graph version."""
+
+    def __init__(self, graph_version, fact):
+        existing = InstalledTaughtFacts(graph_version)()
+        if ChainHasTerm(existing, fact)() is M.truth_value:
+            self.result = M.Pair(graph_version, M.Pair(existing, M.EmptyList))
+        else:
+            next_version = GraphVersion(
+                M.Pair(TaughtFact(fact)(), GraphNodes(graph_version)()),
+                GraphEdges(graph_version)(),
+                GraphVersionInvariants(graph_version)(),
+            )()
+            self.result = M.Pair(next_version, M.Pair(M.EmptyList, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(fact, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InstallTaughtRuleSource(M.Edge):
+    """Append an approved dialogue rule source before daemon activation."""
+
+    def __init__(self, graph_version, premises, replacement):
+        next_version = GraphVersion(
+            M.Pair(
+                TaughtRule(premises, replacement)(),
+                GraphNodes(graph_version)(),
+            ),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        self.result = next_version
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(premises, M.Pair(replacement, M.EmptyList)),
+            ),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result
@@ -16110,15 +16248,17 @@ class InstallBridge(M.Edge):
 class RuleConstructors(M.Edge):
     """Constructors admitted by the rule surface.
 
-    The pack index is the source of already-known constructors. A learned
-    bridge contributes the constructor it names, while a learned definition
-    contributes its own word as a constructor until a bridge gives that word
-    a stronger identity. The result is a machine chain of word-to-constructor
-    entries; no text name is accepted merely because it looks like a name.
+    The pack index is the source of canonical constructors. A learned bridge
+    contributes the constructor it names, a learned definition contributes
+    its own word, and an earlier taught fact or rule preserves the identity
+    of a newly introduced predicate. The parser may introduce a fresh
+    predicate atom only at this teaching boundary; later lines recover that
+    same atom from the learned graph.
     """
 
     def __init__(self, graph_version, pack_constructors):
         known = pack_constructors
+        term_agenda = M.EmptyList
         agenda = GraphNodes(graph_version)()
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
@@ -16184,6 +16324,79 @@ class RuleConstructors(M.Edge):
                                 M.Pair(word, M.Pair(word, M.EmptyList)),
                                 known,
                             )
+                elif M.Compare(
+                    node_head, M.Char("taught-fact"),
+                )() is M.truth_value:
+                    term_agenda = M.Pair(
+                        M.Head(M.Tail(node)())(),
+                        term_agenda,
+                    )
+                elif M.Compare(
+                    node_head, M.Char("taught-rule"),
+                )() is M.truth_value:
+                    source_premises = M.Head(M.Tail(node)())()
+                    source_replacement = M.Head(
+                        M.Tail(M.Tail(node)())(),
+                    )()
+                    term_agenda = M.Pair(
+                        source_replacement,
+                        term_agenda,
+                    )
+                    premise_scan = source_premises
+                    while M.IdentityCompare(
+                        premise_scan, M.EmptyList,
+                    )() is M.false_value:
+                        term_agenda = M.Pair(
+                            M.Head(premise_scan)(),
+                            term_agenda,
+                        )
+                        premise_scan = M.Tail(premise_scan)()
+            while M.IdentityCompare(
+                term_agenda, M.EmptyList,
+            )() is M.false_value:
+                term = M.Head(term_agenda)()
+                term_agenda = M.Tail(term_agenda)()
+                if M.IsPair(term)() is M.truth_value:
+                    term_head = M.Head(term)()
+                    if M.IsPair(term_head)() is M.false_value:
+                        if M.IdentityCompare(
+                            term_head, M.VarTag,
+                        )() is M.false_value:
+                            term_word = M.Char(term_head())
+                            term_found = M.false_value
+                            term_scan = known
+                            while M.IdentityCompare(
+                                term_scan, M.EmptyList,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    M.Head(M.Head(term_scan)())(),
+                                    term_word,
+                                )() is M.truth_value:
+                                    term_found = M.truth_value
+                                    term_scan = M.EmptyList
+                                else:
+                                    term_scan = M.Tail(term_scan)()
+                            if M.IdentityCompare(
+                                term_found, M.false_value,
+                            )() is M.truth_value:
+                                known = M.Pair(
+                                    M.Pair(
+                                        term_word,
+                                        M.Pair(term_head, M.EmptyList),
+                                    ),
+                                    known,
+                                )
+                    term_arguments = M.Tail(term)()
+                    while M.IdentityCompare(
+                        term_arguments, M.EmptyList,
+                    )() is M.false_value:
+                        term_argument = M.Head(term_arguments)()
+                        if M.IsPair(term_argument)() is M.truth_value:
+                            term_agenda = M.Pair(
+                                term_argument,
+                                term_agenda,
+                            )
+                        term_arguments = M.Tail(term_arguments)()
         self.result = known
         super().__init__(
             inputs=M.Pair(graph_version, M.Pair(pack_constructors, M.EmptyList)),
@@ -16456,16 +16669,43 @@ class ParseRuleText(M.Edge):
     frame on the stack is predicate, reversed arguments, and whether the
     next item must be an argument. Closing a frame builds its term and
     returns it to the parent frame, so `Divides(k, Add(a, b))` is handled
-    without a second string parser. Predicate heads are admitted only by
-    the supplied word-to-constructor chain.
+    without a second string parser. Pack and learned constructors are
+    reused by the supplied word-to-constructor chain; a new predicate at
+    this boundary receives a persistent atom of its own.
     """
 
-    def __init__(self, text, reading_policy, digit_words, constructors):
+    def __init__(self, text, reading_policy, digit_words, constructors,
+                 ground=M.false_value):
         empty = M.EmptyList
         tokens = WordsOfText(text, reading_policy, digit_words)()
         remaining = tokens
         stack = empty
         variables = empty
+        variable_names = M.Pair(
+            M.Char("a"),
+            M.Pair(
+                M.Char("b"),
+                M.Pair(
+                    M.Char("c"),
+                    M.Pair(
+                        M.Char("k"),
+                        M.Pair(
+                            M.Char("m"),
+                            M.Pair(
+                                M.Char("n"),
+                                M.Pair(
+                                    M.Char("x"),
+                                    M.Pair(
+                                        M.Char("y"),
+                                        M.Pair(M.Char("z"), empty),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
         premises_reversed = empty
         conclusion = empty
         arrow_seen = M.false_value
@@ -16521,37 +16761,64 @@ class ParseRuleText(M.Edge):
                                 stack = M.Pair(nested_frame, stack)
                                 remaining = M.Tail(after_token)()
                             else:
-                                variable = empty
-                                variable_scan = variables
-                                while M.IdentityCompare(
-                                    variable_scan, empty,
-                                )() is M.false_value:
-                                    variable_entry = M.Head(variable_scan)()
-                                    if M.Compare(
-                                        M.Head(variable_entry)(), token,
+                                argument_value = M.EmptyList
+                                if M.IdentityCompare(
+                                    ground, M.truth_value,
+                                )() is M.truth_value:
+                                    argument_value = M.Char(token())
+                                else:
+                                    is_variable = M.false_value
+                                    variable_name_scan = variable_names
+                                    while M.IdentityCompare(
+                                        variable_name_scan, empty,
+                                    )() is M.false_value:
+                                        if M.Compare(
+                                            M.Head(variable_name_scan)(), token,
+                                        )() is M.truth_value:
+                                            is_variable = M.truth_value
+                                            variable_name_scan = empty
+                                        else:
+                                            variable_name_scan = M.Tail(variable_name_scan)()
+                                    if M.IdentityCompare(
+                                        is_variable, M.truth_value,
                                     )() is M.truth_value:
-                                        variable = M.Head(
-                                            M.Tail(variable_entry)(),
-                                        )()
-                                        variable_scan = empty
+                                        variable_scan = variables
+                                        while M.IdentityCompare(
+                                            variable_scan, empty,
+                                        )() is M.false_value:
+                                            variable_entry = M.Head(variable_scan)()
+                                            if M.Compare(
+                                                M.Head(variable_entry)(), token,
+                                            )() is M.truth_value:
+                                                argument_value = M.Head(
+                                                    M.Tail(variable_entry)(),
+                                                )()
+                                                variable_scan = empty
+                                            else:
+                                                variable_scan = M.Tail(variable_scan)()
+                                        if M.IdentityCompare(
+                                            argument_value, empty,
+                                        )() is M.truth_value:
+                                            argument_value = M.Pair(
+                                                M.VarTag,
+                                                M.Pair(
+                                                    M.Char("?" + token()),
+                                                    empty,
+                                                ),
+                                            )
+                                            variables = M.Pair(
+                                                M.Pair(
+                                                    token,
+                                                    M.Pair(argument_value, empty),
+                                                ),
+                                                variables,
+                                            )
                                     else:
-                                        variable_scan = M.Tail(variable_scan)()
-                                if M.IdentityCompare(variable, empty)() is M.truth_value:
-                                    variable = M.Pair(
-                                        M.VarTag,
-                                        M.Pair(
-                                            M.Char("?" + token()),
-                                            empty,
-                                        ),
-                                    )
-                                    variables = M.Pair(
-                                        M.Pair(token, M.Pair(variable, empty)),
-                                        variables,
-                                    )
+                                        argument_value = M.Char(token())
                                 updated_frame = M.Pair(
                                     predicate,
                                     M.Pair(
-                                        M.Pair(variable, arguments_reversed),
+                                        M.Pair(argument_value, arguments_reversed),
                                         M.Pair(M.false_value, empty),
                                     ),
                                 )
@@ -16592,11 +16859,15 @@ class ParseRuleText(M.Edge):
                         if M.IdentityCompare(
                             found_constructor, empty,
                         )() is M.truth_value:
-                            reason = M.Pair(
-                                M.Char("unknown-constructor"),
-                                M.Pair(predicate, empty),
-                            )
-                        else:
+                            # A rule may introduce a new predicate symbol.
+                            # Pack constructors retain their canonical label;
+                            # a new micromystery predicate is represented by
+                            # its own atom and becomes known through this
+                            # taught rule or fact.
+                            found_constructor = predicate
+                        if M.IdentityCompare(
+                            found_constructor, empty,
+                        )() is M.false_value:
                             term = M.Pair(
                                 found_constructor,
                                 M.Reverse(arguments_reversed)(),
@@ -16650,7 +16921,23 @@ class ParseRuleText(M.Edge):
                             ),
                         )
             elif M.IdentityCompare(remaining, empty)() is M.truth_value:
-                if M.IdentityCompare(arrow_seen, M.truth_value)() is M.false_value:
+                if M.IdentityCompare(ground, M.truth_value)() is M.truth_value:
+                    facts = M.Reverse(premises_reversed)()
+                    if M.IdentityCompare(facts, empty)() is M.truth_value:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(M.Char("missing-fact"), empty),
+                        )
+                    elif M.IdentityCompare(
+                        M.Tail(facts)(), empty,
+                    )() is M.false_value:
+                        reason = M.Pair(
+                            M.Char("malformed-rule"),
+                            M.Pair(M.Char("multiple-facts"), empty),
+                        )
+                    else:
+                        reason = M.Char("fact-parse-complete")
+                elif M.IdentityCompare(arrow_seen, M.truth_value)() is M.false_value:
                     reason = M.Pair(
                         M.Char("malformed-rule"),
                         M.Pair(M.Char("missing-arrow"), empty),
@@ -16730,7 +17017,10 @@ class ParseRuleText(M.Edge):
                         )
                         stack = M.Pair(frame, stack)
                         remaining = M.Tail(after_predicate)()
-        if M.Compare(reason, M.Char("rule-parse-complete"))() is M.truth_value:
+        if M.Compare(reason, M.Char("fact-parse-complete"))() is M.truth_value:
+            fact = M.Head(M.Reverse(premises_reversed)())()
+            self.result = M.Pair(fact, M.Pair(empty, empty))
+        elif M.Compare(reason, M.Char("rule-parse-complete"))() is M.truth_value:
             rule = P.MultiRule(
                 M.Reverse(premises_reversed)(),
                 conclusion,
@@ -16743,7 +17033,10 @@ class ParseRuleText(M.Edge):
                 M.Char(text),
                 M.Pair(
                     reading_policy,
-                    M.Pair(digit_words, M.Pair(constructors, empty)),
+                    M.Pair(
+                        digit_words,
+                        M.Pair(constructors, M.Pair(ground, empty)),
+                    ),
                 ),
             ),
             results=self.result,
