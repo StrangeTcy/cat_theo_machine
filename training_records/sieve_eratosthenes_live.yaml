@@ -1,0 +1,219 @@
+format: hyge-training-records
+version: 1
+
+# Live lesson fixture.  These are trainer utterances represented as the
+# machine's ordinary Knowledge terms; nothing is installed before ingestion.
+# The induction method is a planner hint, while the theorem is a universally
+# quantified graph fact that a later proof session can retrieve.
+records:
+  - id: sieve_step_definition_live
+    problem_statement:
+      text: >-
+        Teach the step sieve: begin at two, select the least unprocessed
+        survivor by NatLess, and remove later values divisible by that
+        survivor.
+    meaning_structure:
+      start:
+        call:
+          head: {sym: KnowledgeLabel}
+          args:
+            - list:
+                - call:
+                    head: {sym: SieveStepLabel}
+                    args:
+                      - {var: n}
+                      - {sym: two}
+                      - call:
+                          head: {sym: NatLessLabel}
+                          args: [{var: survivor}, {var: candidate}]
+                      - call:
+                          head: {sym: DividesLabel}
+                          args: [{var: survivor}, {var: candidate}]
+    obligation_skeleton:
+      - id: definition
+        text: SieveStep(n, two, least-by-NatLess, remove-by-Divides)
+        goal:
+          call:
+            head: {sym: KnowledgeLabel}
+            args:
+              - list:
+                  - call:
+                      head: {sym: SieveStepLabel}
+                      args:
+                        - {var: n}
+                        - {sym: two}
+                        - call:
+                            head: {sym: NatLessLabel}
+                            args: [{var: survivor}, {var: candidate}]
+                        - call:
+                            head: {sym: DividesLabel}
+                            args: [{var: survivor}, {var: candidate}]
+
+  - id: sqrt_trial_definition_live
+    problem_statement:
+      text: >-
+        Teach square-root trial: retain n at least two precisely when no
+        candidate divisor from two through Sqrt(n) satisfies Divides(i, n).
+    meaning_structure:
+      start:
+        call:
+          head: {sym: KnowledgeLabel}
+          args:
+            - list:
+                - call:
+                    head: {sym: SqrtTrialLabel}
+                    args:
+                      - {var: n}
+                      - {sym: two}
+                      - call:
+                          head: {sym: SqrtLabel}
+                          args: [{var: n}]
+                      - call:
+                          head: {sym: DividesLabel}
+                          args: [{var: i}, {var: n}]
+                      - call:
+                          head: {sym: NatLessLabel}
+                          args:
+                            - {var: i}
+                            - call:
+                                head: {sym: SuccLabel}
+                                args:
+                                  - call:
+                                      head: {sym: SqrtLabel}
+                                      args: [{var: n}]
+    obligation_skeleton:
+      - id: definition
+        text: SqrtTrial(n, retain-at-least-two, no-Divides-through-Sqrt)
+        goal:
+          call:
+            head: {sym: KnowledgeLabel}
+            args:
+              - list:
+                  - call:
+                      head: {sym: SqrtTrialLabel}
+                      args:
+                        - {var: n}
+                        - {sym: two}
+                        - call:
+                            head: {sym: SqrtLabel}
+                            args: [{var: n}]
+                        - call:
+                            head: {sym: DividesLabel}
+                            args: [{var: i}, {var: n}]
+                        - call:
+                            head: {sym: NatLessLabel}
+                            args:
+                              - {var: i}
+                              - call:
+                                  head: {sym: SuccLabel}
+                                  args:
+                                    - call:
+                                        head: {sym: SqrtLabel}
+                                        args: [{var: n}]
+
+  - id: sieve_extensional_equivalence_induction_live
+    problem_statement:
+      text: >-
+        Prove for every natural n that the learned step sieve and learned
+        square-root trial sieve have the same membership, by induction.
+    meaning_structure:
+      start:
+        call:
+          head: {sym: KnowledgeLabel}
+          args:
+            - list:
+                - call:
+                    head: {sym: SieveStepLabel}
+                    args: [{var: n}, {sym: two}]
+                - call:
+                    head: {sym: SqrtTrialLabel}
+                    args: [{var: n}, {sym: two}]
+                - call:
+                    head: {sym: BoundaryLabel}
+                    args: [{sym: Zero}, {sym: one}, {sym: two}]
+                - call:
+                    head: {sym: ExtensionalEquivalentLabel}
+                    args:
+                      - call:
+                          head: {sym: SieveMemberLabel}
+                          args:
+                            - call:
+                                head: {sym: SieveStepLabel}
+                                args: [{var: n}, {sym: two}]
+                      - call:
+                          head: {sym: SieveMemberLabel}
+                          args:
+                            - call:
+                                head: {sym: SqrtTrialLabel}
+                                args: [{var: n}, {sym: two}]
+    strategy_hint:
+      rules_pack: number-theory
+      method:
+        call:
+          head: {sym: InductionLabel}
+          args:
+            - {var: n}
+            - {sym: Zero}
+            - call:
+                head: {sym: ExtensionalEquivalentLabel}
+                args:
+                  - call:
+                      head: {sym: SieveMemberLabel}
+                      args:
+                        - call:
+                            head: {sym: SieveStepLabel}
+                            args: [{var: n}, {sym: two}]
+                  - call:
+                      head: {sym: SieveMemberLabel}
+                      args:
+                        - call:
+                            head: {sym: SqrtTrialLabel}
+                            args: [{var: n}, {sym: two}]
+    obligation_skeleton:
+      - id: zero
+        text: zero is rejected by both learned definitions
+      - id: one
+        text: one is rejected by both learned definitions
+      - id: two
+        text: two is the first retained value
+      - id: successor-sieve-to-trial
+        text: survival gives no earlier divisor, hence none through Sqrt(n)
+      - id: successor-trial-to-sieve
+        text: the square-root factor lemma supplies an earlier divisor on failure
+      - id: conclusion
+        text: ForAll(n, ExtensionalEquivalent(SieveStepMember(n), SqrtTrialMember(n)))
+        goal:
+          call:
+            head: {sym: KnowledgeLabel}
+            args:
+              - list:
+                  - call:
+                      head: {sym: ForAllLabel}
+                      args:
+                        - {var: n}
+                        - call:
+                            head: {sym: ExtensionalEquivalentLabel}
+                            args:
+                              - call:
+                                  head: {sym: SieveMemberLabel}
+                                  args:
+                                    - call:
+                                        head: {sym: SieveStepLabel}
+                                        args: [{var: n}, {sym: two}]
+                              - call:
+                                  head: {sym: SieveMemberLabel}
+                                  args:
+                                    - call:
+                                        head: {sym: SqrtTrialLabel}
+                                        args: [{var: n}, {sym: two}]
+    test_instances:
+      - id: boundary-and-square
+        description: zero, one, two, prime, composite, perfect square, and factor at Sqrt(n)
+        moves: induction zero; induction one; retain two; test prime; test composite; test perfect square; test boundary factor
+        final_number: symbolic-n
+        expected_parity: extensional-equivalence
+      - id: negative-start-one
+        description: the obsolete start-at-one sieve rejects one
+        moves: start-at-one; process one
+        final_number: one
+        expected_parity: rejected
