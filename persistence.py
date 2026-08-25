@@ -242,6 +242,8 @@ SNAPSHOT_SYMBOL_NAMES = [
     "BetterLabel",
     "ExistsLabel",
     "NotLabel",
+    "ForAllLabel",
+    "SmallFactorLabel",
     "ContradictionLabel",
     "CollisionLabel",
     "ExtremalLabel",
