@@ -375,6 +375,12 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     """
     state_path = os.path.join(snapshot_dir, DAEMON_STATE_NAME)
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
+    live_daemon = M.false_value
+    if M.Compare(
+        M.Char(os.environ.get("HYGE_LIVE_DAEMON", "")),
+        M.Char("1"),
+    )() is M.truth_value:
+        live_daemon = M.truth_value
 
     graph_version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     proposal_store = Gmod.ProposalStore(M.EmptyList)()
@@ -405,9 +411,12 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     # condition, and the cap is only a ceiling for when one is wanted.
     bounded = M.false_value
     max_text = "0"
-    if M.IdentityCompare(max_cycles, M.EmptyList)() is M.false_value:
-        bounded = M.truth_value
-        max_text = M.GMPRepText(max_cycles)()
+    if M.IdentityCompare(
+        live_daemon, M.false_value,
+    )() is M.truth_value:
+        if M.IdentityCompare(max_cycles, M.EmptyList)() is M.false_value:
+            bounded = M.truth_value
+            max_text = M.GMPRepText(max_cycles)()
     cycles_text = "0"
     stop_reason = DAEMON_STOP_CYCLES
     cycling = M.truth_value
@@ -480,6 +489,11 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 )
                 if DaemonCycleIsQuiescent(report)() is M.truth_value:
                     stop_reason = DAEMON_STOP_QUIESCENT
+                    if M.IdentityCompare(
+                        live_daemon, M.truth_value,
+                    )() is M.truth_value:
+                        time.sleep(poll_seconds)
+                        cycling = M.truth_value
                 else:
                     time.sleep(poll_seconds)
                     cycling = M.truth_value

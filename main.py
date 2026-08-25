@@ -3557,22 +3557,24 @@ def run_live_mode(requested_workers):
     # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
     # only exists in the re-exec branch above, so it is recomputed here.
     import_root = os.path.dirname(PACKAGE_DIR)
+    import shlex
+
+    daemon_command = (
+        "HYGE_LIVE_DAEMON=1 exec "
+        + shlex.quote(sys.executable)
+        + " -u -m "
+        + shlex.quote(__package__ + ".main")
+        + " daemon --workers "
+        + shlex.quote(str(requested_workers))
+    )
     daemon_child = subprocess.Popen(
-        [
-            sys.executable,
-            "-u",
-            "-m",
-            "hyge.main",
-            "daemon",
-            "--workers",
-            str(requested_workers),
-        ],
+        daemon_command,
         cwd=import_root,
-        env=dict(os.environ, PYTHONPATH=import_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
+        shell=True,
     )
 
     def drain():
