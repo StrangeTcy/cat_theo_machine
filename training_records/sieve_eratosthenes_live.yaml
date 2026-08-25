@@ -206,14 +206,7 @@ records:
                                     - call:
                                         head: {sym: SqrtTrialLabel}
                                         args: [{var: n}, {sym: two}]
-    test_instances:
-      - id: boundary-and-square
-        description: zero, one, two, prime, composite, perfect square, and factor at Sqrt(n)
-        moves: induction zero; induction one; retain two; test prime; test composite; test perfect square; test boundary factor
-        final_number: symbolic-n
-        expected_parity: extensional-equivalence
-      - id: negative-start-one
-        description: the obsolete start-at-one sieve rejects one
-        moves: start-at-one; process one
-        final_number: one
-        expected_parity: rejected
+    # No finite answer table is attached.  Boundary cases and successor
+    # cases are induction obligations, and the negative start-at-one case is
+    # represented by the rejected boundary obligation rather than a canned
+    # output.

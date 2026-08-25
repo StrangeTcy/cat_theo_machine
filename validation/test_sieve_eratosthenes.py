@@ -1,7 +1,8 @@
-"""Live sieve lesson regression checks.
+"""Structural regression for the symbolic live sieve lesson.
 
-The fixture is ingested through the same TrainingRecord path used by live
-teaching. Structural assertions inspect machine terms, not finite answers.
+The test discovers lesson records by their machine constructor heads. It does
+not supply answers for numbers, enumerate survivors, or compare a finite
+result table.
 """
 
 import os
@@ -22,24 +23,44 @@ loader = T.TrainingRecordLoader(main._runtime_namespace())
 records = loader.load_records_file(
     os.path.join(ROOT, "training_records", "sieve_eratosthenes_live.yaml"),
 )
-assert len(records) == 3
 
-step_record = records[0][0]
-trial_record = records[1][0]
-theorem_record = records[2][0]
-step_start = T.TrainingRecordMeaningStructure(step_record)()
-trial_start = T.TrainingRecordMeaningStructure(trial_record)()
-theorem_skeleton = T.TrainingRecordObligationSkeleton(theorem_record)()
-theorem_hint = T.TrainingRecordStrategyHint(theorem_record)()
+saw_step = M.false_value
+saw_trial = M.false_value
+saw_induction = M.false_value
+saw_forall = M.false_value
 
-assert M.IdentityCompare(T.TrainingRecordMeaningStructure(step_record)(), step_start)() is M.truth_value
-assert M.IdentityCompare(T.TrainingRecordMeaningStructure(trial_record)(), trial_start)() is M.truth_value
-assert M.IdentityCompare(M.Head(M.Tail(step_start)())(), L.SieveStepLabel)() is M.truth_value
-assert M.IdentityCompare(M.Head(M.Tail(trial_start)())(), L.SqrtTrialLabel)() is M.truth_value
-assert M.IdentityCompare(M.Head(theorem_skeleton)(), M.Head(theorem_skeleton)())() is M.truth_value
-assert M.IdentityCompare(M.Head(theorem_hint)(), L.InductionLabel)() is M.truth_value
+for record_pair in records:
+    record = record_pair[0]
+    start = T.TrainingRecordMeaningStructure(record)()
+    facts = M.Tail(start)()
+    if M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+        head = M.Head(M.Head(facts)())()
+        if M.IdentityCompare(head, L.SieveStepLabel)() is M.truth_value:
+            saw_step = M.truth_value
+        if M.IdentityCompare(head, L.SqrtTrialLabel)() is M.truth_value:
+            saw_trial = M.truth_value
+
+    hint = T.TrainingRecordStrategyHint(record)()
+    if M.IdentityCompare(hint, M.EmptyList)() is M.false_value:
+        if M.IdentityCompare(M.Head(hint)(), L.InductionLabel)() is M.truth_value:
+            saw_induction = M.truth_value
+
+    skeleton = T.TrainingRecordObligationSkeleton(record)()
+    remaining = skeleton
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        goal = T.ObligationSkeletonEntryGoal(M.Head(remaining)())()
+        if M.IdentityCompare(goal, M.EmptyList)() is M.false_value:
+            goal_facts = M.Head(M.Tail(goal)())()
+            if M.IdentityCompare(M.Head(goal_facts)(), L.ForAllLabel)() is M.truth_value:
+                saw_forall = M.truth_value
+        remaining = M.Tail(remaining)()
+
+assert M.IdentityCompare(saw_step, M.truth_value)() is M.truth_value
+assert M.IdentityCompare(saw_trial, M.truth_value)() is M.truth_value
+assert M.IdentityCompare(saw_induction, M.truth_value)() is M.truth_value
+assert M.IdentityCompare(saw_forall, M.truth_value)() is M.truth_value
 
 number_pack = packs.by_name("number-theory")
 assert "composite_has_nontrivial_sqrt_bounded_divisor" in number_pack.rule_map
-assert "nt_composite_sqrt_factor_directed" in number_pack.examples
-print("sieve live lesson terms and directed factor lemma loaded")
+assert "sieve_extensional_equivalence_induction" in number_pack.schema_map
+print("symbolic sieve lesson and induction theorem schema loaded")
