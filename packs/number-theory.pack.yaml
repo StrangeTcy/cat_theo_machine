@@ -185,11 +185,11 @@ rules:
   - id: sqrt_factor_bound
     premises:
       - call:
-          head: {sym: DividesLabel}
-          args: [{var: i}, {var: n}]
-      - call:
           head: {sym: NatLessLabel}
           args: [{sym: one}, {var: i}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: i}, {var: n}]
       - call:
           head: {sym: NatLessLabel}
           args: [{var: i}, {var: n}]
