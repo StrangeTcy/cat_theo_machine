@@ -208,45 +208,6 @@ rules:
                                     head: {sym: SqrtLabel}
                                     args: [{var: n}]
 
-schemata:
-  # The induction plan is deliberately an empty directed hand-off here:
-  # the live lesson supplies the base and successor obligations, while this
-  # graph entry is the reusable universal theorem shape.
-  - id: sieve_extensional_equivalence_induction
-    start:
-      call:
-        head: {sym: KnowledgeLabel}
-        args:
-          - list:
-              - call:
-                  head: {sym: BoundaryLabel}
-                  args: [{sym: Zero}, {sym: one}, {sym: two}]
-    goal:
-      call:
-        head: {sym: KnowledgeLabel}
-        args:
-          - list:
-              - call:
-                  head: {sym: ForAllLabel}
-                  args:
-                    - {var: n}
-                    - call:
-                        head: {sym: ExtensionalEquivalentLabel}
-                        args:
-                          - call:
-                              head: {sym: SieveMemberLabel}
-                              args:
-                                - call:
-                                    head: {sym: SieveStepLabel}
-                                    args: [{var: n}, {sym: two}]
-                          - call:
-                              head: {sym: SieveMemberLabel}
-                              args:
-                                - call:
-                                    head: {sym: SqrtTrialLabel}
-                                    args: [{var: n}, {sym: two}]
-    plan: []
-
 examples:
   # Goals are the end board: what the firing chain leaves behind.
   - id: nt_even_to_divides
