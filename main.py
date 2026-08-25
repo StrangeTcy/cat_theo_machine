@@ -3388,6 +3388,13 @@ def run_talk_mode(sentence: str = None):
             return _handle_training(line, record=record)
         if lowered.startswith("definition:"):
             return _handle_definition(line, record=record)
+        definition_shape = G.DefinitionTermAndBody(
+            _words(line), ARTICLE_WORDS, COPULA_WORDS,
+        )()
+        if M.IdentityCompare(
+            definition_shape, M.EmptyList,
+        )() is M.false_value:
+            return _handle_definition(line, record=record)
         if lowered.startswith("is "):
             question_answer = _question_graph_answer(line)
             if question_answer is not None:
