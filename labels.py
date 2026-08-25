@@ -2511,6 +2511,27 @@ class ContradictsLabel(ConstructorLabel):
     pass
 
 
+# `rule:` teaching verb. PredicateApplication carries an unresolved
+# Pred(word) ( args ) meaning form; the rule handler resolves the word
+# through BridgeFor and the args through the meaning path before compiling.
+# UnknownConstructor, AmbiguousRule, and RuleRefused name the three explicit
+# failure terms the `rule:` handler returns instead of guessing.
+class PredicateApplicationLabel(ConstructorLabel):
+    pass
+
+
+class UnknownConstructorLabel(ConstructorLabel):
+    pass
+
+
+class AmbiguousRuleLabel(ConstructorLabel):
+    pass
+
+
+class RuleRefusedLabel(ConstructorLabel):
+    pass
+
+
 LessonLabel = LessonLabel()
 EntryLabel = EntryLabel()
 GroundedExampleLabel = GroundedExampleLabel()
@@ -2538,6 +2559,10 @@ AtSceneLabel = AtSceneLabel()
 SuspectLabel = SuspectLabel()
 CulpritLabel = CulpritLabel()
 ContradictsLabel = ContradictsLabel()
+PredicateApplicationLabel = PredicateApplicationLabel()
+UnknownConstructorLabel = UnknownConstructorLabel()
+AmbiguousRuleLabel = AmbiguousRuleLabel()
+RuleRefusedLabel = RuleRefusedLabel()
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]

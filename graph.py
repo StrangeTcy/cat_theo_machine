@@ -11421,6 +11421,90 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         return self.result
 
 
+class PredicateApplicationVocabulary(M.Edge):
+    """Rule-only vocabulary for Pred ( args ) meaning forms.
+
+    The shared DefaultCorrespondenceVocabulary cannot carry a generic
+    predicate-application template: a variable pattern in the head position
+    ("?p ( ?a )") also matches 'mul ( three )' and 'sqrt ( three )', so those
+    arithmetic forms gain a second, disagreeing interpretation and the
+    conversation's parse singles no longer stay single. This vocabulary keeps
+    the base word and digit entries (so argument surface terms resolve) but
+    replaces the template chain with ONLY the predicate-application laws:
+    ?p ( ?a ) and ?p ( ?a , ?b ). No arithmetic template is present here, so
+    no arithmetic form is made ambiguous. The rule: handler parses one term at
+    a time through this vocabulary and resolves the predicate word through
+    BridgeFor, so a predicate whose word is not a bridged constructor is never
+    silently accepted.
+
+    Returns Pair(pred_template_chain, Pair(word_entries, Pair(digit_words,
+    EmptyList))), the same shape as DefaultCorrespondenceVocabulary.
+    """
+
+    def __init__(self):
+        empty = M.EmptyList
+        var_p = M.Pair(M.VarTag, M.Pair(M.Char("?p"), empty))
+        var_a = M.Pair(M.VarTag, M.Pair(M.Char("?a"), empty))
+        var_b = M.Pair(M.VarTag, M.Pair(M.Char("?b"), empty))
+
+        one_surface = Surface(
+            M.Pair(
+                var_p,
+                M.Pair(
+                    M.Char("("),
+                    M.Pair(var_a, M.Pair(M.Char(")"), empty)),
+                ),
+            ),
+        )()
+        one_meaning = Meaning(
+            M.Pair(
+                Lmod.PredicateApplicationLabel,
+                M.Pair(
+                    Surface(M.Pair(var_p, empty))(),
+                    M.Pair(Surface(M.Pair(var_a, empty))(), empty),
+                ),
+            ),
+        )()
+        one_law = CompileRuleToLaw(P.Rule(one_surface, one_meaning))()
+
+        two_surface = Surface(
+            M.Pair(
+                var_p,
+                M.Pair(
+                    M.Char("("),
+                    M.Pair(
+                        var_a,
+                        M.Pair(
+                            M.Char(","),
+                            M.Pair(var_b, M.Pair(M.Char(")"), empty)),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        two_meaning = Meaning(
+            M.Pair(
+                Lmod.PredicateApplicationLabel,
+                M.Pair(
+                    Surface(M.Pair(var_p, empty))(),
+                    M.Pair(
+                        Surface(M.Pair(var_a, empty))(),
+                        M.Pair(Surface(M.Pair(var_b, empty))(), empty),
+                    ),
+                ),
+            ),
+        )()
+        two_law = CompileRuleToLaw(P.Rule(two_surface, two_meaning))()
+
+        pred_chain = M.Pair(one_law, M.Pair(two_law, empty))
+        base = DefaultCorrespondenceVocabulary()()
+        self.result = M.Pair(pred_chain, M.Tail(base)())
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class CorrespondenceResolveWord(M.Edge):
     """Resolve one Surface word to its Nat through the word parse laws."""
 

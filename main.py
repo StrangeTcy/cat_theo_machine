@@ -2860,6 +2860,185 @@ def run_talk_mode(sentence: str = None):
             + "."
         )
 
+    def _handle_rule(line, record=True):
+        """Teach a multi-premise inference rule.
+
+        Surface: rule: Pred(a), Pred(b) -> Pred(c).
+         - '->' separates the premise list from the conclusion.
+         - commas separate premises (parens protect nested commas).
+         - every predicate term is a 'Pred ( args )' meaning form, read through
+           the rule-only vocabulary so arithmetic forms are not made ambiguous.
+         - each predicate word must be a bridged constructor; an unknown one is
+           refused, returning a NotUnderstood-shaped reply naming it.
+         - the compiled monotone law is submitted as a Proposal through the
+           ordinary human-gated pipeline; it is never auto-activated.
+        """
+        nonlocal proposal_store, learned_version, registry
+        body = line.split(":", 1)[1].strip() if ":" in line else line.strip()
+        head = _words(body)
+        if M.IdentityCompare(head, M.EmptyList)() is M.truth_value:
+            return "A rule is 'rule: Pred(a), Pred(b) -> Pred(c)'."
+        # Find the top-level '->' word.
+        premise_words = M.EmptyList
+        conclusion_words = M.EmptyList
+        seen_arrow = M.false_value
+        cur = head
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            word = M.Head(cur)()
+            if M.Compare(word, M.Char("->"))() is M.truth_value:
+                seen_arrow = M.truth_value
+            elif M.IdentityCompare(seen_arrow, M.truth_value)() is M.truth_value:
+                conclusion_words = M.Pair(word, conclusion_words)
+            else:
+                premise_words = M.Pair(word, premise_words)
+            cur = M.Tail(cur)()
+        if M.IdentityCompare(seen_arrow, M.false_value)() is M.truth_value:
+            return ("A rule needs an arrow: 'rule: Pred(a), Pred(b) -> Pred(c)'.")
+        premise_words = M.Reverse(premise_words)()
+        conclusion_words = M.Reverse(conclusion_words)()
+        terms = _split_rule_terms(premise_words)
+        parsed_premises = M.EmptyList
+        walker = terms
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            parsed = _parse_rule_term(M.Head(walker)())
+            if M.IdentityCompare(parsed, M.EmptyList)() is M.truth_value:
+                return ("rule not understood: a premise did not parse as "
+                        "'Pred ( args )'.")
+            parsed_premises = M.Pair(parsed, parsed_premises)
+            walker = M.Tail(walker)()
+        parsed_premises = M.Reverse(parsed_premises)()
+        parsed_conclusion = _parse_rule_term(conclusion_words)
+        if M.IdentityCompare(parsed_conclusion, M.EmptyList)() is M.truth_value:
+            return ("rule not understood: the conclusion did not parse as "
+                    "'Pred ( args )'.")
+        rule = P.MultiRule(parsed_premises, parsed_conclusion)
+        law = G.CompileDeductionToLaw(rule)()
+        if M.IdentityCompare(law, M.EmptyList)() is M.truth_value:
+            return ("rule refused: the conclusion could not be compiled from "
+                    "the premises as a monotone deduction.")
+        proposal = G.Proposal(law, M.Char("taught-rule"))()
+        proposal_store = G.ProposalStoreSubmit(proposal_store, proposal)()
+        proposal_store = G.ProposalStoreAttach(
+            proposal_store,
+            proposal,
+            G.JustifiedBy(
+                proposal, M.Pair(M.Char("surface"), M.Pair(M.Char(body), M.EmptyList)),
+            )(),
+        )()
+        pending_queue.append(
+            (proposal, _rule_prompt(parsed_premises, parsed_conclusion)),
+        )
+        if record:
+            _log_lesson(line)
+        return (
+            "recorded rule: " + _speak_rule(parsed_premises, parsed_conclusion)
+            + ". awaiting approval as a proposal."
+        )
+
+    def _split_rule_terms(words):
+        """Split a word chain on top-level commas (not inside parens)."""
+        terms = M.EmptyList
+        current = M.EmptyList
+        depth = 0
+        remaining = words
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            word = M.Head(remaining)()
+            if M.Compare(word, M.Char("("))() is M.truth_value:
+                depth = depth + 1
+            elif M.Compare(word, M.Char(")"))() is M.truth_value:
+                if depth > 0:
+                    depth = depth - 1
+            if depth == 0:
+                if M.Compare(word, M.Char(","))() is M.truth_value:
+                    terms = M.Pair(M.Reverse(current)(), terms)
+                    current = M.EmptyList
+                    remaining = M.Tail(remaining)()
+                    continue
+            current = M.Pair(word, current)
+            remaining = M.Tail(remaining)()
+        if M.IdentityCompare(current, M.EmptyList)() is M.false_value:
+            terms = M.Pair(M.Reverse(current)(), terms)
+        return M.Reverse(terms)()
+
+    def _parse_rule_term(words):
+        """Parse one 'Pred ( args )' word chain into a machine predicate term.
+
+        The predicate word is resolved through BridgeFor; an unbridged word is
+        refused. Returns EmptyList when the term does not parse or its
+        predicate is unknown.
+        """
+        if M.IdentityCompare(words, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        surface = G.Surface(words)()
+        pred_vocab = G.PredicateApplicationVocabulary()()
+        interp = G.ConverseInterpretations(
+            pred_vocab, surface, registry,
+        )()
+        lst = M.Head(interp)()
+        if M.IdentityCompare(lst, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(M.Tail(lst)(), M.EmptyList)() is M.false_value:
+            return M.EmptyList
+        meaning = M.Head(M.Head(lst)())()
+        inner = meaning
+        while M.IsPair(inner)() is M.truth_value:
+            if M.IdentityCompare(M.Head(inner)(), Lmod.MeaningLabel)() is M.false_value:
+                break
+            inner = M.Head(M.Tail(inner)())()
+        if M.IsPair(inner)() is M.false_value:
+            return M.EmptyList
+        if M.IdentityCompare(
+            M.Head(inner)(), Lmod.PredicateApplicationLabel,
+        )() is M.false_value:
+            return M.EmptyList
+        slots = M.Tail(inner)()
+        pred_surface = M.Head(slots)()
+        pred_chain = M.Head(M.Tail(pred_surface)())()
+        pred_word = M.Head(pred_chain)()
+        bridge = G.BridgeFor(learned_version, pred_word)()
+        if M.IdentityCompare(bridge, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        constructor = G.BridgeConstructor(bridge)()
+        # term slots: constructor, then one arg per predicate slot.
+        built = M.Pair(constructor, M.EmptyList)
+        arg_walker = M.Tail(slots)()
+        while M.IdentityCompare(arg_walker, M.EmptyList)() is M.false_value:
+            arg_surface = M.Head(arg_walker)()
+            arg_term = M.Head(M.Tail(arg_surface)())()
+            built = M.Pair(constructor, _append_arg(M.Tail(built)(), arg_term))
+            arg_walker = M.Tail(arg_walker)()
+        return built
+
+    def _append_arg(arg_chain, arg_term):
+        # append arg_term to the end of an argument chain
+        if M.IdentityCompare(arg_chain, M.EmptyList)() is M.truth_value:
+            return M.Pair(arg_term, M.EmptyList)
+        return M.Pair(M.Head(arg_chain)(), _append_arg(M.Tail(arg_chain)(), arg_term))
+
+    def _rule_prompt(premises, conclusion):
+        return (
+            "I propose the deduction rule: "
+            + _speak_rule(premises, conclusion)
+            + "; approve? (yes/no)"
+        )
+
+    def _speak_rule(premises, conclusion):
+        spoken = []
+        cur = premises
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            spoken.append(_speak_pred_term(M.Head(cur)()))
+            cur = M.Tail(cur)()
+        text = ", ".join(spoken) + " -> " + _speak_pred_term(conclusion)
+        return text
+
+    def _speak_pred_term(term):
+        try:
+            head = M.Head(term)()
+            value = getattr(head, "value", None)
+            return str(value if value is not None else head)
+        except Exception:
+            return "<?>"
+
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
@@ -2868,6 +3047,8 @@ def run_talk_mode(sentence: str = None):
             return _handle_training(line, record=record)
         if lowered.startswith("definition:"):
             return _handle_definition(line, record=record)
+        if lowered.startswith("rule:"):
+            return _handle_rule(line, record=record)
         if lowered.startswith("is "):
             question_answer = _question_graph_answer(line)
             if question_answer is not None:
