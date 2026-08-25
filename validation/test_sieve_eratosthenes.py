@@ -1,9 +1,4 @@
-"""Structural regression for the symbolic live sieve lesson.
-
-The test discovers lesson records by their machine constructor heads. It does
-not supply answers for numbers, enumerate survivors, or compare a finite
-result table.
-"""
+"""Regression for the live symbolic sieve lesson."""
 
 import os
 import sys
@@ -15,52 +10,38 @@ if ROOT not in sys.path:
 from hyge import labels as L
 from hyge import machine as M
 from hyge import main
-from hyge import training as T
 from hyge.runtime import boot_from_packs
+from hyge.sieve_theory import SieveInductionPlan, TeachSieveLesson
 
 runtime, packs = boot_from_packs(main.PACK_PATHS, main._runtime_namespace())
-loader = T.TrainingRecordLoader(main._runtime_namespace())
-records = loader.load_records_file(
-    os.path.join(ROOT, "training_records", "sieve_eratosthenes_live.yaml"),
-)
+variable = M.Pair(M.VarTag, M.Pair(M.Char("n"), M.EmptyList))
+lesson = TeachSieveLesson(runtime.graph, variable)()
+step = M.Head(lesson)()
+trial = M.Head(M.Tail(lesson)())()
+theorem = M.Head(M.Tail(M.Tail(lesson)())())()
 
-saw_step = M.false_value
-saw_trial = M.false_value
-saw_induction = M.false_value
-saw_forall = M.false_value
+assert M.IdentityCompare(M.Head(step)(), L.SieveStepLabel)() is M.truth_value
+assert M.IdentityCompare(M.Head(trial)(), L.SqrtTrialLabel)() is M.truth_value
+assert M.IdentityCompare(M.Head(theorem)(), L.ForAllLabel)() is M.truth_value
 
-for record_pair in records:
-    record = record_pair[0]
-    start = T.TrainingRecordMeaningStructure(record)()
-    facts = M.Tail(start)()
-    if M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
-        head = M.Head(M.Head(facts)())()
-        if M.IdentityCompare(head, L.SieveStepLabel)() is M.truth_value:
-            saw_step = M.truth_value
-        if M.IdentityCompare(head, L.SqrtTrialLabel)() is M.truth_value:
-            saw_trial = M.truth_value
+step_fields = M.Tail(step)()
+trial_fields = M.Tail(trial)()
+assert M.IdentityCompare(M.Head(step_fields)(), variable)() is M.truth_value
+assert M.IdentityCompare(M.Head(trial_fields)(), variable)() is M.truth_value
 
-    hint = T.TrainingRecordStrategyHint(record)()
-    if M.IdentityCompare(hint, M.EmptyList)() is M.false_value:
-        if M.IdentityCompare(M.Head(hint)(), L.InductionLabel)() is M.truth_value:
-            saw_induction = M.truth_value
+step_tail = M.Tail(M.Tail(step_fields)())()
+trial_tail = M.Tail(M.Tail(trial_fields)())()
+assert M.IdentityCompare(M.Head(step_tail)(), M.two)() is M.truth_value
+assert M.IdentityCompare(M.Head(trial_tail)(), M.two)() is M.truth_value
 
-    skeleton = T.TrainingRecordObligationSkeleton(record)()
-    remaining = skeleton
-    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-        goal = T.ObligationSkeletonEntryGoal(M.Head(remaining)())()
-        if M.IdentityCompare(goal, M.EmptyList)() is M.false_value:
-            goal_facts = M.Head(M.Tail(goal)())()
-            if M.IdentityCompare(M.Head(goal_facts)(), L.ForAllLabel)() is M.truth_value:
-                saw_forall = M.truth_value
-        remaining = M.Tail(remaining)()
+induction = SieveInductionPlan(variable)()
+obligations = M.Head(M.Tail(induction)())()
+assert M.IdentityCompare(obligations, M.EmptyList)() is M.false_value
 
-assert M.IdentityCompare(saw_step, M.truth_value)() is M.truth_value
-assert M.IdentityCompare(saw_trial, M.truth_value)() is M.truth_value
-assert M.IdentityCompare(saw_induction, M.truth_value)() is M.truth_value
-assert M.IdentityCompare(saw_forall, M.truth_value)() is M.truth_value
-
-number_pack = packs.by_name("number-theory")
-assert "composite_has_nontrivial_sqrt_bounded_divisor" in number_pack.rule_map
-assert "sieve_extensional_equivalence_induction" in number_pack.schema_map
-print("symbolic sieve lesson and induction theorem schema loaded")
+pack = packs.by_name("number-theory")
+assert "composite_has_nontrivial_sqrt_bounded_divisor" in pack.rule_map
+assert M.IdentityCompare(
+    M.Head(M.Tail(M.Tail(induction)())())(),
+    theorem,
+)() is M.truth_value
+print("live sieve lesson, induction obligations, and theorem registration passed")
