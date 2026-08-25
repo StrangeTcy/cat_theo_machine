@@ -371,3 +371,91 @@ examples:
                     - call:
                         head: {sym: ExprAddLabel}
                         args: [{sym: four}, {sym: six}]
+
+  # One-way square-root factor lemma.  The successor form is the existing
+  # strict NatLess encoding of i <= Sqrt(n); Divides keeps its canonical
+  # divisor, number argument order.  The existential witness remains
+  # symbolic, so this rule cannot enumerate a divisor family.
+  - id: composite_has_nontrivial_sqrt_bounded_divisor
+    premises:
+      - call:
+          head: {sym: CompositeLabel}
+          args: [{var: n}]
+      - call:
+          head: {sym: NatLessLabel}
+          args: [{sym: one}, {var: n}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExistsLabel}
+            args:
+              - call:
+                  head: {sym: NontrivialDivisorLabel}
+                  args:
+                    - {var: i}
+                    - {var: n}
+                    - call:
+                        head: {sym: SqrtLabel}
+                        args: [{var: n}]
+                    - call:
+                        head: {sym: DividesLabel}
+                        args: [{var: i}, {var: n}]
+                    - call:
+                        head: {sym: NatLessLabel}
+                        args: [{sym: one}, {var: i}]
+                    - call:
+                        head: {sym: NatLessLabel}
+                        args:
+                          - {var: i}
+                          - call:
+                              head: {sym: SuccLabel}
+                              args:
+                                - call:
+                                    head: {sym: SqrtLabel}
+                                    args: [{var: n}]
+
+examples:
+  - id: nt_composite_sqrt_factor_directed
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: CompositeLabel}
+                  args: [{sym: six}]
+              - call:
+                  head: {sym: NatLessLabel}
+                  args: [{sym: one}, {sym: six}]
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: ExistsLabel}
+                  args:
+                    - call:
+                        head: {sym: NontrivialDivisorLabel}
+                        args:
+                          - {var: i}
+                          - {sym: six}
+                          - call:
+                              head: {sym: SqrtLabel}
+                              args: [{sym: six}]
+                          - call:
+                              head: {sym: DividesLabel}
+                              args: [{var: i}, {sym: six}]
+                          - call:
+                              head: {sym: NatLessLabel}
+                              args: [{sym: one}, {var: i}]
+                          - call:
+                              head: {sym: NatLessLabel}
+                              args:
+                                - {var: i}
+                                - call:
+                                    head: {sym: SuccLabel}
+                                    args:
+                                      - call:
+                                          head: {sym: SqrtLabel}
+                                          args: [{sym: six}]
