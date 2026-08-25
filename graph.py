@@ -9,7 +9,7 @@ from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
 from . import trees as Tmod
-from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPRepDigitList, GMPSubText, GMPSuccText
+from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPPredText, GMPRepDigitList, GMPSubText, GMPSuccText
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
 from .search.model import (
     SearchMatchCursor,
@@ -16092,6 +16092,333 @@ class ExactDivisorRestriction(M.Edge):
         return self.result
 
 
+class TrialSieveMembership(M.Edge):
+    """Decide membership in the learned square-root trial sieve.
+
+    The taught definition, spoken generally: retain n, requiring
+    NatLess(one, n), precisely when no candidate divisor i from two
+    through Sqrt(n) satisfies Divides(i, n). This edge walks the
+    candidates i = 2, 3, ... and stops at the square-root boundary --
+    candidate i passes Sqrt(n) exactly when i*i exceeds n, the
+    successor form NatLess(i, Succ(Sqrt(n))) decided one step earlier.
+    Divides(i, n) is not re-walked here; WitnessSearchDivides, the
+    existing bounded witness search, decides it. A refuting candidate
+    is evidence, not a silent false: the witness carries the
+    certificates Divides(i, n), NatLess(one, i) and NatLess(i,
+    Succ(Sqrt(n))). Zero and one are the rejected boundary cases,
+    refuted below two. n without a natural rep, or a cap hit before
+    the boundary, answers EmptyList: not knowing is not no.
+
+    Returns Pair(verdict, Pair(evidence, Pair(registry, EmptyList))).
+    """
+
+    def __init__(self, prop_term, n, registry):
+        cap_text = M.GMPRepText(WITNESS_SEARCH_CAP)()
+        n_rep = M.NatRepOf(n, registry)()
+        verdict = M.EmptyList
+        evidence = M.EmptyList
+        if M.IdentityCompare(n_rep, M.EmptyList)() is M.false_value:
+            n_text = M.GMPRepText(n_rep)()
+            if GMPLessText(n_text, "2")() is M.truth_value:
+                verdict = M.false_value
+                evidence = M.Pair(
+                    Lmod.RefutedLabel,
+                    M.Pair(
+                        prop_term,
+                        M.Pair(M.Char("boundary-below-two"), M.EmptyList),
+                    ),
+                )
+            else:
+                i_text = "2"
+                refuting_text = ""
+                complete = M.false_value
+                walking = M.truth_value
+                while M.IdentityCompare(
+                    walking, M.truth_value,
+                )() is M.truth_value:
+                    walking = M.false_value
+                    if GMPEqualText(i_text, cap_text)() is M.truth_value:
+                        pass
+                    else:
+                        square_text = GMPMulText(i_text, i_text)()
+                        if GMPLessText(n_text, square_text)() is M.truth_value:
+                            complete = M.truth_value
+                        else:
+                            candidate = M.NatFromRep(
+                                M.GMPRep(i_text), registry,
+                            )()
+                            candidate_nat = M.Head(candidate)()
+                            registry = M.Head(M.Tail(candidate)())()
+                            divides_term = M.Pair(
+                                Lmod.DividesLabel,
+                                M.Pair(candidate_nat, M.Pair(n, M.EmptyList)),
+                            )
+                            searched = WitnessSearchDivides(
+                                divides_term, candidate_nat, n, registry,
+                            )()
+                            registry = M.Head(M.Tail(M.Tail(searched)())())()
+                            if M.IdentityCompare(
+                                M.Head(searched)(), M.truth_value,
+                            )() is M.truth_value:
+                                refuting_text = i_text
+                            if refuting_text == "":
+                                i_text = GMPSuccText(i_text)()
+                                walking = M.truth_value
+                if refuting_text != "":
+                    witness_pair = M.NatFromRep(
+                        M.GMPRep(refuting_text), registry,
+                    )()
+                    witness_nat = M.Head(witness_pair)()
+                    registry = M.Head(M.Tail(witness_pair)())()
+                    sqrt_bound = M.Pair(
+                        Lmod.SuccLabel,
+                        M.Pair(
+                            M.Pair(Lmod.SqrtLabel, M.Pair(n, M.EmptyList)),
+                            M.EmptyList,
+                        ),
+                    )
+                    evidence = M.Pair(
+                        Lmod.RefutedLabel,
+                        M.Pair(
+                            prop_term,
+                            M.Pair(
+                                M.Pair(
+                                    Lmod.WitnessLabel,
+                                    M.Pair(witness_nat, M.EmptyList),
+                                ),
+                                M.Pair(
+                                    M.Pair(
+                                        Lmod.DividesLabel,
+                                        M.Pair(
+                                            witness_nat, M.Pair(n, M.EmptyList),
+                                        ),
+                                    ),
+                                    M.Pair(
+                                        M.Pair(
+                                            Lmod.NatLessLabel,
+                                            M.Pair(
+                                                M.one,
+                                                M.Pair(witness_nat, M.EmptyList),
+                                            ),
+                                        ),
+                                        M.Pair(
+                                            M.Pair(
+                                                Lmod.NatLessLabel,
+                                                M.Pair(
+                                                    witness_nat,
+                                                    M.Pair(sqrt_bound, M.EmptyList),
+                                                ),
+                                            ),
+                                            M.EmptyList,
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                    verdict = M.false_value
+                elif M.IdentityCompare(complete, M.truth_value)() is M.truth_value:
+                    verdict = M.truth_value
+                    evidence = M.Pair(
+                        Lmod.ConfirmedLabel,
+                        M.Pair(
+                            prop_term,
+                            M.Pair(
+                                M.Char("all-candidates-sqrt-bounded"),
+                                M.EmptyList,
+                            ),
+                        ),
+                    )
+        self.result = M.Pair(
+            verdict, M.Pair(evidence, M.Pair(registry, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                prop_term, M.Pair(n, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class StepSieveMembership(M.Edge):
+    """Decide membership in the learned step sieve.
+
+    The taught process, spoken generally: the sieve begins at two,
+    selects the least unprocessed survivor by NatLess, and strikes
+    every later value divisible by that survivor. This edge runs the
+    process up to n: the unprocessed chain starts at two through n;
+    each round takes the NatLeast unprocessed value s -- NatLess
+    against every other unprocessed value is the selection -- and, if
+    s precedes n and Divides(s, n) (decided by WitnessSearchDivides,
+    not re-walked), n is struck and the witness s carries the
+    certificates NatLess(one, s), NatLess(s, n), Divides(s, n) and
+    StepSieve(s), because a value strikes only after surviving every
+    earlier round. Otherwise s joins the retained chain and the next
+    round selects again. When the least unprocessed value is n itself,
+    n was never struck: membership confirmed with the retained chain
+    as evidence. Zero and one are the rejected boundary cases, refuted
+    below two. n without a natural rep, or a cap hit before the
+    process reaches n, answers EmptyList: not knowing is not no.
+
+    Returns Pair(verdict, Pair(evidence, Pair(registry, EmptyList))).
+    """
+
+    def __init__(self, prop_term, n, registry):
+        cap_text = M.GMPRepText(WITNESS_SEARCH_CAP)()
+        n_rep = M.NatRepOf(n, registry)()
+        verdict = M.EmptyList
+        evidence = M.EmptyList
+        if M.IdentityCompare(n_rep, M.EmptyList)() is M.false_value:
+            n_text = M.GMPRepText(n_rep)()
+            if GMPLessText(n_text, "2")() is M.truth_value:
+                verdict = M.false_value
+                evidence = M.Pair(
+                    Lmod.RefutedLabel,
+                    M.Pair(
+                        prop_term,
+                        M.Pair(M.Char("boundary-below-two"), M.EmptyList),
+                    ),
+                )
+            else:
+                unprocessed = M.EmptyList
+                value_text = n_text
+                building = M.truth_value
+                while M.IdentityCompare(
+                    building, M.truth_value,
+                )() is M.truth_value:
+                    built = M.NatFromRep(M.GMPRep(value_text), registry)()
+                    unprocessed = M.Pair(M.Head(built)(), unprocessed)
+                    registry = M.Head(M.Tail(built)())()
+                    if GMPEqualText(value_text, "2")() is M.truth_value:
+                        building = M.false_value
+                    else:
+                        value_text = GMPPredText(value_text)()
+                        building = M.truth_value
+                retained = M.EmptyList
+                rounds_text = "0"
+                decided = M.false_value
+                while M.IdentityCompare(
+                    decided, M.false_value,
+                )() is M.truth_value:
+                    if GMPEqualText(rounds_text, cap_text)() is M.truth_value:
+                        decided = M.truth_value
+                    else:
+                        least = M.EmptyList
+                        probe = unprocessed
+                        while M.IdentityCompare(
+                            probe, M.EmptyList,
+                        )() is M.false_value:
+                            candidate_value = M.Head(probe)()
+                            if M.IdentityCompare(least, M.EmptyList)() is M.truth_value:
+                                least = candidate_value
+                            else:
+                                if M.NatLess(
+                                    candidate_value, least, registry,
+                                )() is M.truth_value:
+                                    least = candidate_value
+                            probe = M.Tail(probe)()
+                        if M.IdentityCompare(least, M.EmptyList)() is M.truth_value:
+                            decided = M.truth_value
+                        elif M.NatEq(least, n, registry)() is M.truth_value:
+                            verdict = M.truth_value
+                            evidence = M.Pair(
+                                Lmod.ConfirmedLabel,
+                                M.Pair(prop_term, M.Pair(retained, M.EmptyList)),
+                            )
+                            decided = M.truth_value
+                        else:
+                            divides_term = M.Pair(
+                                Lmod.DividesLabel,
+                                M.Pair(least, M.Pair(n, M.EmptyList)),
+                            )
+                            searched = WitnessSearchDivides(
+                                divides_term, least, n, registry,
+                            )()
+                            registry = M.Head(M.Tail(M.Tail(searched)())())()
+                            if M.IdentityCompare(
+                                M.Head(searched)(), M.truth_value,
+                            )() is M.truth_value:
+                                evidence = M.Pair(
+                                    Lmod.RefutedLabel,
+                                    M.Pair(
+                                        prop_term,
+                                        M.Pair(
+                                            M.Pair(
+                                                Lmod.WitnessLabel,
+                                                M.Pair(least, M.EmptyList),
+                                            ),
+                                            M.Pair(
+                                                M.Pair(
+                                                    Lmod.NatLessLabel,
+                                                    M.Pair(
+                                                        M.one,
+                                                        M.Pair(least, M.EmptyList),
+                                                    ),
+                                                ),
+                                                M.Pair(
+                                                    M.Pair(
+                                                        Lmod.NatLessLabel,
+                                                        M.Pair(
+                                                            least,
+                                                            M.Pair(n, M.EmptyList),
+                                                        ),
+                                                    ),
+                                                    M.Pair(
+                                                        M.Pair(
+                                                            Lmod.DividesLabel,
+                                                            M.Pair(
+                                                                least,
+                                                                M.Pair(n, M.EmptyList),
+                                                            ),
+                                                        ),
+                                                        M.Pair(
+                                                            M.Pair(
+                                                                Lmod.StepSieveLabel,
+                                                                M.Pair(least, M.EmptyList),
+                                                            ),
+                                                            M.EmptyList,
+                                                        ),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                )
+                                verdict = M.false_value
+                                decided = M.truth_value
+                            else:
+                                retained = M.Pair(least, retained)
+                                remaining = M.EmptyList
+                                scan = unprocessed
+                                while M.IdentityCompare(
+                                    scan, M.EmptyList,
+                                )() is M.false_value:
+                                    if M.IdentityCompare(
+                                        M.Head(scan)(), least,
+                                    )() is M.false_value:
+                                        remaining = M.Pair(
+                                            M.Head(scan)(), remaining,
+                                        )
+                                    scan = M.Tail(scan)()
+                                unprocessed = remaining
+                                rounds_text = GMPSuccText(rounds_text)()
+        self.result = M.Pair(
+            verdict, M.Pair(evidence, M.Pair(registry, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                prop_term, M.Pair(n, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class WitnessSearchEven(M.Edge):
     """Bounded witness search for Even(n): find k with k+k = n.
 
@@ -16426,6 +16753,103 @@ class ForAllBody(M.Edge):
         self.result = M.Head(M.Tail(M.Tail(quantified)())())()
         super().__init__(
             inputs=M.Pair(quantified, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class Iff(M.Edge):
+    """Iff(left, right): extensional agreement of two membership terms.
+
+    Pair(IffLabel, Pair(left, Pair(right, EmptyList))). The equivalence
+    of the two learned sieves rides this connective under ForAll; the
+    induction obligations split it, and each direction is discharged on
+    its own.
+    """
+
+    def __init__(self, left, right):
+        self.result = M.Pair(
+            Lmod.IffLabel,
+            M.Pair(left, M.Pair(right, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(left, M.Pair(right, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IffLeft(M.Edge):
+    def __init__(self, equivalence):
+        self.result = M.Head(M.Tail(equivalence)())()
+        super().__init__(
+            inputs=M.Pair(equivalence, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IffRight(M.Edge):
+    def __init__(self, equivalence):
+        self.result = M.Head(M.Tail(M.Tail(equivalence)())())()
+        super().__init__(
+            inputs=M.Pair(equivalence, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class StepSieve(M.Edge):
+    """StepSieve(number): membership in the learned step sieve.
+
+    Pair(StepSieveLabel, Pair(number, EmptyList)). The taught process:
+    the sieve begins at two, selects the least unprocessed survivor by
+    NatLess, and strikes every later value divisible by that survivor
+    (Divides, divisor-then-number). Membership means the number was
+    never struck; the bounded walk that decides it is
+    StepSieveMembership, whose evidence names the striking survivor or
+    confirms survival.
+    """
+
+    def __init__(self, number):
+        self.result = M.Pair(
+            Lmod.StepSieveLabel,
+            M.Pair(number, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(number, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TrialSieve(M.Edge):
+    """TrialSieve(number): membership in the learned square-root sieve.
+
+    Pair(TrialSieveLabel, Pair(number, EmptyList)). The taught process:
+    the number is retained, requiring NatLess(one, number), precisely
+    when no candidate i from two through Sqrt(number) satisfies
+    Divides(i, number) -- the bound spoken as NatLess(i,
+    Succ(Sqrt(number))). The bounded walk that decides it is
+    TrialSieveMembership, whose evidence carries the refuting candidate
+    or confirms the scan's exhaustion.
+    """
+
+    def __init__(self, number):
+        self.result = M.Pair(
+            Lmod.TrialSieveLabel,
+            M.Pair(number, M.EmptyList),
+        )
+        super().__init__(
+            inputs=M.Pair(number, M.EmptyList),
+            results=self.result,
         )
 
     def __call__(self):
