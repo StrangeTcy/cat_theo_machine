@@ -2834,10 +2834,44 @@ def run_talk_mode(sentence: str = None):
                 + " more law(s)."
             )
         _persist_talk_state()
+        # The reply states where the constructor came from as a fact
+        # of the index: a pack constructor is one the pack-concept
+        # index knows; any other was minted from the taught term
+        # itself. And the ontology promise is made only when rules
+        # actually speak for the constructor.
+        pack_known = M.false_value
+        pack_scan = pack_concepts
+        while M.IdentityCompare(
+            pack_scan, M.EmptyList,
+        )() is M.false_value:
+            if M.Compare(
+                M.Head(M.Tail(M.Head(pack_scan)())())(), constructor,
+            )() is M.truth_value:
+                pack_known = M.truth_value
+                pack_scan = M.EmptyList
+            else:
+                pack_scan = M.Tail(pack_scan)()
+        if M.IdentityCompare(pack_known, M.truth_value)() is M.truth_value:
+            source_line = " now names the pack constructor."
+        else:
+            source_line = " now names a constructor of its own."
+        ontology_line = ""
+        if proof_runtime is not M.EmptyList:
+            ontology_facts = G.OntologyFactsFor(
+                M.FromContextGetAllRules(proof_runtime.graph)(),
+                constructor,
+                registry,
+            )()
+            if M.IdentityCompare(
+                ontology_facts, M.EmptyList,
+            )() is M.false_value:
+                ontology_line = (
+                    " 'what is " + str(word()) + "' can answer from"
+                    + " the ontology."
+                )
         return (
-            "Linked: '" + str(word()) + "' now names the pack constructor. "
-            "'what is " + str(word()) + "' can answer from the ontology."
-            + law_line
+            "Linked: '" + str(word()) + "'" + source_line
+            + ontology_line + law_line
         )
 
     def _speak_label(label):
@@ -2898,34 +2932,59 @@ def run_talk_mode(sentence: str = None):
         bridge = G.BridgeFor(learned_version, term_word)()
         ontology_line = ""
         if M.IdentityCompare(bridge, M.EmptyList)() is M.false_value:
+            # Whether the constructor is a pack constructor is a fact
+            # of the index, read once for both branches below: the
+            # ontology is pack machinery and is only spoken of a
+            # constructor the packs actually know.
+            bridge_constructor = G.BridgeConstructor(bridge)()
+            bridge_pack_known = M.false_value
+            bridge_pack_scan = pack_concepts
+            while M.IdentityCompare(
+                bridge_pack_scan, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(
+                        M.Tail(M.Head(bridge_pack_scan)())(),
+                    )(),
+                    bridge_constructor,
+                )() is M.truth_value:
+                    bridge_pack_known = M.truth_value
+                    bridge_pack_scan = M.EmptyList
+                else:
+                    bridge_pack_scan = M.Tail(bridge_pack_scan)()
             if proof_runtime is not M.EmptyList:
-                constructor = G.BridgeConstructor(bridge)()
-                facts = G.OntologyFactsFor(
-                    M.FromContextGetAllRules(proof_runtime.graph)(),
-                    constructor,
-                    registry,
-                )()
-                spoken_facts = []
-                remaining_facts = facts
-                while M.IdentityCompare(
-                    remaining_facts, M.EmptyList,
-                )() is M.false_value:
-                    spoken_facts.append(_speak_label(M.Head(remaining_facts)()))
-                    remaining_facts = M.Tail(remaining_facts)()
-                if spoken_facts:
-                    ontology_line = (
-                        " The packs add: a " + term_text + " "
-                        + "; ".join(
-                            "is a " + f if f in ("polygon",)
-                            else "has " + f for f in spoken_facts
+                if M.IdentityCompare(
+                    bridge_pack_known, M.truth_value,
+                )() is M.truth_value:
+                    facts = G.OntologyFactsFor(
+                        M.FromContextGetAllRules(proof_runtime.graph)(),
+                        bridge_constructor,
+                        registry,
+                    )()
+                    spoken_facts = []
+                    remaining_facts = facts
+                    while M.IdentityCompare(
+                        remaining_facts, M.EmptyList,
+                    )() is M.false_value:
+                        spoken_facts.append(_speak_label(M.Head(remaining_facts)()))
+                        remaining_facts = M.Tail(remaining_facts)()
+                    if spoken_facts:
+                        ontology_line = (
+                            " The packs add: a " + term_text + " "
+                            + "; ".join(
+                                "is a " + f if f in ("polygon",)
+                                else "has " + f for f in spoken_facts
+                            )
+                            + "."
                         )
-                        + "."
-                    )
             else:
-                ontology_line = (
-                    " (linked to the pack constructor; ask again after a "
-                    "proof has loaded the packs to hear its ontology)"
-                )
+                if M.IdentityCompare(
+                    bridge_pack_known, M.truth_value,
+                )() is M.truth_value:
+                    ontology_line = (
+                        " (linked to the pack constructor; ask again"
+                        + " after a proof has run to hear its ontology)"
+                    )
         definition = G.DefinitionFor(learned_version, M.Char(term_text))()
         if M.IdentityCompare(definition, M.EmptyList)() is M.truth_value:
             # 'what is primes' after 'a prime is ...' -- the plural asks
@@ -4607,6 +4666,9 @@ def run_talk_mode(sentence: str = None):
                 return False
             proven_process_pairs = M.EmptyList
             contraposition_pairs = M.EmptyList
+            # The derivation search depth, as a machine text so the
+            # reply can state the bound the check actually used.
+            b_depth_text = "4"
             pair_scan = process_pairs
             while M.IdentityCompare(
                 pair_scan, M.EmptyList,
@@ -4621,7 +4683,7 @@ def run_talk_mode(sentence: str = None):
                     head_scan, M.EmptyList,
                 )() is M.false_value:
                     pp_head = M.Head(head_scan)()
-                    if _b_derivable(pp_head, "4") is False:
+                    if _b_derivable(pp_head, b_depth_text) is False:
                         b_ok = M.false_value
                         head_scan = M.EmptyList
                     else:
@@ -4636,6 +4698,7 @@ def run_talk_mode(sentence: str = None):
                     )
                 pair_scan = M.Tail(pair_scan)()
             certificate_present = M.false_value
+            certificate_node = M.EmptyList
             cert_scan = G.GraphNodes(learned_version)()
             while M.IdentityCompare(
                 cert_scan, M.EmptyList,
@@ -4647,6 +4710,7 @@ def run_talk_mode(sentence: str = None):
                         M.Head(cert_node)(), M.Char("inductive-law"),
                     )() is M.truth_value:
                         certificate_present = M.truth_value
+                        certificate_node = cert_node
                         cert_scan = M.EmptyList
             def _chain_text(chain_heads):
                 spoken = []
@@ -4704,41 +4768,95 @@ def run_talk_mode(sentence: str = None):
             if record:
                 _log_lesson(line)
             _persist_talk_state()
-            contra_line = ""
-            contra_scan = M.Reverse(contraposition_pairs)()
-            if M.IdentityCompare(
-                contra_scan, M.EmptyList,
-            )() is M.false_value:
-                contra_lines = []
+            # The caption states only what the checks established:
+            # every rule is rendered from the recorded pairs, the
+            # certificate from its node, and the remaining rules are
+            # the pairs the derivation check rejected. No sentence
+            # asserts content the graph did not compute.
+            def _pair_rule_renders(pair_chain):
+                rendered = []
+                render_scan = pair_chain
                 while M.IdentityCompare(
-                    contra_scan, M.EmptyList,
+                    render_scan, M.EmptyList,
                 )() is M.false_value:
-                    contra_pair = M.Head(contra_scan)()
-                    contra_lines.append(
+                    render_pair = M.Head(render_scan)()
+                    rendered.append(
                         P.PrettyRule(
                             P.MultiRule(
-                                M.Head(contra_pair)(),
-                                M.Head(M.Tail(contra_pair)())(),
+                                M.Head(render_pair)(),
+                                M.Head(M.Tail(render_pair)())(),
                             )(),
                             M.AllConstructors,
                         )()
                     )
-                    contra_scan = M.Tail(contra_scan)()
+                    render_scan = M.Tail(render_scan)()
+                return rendered
+            lemma_render = "; ".join(_pair_rule_renders(lemma_pairs))
+            proven_render = "; ".join(
+                _pair_rule_renders(M.Reverse(proven_process_pairs)()),
+            )
+            contra_render = "; ".join(
+                _pair_rule_renders(M.Reverse(contraposition_pairs)()),
+            )
+            certificate_line = ""
+            if M.IdentityCompare(
+                certificate_node, M.EmptyList,
+            )() is M.false_value:
+                cert_claim = M.Head(M.Tail(certificate_node)())()
+                cert_bases = M.Head(
+                    M.Tail(M.Tail(certificate_node)())(),
+                )()
+                cert_steps = M.Head(
+                    M.Tail(M.Tail(M.Tail(certificate_node)())())(),
+                )()
+                base_renders = []
+                base_scan = cert_bases
+                while M.IdentityCompare(
+                    base_scan, M.EmptyList,
+                )() is M.false_value:
+                    base_renders.append(
+                        P.PrettyRule(
+                            M.Head(base_scan)(), M.AllConstructors,
+                        )()
+                    )
+                    base_scan = M.Tail(base_scan)()
+                step_renders = []
+                step_scan = cert_steps
+                while M.IdentityCompare(
+                    step_scan, M.EmptyList,
+                )() is M.false_value:
+                    step_renders.append(
+                        P.PrettyRule(
+                            M.Head(step_scan)(), M.AllConstructors,
+                        )()
+                    )
+                    step_scan = M.Tail(step_scan)()
+                certificate_line = (
+                    " The recorded induction over '"
+                    + str(cert_claim()) + "': base "
+                    + "; ".join(base_renders)
+                    + "; step "
+                    + "; ".join(step_renders) + "."
+                )
+            contra_line = ""
+            if contra_render != "":
                 contra_line = (
-                    " The remaining process rule(s) -- "
-                    + "; ".join(contra_lines)
-                    + " -- need the contrapositive of the bound, which"
-                    + " is future work."
+                    " The remaining process rule(s) -- " + contra_render
+                    + " -- have premises that did not derive from the"
+                    + " lemma side under the installed rules (search"
+                    + " depth " + b_depth_text + ")."
                 )
             return (
-                "Proven: the process and the lemma's application are"
-                + " extensionally equivalent on the proven rules. Every"
-                + " process conclusion carries a bounded witness"
-                + " through the certified induction, and every bounded"
-                + " witness reaches the process conclusion through the"
-                + " taught substrate. The proof is recorded; ask 'why"
-                + " are these two definitions equivalent?'"
+                "Proven: " + prove_target + ", on the recorded rules."
+                + " Every premise of the lemma rules -- " + lemma_render
+                + " -- except the leq premises is reachable from the"
+                + " process side. Every premise of the proven process"
+                + " rules -- "
+                + proven_render + " -- derives from the lemma side"
+                + " under the installed rules." + certificate_line
                 + contra_line
+                + " The proof is recorded; ask 'why are these two"
+                + " definitions equivalent?'"
             )
         if lowered.startswith("rule:"):
             if M.IdentityCompare(
@@ -5046,70 +5164,107 @@ def run_talk_mode(sentence: str = None):
             proof_process = M.Head(
                 M.Tail(M.Tail(proof_record)())(),
             )()
-            proof_text = "Proof: the two definitions agree because"
-            proof_text = (
-                proof_text
-                + " each direction derives through the taught"
-                + " substrate."
-            )
-            proof_text = (
-                proof_text
-                + " Direction one -- every process conclusion carries"
-                + " a bounded witness: from the process premises the"
-                + " lemma's premises hold -- the factor pair, the order"
-                + " by totality, and the bound by the certified"
-                + " induction (the spine monomul(zero, a, b) climbing"
-                + " by its step rule, expanded and closed by"
-                + " transitivity with the identity leq(times(a, b), m))"
-                + " -- so the lemma's rule fires."
-            )
-            proof_text = (
-                proof_text
-                + " Direction two -- every bounded witness reaches the"
-                + " process conclusion: the lemma's premises, through"
-                + " the taught substrate rules, satisfy the process"
-                + " rules' premises, so the process rules fire."
-            )
-            lemma_lines = []
-            lemma_scan = proof_lemmas
+            proof_remaining = M.Head(
+                M.Tail(M.Tail(M.Tail(proof_record)())())(),
+            )()
+            # The certificate the proof rested on, re-read from the
+            # graph so the reply renders its base and step rules
+            # instead of narrating them.
+            certificate_node = M.EmptyList
+            certificate_scan = G.GraphNodes(learned_version)()
             while M.IdentityCompare(
-                lemma_scan, M.EmptyList,
+                certificate_scan, M.EmptyList,
             )() is M.false_value:
-                lemma_pair = M.Head(lemma_scan)()
-                lemma_lines.append(
-                    P.PrettyRule(
-                        P.MultiRule(
-                            M.Head(lemma_pair)(),
-                            M.Head(M.Tail(lemma_pair)())(),
-                        )(),
-                        M.AllConstructors,
-                    )()
-                )
-                lemma_scan = M.Tail(lemma_scan)()
-            process_lines = []
-            process_scan = proof_process
-            while M.IdentityCompare(
-                process_scan, M.EmptyList,
-            )() is M.false_value:
-                process_pair = M.Head(process_scan)()
-                process_lines.append(
-                    P.PrettyRule(
-                        P.MultiRule(
-                            M.Head(process_pair)(),
-                            M.Head(M.Tail(process_pair)())(),
-                        )(),
-                        M.AllConstructors,
-                    )()
-                )
-                process_scan = M.Tail(process_scan)()
+                certificate_candidate = M.Head(certificate_scan)()
+                certificate_scan = M.Tail(certificate_scan)()
+                if M.IsPair(certificate_candidate)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(certificate_candidate)(),
+                        M.Char("inductive-law"),
+                    )() is M.truth_value:
+                        certificate_node = certificate_candidate
+                        certificate_scan = M.EmptyList
+
+            def _recorded_rule_renders(pair_chain):
+                rendered = []
+                render_scan = pair_chain
+                while M.IdentityCompare(
+                    render_scan, M.EmptyList,
+                )() is M.false_value:
+                    render_pair = M.Head(render_scan)()
+                    rendered.append(
+                        P.PrettyRule(
+                            P.MultiRule(
+                                M.Head(render_pair)(),
+                                M.Head(M.Tail(render_pair)())(),
+                            )(),
+                            M.AllConstructors,
+                        )()
+                    )
+                    render_scan = M.Tail(render_scan)()
+                return rendered
             proof_text = (
-                proof_text
-                + " The lemma rules: "
-                + "; ".join(lemma_lines)
-                + ". The process rules: "
-                + "; ".join(process_lines)
-                + "."
+                "Proof: the recorded equivalence runs in both"
+                + " directions. Direction one, process to lemma: every"
+                + " premise of the lemma rules -- "
+                + "; ".join(_recorded_rule_renders(proof_lemmas))
+                + " -- except the leq premises is reachable from the"
+                + " process side. Direction two, lemma to process:"
+                + " every premise of the proven process rules -- "
+                + "; ".join(_recorded_rule_renders(proof_process))
+                + " -- derives from the lemma side under the installed"
+                + " rules."
             )
+            if M.IdentityCompare(
+                certificate_node, M.EmptyList,
+            )() is M.false_value:
+                cert_claim = M.Head(M.Tail(certificate_node)())()
+                cert_bases = M.Head(
+                    M.Tail(M.Tail(certificate_node)())(),
+                )()
+                cert_steps = M.Head(
+                    M.Tail(M.Tail(M.Tail(certificate_node)())())(),
+                )()
+                base_renders = []
+                base_scan = cert_bases
+                while M.IdentityCompare(
+                    base_scan, M.EmptyList,
+                )() is M.false_value:
+                    base_renders.append(
+                        P.PrettyRule(
+                            M.Head(base_scan)(), M.AllConstructors,
+                        )()
+                    )
+                    base_scan = M.Tail(base_scan)()
+                step_renders = []
+                step_scan = cert_steps
+                while M.IdentityCompare(
+                    step_scan, M.EmptyList,
+                )() is M.false_value:
+                    step_renders.append(
+                        P.PrettyRule(
+                            M.Head(step_scan)(), M.AllConstructors,
+                        )()
+                    )
+                    step_scan = M.Tail(step_scan)()
+                proof_text = (
+                    proof_text
+                    + " The recorded induction over '"
+                    + str(cert_claim()) + "': base "
+                    + "; ".join(base_renders)
+                    + "; step "
+                    + "; ".join(step_renders) + "."
+                )
+            remaining_render = "; ".join(
+                _recorded_rule_renders(proof_remaining),
+            )
+            if remaining_render != "":
+                proof_text = (
+                    proof_text
+                    + " Outside the proof: " + remaining_render
+                    + " -- their premises did not derive from the lemma"
+                    + " side."
+                )
             return proof_text
         if lowered.startswith("why:"):
             asked_text = line[4:].strip()
