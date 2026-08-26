@@ -2149,6 +2149,44 @@ class GraphEdges(M.Edge):
         return self.result
 
 
+class ChainAddStructurallyMissing(M.Edge):
+    """Add structurally absent elements to a Pair-chain store.
+
+    Membership is M.Compare -- the machine's structural equality, the
+    same relation the forward chainer uses to recognize a derived
+    fact. This is the comparator for terms that crossed a process
+    boundary: the wire format interns atoms per blob, so two
+    deserializations of the same term are distinct objects, and
+    identity-leaning equality sees them as different. Merging is the
+    one place those strangers meet.
+    """
+
+    def __init__(self, store, additions):
+        result = store
+        remaining = additions
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            element = M.Head(remaining)()
+            scan = result
+            present = M.false_value
+            while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+                if M.Compare(M.Head(scan)(), element)() is M.truth_value:
+                    present = M.truth_value
+                    scan = M.EmptyList
+                else:
+                    scan = M.Tail(scan)()
+            if M.IdentityCompare(present, M.false_value)() is M.truth_value:
+                result = M.Pair(element, result)
+            remaining = M.Tail(remaining)()
+        self.result = result
+        super().__init__(
+            inputs=M.Pair(store, M.Pair(additions, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class MergeGraphVersion(M.Edge):
     """Merge append-only graph data delivered through the live inbox."""
 
@@ -2157,15 +2195,15 @@ class MergeGraphVersion(M.Edge):
             self.result = current
         else:
             self.result = GraphVersion(
-                ChainAddMissing(
+                ChainAddStructurallyMissing(
                     GraphNodes(current)(),
                     GraphNodes(submitted)(),
                 )(),
-                ChainAddMissing(
+                ChainAddStructurallyMissing(
                     GraphEdges(current)(),
                     GraphEdges(submitted)(),
                 )(),
-                ChainAddMissing(
+                ChainAddStructurallyMissing(
                     GraphVersionInvariants(current)(),
                     GraphVersionInvariants(submitted)(),
                 )(),

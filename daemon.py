@@ -245,7 +245,7 @@ class DaemonMergeInbox(M.Edge):
             known = M.false_value
             probe = Gmod.ProposalStoreEntries(current)()
             while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
-                if M.TermEqual(
+                if M.Compare(
                     Gmod.ProposalEntryProposal(M.Head(probe)())(),
                     proposal,
                 )() is M.truth_value:
