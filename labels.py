@@ -2556,6 +2556,34 @@ class OpportunityLabel(ConstructorLabel):
     pass
 
 
+class ModifierOfLabel(ConstructorLabel):
+    pass
+
+
+class UndefinedConceptLabel(ConstructorLabel):
+    pass
+
+
+class UngroundedModifierLabel(ConstructorLabel):
+    pass
+
+
+class NoUsageExampleLabel(ConstructorLabel):
+    pass
+
+
+class NoParentLabel(ConstructorLabel):
+    pass
+
+
+class DanglingReferenceLabel(ConstructorLabel):
+    pass
+
+
+class MissingRenderLawLabel(ConstructorLabel):
+    pass
+
+
 class ConceptCausesLabel(ConstructorLabel):
     pass
 
@@ -2596,6 +2624,10 @@ class ConceptEventLabel(ConstructorLabel):
     pass
 
 
+class GapRecordLabel(ConstructorLabel):
+    pass
+
+
 class CorrespondenceLawLabel(ConstructorLabel):
     pass
 
@@ -2632,6 +2664,13 @@ RoleOfLabel = RoleOfLabel()
 CanAccessLabel = CanAccessLabel()
 ResponsibleForLabel = ResponsibleForLabel()
 OpportunityLabel = OpportunityLabel()
+ModifierOfLabel = ModifierOfLabel()
+UndefinedConceptLabel = UndefinedConceptLabel()
+UngroundedModifierLabel = UngroundedModifierLabel()
+NoUsageExampleLabel = NoUsageExampleLabel()
+NoParentLabel = NoParentLabel()
+DanglingReferenceLabel = DanglingReferenceLabel()
+MissingRenderLawLabel = MissingRenderLawLabel()
 ConceptCausesLabel = ConceptCausesLabel()
 ResponsibilityRoleLabel = ResponsibilityRoleLabel()
 WearableObjectLabel = WearableObjectLabel()
@@ -2642,6 +2681,7 @@ DirtLabel = DirtLabel()
 PlaceLabel = PlaceLabel()
 PersonLabel = PersonLabel()
 ConceptEventLabel = ConceptEventLabel()
+GapRecordLabel = GapRecordLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
 
 

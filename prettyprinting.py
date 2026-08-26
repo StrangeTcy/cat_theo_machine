@@ -131,6 +131,13 @@ from .labels import (
     CanAccessLabel,
     ResponsibleForLabel,
     OpportunityLabel,
+    ModifierOfLabel,
+    UndefinedConceptLabel,
+    UngroundedModifierLabel,
+    NoUsageExampleLabel,
+    NoParentLabel,
+    DanglingReferenceLabel,
+    MissingRenderLawLabel,
 )
 from .logic import false_value, truth_value
 from .math.peano import NatEq, NatRepOf
@@ -893,6 +900,20 @@ class PrettyTerm(Edge):
             return "ResponsibleFor(" + self._show_args(tail) + ")"
         if IdentityCompare(head, OpportunityLabel)() is truth_value:
             return "Opportunity(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ModifierOfLabel)() is truth_value:
+            return "ModifierOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, UndefinedConceptLabel)() is truth_value:
+            return "UndefinedConcept(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, UngroundedModifierLabel)() is truth_value:
+            return "UngroundedModifier(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoUsageExampleLabel)() is truth_value:
+            return "NoUsageExample(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoParentLabel)() is truth_value:
+            return "NoParent(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, DanglingReferenceLabel)() is truth_value:
+            return "DanglingReference(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, MissingRenderLawLabel)() is truth_value:
+            return "MissingRenderLaw(" + self._show_args(tail) + ")"
         if IdentityCompare(head, MachineContextLabel)() is truth_value:
             return "Context(...)"
         return None
