@@ -757,64 +757,126 @@ class CaseSplitQuery(M.Edge):
             # schema.
             instance_binding = empty
             if M.IsPair(goal)() is M.truth_value:
-                probe_scan = M.Head(
+                # Bind only the positions every head-matching candidate
+                # shares -- the placeholder -- never an item: the
+                # exclusive list's members are constants, and binding
+                # them from an unrelated goal would rewrite the split's
+                # own content. All matching candidates walk their
+                # arguments in parallel with the goal's; a position
+                # binds when every candidate agrees on it.
+                matching_reversed = empty
+                match_scan = M.Head(
                     M.Tail(CaseSplitExactlyOne(split)())(),
                 )()
                 while M.IdentityCompare(
-                    probe_scan, empty,
+                    match_scan, empty,
                 )() is M.false_value:
-                    probe_candidate = M.Head(probe_scan)()
-                    binding_reversed = empty
-                    parallel = M.false_value
-                    if M.IsPair(probe_candidate)() is M.truth_value:
+                    match_candidate = M.Head(match_scan)()
+                    if M.IsPair(match_candidate)() is M.truth_value:
                         if M.Compare(
-                            M.Head(probe_candidate)(), M.Head(goal)(),
+                            M.Head(match_candidate)(), M.Head(goal)(),
                         )() is M.truth_value:
-                            candidate_args = M.Tail(probe_candidate)()
-                            goal_args = M.Tail(goal)()
-                            parallel = M.truth_value
+                            matching_reversed = M.Pair(
+                                match_candidate, matching_reversed,
+                            )
+                    match_scan = M.Tail(match_scan)()
+                matching = M.Reverse(matching_reversed)()
+                if M.IdentityCompare(
+                    matching, empty,
+                )() is M.false_value:
+                    args_chains = empty
+                    chains_scan = matching
+                    while M.IdentityCompare(
+                        chains_scan, empty,
+                    )() is M.false_value:
+                        args_chains = M.Pair(
+                            M.Tail(M.Head(chains_scan)())(),
+                            args_chains,
+                        )
+                        chains_scan = M.Tail(chains_scan)()
+                    goal_args = M.Tail(goal)()
+                    binding_reversed = empty
+                    walking = M.truth_value
+                    while M.IdentityCompare(
+                        walking, M.truth_value,
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            goal_args, empty,
+                        )() is M.truth_value:
+                            instance_binding = M.Reverse(
+                                binding_reversed,
+                            )()
+                            walking = M.false_value
+                        else:
+                            shared_here = M.truth_value
+                            current_arg = empty
+                            first_chain = M.truth_value
+                            chain_scan = args_chains
                             while M.IdentityCompare(
-                                parallel, M.truth_value,
+                                chain_scan, empty,
+                            )() is M.false_value:
+                                one_chain = M.Head(chain_scan)()
+                                if M.IdentityCompare(
+                                    one_chain, empty,
+                                )() is M.truth_value:
+                                    shared_here = M.false_value
+                                    chain_scan = empty
+                                else:
+                                    one_arg = M.Head(one_chain)()
+                                    if M.IdentityCompare(
+                                        first_chain, M.truth_value,
+                                    )() is M.truth_value:
+                                        current_arg = one_arg
+                                        first_chain = M.false_value
+                                        chain_scan = M.Tail(chain_scan)()
+                                    else:
+                                        if M.Compare(
+                                            one_arg, current_arg,
+                                        )() is M.false_value:
+                                            shared_here = M.false_value
+                                            chain_scan = empty
+                                        else:
+                                            chain_scan = M.Tail(
+                                                chain_scan,
+                                            )()
+                            if M.IdentityCompare(
+                                shared_here, M.truth_value,
                             )() is M.truth_value:
                                 if M.IdentityCompare(
-                                    candidate_args, empty,
+                                    current_arg, empty,
                                 )() is M.false_value:
-                                    if M.IdentityCompare(
-                                        goal_args, empty,
-                                    )() is M.false_value:
-                                        binding_reversed = M.Pair(
+                                    binding_reversed = M.Pair(
+                                        M.Pair(
+                                            current_arg,
                                             M.Pair(
-                                                M.Head(candidate_args)(),
-                                                M.Pair(
-                                                    M.Head(goal_args)(),
-                                                    empty,
-                                                ),
+                                                M.Head(goal_args)(),
+                                                empty,
                                             ),
-                                            binding_reversed,
-                                        )
-                                        candidate_args = M.Tail(
-                                            candidate_args,
-                                        )()
-                                        goal_args = M.Tail(goal_args)()
-                                    else:
-                                        parallel = M.false_value
-                                        binding_reversed = empty
+                                        ),
+                                        binding_reversed,
+                                    )
+                            advanced_chains = empty
+                            advance_scan = args_chains
+                            while M.IdentityCompare(
+                                advance_scan, empty,
+                            )() is M.false_value:
+                                one_chain = M.Head(advance_scan)()
+                                if M.IdentityCompare(
+                                    one_chain, empty,
+                                )() is M.truth_value:
+                                    advanced_chains = M.Pair(
+                                        empty, advanced_chains,
+                                    )
                                 else:
-                                    if M.IdentityCompare(
-                                        goal_args, empty,
-                                    )() is M.truth_value:
-                                        instance_binding = M.Reverse(
-                                            binding_reversed,
-                                        )()
-                                        probe_scan = empty
-                                        parallel = M.false_value
-                                    else:
-                                        parallel = M.false_value
-                                        binding_reversed = empty
-                    if M.IdentityCompare(
-                        probe_scan, empty,
-                    )() is M.false_value:
-                        probe_scan = M.Tail(probe_scan)()
+                                    advanced_chains = M.Pair(
+                                        M.Tail(one_chain)(),
+                                        advanced_chains,
+                                    )
+                                advance_scan = M.Tail(advance_scan)()
+                            args_chains = M.Reverse(
+                                advanced_chains,
+                            )()
+                            goal_args = M.Tail(goal_args)()
             instance_candidates = M.Head(
                 M.Tail(CaseSplitExactlyOne(split)())(),
             )()
