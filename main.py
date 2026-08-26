@@ -2091,8 +2091,11 @@ def run_talk_mode(sentence: str = None):
                 _log_lesson(line)
             _persist_talk_state()
             return graph_answer
-        return ("I could not read that definition. The line has a word or a "
-                + "shape my grammar does not cover; nothing was recorded.")
+        # The grammar reader could not span the line; the structural
+        # reader still can. A definition is a term, a copula, and a
+        # body -- the split needs no grammar beyond that, and the
+        # definition is recorded, bridged, and reported with its open
+        # dependencies rather than refused.
         body = line.split(":", 1)[1].strip()
         words = _words(body)
         if M.IdentityCompare(words, M.EmptyList)() is M.truth_value:
@@ -2105,6 +2108,7 @@ def run_talk_mode(sentence: str = None):
             return "I could not find the term being defined."
         term_word = M.Head(split)()
         term_text = term_word()
+        term_display = term_text.replace("_", " ")
         body_chain = M.Head(M.Tail(split)())()
         definition = G.Definition(
             term_word,
@@ -2117,7 +2121,7 @@ def run_talk_mode(sentence: str = None):
         )() is M.false_value else M.EmptyList
         if M.IdentityCompare(existing, M.EmptyList)() is M.false_value:
             return (
-                "I already have a definition of '" + term_text + "': "
+                "I already have a definition of '" + term_display + "': "
                 + _speak_chain(
                     M.Head(M.Tail(G.DefinitionBody(existing)())())(),
                 )
@@ -2153,7 +2157,7 @@ def run_talk_mode(sentence: str = None):
         )()
         if M.IdentityCompare(open_words, M.EmptyList)() is M.truth_value:
             return (
-                "Recorded: a " + term_text + " is "
+                "Recorded: a " + term_display + " is "
                 + _speak_chain(body_chain) + ". Every word in it is grounded."
                 + definition_law_line
                 + _propose_bridge(term_text)
@@ -2164,7 +2168,7 @@ def run_talk_mode(sentence: str = None):
             spoken.append(str(M.Head(remaining_open)()()))
             remaining_open = M.Tail(remaining_open)()
         return (
-            "Recorded: a " + term_text + " is " + _speak_chain(body_chain) + ". "
+            "Recorded: a " + term_display + " is " + _speak_chain(body_chain) + ". "
             + "But I do not know what "
             + " or ".join("'" + w + "'" for w in spoken)
             + " " + ("is" if len(spoken) == 1 else "are")
@@ -2433,12 +2437,49 @@ def run_talk_mode(sentence: str = None):
         return "?"
 
     def _handle_what_is(line):
-        # accepted shapes: 'what is a triangle', 'what is triangle'
+        # accepted shapes: 'what is a triangle', 'what is triangle',
+        # and phrase terms: 'what is a sieve of eratosthenes' -- a
+        # definition whose term is a phrase joins it with underscores,
+        # so the question joins the same way to find it.
         term_word = G.SoleWord(
             G.WordChainWithout(_words(line), WHAT_IS_WORDS)(),
         )()
         if M.IdentityCompare(term_word, M.EmptyList)() is M.truth_value:
-            return None
+            subject_words = G.WordChainWithout(_words(line), WHAT_IS_WORDS)()
+            while M.IdentityCompare(
+                subject_words, M.EmptyList,
+            )() is M.false_value:
+                if G.SurfaceChainHasWord(
+                    ARTICLE_WORDS, M.Head(subject_words)(),
+                )() is M.truth_value:
+                    subject_words = M.Tail(subject_words)()
+                else:
+                    subject_words = M.EmptyList
+            joined_text = ""
+            join_scan = G.WordChainWithout(_words(line), WHAT_IS_WORDS)()
+            while M.IdentityCompare(
+                join_scan, M.EmptyList,
+            )() is M.false_value:
+                if G.SurfaceChainHasWord(
+                    ARTICLE_WORDS, M.Head(join_scan)(),
+                )() is M.truth_value:
+                    if joined_text == "":
+                        join_scan = M.Tail(join_scan)()
+                        continue
+                    break
+                if joined_text != "":
+                    joined_text = joined_text + "_"
+                joined_text = joined_text + str(M.Head(join_scan)()())
+                join_scan = M.Tail(join_scan)()
+            if joined_text == "":
+                return None
+            phrase_term = M.Char(joined_text)
+            if M.IdentityCompare(
+                G.DefinitionFor(learned_version, phrase_term)(),
+                M.EmptyList,
+            )() is M.truth_value:
+                return None
+            term_word = phrase_term
         term_text = term_word()
         bridge = G.BridgeFor(learned_version, term_word)()
         ontology_line = ""
@@ -2481,7 +2522,7 @@ def run_talk_mode(sentence: str = None):
             return "I have no definition of '" + term_text + "'."
         body = G.DefinitionBody(definition)()
         answer = (
-            "a " + term_text + " is "
+            "a " + term_text.replace("_", " ") + " is "
             + _speak_chain(M.Head(M.Tail(body)())())
             + ontology_line
         )

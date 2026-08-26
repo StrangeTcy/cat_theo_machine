@@ -11392,20 +11392,73 @@ class DefinitionTermAndBody(M.Edge):
     def __init__(self, words, articles, copulas):
         self.result = M.EmptyList
         remaining = words
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if SurfaceChainHasWord(articles, M.Head(remaining)())() is M.truth_value:
-                remaining = M.Tail(remaining)()
+        skipping_articles = M.truth_value
+        while M.IdentityCompare(
+            skipping_articles, M.truth_value,
+        )() is M.truth_value:
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if SurfaceChainHasWord(
+                    articles, M.Head(remaining)(),
+                )() is M.truth_value:
+                    remaining = M.Tail(remaining)()
+                else:
+                    skipping_articles = M.false_value
             else:
+                skipping_articles = M.false_value
+        # The first copula anywhere in the line divides term from body:
+        # 'a sieve of eratosthenes is a process' defines the whole
+        # phrase before the copula, not just its head noun. A phrase
+        # term joins its words with underscores into one symbol, the
+        # same convention the word groundings use; a single word stays
+        # itself.
+        term_reversed = M.EmptyList
+        body = M.EmptyList
+        copula_seen = M.false_value
+        walker = remaining
+        while M.IdentityCompare(walker, M.EmptyList)() is M.false_value:
+            if SurfaceChainHasWord(
+                copulas, M.Head(walker)(),
+            )() is M.truth_value:
+                body = M.Tail(walker)()
+                copula_seen = M.truth_value
+                walker = M.EmptyList
+            else:
+                term_reversed = M.Pair(M.Head(walker)(), term_reversed)
+                walker = M.Tail(walker)()
+        if M.IdentityCompare(copula_seen, M.truth_value)() is M.false_value:
+            # No copula: the old shape -- the first non-article word is
+            # the term and everything after it is the body.
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
                 term = M.Head(remaining)()
                 body = M.Tail(remaining)()
                 if M.IdentityCompare(body, M.EmptyList)() is M.false_value:
-                    if SurfaceChainHasWord(
-                        copulas, M.Head(body)(),
-                    )() is M.truth_value:
-                        body = M.Tail(body)()
-                if M.IdentityCompare(body, M.EmptyList)() is M.false_value:
                     self.result = M.Pair(term, M.Pair(body, M.EmptyList))
-                remaining = M.EmptyList
+        else:
+            if M.IdentityCompare(term_reversed, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(body, M.EmptyList)() is M.false_value:
+                    term_chain = M.Reverse(term_reversed)()
+                    if M.IdentityCompare(
+                        M.Tail(term_chain)(), M.EmptyList,
+                    )() is M.truth_value:
+                        term = M.Head(term_chain)()
+                    else:
+                        joined_text = ""
+                        join_scan = term_chain
+                        first_word = M.truth_value
+                        while M.IdentityCompare(
+                            join_scan, M.EmptyList,
+                        )() is M.false_value:
+                            if M.IdentityCompare(
+                                first_word, M.truth_value,
+                            )() is M.false_value:
+                                joined_text = joined_text + "_"
+                            joined_text = (
+                                joined_text + str(M.Head(join_scan)()())
+                            )
+                            first_word = M.false_value
+                            join_scan = M.Tail(join_scan)()
+                        term = M.Char(joined_text)
+                    self.result = M.Pair(term, M.Pair(body, M.EmptyList))
         super().__init__(
             inputs=M.Pair(
                 words, M.Pair(articles, M.Pair(copulas, M.EmptyList)),
