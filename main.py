@@ -3189,8 +3189,26 @@ def run_talk_mode(sentence: str = None):
                     growing = M.false_value
                 else:
                     rounds_text = G.GMPSuccText(rounds_text)()
-                    growing = M.false_value
-                    remaining_rules = rules
+                    goal_early = M.false_value
+                    goal_scan = facts
+                    while M.IdentityCompare(
+                        goal_scan, M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(goal_scan)(), goal,
+                        )() is M.truth_value:
+                            goal_early = M.truth_value
+                            goal_scan = M.EmptyList
+                        else:
+                            goal_scan = M.Tail(goal_scan)()
+                    if M.IdentityCompare(
+                        goal_early, M.truth_value,
+                    )() is M.truth_value:
+                        growing = M.false_value
+                        rounds_text = "200"
+                    else:
+                        growing = M.false_value
+                        remaining_rules = rules
                     while M.IdentityCompare(
                         remaining_rules, M.EmptyList,
                     )() is M.false_value:
@@ -3623,6 +3641,38 @@ def run_talk_mode(sentence: str = None):
                 + ". It keeps every premise and adds the conclusion."
                 + fresh_text
                 + " Approve? (yes/no)"
+            )
+        if lowered.startswith("induction:"):
+            claim_text = line[10:].strip()
+            claim = M.Char(claim_text)
+            certified = G.CertifyInduction(claim, learned_version)()
+            learned_version = M.Head(certified)()
+            bases = M.Head(M.Tail(certified)())()
+            steps = M.Head(M.Tail(M.Tail(certified)())())()
+            universal = M.Head(
+                M.Tail(M.Tail(M.Tail(certified)())())(),
+            )()
+            reason = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(certified)())())())(),
+            )()
+            if M.IdentityCompare(reason, M.EmptyList)() is M.false_value:
+                _persist_talk_state()
+                return (
+                    "I could not certify an induction over '"
+                    + claim_text + "' ("
+                    + str(reason())
+                    + "). A base rule concludes it at a numeral; a step"
+                    + " rule concludes it at a constructor over a variable"
+                    + " it also assumes."
+                )
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return (
+                "Certified induction over '" + claim_text + "': "
+                + P.PrettyRule(universal, M.AllConstructors)()
+                + ". The certificate is recorded; spine instances of the"
+                + " claim cite it in their derivations."
             )
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)

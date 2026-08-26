@@ -875,6 +875,32 @@ class ParseRuleText(M.Edge):
                                 )() is M.truth_value:
                                     argument_value = M.Char(token())
                                 else:
+                                    # A number word is a constant, never a
+                                    # variable: the digit chain is the one
+                                    # grammar authority on which words name
+                                    # numbers, so rules can state arithmetic
+                                    # with numerals without any host parsing.
+                                    is_number_word = M.false_value
+                                    digit_scan = digit_words
+                                    while M.IdentityCompare(
+                                        digit_scan, empty,
+                                    )() is M.false_value:
+                                        digit_entry = M.Head(digit_scan)()
+                                        if M.Compare(
+                                            M.Head(M.Tail(digit_entry)())(),
+                                            token,
+                                        )() is M.truth_value:
+                                            is_number_word = M.truth_value
+                                            digit_scan = empty
+                                        else:
+                                            digit_scan = M.Tail(digit_scan)()
+                                    if M.IdentityCompare(
+                                        is_number_word, M.truth_value,
+                                    )() is M.truth_value:
+                                        argument_value = M.Char(token())
+                                if M.IdentityCompare(
+                                    argument_value, empty,
+                                )() is M.truth_value:
                                     is_variable = M.false_value
                                     variable_name_scan = variable_names
                                     while M.IdentityCompare(
@@ -2654,6 +2680,194 @@ class DerivationTree(M.Edge):
                     M.Pair(depth_text, M.EmptyList),
                 ),
             ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InductiveLaw(M.Edge):
+    """The certificate that a claim predicate is proven by induction.
+
+    Pair(Char("inductive-law"), Pair(claim, Pair(bases, Pair(steps,
+    EmptyList)))) -- bases are rules concluding the claim at a numeral
+    constant, steps are rules concluding the claim at a constructor
+    application of a variable that also appears as a claim premise.
+    """
+
+    def __init__(self, claim, bases, steps):
+        self.result = M.Pair(
+            M.Char("inductive-law"),
+            M.Pair(claim, M.Pair(bases, M.Pair(steps, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                claim, M.Pair(bases, M.Pair(steps, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InductiveLawKnown(M.Edge):
+    """Whether an inductive law is already certified for a claim."""
+
+    def __init__(self, graph_version, claim):
+        self.result = M.false_value
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.Compare(
+                    node_head, M.Char("inductive-law"),
+                )() is M.truth_value:
+                    if M.Compare(
+                        M.Head(M.Tail(node)())(), claim,
+                    )() is M.truth_value:
+                        self.result = M.truth_value
+                        agenda = M.EmptyList
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(claim, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CertifyInduction(M.Edge):
+    """Certify a claim predicate as proven by induction over its first term.
+
+    Scans installed taught rules for the claim's base and step shapes,
+    and, when both exist, derives the universal rule the induction
+    licenses: the step's side premises conclude the claim at its
+    induction variable. Result:
+    Pair(version, Pair(bases, Pair(steps, Pair(universal, Pair(reason,
+    EmptyList))))) -- reason is EmptyList on certification and a Char
+    text key otherwise.
+    """
+
+    def __init__(self, claim, graph_version):
+        version = graph_version
+        bases_reversed = M.EmptyList
+        steps_reversed = M.EmptyList
+        rule_scan = InstalledTaughtRules(graph_version)()
+        while M.IdentityCompare(
+            rule_scan, M.EmptyList,
+        )() is M.false_value:
+            taught_rule = M.Head(rule_scan)()
+            replacement = P.RuleReplacement(taught_rule)()
+            if M.IsPair(replacement)() is M.truth_value:
+                if M.Compare(M.Head(replacement)(), claim)() is M.truth_value:
+                    first_arg = M.Head(M.Tail(replacement)())()
+                    if M.IsPair(first_arg)() is M.truth_value:
+                        premise_scan = P.RulePremises(taught_rule)()
+                        claim_premise = M.EmptyList
+                        while M.IdentityCompare(
+                            premise_scan, M.EmptyList,
+                        )() is M.false_value:
+                            premise = M.Head(premise_scan)()
+                            if M.IsPair(premise)() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(premise)(), claim,
+                                )() is M.truth_value:
+                                    claim_premise = premise
+                                    premise_scan = M.EmptyList
+                                else:
+                                    premise_scan = M.Tail(premise_scan)()
+                            else:
+                                premise_scan = M.Tail(premise_scan)()
+                        if M.IdentityCompare(
+                            claim_premise, M.EmptyList,
+                        )() is M.false_value:
+                            steps_reversed = M.Pair(
+                                taught_rule, steps_reversed,
+                            )
+                    else:
+                        bases_reversed = M.Pair(
+                            taught_rule, bases_reversed,
+                        )
+            rule_scan = M.Tail(rule_scan)()
+        bases = M.Reverse(bases_reversed)()
+        steps = M.Reverse(steps_reversed)()
+        reason = M.EmptyList
+        universal = M.EmptyList
+        if M.IdentityCompare(bases, M.EmptyList)() is M.truth_value:
+            reason = M.Char("no-base")
+        elif M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:
+            reason = M.Char("no-step")
+        else:
+            step_rule = M.Head(steps)()
+            step_premises = P.RulePremises(step_rule)()
+            claim_premise = M.EmptyList
+            premise_scan = step_premises
+            while M.IdentityCompare(
+                premise_scan, M.EmptyList,
+            )() is M.false_value:
+                premise = M.Head(premise_scan)()
+                if M.IsPair(premise)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(premise)(), claim,
+                    )() is M.truth_value:
+                        claim_premise = premise
+                        premise_scan = M.EmptyList
+                    else:
+                        premise_scan = M.Tail(premise_scan)()
+                else:
+                    premise_scan = M.Tail(premise_scan)()
+            induction_variable = M.Head(M.Tail(claim_premise)())()
+            side_premises_reversed = M.EmptyList
+            premise_scan = step_premises
+            while M.IdentityCompare(
+                premise_scan, M.EmptyList,
+            )() is M.false_value:
+                premise = M.Head(premise_scan)()
+                if M.Compare(premise, claim_premise)() is M.false_value:
+                    side_premises_reversed = M.Pair(
+                        premise, side_premises_reversed,
+                    )
+                premise_scan = M.Tail(premise_scan)()
+            universal = P.MultiRule(
+                M.Reverse(side_premises_reversed)(),
+                M.Pair(
+                    claim,
+                    M.Pair(
+                        induction_variable,
+                        M.Tail(M.Tail(P.RuleReplacement(step_rule)())())(),
+                    ),
+                ),
+            )()
+            if M.IdentityCompare(
+                InductiveLawKnown(version, claim)(),
+                M.truth_value,
+            )() is M.false_value:
+                version = GraphVersion(
+                    M.Pair(
+                        InductiveLaw(
+                            claim, bases, steps,
+                        )(),
+                        GraphNodes(version)(),
+                    ),
+                    GraphEdges(version)(),
+                    GraphVersionInvariants(version)(),
+                )()
+        self.result = M.Pair(
+            version,
+            M.Pair(
+                bases,
+                M.Pair(
+                    steps,
+                    M.Pair(universal, M.Pair(reason, M.EmptyList)),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(claim, M.Pair(graph_version, M.EmptyList)),
             results=self.result,
         )
 
