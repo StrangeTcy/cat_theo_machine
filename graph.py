@@ -18669,7 +18669,7 @@ class RuleMentionCount(M.Edge):
     A mention counts the whole premise or replacement term, its
     predicate head, and its argument structure -- the target can be a
     concept in argument position or a predicate symbol in head
-    position.
+    position. The count is a machine GMPRep number.
     """
 
     def __init__(self, term, graph_version):
@@ -18733,7 +18733,7 @@ class RuleMentionCount(M.Edge):
                 )() is M.truth_value:
                     count_text = GMPSuccText(count_text)()
                 rule_scan = M.Tail(rule_scan)()
-        self.result = M.Char(count_text)
+        self.result = M.GMPRep(count_text)
         super().__init__(
             inputs=M.Pair(term, M.Pair(graph_version, M.EmptyList)),
             results=self.result,
@@ -18807,11 +18807,11 @@ class RankGaps(M.Edge):
             gap = M.Head(scan)()
             gap_target = GapTarget(gap)()
             gap_count = RuleMentionCount(gap_target, graph_version)()
-            gap_count_text = gap_count()
-            gap_blocking = M.Char("no")
+            gap_count_text = M.GMPRepText(gap_count)()
+            gap_blocking = M.false_value
             if M.IsPair(goal)() is M.truth_value:
                 if TermContains(goal, gap_target)() is M.truth_value:
-                    gap_blocking = M.Char("yes")
+                    gap_blocking = M.truth_value
             entry = M.Pair(
                 Lmod.RankedGapsLabel,
                 M.Pair(
@@ -18832,8 +18832,8 @@ class RankGaps(M.Edge):
                 else:
                     existing = M.Head(cursor)()
                     existing_gap = M.Head(M.Tail(existing)())()
-                    existing_count_text = (
-                        M.Head(M.Tail(M.Tail(existing)())())()
+                    existing_count_text = M.GMPRepText(
+                        M.Head(M.Tail(M.Tail(existing)())())(),
                     )()
                     existing_blocking = M.Head(
                         M.Tail(M.Tail(M.Tail(existing)())())(),
@@ -18847,17 +18847,17 @@ class RankGaps(M.Edge):
                     elif GMPEqualText(
                         existing_count_text, gap_count_text,
                     )() is M.truth_value:
-                        if M.Compare(
-                            gap_blocking, M.Char("yes"),
+                        if M.IdentityCompare(
+                            gap_blocking, M.truth_value,
                         )() is M.truth_value:
-                            if M.Compare(
-                                existing_blocking, M.Char("yes"),
+                            if M.IdentityCompare(
+                                existing_blocking, M.truth_value,
                             )() is M.false_value:
                                 entry_first = M.truth_value
                         if M.IdentityCompare(
                             entry_first, M.false_value,
                         )() is M.truth_value:
-                            if M.Compare(
+                            if M.IdentityCompare(
                                 gap_blocking, existing_blocking,
                             )() is M.truth_value:
                                 if GMPLessText(

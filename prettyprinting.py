@@ -166,6 +166,10 @@ class AtomName(Edge):
     def _name(self, a):
         if C.Compare(a, Zero)() is truth_value:
             return "Zero"
+        if IdentityCompare(a, truth_value)() is truth_value:
+            return "Truth"
+        if IdentityCompare(a, false_value)() is truth_value:
+            return "False"
         if IdentityCompare(a, GeometryFactLabel)() is truth_value:
             return "GeometryFact"
         if IdentityCompare(a, TaoProblem11TriangleLabel)() is truth_value:
@@ -994,6 +998,10 @@ class PrettyTerm(Edge):
             return ctor
         if M.IsPair(x)() is truth_value:
             return "[" + self._list_like(x) + "]"
+        if IdentityCompare(x, truth_value)() is truth_value:
+            return "Truth"
+        if IdentityCompare(x, false_value)() is truth_value:
+            return "False"
         if IdentityCompare(x, TaoProblem11TriangleLabel)() is truth_value:
             return "Tao Problem 1.1 triangle"
         if IdentityCompare(x, TaoProblem11VertexULabel)() is truth_value:

@@ -9,6 +9,22 @@ type inspection.
 from __future__ import annotations
 
 import os
+import sys
+
+if __package__ in (None, ""):
+    IMPORT_ROOT = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+    PACKAGE_NAME = os.path.basename(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+    CHILD_ARGS = [sys.executable, "-m", PACKAGE_NAME + ".probes.gap_probe"]
+    CHILD_ENV = os.environ.copy()
+    CHILD_ENV["PYTHONPATH"] = IMPORT_ROOT
+    CHILD = __import__("subprocess").run(
+        CHILD_ARGS, cwd=IMPORT_ROOT, env=CHILD_ENV,
+    )
+    raise SystemExit(CHILD.returncode)
 
 from cat_theo_machine import machine as M  # must load first: machine pulls graph in
 from cat_theo_machine import graph as G
