@@ -15813,19 +15813,104 @@ class InterpretDefinitionBody(M.Edge):
         return self.result
 
 
+class InterpretOperators(M.Edge):
+    """Nest a reading chain's operators into interpreted conditions.
+
+    'only' and 'no' stop being markers in a flat chain and become
+    structure: OnlyOf and NoOf terms wrapping the run of items that
+    follows them, up to the next operator or the end. Words before any
+    operator stay as themselves. The reflexive variable passes through
+    untouched -- the binder owns it.
+    """
+
+    def __init__(self, chain):
+        empty = M.EmptyList
+        conditions_reversed = empty
+        walker = chain
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            item = M.Head(walker)()
+            walker = M.Tail(walker)()
+            operator_kind = M.EmptyList
+            if M.IsPair(item)() is M.truth_value:
+                if M.Compare(
+                    M.Head(item)(), Lmod.OnlyLabel,
+                )() is M.truth_value:
+                    operator_kind = Lmod.OnlyLabel
+                elif M.Compare(
+                    M.Head(item)(), Lmod.NoLabel,
+                )() is M.truth_value:
+                    operator_kind = Lmod.NoLabel
+            if M.IdentityCompare(operator_kind, empty)() is M.truth_value:
+                conditions_reversed = M.Pair(item, conditions_reversed)
+            else:
+                segment_reversed = empty
+                collecting = M.truth_value
+                while M.IdentityCompare(
+                    collecting, M.truth_value,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        walker, empty,
+                    )() is M.truth_value:
+                        collecting = M.false_value
+                    else:
+                        next_item = M.Head(walker)()
+                        next_is_operator = M.false_value
+                        if M.IsPair(next_item)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(next_item)(), Lmod.OnlyLabel,
+                            )() is M.truth_value:
+                                next_is_operator = M.truth_value
+                            elif M.Compare(
+                                M.Head(next_item)(), Lmod.NoLabel,
+                            )() is M.truth_value:
+                                next_is_operator = M.truth_value
+                        if M.IdentityCompare(
+                            next_is_operator, M.truth_value,
+                        )() is M.truth_value:
+                            collecting = M.false_value
+                        else:
+                            segment_reversed = M.Pair(
+                                next_item, segment_reversed,
+                            )
+                            walker = M.Tail(walker)()
+                conditions_reversed = M.Pair(
+                    M.Pair(
+                        operator_kind,
+                        M.Pair(M.Reverse(segment_reversed)(), empty),
+                    ),
+                    conditions_reversed,
+                )
+        self.result = M.Reverse(conditions_reversed)()
+        super().__init__(
+            inputs=M.Pair(chain, empty),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class DefinitionReading(M.Edge):
     """The interpreted body of a structural definition, as a graph node.
 
     Pair(Char("definition-reading"), Pair(term, Pair(binder,
-    Pair(interpreted_chain, EmptyList)))).
+    Pair(interpreted_chain, Pair(conditions, EmptyList))))). The
+    conditions are the operators nested: OnlyOf and NoOf terms wrapping
+    their segments, everything else flat.
     """
 
-    def __init__(self, term_word, binder, interpreted_chain):
+    def __init__(self, term_word, binder, interpreted_chain, conditions):
         self.result = M.Pair(
             M.Char("definition-reading"),
             M.Pair(
                 term_word,
-                M.Pair(binder, M.Pair(interpreted_chain, M.EmptyList)),
+                M.Pair(
+                    binder,
+                    M.Pair(
+                        interpreted_chain,
+                        M.Pair(conditions, M.EmptyList),
+                    ),
+                ),
             ),
         )
         super().__init__(

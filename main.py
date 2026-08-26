@@ -2081,6 +2081,7 @@ def run_talk_mode(sentence: str = None):
 
     def _handle_definition(line, record=True):
         nonlocal learned_version, registry
+        nonlocal pending_rule, proposal_store
         # The reader computes; this caller commits. One writer of the
         # session state, one place the lesson is logged and persisted --
         # the reader returns (answer, next_version) and mutates nothing.
@@ -2132,18 +2133,97 @@ def run_talk_mode(sentence: str = None):
         # 'only' and 'no' become operator terms, and the reading node
         # lands in the graph where the compiler's gate can see it.
         interpretation = G.InterpretDefinitionBody(term_word, body_chain)()
+        interpreted_chain = M.Head(M.Tail(interpretation)())()
+        interpreted_conditions = G.InterpretOperators(interpreted_chain)()
         learned_version = G.GraphVersion(
             M.Pair(
                 G.DefinitionReading(
                     term_word,
                     M.Head(interpretation)(),
-                    M.Head(M.Tail(interpretation)())(),
+                    interpreted_chain,
+                    interpreted_conditions,
                 )(),
                 G.GraphNodes(learned_version)(),
             ),
             G.GraphEdges(learned_version)(),
             G.GraphVersionInvariants(learned_version)(),
         )()
+        # 'no' denies its segment: the negation lives as a case split,
+        # one branch for the segment holding, one for the defined term,
+        # proposed through the ordinary approval gate.
+        negation_line = ""
+        conditions_scan = interpreted_conditions
+        while M.IdentityCompare(
+            conditions_scan, M.EmptyList,
+        )() is M.false_value:
+            condition = M.Head(conditions_scan)()
+            if M.IsPair(condition)() is M.truth_value:
+                if M.Compare(
+                    M.Head(condition)(), Lmod.NoLabel,
+                )() is M.truth_value:
+                    segment = M.Head(M.Tail(condition)())()
+                    segment_word = M.EmptyList
+                    segment_scan = segment
+                    while M.IdentityCompare(
+                        segment_scan, M.EmptyList,
+                    )() is M.false_value:
+                        segment_item = M.Head(segment_scan)()
+                        if M.IsPair(segment_item)() is M.truth_value:
+                            segment_scan = M.Tail(segment_scan)()
+                        else:
+                            if G.SurfaceChainHasWord(
+                                G.DEFINITION_STOP_WORDS, segment_item,
+                            )() is M.truth_value:
+                                segment_scan = M.Tail(segment_scan)()
+                            else:
+                                segment_word = segment_item
+                                segment_scan = M.EmptyList
+                    if M.IdentityCompare(
+                        segment_word, M.EmptyList,
+                    )() is M.false_value:
+                        split_body = (
+                            str(segment_word()) + "(x), "
+                            + term_text + "(x)"
+                        )
+                        split_text = "one of " + split_body
+                        known_constructors = G.RuleConstructors(
+                            learned_version,
+                            pack_concepts,
+                        )()
+                        parsed_case = G.ParseRuleText(
+                            split_body,
+                            reading_policy,
+                            reading_digits,
+                            known_constructors,
+                            M.Char("exactly-one"),
+                        )()
+                        case_split = M.Head(parsed_case)()
+                        case_reason = M.Head(M.Tail(parsed_case)())()
+                        if M.IdentityCompare(
+                            case_split, M.EmptyList,
+                        )() is M.false_value:
+                            exactly_one = G.CaseSplitExactlyOne(case_split)()
+                            case_origin = M.Pair(
+                                M.Char("case-split"),
+                                M.Pair(exactly_one, M.EmptyList),
+                            )
+                            case_proposal = G.Proposal(
+                                case_split, case_origin,
+                            )()
+                            proposal_store = G.ProposalStoreSubmit(
+                                proposal_store, case_proposal,
+                            )()
+                            pending_rule = case_proposal
+                            negation_line = (
+                                " The 'no' denies its segment, so a case"
+                                + " split is proposed: " + split_text
+                                + ". Approve? (yes/no)"
+                            )
+                            conditions_scan = M.EmptyList
+            if M.IdentityCompare(
+                conditions_scan, M.EmptyList,
+            )() is M.false_value:
+                conditions_scan = M.Tail(conditions_scan)()
         operator_line = ""
         operator_count_text = M.GMPRepText(
             M.Head(M.Tail(M.Tail(interpretation)())())(),
@@ -2187,6 +2267,7 @@ def run_talk_mode(sentence: str = None):
                 "Recorded: a " + term_display + " is "
                 + _speak_chain(body_chain) + ". Every word in it is grounded."
                 + operator_line
+                + negation_line
                 + definition_law_line
                 + _propose_bridge(term_text)
             )
@@ -2204,6 +2285,7 @@ def run_talk_mode(sentence: str = None):
             + ("it" if len(spoken) == 1 else "them")
             + " with 'definition: a " + spoken[0] + " is ...'."
             + operator_line
+            + negation_line
             + definition_law_line
             + _propose_bridge(term_text)
         )
@@ -2872,13 +2954,21 @@ def run_talk_mode(sentence: str = None):
                 rule_origin = G.ProposalOrigin(decided_proposal)()
                 taught_rule_terms = M.EmptyList
                 if M.IsPair(rule_origin)() is M.truth_value:
-                    taught_rule_terms = M.Pair(
-                        M.Head(M.Tail(rule_origin)())(),
-                        M.Pair(
-                            M.Head(M.Tail(M.Tail(rule_origin)())())(),
-                            M.EmptyList,
-                        ),
-                    )
+                    # A rule origin carries premises and a replacement;
+                    # a case-split origin carries its exactly-one and
+                    # nothing past it.
+                    if M.IsPair(
+                        M.Tail(M.Tail(rule_origin)())(),
+                    )() is M.truth_value:
+                        taught_rule_terms = M.Pair(
+                            M.Head(M.Tail(rule_origin)())(),
+                            M.Pair(
+                                M.Head(
+                                    M.Tail(M.Tail(rule_origin)())(),
+                                )(),
+                                M.EmptyList,
+                            ),
+                        )
                 inspection = G.InspectGaps(
                     pending_gaps,
                     last_goal,
@@ -3218,8 +3308,14 @@ def run_talk_mode(sentence: str = None):
                 while M.IdentityCompare(
                     relevance_candidates, M.EmptyList,
                 )() is M.false_value:
-                    if M.Compare(
+                    # A candidate carries its variables; a ground goal
+                    # matches it by unification, not by structural
+                    # equality -- cat(x) is relevant to cat(fido).
+                    candidate_match = M.Match(
                         M.Head(relevance_candidates)(), goal,
+                    )()
+                    if M.IdentityCompare(
+                        M.Head(candidate_match)(), M.truth_value,
                     )() is M.truth_value:
                         case_relevant = M.truth_value
                         relevance_candidates = M.EmptyList
