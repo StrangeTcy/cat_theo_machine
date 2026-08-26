@@ -923,10 +923,16 @@ class CaseSplitQuery(M.Edge):
 
                 growing = M.truth_value
                 rounds_text = "0"
+                # A branch chains under a work budget in the family of
+                # the other caps: an inductive spine climbs without end,
+                # and a branch only needs the closure its facts can
+                # reach in bounded depth -- the witnesses a query can
+                # name are small, and past the budget the branch is
+                # decided by what it already derived.
                 while M.IdentityCompare(
                     growing, M.truth_value,
                 )() is M.truth_value:
-                    if GMPEqualText(rounds_text, "200")() is M.truth_value:
+                    if GMPEqualText(rounds_text, "16")() is M.truth_value:
                         growing = M.false_value
                     else:
                         rounds_text = GMPSuccText(rounds_text)()

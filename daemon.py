@@ -442,8 +442,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
         if M.IdentityCompare(capped, M.truth_value)() is M.false_value:
             cycles_text = Gmod.GMPSuccText(cycles_text)()
 
+            inbox_taken = M.false_value
             if os.path.exists(inbox_path):
                 submitted = Wmod.load_checkpoint(inbox_path)
+                inbox_taken = M.truth_value
                 if M.IdentityCompare(submitted, M.EmptyList)() is M.false_value:
                     graph_version = Gmod.MergeGraphVersion(
                         graph_version,
@@ -462,7 +464,6 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                             + " submission(s) from the conversation",
                             flush=True,
                         )
-                os.remove(inbox_path)
 
             refusal = DaemonSafetyText(graph_version, proposal_store)()
             if refusal:
@@ -506,6 +507,14 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                     proposal_store,
                     ledger,
                 )
+                # The submission file outlives the write that consumed it:
+                # removing it earlier opened a window where a kill between
+                # drain and write lost the drained data. Now the inbox is
+                # removed only once its content is durable in the state --
+                # at-least-once delivery into an idempotent merge.
+                if M.IdentityCompare(inbox_taken, M.truth_value)() is M.truth_value:
+                    if os.path.exists(inbox_path):
+                        os.remove(inbox_path)
                 print(
                     "daemon cycle " + cycles_text + ": " + DaemonCycleSummary(report)(),
                     flush=True,

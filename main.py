@@ -2082,6 +2082,7 @@ def run_talk_mode(sentence: str = None):
     def _handle_definition(line, record=True):
         nonlocal learned_version, registry
         nonlocal pending_rule, proposal_store
+        nonlocal pending_bridge
         # The reader computes; this caller commits. One writer of the
         # session state, one place the lesson is logged and persisted --
         # the reader returns (answer, next_version) and mutates nothing.
@@ -2360,6 +2361,96 @@ def run_talk_mode(sentence: str = None):
                 + " reflexive bound; it compiles to no law while they"
                 + " stand uninterpreted."
             )
+        # A term with no bridge and no pack constructor names something
+        # new: propose minting a constructor of its own, through the
+        # same bridge gate as a pack link. A defined term becomes
+        # predicable -- rules can speak it, queries can parse it.
+        mint_line = ""
+        existing_bridge = G.BridgeFor(learned_version, term_word)()
+        if M.IdentityCompare(existing_bridge, M.EmptyList)() is M.truth_value:
+            pack_constructor = _pack_constructor_for(term_text)
+            if M.IdentityCompare(
+                pack_constructor, M.EmptyList,
+            )() is M.truth_value:
+                pending_bridge = M.Pair(
+                    term_word,
+                    M.Pair(M.Char(term_text), M.EmptyList),
+                )
+                mint_line = (
+                    " The word '" + term_display + "' names something"
+                    + " new; make it a constructor of its own?"
+                    + " (bridge yes/bridge no)"
+                )
+        # A body the templates cannot read proposes its own shape: the
+        # trainer's phrasing becomes a template law -- stop words stay
+        # literal, content words become slots, the first content word
+        # reads as the genus. Nothing about the shape is in the
+        # machine; the line itself is the grammar lesson.
+        shape_line = ""
+        body_reading = G.DefinitionBodyReading(
+            definition, vocabulary, registry,
+        )()
+        if M.IdentityCompare(body_reading, M.EmptyList)() is M.truth_value:
+            shape_reversed = M.EmptyList
+            shape_scan = body_chain
+            genus_variable = M.EmptyList
+            first_content = M.truth_value
+            shape_words = 0
+            while M.IdentityCompare(
+                shape_scan, M.EmptyList,
+            )() is M.false_value:
+                body_word = M.Head(shape_scan)()
+                if G.SurfaceChainHasWord(
+                    G.DEFINITION_STOP_WORDS, body_word,
+                )() is M.truth_value:
+                    shape_reversed = M.Pair(body_word, shape_reversed)
+                else:
+                    slot_variable = M.Pair(
+                        M.VarTag,
+                        M.Pair(M.Char("?" + str(body_word())), M.EmptyList),
+                    )
+                    shape_reversed = M.Pair(slot_variable, shape_reversed)
+                    if M.IdentityCompare(
+                        first_content, M.truth_value,
+                    )() is M.truth_value:
+                        genus_variable = slot_variable
+                        first_content = M.false_value
+                shape_words = shape_words + 1
+                shape_scan = M.Tail(shape_scan)()
+            if M.IdentityCompare(
+                genus_variable, M.EmptyList,
+            )() is M.false_value:
+                shape_chain = M.Reverse(shape_reversed)()
+                shape_surface = G.Surface(shape_chain)()
+                genus_meaning = G.Meaning(
+                    M.Pair(
+                        Lmod.DefinitionGenusLabel,
+                        M.Pair(
+                            G.Surface(M.Pair(genus_variable, M.EmptyList))(),
+                            M.EmptyList,
+                        ),
+                    ),
+                )()
+                shape_law = G.CompileRuleToLaw(
+                    P.Rule(shape_surface, genus_meaning),
+                )()
+                if M.IdentityCompare(shape_law, M.EmptyList)() is M.false_value:
+                    shape_proposal = G.Proposal(
+                        shape_law,
+                        M.Pair(
+                            M.Char("definition-shape"),
+                            M.Pair(term_word, M.EmptyList),
+                        ),
+                    )()
+                    proposal_store = G.ProposalStoreSubmit(
+                        proposal_store, shape_proposal,
+                    )()
+                    pending_rule = shape_proposal
+                    shape_line = (
+                        " The body's shape is new to me; reading its"
+                        + " first word as the genus would make it a"
+                        + " template. Approve this shape? (yes/no)"
+                    )
         # A word may already be bridged when its definition arrives -- the
         # trainer defined it after linking, or is refining an earlier
         # definition. Either way the subject already names a constructor,
@@ -2395,6 +2486,8 @@ def run_talk_mode(sentence: str = None):
                 + operator_line
                 + negation_line
                 + restriction_line
+                + mint_line
+                + shape_line
                 + definition_law_line
                 + _propose_bridge(term_text)
             )
@@ -2414,6 +2507,8 @@ def run_talk_mode(sentence: str = None):
             + operator_line
             + negation_line
             + restriction_line
+            + mint_line
+            + shape_line
             + definition_law_line
             + _propose_bridge(term_text)
         )
@@ -2658,6 +2753,59 @@ def run_talk_mode(sentence: str = None):
                     " The definition compiled to " + law_text
                     + " law(s); the prover now rewrites with them."
                 )
+        # A new grounding can unblock other definitions: a body whose
+        # genus is this word could not compile before, and can now.
+        # Re-compile every installed definition whose genus resolves
+        # through this bridge.
+        unblocked_text = "0"
+        unblocked_scan = G.InstalledDefinitions(learned_version)()
+        while M.IdentityCompare(
+            unblocked_scan, M.EmptyList,
+        )() is M.false_value:
+            other_definition = M.Head(unblocked_scan)()
+            if M.IdentityCompare(
+                G.DefinitionTerm(other_definition)(), word,
+            )() is M.truth_value:
+                unblocked_scan = M.Tail(unblocked_scan)()
+            else:
+                other_reading = G.DefinitionBodyReading(
+                    other_definition, vocabulary, registry,
+                )()
+                if M.IdentityCompare(
+                    other_reading, M.EmptyList,
+                )() is M.truth_value:
+                    unblocked_scan = M.Tail(unblocked_scan)()
+                else:
+                    other_term = M.Head(M.Tail(other_reading)())()
+                    other_genus_slot = M.Head(M.Tail(other_term)())()
+                    other_genus = G.ReadingWordConstructor(
+                        learned_version, other_genus_slot,
+                    )()
+                    if M.IdentityCompare(
+                        other_genus, constructor,
+                    )() is M.truth_value:
+                        other_result = G.InstallDefinitionLaws(
+                            learned_version,
+                            other_definition,
+                            vocabulary,
+                            registry,
+                        )()
+                        learned_version = M.Head(other_result)()
+                        other_count = M.Head(M.Tail(other_result)())()
+                        other_text = M.GMPRepText(
+                            M.NatRepOf(other_count, registry)(),
+                        )()
+                        if G.GMPEqualText(other_text, "0")() is M.false_value:
+                            unblocked_text = G.GMPAddText(
+                                unblocked_text, other_text,
+                            )()
+                    unblocked_scan = M.Tail(unblocked_scan)()
+        if G.GMPEqualText(unblocked_text, "0")() is M.false_value:
+            law_line = (
+                law_line + " Grounding '" + str(word()) + "' unblocked"
+                + " definitions worth " + unblocked_text
+                + " more law(s)."
+            )
         _persist_talk_state()
         return (
             "Linked: '" + str(word()) + "' now names the pack constructor. "
@@ -3050,7 +3198,9 @@ def run_talk_mode(sentence: str = None):
                                 learned_version,
                                 G.ProposalLaw(decided_proposal)(),
                             )()
-                        else:
+                        elif M.IsPair(
+                            M.Tail(M.Tail(rule_origin)())(),
+                        )() is M.truth_value:
                             source_premises = M.Head(M.Tail(rule_origin)())()
                             source_replacement = M.Head(
                                 M.Tail(M.Tail(rule_origin)())(),
@@ -3080,6 +3230,46 @@ def run_talk_mode(sentence: str = None):
                 learned_version = installed_version
                 _extend_vocabulary()
                 rule_origin = G.ProposalOrigin(decided_proposal)()
+                # A definition-shape approval is a grammar lesson: the
+                # template is installed and the vocabulary extended, so
+                # the definition that proposed it can be read now.
+                shape_origin_word = M.EmptyList
+                if M.IsPair(rule_origin)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(rule_origin)(), M.Char("definition-shape"),
+                    )() is M.truth_value:
+                        shape_origin_word = M.Head(
+                            M.Tail(rule_origin)(),
+                        )()
+                if M.IdentityCompare(
+                    shape_origin_word, M.EmptyList,
+                )() is M.false_value:
+                    shape_definition = G.DefinitionFor(
+                        learned_version, shape_origin_word,
+                    )()
+                    if M.IdentityCompare(
+                        shape_definition, M.EmptyList,
+                    )() is M.false_value:
+                        shape_result = G.InstallDefinitionLaws(
+                            learned_version,
+                            shape_definition,
+                            vocabulary,
+                            registry,
+                        )()
+                        learned_version = M.Head(shape_result)()
+                        shape_count = M.Head(M.Tail(shape_result)())()
+                        shape_count_text = M.GMPRepText(
+                            M.NatRepOf(shape_count, registry)(),
+                        )()
+                        if G.GMPEqualText(shape_count_text, "0")() is M.false_value:
+                            _persist_talk_state()
+                            return (
+                                "Recorded and activated. The shape is now"
+                                + " a template, and the definition compiled"
+                                + " to " + shape_count_text
+                                + " law(s); the prover now rewrites with"
+                                + " them."
+                            )
                 taught_rule_terms = M.EmptyList
                 if M.IsPair(rule_origin)() is M.truth_value:
                     # A rule origin carries premises and a replacement;
@@ -3426,8 +3616,75 @@ def run_talk_mode(sentence: str = None):
             # name distinct numbers, each names itself. A taught
             # different(x, y) -> not(same(x, y)) law turns them into
             # refutations; nothing is guessed for words the digit
-            # chain does not own.
-            numeral_facts = G.NumeralSamenessFacts(reading_digits)()
+            # chain does not own. They join only when something in the
+            # query can speak them -- the goal, or a rule's premise or
+            # replacement naming same or different -- because a
+            # working set that cannot use them only pays for carrying
+            # them.
+            sameness_spoken = M.false_value
+            if M.IsPair(goal)() is M.truth_value:
+                if M.Compare(M.Head(goal)(), M.Char("same"))() is M.truth_value:
+                    sameness_spoken = M.truth_value
+                elif M.Compare(M.Head(goal)(), M.Char("different"))() is M.truth_value:
+                    sameness_spoken = M.truth_value
+            rule_speak_scan = G.InstalledTaughtRules(learned_version)()
+            while M.IdentityCompare(
+                rule_speak_scan, M.EmptyList,
+            )() is M.false_value:
+                if M.IdentityCompare(
+                    sameness_spoken, M.truth_value,
+                )() is M.truth_value:
+                    rule_speak_scan = M.EmptyList
+                else:
+                    speak_rule = M.Head(rule_speak_scan)()
+                    speak_scan = P.RulePremises(speak_rule)()
+                    if M.IdentityCompare(
+                        speak_scan, M.EmptyList,
+                    )() is M.truth_value:
+                        speak_scan = P.RuleReplacement(speak_rule)()
+                    while M.IdentityCompare(
+                        speak_scan, M.EmptyList,
+                    )() is M.false_value:
+                        speak_term = M.Head(speak_scan)()
+                        if M.IsPair(speak_term)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(speak_term)(), M.Char("same"),
+                            )() is M.truth_value:
+                                sameness_spoken = M.truth_value
+                                speak_scan = M.EmptyList
+                            elif M.Compare(
+                                M.Head(speak_term)(), M.Char("different"),
+                            )() is M.truth_value:
+                                sameness_spoken = M.truth_value
+                                speak_scan = M.EmptyList
+                            elif M.Compare(
+                                M.Head(speak_term)(), M.Char("not"),
+                            )() is M.truth_value:
+                                inner_speak = M.Head(
+                                    M.Tail(speak_term)(),
+                                )()
+                                if M.IsPair(inner_speak)() is M.truth_value:
+                                    if M.Compare(
+                                        M.Head(inner_speak)(),
+                                        M.Char("same"),
+                                    )() is M.truth_value:
+                                        sameness_spoken = M.truth_value
+                                        speak_scan = M.EmptyList
+                        if M.IdentityCompare(
+                            speak_scan, M.EmptyList,
+                        )() is M.false_value:
+                            speak_scan = M.Tail(speak_scan)()
+                    if M.IdentityCompare(
+                        rule_speak_scan, M.EmptyList,
+                    )() is M.false_value:
+                        rule_speak_scan = M.Tail(rule_speak_scan)()
+            numeral_facts = M.Pair(
+                M.EmptyList, M.Pair(M.EmptyList, M.EmptyList),
+            )
+            if M.IdentityCompare(
+                sameness_spoken, M.truth_value,
+            )() is M.truth_value:
+                numeral_facts = G.NumeralSamenessFacts(reading_digits)()
             numeral_scan = M.Head(numeral_facts)()
             while M.IdentityCompare(
                 numeral_scan, M.EmptyList,
@@ -4633,7 +4890,39 @@ def run_talk_mode(sentence: str = None):
         print("hyge> (" + str(_count_chain(pending_queue))
               + " proposal(s) from the replayed lessons still await your decision)")
         print("hyge> " + M.Head(M.Tail(first_pending)())())
+    # Read-back: the daemon is the only writer of the shared state, so
+    # this process adopts its writes. At each turn the checkpoint's
+    # stamp is checked; when the daemon has written, its version, its
+    # proposals, and its firing ledger merge into memory through the
+    # same idempotent union the daemon itself applies -- the
+    # conversation's own teaching is already a superset of what it
+    # submitted, so nothing is lost and nothing is duplicated.
+    last_state_stamp = 0.0
+    if os.path.exists(talk_checkpoint_path):
+        last_state_stamp = os.path.getmtime(talk_checkpoint_path)
     while True:
+        if os.path.exists(daemon_live_path):
+            if os.path.exists(talk_checkpoint_path):
+                current_state_stamp = os.path.getmtime(talk_checkpoint_path)
+                if current_state_stamp != last_state_stamp:
+                    last_state_stamp = current_state_stamp
+                    read_back = W.load_checkpoint(talk_checkpoint_path)
+                    if M.IdentityCompare(
+                        read_back, M.EmptyList,
+                    )() is M.false_value:
+                        learned_version = G.MergeGraphVersion(
+                            learned_version,
+                            M.Head(read_back)(),
+                        )()
+                        read_back_store = Dmn.DaemonMergeInbox(
+                            proposal_store,
+                            M.Head(M.Tail(read_back)())(),
+                        )()
+                        proposal_store = M.Head(read_back_store)()
+                        talk_ledger = M.Head(
+                            M.Tail(M.Tail(read_back)())(),
+                        )()
+                        _debug("read the daemon's state back")
         try:
             line = input("you> ")
         except EOFError:
@@ -4870,6 +5159,52 @@ def run_live_mode(requested_workers):
             daemon_child.wait(timeout=5)
         except subprocess.TimeoutExpired:
             daemon_child.kill()
+        # The daemon is gone; the conversation is momentarily the only
+        # process touching the shared state. Whatever still sits in the
+        # inbox -- submitted after the daemon's last drain, or drained
+        # but not yet written when it died -- is merged into the
+        # checkpoint here, so no teaching is lost with the session. The
+        # merge is the same idempotent union the daemon applies, so a
+        # submission the daemon already folded in adds nothing.
+        teardown_inbox = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_INBOX_NAME)
+        if os.path.exists(teardown_inbox):
+            teardown_submitted = W.load_checkpoint(teardown_inbox)
+            if M.IdentityCompare(
+                teardown_submitted, M.EmptyList,
+            )() is M.false_value:
+                teardown_version = M.EmptyList
+                teardown_store = G.ProposalStore(M.EmptyList)()
+                teardown_ledger = G.FiringLedger(M.AllConstructors)
+                teardown_path = os.path.join(SNAPSHOT_DIR, "talk_state.wire")
+                if os.path.exists(teardown_path):
+                    teardown_restored = W.load_checkpoint(teardown_path)
+                    if M.IdentityCompare(
+                        teardown_restored, M.EmptyList,
+                    )() is M.false_value:
+                        teardown_version = M.Head(teardown_restored)()
+                        teardown_store = M.Head(
+                            M.Tail(teardown_restored)(),
+                        )()
+                        teardown_ledger = M.Head(
+                            M.Tail(M.Tail(teardown_restored)())(),
+                        )()
+                teardown_version = G.MergeGraphVersion(
+                    teardown_version,
+                    M.Head(teardown_submitted)(),
+                )()
+                teardown_merged = Dmn.DaemonMergeInbox(
+                    teardown_store,
+                    M.Head(M.Tail(teardown_submitted)())(),
+                )()
+                teardown_store = M.Head(teardown_merged)()
+                W.save_checkpoint(
+                    teardown_path,
+                    teardown_version,
+                    teardown_store,
+                    teardown_ledger,
+                )
+                print("live mode: drained the inbox into the talk state.")
+            os.remove(teardown_inbox)
         live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
         if os.path.exists(live_path):
             os.remove(live_path)
