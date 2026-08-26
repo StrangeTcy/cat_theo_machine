@@ -16033,6 +16033,66 @@ class InstalledDefinitions(M.Edge):
         return self.result
 
 
+class DefinitionNodeWordKnown(M.Edge):
+    """Whether any parsed DefinitionNode defines this word.
+
+    The grammar reader installs definitions as graph nodes whose
+    definiendum is a typed term, not a Definition record -- a word
+    the machine has already parsed a definition for is not an open
+    dependency just because it lives in the other store. The concept
+    is the definiendum's second element; a Hole-wrapped concept
+    carries its word in the hole.
+    """
+
+    def __init__(self, graph_version, word):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.false_value
+        agenda = GraphNodes(graph_version)()
+        scan_text = "0"
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                agenda = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                node = M.Head(agenda)()
+                agenda = M.Tail(agenda)()
+                if M.IsPair(node)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(node)(), Lmod.DefinitionNodeLabel,
+                    )() is M.truth_value:
+                        definiendum = M.Head(M.Tail(node)())()
+                        if M.IsPair(definiendum)() is M.truth_value:
+                            concept = M.Head(M.Tail(definiendum)())()
+                            concept_word = M.EmptyList
+                            if M.IsPair(concept)() is M.truth_value:
+                                if M.IdentityCompare(
+                                    M.Head(concept)(), Lmod.HoleLabel,
+                                )() is M.truth_value:
+                                    if M.IdentityCompare(
+                                        M.Tail(concept)(), M.EmptyList,
+                                    )() is M.false_value:
+                                        concept_word = M.Head(
+                                            M.Tail(concept)(),
+                                        )()
+                            else:
+                                concept_word = concept
+                            if M.IdentityCompare(
+                                concept_word, M.EmptyList,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    concept_word, word,
+                                )() is M.truth_value:
+                                    self.result = M.truth_value
+                                    agenda = M.EmptyList
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(word, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class DefinitionFor(M.Edge):
     """The Definition whose term is `word`, or EmptyList."""
 
@@ -16140,18 +16200,105 @@ class DefinitionOpenDependencies(M.Edge):
                     if M.IdentityCompare(unknown, M.EmptyList)() is M.truth_value:
                         known = M.truth_value
                 if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    # A word grounded by 'word: W means ...' is a Word
+                    # fact in the graph, not a correspondence entry.
+                    word_fact_scan = InstalledTaughtFacts(graph_version)()
+                    while M.IdentityCompare(
+                        word_fact_scan, M.EmptyList,
+                    )() is M.false_value:
+                        word_fact = M.Head(word_fact_scan)()
+                        if M.IsPair(word_fact)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(word_fact)(), Lmod.WordLabel,
+                            )() is M.truth_value:
+                                word_args = M.Tail(word_fact)()
+                                if M.IdentityCompare(
+                                    word_args, M.EmptyList,
+                                )() is M.false_value:
+                                    if M.Compare(
+                                        M.Head(word_args)(), word,
+                                    )() is M.truth_value:
+                                        known = M.truth_value
+                                        word_fact_scan = M.EmptyList
+                                    else:
+                                        word_fact_scan = M.Tail(
+                                            word_fact_scan,
+                                        )()
+                                else:
+                                    word_fact_scan = M.Tail(
+                                        word_fact_scan,
+                                    )()
+                            else:
+                                word_fact_scan = M.Tail(word_fact_scan)()
+                        else:
+                            word_fact_scan = M.Tail(word_fact_scan)()
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
                     defined = DefinitionFor(graph_version, word)()
                     if M.IdentityCompare(defined, M.EmptyList)() is M.false_value:
                         known = M.truth_value
                 if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    # A word the grammar reader already parsed a definition
+                    # for is not an open dependency.
+                    if DefinitionNodeWordKnown(graph_version, word)() is M.truth_value:
+                        known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
                     # 'three sides' depends on the concept 'side': a plural
-                    # surface form is grounded by its singular definition.
+                    # surface form is grounded by its singular definition,
+                    # its singular word grounding, or its singular parsed
+                    # node.
                     singular = WordSingular(word)()
                     if M.IdentityCompare(singular, M.EmptyList)() is M.false_value:
                         defined = DefinitionFor(graph_version, singular)()
                         if M.IdentityCompare(
                             defined, M.EmptyList,
                         )() is M.false_value:
+                            known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    # The singular's word grounding counts for the plural.
+                    singular = WordSingular(word)()
+                    if M.IdentityCompare(singular, M.EmptyList)() is M.false_value:
+                        singular_fact_scan = InstalledTaughtFacts(
+                            graph_version,
+                        )()
+                        while M.IdentityCompare(
+                            singular_fact_scan, M.EmptyList,
+                        )() is M.false_value:
+                            word_fact = M.Head(singular_fact_scan)()
+                            if M.IsPair(word_fact)() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(word_fact)(), Lmod.WordLabel,
+                                )() is M.truth_value:
+                                    word_args = M.Tail(word_fact)()
+                                    if M.IdentityCompare(
+                                        word_args, M.EmptyList,
+                                    )() is M.false_value:
+                                        if M.Compare(
+                                            M.Head(word_args)(), singular,
+                                        )() is M.truth_value:
+                                            known = M.truth_value
+                                            singular_fact_scan = M.EmptyList
+                                        else:
+                                            singular_fact_scan = M.Tail(
+                                                singular_fact_scan,
+                                            )()
+                                    else:
+                                        singular_fact_scan = M.Tail(
+                                            singular_fact_scan,
+                                        )()
+                                else:
+                                    singular_fact_scan = M.Tail(
+                                        singular_fact_scan,
+                                    )()
+                            else:
+                                singular_fact_scan = M.Tail(
+                                    singular_fact_scan,
+                                )()
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    singular = WordSingular(word)()
+                    if M.IdentityCompare(singular, M.EmptyList)() is M.false_value:
+                        if DefinitionNodeWordKnown(
+                            graph_version, singular,
+                        )() is M.truth_value:
                             known = M.truth_value
                 if M.IdentityCompare(known, M.false_value)() is M.truth_value:
                     if ChainHasWordStructural(

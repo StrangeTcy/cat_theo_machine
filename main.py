@@ -2514,6 +2514,24 @@ def run_talk_mode(sentence: str = None):
                 )
         definition = G.DefinitionFor(learned_version, M.Char(term_text))()
         if M.IdentityCompare(definition, M.EmptyList)() is M.truth_value:
+            # 'what is primes' after 'a prime is ...' -- the plural asks
+            # for the singular's definition.
+            singular_term = G.WordSingular(M.Char(term_text))()
+            if M.IdentityCompare(
+                singular_term, M.EmptyList,
+            )() is M.false_value:
+                definition = G.DefinitionFor(
+                    learned_version, singular_term,
+                )()
+        if M.IdentityCompare(definition, M.EmptyList)() is M.truth_value:
+            if G.DefinitionNodeWordKnown(
+                learned_version, M.Char(term_text),
+            )() is M.truth_value:
+                return (
+                    "a " + term_text.replace("_", " ")
+                    + " has a parsed definition in the graph; its reading"
+                    + " came through the definition grammar."
+                )
             if ontology_line:
                 return (
                     "I have no taught definition of '" + term_text + "'."
