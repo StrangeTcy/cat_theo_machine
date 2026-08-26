@@ -1559,6 +1559,14 @@ class CategoryLabel(ConstructorLabel):
     pass
 
 
+class OnlyLabel(ConstructorLabel):
+    pass
+
+
+class NoLabel(ConstructorLabel):
+    pass
+
+
 class BinderLabel(ConstructorLabel):
     pass
 
@@ -1983,6 +1991,8 @@ ComposeMeaningLabel = ComposeMeaningLabel()
 DefinitionNodeLabel = DefinitionNodeLabel()
 DefiniendumLabel = DefiniendumLabel()
 CategoryLabel = CategoryLabel()
+OnlyLabel = OnlyLabel()
+NoLabel = NoLabel()
 BinderLabel = BinderLabel()
 HoleLabel = HoleLabel()
 NoDefinitionInstalledLabel = NoDefinitionInstalledLabel()

@@ -2127,6 +2127,33 @@ def run_talk_mode(sentence: str = None):
                 )
             )
         learned_version = new_version
+        # The body is interpreted with the binder discipline before any
+        # compilation: 'itself' resolves to the reading's self variable,
+        # 'only' and 'no' become operator terms, and the reading node
+        # lands in the graph where the compiler's gate can see it.
+        interpretation = G.InterpretDefinitionBody(term_word, body_chain)()
+        learned_version = G.GraphVersion(
+            M.Pair(
+                G.DefinitionReading(
+                    term_word,
+                    M.Head(interpretation)(),
+                    M.Head(M.Tail(interpretation)())(),
+                )(),
+                G.GraphNodes(learned_version)(),
+            ),
+            G.GraphEdges(learned_version)(),
+            G.GraphVersionInvariants(learned_version)(),
+        )()
+        operator_line = ""
+        operator_count_text = M.GMPRepText(
+            M.Head(M.Tail(M.Tail(interpretation)())())(),
+        )()
+        if G.GMPEqualText(operator_count_text, "0")() is M.false_value:
+            operator_line = (
+                " Its 'only' and 'no' are recorded as operators with the"
+                + " reflexive bound; it compiles to no law while they"
+                + " stand uninterpreted."
+            )
         # A word may already be bridged when its definition arrives -- the
         # trainer defined it after linking, or is refining an earlier
         # definition. Either way the subject already names a constructor,
@@ -2159,6 +2186,7 @@ def run_talk_mode(sentence: str = None):
             return (
                 "Recorded: a " + term_display + " is "
                 + _speak_chain(body_chain) + ". Every word in it is grounded."
+                + operator_line
                 + definition_law_line
                 + _propose_bridge(term_text)
             )
@@ -2175,6 +2203,7 @@ def run_talk_mode(sentence: str = None):
             + ". Define "
             + ("it" if len(spoken) == 1 else "them")
             + " with 'definition: a " + spoken[0] + " is ...'."
+            + operator_line
             + definition_law_line
             + _propose_bridge(term_text)
         )

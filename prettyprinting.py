@@ -138,6 +138,8 @@ from .labels import (
     NoParentLabel,
     DanglingReferenceLabel,
     MissingRenderLawLabel,
+    OnlyLabel,
+    NoLabel,
     RankedGapsLabel,
     AskedQuestionLabel,
     AcknowledgedLabel,
@@ -921,6 +923,10 @@ class PrettyTerm(Edge):
             return "DanglingReference(" + self._show_args(tail) + ")"
         if IdentityCompare(head, MissingRenderLawLabel)() is truth_value:
             return "MissingRenderLaw(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, OnlyLabel)() is truth_value:
+            return "Only(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoLabel)() is truth_value:
+            return "No(" + self._show_args(tail) + ")"
         if IdentityCompare(head, RankedGapsLabel)() is truth_value:
             return "RankedGaps(" + self._show_args(tail) + ")"
         if IdentityCompare(head, AskedQuestionLabel)() is truth_value:

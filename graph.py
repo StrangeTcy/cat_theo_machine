@@ -15760,6 +15760,119 @@ class CategoryTerm(M.Edge):
         return self.result
 
 
+class InterpretDefinitionBody(M.Edge):
+    """Read a definition body with the binder discipline.
+
+    The grammar reader resolves every reflexive through a binder --
+    one scope and one fresh self variable -- and treats 'only' and
+    'no' as operators, not words to recite. The structural reader now
+    does the same: 'itself' becomes the binder's self variable in the
+    body chain, 'only' and 'no' become operator terms, and everything
+    else stays the word it was. Result:
+    Pair(binder, Pair(interpreted_chain, Pair(operator_count,
+    EmptyList))) -- the binder is the same shape the grammar reader's
+    DefinitionNode carries, so both definition paths bind reflexives
+    identically.
+    """
+
+    def __init__(self, term_word, body_chain):
+        empty = M.EmptyList
+        self_variable = M.Pair(
+            M.VarTag, M.Pair(M.Char("?self"), empty),
+        )
+        binder = Binder(M.Char("definition:" + str(term_word())), self_variable)()
+        interpreted_reversed = empty
+        operator_count_text = "0"
+        walker = body_chain
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            word = M.Head(walker)()
+            item = word
+            if M.Compare(word, M.Char("itself"))() is M.truth_value:
+                item = self_variable
+            elif M.Compare(word, M.Char("only"))() is M.truth_value:
+                item = M.Pair(Lmod.OnlyLabel, empty)
+                operator_count_text = GMPSuccText(operator_count_text)()
+            elif M.Compare(word, M.Char("no"))() is M.truth_value:
+                item = M.Pair(Lmod.NoLabel, empty)
+                operator_count_text = GMPSuccText(operator_count_text)()
+            interpreted_reversed = M.Pair(item, interpreted_reversed)
+            walker = M.Tail(walker)()
+        self.result = M.Pair(
+            binder,
+            M.Pair(
+                M.Reverse(interpreted_reversed)(),
+                M.Pair(M.GMPRep(operator_count_text), empty),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(term_word, M.Pair(body_chain, empty)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionReading(M.Edge):
+    """The interpreted body of a structural definition, as a graph node.
+
+    Pair(Char("definition-reading"), Pair(term, Pair(binder,
+    Pair(interpreted_chain, EmptyList)))).
+    """
+
+    def __init__(self, term_word, binder, interpreted_chain):
+        self.result = M.Pair(
+            M.Char("definition-reading"),
+            M.Pair(
+                term_word,
+                M.Pair(binder, M.Pair(interpreted_chain, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                term_word,
+                M.Pair(binder, M.Pair(interpreted_chain, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DefinitionReadingFor(M.Edge):
+    """The definition-reading node of a term, or EmptyList."""
+
+    def __init__(self, graph_version, term_word):
+        cap_text = M.GMPRepText(CORRESPONDENCE_SCAN_CAP)()
+        self.result = M.EmptyList
+        scan_text = "0"
+        remaining = GraphNodes(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                node = M.Head(remaining)()
+                remaining = M.Tail(remaining)()
+                if M.IsPair(node)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(node)(), M.Char("definition-reading"),
+                    )() is M.truth_value:
+                        if M.Compare(
+                            M.Head(M.Tail(node)())(), term_word,
+                        )() is M.truth_value:
+                            self.result = node
+                            remaining = M.EmptyList
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(term_word, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class Binder(M.Edge):
     """One scope and the fresh self every reflexive resolves to.
 
@@ -16685,10 +16798,46 @@ class CompileDefinitionToLaws(M.Edge):
         if M.IdentityCompare(vocabulary, M.EmptyList)() is M.false_value:
             word_entries = M.Head(M.Tail(vocabulary)())()
         self.result = M.EmptyList
-        subject_bridge = BridgeFor(
-            graph_version,
-            DefinitionTerm(definition)(),
+        # An operator in the body gates the whole compilation: 'only'
+        # restricts and 'no' negates, and a law compiled past a
+        # standing operator would assert what the definition denies.
+        # The reading carries the operators; until machinery
+        # interprets them, the definition stays a definition and is
+        # not guessed at.
+        operator_present = M.false_value
+        body_reading = DefinitionReadingFor(
+            graph_version, DefinitionTerm(definition)(),
         )()
+        if M.IdentityCompare(body_reading, M.EmptyList)() is M.false_value:
+            reading_chain = M.Head(
+                M.Tail(M.Tail(M.Tail(body_reading)())())(),
+            )()
+            chain_scan = reading_chain
+            while M.IdentityCompare(
+                chain_scan, M.EmptyList,
+            )() is M.false_value:
+                item = M.Head(chain_scan)()
+                if M.IsPair(item)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(item)(), Lmod.OnlyLabel,
+                    )() is M.truth_value:
+                        operator_present = M.truth_value
+                        chain_scan = M.EmptyList
+                    elif M.Compare(
+                        M.Head(item)(), Lmod.NoLabel,
+                    )() is M.truth_value:
+                        operator_present = M.truth_value
+                        chain_scan = M.EmptyList
+                    else:
+                        chain_scan = M.Tail(chain_scan)()
+                else:
+                    chain_scan = M.Tail(chain_scan)()
+        subject_bridge = M.EmptyList
+        if M.IdentityCompare(operator_present, M.truth_value)() is M.false_value:
+            subject_bridge = BridgeFor(
+                graph_version,
+                DefinitionTerm(definition)(),
+            )()
         if M.IdentityCompare(
             subject_bridge, M.EmptyList,
         )() is M.false_value:

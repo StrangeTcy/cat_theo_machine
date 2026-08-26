@@ -91,6 +91,17 @@ while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
     print(M.PrettyTerm(M.Head(scan)(), M.AllConstructors)())
     scan = M.Tail(scan)()
 
+print("== definition readings ==")
+reading_agenda = G.GraphNodes(version)()
+while M.IdentityCompare(reading_agenda, M.EmptyList)() is M.false_value:
+    reading_node = M.Head(reading_agenda)()
+    reading_agenda = M.Tail(reading_agenda)()
+    if M.IsPair(reading_node)() is M.truth_value:
+        if M.Compare(
+            M.Head(reading_node)(), M.Char("definition-reading"),
+        )() is M.truth_value:
+            print(M.PrettyTerm(reading_node, M.AllConstructors)())
+
 print("== asked questions ==")
 scan = asked_records
 while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
