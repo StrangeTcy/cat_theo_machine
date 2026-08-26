@@ -3833,8 +3833,6 @@ def run_talk_mode(sentence: str = None):
                         known_task = M.truth_value
                     elif M.Compare(task_atom, M.Char("sqrt"))() is M.truth_value:
                         known_task = M.truth_value
-                    elif M.Compare(task_atom, M.Char("mystery"))() is M.truth_value:
-                        known_task = M.truth_value
                     if M.IdentityCompare(
                         known_task, M.false_value,
                     )() is M.truth_value:
@@ -3862,8 +3860,6 @@ def run_talk_mode(sentence: str = None):
                             run_cold_mode(False, "coins")
                         elif M.Compare(task_atom, M.Char("sqrt"))() is M.truth_value:
                             run_cold_mode(False, "sqrt")
-                        elif M.Compare(task_atom, M.Char("mystery"))() is M.truth_value:
-                            run_cold_mode(False, "mystery")
                     except SnapshotSaveTimeout as timeout_error:
                         return ("task '" + task_name + "' finished, but saving "
                                 "the snapshot timed out: " + str(timeout_error)
@@ -4130,7 +4126,7 @@ def run_talk_mode(sentence: str = None):
     print("Ask taught rules: 'query: Sage(alice)'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
-    print("'prove square roots are real', 'solve the mystery'.")
+    print("'prove square roots are real'.")
     if replayed:
         print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
     if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
