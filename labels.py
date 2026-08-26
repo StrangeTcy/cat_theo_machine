@@ -2614,6 +2614,56 @@ class CorrespondenceLawLabel(ConstructorLabel):
     pass
 
 
+# Mystery / deduction-domain labels (Rung 1). No reasoning machinery yet:
+# these name the construction heads of a fact stream so a story pack can be
+# authored, and so the sourced-claim / contradiction discipline from the
+# history work can be pointed at testimony. BeforeLabel already exists and
+# is reused for scene ordering (Before(s1, s2)) rather than duplicated.
+class SaysLabel(ConstructorLabel):
+    pass
+
+
+class SceneLabel(ConstructorLabel):
+    pass
+
+
+class AtSceneLabel(ConstructorLabel):
+    pass
+
+
+class SuspectLabel(ConstructorLabel):
+    pass
+
+
+class CulpritLabel(ConstructorLabel):
+    pass
+
+
+class ContradictsLabel(ConstructorLabel):
+    pass
+
+
+# `rule:` teaching verb. PredicateApplication carries an unresolved
+# Pred(word) ( args ) meaning form; the rule handler resolves the word
+# through BridgeFor and the args through the meaning path before compiling.
+# UnknownConstructor, AmbiguousRule, and RuleRefused name the three explicit
+# failure terms the `rule:` handler returns instead of guessing.
+class PredicateApplicationLabel(ConstructorLabel):
+    pass
+
+
+class UnknownConstructorLabel(ConstructorLabel):
+    pass
+
+
+class AmbiguousRuleLabel(ConstructorLabel):
+    pass
+
+
+class RuleRefusedLabel(ConstructorLabel):
+    pass
+
+
 LessonLabel = LessonLabel()
 EntryLabel = EntryLabel()
 GroundedExampleLabel = GroundedExampleLabel()
@@ -2668,6 +2718,16 @@ PersonLabel = PersonLabel()
 ConceptEventLabel = ConceptEventLabel()
 GapRecordLabel = GapRecordLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
+SaysLabel = SaysLabel()
+SceneLabel = SceneLabel()
+AtSceneLabel = AtSceneLabel()
+SuspectLabel = SuspectLabel()
+CulpritLabel = CulpritLabel()
+ContradictsLabel = ContradictsLabel()
+PredicateApplicationLabel = PredicateApplicationLabel()
+UnknownConstructorLabel = UnknownConstructorLabel()
+AmbiguousRuleLabel = AmbiguousRuleLabel()
+RuleRefusedLabel = RuleRefusedLabel()
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
