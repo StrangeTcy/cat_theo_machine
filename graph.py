@@ -16145,7 +16145,22 @@ DEFINITION_STOP_WORDS = M.Pair(
                                             M.Char("has"),
                                             M.Pair(
                                                 M.Char("have"),
-                                                M.EmptyList,
+                                                M.Pair(
+                                                    M.Char("by"),
+                                                    M.Pair(
+                                                        M.Char("only"),
+                                                        M.Pair(
+                                                            M.Char("itself"),
+                                                            M.Pair(
+                                                                M.Char("for"),
+                                                                M.Pair(
+                                                                    M.Char("no"),
+                                                                    M.EmptyList,
+                                                                ),
+                                                            ),
+                                                        ),
+                                                    ),
+                                                ),
                                             ),
                                         ),
                                     ),
