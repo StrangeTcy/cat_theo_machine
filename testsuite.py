@@ -7444,24 +7444,56 @@ class ConversePropositionTest(M.Edge):
         real_outcome = M.Head(real_pair)()
         registry = M.Head(M.Tail(real_pair)())()
 
-        yes_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
-        )()
-        no_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(no_outcome)())())())(),
-        )()
+        yes_tail = yes_outcome
+        yes_depth = 0
+        while yes_depth != 4:
+            if M.IsPair(yes_tail)() is M.truth_value:
+                yes_tail = M.Tail(yes_tail)()
+                yes_depth = yes_depth + 1
+            else:
+                yes_depth = 4
+        yes_answer = M.EmptyList
+        if M.IsPair(yes_tail)() is M.truth_value:
+            yes_answer = M.Head(yes_tail)()
+        no_tail = no_outcome
+        no_depth = 0
+        while no_depth != 4:
+            if M.IsPair(no_tail)() is M.truth_value:
+                no_tail = M.Tail(no_tail)()
+                no_depth = no_depth + 1
+            else:
+                no_depth = 4
+        no_answer = M.EmptyList
+        if M.IsPair(no_tail)() is M.truth_value:
+            no_answer = M.Head(no_tail)()
         yes_words = M.EmptyList
         no_words = M.EmptyList
         if M.IdentityCompare(yes_answer, empty)() is M.false_value:
             yes_words = M.Head(M.Tail(yes_answer)())()
         if M.IdentityCompare(no_answer, empty)() is M.false_value:
             no_words = M.Head(M.Tail(no_answer)())()
-        real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
-        real_body = M.Head(M.Tail(real_meaning)())()
-        real_subject = M.Head(M.Tail(real_body)())()
-        real_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(real_outcome)())())())(),
-        )()
+        real_tail = real_outcome
+        real_depth = 0
+        while real_depth != 4:
+            if M.IsPair(real_tail)() is M.truth_value:
+                real_tail = M.Tail(real_tail)()
+                real_depth = real_depth + 1
+            else:
+                real_depth = 4
+        real_answer = M.EmptyList
+        if M.IsPair(real_tail)() is M.truth_value:
+            real_answer = M.Head(real_tail)()
+        real_meaning = M.EmptyList
+        if M.IsPair(M.Tail(M.Tail(real_outcome)())())() is M.truth_value:
+            real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
+        real_body = M.EmptyList
+        if M.IdentityCompare(real_meaning, empty)() is M.false_value:
+            if M.IsPair(M.Tail(real_meaning)())() is M.truth_value:
+                real_body = M.Head(M.Tail(real_meaning)())()
+        real_subject = M.EmptyList
+        if M.IdentityCompare(real_body, empty)() is M.false_value:
+            if M.IsPair(M.Tail(real_body)())() is M.truth_value:
+                real_subject = M.Head(M.Tail(real_body)())()
 
         self.result = M.truth_value
         if M.IdentityCompare(
