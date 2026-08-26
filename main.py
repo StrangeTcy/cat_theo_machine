@@ -3308,17 +3308,27 @@ def run_talk_mode(sentence: str = None):
                 while M.IdentityCompare(
                     relevance_candidates, M.EmptyList,
                 )() is M.false_value:
-                    # A candidate carries its variables; a ground goal
-                    # matches it by unification, not by structural
-                    # equality -- cat(x) is relevant to cat(fido).
-                    candidate_match = M.Match(
-                        M.Head(relevance_candidates)(), goal,
-                    )()
-                    if M.IdentityCompare(
-                        M.Head(candidate_match)(), M.truth_value,
+                    # A candidate speaks in placeholders -- exactly-one
+                    # parses its arguments as symbols -- so relevance is
+                    # the predicate: a goal about cat(fido) is this
+                    # split's business when a branch speaks cat. The
+                    # binding inside CaseSplitQuery enforces the arity.
+                    if M.IsPair(
+                        M.Head(relevance_candidates)(),
                     )() is M.truth_value:
-                        case_relevant = M.truth_value
-                        relevance_candidates = M.EmptyList
+                        if M.IsPair(goal)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(M.Head(relevance_candidates)())(),
+                                M.Head(goal)(),
+                            )() is M.truth_value:
+                                case_relevant = M.truth_value
+                                relevance_candidates = M.EmptyList
+                            else:
+                                relevance_candidates = M.Tail(
+                                    relevance_candidates,
+                                )()
+                        else:
+                            relevance_candidates = M.EmptyList
                     else:
                         relevance_candidates = M.Tail(relevance_candidates)()
                 relevance_scan = M.Tail(relevance_scan)()
@@ -3347,6 +3357,38 @@ def run_talk_mode(sentence: str = None):
                     return (
                         "no; multiple ExactlyOne branches remain consistent, "
                         + "so " + line[6:].strip() + " is not established."
+                    )
+                if M.Compare(
+                    case_kind,
+                    M.Char("consistent-case-does-not-prove-goal"),
+                )() is M.truth_value:
+                    case_refuted = M.Head(
+                        M.Tail(M.Tail(M.Tail(case_query)())())(),
+                    )()
+                    goal_refuted = M.false_value
+                    refuted_scan = case_refuted
+                    while M.IdentityCompare(
+                        refuted_scan, M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(refuted_scan)(), goal,
+                        )() is M.truth_value:
+                            goal_refuted = M.truth_value
+                            refuted_scan = M.EmptyList
+                        else:
+                            refuted_scan = M.Tail(refuted_scan)()
+                    if M.IdentityCompare(
+                        goal_refuted, M.truth_value,
+                    )() is M.truth_value:
+                        return (
+                            "no; the case split refutes "
+                            + line[6:].strip()
+                            + " -- another branch holds for it and"
+                            + " exactly one applies."
+                        )
+                    return (
+                        "no; the one consistent branch does not prove "
+                        + line[6:].strip() + "."
                     )
                 if M.IdentityCompare(
                     case_status, M.truth_value,

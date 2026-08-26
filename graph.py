@@ -749,12 +749,107 @@ class CaseSplitQuery(M.Edge):
         split_scan = splits
         while M.IdentityCompare(split_scan, empty)() is M.false_value:
             split = M.Head(split_scan)()
+            # The instance glue: a ground goal that speaks a branch's
+            # predicate carries the binding the branch needs. The
+            # exactly-one parse writes placeholder symbols, and the
+            # goal's arguments instantiate them -- dog(x) meets
+            # dog(fido), and the branches then decide fido, not the
+            # schema.
+            instance_binding = empty
+            if M.IsPair(goal)() is M.truth_value:
+                probe_scan = M.Head(
+                    M.Tail(CaseSplitExactlyOne(split)())(),
+                )()
+                while M.IdentityCompare(
+                    probe_scan, empty,
+                )() is M.false_value:
+                    probe_candidate = M.Head(probe_scan)()
+                    binding_reversed = empty
+                    parallel = M.false_value
+                    if M.IsPair(probe_candidate)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(probe_candidate)(), M.Head(goal)(),
+                        )() is M.truth_value:
+                            candidate_args = M.Tail(probe_candidate)()
+                            goal_args = M.Tail(goal)()
+                            parallel = M.truth_value
+                            while M.IdentityCompare(
+                                parallel, M.truth_value,
+                            )() is M.truth_value:
+                                if M.IdentityCompare(
+                                    candidate_args, empty,
+                                )() is M.false_value:
+                                    if M.IdentityCompare(
+                                        goal_args, empty,
+                                    )() is M.false_value:
+                                        binding_reversed = M.Pair(
+                                            M.Pair(
+                                                M.Head(candidate_args)(),
+                                                M.Pair(
+                                                    M.Head(goal_args)(),
+                                                    empty,
+                                                ),
+                                            ),
+                                            binding_reversed,
+                                        )
+                                        candidate_args = M.Tail(
+                                            candidate_args,
+                                        )()
+                                        goal_args = M.Tail(goal_args)()
+                                    else:
+                                        parallel = M.false_value
+                                        binding_reversed = empty
+                                else:
+                                    if M.IdentityCompare(
+                                        goal_args, empty,
+                                    )() is M.truth_value:
+                                        instance_binding = M.Reverse(
+                                            binding_reversed,
+                                        )()
+                                        probe_scan = empty
+                                        parallel = M.false_value
+                                    else:
+                                        parallel = M.false_value
+                                        binding_reversed = empty
+                    if M.IdentityCompare(
+                        probe_scan, empty,
+                    )() is M.false_value:
+                        probe_scan = M.Tail(probe_scan)()
+            instance_candidates = M.Head(
+                M.Tail(CaseSplitExactlyOne(split)())(),
+            )()
+            if M.IdentityCompare(
+                instance_binding, empty,
+            )() is M.false_value:
+                instantiated_reversed = empty
+                candidate_inst_scan = instance_candidates
+                while M.IdentityCompare(
+                    candidate_inst_scan, empty,
+                )() is M.false_value:
+                    instantiated_reversed = M.Pair(
+                        self._instantiate_term(
+                            M.Head(candidate_inst_scan)(),
+                            instance_binding,
+                        ),
+                        instantiated_reversed,
+                    )
+                    candidate_inst_scan = M.Tail(candidate_inst_scan)()
+                instance_candidates = M.Reverse(instantiated_reversed)()
             branches = CaseSplitBranches(split)()
             branch_scan = branches
             while M.IdentityCompare(branch_scan, empty)() is M.false_value:
                 branch = M.Head(branch_scan)()
                 candidate = CaseBranchCandidate(branch)()
                 exclusions = CaseBranchExclusions(branch)()
+                if M.IdentityCompare(
+                    instance_binding, empty,
+                )() is M.false_value:
+                    candidate = self._instantiate_term(
+                        candidate, instance_binding,
+                    )
+                    exclusions = self._instantiate_term(
+                        exclusions, instance_binding,
+                    )
                 branch_facts = M.Pair(candidate, facts)
                 exclusion_scan = exclusions
                 while M.IdentityCompare(exclusion_scan, empty)() is M.false_value:
@@ -814,9 +909,7 @@ class CaseSplitQuery(M.Edge):
                             rule_scan = M.Tail(rule_scan)()
 
                 consistent = M.truth_value
-                candidate_scan = M.Head(
-                    M.Tail(CaseSplitExactlyOne(split)())(),
-                )()
+                candidate_scan = instance_candidates
                 while M.IdentityCompare(
                     candidate_scan, empty,
                 )() is M.false_value:
@@ -930,6 +1023,40 @@ class CaseSplitQuery(M.Edge):
             ),
             results=self.result,
         )
+
+    def _instantiate_term(self, term, binding):
+        empty = M.EmptyList
+        if M.IsPair(term)() is M.truth_value:
+            substituted_head = self._instantiate_term(
+                M.Head(term)(), binding,
+            )
+            substituted_args_reversed = empty
+            args_scan = M.Tail(term)()
+            while M.IdentityCompare(
+                args_scan, empty,
+            )() is M.false_value:
+                substituted_args_reversed = M.Pair(
+                    self._instantiate_term(
+                        M.Head(args_scan)(), binding,
+                    ),
+                    substituted_args_reversed,
+                )
+                args_scan = M.Tail(args_scan)()
+            return M.Pair(
+                substituted_head,
+                M.Reverse(substituted_args_reversed)(),
+            )
+        binding_scan = binding
+        while M.IdentityCompare(
+            binding_scan, empty,
+        )() is M.false_value:
+            binding_entry = M.Head(binding_scan)()
+            if M.Compare(
+                M.Head(binding_entry)(), term,
+            )() is M.truth_value:
+                return M.Head(M.Tail(binding_entry)())()
+            binding_scan = M.Tail(binding_scan)()
+        return term
 
     def __call__(self):
         return self.result
