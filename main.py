@@ -3421,6 +3421,25 @@ def run_talk_mode(sentence: str = None):
                     + " is already recorded as a case-elimination conclusion."
                 )
             facts = G.InstalledTaughtFacts(learned_version)()
+            # The numeral words' analytic sameness facts join the
+            # working set the way pack laws do: distinct numeral words
+            # name distinct numbers, each names itself. A taught
+            # different(x, y) -> not(same(x, y)) law turns them into
+            # refutations; nothing is guessed for words the digit
+            # chain does not own.
+            numeral_facts = G.NumeralSamenessFacts(reading_digits)()
+            numeral_scan = M.Head(numeral_facts)()
+            while M.IdentityCompare(
+                numeral_scan, M.EmptyList,
+            )() is M.false_value:
+                facts = M.Pair(M.Head(numeral_scan)(), facts)
+                numeral_scan = M.Tail(numeral_scan)()
+            numeral_scan = M.Head(M.Tail(numeral_facts)())()
+            while M.IdentityCompare(
+                numeral_scan, M.EmptyList,
+            )() is M.false_value:
+                facts = M.Pair(M.Head(numeral_scan)(), facts)
+                numeral_scan = M.Tail(numeral_scan)()
             rules = G.InstalledTaughtRules(learned_version)()
             case_splits = G.InstalledCaseSplits(learned_version)()
             case_relevant = M.false_value
@@ -3519,6 +3538,59 @@ def run_talk_mode(sentence: str = None):
                             + " -- another branch holds for it and"
                             + " exactly one applies."
                         )
+                    not_goal = M.Pair(
+                        M.Char("not"), M.Pair(goal, M.EmptyList),
+                    )
+                    not_found = M.false_value
+                    rule_scan = rules
+                    while M.IdentityCompare(
+                        rule_scan, M.EmptyList,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            not_found, M.truth_value,
+                        )() is M.truth_value:
+                            rule_scan = M.EmptyList
+                        else:
+                            taught_rule = M.Head(rule_scan)()
+                            bindings = P.JoinPremises(
+                                P.RulePremises(taught_rule)(),
+                                facts,
+                                M.EmptyList,
+                            )()
+                            while M.IdentityCompare(
+                                bindings, M.EmptyList,
+                            )() is M.false_value:
+                                if M.IdentityCompare(
+                                    not_found, M.truth_value,
+                                )() is M.truth_value:
+                                    bindings = M.EmptyList
+                                else:
+                                    binding = M.Head(bindings)()
+                                    instantiated = M.Instantiate(
+                                        P.RuleReplacement(taught_rule)(),
+                                        binding,
+                                    )()
+                                    derived = M.Head(instantiated)()
+                                    if M.Compare(
+                                        derived, not_goal,
+                                    )() is M.truth_value:
+                                        not_found = M.truth_value
+                                        bindings = M.EmptyList
+                                    else:
+                                        bindings = M.Tail(bindings)()
+                            if M.IdentityCompare(
+                                rule_scan, M.EmptyList,
+                            )() is M.false_value:
+                                rule_scan = M.Tail(rule_scan)()
+                    if M.IdentityCompare(
+                        not_found, M.truth_value,
+                    )() is M.truth_value:
+                        return (
+                            "no; " + line[6:].strip() + " is refuted --"
+                            + " its negation is derivable from the"
+                            + " taught rules and the numeral words'"
+                            + " own differences."
+                        )
                     return (
                         "no; the one consistent branch does not prove "
                         + line[6:].strip() + "."
@@ -3565,6 +3637,7 @@ def run_talk_mode(sentence: str = None):
                     )() is M.truth_value:
                         growing = M.false_value
                         rounds_text = "200"
+                        remaining_rules = M.EmptyList
                     else:
                         growing = M.false_value
                         remaining_rules = rules
@@ -3619,11 +3692,20 @@ def run_talk_mode(sentence: str = None):
                             bindings = M.Tail(bindings)()
                         remaining_rules = M.Tail(remaining_rules)()
             goal_found = M.false_value
+            goal_refuted = M.false_value
             fact_scan = facts
             while M.IdentityCompare(
                 fact_scan, M.EmptyList,
             )() is M.false_value:
                 candidate_fact = M.Head(fact_scan)()
+                if M.IsPair(candidate_fact)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(candidate_fact)(), M.Char("not"),
+                    )() is M.truth_value:
+                        if M.Compare(
+                            M.Head(M.Tail(candidate_fact)())(), goal,
+                        )() is M.truth_value:
+                            goal_refuted = M.truth_value
                 goal_matches = M.Compare(candidate_fact, goal)()
                 if M.IdentityCompare(
                     goal_matches, M.truth_value,
@@ -3671,6 +3753,14 @@ def run_talk_mode(sentence: str = None):
                 return (
                     "yes; derived " + line[6:].strip()
                     + " from the taught facts and approved rules."
+                )
+            if M.IdentityCompare(
+                goal_refuted, M.truth_value,
+            )() is M.truth_value:
+                return (
+                    "no; " + line[6:].strip() + " is refuted -- its"
+                    + " negation is derivable from the taught rules and"
+                    + " the numeral words' own differences."
                 )
             return "no; I could not derive " + line[6:].strip() + "."
             start = M.Knowledge(facts)()

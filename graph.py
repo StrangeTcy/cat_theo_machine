@@ -15949,6 +15949,78 @@ class CategoryTerm(M.Edge):
         return self.result
 
 
+class NumeralSamenessFacts(M.Edge):
+    """Analytic sameness facts of the numeral words.
+
+    The digit chain is the machine's authority on which words name
+    numbers; distinct words of that chain name distinct numbers, and
+    every word names itself. Result: Pair(different-pairs,
+    Pair(same-pairs, EmptyList)) -- different(wi, wj) in both orders
+    for distinct numeral words, same(w, w) for each one. These are
+    derived, not taught: the working set of a query may carry them
+    the way it carries the packs' laws.
+    """
+
+    def __init__(self, digit_words):
+        empty = M.EmptyList
+        words_reversed = empty
+        word_scan = digit_words
+        while M.IdentityCompare(word_scan, empty)() is M.false_value:
+            entry = M.Head(word_scan)()
+            if M.IsPair(entry)() is M.truth_value:
+                words_reversed = M.Pair(
+                    M.Head(M.Tail(entry)())(), words_reversed,
+                )
+            word_scan = M.Tail(word_scan)()
+        words = M.Reverse(words_reversed)()
+        different_reversed = empty
+        outer = words
+        while M.IdentityCompare(outer, empty)() is M.false_value:
+            inner = M.Tail(outer)()
+            while M.IdentityCompare(inner, empty)() is M.false_value:
+                left = M.Head(outer)()
+                right = M.Head(inner)()
+                different_reversed = M.Pair(
+                    M.Pair(
+                        M.Char("different"),
+                        M.Pair(left, M.Pair(right, empty)),
+                    ),
+                    different_reversed,
+                )
+                different_reversed = M.Pair(
+                    M.Pair(
+                        M.Char("different"),
+                        M.Pair(right, M.Pair(left, empty)),
+                    ),
+                    different_reversed,
+                )
+                inner = M.Tail(inner)()
+            outer = M.Tail(outer)()
+        same_reversed = empty
+        same_scan = words
+        while M.IdentityCompare(same_scan, empty)() is M.false_value:
+            word = M.Head(same_scan)()
+            same_reversed = M.Pair(
+                M.Pair(
+                    M.Char("same"),
+                    M.Pair(word, M.Pair(word, empty)),
+                ),
+                same_reversed,
+            )
+            same_scan = M.Tail(same_scan)()
+        self.result = M.Pair(
+            M.Reverse(different_reversed)(),
+            M.Pair(M.Reverse(same_reversed)(), empty),
+        )
+        super().__init__(
+            inputs=M.Pair(digit_words, empty),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class InterpretDefinitionBody(M.Edge):
     """Read a definition body with the binder discipline.
 
