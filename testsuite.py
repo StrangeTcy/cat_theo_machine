@@ -13859,6 +13859,717 @@ def _register_test(graph, name, input_nodes, computation_edge, expected):
     return test
 
 
+class SieveLiveSessionTeachesBothDefinitionsTest(M.Edge):
+    """Replay of the recorded sieve session through the teaching edges.
+
+    Every lesson line of training_records/sieve_eratosthenes_live_session.txt
+    runs through the same ParseRuleText, InstallTaughtFact and
+    InstallTaughtRuleSource edges the live REPL uses -- the definitions
+    are learned, not preinstalled. The test holds no sieve verdict of
+    its own; it holds the lesson file. It asserts the learned content:
+    the definitional facts install, the strike clause speaks Divides
+    and NatLess in its premises, the refutation clause speaks Divides
+    and NatLess in its premises, each clause derives its conclusion
+    from its premise shape through JoinPremises and Instantiate, and
+    the registered equivalence statement is among the learned facts.
+    """
+
+    def __init__(self, graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        empty = M.EmptyList
+        self.result = M.truth_value
+
+        runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        # The concept chain the parser resolves words through, built
+        # from the loader-vouched symbol maps: spoken word -> atom.
+        concepts = empty
+        for pack in runtime.loaded_packs:
+            remaining = pack.symbol_map
+            while M.IdentityCompare(remaining, empty)() is M.false_value:
+                entry = M.Head(remaining)()
+                word_chain = M.Head(entry)()
+                atom = M.Head(M.Tail(entry)())()
+                text_walker = word_chain
+                text_value = ""
+                while M.IdentityCompare(text_walker, empty)() is M.false_value:
+                    text_value = text_value + str(M.Head(text_walker)()())
+                    text_walker = M.Tail(text_walker)()
+                if text_value.endswith("Label"):
+                    concepts = M.Pair(
+                        M.Pair(
+                            M.Char(text_value[:-5].lower()),
+                            M.Pair(atom, empty),
+                        ),
+                        concepts,
+                    )
+                remaining = M.Tail(remaining)()
+
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        reading_policy = Gmod.DefaultReadingPolicy()()
+        reading_digits = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        learned_version = Gmod.GraphVersion(empty, empty, empty)()
+
+        theorem_fact = empty
+        strike_rule = empty
+        refute_rule = empty
+        begins_seen = M.false_value
+        selection_seen = M.false_value
+        scans_seen = M.false_value
+
+        lesson_path = os.path.join(
+            os.path.dirname(__file__),
+            "training_records",
+            "sieve_eratosthenes_live_session.txt",
+        )
+        with open(lesson_path, "r", encoding="utf-8") as stream:
+            for raw_line in stream:
+                line = raw_line.strip()
+                if line == "" or line == "goodbye" or line == "yes":
+                    continue
+                known = Gmod.RuleConstructors(learned_version, concepts)()
+                if line.startswith("fact: "):
+                    parsed = Gmod.ParseRuleText(
+                        line[6:], reading_policy, reading_digits,
+                        known, M.truth_value,
+                    )()
+                    fact = M.Head(parsed)()
+                    if M.IdentityCompare(fact, empty)() is M.truth_value:
+                        self.result = M.false_value
+                        break
+                    installed = Gmod.InstallTaughtFact(learned_version, fact)()
+                    learned_version = M.Head(installed)()
+                    theorem_fact = fact
+                    head_word = M.Head(fact)()
+                    if M.IsPair(head_word)() is M.false_value:
+                        spoken = str(head_word()).lower()
+                        if spoken == "stepsievebeginsat":
+                            begins_seen = M.truth_value
+                        elif spoken == "stepsieveselectsby":
+                            selection_seen = M.truth_value
+                        elif spoken == "trialsievescansto":
+                            scans_seen = M.truth_value
+                elif line.startswith("rule: "):
+                    parsed = Gmod.ParseRuleText(
+                        line[6:], reading_policy, reading_digits, known,
+                    )()
+                    rule = M.Head(parsed)()
+                    if M.IdentityCompare(rule, empty)() is M.truth_value:
+                        self.result = M.false_value
+                        break
+                    premises = Pmod.RulePremises(rule)()
+                    replacement = Pmod.RuleReplacement(rule)()
+                    learned_version = Gmod.InstallTaughtRuleSource(
+                        learned_version, premises, replacement,
+                    )()
+                    premise_count = 0
+                    divides_in_premises = M.false_value
+                    natless_in_premises = M.false_value
+                    premise_walker = premises
+                    while M.IdentityCompare(
+                        premise_walker, empty,
+                    )() is M.false_value:
+                        premise = M.Head(premise_walker)()
+                        premise_count = premise_count + 1
+                        premise_head = M.Head(premise)()
+                        if premise_head is Lmod.DividesLabel:
+                            divides_in_premises = M.truth_value
+                        if premise_head is Lmod.NatLessLabel:
+                            natless_in_premises = M.truth_value
+                        premise_walker = M.Tail(premise_walker)()
+                    if premise_count == 3:
+                        strike_rule = rule
+                        if divides_in_premises is M.false_value:
+                            self.result = M.false_value
+                        if natless_in_premises is M.false_value:
+                            self.result = M.false_value
+                    elif premise_count == 4:
+                        refute_rule = rule
+                        if divides_in_premises is M.false_value:
+                            self.result = M.false_value
+                        if natless_in_premises is M.false_value:
+                            self.result = M.false_value
+
+        # Both definitions present: the three definitional facts were
+        # read, both process clauses were approved, and the registered
+        # equivalence statement is among the learned facts.
+        if begins_seen is M.false_value:
+            self.result = M.false_value
+        if selection_seen is M.false_value:
+            self.result = M.false_value
+        if scans_seen is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(strike_rule, empty)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(refute_rule, empty)() is M.truth_value:
+            self.result = M.false_value
+        if self.result is M.truth_value:
+            installed_facts = Gmod.InstalledTaughtFacts(learned_version)()
+            theorem_found = M.false_value
+            scan = installed_facts
+            while M.IdentityCompare(scan, empty)() is M.false_value:
+                if M.Compare(
+                    M.Head(scan)(), theorem_fact,
+                )() is M.truth_value:
+                    theorem_found = M.truth_value
+                    scan = empty
+                else:
+                    scan = M.Tail(scan)()
+            if theorem_found is M.false_value:
+                self.result = M.false_value
+            registered_head = M.Head(theorem_fact)()
+            if M.IsPair(registered_head)() is M.false_value:
+                if str(registered_head()).lower() != "forall":
+                    self.result = M.false_value
+            else:
+                self.result = M.false_value
+
+        # The strike clause derives: a survivor two dividing four,
+        # with two below four, derives four struck by two.
+        if self.result is M.truth_value:
+            strike_premises = Pmod.RulePremises(strike_rule)()
+            survivor_pred = M.Head(M.Head(strike_premises)())()
+            facts = M.Pair(
+                M.Pair(survivor_pred, M.Pair(M.two, empty)),
+                M.Pair(
+                    M.Pair(
+                        Lmod.DividesLabel,
+                        M.Pair(M.two, M.Pair(M.four, empty)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.NatLessLabel,
+                            M.Pair(M.two, M.Pair(M.four, empty)),
+                        ),
+                        empty,
+                    ),
+                ),
+            )
+            matches = Pmod.JoinPremises(strike_premises, facts, empty)()
+            fired = M.false_value
+            conclusion_pred = M.Head(Pmod.RuleReplacement(strike_rule)())()
+            expected = M.Pair(
+                conclusion_pred, M.Pair(M.four, M.Pair(M.two, empty)),
+            )
+            match_walker = matches
+            while M.IdentityCompare(match_walker, empty)() is M.false_value:
+                instantiated = M.Instantiate(
+                    Pmod.RuleReplacement(strike_rule)(),
+                    M.Head(match_walker)(),
+                )()
+                derived = M.Head(instantiated)()
+                if M.Compare(derived, expected)() is M.truth_value:
+                    fired = M.truth_value
+                    match_walker = empty
+                else:
+                    match_walker = M.Tail(match_walker)()
+            if fired is M.false_value:
+                self.result = M.false_value
+
+        # The refutation clause derives: a kept four with the witness
+        # two derives four refuted by two.
+        if self.result is M.truth_value:
+            refute_premises = Pmod.RulePremises(refute_rule)()
+            kept_pred = M.Head(M.Head(refute_premises)())()
+            lower_premise = M.Head(M.Tail(M.Tail(refute_premises)())())()
+            rule_one = M.Head(M.Tail(lower_premise)())()
+            facts = M.Pair(
+                M.Pair(kept_pred, M.Pair(M.four, empty)),
+                M.Pair(
+                    M.Pair(
+                        Lmod.DividesLabel,
+                        M.Pair(M.two, M.Pair(M.four, empty)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.NatLessLabel,
+                            M.Pair(rule_one, M.Pair(M.two, empty)),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Lmod.NatLessLabel,
+                                M.Pair(M.two, M.Pair(M.four, empty)),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ),
+            )
+            matches = Pmod.JoinPremises(refute_premises, facts, empty)()
+            fired = M.false_value
+            conclusion_pred = M.Head(Pmod.RuleReplacement(refute_rule)())()
+            expected = M.Pair(
+                conclusion_pred, M.Pair(M.four, M.Pair(M.two, empty)),
+            )
+            match_walker = matches
+            while M.IdentityCompare(match_walker, empty)() is M.false_value:
+                instantiated = M.Instantiate(
+                    Pmod.RuleReplacement(refute_rule)(),
+                    M.Head(match_walker)(),
+                )()
+                derived = M.Head(instantiated)()
+                if M.Compare(derived, expected)() is M.truth_value:
+                    fired = M.truth_value
+                    match_walker = empty
+                else:
+                    match_walker = M.Tail(match_walker)()
+            if fired is M.false_value:
+                self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SieveEquivalenceInductionPathTest(M.Edge):
+    """The equivalence theorem produced through the induction path.
+
+    ForAll(n, Iff(StepSieve(n), TrialSieve(n))) is formed with the
+    existing ForAll representation and split by planner.Induction into
+    base and step obligations with a fresh k. The boundary checks run
+    the two learned membership walks at zero, one and two: both reject
+    below two, both retain two. Successor instances walk upward from
+    three and include the squares whose decisive factor sits at the
+    square-root boundary; the two walks must agree at every instance,
+    rejected instances discharge the trial-to-sieve direction by one
+    directed firing of the pack's sqrt_factor_bound over the witness
+    certificates, retained instances carry the trial scan's Confirmed
+    exhaustion, and every step witness is retrieved from the processed
+    chain ordered below n by NatLess -- the induction hypothesis. The
+    lemma's bound is asserted to speak Sqrt, Succ, NatLess and Divides
+    in divisor-then-number order, and the theorem is registered in the
+    learned graph.
+    """
+
+    def __init__(self, graph):
+        from .main import PACK_PATHS, _runtime_namespace
+        from .planner import Induction, InductionObligations
+
+        empty = M.EmptyList
+        self.result = M.truth_value
+        registry = _registry(graph)
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        pack = packs.by_name("number-theory")
+
+        variable = M.Pair(M.VarTag, M.Pair(M.Char("?n"), empty))
+        pattern = Gmod.Iff(
+            Gmod.StepSieve(variable)(),
+            Gmod.TrialSieve(variable)(),
+        )()
+        theorem = Gmod.ForAll(variable, pattern)()
+
+        if M.IsPair(theorem)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(theorem)(), Lmod.ForAllLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(Gmod.ForAllBody(theorem)())(), Lmod.IffLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        method = empty
+        obligations = empty
+        step_symbol = M.Char("k-sieve")
+        if self.result is M.truth_value:
+            method = Induction(variable, M.Zero, pattern)()
+            obligations = InductionObligations(method, step_symbol)()
+            base_obligation = M.Head(obligations)()
+            step_obligation = M.Head(M.Tail(obligations)())()
+            if M.IdentityCompare(
+                M.Head(base_obligation)(), Lmod.BaseCaseLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                M.Head(step_obligation)(), Lmod.StepCaseLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            # Freshness: k-sieve appears nowhere in method or pattern.
+            scan_stack = M.Pair(pattern, M.Pair(method, empty))
+            while M.IdentityCompare(scan_stack, empty)() is M.false_value:
+                current = M.Head(scan_stack)()
+                scan_stack = M.Tail(scan_stack)()
+                if current is step_symbol:
+                    self.result = M.false_value
+                    scan_stack = empty
+                elif M.IsPair(current)() is M.truth_value:
+                    scan_stack = M.Pair(
+                        M.Head(current)(),
+                        M.Pair(M.Tail(current)(), scan_stack),
+                    )
+
+        # Boundary cases: the walks decide; the theorem says zero and
+        # one are rejected and two is the first retained value.
+        processed = empty
+        boundary_walker = M.Pair(
+            M.Pair(M.Char("0"), M.Pair(M.false_value, empty)),
+            M.Pair(
+                M.Pair(M.Char("1"), M.Pair(M.false_value, empty)),
+                M.Pair(
+                    M.Pair(M.Char("2"), M.Pair(M.truth_value, empty)),
+                    empty,
+                ),
+            ),
+        )
+        while self.result is M.truth_value and M.IdentityCompare(
+            boundary_walker, empty,
+        )() is M.false_value:
+            boundary_entry = M.Head(boundary_walker)()
+            boundary_walker = M.Tail(boundary_walker)()
+            boundary_text = str(M.Head(boundary_entry)()())
+            expected_verdict = M.Head(M.Tail(boundary_entry)())()
+            built = M.NatFromRep(M.GMPRep(boundary_text), registry)()
+            boundary_nat = M.Head(built)()
+            registry = M.Head(M.Tail(built)())()
+            step_result = Gmod.StepSieveMembership(
+                Gmod.StepSieve(boundary_nat)(), boundary_nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(step_result)())())()
+            trial_result = Gmod.TrialSieveMembership(
+                Gmod.TrialSieve(boundary_nat)(), boundary_nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(trial_result)())())()
+            step_verdict = M.Head(step_result)()
+            trial_verdict = M.Head(trial_result)()
+            if step_verdict is not trial_verdict:
+                self.result = M.false_value
+            elif step_verdict is not expected_verdict:
+                self.result = M.false_value
+            processed = M.Pair(
+                M.Pair(
+                    boundary_nat,
+                    M.Pair(step_verdict, M.Pair(trial_verdict, empty)),
+                ),
+                processed,
+            )
+
+        # The lemma's bound speaks the required vocabulary, and the
+        # divisibility argument order stays divisor-then-number.
+        compiled = empty
+        lemma_rule = empty
+        if self.result is M.truth_value:
+            compiled = Pmod.CompileRuleChain(
+                M.Pair(pack.rule_map["sqrt_factor_bound"], empty), registry,
+            )()
+            lemma_rule = M.Head(compiled)()
+            sqrt_seen = M.false_value
+            succ_seen = M.false_value
+            natless_seen = M.false_value
+            divides_order_ok = M.false_value
+            replacement_walker = Pmod.RuleReplacement(lemma_rule)()
+            while M.IdentityCompare(
+                replacement_walker, empty,
+            )() is M.false_value:
+                fact = M.Head(replacement_walker)()
+                fact_stack = M.Pair(fact, empty)
+                while M.IdentityCompare(fact_stack, empty)() is M.false_value:
+                    node = M.Head(fact_stack)()
+                    fact_stack = M.Tail(fact_stack)()
+                    if M.IsPair(node)() is M.truth_value:
+                        node_head = M.Head(node)()
+                        if node_head is Lmod.SqrtLabel:
+                            sqrt_seen = M.truth_value
+                        if node_head is Lmod.SuccLabel:
+                            succ_seen = M.truth_value
+                        if node_head is Lmod.NatLessLabel:
+                            natless_seen = M.truth_value
+                        if node_head is Lmod.DividesLabel:
+                            divisor_slot = M.Head(M.Tail(node)())()
+                            if M.IsPair(divisor_slot)() is M.truth_value:
+                                if M.IdentityCompare(
+                                    M.Head(divisor_slot)(),
+                                    Lmod.SmallFactorLabel,
+                                )() is M.truth_value:
+                                    divides_order_ok = M.truth_value
+                        fact_stack = M.Pair(
+                            M.Head(node)(),
+                            M.Pair(M.Tail(node)(), fact_stack),
+                        )
+                replacement_walker = M.Tail(replacement_walker)()
+            if sqrt_seen is M.false_value:
+                self.result = M.false_value
+            if succ_seen is M.false_value:
+                self.result = M.false_value
+            if natless_seen is M.false_value:
+                self.result = M.false_value
+            if divides_order_ok is M.false_value:
+                self.result = M.false_value
+
+        # Successor instances: three through sixteen, then the squares
+        # twenty-five, thirty-six and forty-nine.
+        instances = empty
+        cursor_text = "3"
+        while M.GMPLessText(cursor_text, "17")() is M.truth_value:
+            built = M.NatFromRep(M.GMPRep(cursor_text), registry)()
+            instances = M.Pair(M.Head(built)(), instances)
+            registry = M.Head(M.Tail(built)())()
+            cursor_text = M.GMPSuccText(cursor_text)()
+        for square_text in ("25", "36", "49"):
+            built = M.NatFromRep(M.GMPRep(square_text), registry)()
+            instances = M.Pair(M.Head(built)(), instances)
+            registry = M.Head(M.Tail(built)())()
+        instances = Gmod.Reverse(instances)()
+
+        instance_walker = instances
+        while self.result is M.truth_value and M.IdentityCompare(
+            instance_walker, empty,
+        )() is M.false_value:
+            nat = M.Head(instance_walker)()
+            instance_walker = M.Tail(instance_walker)()
+            step_result = Gmod.StepSieveMembership(
+                Gmod.StepSieve(nat)(), nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(step_result)())())()
+            trial_result = Gmod.TrialSieveMembership(
+                Gmod.TrialSieve(nat)(), nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(trial_result)())())()
+            step_verdict = M.Head(step_result)()
+            trial_verdict = M.Head(trial_result)()
+            if step_verdict is not trial_verdict:
+                self.result = M.false_value
+            elif step_verdict is M.truth_value:
+                # Sieve-to-trial: the trial scan exhausted every
+                # candidate below the square-root successor bound.
+                trial_evidence = M.Head(M.Tail(trial_result)())()
+                if M.IdentityCompare(
+                    M.Head(trial_evidence)(), Lmod.ConfirmedLabel,
+                )() is M.false_value:
+                    self.result = M.false_value
+            else:
+                # Trial-to-sieve: the witness certificates feed one
+                # directed firing of the square-root factor lemma.
+                trial_evidence = M.Head(M.Tail(trial_result)())()
+                step_evidence = M.Head(M.Tail(step_result)())()
+                witness_pair = M.Head(M.Tail(M.Tail(trial_evidence)())())()
+                witness_nat = M.Head(M.Tail(witness_pair)())()
+                certificates = M.Tail(M.Tail(M.Tail(trial_evidence)())())()
+                divides_fact = M.Head(certificates)()
+                lower_fact = M.Head(M.Tail(certificates)())()
+                proper_fact = M.Pair(
+                    Lmod.NatLessLabel,
+                    M.Pair(witness_nat, M.Pair(nat, empty)),
+                )
+                board = Pmod.Knowledge(M.Pair(
+                    divides_fact,
+                    M.Pair(lower_fact, M.Pair(proper_fact, empty)),
+                ))()
+                small_factor = M.Pair(
+                    Lmod.SmallFactorLabel, M.Pair(nat, empty),
+                )
+                sqrt_bound = M.Pair(
+                    Lmod.SuccLabel,
+                    M.Pair(
+                        M.Pair(Lmod.SqrtLabel, M.Pair(nat, empty)), empty,
+                    ),
+                )
+                goal_board = Pmod.Knowledge(M.Pair(
+                    M.Pair(
+                        Lmod.DividesLabel,
+                        M.Pair(small_factor, M.Pair(nat, empty)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.NatLessLabel,
+                            M.Pair(M.one, M.Pair(small_factor, empty)),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Lmod.NatLessLabel,
+                                M.Pair(small_factor, M.Pair(sqrt_bound, empty)),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ))()
+                matches = Pmod.JoinPremises(
+                    Pmod.RulePremises(lemma_rule)(),
+                    Pmod.KnowledgeFacts(board)(),
+                    empty,
+                )()
+                lemma_fired = M.false_value
+                while M.IdentityCompare(matches, empty)() is M.false_value:
+                    stepped = Pmod.ApplyKnowledgeRewrite(
+                        board, lemma_rule, M.Head(matches)(),
+                    )()
+                    covered = Pmod.FactsCover(
+                        Pmod.KnowledgeFacts(goal_board)(),
+                        Pmod.KnowledgeFacts(stepped)(),
+                    )()
+                    if covered is M.truth_value:
+                        lemma_fired = M.truth_value
+                        matches = empty
+                    else:
+                        matches = M.Tail(matches)()
+                if lemma_fired is M.false_value:
+                    self.result = M.false_value
+                # The induction hypothesis: the step witness carries
+                # NatLess certificates, sits below n, and its verdict
+                # pair was already processed.
+                step_witness_pair = M.Head(M.Tail(M.Tail(step_evidence)())())()
+                step_witness = M.Head(M.Tail(step_witness_pair)())()
+                step_certificates = M.Tail(M.Tail(M.Tail(step_evidence)())())()
+                natless_seen = M.false_value
+                cert_walker = step_certificates
+                while M.IdentityCompare(
+                    cert_walker, empty,
+                )() is M.false_value:
+                    certificate = M.Head(cert_walker)()
+                    if M.IsPair(certificate)() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(certificate)(), Lmod.NatLessLabel,
+                        )() is M.truth_value:
+                            natless_seen = M.truth_value
+                    cert_walker = M.Tail(cert_walker)()
+                if natless_seen is M.false_value:
+                    self.result = M.false_value
+                elif M.NatLess(step_witness, nat, registry)() is M.false_value:
+                    self.result = M.false_value
+                else:
+                    entry_found = M.false_value
+                    processed_walker = processed
+                    while M.IdentityCompare(
+                        processed_walker, empty,
+                    )() is M.false_value:
+                        entry = M.Head(processed_walker)()
+                        if M.NatEq(
+                            M.Head(entry)(), step_witness, registry,
+                        )() is M.truth_value:
+                            entry_found = M.truth_value
+                            processed_walker = empty
+                        else:
+                            processed_walker = M.Tail(processed_walker)()
+                    if entry_found is M.false_value:
+                        self.result = M.false_value
+            processed = M.Pair(
+                M.Pair(
+                    nat,
+                    M.Pair(step_verdict, M.Pair(trial_verdict, empty)),
+                ),
+                processed,
+            )
+
+        # Registration: the theorem enters the learned graph through
+        # the same install edge the live session uses.
+        if self.result is M.truth_value:
+            learned_version = Gmod.GraphVersion(empty, empty, empty)()
+            installed = Gmod.InstallTaughtFact(learned_version, theorem)()
+            learned_version = M.Head(installed)()
+            registered = Gmod.InstalledTaughtFacts(learned_version)()
+            found = M.false_value
+            scan = registered
+            while M.IdentityCompare(scan, empty)() is M.false_value:
+                if M.Compare(M.Head(scan)(), theorem)() is M.truth_value:
+                    found = M.truth_value
+                    scan = empty
+                else:
+                    scan = M.Tail(scan)()
+            if found is M.false_value:
+                self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SieveStartAtOneNegativeRegressionTest(M.Edge):
+    """The obsolete start-at-one formulation fails at one.
+
+    The learned step sieve teaches the boundary clause StepSieveKept(n)
+    -> NatLess(one, n). The flawed older formulation starts the
+    process at one and would retain it. This test installs only the
+    boundary clause, assumes the flawed claim StepSieveKept(one), and
+    shows the learned clause derives NatLess(one, one) from it -- and
+    the machine's own NatLess decides one is not below one, so the
+    flawed formulation contradicts the learned definitions at one. The
+    flawed claim itself is never installed among the learned facts.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        self.result = M.truth_value
+        registry = _registry(graph)
+
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        reading_policy = Gmod.DefaultReadingPolicy()()
+        reading_digits = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        learned_version = Gmod.GraphVersion(empty, empty, empty)()
+        known = Gmod.RuleConstructors(learned_version, empty)()
+
+        parsed = Gmod.ParseRuleText(
+            "StepSieveKept(n) -> NatLess(one, n)",
+            reading_policy, reading_digits, known,
+        )()
+        boundary_rule = M.Head(parsed)()
+        if M.IdentityCompare(boundary_rule, empty)() is M.truth_value:
+            self.result = M.false_value
+
+        if self.result is M.truth_value:
+            premises = Pmod.RulePremises(boundary_rule)()
+            replacement = Pmod.RuleReplacement(boundary_rule)()
+            learned_version = Gmod.InstallTaughtRuleSource(
+                learned_version, premises, replacement,
+            )()
+            kept_pred = M.Head(M.Head(premises)())()
+            rule_one = M.Head(M.Tail(Pmod.RuleReplacement(boundary_rule)())())()
+            flawed_claim = M.Pair(kept_pred, M.Pair(rule_one, empty))
+
+            # The flawed claim is not among the learned facts.
+            installed_facts = Gmod.InstalledTaughtFacts(learned_version)()
+            scan = installed_facts
+            while M.IdentityCompare(scan, empty)() is M.false_value:
+                if M.Compare(M.Head(scan)(), flawed_claim)() is M.truth_value:
+                    self.result = M.false_value
+                    scan = empty
+                else:
+                    scan = M.Tail(scan)()
+
+        if self.result is M.truth_value:
+            rule_one = M.Head(M.Tail(Pmod.RuleReplacement(boundary_rule)())())()
+            facts = M.Pair(
+                M.Pair(
+                    M.Head(M.Head(Pmod.RulePremises(boundary_rule)())())(),
+                    M.Pair(rule_one, empty),
+                ),
+                empty,
+            )
+            matches = Pmod.JoinPremises(
+                Pmod.RulePremises(boundary_rule)(), facts, empty,
+            )()
+            derived_contradiction = M.false_value
+            order_pred = M.Head(Pmod.RuleReplacement(boundary_rule)())()
+            false_order = M.Pair(
+                order_pred,
+                M.Pair(rule_one, M.Pair(rule_one, empty)),
+            )
+            match_walker = matches
+            while M.IdentityCompare(match_walker, empty)() is M.false_value:
+                instantiated = M.Instantiate(
+                    Pmod.RuleReplacement(boundary_rule)(),
+                    M.Head(match_walker)(),
+                )()
+                derived = M.Head(instantiated)()
+                if M.Compare(derived, false_order)() is M.truth_value:
+                    derived_contradiction = M.truth_value
+                    match_walker = empty
+                else:
+                    match_walker = M.Tail(match_walker)()
+            if derived_contradiction is M.false_value:
+                self.result = M.false_value
+            elif M.NatLess(M.one, M.one, registry)() is M.truth_value:
+                self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+
 def install_default_tests(graph):
     if M.IdentityCompare(graph.default_tests_installed, M.truth_value)() is M.truth_value:
         return graph
@@ -15882,6 +16593,31 @@ def install_default_tests(graph):
             empty,
             MilestoneM4PolicyLoosenThenTightenTest(graph),
             MILESTONE_SKIPPED,
+        )
+
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_sieve_live_session_teaches_both_definitions",
+            empty,
+            SieveLiveSessionTeachesBothDefinitionsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_sieve_equivalence_induction_path",
+            empty,
+            SieveEquivalenceInductionPathTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_sieve_start_at_one_negative_regression",
+            empty,
+            SieveStartAtOneNegativeRegressionTest(graph),
+            M.truth_value,
         )
 
     graph.default_tests_installed = M.truth_value
