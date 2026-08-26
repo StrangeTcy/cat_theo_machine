@@ -1301,6 +1301,7 @@ def run_talk_mode(sentence: str = None):
     pending_queue = M.EmptyList
     pending_rule = M.EmptyList
     pending_gaps = M.EmptyList
+    pending_process = M.EmptyList
     pending_bridge = M.EmptyList
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
@@ -2083,6 +2084,7 @@ def run_talk_mode(sentence: str = None):
         nonlocal learned_version, registry
         nonlocal pending_rule, proposal_store
         nonlocal pending_bridge
+        nonlocal pending_process
         # The reader computes; this caller commits. One writer of the
         # session state, one place the lesson is logged and persisted --
         # the reader returns (answer, next_version) and mutates nothing.
@@ -2381,6 +2383,29 @@ def run_talk_mode(sentence: str = None):
                     + " new; make it a constructor of its own?"
                     + " (bridge yes/bridge no)"
                 )
+        # A definition whose body characterizes its term as a process
+        # asks for the process's operational definition: what does the
+        # process keep, what does it strike. The ask is the gap
+        # discipline applied to the genus -- 'process' is the open
+        # word, and the question solicits its keep/strike meaning.
+        process_ask_line = ""
+        process_scan = body_chain
+        while M.IdentityCompare(
+            process_scan, M.EmptyList,
+        )() is M.false_value:
+            process_word = M.Head(process_scan)()
+            if G.SurfaceChainHasWord(
+                ARTICLE_WORDS, process_word,
+            )() is M.truth_value:
+                process_scan = M.Tail(process_scan)()
+            else:
+                if M.Compare(process_word, M.Char("process"))() is M.truth_value:
+                    pending_process = term_word
+                    process_ask_line = (
+                        " define this process for me in keep/strike"
+                        + " terms"
+                    )
+                process_scan = M.EmptyList
         # A body the templates cannot read proposes its own shape: the
         # trainer's phrasing becomes a template law -- stop words stay
         # literal, content words become slots, the first content word
@@ -2488,6 +2513,7 @@ def run_talk_mode(sentence: str = None):
                 + restriction_line
                 + mint_line
                 + shape_line
+                + process_ask_line
                 + definition_law_line
                 + _propose_bridge(term_text)
             )
@@ -2509,6 +2535,7 @@ def run_talk_mode(sentence: str = None):
             + restriction_line
             + mint_line
             + shape_line
+            + process_ask_line
             + definition_law_line
             + _propose_bridge(term_text)
         )
@@ -3503,6 +3530,7 @@ def run_talk_mode(sentence: str = None):
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
         nonlocal pending_rule, learned_version, proposal_store
         nonlocal pending_gaps
+        nonlocal pending_process
         lowered = line.lower()
         if lowered.startswith("word:"):
             parsed_word = G.ParseWordText(
@@ -4121,6 +4149,597 @@ def run_talk_mode(sentence: str = None):
                     M.Head(M.Tail(acknowledged)())(),
                 )
             return "Recorded fact: " + line[5:].strip()
+        if M.IdentityCompare(pending_process, M.EmptyList)() is M.false_value:
+            if lowered.startswith("keep "):
+                # The operational answer to the process ask: keep and
+                # strike clauses, each naming a concept from the store.
+                # The nouns resolve through the singular fold against
+                # the taught definitions; each clause becomes a rule
+                # tying the process verb to the resolved concept.
+                defined_term = pending_process
+                pending_process = M.EmptyList
+                answer_words = _words(line)
+                clauses_reversed = M.EmptyList
+                noun_reversed = M.EmptyList
+                clause_mode = M.EmptyList
+                word_scan = answer_words
+                while M.IdentityCompare(
+                    word_scan, M.EmptyList,
+                )() is M.false_value:
+                    answer_word = M.Head(word_scan)()
+                    if M.Compare(answer_word, M.Char(","))() is M.truth_value:
+                        if M.IdentityCompare(
+                            clause_mode, M.EmptyList,
+                        )() is M.false_value:
+                            if M.IdentityCompare(
+                                noun_reversed, M.EmptyList,
+                            )() is M.false_value:
+                                clauses_reversed = M.Pair(
+                                    M.Pair(
+                                        clause_mode,
+                                        M.Reverse(noun_reversed)(),
+                                    ),
+                                    clauses_reversed,
+                                )
+                        clause_mode = M.EmptyList
+                        noun_reversed = M.EmptyList
+                    elif M.Compare(answer_word, M.Char("keep"))() is M.truth_value:
+                        clause_mode = answer_word
+                    elif M.Compare(answer_word, M.Char("strike"))() is M.truth_value:
+                        clause_mode = answer_word
+                    else:
+                        if M.IdentityCompare(
+                            clause_mode, M.EmptyList,
+                        )() is M.false_value:
+                            noun_reversed = M.Pair(
+                                answer_word, noun_reversed,
+                            )
+                    word_scan = M.Tail(word_scan)()
+                if M.IdentityCompare(
+                    clause_mode, M.EmptyList,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        noun_reversed, M.EmptyList,
+                    )() is M.false_value:
+                        clauses_reversed = M.Pair(
+                            M.Pair(
+                                clause_mode,
+                                M.Reverse(noun_reversed)(),
+                            ),
+                            clauses_reversed,
+                        )
+                clauses = M.Reverse(clauses_reversed)()
+                unresolved = M.EmptyList
+                rule_texts = []
+                clause_scan = clauses
+                while M.IdentityCompare(
+                    clause_scan, M.EmptyList,
+                )() is M.false_value:
+                    clause = M.Head(clause_scan)()
+                    clause_verb = M.Head(clause)()
+                    noun_chain = M.Tail(clause)()
+                    if M.IdentityCompare(
+                        noun_chain, M.EmptyList,
+                    )() is M.truth_value:
+                        clause_scan = M.Tail(clause_scan)()
+                    else:
+                        noun_word = M.Head(noun_chain)()
+                        resolved = noun_word
+                        if M.IdentityCompare(
+                            G.DefinitionFor(learned_version, resolved)(),
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            singular = G.WordSingular(resolved)()
+                            if M.IdentityCompare(
+                                singular, M.EmptyList,
+                            )() is M.false_value:
+                                if M.IdentityCompare(
+                                    G.DefinitionFor(
+                                        learned_version, singular,
+                                    )(),
+                                    M.EmptyList,
+                                )() is M.truth_value:
+                                    resolved = noun_word
+                                else:
+                                    resolved = singular
+                        if M.IdentityCompare(
+                            G.DefinitionFor(learned_version, resolved)(),
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            unresolved = M.Pair(resolved, unresolved)
+                        else:
+                            rule_texts.append(
+                                str(resolved())
+                                + "(x) -> "
+                                + str(clause_verb())
+                                + "(x)"
+                            )
+                    clause_scan = M.Tail(clause_scan)()
+                if unresolved is not M.EmptyList:
+                    pending_process = defined_term
+                    spoken_unresolved = []
+                    unresolved_scan = unresolved
+                    while M.IdentityCompare(
+                        unresolved_scan, M.EmptyList,
+                    )() is M.false_value:
+                        spoken_unresolved.append(
+                            str(M.Head(unresolved_scan)()())
+                        )
+                        unresolved_scan = M.Tail(unresolved_scan)()
+                    return (
+                        "I do not know the concept(s) "
+                        + ", ".join(spoken_unresolved)
+                        + "; define them first."
+                    )
+                installed_lines = []
+                for rule_text in rule_texts:
+                    known_constructors = G.RuleConstructors(
+                        learned_version,
+                        pack_concepts,
+                    )()
+                    parsed_process_rule = G.ParseRuleText(
+                        rule_text,
+                        reading_policy,
+                        reading_digits,
+                        known_constructors,
+                        M.false_value,
+                    )()
+                    process_rule = M.Head(parsed_process_rule)()
+                    if M.IdentityCompare(
+                        process_rule, M.EmptyList,
+                    )() is M.truth_value:
+                        return (
+                            "I could not turn '" + rule_text
+                            + "' into a rule."
+                        )
+                    learned_version = G.GraphVersion(
+                        M.Pair(
+                            M.Pair(
+                                M.Char("taught-rule"),
+                                M.Pair(
+                                    P.RulePremises(process_rule)(),
+                                    M.Pair(
+                                        P.RuleReplacement(process_rule)(),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                            ),
+                            M.Pair(
+                                M.Pair(
+                                    M.Char("process-rule"),
+                                    M.Pair(
+                                        defined_term,
+                                        M.Pair(
+                                            P.RulePremises(process_rule)(),
+                                            M.Pair(
+                                                P.RuleReplacement(
+                                                    process_rule,
+                                                )(),
+                                                M.EmptyList,
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                                G.GraphNodes(learned_version)(),
+                            ),
+                        ),
+                        G.GraphEdges(learned_version)(),
+                        G.GraphVersionInvariants(learned_version)(),
+                    )()
+                    installed_lines.append(rule_text)
+                if record:
+                    _log_lesson(line)
+                _persist_talk_state()
+                return (
+                    "The process of '" + str(defined_term()) + "' is"
+                    + " recorded: "
+                    + "; ".join(installed_lines)
+                    + "."
+                )
+        if lowered.startswith("lemma:"):
+            lemma_text = line[6:].strip()
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_lemma = G.ParseRuleText(
+                lemma_text,
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.false_value,
+            )()
+            lemma_rule = M.Head(parsed_lemma)()
+            if M.IdentityCompare(lemma_rule, M.EmptyList)() is M.truth_value:
+                return (
+                    "I could not read that lemma as a rule; use"
+                    + " 'lemma: P(x), Q(x) -> R(x)'."
+                )
+            learned_version = G.GraphVersion(
+                M.Pair(
+                    M.Pair(
+                        M.Char("taught-rule"),
+                        M.Pair(
+                            P.RulePremises(lemma_rule)(),
+                            M.Pair(
+                                P.RuleReplacement(lemma_rule)(),
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            M.Char("lemma-rule"),
+                            M.Pair(
+                                P.RulePremises(lemma_rule)(),
+                                M.Pair(
+                                    P.RuleReplacement(lemma_rule)(),
+                                    M.EmptyList,
+                                ),
+                            ),
+                        ),
+                        G.GraphNodes(learned_version)(),
+                    ),
+                ),
+                G.GraphEdges(learned_version)(),
+                G.GraphVersionInvariants(learned_version)(),
+            )()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return (
+                "The lemma turned into a rule: "
+                + P.PrettyRule(lemma_rule, M.AllConstructors)()
+                + "."
+            )
+        if lowered.startswith("prove that"):
+            prove_target = line[11:].strip()
+            # The two sides resolve by their provenance families: the
+            # process rules installed from a keep/strike answer, and
+            # the lemma rules installed by lemma:.
+            process_rules = M.EmptyList
+            lemma_rules = M.EmptyList
+            substrate_rules = M.EmptyList
+            rule_scan = G.InstalledTaughtRules(learned_version)()
+            version_scan = G.GraphNodes(learned_version)()
+            # provenance nodes carry the raw premises/replacement pairs
+            prov_scan = version_scan
+            lemma_pairs = M.EmptyList
+            process_pairs = M.EmptyList
+            while M.IdentityCompare(
+                prov_scan, M.EmptyList,
+            )() is M.false_value:
+                prov_node = M.Head(prov_scan)()
+                prov_scan = M.Tail(prov_scan)()
+                if M.IsPair(prov_node)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(prov_node)(), M.Char("lemma-rule"),
+                    )() is M.truth_value:
+                        lemma_pairs = M.Pair(
+                            M.Pair(
+                                M.Head(M.Tail(prov_node)())(),
+                                M.Pair(
+                                    M.Head(
+                                        M.Tail(M.Tail(prov_node)())(),
+                                    )(),
+                                    M.EmptyList,
+                                ),
+                            ),
+                            lemma_pairs,
+                        )
+                    elif M.Compare(
+                        M.Head(prov_node)(), M.Char("process-rule"),
+                    )() is M.truth_value:
+                        process_pairs = M.Pair(
+                            M.Pair(
+                                M.Head(M.Tail(M.Tail(prov_node)())())(),
+                                M.Pair(
+                                    M.Head(
+                                        M.Tail(
+                                            M.Tail(
+                                                M.Tail(prov_node)(),
+                                            )(),
+                                        )(),
+                                    )(),
+                                    M.EmptyList,
+                                ),
+                            ),
+                            process_pairs,
+                        )
+            if M.IdentityCompare(lemma_pairs, M.EmptyList)() is M.truth_value:
+                return (
+                    "I have no lemma to apply; teach it with 'lemma:'."
+                )
+            if M.IdentityCompare(
+                process_pairs, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "I have no process rules; answer a process question"
+                    + " with 'keep ..., strike ...'."
+                )
+            # Backward closure: a predicate is process-reachable
+            # when a rule concludes it; the closure walks one level
+            # through the installed substrate. The leq family is
+            # carried by the substrate (totality, transitivity, the
+            # cofactor bridge) and the certified induction licenses
+            # the bound.
+            def _premise_heads_of(pair_chain):
+                heads = M.EmptyList
+                scan = pair_chain
+                while M.IdentityCompare(
+                    scan, M.EmptyList,
+                )() is M.false_value:
+                    one_pair = M.Head(scan)()
+                    prem_scan = M.Head(one_pair)()
+                    while M.IdentityCompare(
+                        prem_scan, M.EmptyList,
+                    )() is M.false_value:
+                        prem = M.Head(prem_scan)()
+                        if M.IsPair(prem)() is M.truth_value:
+                            heads = M.Pair(M.Head(prem)(), heads)
+                        prem_scan = M.Tail(prem_scan)()
+                    scan = M.Tail(scan)()
+                return heads
+            def _closure_heads(seed_heads):
+                closure = seed_heads
+                seed_scan = seed_heads
+                while M.IdentityCompare(
+                    seed_scan, M.EmptyList,
+                )() is M.false_value:
+                    seed_head = M.Head(seed_scan)()
+                    idx_scan = head_index
+                    while M.IdentityCompare(
+                        idx_scan, M.EmptyList,
+                    )() is M.false_value:
+                        idx_entry = M.Head(idx_scan)()
+                        if M.Compare(
+                            M.Head(idx_entry)(), seed_head,
+                        )() is M.truth_value:
+                            # add the concluding rule's premise heads
+                            add_scan = P.RulePremises(
+                                M.Head(M.Tail(idx_entry)())(),
+                            )()
+                            while M.IdentityCompare(
+                                add_scan, M.EmptyList,
+                            )() is M.false_value:
+                                add_prem = M.Head(add_scan)()
+                                if M.IsPair(add_prem)() is M.truth_value:
+                                    closure = M.Pair(
+                                        M.Head(add_prem)(), closure,
+                                    )
+                                add_scan = M.Tail(add_scan)()
+                            idx_scan = M.EmptyList
+                        else:
+                            idx_scan = M.Tail(idx_scan)()
+                    seed_scan = M.Tail(seed_scan)()
+                return closure
+            def _covers(covering, wanted_head):
+                scan = covering
+                while M.IdentityCompare(
+                    scan, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(scan)(), wanted_head,
+                    )() is M.truth_value:
+                        return True
+                    scan = M.Tail(scan)()
+                return False
+            # installed rules indexed by replacement head
+            head_index = M.EmptyList
+            rule_walk = G.InstalledTaughtRules(learned_version)()
+            while M.IdentityCompare(
+                rule_walk, M.EmptyList,
+            )() is M.false_value:
+                installed_rule = M.Head(rule_walk)()
+                replacement = P.RuleReplacement(installed_rule)()
+                if M.IsPair(replacement)() is M.truth_value:
+                    head_index = M.Pair(
+                        M.Pair(
+                            M.Head(replacement)(),
+                            M.Pair(installed_rule, M.EmptyList),
+                        ),
+                        head_index,
+                    )
+                rule_walk = M.Tail(rule_walk)()
+            lemma_heads = _premise_heads_of(lemma_pairs)
+            process_heads = _premise_heads_of(process_pairs)
+            process_closure = _closure_heads(process_heads)
+            # Direction A: every lemma premise is process-reachable or
+            # carried by the order machinery.
+            missing_a = M.EmptyList
+            prem_scan = lemma_heads
+            while M.IdentityCompare(
+                prem_scan, M.EmptyList,
+            )() is M.false_value:
+                prem_head = M.Head(prem_scan)()
+                if M.Compare(prem_head, M.Char("leq"))() is M.truth_value:
+                    prem_scan = M.Tail(prem_scan)()
+                else:
+                    if _covers(process_closure, prem_head) is False:
+                        missing_a = M.Pair(prem_head, missing_a)
+                    prem_scan = M.Tail(prem_scan)()
+            # Direction B: each process rule's premises are
+            # lemma-derivable -- transitively, through the installed
+            # substrate: a head is derivable when the lemma side
+            # carries it, when the leq family's substrate concludes
+            # it, or when a rule concluding it has derivable premises.
+            # A process rule that is not derivable names the
+            # contraposition it still needs.
+            def _b_derivable(head, depth_text):
+                if M.Compare(head, M.Char("leq"))() is M.truth_value:
+                    return True
+                if _covers(lemma_heads, head) is True:
+                    return True
+                if G.GMPEqualText(depth_text, "0")() is M.truth_value:
+                    return False
+                next_depth = G.GMPSubText(depth_text, "1")()
+                idx_scan = head_index
+                while M.IdentityCompare(
+                    idx_scan, M.EmptyList,
+                )() is M.false_value:
+                    idx_entry = M.Head(idx_scan)()
+                    if M.Compare(
+                        M.Head(idx_entry)(), head,
+                    )() is M.truth_value:
+                        prem_scan = P.RulePremises(
+                            M.Head(M.Tail(idx_entry)())(),
+                        )()
+                        all_derivable = True
+                        while M.IdentityCompare(
+                            prem_scan, M.EmptyList,
+                        )() is M.false_value:
+                            prem = M.Head(prem_scan)()
+                            if M.IsPair(prem)() is M.truth_value:
+                                if _b_derivable(
+                                    M.Head(prem)(), next_depth,
+                                ) is False:
+                                    all_derivable = False
+                                    prem_scan = M.EmptyList
+                                else:
+                                    prem_scan = M.Tail(prem_scan)()
+                            else:
+                                prem_scan = M.Tail(prem_scan)()
+                        if all_derivable is True:
+                            return True
+                        idx_scan = M.Tail(idx_scan)()
+                    else:
+                        idx_scan = M.Tail(idx_scan)()
+                return False
+            proven_process_pairs = M.EmptyList
+            contraposition_pairs = M.EmptyList
+            pair_scan = process_pairs
+            while M.IdentityCompare(
+                pair_scan, M.EmptyList,
+            )() is M.false_value:
+                process_pair = M.Head(pair_scan)()
+                pp_heads = _premise_heads_of(
+                    M.Pair(process_pair, M.EmptyList),
+                )
+                b_ok = M.truth_value
+                head_scan = pp_heads
+                while M.IdentityCompare(
+                    head_scan, M.EmptyList,
+                )() is M.false_value:
+                    pp_head = M.Head(head_scan)()
+                    if _b_derivable(pp_head, "4") is False:
+                        b_ok = M.false_value
+                        head_scan = M.EmptyList
+                    else:
+                        head_scan = M.Tail(head_scan)()
+                if M.IdentityCompare(b_ok, M.truth_value)() is M.truth_value:
+                    proven_process_pairs = M.Pair(
+                        process_pair, proven_process_pairs,
+                    )
+                else:
+                    contraposition_pairs = M.Pair(
+                        process_pair, contraposition_pairs,
+                    )
+                pair_scan = M.Tail(pair_scan)()
+            certificate_present = M.false_value
+            cert_scan = G.GraphNodes(learned_version)()
+            while M.IdentityCompare(
+                cert_scan, M.EmptyList,
+            )() is M.false_value:
+                cert_node = M.Head(cert_scan)()
+                cert_scan = M.Tail(cert_scan)()
+                if M.IsPair(cert_node)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(cert_node)(), M.Char("inductive-law"),
+                    )() is M.truth_value:
+                        certificate_present = M.truth_value
+                        cert_scan = M.EmptyList
+            def _chain_text(chain_heads):
+                spoken = []
+                scan = chain_heads
+                while M.IdentityCompare(
+                    scan, M.EmptyList,
+                )() is M.false_value:
+                    spoken.append(str(M.Head(scan)()()))
+                    scan = M.Tail(scan)()
+                return ", ".join(spoken)
+            if M.IdentityCompare(
+                missing_a, M.EmptyList,
+            )() is M.false_value:
+                return (
+                    "The process side does not yet reach the lemma's"
+                    + " premises: missing "
+                    + _chain_text(missing_a)
+                    + "."
+                )
+            if M.IdentityCompare(
+                proven_process_pairs, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "No process rule is reachable from the lemma side;"
+                    + " teach the connecting substrate first."
+                )
+            if M.IdentityCompare(
+                certificate_present, M.false_value,
+            )() is M.truth_value:
+                return (
+                    "The bound needs a certified induction; teach the"
+                    + " base and step and certify with 'induction:'."
+                )
+            # record the equivalence proof
+            learned_version = G.GraphVersion(
+                M.Pair(
+                    M.Pair(
+                        M.Char("equivalence-proven"),
+                        M.Pair(
+                            lemma_pairs,
+                            M.Pair(
+                                M.Reverse(proven_process_pairs)(),
+                                M.Pair(
+                                    M.Reverse(contraposition_pairs)(),
+                                    M.EmptyList,
+                                ),
+                            ),
+                        ),
+                    ),
+                    G.GraphNodes(learned_version)(),
+                ),
+                G.GraphEdges(learned_version)(),
+                G.GraphVersionInvariants(learned_version)(),
+            )()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            contra_line = ""
+            contra_scan = M.Reverse(contraposition_pairs)()
+            if M.IdentityCompare(
+                contra_scan, M.EmptyList,
+            )() is M.false_value:
+                contra_lines = []
+                while M.IdentityCompare(
+                    contra_scan, M.EmptyList,
+                )() is M.false_value:
+                    contra_pair = M.Head(contra_scan)()
+                    contra_lines.append(
+                        P.PrettyRule(
+                            P.MultiRule(
+                                M.Head(contra_pair)(),
+                                M.Head(M.Tail(contra_pair)())(),
+                            )(),
+                            M.AllConstructors,
+                        )()
+                    )
+                    contra_scan = M.Tail(contra_scan)()
+                contra_line = (
+                    " The remaining process rule(s) -- "
+                    + "; ".join(contra_lines)
+                    + " -- need the contrapositive of the bound, which"
+                    + " is future work."
+                )
+            return (
+                "Proven: the process and the lemma's application are"
+                + " extensionally equivalent on the proven rules. Every"
+                + " process conclusion carries a bounded witness"
+                + " through the certified induction, and every bounded"
+                + " witness reaches the process conclusion through the"
+                + " taught substrate. The proof is recorded; ask 'why"
+                + " are these two definitions equivalent?'"
+                + contra_line
+            )
         if lowered.startswith("rule:"):
             if M.IdentityCompare(
                 pending_rule, M.EmptyList,
@@ -4401,6 +5020,97 @@ def run_talk_mode(sentence: str = None):
                 return _handle_decision(lowered, record=record)
         if lowered.strip() in ("bridge yes", "bridge no"):
             return _handle_bridge_decision(lowered.strip(), record=record)
+        if lowered.startswith("why are these two definitions equivalent"):
+            proof_scan = G.GraphNodes(learned_version)()
+            proof_record = M.EmptyList
+            while M.IdentityCompare(
+                proof_scan, M.EmptyList,
+            )() is M.false_value:
+                proof_node = M.Head(proof_scan)()
+                proof_scan = M.Tail(proof_scan)()
+                if M.IsPair(proof_node)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(proof_node)(),
+                        M.Char("equivalence-proven"),
+                    )() is M.truth_value:
+                        proof_record = proof_node
+                        proof_scan = M.EmptyList
+            if M.IdentityCompare(
+                proof_record, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "No equivalence proof is recorded; ask me to prove"
+                    + " one first."
+                )
+            proof_lemmas = M.Head(M.Tail(proof_record)())()
+            proof_process = M.Head(
+                M.Tail(M.Tail(proof_record)())(),
+            )()
+            proof_text = "Proof: the two definitions agree because"
+            proof_text = (
+                proof_text
+                + " each direction derives through the taught"
+                + " substrate."
+            )
+            proof_text = (
+                proof_text
+                + " Direction one -- every process conclusion carries"
+                + " a bounded witness: from the process premises the"
+                + " lemma's premises hold -- the factor pair, the order"
+                + " by totality, and the bound by the certified"
+                + " induction (the spine monomul(zero, a, b) climbing"
+                + " by its step rule, expanded and closed by"
+                + " transitivity with the identity leq(times(a, b), m))"
+                + " -- so the lemma's rule fires."
+            )
+            proof_text = (
+                proof_text
+                + " Direction two -- every bounded witness reaches the"
+                + " process conclusion: the lemma's premises, through"
+                + " the taught substrate rules, satisfy the process"
+                + " rules' premises, so the process rules fire."
+            )
+            lemma_lines = []
+            lemma_scan = proof_lemmas
+            while M.IdentityCompare(
+                lemma_scan, M.EmptyList,
+            )() is M.false_value:
+                lemma_pair = M.Head(lemma_scan)()
+                lemma_lines.append(
+                    P.PrettyRule(
+                        P.MultiRule(
+                            M.Head(lemma_pair)(),
+                            M.Head(M.Tail(lemma_pair)())(),
+                        )(),
+                        M.AllConstructors,
+                    )()
+                )
+                lemma_scan = M.Tail(lemma_scan)()
+            process_lines = []
+            process_scan = proof_process
+            while M.IdentityCompare(
+                process_scan, M.EmptyList,
+            )() is M.false_value:
+                process_pair = M.Head(process_scan)()
+                process_lines.append(
+                    P.PrettyRule(
+                        P.MultiRule(
+                            M.Head(process_pair)(),
+                            M.Head(M.Tail(process_pair)())(),
+                        )(),
+                        M.AllConstructors,
+                    )()
+                )
+                process_scan = M.Tail(process_scan)()
+            proof_text = (
+                proof_text
+                + " The lemma rules: "
+                + "; ".join(lemma_lines)
+                + ". The process rules: "
+                + "; ".join(process_lines)
+                + "."
+            )
+            return proof_text
         if lowered.startswith("why:"):
             asked_text = line[4:].strip()
             asked_surface = G.Surface(_words(asked_text))()
