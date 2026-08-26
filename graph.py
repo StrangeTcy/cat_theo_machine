@@ -9603,6 +9603,13 @@ class LexicalGap(M.Edge):
             walker = M.Tail(walker)()
         spaces = M.Reverse(spaces_reversed)()
 
+        # A work budget for the candidate search: each forward pair
+        # costs an uncovered scan plus two category inferences over
+        # the production set, and a line the grammar cannot span can
+        # propose pairs far faster than any answer is worth. The
+        # budget is a machine counter in the family of the scan caps;
+        # when it is spent the search stops and reports no gap.
+        pair_budget_text = "16"
         outer = spaces
         while M.IdentityCompare(outer, empty)() is M.false_value:
             if M.IdentityCompare(self.result, empty)() is M.false_value:
@@ -9622,47 +9629,63 @@ class LexicalGap(M.Edge):
                             M.GMPRepText(gap_end)(),
                         )()
                         if forward is M.truth_value:
-                            uncovered = M.truth_value
-                            check = readings
-                            while M.IdentityCompare(check, empty)() is M.false_value:
-                                other = M.Head(check)()
-                                other_start = M.Head(M.Tail(M.Tail(other)())())()
-                                other_end = M.Head(M.Tail(M.Tail(M.Tail(other)())())())()
-                                starts_before_end = GMPLessText(
-                                    M.GMPRepText(other_start)(),
-                                    M.GMPRepText(gap_end)(),
+                            if GMPEqualText(
+                                pair_budget_text, "16",
+                            )() is M.truth_value:
+                                outer = empty
+                            else:
+                                pair_budget_text = GMPSuccText(
+                                    pair_budget_text,
                                 )()
-                                ends_after_start = GMPLessText(
-                                    M.GMPRepText(gap_start)(),
-                                    M.GMPRepText(other_end)(),
-                                )()
-                                if starts_before_end is M.truth_value:
-                                    if ends_after_start is M.truth_value:
-                                        uncovered = M.false_value
-                                check = M.Tail(check)()
-                            if uncovered is M.truth_value:
-                                # The left context first: what has already
-                                # been parsed up to the hole is the
-                                # incremental reading order, and anchoring
-                                # on the right reading first proposed a
-                                # category the left context cannot use
-                                # ("is seven prime": the right-anchored
-                                # read saw ADJ and proposed DET for
-                                # "seven"; the COPG on the left wants
-                                # NUM). Right anchor stays as fallback.
-                                self._infer_category_from_left(
-                                    readings, productions, spc_category,
-                                    gap_start, gap_end,
-                                )
-                                if M.IdentityCompare(
-                                    self.result, empty,
-                                )() is M.truth_value:
-                                    self._infer_category(
-                                        readings, productions, space_b,
+                                uncovered = M.truth_value
+                                check = readings
+                                while M.IdentityCompare(check, empty)() is M.false_value:
+                                    other = M.Head(check)()
+                                    other_start = M.Head(M.Tail(M.Tail(other)())())()
+                                    other_end = M.Head(M.Tail(M.Tail(M.Tail(other)())())())()
+                                    starts_before_end = GMPLessText(
+                                        M.GMPRepText(other_start)(),
+                                        M.GMPRepText(gap_end)(),
+                                    )()
+                                    ends_after_start = GMPLessText(
+                                        M.GMPRepText(gap_start)(),
+                                        M.GMPRepText(other_end)(),
+                                    )()
+                                    if starts_before_end is M.truth_value:
+                                        if ends_after_start is M.truth_value:
+                                            uncovered = M.false_value
+                                    check = M.Tail(check)()
+                                if uncovered is M.truth_value:
+                                    # The left context first: what has already
+                                    # been parsed up to the hole is the
+                                    # incremental reading order, and anchoring
+                                    # on the right reading first proposed a
+                                    # category the left context cannot use
+                                    # ("is seven prime": the right-anchored
+                                    # read saw ADJ and proposed DET for
+                                    # "seven"; the COPG on the left wants
+                                    # NUM). Right anchor stays as fallback.
+                                    self._infer_category_from_left(
+                                        readings, productions, spc_category,
                                         gap_start, gap_end,
                                     )
-                        inner = M.Tail(inner)()
-                outer = M.Tail(outer)()
+                                    if M.IdentityCompare(
+                                        self.result, empty,
+                                    )() is M.truth_value:
+                                        self._infer_category(
+                                            readings, productions, space_b,
+                                            gap_start, gap_end,
+                                        )
+                        if GMPEqualText(
+                            pair_budget_text, "16",
+                        )() is M.truth_value:
+                            inner = empty
+                        else:
+                            inner = M.Tail(inner)()
+                if GMPEqualText(pair_budget_text, "16")() is M.truth_value:
+                    outer = empty
+                else:
+                    outer = M.Tail(outer)()
 
         if M.IdentityCompare(self.result, empty)() is M.truth_value:
             # A word that ENDS the line has a left space but no right
@@ -9689,36 +9712,49 @@ class LexicalGap(M.Edge):
                             M.GMPRepText(line_end)(),
                         )()
                         if forward is M.truth_value:
-                            uncovered = M.truth_value
-                            check = readings
-                            while M.IdentityCompare(
-                                check, empty,
-                            )() is M.false_value:
-                                other = M.Head(check)()
-                                other_start = M.Head(
-                                    M.Tail(M.Tail(other)())(),
+                            if GMPEqualText(
+                                pair_budget_text, "16",
+                            )() is M.truth_value:
+                                outer = empty
+                            else:
+                                pair_budget_text = GMPSuccText(
+                                    pair_budget_text,
                                 )()
-                                other_end = M.Head(
-                                    M.Tail(M.Tail(M.Tail(other)())())(),
-                                )()
-                                starts_before_end = GMPLessText(
-                                    M.GMPRepText(other_start)(),
-                                    M.GMPRepText(line_end)(),
-                                )()
-                                ends_after_start = GMPLessText(
-                                    M.GMPRepText(gap_start)(),
-                                    M.GMPRepText(other_end)(),
-                                )()
-                                if starts_before_end is M.truth_value:
-                                    if ends_after_start is M.truth_value:
-                                        uncovered = M.false_value
-                                check = M.Tail(check)()
-                            if uncovered is M.truth_value:
-                                self._infer_category_from_left(
-                                    readings, productions, spc_category,
-                                    gap_start, line_end,
-                                )
-                        outer = M.Tail(outer)()
+                                uncovered = M.truth_value
+                                check = readings
+                                while M.IdentityCompare(
+                                    check, empty,
+                                )() is M.false_value:
+                                    other = M.Head(check)()
+                                    other_start = M.Head(
+                                        M.Tail(M.Tail(other)())(),
+                                    )()
+                                    other_end = M.Head(
+                                        M.Tail(M.Tail(M.Tail(other)())())(),
+                                    )()
+                                    starts_before_end = GMPLessText(
+                                        M.GMPRepText(other_start)(),
+                                        M.GMPRepText(line_end)(),
+                                    )()
+                                    ends_after_start = GMPLessText(
+                                        M.GMPRepText(gap_start)(),
+                                        M.GMPRepText(other_end)(),
+                                    )()
+                                    if starts_before_end is M.truth_value:
+                                        if ends_after_start is M.truth_value:
+                                            uncovered = M.false_value
+                                    check = M.Tail(check)()
+                                if uncovered is M.truth_value:
+                                    self._infer_category_from_left(
+                                        readings, productions, spc_category,
+                                        gap_start, line_end,
+                                    )
+                        if GMPEqualText(
+                            pair_budget_text, "16",
+                        )() is M.truth_value:
+                            outer = empty
+                        else:
+                            outer = M.Tail(outer)()
 
         super().__init__(
             inputs=M.Pair(
