@@ -1631,9 +1631,35 @@ def run_talk_mode(sentence: str = None):
         """
         if M.IsPair(term)() is not M.truth_value:
             return M.EmptyList
-        if M.Compare(
-            M.Head(term)(), M.Char("divisible"),
-        )() is not M.truth_value:
+        # The claim may speak the word or the constructor the word
+        # bridges to -- a bridged 'divisible' parses to the pack's
+        # division concept, and the arithmetic follows the bridge.
+        acceptable_heads = M.Pair(M.Char("divisible"), M.EmptyList)
+        divisible_bridge = G.BridgeFor(
+            learned_version, M.Char("divisible"),
+        )()
+        if M.IdentityCompare(
+            divisible_bridge, M.EmptyList,
+        )() is M.false_value:
+            acceptable_heads = M.Pair(
+                G.BridgeConstructor(divisible_bridge)(),
+                acceptable_heads,
+            )
+        head_known = M.false_value
+        head_scan = acceptable_heads
+        while M.IdentityCompare(
+            head_scan, M.EmptyList,
+        )() is M.false_value:
+            if M.Compare(
+                M.Head(term)(), M.Head(head_scan)(),
+            )() is M.truth_value:
+                head_known = M.truth_value
+                head_scan = M.EmptyList
+            else:
+                head_scan = M.Tail(head_scan)()
+        if M.IdentityCompare(
+            head_known, M.false_value,
+        )() is M.truth_value:
             return M.EmptyList
         args = M.Tail(term)()
         if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
@@ -4865,6 +4891,25 @@ def run_talk_mode(sentence: str = None):
                     + " is already recorded as a case-elimination conclusion."
                 )
             facts = G.InstalledTaughtFacts(learned_version)()
+            # Recorded case conclusions join the working set the way
+            # taught facts do: what the elimination established is
+            # available to later rules, so the sieve's process rules
+            # conclude from what the sieve itself decided.
+            conclusion_join_scan = G.InstalledCaseConclusions(
+                learned_version,
+            )()
+            while M.IdentityCompare(
+                conclusion_join_scan, M.EmptyList,
+            )() is M.false_value:
+                facts = M.Pair(
+                    G.CaseConclusionCandidate(
+                        M.Head(conclusion_join_scan)(),
+                    )(),
+                    facts,
+                )
+                conclusion_join_scan = M.Tail(
+                    conclusion_join_scan,
+                )()
             # The numeral words' analytic sameness facts join the
             # working set the way pack laws do: distinct numeral words
             # name distinct numbers, each names itself. A taught
