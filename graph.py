@@ -742,13 +742,19 @@ class CaseSplitQuery(M.Edge):
 
     def __init__(self, facts, rules, splits, goal):
         empty = M.EmptyList
-        consistent_candidates = empty
-        refuted_candidates = empty
-        consistent_count = M.Zero
-        goal_count = M.Zero
+        # Per-split outcomes: branches are evaluated split by split,
+        # and the verdict comes from a split that isolates the goal.
+        # Counting consistent branches across splits would call two
+        # copies of one split two live cases and never conclude.
+        outcomes_reversed = empty
+        all_refuted_reversed = empty
         split_scan = splits
         while M.IdentityCompare(split_scan, empty)() is M.false_value:
             split = M.Head(split_scan)()
+            split_consistent_candidates = empty
+            split_refuted_reversed = empty
+            split_consistent_count = M.Zero
+            split_goal_count = M.Zero
             # The instance glue: a ground goal that speaks a branch's
             # predicate carries the binding the branch needs. The
             # exactly-one parse writes placeholder symbols, and the
@@ -1011,12 +1017,12 @@ class CaseSplitQuery(M.Edge):
                     consistent, M.truth_value,
                 )() is M.truth_value:
                     next_count = M.Succ(
-                        consistent_count, M.AllConstructors,
+                        split_consistent_count, M.AllConstructors,
                     )()
-                    consistent_count = M.Head(next_count)()
-                    consistent_candidates = M.Pair(
+                    split_consistent_count = M.Head(next_count)()
+                    split_consistent_candidates = M.Pair(
                         candidate,
-                        consistent_candidates,
+                        split_consistent_candidates,
                     )
                     branch_goal = M.false_value
                     fact_scan = branch_facts
@@ -1034,43 +1040,108 @@ class CaseSplitQuery(M.Edge):
                         branch_goal, M.truth_value,
                     )() is M.truth_value:
                         next_goal_count = M.Succ(
-                            goal_count, M.AllConstructors,
+                            split_goal_count, M.AllConstructors,
                         )()
-                        goal_count = M.Head(next_goal_count)()
+                        split_goal_count = M.Head(next_goal_count)()
                 else:
-                    refuted_candidates = M.Pair(
+                    split_refuted_reversed = M.Pair(
                         candidate,
-                        refuted_candidates,
+                        split_refuted_reversed,
+                    )
+                    all_refuted_reversed = M.Pair(
+                        candidate,
+                        all_refuted_reversed,
                     )
                 branch_scan = M.Tail(branch_scan)()
+            outcomes_reversed = M.Pair(
+                M.Pair(
+                    split_consistent_count,
+                    M.Pair(
+                        split_goal_count,
+                        M.Pair(
+                            split,
+                            M.Pair(
+                                split_consistent_candidates,
+                                M.Pair(
+                                    split_refuted_reversed, empty,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                outcomes_reversed,
+            )
             split_scan = M.Tail(split_scan)()
 
         status = M.false_value
         kind = M.Char("all-branches-refuted")
         conclusion = empty
-        if M.IdentityCompare(consistent_count, M.Zero)() is M.false_value:
-            if M.NatEq(
-                consistent_count,
-                M.one,
-                M.AllConstructors,
-            )() is M.truth_value:
-                kind = M.Char("one-consistent-case")
+        proving_outcome = empty
+        single_outcome = empty
+        outcome_scan = M.Reverse(outcomes_reversed)()
+        while M.IdentityCompare(
+            outcome_scan, empty,
+        )() is M.false_value:
+            outcome = M.Head(outcome_scan)()
+            outcome_consistent = M.Head(outcome)()
+            outcome_goal = M.Head(M.Tail(outcome)())()
+            if M.IdentityCompare(
+                outcome_consistent, M.Zero,
+            )() is M.false_value:
                 if M.NatEq(
-                    goal_count,
+                    outcome_consistent,
                     M.one,
                     M.AllConstructors,
                 )() is M.truth_value:
-                    status = M.truth_value
-                    split = M.Head(splits)()
-                    conclusion = CaseConclusion(
-                        split,
-                        goal,
-                        M.Reverse(refuted_candidates)(),
-                    )()
-                else:
-                    kind = M.Char("consistent-case-does-not-prove-goal")
+                    if M.NatEq(
+                        outcome_goal,
+                        M.one,
+                        M.AllConstructors,
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            proving_outcome, empty,
+                        )() is M.truth_value:
+                            proving_outcome = outcome
+                    else:
+                        if M.IdentityCompare(
+                            single_outcome, empty,
+                        )() is M.truth_value:
+                            single_outcome = outcome
+            outcome_scan = M.Tail(outcome_scan)()
+        if M.IdentityCompare(
+            proving_outcome, empty,
+        )() is M.false_value:
+            status = M.truth_value
+            kind = M.Char("one-consistent-case")
+            conclusion = CaseConclusion(
+                M.Head(M.Tail(M.Tail(proving_outcome)())())(),
+                goal,
+                M.Reverse(
+                    M.Head(
+                        M.Tail(M.Tail(M.Tail(M.Tail(proving_outcome)())())())(),
+                    )(),
+                )(),
+            )()
+        else:
+            if M.IdentityCompare(
+                single_outcome, empty,
+            )() is M.false_value:
+                kind = M.Char("consistent-case-does-not-prove-goal")
             else:
-                kind = M.Char("multiple-consistent-cases")
+                if M.IdentityCompare(
+                    outcomes_reversed, empty,
+                )() is M.false_value:
+                    kind = M.Char("multiple-consistent-cases")
+        consistent_spoken = empty
+        if M.IdentityCompare(
+            proving_outcome, empty,
+        )() is M.false_value:
+            outcome_tail_one = M.Tail(proving_outcome)()
+            outcome_tail_two = M.Tail(outcome_tail_one)()
+            outcome_tail_three = M.Tail(outcome_tail_two)()
+            consistent_spoken = M.Reverse(
+                M.Head(outcome_tail_three)(),
+            )()
         self.result = M.Pair(
             status,
             M.Pair(
@@ -1078,8 +1149,8 @@ class CaseSplitQuery(M.Edge):
                 M.Pair(
                     conclusion,
                     M.Pair(
-                        M.Reverse(refuted_candidates)(),
-                        M.Pair(M.Reverse(consistent_candidates)(), empty),
+                        M.Reverse(all_refuted_reversed)(),
+                        M.Pair(consistent_spoken, empty),
                     ),
                 ),
             ),
@@ -4786,10 +4857,34 @@ class InstalledCaseSplits(M.Edge):
 
 
 class InstallCaseSplit(M.Edge):
-    """Install an ExactlyOne assertion and its CaseSplit proof object."""
+    """Install an ExactlyOne assertion and its CaseSplit proof object.
+
+    Idempotent: an identical split already in the version is not
+    re-spliced, so an approval path and an activation path landing on
+    the same split do not duplicate it.
+    """
 
     def __init__(self, graph_version, split):
         exactly_one = CaseSplitExactlyOne(split)()
+        already = M.false_value
+        node_scan = GraphNodes(graph_version)()
+        while M.IdentityCompare(
+            node_scan, M.EmptyList,
+        )() is M.false_value:
+            if M.Compare(M.Head(node_scan)(), split)() is M.truth_value:
+                already = M.truth_value
+                node_scan = M.EmptyList
+            else:
+                node_scan = M.Tail(node_scan)()
+        if M.IdentityCompare(already, M.truth_value)() is M.truth_value:
+            self.result = graph_version
+            super().__init__(
+                inputs=M.Pair(
+                    graph_version, M.Pair(split, M.EmptyList),
+                ),
+                results=self.result,
+            )
+            return
         next_version = GraphVersion(
             M.Pair(
                 split,
