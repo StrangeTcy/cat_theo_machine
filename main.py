@@ -5336,7 +5336,11 @@ def run_talk_mode(sentence: str = None):
                     + " negation is derivable from the taught rules and"
                     + " the numeral words' own differences."
                 )
-            return "no; I could not derive " + line[6:].strip() + "."
+            return (
+                "no; I could not derive " + line[6:].strip()
+                + ". Ask 'why not " + line[6:].strip()
+                + "?' for what is missing."
+            )
             start = M.Knowledge(facts)()
             if proof_runtime is M.EmptyList:
                 print(
@@ -5377,7 +5381,315 @@ def run_talk_mode(sentence: str = None):
                     goal,
                     last_proof_registry,
                 )()
-            return "no; I could not derive " + line[6:].strip() + "."
+            return (
+                "no; I could not derive " + line[6:].strip()
+                + ". Ask 'why not " + line[6:].strip()
+                + "?' for what is missing."
+            )
+        if lowered.startswith("why not "):
+            # The failed query's own explanation: what stands between
+            # the goal and its derivation, computed from the state --
+            # the rules that would conclude it and the premises they
+            # are missing, the splits that would decide it and the
+            # branches still standing, the divisions already run.
+            why_not_text = line[8:].strip().rstrip("?.!")
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_why_not = G.ParseRuleText(
+                why_not_text,
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            why_not_goal = M.Head(parsed_why_not)()
+            if M.IdentityCompare(
+                why_not_goal, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "I could not read that as a claim. Use"
+                    + " 'why not Predicate(constant)?'"
+                )
+            if M.IsPair(why_not_goal)() is not M.truth_value:
+                return (
+                    "I could not read that as a claim. Use"
+                    + " 'why not Predicate(constant)?'"
+                )
+            why_not_head = M.Head(why_not_goal)()
+            why_not_facts = G.InstalledTaughtFacts(learned_version)()
+            why_not_rules = G.InstalledTaughtRules(learned_version)()
+            # The divisions the goal and the rules speak run first, so
+            # the missing-premise report never counts a computed
+            # divisibility as missing.
+            why_not_terms_reversed = M.Pair(
+                why_not_goal, M.EmptyList,
+            )
+            why_not_rule_scan = why_not_rules
+            while M.IdentityCompare(
+                why_not_rule_scan, M.EmptyList,
+            )() is M.false_value:
+                why_not_premise_scan = P.RulePremises(
+                    M.Head(why_not_rule_scan)(),
+                )()
+                while M.IdentityCompare(
+                    why_not_premise_scan, M.EmptyList,
+                )() is M.false_value:
+                    why_not_terms_reversed = M.Pair(
+                        M.Head(why_not_premise_scan)(),
+                        why_not_terms_reversed,
+                    )
+                    why_not_premise_scan = M.Tail(
+                        why_not_premise_scan,
+                    )()
+                why_not_rule_scan = M.Tail(why_not_rule_scan)()
+            why_not_computed_lines = []
+            why_not_compute_scan = why_not_terms_reversed
+            while M.IdentityCompare(
+                why_not_compute_scan, M.EmptyList,
+            )() is M.false_value:
+                why_not_term = M.Head(why_not_compute_scan)()
+                why_not_target = why_not_term
+                if M.IsPair(why_not_term)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(why_not_term)(), M.Char("not"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(why_not_term)(), M.EmptyList,
+                        )() is M.false_value:
+                            why_not_target = M.Head(
+                                M.Tail(why_not_term)(),
+                            )()
+                why_not_verdict = _computed_divisibility(
+                    why_not_target,
+                )
+                if M.IdentityCompare(
+                    why_not_verdict, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(why_not_verdict)(), M.Char("holds"),
+                    )() is M.truth_value:
+                        why_not_facts = M.Pair(
+                            why_not_target, why_not_facts,
+                        )
+                        why_not_computed_lines.append(
+                            "the division in it is exact",
+                        )
+                    else:
+                        why_not_facts = M.Pair(
+                            M.Pair(
+                                M.Char("not"),
+                                M.Pair(
+                                    why_not_target, M.EmptyList,
+                                ),
+                            ),
+                            why_not_facts,
+                        )
+                        why_not_computed_lines.append(
+                            "the division in it leaves remainder "
+                            + _words_of_value_text(
+                                str(
+                                    M.Head(
+                                        M.Tail(why_not_verdict)(),
+                                    )(),
+                                ),
+                            ),
+                        )
+                why_not_compute_scan = M.Tail(
+                    why_not_compute_scan,
+                )()
+            # The rules that would conclude the goal, each with the
+            # premises the working set does not carry.
+            why_not_rule_lines = []
+            why_not_match_scan = why_not_rules
+            while M.IdentityCompare(
+                why_not_match_scan, M.EmptyList,
+            )() is M.false_value:
+                why_not_rule = M.Head(why_not_match_scan)()
+                why_not_replacement = P.RuleReplacement(
+                    why_not_rule,
+                )()
+                if M.IsPair(why_not_replacement)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(why_not_replacement)(), why_not_head,
+                    )() is M.truth_value:
+                        unmet_renders = []
+                        unmet_scan = P.RulePremises(why_not_rule)()
+                        while M.IdentityCompare(
+                            unmet_scan, M.EmptyList,
+                        )() is M.false_value:
+                            unmet_premise = M.Head(unmet_scan)()
+                            unmet_bindings = P.JoinPremises(
+                                M.Pair(unmet_premise, M.EmptyList),
+                                why_not_facts,
+                                M.EmptyList,
+                            )()
+                            if M.IdentityCompare(
+                                unmet_bindings, M.EmptyList,
+                            )() is M.truth_value:
+                                unmet_renders.append(
+                                    M.PrettyTerm(
+                                        unmet_premise, registry,
+                                    )(),
+                                )
+                            unmet_scan = M.Tail(unmet_scan)()
+                        if unmet_renders:
+                            why_not_rule_lines.append(
+                                P.PrettyRule(
+                                    why_not_rule, M.AllConstructors,
+                                )()
+                                + " is missing "
+                                + ", ".join(unmet_renders)
+                            )
+                why_not_match_scan = M.Tail(why_not_match_scan)()
+            # The splits whose branches would decide the goal.
+            why_not_split_lines = []
+            why_not_split_scan = G.InstalledCaseSplits(
+                learned_version,
+            )()
+            while M.IdentityCompare(
+                why_not_split_scan, M.EmptyList,
+            )() is M.false_value:
+                why_not_split = M.Head(why_not_split_scan)()
+                why_not_candidates = M.Head(
+                    M.Tail(
+                        G.CaseSplitExactlyOne(why_not_split)(),
+                    )(),
+                )()
+                why_not_candidate_scan = why_not_candidates
+                while M.IdentityCompare(
+                    why_not_candidate_scan, M.EmptyList,
+                )() is M.false_value:
+                    why_not_candidate = M.Head(
+                        why_not_candidate_scan,
+                    )()
+                    if M.IsPair(why_not_candidate)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(why_not_candidate)(),
+                            why_not_head,
+                        )() is M.truth_value:
+                            candidate_renders = []
+                            render_candidate_scan = why_not_candidates
+                            while M.IdentityCompare(
+                                render_candidate_scan, M.EmptyList,
+                            )() is M.false_value:
+                                candidate_renders.append(
+                                    M.PrettyTerm(
+                                        M.Head(
+                                            render_candidate_scan,
+                                        )(),
+                                        registry,
+                                    )(),
+                                )
+                                render_candidate_scan = M.Tail(
+                                    render_candidate_scan,
+                                )()
+                            why_not_split_lines.append(
+                                "the case split over "
+                                + ", ".join(candidate_renders)
+                                + " speaks it; its other branches"
+                                + " are not refuted"
+                            )
+                            why_not_candidate_scan = M.EmptyList
+                        else:
+                            why_not_candidate_scan = M.Tail(
+                                why_not_candidate_scan,
+                            )()
+                    else:
+                        why_not_candidate_scan = M.Tail(
+                            why_not_candidate_scan,
+                        )()
+                why_not_split_scan = M.Tail(why_not_split_scan)()
+            # The elimination itself is checked with the same
+            # machinery the query uses: when the split would conclude,
+            # the reply says so instead of listing gaps.
+            why_not_relevant_reversed = M.EmptyList
+            why_not_relevant_scan = G.InstalledCaseSplits(
+                learned_version,
+            )()
+            while M.IdentityCompare(
+                why_not_relevant_scan, M.EmptyList,
+            )() is M.false_value:
+                why_not_relevant_candidates = M.Head(
+                    M.Tail(
+                        G.CaseSplitExactlyOne(
+                            M.Head(why_not_relevant_scan)(),
+                        )(),
+                    )(),
+                )()
+                why_not_candidate_scan = why_not_relevant_candidates
+                while M.IdentityCompare(
+                    why_not_candidate_scan, M.EmptyList,
+                )() is M.false_value:
+                    if M.IsPair(
+                        M.Head(why_not_candidate_scan)(),
+                    )() is M.truth_value:
+                        if M.Compare(
+                            M.Head(
+                                M.Head(why_not_candidate_scan)(),
+                            )(),
+                            why_not_head,
+                        )() is M.truth_value:
+                            why_not_relevant_reversed = M.Pair(
+                                M.Head(why_not_relevant_scan)(),
+                                why_not_relevant_reversed,
+                            )
+                            why_not_candidate_scan = M.EmptyList
+                        else:
+                            why_not_candidate_scan = M.Tail(
+                                why_not_candidate_scan,
+                            )()
+                    else:
+                        why_not_candidate_scan = M.Tail(
+                            why_not_candidate_scan,
+                        )()
+                why_not_relevant_scan = M.Tail(
+                    why_not_relevant_scan,
+                )()
+            if M.IdentityCompare(
+                why_not_relevant_reversed, M.EmptyList,
+            )() is M.false_value:
+                why_not_case = G.CaseSplitQuery(
+                    why_not_facts,
+                    why_not_rules,
+                    M.Reverse(why_not_relevant_reversed)(),
+                    why_not_goal,
+                )()
+                if M.IdentityCompare(
+                    M.Head(why_not_case)(), M.truth_value,
+                )() is M.truth_value:
+                    return (
+                        why_not_text + " does derive: the case"
+                        + " split leaves it the one standing branch."
+                        + " Ask 'query: " + why_not_text + "' again."
+                    )
+            reply_parts = []
+            if why_not_computed_lines:
+                reply_parts.append(
+                    "; ".join(why_not_computed_lines)
+                )
+            if why_not_rule_lines:
+                reply_parts.append(
+                    "; ".join(why_not_rule_lines)
+                )
+            if why_not_split_lines:
+                reply_parts.append(
+                    "; ".join(why_not_split_lines)
+                )
+            if not reply_parts:
+                return (
+                    "Nothing concludes " + why_not_text
+                    + ": no taught rule's conclusion and no case"
+                    + " split's branch speaks '"
+                    + str(why_not_head())
+                    + "'. Teach a rule that concludes it, or a case"
+                    + " split over it."
+                )
+            return (
+                why_not_text + " does not derive: "
+                + "; ".join(reply_parts) + "."
+            )
         if lowered.startswith("fact:"):
             known_constructors = G.RuleConstructors(
                 learned_version,
