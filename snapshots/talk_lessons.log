@@ -25,3 +25,18 @@ yes
 lemma: divisible(a, b, m), leq(s(s(zero)), a), leq(s(s(zero)), b), leq(a, b) -> bounded(a, m)
 lemma: divisible(a, b, m), leq(s(s(zero)), a), leq(s(s(zero)), b), leq(b, a) -> bounded(b, m)
 prove that the sieve as a process and the application of the lemma are extensionally equivalent
+fact: NatLess(one, two)
+fact: NatLess(two, four)
+fact: Divides(two, four)
+fact: StepSieveBeginsAt(two)
+fact: StepSieveSelectsBy(NatLess)
+rule: StepSieveSurvivor(s), Divides(s, n), NatLess(s, n) -> StepStruckBy(n, s)
+yes
+fact: TrialSieveScansTo(Sqrt)
+rule: TrialSieveKept(n) -> NatLess(one, n)
+yes
+rule: TrialSieveKept(n), Divides(k, n), NatLess(one, k), NatLess(k, n) -> TrialRefutedBy(n, k)
+yes
+rule: StepSieveKept(n) -> NatLess(one, n)
+yes
+fact: forall(n, iff(StepSieveKept(n), TrialSieveKept(n)))

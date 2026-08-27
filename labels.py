@@ -1327,6 +1327,26 @@ class NotLabel(ConstructorLabel):
     pass
 
 
+class ForAllLabel(ConstructorLabel):
+    pass
+
+
+class SmallFactorLabel(ConstructorLabel):
+    pass
+
+
+class IffLabel(ConstructorLabel):
+    pass
+
+
+class StepSieveLabel(ConstructorLabel):
+    pass
+
+
+class TrialSieveLabel(ConstructorLabel):
+    pass
+
+
 class ContradictionLabel(ConstructorLabel):
     pass
 
@@ -1734,6 +1754,11 @@ VariationLabel = VariationLabel()
 BetterLabel = BetterLabel()
 ExistsLabel = ExistsLabel()
 NotLabel = NotLabel()
+ForAllLabel = ForAllLabel()
+SmallFactorLabel = SmallFactorLabel()
+IffLabel = IffLabel()
+StepSieveLabel = StepSieveLabel()
+TrialSieveLabel = TrialSieveLabel()
 ContradictionLabel = ContradictionLabel()
 CollisionLabel = CollisionLabel()
 ExtremalLabel = ExtremalLabel()
@@ -2270,6 +2295,11 @@ def sync_from_namespace(namespace):
         "BetterLabel",
         "ExistsLabel",
         "NotLabel",
+        "ForAllLabel",
+        "SmallFactorLabel",
+        "IffLabel",
+        "StepSieveLabel",
+        "TrialSieveLabel",
         "ContradictionLabel",
         "CollisionLabel",
         "ExtremalLabel",

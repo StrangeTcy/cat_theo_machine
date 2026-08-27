@@ -6040,25 +6040,51 @@ def run_live_mode(requested_workers):
     # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
     # only exists in the re-exec branch above, so it is recomputed here.
     import_root = os.path.dirname(PACKAGE_DIR)
-    import shlex
 
-    daemon_command = (
-        "HYGE_LIVE_DAEMON=1 exec "
-        + shlex.quote(sys.executable)
-        + " -u -m "
-        + shlex.quote(__package__ + ".main")
-        + " daemon --workers "
-        + shlex.quote(str(requested_workers))
-    )
-    daemon_child = subprocess.Popen(
-        daemon_command,
-        cwd=import_root,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        shell=True,
-    )
+    if os.name == "nt":
+        # The host shell cannot speak the POSIX spawn line: cmd.exe reads
+        # 'HYGE_LIVE_DAEMON=1 exec ...' as a program named
+        # HYGE_LIVE_DAEMON=1. On this platform the marker rides the
+        # inherited environment, and the interpreter is spawned directly
+        # -- no shell in between -- so terminate() below reaches the
+        # daemon itself, exactly what 'exec' gives the POSIX branch.
+        os.environ["HYGE_LIVE_DAEMON"] = "1"
+        daemon_child = subprocess.Popen(
+            [
+                sys.executable,
+                "-u",
+                "-m",
+                __package__ + ".main",
+                "daemon",
+                "--workers",
+                str(requested_workers),
+            ],
+            cwd=import_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    else:
+        import shlex
+
+        daemon_command = (
+            "HYGE_LIVE_DAEMON=1 exec "
+            + shlex.quote(sys.executable)
+            + " -u -m "
+            + shlex.quote(__package__ + ".main")
+            + " daemon --workers "
+            + shlex.quote(str(requested_workers))
+        )
+        daemon_child = subprocess.Popen(
+            daemon_command,
+            cwd=import_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            shell=True,
+        )
 
     def drain():
         for line in daemon_child.stdout:
