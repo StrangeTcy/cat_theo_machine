@@ -1309,6 +1309,11 @@ def run_talk_mode(sentence: str = None):
     pending_gaps = M.EmptyList
     pending_process = M.EmptyList
     pending_bridge = M.EmptyList
+    # Open words the packs can ground wait their turn here: each entry
+    # is the same Pair(word, Pair(constructor, EmptyList)) a bridge
+    # decision consumes, loaded one at a time as the previous bridge is
+    # decided.
+    pending_bridge_queue = M.EmptyList
     # The questions on the table, one at a time: each entry is
     # Pair(kind, Pair(prompt, EmptyList)) with kind one of "rule",
     # "bridge", "process". A reply asks only the head; every decision
@@ -2159,10 +2164,12 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_process
         nonlocal pending_asks
         nonlocal pending_queue
+        nonlocal pending_bridge_queue
         # A new definition supersedes the questions still on the table:
         # outstanding pendings keep their slots, but the asks restart
         # from this definition's own questions, one at a time.
         pending_asks = M.EmptyList
+        pending_bridge_queue = M.EmptyList
         # The reader computes; this caller commits. One writer of the
         # session state, one place the lesson is logged and persisted --
         # the reader returns (answer, next_version) and mutates nothing.
@@ -2706,6 +2713,45 @@ def run_talk_mode(sentence: str = None):
         while M.IdentityCompare(remaining_open, M.EmptyList)() is M.false_value:
             spoken.append(str(M.Head(remaining_open)()()))
             remaining_open = M.Tail(remaining_open)()
+        # The packs may know the open words: each one with a pack
+        # candidate queues a bridge question behind the definition's
+        # own gates, so the body can ground without a re-teach.
+        candidates_reversed = M.EmptyList
+        for open_word_text in spoken:
+            open_candidate = _pack_candidate_for_word(open_word_text)
+            if M.IdentityCompare(
+                open_candidate, M.EmptyList,
+            )() is M.false_value:
+                candidate_word_text = str(M.Head(open_candidate)()())
+                candidates_reversed = M.Pair(
+                    M.Pair(
+                        M.Char(open_word_text),
+                        M.Pair(
+                            M.Head(M.Tail(open_candidate)())(),
+                            M.EmptyList,
+                        ),
+                    ),
+                    M.Pair(
+                        M.Char(candidate_word_text),
+                        candidates_reversed,
+                    ),
+                )
+        candidate_scan = candidates_reversed
+        while M.IdentityCompare(
+            candidate_scan, M.EmptyList,
+        )() is M.false_value:
+            candidate_entry = M.Head(candidate_scan)()
+            candidate_name = M.Head(M.Tail(candidate_scan)())()
+            pending_bridge_queue = M.Pair(
+                candidate_entry, pending_bridge_queue,
+            )
+            _push_ask(
+                "bridge",
+                " The packs know '" + str(candidate_name())
+                + "'; link '" + str(M.Head(candidate_entry)()())
+                + "' to it? (bridge yes/bridge no)",
+            )
+            candidate_scan = M.Tail(M.Tail(candidate_scan)())()
         return (
             "Recorded: a " + term_display + " is " + _speak_chain(body_chain) + ". "
             + "But I do not know what "
@@ -2907,6 +2953,52 @@ def run_talk_mode(sentence: str = None):
             remaining = M.Tail(remaining)()
         return M.EmptyList
 
+    def _pack_candidate_for_word(word_text):
+        """The pack constructor an unknown word could name, or EmptyList.
+
+        Returns Pair(candidate_word, Pair(constructor, EmptyList)).
+        Exact matches and singular folds come first; failing those, a
+        shared five-letter stem notices derivational kin like
+        'divisible' and 'divides'. The noticing only proposes -- the
+        trainer's bridge decision connects.
+        """
+        word = M.Char(word_text)
+        singular = G.WordSingular(word)()
+        remaining = pack_concepts
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            if M.Compare(M.Head(entry)(), word)() is M.truth_value:
+                return entry
+            if M.IdentityCompare(singular, M.EmptyList)() is M.false_value:
+                if M.Compare(M.Head(entry)(), singular)() is M.truth_value:
+                    return entry
+            remaining = M.Tail(remaining)()
+        if len(word_text) >= 6:
+            stem = word_text[:4]
+            remaining = pack_concepts
+            while M.IdentityCompare(
+                remaining, M.EmptyList,
+            )() is M.false_value:
+                entry = M.Head(remaining)()
+                candidate_text = str(M.Head(entry)()())
+                if (
+                    candidate_text.startswith(stem)
+                    and len(candidate_text) >= 6
+                ):
+                    return entry
+                remaining = M.Tail(remaining)()
+        return M.EmptyList
+
+    def _ensure_bridge_loaded():
+        """Load the next queued open-word bridge, if one waits."""
+        nonlocal pending_bridge, pending_bridge_queue
+        if M.IdentityCompare(pending_bridge, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(
+                pending_bridge_queue, M.EmptyList,
+            )() is M.false_value:
+                pending_bridge = M.Head(pending_bridge_queue)()
+                pending_bridge_queue = M.Tail(pending_bridge_queue)()
+
     def _propose_bridge(term_text):
         nonlocal pending_bridge
         constructor = _pack_constructor_for(term_text)
@@ -2973,9 +3065,11 @@ def run_talk_mode(sentence: str = None):
                     + " law(s); the prover now rewrites with them."
                 )
         # A new grounding can unblock other definitions: a body whose
-        # genus is this word could not compile before, and can now.
-        # Re-compile every installed definition whose genus resolves
-        # through this bridge.
+        # genus is this word could not compile before, and can now --
+        # and so could a body that merely MENTIONS the word among its
+        # open dependencies. Re-compile every installed definition
+        # whose genus resolves through this bridge or whose open words
+        # include the bridged word.
         unblocked_text = "0"
         unblocked_scan = G.InstalledDefinitions(learned_version)()
         while M.IdentityCompare(
@@ -3000,8 +3094,32 @@ def run_talk_mode(sentence: str = None):
                     other_genus = G.ReadingWordConstructor(
                         learned_version, other_genus_slot,
                     )()
+                    word_in_open = M.false_value
+                    other_open = G.DefinitionOpenDependencies(
+                        learned_version,
+                        other_definition,
+                        vocabulary,
+                        registry,
+                    )()
+                    open_dep_scan = other_open
+                    while M.IdentityCompare(
+                        open_dep_scan, M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(open_dep_scan)(), word,
+                        )() is M.truth_value:
+                            word_in_open = M.truth_value
+                            open_dep_scan = M.EmptyList
+                        else:
+                            open_dep_scan = M.Tail(open_dep_scan)()
                     if M.IdentityCompare(
-                        other_genus, constructor,
+                        M.OrAtom(
+                            M.IdentityCompare(
+                                other_genus, constructor,
+                            )(),
+                            word_in_open,
+                        )(),
+                        M.truth_value,
                     )() is M.truth_value:
                         other_result = G.InstallDefinitionLaws(
                             learned_version,
@@ -3020,6 +3138,7 @@ def run_talk_mode(sentence: str = None):
                             )()
                     unblocked_scan = M.Tail(unblocked_scan)()
         if G.GMPEqualText(unblocked_text, "0")() is M.false_value:
+            _extend_vocabulary()
             law_line = (
                 law_line + " Grounding '" + str(word()) + "' unblocked"
                 + " definitions worth " + unblocked_text
@@ -3465,6 +3584,72 @@ def run_talk_mode(sentence: str = None):
                 unblock_term = M.Head(
                     M.Tail(M.Tail(rule_origin)())(),
                 )()
+                # The approved split interprets the operators: rewrite
+                # the reading with the flat Only/No markers lifted out
+                # of the chain -- they live on as the reading's
+                # conditions and the installed split -- so the
+                # compilation gate sees a body it may compile.
+                split_reading = G.DefinitionReadingFor(
+                    learned_version, unblock_term,
+                )()
+                if M.IdentityCompare(
+                    split_reading, M.EmptyList,
+                )() is M.false_value:
+                    split_binder = M.Head(
+                        M.Tail(M.Tail(split_reading)())(),
+                    )()
+                    split_chain = M.Head(
+                        M.Tail(
+                            M.Tail(M.Tail(split_reading)())(),
+                        )(),
+                    )()
+                    split_conditions = M.Head(
+                        M.Tail(
+                            M.Tail(
+                                M.Tail(M.Tail(split_reading)())(),
+                            )(),
+                        )(),
+                    )()
+                    kept_reversed = M.EmptyList
+                    chain_scan = split_chain
+                    while M.IdentityCompare(
+                        chain_scan, M.EmptyList,
+                    )() is M.false_value:
+                        chain_item = M.Head(chain_scan)()
+                        item_is_operator = M.false_value
+                        if M.IsPair(chain_item)() is M.truth_value:
+                            if M.OrAtom(
+                                M.Compare(
+                                    M.Head(chain_item)(),
+                                    Lmod.OnlyLabel,
+                                )(),
+                                M.Compare(
+                                    M.Head(chain_item)(),
+                                    Lmod.NoLabel,
+                                )(),
+                            )() is M.truth_value:
+                                item_is_operator = M.truth_value
+                        if M.IdentityCompare(
+                            item_is_operator, M.false_value,
+                        )() is M.truth_value:
+                            kept_reversed = M.Pair(
+                                chain_item, kept_reversed,
+                            )
+                        chain_scan = M.Tail(chain_scan)()
+                    rewritten_reading = G.DefinitionReading(
+                        unblock_term,
+                        split_binder,
+                        M.Reverse(kept_reversed)(),
+                        split_conditions,
+                    )()
+                    learned_version = G.GraphVersion(
+                        M.Pair(
+                            rewritten_reading,
+                            G.GraphNodes(learned_version)(),
+                        ),
+                        G.GraphEdges(learned_version)(),
+                        G.GraphVersionInvariants(learned_version)(),
+                    )()
         elif M.Compare(
             M.Head(rule_origin)(), M.Char("definition-shape"),
         )() is M.truth_value:
@@ -5424,6 +5609,7 @@ def run_talk_mode(sentence: str = None):
             # No rule question is decidable. A bare yes or no still
             # answers the one question on the table when that question
             # is a bridge question: nothing else could be meant by it.
+            _ensure_bridge_loaded()
             if M.IdentityCompare(
                 pending_asks, M.EmptyList,
             )() is M.false_value:
@@ -5443,6 +5629,7 @@ def run_talk_mode(sentence: str = None):
                 )
             return "There is no question awaiting an answer."
         if lowered.strip() in ("bridge yes", "bridge no"):
+            _ensure_bridge_loaded()
             return _handle_bridge_decision(lowered.strip(), record=record)
         if lowered.startswith("why are these two definitions equivalent"):
             proof_scan = G.GraphNodes(learned_version)()
@@ -6042,6 +6229,14 @@ def run_talk_mode(sentence: str = None):
                 body_chain = M.Head(
                     M.Tail(G.DefinitionBody(defined)())(),
                 )()
+                compiled_rules = G.DefinitionRulesFor(
+                    learned_version, defined, vocabulary, registry,
+                )()
+                has_rules = M.false_value
+                if M.IdentityCompare(
+                    compiled_rules, M.EmptyList,
+                )() is M.false_value:
+                    has_rules = M.truth_value
                 if spoken_open:
                     return (
                         "I have a definition of '" + unknown + "': "
@@ -6056,6 +6251,17 @@ def run_talk_mode(sentence: str = None):
                         + " not grounded. Define or ground "
                         + ("it" if len(spoken_open) == 1 else "them")
                         + " first."
+                    )
+                if M.IdentityCompare(
+                    has_rules, M.truth_value,
+                )() is M.truth_value:
+                    return (
+                        "I have a definition of '" + unknown + "': "
+                        + _speak_chain(body_chain)
+                        + ". It compiled to laws the rule grammar"
+                        + " knows, but the sentence grammar does not"
+                        + " read the word yet; ask as 'query: "
+                        + unknown + "(seven)'."
                     )
                 return (
                     "I have a definition of '" + unknown + "': "

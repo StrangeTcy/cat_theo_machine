@@ -17188,6 +17188,15 @@ class DefinitionOpenDependencies(M.Edge):
                     if M.IdentityCompare(unknown, M.EmptyList)() is M.truth_value:
                         known = M.truth_value
                 if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                    # A word bridged to a pack constructor is grounded:
+                    # the bridge is the connection between the word and
+                    # the concept the packs carry.
+                    if M.IdentityCompare(
+                        BridgeFor(graph_version, word)(),
+                        M.EmptyList,
+                    )() is M.false_value:
+                        known = M.truth_value
+                if M.IdentityCompare(known, M.false_value)() is M.truth_value:
                     # A word grounded by 'word: W means ...' is a Word
                     # fact in the graph, not a correspondence entry.
                     word_fact_scan = InstalledTaughtFacts(graph_version)()
