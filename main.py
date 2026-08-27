@@ -6947,106 +6947,439 @@ def run_talk_mode(sentence: str = None):
             question_answer = _question_graph_answer(line)
             if question_answer is not None:
                 return question_answer
-        if lowered.startswith("what are the factors of "):
-            # The factors of a number, found by the machine's own
-            # division: every number from one up to it that divides it
-            # exactly. The concept is the trainer's (a defined
-            # 'factor'); the enumeration is the machine's arithmetic.
-            factors_number_text = lowered[
-                len("what are the factors of "):
-            ].strip().rstrip("?!. ")
-            factor_defined = G.DefinitionFor(
-                learned_version, M.Char("factor"),
-            )()
-            if M.IdentityCompare(
-                factor_defined, M.EmptyList,
-            )() is M.truth_value:
-                singular_factor = G.WordSingular(
-                    M.Char("factors"),
-                )()
-                if M.IdentityCompare(
-                    singular_factor, M.EmptyList,
-                )() is M.false_value:
-                    factor_defined = G.DefinitionFor(
-                        learned_version, singular_factor,
-                    )()
-            if M.IdentityCompare(
-                factor_defined, M.EmptyList,
-            )() is M.truth_value:
-                return (
-                    "I do not know the word: factors. Define it with"
-                    + " 'definition: a factor is ...'."
-                )
-            factors_value = _numeral_value_text(
-                M.Char(factors_number_text),
-            )
-            if factors_value is M.EmptyList:
-                return (
-                    "I do not know the number '"
-                    + factors_number_text + "'."
-                )
-            factor_words = []
-            scan_lines = []
-            word_entries = M.Head(M.Tail(vocabulary)())()
-            entry_scan = word_entries
-            while M.IdentityCompare(
-                entry_scan, M.EmptyList,
-            )() is M.false_value:
-                entry = M.Head(entry_scan)()
-                entry_word = M.Head(entry)()
-                entry_value = M.GMPRepText(
-                    M.NatRepOf(
-                        M.Head(M.Tail(entry)())(), registry,
-                    )(),
-                )()
-                if M.IdentityCompare(
-                    G.GMPLessText(entry_value, "1")(),
-                    M.truth_value,
-                )() is M.false_value:
-                    if M.IdentityCompare(
-                        G.GMPLessText(
-                            factors_value, entry_value,
-                        )(),
-                        M.truth_value,
-                    )() is M.false_value:
-                        division = _division_texts(
-                            entry_value, factors_value,
-                        )
-                        division_remainder = str(
-                            M.Head(M.Tail(division)())(),
-                        )
+        if lowered.startswith("what are the "):
+            # An enumeration question: "what are the <concept>s of
+            # <number>". The concept and its meaning are the
+            # trainer's -- a defined word plus a taught rule
+            # concluding it from a divisibility -- and the machine
+            # contributes the scan: every number it knows, tested by
+            # its own division against the rule's premises.
+            what_are_rest = lowered[len("what are the "):]
+            of_position = what_are_rest.find(" of ")
+            if of_position != -1:
+                what_are_noun_text = what_are_rest[:of_position].strip()
+                what_are_number_text = what_are_rest[
+                    of_position + 4:
+                ].strip().rstrip("?!. ")
+                if what_are_noun_text != "":
+                    if what_are_number_text != "":
+                        noun_word = M.Char(what_are_noun_text)
+                        concept_word = G.WordSingular(noun_word)()
                         if M.IdentityCompare(
-                            G.GMPEqualText(
-                                division_remainder, "0",
-                            )(),
-                            M.truth_value,
+                            concept_word, M.EmptyList,
                         )() is M.truth_value:
-                            factor_words.append(str(entry_word()))
-                            scan_lines.append(
-                                str(entry_word()) + " divides "
-                                + factors_number_text + " exactly"
+                            concept_word = noun_word
+                        concept_defined = G.DefinitionFor(
+                            learned_version, concept_word,
+                        )()
+                        if M.IdentityCompare(
+                            concept_defined, M.EmptyList,
+                        )() is M.truth_value:
+                            return (
+                                "I do not know the word: "
+                                + what_are_noun_text
+                                + ". Define it with 'definition: a "
+                                + str(concept_word()) + " is ...'."
                             )
-                        else:
-                            scan_lines.append(
-                                str(entry_word()) + " leaves"
-                                + " remainder "
-                                + _words_of_value_text(
-                                    division_remainder,
-                                ),
+                        what_are_value = _numeral_value_text(
+                            M.Char(what_are_number_text),
+                        )
+                        if what_are_value is M.EmptyList:
+                            return (
+                                "I do not know the number '"
+                                + what_are_number_text + "'."
                             )
-                entry_scan = M.Tail(entry_scan)()
-            if not factor_words:
-                return (
-                    "By its own division, no number from one to "
-                    + factors_number_text
-                    + " divides it exactly; it has no factors."
-                )
-            return (
-                "By its own division: "
-                + "; ".join(scan_lines)
-                + ". The factors of " + factors_number_text
-                + " are " + ", ".join(factor_words) + "."
-            )
+                        # The divisibility the machine can compute, in
+                        # the word or through its bridge.
+                        acceptable_heads = M.Pair(
+                            M.Char("divisible"), M.EmptyList,
+                        )
+                        divisible_bridge = G.BridgeFor(
+                            learned_version, M.Char("divisible"),
+                        )()
+                        if M.IdentityCompare(
+                            divisible_bridge, M.EmptyList,
+                        )() is M.false_value:
+                            acceptable_heads = M.Pair(
+                                G.BridgeConstructor(divisible_bridge)(),
+                                acceptable_heads,
+                            )
+                        # The operative rule: its conclusion names the
+                        # concept over two arguments, and every premise
+                        # is computable -- a divisibility between the
+                        # two arguments, or an order comparison between
+                        # them.
+                        operative_rule = M.EmptyList
+                        rule_scan = G.InstalledTaughtRules(
+                            learned_version,
+                        )()
+                        while M.IdentityCompare(
+                            rule_scan, M.EmptyList,
+                        )() is M.false_value:
+                            scan_rule = M.Head(rule_scan)()
+                            scan_replacement = P.RuleReplacement(
+                                scan_rule,
+                            )()
+                            if M.IsPair(
+                                scan_replacement,
+                            )() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(scan_replacement)(),
+                                    concept_word,
+                                )() is M.truth_value:
+                                    scan_args = M.Tail(
+                                        scan_replacement,
+                                    )()
+                                    if M.IdentityCompare(
+                                        scan_args, M.EmptyList,
+                                    )() is M.false_value:
+                                        if M.IdentityCompare(
+                                            M.Tail(scan_args)(),
+                                            M.EmptyList,
+                                        )() is M.false_value:
+                                            if M.IdentityCompare(
+                                                M.Tail(
+                                                    M.Tail(scan_args)(),
+                                                )(),
+                                                M.EmptyList,
+                                            )() is M.truth_value:
+                                                scan_arg = M.Head(
+                                                    scan_args,
+                                                )()
+                                                bound_arg = M.Head(
+                                                    M.Tail(scan_args)(),
+                                                )()
+                                                premises_fit = (
+                                                    M.truth_value
+                                                )
+                                                has_divisibility = (
+                                                    M.false_value
+                                                )
+                                                premise_scan = (
+                                                    P.RulePremises(
+                                                        scan_rule,
+                                                    )()
+                                                )
+                                                while M.IdentityCompare(
+                                                    premise_scan,
+                                                    M.EmptyList,
+                                                )() is M.false_value:
+                                                    scan_premise = (
+                                                        M.Head(
+                                                            premise_scan,
+                                                        )()
+                                                    )
+                                                    if M.IsPair(
+                                                        scan_premise,
+                                                    )() is not M.truth_value:
+                                                        premises_fit = (
+                                                            M.false_value
+                                                        )
+                                                        premise_scan = (
+                                                            M.EmptyList
+                                                        )
+                                                    else:
+                                                        premise_head = (
+                                                            M.Head(
+                                                                scan_premise,
+                                                            )()
+                                                        )
+                                                        head_matches = (
+                                                            M.false_value
+                                                        )
+                                                        head_scan = (
+                                                            acceptable_heads
+                                                        )
+                                                        while M.IdentityCompare(
+                                                            head_scan,
+                                                            M.EmptyList,
+                                                        )() is M.false_value:
+                                                            if M.Compare(
+                                                                premise_head,
+                                                                M.Head(
+                                                                    head_scan,
+                                                                )(),
+                                                            )() is M.truth_value:
+                                                                head_matches = (
+                                                                    M.truth_value
+                                                                )
+                                                                head_scan = (
+                                                                    M.EmptyList
+                                                                )
+                                                            else:
+                                                                head_scan = (
+                                                                    M.Tail(
+                                                                        head_scan,
+                                                                    )()
+                                                                )
+                                                        if M.IdentityCompare(
+                                                            head_matches,
+                                                            M.truth_value,
+                                                        )() is M.truth_value:
+                                                            prem_args = (
+                                                                M.Tail(
+                                                                    scan_premise,
+                                                                )()
+                                                            )
+                                                            if M.IdentityCompare(
+                                                                prem_args,
+                                                                M.EmptyList,
+                                                            )() is M.false_value:
+                                                                if M.IdentityCompare(
+                                                                    M.Tail(
+                                                                        prem_args,
+                                                                    )(),
+                                                                    M.EmptyList,
+                                                                )() is M.false_value:
+                                                                    if M.IdentityCompare(
+                                                                        M.Tail(
+                                                                            M.Tail(
+                                                                                prem_args,
+                                                                            )(),
+                                                                        )(),
+                                                                        M.EmptyList,
+                                                                    )() is M.truth_value:
+                                                                        if M.Compare(
+                                                                            M.Head(
+                                                                                prem_args,
+                                                                            )(),
+                                                                            scan_arg,
+                                                                        )() is M.truth_value:
+                                                                            if M.Compare(
+                                                                                M.Head(
+                                                                                    M.Tail(
+                                                                                        prem_args,
+                                                                                    )(),
+                                                                                )(),
+                                                                                bound_arg,
+                                                                            )() is M.truth_value:
+                                                                                has_divisibility = (
+                                                                                    M.truth_value
+                                                                                )
+                                                                            else:
+                                                                                premises_fit = (
+                                                                                    M.false_value
+                                                                                )
+                                                                    else:
+                                                                        premises_fit = (
+                                                                            M.false_value
+                                                                        )
+                                                                else:
+                                                                    premises_fit = (
+                                                                        M.false_value
+                                                                    )
+                                                            else:
+                                                                premises_fit = (
+                                                                    M.false_value
+                                                                )
+                                                        elif M.Compare(
+                                                            premise_head,
+                                                            M.Char("leq"),
+                                                        )() is M.truth_value:
+                                                            prem_args = (
+                                                                M.Tail(
+                                                                    scan_premise,
+                                                                )()
+                                                            )
+                                                            if M.IdentityCompare(
+                                                                prem_args,
+                                                                M.EmptyList,
+                                                            )() is M.false_value:
+                                                                if M.IdentityCompare(
+                                                                    M.Tail(
+                                                                        prem_args,
+                                                                    )(),
+                                                                    M.EmptyList,
+                                                                )() is M.false_value:
+                                                                    if M.IdentityCompare(
+                                                                        M.Tail(
+                                                                            M.Tail(
+                                                                                prem_args,
+                                                                            )(),
+                                                                        )(),
+                                                                        M.EmptyList,
+                                                                    )() is M.truth_value:
+                                                                        first_is_scan = M.Compare(
+                                                                            M.Head(
+                                                                                prem_args,
+                                                                            )(),
+                                                                            scan_arg,
+                                                                        )() is M.truth_value
+                                                                        first_is_bound = M.Compare(
+                                                                            M.Head(
+                                                                                prem_args,
+                                                                            )(),
+                                                                            bound_arg,
+                                                                        )() is M.truth_value
+                                                                        second_is_scan = M.Compare(
+                                                                            M.Head(
+                                                                                M.Tail(
+                                                                                    prem_args,
+                                                                                )(),
+                                                                            )(),
+                                                                            scan_arg,
+                                                                        )() is M.truth_value
+                                                                        second_is_bound = M.Compare(
+                                                                            M.Head(
+                                                                                M.Tail(
+                                                                                    prem_args,
+                                                                                )(),
+                                                                            )(),
+                                                                            bound_arg,
+                                                                        )() is M.truth_value
+                                                                        args_are_the_two = (
+                                                                            (
+                                                                                first_is_scan
+                                                                                and second_is_bound
+                                                                            )
+                                                                            or (
+                                                                                first_is_bound
+                                                                                and second_is_scan
+                                                                            )
+                                                                        )
+                                                                        if args_are_the_two is not True:
+                                                                            premises_fit = (
+                                                                                M.false_value
+                                                                            )
+                                                                    else:
+                                                                        premises_fit = (
+                                                                            M.false_value
+                                                                        )
+                                                                else:
+                                                                    premises_fit = (
+                                                                        M.false_value
+                                                                    )
+                                                            else:
+                                                                premises_fit = (
+                                                                    M.false_value
+                                                                )
+                                                        else:
+                                                            premises_fit = (
+                                                                M.false_value
+                                                            )
+                                                        if M.IdentityCompare(
+                                                            premise_scan,
+                                                            M.EmptyList,
+                                                        )() is M.false_value:
+                                                            premise_scan = (
+                                                                M.Tail(
+                                                                    premise_scan,
+                                                                )()
+                                                            )
+                                                if M.IdentityCompare(
+                                                    premises_fit,
+                                                    M.truth_value,
+                                                )() is M.truth_value:
+                                                    if M.IdentityCompare(
+                                                        has_divisibility,
+                                                        M.truth_value,
+                                                    )() is M.truth_value:
+                                                        operative_rule = (
+                                                            scan_rule
+                                                        )
+                                                        rule_scan = (
+                                                            M.EmptyList
+                                                        )
+                            if M.IdentityCompare(
+                                rule_scan, M.EmptyList,
+                            )() is M.false_value:
+                                rule_scan = M.Tail(rule_scan)()
+                        if M.IdentityCompare(
+                            operative_rule, M.EmptyList,
+                        )() is M.truth_value:
+                            return (
+                                "The word '" + what_are_noun_text
+                                + "' is defined, but nothing teaches"
+                                + " what it is: no rule concludes "
+                                + str(concept_word())
+                                + "(a, b) from a divisibility. Teach"
+                                + " it with 'rule: divisible(a, b) -> "
+                                + str(concept_word()) + "(a, b)'."
+                            )
+                        # The scan: every number the machine knows,
+                        # from one up to the number asked, tested by
+                        # division; the hits are the ones the rule's
+                        # premises let stand.
+                        scan_hits = []
+                        scan_lines = []
+                        word_entries = M.Head(
+                            M.Tail(vocabulary)(),
+                        )()
+                        entry_scan = word_entries
+                        while M.IdentityCompare(
+                            entry_scan, M.EmptyList,
+                        )() is M.false_value:
+                            entry = M.Head(entry_scan)()
+                            entry_word = M.Head(entry)()
+                            entry_value = M.GMPRepText(
+                                M.NatRepOf(
+                                    M.Head(M.Tail(entry)())(),
+                                    registry,
+                                )(),
+                            )()
+                            if M.IdentityCompare(
+                                G.GMPLessText(entry_value, "1")(),
+                                M.truth_value,
+                            )() is M.false_value:
+                                if M.IdentityCompare(
+                                    G.GMPLessText(
+                                        what_are_value, entry_value,
+                                    )(),
+                                    M.truth_value,
+                                )() is M.false_value:
+                                    division = _division_texts(
+                                        entry_value, what_are_value,
+                                    )
+                                    division_remainder = str(
+                                        M.Head(
+                                            M.Tail(division)(),
+                                        )(),
+                                    )
+                                    passes = M.truth_value
+                                    if M.IdentityCompare(
+                                        G.GMPEqualText(
+                                            division_remainder, "0",
+                                        )(),
+                                        M.truth_value,
+                                    )() is not M.truth_value:
+                                        passes = M.false_value
+                                    if M.IdentityCompare(
+                                        passes, M.truth_value,
+                                    )() is M.truth_value:
+                                        scan_hits.append(
+                                            str(entry_word()),
+                                        )
+                                        scan_lines.append(
+                                            str(entry_word())
+                                            + " divides "
+                                            + what_are_number_text
+                                            + " exactly",
+                                        )
+                                    else:
+                                        scan_lines.append(
+                                            str(entry_word())
+                                            + " leaves remainder "
+                                            + _words_of_value_text(
+                                                division_remainder,
+                                            ),
+                                        )
+                            entry_scan = M.Tail(entry_scan)()
+                        if not scan_hits:
+                            return (
+                                "By its own division: "
+                                + "; ".join(scan_lines)
+                                + ". No number from one to "
+                                + what_are_number_text
+                                + " divides it exactly, so it has no "
+                                + what_are_noun_text + "."
+                            )
+                        return (
+                            "By its own division: "
+                            + "; ".join(scan_lines)
+                            + ". The " + what_are_noun_text
+                            + " of " + what_are_number_text
+                            + " are " + ", ".join(scan_hits) + "."
+                        )
         if lowered.startswith("what is "):
             spoken_definition = _handle_what_is(line)
             if spoken_definition is not None:
