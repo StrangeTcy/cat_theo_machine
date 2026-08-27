@@ -1603,6 +1603,71 @@ def run_talk_mode(sentence: str = None):
             entry_scan = M.Tail(entry_scan)()
         return value_text
 
+    def _division_texts(a_text, n_text):
+        """The division of n by a: Pair(quotient, remainder) texts.
+
+        Repeated subtraction with the machine's own GMP arithmetic:
+        n = a*q + r with r below a. a must be above zero.
+        """
+        quotient_text = "0"
+        remainder_text = n_text
+        while M.IdentityCompare(
+            G.GMPLessText(remainder_text, a_text)(),
+            M.truth_value,
+        )() is M.false_value:
+            remainder_text = G.GMPSubText(
+                remainder_text, a_text,
+            )()
+            quotient_text = G.GMPSuccText(quotient_text)()
+        return M.Pair(quotient_text, M.Pair(remainder_text, M.EmptyList))
+
+    def _computed_divisibility(term):
+        """Compute a ground divisible(A, N) claim by trial division.
+
+        Returns Pair(Char("holds"), Pair(remainder_text, EmptyList))
+        when the division leaves no remainder, Pair(Char("differs"),
+        Pair(remainder_text, EmptyList)) when it leaves one, and
+        EmptyList when the term is not a ground divisibility claim.
+        """
+        if M.IsPair(term)() is not M.truth_value:
+            return M.EmptyList
+        if M.Compare(
+            M.Head(term)(), M.Char("divisible"),
+        )() is not M.truth_value:
+            return M.EmptyList
+        args = M.Tail(term)()
+        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(
+            M.Tail(args)(), M.EmptyList,
+        )() is M.truth_value:
+            return M.EmptyList
+        divisor_value = _ground_arithmetic_value(M.Head(args)())
+        number_value = _ground_arithmetic_value(
+            M.Head(M.Tail(args)())(),
+        )
+        if divisor_value is M.EmptyList:
+            return M.EmptyList
+        if number_value is M.EmptyList:
+            return M.EmptyList
+        if M.IdentityCompare(
+            G.GMPEqualText(divisor_value, "0")(),
+            M.truth_value,
+        )() is M.truth_value:
+            return M.EmptyList
+        division = _division_texts(divisor_value, number_value)
+        remainder_text = str(M.Head(M.Tail(division)())())
+        if M.IdentityCompare(
+            G.GMPEqualText(remainder_text, "0")(),
+            M.truth_value,
+        )() is M.truth_value:
+            return M.Pair(
+                M.Char("holds"), M.Pair(remainder_text, M.EmptyList),
+            )
+        return M.Pair(
+            M.Char("differs"), M.Pair(remainder_text, M.EmptyList),
+        )
+
     def _verify_ground_equation(fact):
         """Check a ground arithmetic equation before recording it.
 
@@ -4887,6 +4952,69 @@ def run_talk_mode(sentence: str = None):
                 facts = M.Pair(M.Head(numeral_scan)(), facts)
                 numeral_scan = M.Tail(numeral_scan)()
             rules = G.InstalledTaughtRules(learned_version)()
+            # The machine runs its own trial divisions: every ground
+            # divisibility claim the goal or a rule's premises speak is
+            # computed before chaining, and the computed polarity joins
+            # the working set -- the sieve strikes its own candidates.
+            computation_terms_reversed = M.EmptyList
+            if M.IsPair(goal)() is M.truth_value:
+                computation_terms_reversed = M.Pair(
+                    goal, computation_terms_reversed,
+                )
+            rule_compute_scan = rules
+            while M.IdentityCompare(
+                rule_compute_scan, M.EmptyList,
+            )() is M.false_value:
+                compute_rule = M.Head(rule_compute_scan)()
+                premise_compute_scan = P.RulePremises(compute_rule)()
+                while M.IdentityCompare(
+                    premise_compute_scan, M.EmptyList,
+                )() is M.false_value:
+                    computation_terms_reversed = M.Pair(
+                        M.Head(premise_compute_scan)(),
+                        computation_terms_reversed,
+                    )
+                    premise_compute_scan = M.Tail(
+                        premise_compute_scan,
+                    )()
+                rule_compute_scan = M.Tail(rule_compute_scan)()
+            computation_scan = M.Reverse(
+                computation_terms_reversed,
+            )()
+            while M.IdentityCompare(
+                computation_scan, M.EmptyList,
+            )() is M.false_value:
+                compute_term = M.Head(computation_scan)()
+                compute_target = compute_term
+                if M.IsPair(compute_term)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(compute_term)(), M.Char("not"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(compute_term)(), M.EmptyList,
+                        )() is M.false_value:
+                            compute_target = M.Head(
+                                M.Tail(compute_term)(),
+                            )()
+                division_verdict = _computed_divisibility(
+                    compute_target,
+                )
+                if M.IdentityCompare(
+                    division_verdict, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(division_verdict)(), M.Char("holds"),
+                    )() is M.truth_value:
+                        facts = M.Pair(compute_target, facts)
+                    else:
+                        facts = M.Pair(
+                            M.Pair(
+                                M.Char("not"),
+                                M.Pair(compute_target, M.EmptyList),
+                            ),
+                            facts,
+                        )
+                computation_scan = M.Tail(computation_scan)()
             case_splits = G.InstalledCaseSplits(learned_version)()
             case_relevant = M.false_value
             relevant_splits_reversed = M.EmptyList
@@ -5298,6 +5426,69 @@ def run_talk_mode(sentence: str = None):
                         )
                         + ". I will not record it."
                     )
+            # A ground divisibility claim is computed the same way: the
+            # machine divides N by A itself, refuses a claim its own
+            # division contradicts, and confirms one it verifies.
+            division_computed_line = ""
+            division_target = fact
+            division_negated = M.false_value
+            if M.IsPair(fact)() is M.truth_value:
+                if M.Compare(
+                    M.Head(fact)(), M.Char("not"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Tail(fact)(), M.EmptyList,
+                    )() is M.false_value:
+                        division_target = M.Head(
+                            M.Tail(fact)(),
+                        )()
+                        division_negated = M.truth_value
+            division_verdict = _computed_divisibility(
+                division_target,
+            )
+            if M.IdentityCompare(
+                division_verdict, M.EmptyList,
+            )() is M.false_value:
+                division_holds = M.IdentityCompare(
+                    M.Compare(
+                        M.Head(division_verdict)(), M.Char("holds"),
+                    )(),
+                    M.truth_value,
+                )() is M.truth_value
+                division_remainder = _words_of_value_text(
+                    str(
+                        M.Head(
+                            M.Tail(division_verdict)(),
+                        )(),
+                    ),
+                )
+                if M.IdentityCompare(
+                    division_negated, M.truth_value,
+                )() is M.truth_value:
+                    if division_holds:
+                        _persist_talk_state()
+                        return (
+                            "That is not so: the division is exact."
+                            + " I will not record it."
+                        )
+                    division_computed_line = (
+                        " Computed: the machine's own division"
+                        + " leaves remainder "
+                        + division_remainder + "."
+                    )
+                else:
+                    if division_holds:
+                        division_computed_line = (
+                            " Computed: the machine's own division"
+                            + " is exact."
+                        )
+                    else:
+                        _persist_talk_state()
+                        return (
+                            "That is not so: the division leaves"
+                            + " remainder " + division_remainder
+                            + ", not zero. I will not record it."
+                        )
             installed_fact = G.InstallTaughtFact(learned_version, fact)()
             learned_version = M.Head(installed_fact)()
             if record:
@@ -5334,6 +5525,7 @@ def run_talk_mode(sentence: str = None):
                 computed_line = (
                     " Computed: the machine's own numbers confirm it."
                 )
+            computed_line = computed_line + division_computed_line
             acknowledged = G.RenderAcknowledgement(fact)()
             if M.IdentityCompare(acknowledged, M.EmptyList)() is M.false_value:
                 return _speak_chain(
