@@ -312,14 +312,19 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
 def _worker_entry(queue, serialized_version, serialized_store,
                   serialized_budget, serialized_config, slice_index_text,
                   slice_count_text):
-    queue.put(worker_task(
-        serialized_version,
-        serialized_store,
-        serialized_budget,
-        serialized_config,
-        slice_index_text,
-        slice_count_text,
-    ))
+    try:
+        queue.put(worker_task(
+            serialized_version,
+            serialized_store,
+            serialized_budget,
+            serialized_config,
+            slice_index_text,
+            slice_count_text,
+        ))
+    except KeyboardInterrupt:
+        # A console interrupt reaches every attached process; the
+        # worker bows out quietly instead of spewing its death stack.
+        return None
 
 
 def run_workers(graph_version, proposal_store, budget, generator_config,

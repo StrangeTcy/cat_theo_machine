@@ -23,7 +23,13 @@ if __package__ in (None, ""):
         ARG_INDEX = ARG_INDEX + 1
     CHILD_ENV = os.environ.copy()
     CHILD_ENV["PYTHONPATH"] = IMPORT_ROOT
-    CHILD = subprocess.run(CHILD_ARGS, cwd=IMPORT_ROOT, env=CHILD_ENV)
+    # A console interrupt reaches the re-exec parent as well as the
+    # child; the parent bows out quietly and lets the child's own
+    # teardown speak.
+    try:
+        CHILD = subprocess.run(CHILD_ARGS, cwd=IMPORT_ROOT, env=CHILD_ENV)
+    except KeyboardInterrupt:
+        raise SystemExit(130)
     raise SystemExit(CHILD.returncode)
 else:
     from .math import arithmetic as A
@@ -2168,12 +2174,77 @@ def run_talk_mode(sentence: str = None):
             M.Tail(installed)(), M.EmptyList,
         )() is M.false_value else M.EmptyList
         if M.IdentityCompare(existing, M.EmptyList)() is M.false_value:
-            return (
+            # A duplicate definition is a gap probe. The recorded
+            # definition is restated, and what it still lacks is
+            # computed from the state -- an unbridged term, a process
+            # whose keep/strike answer never landed -- with the first
+            # gap raised as the question on the table.
+            existing_body = M.Head(
+                M.Tail(G.DefinitionBody(existing)())(),
+            )()
+            duplicate_line = (
                 "I already have a definition of '" + term_display + "': "
-                + _speak_chain(
-                    M.Head(M.Tail(G.DefinitionBody(existing)())())(),
-                )
+                + _speak_chain(existing_body)
             )
+            body_is_process = M.false_value
+            body_scan = existing_body
+            while M.IdentityCompare(
+                body_scan, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(body_scan)(), M.Char("process"),
+                )() is M.truth_value:
+                    body_is_process = M.truth_value
+                    body_scan = M.EmptyList
+                else:
+                    body_scan = M.Tail(body_scan)()
+            if M.IdentityCompare(
+                body_is_process, M.truth_value,
+            )() is M.truth_value:
+                has_process_rules = M.false_value
+                rule_scan = G.GraphNodes(learned_version)()
+                while M.IdentityCompare(
+                    rule_scan, M.EmptyList,
+                )() is M.false_value:
+                    rule_node = M.Head(rule_scan)()
+                    rule_scan = M.Tail(rule_scan)()
+                    if M.IsPair(rule_node)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(rule_node)(), M.Char("process-rule"),
+                        )() is M.truth_value:
+                            if M.Compare(
+                                M.Head(M.Tail(rule_node)())(), term_word,
+                            )() is M.truth_value:
+                                has_process_rules = M.truth_value
+                                rule_scan = M.EmptyList
+                if M.IdentityCompare(
+                    has_process_rules, M.false_value,
+                )() is M.truth_value:
+                    pending_process = term_word
+                    _push_ask(
+                        "process",
+                        " define this process for me in keep/strike"
+                        + " terms",
+                    )
+            existing_bridge = G.BridgeFor(learned_version, term_word)()
+            if M.IdentityCompare(
+                existing_bridge, M.EmptyList,
+            )() is M.truth_value:
+                if M.IdentityCompare(
+                    _pack_constructor_for(term_text), M.EmptyList,
+                )() is M.truth_value:
+                    pending_bridge = M.Pair(
+                        term_word,
+                        M.Pair(M.Char(term_text), M.EmptyList),
+                    )
+                    _push_ask(
+                        "bridge",
+                        " The word '" + term_display + "' names something"
+                        + " new; make it a constructor of its own?"
+                        + " (bridge yes/bridge no)",
+                    )
+            _propose_bridge(term_text)
+            return duplicate_line + _ask_next_line()
         learned_version = new_version
         # The body is interpreted with the binder discipline before any
         # compilation: 'itself' resolves to the reading's self variable,
@@ -5223,7 +5294,8 @@ def run_talk_mode(sentence: str = None):
                     + str(reason())
                     + "). A base rule concludes it at a numeral; a step"
                     + " rule concludes it at a constructor over a variable"
-                    + " it also assumes."
+                    + " it also assumes. Teach them with 'rule:' and"
+                    + " certify again with 'induction:'."
                 )
             if record:
                 _log_lesson(line)
