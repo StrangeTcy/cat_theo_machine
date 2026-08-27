@@ -1303,6 +1303,12 @@ def run_talk_mode(sentence: str = None):
     pending_gaps = M.EmptyList
     pending_process = M.EmptyList
     pending_bridge = M.EmptyList
+    # The questions on the table, one at a time: each entry is
+    # Pair(kind, Pair(prompt, EmptyList)) with kind one of "rule",
+    # "bridge", "process". A reply asks only the head; every decision
+    # pops the ask it answered and surfaces the next. No reply stacks
+    # two questions, and no answer is ever met with deafness.
+    pending_asks = M.EmptyList
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
     last_outcome = M.EmptyList
@@ -1310,6 +1316,38 @@ def run_talk_mode(sentence: str = None):
     last_goal = M.EmptyList
     last_proof_registry = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
+
+    def _push_ask(kind_text, prompt_text):
+        """Queue a question; entries are Pair(kind, Pair(prompt, Empty))."""
+        nonlocal pending_asks
+        entry = M.Pair(
+            M.Char(kind_text), M.Pair(M.Char(prompt_text), M.EmptyList),
+        )
+        if M.IdentityCompare(pending_asks, M.EmptyList)() is M.truth_value:
+            pending_asks = M.Pair(entry, M.EmptyList)
+            return
+        pending_asks = M.Reverse(
+            M.Pair(entry, M.Reverse(pending_asks)()),
+        )()
+
+    def _pop_ask(kind_text):
+        """Drop the head question when it is the kind just answered."""
+        nonlocal pending_asks
+        if M.IdentityCompare(pending_asks, M.EmptyList)() is M.truth_value:
+            return
+        head_entry = M.Head(pending_asks)()
+        if M.Compare(
+            M.Head(head_entry)(), M.Char(kind_text),
+        )() is M.truth_value:
+            pending_asks = M.Tail(pending_asks)()
+
+    def _ask_next_line():
+        """The one question on the table, or nothing."""
+        if M.IdentityCompare(pending_asks, M.EmptyList)() is M.truth_value:
+            return ""
+        head_entry = M.Head(pending_asks)()
+        prompt_atom = M.Head(M.Tail(head_entry)())()
+        return " " + str(prompt_atom())
 
     def _words(text):
         """A typed line as a chain of words, by the reading policy.
@@ -2085,6 +2123,12 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_rule, proposal_store
         nonlocal pending_bridge
         nonlocal pending_process
+        nonlocal pending_asks
+        nonlocal pending_queue
+        # A new definition supersedes the questions still on the table:
+        # outstanding pendings keep their slots, but the asks restart
+        # from this definition's own questions, one at a time.
+        pending_asks = M.EmptyList
         # The reader computes; this caller commits. One writer of the
         # session state, one place the lesson is logged and persisted --
         # the reader returns (answer, next_version) and mutates nothing.
@@ -2470,7 +2514,32 @@ def run_talk_mode(sentence: str = None):
                     proposal_store = G.ProposalStoreSubmit(
                         proposal_store, shape_proposal,
                     )()
-                    pending_rule = shape_proposal
+                    # A restriction proposal may already occupy the
+                    # decision slot; a second proposal must queue
+                    # behind it, not silently replace it.
+                    if M.IdentityCompare(
+                        pending_rule, M.EmptyList,
+                    )() is M.false_value:
+                        pending_queue = M.Reverse(
+                            M.Pair(
+                                M.Pair(
+                                    shape_proposal,
+                                    M.Pair(
+                                        M.Char(
+                                            " The body's shape is new to"
+                                            + " me; reading its first word"
+                                            + " as the genus would make it"
+                                            + " a template. Approve this"
+                                            + " shape? (yes/no)",
+                                        ),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                                M.Reverse(pending_queue)(),
+                            ),
+                        )()
+                    else:
+                        pending_rule = shape_proposal
                     shape_line = (
                         " The body's shape is new to me; reading its"
                         + " first word as the genus would make it a"
@@ -2501,6 +2570,20 @@ def run_talk_mode(sentence: str = None):
         if record:
             _log_lesson(line)
         _persist_talk_state()
+        # One question at a time: the questions this definition raised
+        # queue in their listed order -- restriction, mint, shape,
+        # process -- and the reply asks only the first. Each decision
+        # pops its ask and surfaces the next, so no reply ever stacks
+        # two questions and no stray yes lands on deaf ears.
+        if restriction_line != "":
+            _push_ask("rule", restriction_line)
+        if mint_line != "":
+            _push_ask("bridge", mint_line)
+        if shape_line != "":
+            _push_ask("rule", shape_line)
+        if process_ask_line != "":
+            _push_ask("process", process_ask_line)
+        _propose_bridge(term_text)
         open_words = G.DefinitionOpenDependencies(
             learned_version, definition, vocabulary, registry,
         )()
@@ -2510,12 +2593,8 @@ def run_talk_mode(sentence: str = None):
                 + _speak_chain(body_chain) + ". Every word in it is grounded."
                 + operator_line
                 + negation_line
-                + restriction_line
-                + mint_line
-                + shape_line
-                + process_ask_line
                 + definition_law_line
-                + _propose_bridge(term_text)
+                + _ask_next_line()
             )
         spoken = []
         remaining_open = open_words
@@ -2532,12 +2611,8 @@ def run_talk_mode(sentence: str = None):
             + " with 'definition: a " + spoken[0] + " is ...'."
             + operator_line
             + negation_line
-            + restriction_line
-            + mint_line
-            + shape_line
-            + process_ask_line
             + definition_law_line
-            + _propose_bridge(term_text)
+            + _ask_next_line()
         )
 
     def _spoken_from_label_name(name):
@@ -2739,11 +2814,13 @@ def run_talk_mode(sentence: str = None):
             M.Char(term_text),
             M.Pair(constructor, M.EmptyList),
         )
-        return (
+        _push_ask(
+            "bridge",
             " The packs also know '" + term_text + "' as a constructor "
             "with its own ontology; shall I link the word to it? "
-            "(bridge yes/bridge no)"
+            "(bridge yes/bridge no)",
         )
+        return ""
 
     def _handle_bridge_decision(line, record=True):
         nonlocal pending_bridge, learned_version
@@ -2755,7 +2832,8 @@ def run_talk_mode(sentence: str = None):
         constructor = M.Head(M.Tail(pending_bridge)())()
         pending_bridge = M.EmptyList
         if line.strip().lower() == "bridge no":
-            return "Recorded; the word stays unlinked."
+            _pop_ask("bridge")
+            return "Recorded; the word stays unlinked." + _ask_next_line()
         installed = G.InstallBridge(learned_version, word, constructor)()
         learned_version = M.Head(installed)()
         # The bridge is what makes the definition groundable: its subject
@@ -2869,9 +2947,10 @@ def run_talk_mode(sentence: str = None):
                     " 'what is " + str(word()) + "' can answer from"
                     + " the ontology."
                 )
+        _pop_ask("bridge")
         return (
             "Linked: '" + str(word()) + "'" + source_line
-            + ontology_line + law_line
+            + ontology_line + law_line + _ask_next_line()
         )
 
     def _speak_label(label):
@@ -3244,6 +3323,14 @@ def run_talk_mode(sentence: str = None):
         _debug("talk state written to " + talk_checkpoint_path)
 
     def _handle_decision(line, record=True):
+        # Every decision answers at most one question: the inner flow
+        # decides the proposal, the wrapper retires the ask it answered
+        # and surfaces the next question on the table.
+        outcome = _decide_inner(line, record=record)
+        _pop_ask("rule")
+        return outcome + _ask_next_line()
+
+    def _decide_inner(line, record=True):
         nonlocal proposal_store, learned_version, decided_laws, pending_queue, pending_rule
         nonlocal pending_gaps
         if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
@@ -4217,7 +4304,10 @@ def run_talk_mode(sentence: str = None):
                 # tying the process verb to the resolved concept.
                 defined_term = pending_process
                 pending_process = M.EmptyList
-                answer_words = _words(line)
+                # A semicolon separates clauses exactly as a comma
+                # does; the reading policy does not blank it, so the
+                # line is normalized before the words are read.
+                answer_words = _words(line.replace(";", ","))
                 clauses_reversed = M.EmptyList
                 noun_reversed = M.EmptyList
                 clause_mode = M.EmptyList
@@ -4328,7 +4418,7 @@ def run_talk_mode(sentence: str = None):
                     return (
                         "I do not know the concept(s) "
                         + ", ".join(spoken_unresolved)
-                        + "; define them first."
+                        + "; define them first." + _ask_next_line()
                     )
                 installed_lines = []
                 for rule_text in rule_texts:
@@ -4389,11 +4479,12 @@ def run_talk_mode(sentence: str = None):
                 if record:
                     _log_lesson(line)
                 _persist_talk_state()
+                _pop_ask("process")
                 return (
                     "The process of '" + str(defined_term()) + "' is"
                     + " recorded: "
                     + "; ".join(installed_lines)
-                    + "."
+                    + "." + _ask_next_line()
                 )
         if lowered.startswith("lemma:"):
             lemma_text = line[6:].strip()
@@ -5162,6 +5253,10 @@ def run_talk_mode(sentence: str = None):
                 return _handle_decision(lowered, record=record)
             if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
                 return _handle_decision(lowered, record=record)
+            # A yes or no with nothing awaiting it is an answer to a
+            # question that is not on the table; say so instead of
+            # parsing the word as a sentence.
+            return "There is no question awaiting an answer."
         if lowered.strip() in ("bridge yes", "bridge no"):
             return _handle_bridge_decision(lowered.strip(), record=record)
         if lowered.startswith("why are these two definitions equivalent"):
