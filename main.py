@@ -4814,30 +4814,56 @@ def run_talk_mode(sentence: str = None):
                 while M.IdentityCompare(
                     base_scan, M.EmptyList,
                 )() is M.false_value:
-                    base_renders.append(
-                        P.PrettyRule(
-                            M.Head(base_scan)(), M.AllConstructors,
-                        )()
-                    )
+                    # Each entry is a premises/replacement pair; a
+                    # certificate written before pairs were stored
+                    # carries an opaque atom instead, and rendering
+                    # skips what the wire could not carry.
+                    base_entry = M.Head(base_scan)()
+                    try:
+                        base_renders.append(
+                            P.PrettyRule(
+                                P.MultiRule(
+                                    M.Head(base_entry)(),
+                                    M.Head(M.Tail(base_entry)())(),
+                                )(),
+                                M.AllConstructors,
+                            )()
+                        )
+                    except Exception:
+                        pass
                     base_scan = M.Tail(base_scan)()
                 step_renders = []
                 step_scan = cert_steps
                 while M.IdentityCompare(
                     step_scan, M.EmptyList,
                 )() is M.false_value:
-                    step_renders.append(
-                        P.PrettyRule(
-                            M.Head(step_scan)(), M.AllConstructors,
-                        )()
-                    )
+                    step_entry = M.Head(step_scan)()
+                    try:
+                        step_renders.append(
+                            P.PrettyRule(
+                                P.MultiRule(
+                                    M.Head(step_entry)(),
+                                    M.Head(M.Tail(step_entry)())(),
+                                )(),
+                                M.AllConstructors,
+                            )()
+                        )
+                    except Exception:
+                        pass
                     step_scan = M.Tail(step_scan)()
-                certificate_line = (
-                    " The recorded induction over '"
-                    + str(cert_claim()) + "': base "
-                    + "; ".join(base_renders)
-                    + "; step "
-                    + "; ".join(step_renders) + "."
-                )
+                if base_renders or step_renders:
+                    certificate_line = (
+                        " The recorded induction over '"
+                        + str(cert_claim()) + "': base "
+                        + "; ".join(base_renders)
+                        + "; step "
+                        + "; ".join(step_renders) + "."
+                    )
+                else:
+                    certificate_line = (
+                        " The recorded induction over '"
+                        + str(cert_claim()) + "'."
+                    )
             contra_line = ""
             if contra_render != "":
                 contra_line = (
@@ -5230,31 +5256,58 @@ def run_talk_mode(sentence: str = None):
                 while M.IdentityCompare(
                     base_scan, M.EmptyList,
                 )() is M.false_value:
-                    base_renders.append(
-                        P.PrettyRule(
-                            M.Head(base_scan)(), M.AllConstructors,
-                        )()
-                    )
+                    # Each entry is a premises/replacement pair; a
+                    # certificate written before pairs were stored
+                    # carries an opaque atom instead, and rendering
+                    # skips what the wire could not carry.
+                    base_entry = M.Head(base_scan)()
+                    try:
+                        base_renders.append(
+                            P.PrettyRule(
+                                P.MultiRule(
+                                    M.Head(base_entry)(),
+                                    M.Head(M.Tail(base_entry)())(),
+                                )(),
+                                M.AllConstructors,
+                            )()
+                        )
+                    except Exception:
+                        pass
                     base_scan = M.Tail(base_scan)()
                 step_renders = []
                 step_scan = cert_steps
                 while M.IdentityCompare(
                     step_scan, M.EmptyList,
                 )() is M.false_value:
-                    step_renders.append(
-                        P.PrettyRule(
-                            M.Head(step_scan)(), M.AllConstructors,
-                        )()
-                    )
+                    step_entry = M.Head(step_scan)()
+                    try:
+                        step_renders.append(
+                            P.PrettyRule(
+                                P.MultiRule(
+                                    M.Head(step_entry)(),
+                                    M.Head(M.Tail(step_entry)())(),
+                                )(),
+                                M.AllConstructors,
+                            )()
+                        )
+                    except Exception:
+                        pass
                     step_scan = M.Tail(step_scan)()
-                proof_text = (
-                    proof_text
-                    + " The recorded induction over '"
-                    + str(cert_claim()) + "': base "
-                    + "; ".join(base_renders)
-                    + "; step "
-                    + "; ".join(step_renders) + "."
-                )
+                if base_renders or step_renders:
+                    proof_text = (
+                        proof_text
+                        + " The recorded induction over '"
+                        + str(cert_claim()) + "': base "
+                        + "; ".join(base_renders)
+                        + "; step "
+                        + "; ".join(step_renders) + "."
+                    )
+                else:
+                    proof_text = (
+                        proof_text
+                        + " The recorded induction over '"
+                        + str(cert_claim()) + "'."
+                    )
             remaining_render = "; ".join(
                 _recorded_rule_renders(proof_remaining),
             )

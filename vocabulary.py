@@ -2694,12 +2694,57 @@ class InductiveLaw(M.Edge):
     EmptyList)))) -- bases are rules concluding the claim at a numeral
     constant, steps are rules concluding the claim at a constructor
     application of a variable that also appears as a claim premise.
+
+    The certificate rides the checkpoint wire, and rule objects do not
+    survive it: they intern as opaque atoms and their premises and
+    replacements are lost. Each base and step is therefore stored as
+    its raw premises/replacement pair -- the same wire-safe shape the
+    lemma and process records use -- and readers reconstruct the rule
+    from the pair when they need one.
     """
 
     def __init__(self, claim, bases, steps):
+        stored_bases = M.EmptyList
+        base_scan = bases
+        while M.IdentityCompare(
+            base_scan, M.EmptyList,
+        )() is M.false_value:
+            base_rule = M.Head(base_scan)()
+            stored_bases = M.Pair(
+                M.Pair(
+                    P.RulePremises(base_rule)(),
+                    M.Pair(
+                        P.RuleReplacement(base_rule)(), M.EmptyList,
+                    ),
+                ),
+                stored_bases,
+            )
+            base_scan = M.Tail(base_scan)()
+        stored_steps = M.EmptyList
+        step_scan = steps
+        while M.IdentityCompare(
+            step_scan, M.EmptyList,
+        )() is M.false_value:
+            step_rule = M.Head(step_scan)()
+            stored_steps = M.Pair(
+                M.Pair(
+                    P.RulePremises(step_rule)(),
+                    M.Pair(
+                        P.RuleReplacement(step_rule)(), M.EmptyList,
+                    ),
+                ),
+                stored_steps,
+            )
+            step_scan = M.Tail(step_scan)()
         self.result = M.Pair(
             M.Char("inductive-law"),
-            M.Pair(claim, M.Pair(bases, M.Pair(steps, M.EmptyList))),
+            M.Pair(
+                claim,
+                M.Pair(
+                    M.Reverse(stored_bases)(),
+                    M.Pair(M.Reverse(stored_steps)(), M.EmptyList),
+                ),
+            ),
         )
         super().__init__(
             inputs=M.Pair(
