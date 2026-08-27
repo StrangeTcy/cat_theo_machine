@@ -6947,6 +6947,106 @@ def run_talk_mode(sentence: str = None):
             question_answer = _question_graph_answer(line)
             if question_answer is not None:
                 return question_answer
+        if lowered.startswith("what are the factors of "):
+            # The factors of a number, found by the machine's own
+            # division: every number from one up to it that divides it
+            # exactly. The concept is the trainer's (a defined
+            # 'factor'); the enumeration is the machine's arithmetic.
+            factors_number_text = lowered[
+                len("what are the factors of "):
+            ].strip().rstrip("?!. ")
+            factor_defined = G.DefinitionFor(
+                learned_version, M.Char("factor"),
+            )()
+            if M.IdentityCompare(
+                factor_defined, M.EmptyList,
+            )() is M.truth_value:
+                singular_factor = G.WordSingular(
+                    M.Char("factors"),
+                )()
+                if M.IdentityCompare(
+                    singular_factor, M.EmptyList,
+                )() is M.false_value:
+                    factor_defined = G.DefinitionFor(
+                        learned_version, singular_factor,
+                    )()
+            if M.IdentityCompare(
+                factor_defined, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "I do not know the word: factors. Define it with"
+                    + " 'definition: a factor is ...'."
+                )
+            factors_value = _numeral_value_text(
+                M.Char(factors_number_text),
+            )
+            if factors_value is M.EmptyList:
+                return (
+                    "I do not know the number '"
+                    + factors_number_text + "'."
+                )
+            factor_words = []
+            scan_lines = []
+            word_entries = M.Head(M.Tail(vocabulary)())()
+            entry_scan = word_entries
+            while M.IdentityCompare(
+                entry_scan, M.EmptyList,
+            )() is M.false_value:
+                entry = M.Head(entry_scan)()
+                entry_word = M.Head(entry)()
+                entry_value = M.GMPRepText(
+                    M.NatRepOf(
+                        M.Head(M.Tail(entry)())(), registry,
+                    )(),
+                )()
+                if M.IdentityCompare(
+                    G.GMPLessText(entry_value, "1")(),
+                    M.truth_value,
+                )() is M.false_value:
+                    if M.IdentityCompare(
+                        G.GMPLessText(
+                            factors_value, entry_value,
+                        )(),
+                        M.truth_value,
+                    )() is M.false_value:
+                        division = _division_texts(
+                            entry_value, factors_value,
+                        )
+                        division_remainder = str(
+                            M.Head(M.Tail(division)())(),
+                        )
+                        if M.IdentityCompare(
+                            G.GMPEqualText(
+                                division_remainder, "0",
+                            )(),
+                            M.truth_value,
+                        )() is M.truth_value:
+                            factor_words.append(str(entry_word()))
+                            scan_lines.append(
+                                str(entry_word()) + " divides "
+                                + factors_number_text + " exactly"
+                            )
+                        else:
+                            scan_lines.append(
+                                str(entry_word()) + " leaves"
+                                + " remainder "
+                                + _words_of_value_text(
+                                    division_remainder,
+                                ),
+                            )
+                entry_scan = M.Tail(entry_scan)()
+            if not factor_words:
+                return (
+                    "By its own division, no number from one to "
+                    + factors_number_text
+                    + " divides it exactly; it has no factors."
+                )
+            return (
+                "By its own division: "
+                + "; ".join(scan_lines)
+                + ". The factors of " + factors_number_text
+                + " are " + ", ".join(factor_words) + "."
+            )
         if lowered.startswith("what is "):
             spoken_definition = _handle_what_is(line)
             if spoken_definition is not None:

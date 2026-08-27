@@ -184,7 +184,16 @@ class AtomName(Edge):
         c = C.GetConstructor(a)()
         if C.Compare(c, EmptyList)() is truth_value:
             val = a()
-            return val if val is not None else "<?>"
+            if val is not None:
+                return val
+            # A pack constructor label carries no value of its own;
+            # its name is the word the labels module gave it.
+            from . import labels as _labels_module
+
+            for _name_text, _name_value in vars(_labels_module).items():
+                if _name_value is a and _name_text.endswith("Label"):
+                    return _name_text[:-5]
+            return "<?>"
         label = Head(c)()
         args = Tail(c)()
         if IdentityCompare(label, SuccLabel)() is truth_value:
@@ -1050,6 +1059,13 @@ class PrettyTerm(Edge):
         val = x()
         if val is not None:
             return str(val)
+        # A pack constructor label carries no value of its own; its
+        # name is the word the labels module gave it.
+        from . import labels as _labels_module
+
+        for _name_text, _name_value in vars(_labels_module).items():
+            if _name_value is x and _name_text.endswith("Label"):
+                return _name_text[:-5]
         return "<?>"
 
     def __call__(self):
