@@ -183,7 +183,17 @@ def deserialize_term(blob):
         elif token == "V":
             value = M.VarTag
         elif token.startswith("L:"):
-            value = getattr(Lmod, token[2:])
+            try:
+                value = getattr(Lmod, token[2:])
+            except AttributeError:
+                # A checkpoint written by a labels.py this branch does
+                # not carry. The token keeps its place as an interned,
+                # inert atom -- distinct unknown labels stay distinct,
+                # and every head comparison against known labels fails
+                # -- instead of sinking the whole boot.
+                if token not in interned:
+                    interned[token] = M.Thingy()
+                value = interned[token]
         elif token.startswith("C:"):
             if token not in interned:
                 interned[token] = M.Char(urllib.parse.unquote(token[2:]))
