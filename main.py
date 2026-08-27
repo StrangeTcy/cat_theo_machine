@@ -2225,6 +2225,7 @@ def run_talk_mode(sentence: str = None):
             # the compilation: its case split is re-proposed first, so
             # the definition can be interpreted and compiled.
             _reraise_operator_gap(term_word, term_text)
+            _reraise_shape_gap(term_word, existing)
             body_is_process = M.false_value
             body_scan = existing_body
             while M.IdentityCompare(
@@ -3347,6 +3348,158 @@ def run_talk_mode(sentence: str = None):
         _push_ask("rule", prompt_text)
         return M.truth_value
 
+    def _reraise_shape_gap(term_word, definition):
+        """Queue the shape question a readable body still lacks.
+
+        A body the correspondence templates cannot read needs its shape
+        law -- the trainer's phrasing as a template, the first content
+        word as the genus -- before it can compile. The shape is
+        re-proposed from the recorded body wherever the gap blocks, so
+        a decision that predates the machinery or never happened can
+        be made now. Returns truth when a shape was queued.
+        """
+        nonlocal proposal_store, pending_queue
+        # A shape already queued or pending for this term is not
+        # re-proposed.
+        already_raised = M.false_value
+        queue_scan = pending_queue
+        while M.IdentityCompare(
+            queue_scan, M.EmptyList,
+        )() is M.false_value:
+            queued_proposal = M.Head(M.Head(queue_scan)())()
+            queued_origin = G.ProposalOrigin(queued_proposal)()
+            if M.IsPair(queued_origin)() is M.truth_value:
+                if M.Compare(
+                    M.Head(queued_origin)(),
+                    M.Char("definition-shape"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Tail(queued_origin)(), M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(M.Tail(queued_origin)())(),
+                            term_word,
+                        )() is M.truth_value:
+                            already_raised = M.truth_value
+                            queue_scan = M.EmptyList
+            if M.IdentityCompare(
+                queue_scan, M.EmptyList,
+            )() is M.false_value:
+                queue_scan = M.Tail(queue_scan)()
+        if M.IdentityCompare(
+            already_raised, M.false_value,
+        )() is M.truth_value:
+            if M.IdentityCompare(
+                pending_rule, M.EmptyList,
+            )() is M.false_value:
+                pending_origin = G.ProposalOrigin(pending_rule)()
+                if M.IsPair(pending_origin)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(pending_origin)(),
+                        M.Char("definition-shape"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(pending_origin)(), M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                M.Head(M.Tail(pending_origin)())(),
+                                term_word,
+                            )() is M.truth_value:
+                                already_raised = M.truth_value
+        if M.IdentityCompare(
+            already_raised, M.truth_value,
+        )() is M.truth_value:
+            return M.false_value
+        # Only a body the templates cannot read needs its shape.
+        body_reading = G.DefinitionBodyReading(
+            definition, vocabulary, registry,
+        )()
+        if M.IdentityCompare(
+            body_reading, M.EmptyList,
+        )() is M.false_value:
+            return M.false_value
+        body = G.DefinitionBody(definition)()
+        shape_body_chain = M.Head(M.Tail(body)())()
+        shape_reversed = M.EmptyList
+        shape_scan = shape_body_chain
+        genus_variable = M.EmptyList
+        first_content = M.truth_value
+        while M.IdentityCompare(
+            shape_scan, M.EmptyList,
+        )() is M.false_value:
+            body_word = M.Head(shape_scan)()
+            if G.SurfaceChainHasWord(
+                G.DEFINITION_STOP_WORDS, body_word,
+            )() is M.truth_value:
+                shape_reversed = M.Pair(body_word, shape_reversed)
+            else:
+                slot_variable = M.Pair(
+                    M.VarTag,
+                    M.Pair(
+                        M.Char("?" + str(body_word())),
+                        M.EmptyList,
+                    ),
+                )
+                shape_reversed = M.Pair(
+                    slot_variable, shape_reversed,
+                )
+                if M.IdentityCompare(
+                    first_content, M.truth_value,
+                )() is M.truth_value:
+                    genus_variable = slot_variable
+                    first_content = M.false_value
+            shape_scan = M.Tail(shape_scan)()
+        if M.IdentityCompare(
+            genus_variable, M.EmptyList,
+        )() is M.truth_value:
+            return M.false_value
+        shape_chain = M.Reverse(shape_reversed)()
+        shape_surface = G.Surface(shape_chain)()
+        genus_meaning = G.Meaning(
+            M.Pair(
+                Lmod.DefinitionGenusLabel,
+                M.Pair(
+                    G.Surface(
+                        M.Pair(genus_variable, M.EmptyList),
+                    )(),
+                    M.EmptyList,
+                ),
+            ),
+        )()
+        shape_law = G.CompileRuleToLaw(
+            P.Rule(shape_surface, genus_meaning),
+        )()
+        if M.IdentityCompare(
+            shape_law, M.EmptyList,
+        )() is M.truth_value:
+            return M.false_value
+        shape_proposal = G.Proposal(
+            shape_law,
+            M.Pair(
+                M.Char("definition-shape"),
+                M.Pair(term_word, M.EmptyList),
+            ),
+        )()
+        proposal_store = G.ProposalStoreSubmit(
+            proposal_store, shape_proposal,
+        )()
+        prompt_text = (
+            " The body's shape is new to me; reading its first word"
+            + " as the genus would make it a template. Approve this"
+            + " shape? (yes/no)"
+        )
+        pending_queue = M.Reverse(
+            M.Pair(
+                M.Pair(
+                    shape_proposal,
+                    M.Pair(prompt_text, M.EmptyList),
+                ),
+                M.Reverse(pending_queue)(),
+            ),
+        )()
+        _push_ask("rule", prompt_text)
+        return M.truth_value
+
     def _ensure_bridge_loaded():
         """Load the next queued open-word bridge, if one waits."""
         nonlocal pending_bridge, pending_bridge_queue
@@ -4047,6 +4200,15 @@ def run_talk_mode(sentence: str = None):
             M.Head(rule_origin)(), M.Char("definition-shape"),
         )() is M.truth_value:
             unblock_term = M.Head(M.Tail(rule_origin)())()
+            # The shape law goes in here as well: the daemon activates
+            # it in the shared state on its cycle, but the
+            # conversation's own version needs it now for the compile
+            # to read the body. The merge dedups the double install.
+            learned_version = G.InstallLaw(
+                learned_version,
+                G.ProposalLaw(decided_proposal)(),
+            )()
+            _extend_vocabulary()
         if M.IdentityCompare(
             unblock_term, M.EmptyList,
         )() is M.truth_value:
@@ -4070,6 +4232,10 @@ def run_talk_mode(sentence: str = None):
             M.NatRepOf(unblock_count, registry)(),
         )()
         if G.GMPEqualText(unblock_text, "0")() is M.truth_value:
+            # A zero compile with the operators interpreted leaves the
+            # body unreadable: its shape is the remaining gap, and it
+            # is queued so the approval's reply surfaces it next.
+            _reraise_shape_gap(unblock_term, unblock_definition)
             return ""
         _extend_vocabulary()
         return (
@@ -6661,8 +6827,9 @@ def run_talk_mode(sentence: str = None):
                         + unknown + "(seven)'."
                     )
                 # No laws and no open words: the blocker may be an
-                # operator that still stands uninterpreted. Its split
-                # is re-proposed here, at the point of failure.
+                # operator that still stands uninterpreted, or a body
+                # with no template. Either gap is re-proposed here, at
+                # the point of failure.
                 defined_term = G.DefinitionTerm(defined)()
                 if M.IdentityCompare(
                     _reraise_operator_gap(
@@ -6675,6 +6842,17 @@ def run_talk_mode(sentence: str = None):
                         + _speak_chain(body_chain)
                         + ". But its 'only' still stands uninterpreted,"
                         + " so it compiles to no law."
+                        + _ask_next_line()
+                    )
+                if M.IdentityCompare(
+                    _reraise_shape_gap(defined_term, defined),
+                    M.truth_value,
+                )() is M.truth_value:
+                    return (
+                        "I have a definition of '" + unknown + "': "
+                        + _speak_chain(body_chain)
+                        + ". But its body has no template yet, so it"
+                        + " compiles to no law."
                         + _ask_next_line()
                     )
                 return (
