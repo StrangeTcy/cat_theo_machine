@@ -2358,7 +2358,10 @@ def run_talk_mode(sentence: str = None):
                             exactly_one = G.CaseSplitExactlyOne(case_split)()
                             case_origin = M.Pair(
                                 M.Char("case-split"),
-                                M.Pair(exactly_one, M.EmptyList),
+                                M.Pair(
+                                    exactly_one,
+                                    M.Pair(term_word, M.EmptyList),
+                                ),
                             )
                             case_proposal = G.Proposal(
                                 case_split, case_origin,
@@ -2476,7 +2479,10 @@ def run_talk_mode(sentence: str = None):
                                     )()
                                     only_origin = M.Pair(
                                         M.Char("case-split"),
-                                        M.Pair(only_exactly, M.EmptyList),
+                                        M.Pair(
+                                            only_exactly,
+                                            M.Pair(term_word, M.EmptyList),
+                                        ),
                                     )
                                     only_proposal = G.Proposal(
                                         only_split, only_origin,
@@ -3430,6 +3436,69 @@ def run_talk_mode(sentence: str = None):
         )
         _debug("talk state written to " + talk_checkpoint_path)
 
+    def _unblock_definition_for(decided_proposal):
+        """An approved split or shape unblocks the definition it came
+        from: its operators or its template now stand interpreted, so
+        the definition compiles and its words enter the vocabulary.
+
+        Installs the ExactlyOne structure a split's generic activation
+        does not carry, re-compiles the definition named in the origin,
+        and returns the report line (empty when nothing compiled).
+        """
+        nonlocal learned_version
+        rule_origin = G.ProposalOrigin(decided_proposal)()
+        if M.IdentityCompare(rule_origin, M.EmptyList)() is M.truth_value:
+            return ""
+        if M.IsPair(rule_origin)() is not M.truth_value:
+            return ""
+        unblock_term = M.EmptyList
+        if M.Compare(
+            M.Head(rule_origin)(), M.Char("case-split"),
+        )() is M.truth_value:
+            learned_version = G.InstallCaseSplit(
+                learned_version,
+                G.ProposalLaw(decided_proposal)(),
+            )()
+            if M.IdentityCompare(
+                M.Tail(M.Tail(rule_origin)())(), M.EmptyList,
+            )() is M.false_value:
+                unblock_term = M.Head(
+                    M.Tail(M.Tail(rule_origin)())(),
+                )()
+        elif M.Compare(
+            M.Head(rule_origin)(), M.Char("definition-shape"),
+        )() is M.truth_value:
+            unblock_term = M.Head(M.Tail(rule_origin)())()
+        if M.IdentityCompare(
+            unblock_term, M.EmptyList,
+        )() is M.truth_value:
+            return ""
+        unblock_definition = G.DefinitionFor(
+            learned_version, unblock_term,
+        )()
+        if M.IdentityCompare(
+            unblock_definition, M.EmptyList,
+        )() is M.truth_value:
+            return ""
+        unblock_result = G.InstallDefinitionLaws(
+            learned_version,
+            unblock_definition,
+            vocabulary,
+            registry,
+        )()
+        learned_version = M.Head(unblock_result)()
+        unblock_count = M.Head(M.Tail(unblock_result)())()
+        unblock_text = M.GMPRepText(
+            M.NatRepOf(unblock_count, registry)(),
+        )()
+        if G.GMPEqualText(unblock_text, "0")() is M.truth_value:
+            return ""
+        _extend_vocabulary()
+        return (
+            " The definition compiled to " + unblock_text
+            + " law(s); the prover now rewrites with them."
+        )
+
     def _handle_decision(line, record=True):
         # Every decision answers at most one question: the inner flow
         # decides the proposal, the wrapper retires the ask it answered
@@ -3474,27 +3543,26 @@ def run_talk_mode(sentence: str = None):
                     if M.IsPair(rule_origin)() is M.truth_value:
                         if M.Compare(
                             M.Head(rule_origin)(), M.Char("case-split"),
-                        )() is M.truth_value:
-                            learned_version = G.InstallCaseSplit(
-                                learned_version,
-                                G.ProposalLaw(decided_proposal)(),
-                            )()
-                        elif M.IsPair(
-                            M.Tail(M.Tail(rule_origin)())(),
-                        )() is M.truth_value:
-                            source_premises = M.Head(M.Tail(rule_origin)())()
-                            source_replacement = M.Head(
+                        )() is M.false_value:
+                            if M.IsPair(
                                 M.Tail(M.Tail(rule_origin)())(),
-                            )()
-                            learned_version = G.InstallTaughtRuleSource(
-                                learned_version,
-                                source_premises,
-                                source_replacement,
-                            )()
+                            )() is M.truth_value:
+                                source_premises = M.Head(
+                                    M.Tail(rule_origin)(),
+                                )()
+                                source_replacement = M.Head(
+                                    M.Tail(M.Tail(rule_origin)())(),
+                                )()
+                                learned_version = G.InstallTaughtRuleSource(
+                                    learned_version,
+                                    source_premises,
+                                    source_replacement,
+                                )()
+                    compiled_line = _unblock_definition_for(decided_proposal)
                     _persist_talk_state()
                     return (
                         "Recorded and submitted. The daemon will activate it "
-                        "on its next cycle."
+                        "on its next cycle." + compiled_line
                     )
                 activated = G.ActivateProposal(
                     learned_version,
@@ -3510,64 +3578,38 @@ def run_talk_mode(sentence: str = None):
                     return _render_refusal(refusal)
                 learned_version = installed_version
                 _extend_vocabulary()
-                rule_origin = G.ProposalOrigin(decided_proposal)()
-                # A definition-shape approval is a grammar lesson: the
-                # template is installed and the vocabulary extended, so
-                # the definition that proposed it can be read now.
-                shape_origin_word = M.EmptyList
-                if M.IsPair(rule_origin)() is M.truth_value:
-                    if M.Compare(
-                        M.Head(rule_origin)(), M.Char("definition-shape"),
-                    )() is M.truth_value:
-                        shape_origin_word = M.Head(
-                            M.Tail(rule_origin)(),
-                        )()
-                if M.IdentityCompare(
-                    shape_origin_word, M.EmptyList,
-                )() is M.false_value:
-                    shape_definition = G.DefinitionFor(
-                        learned_version, shape_origin_word,
-                    )()
-                    if M.IdentityCompare(
-                        shape_definition, M.EmptyList,
-                    )() is M.false_value:
-                        shape_result = G.InstallDefinitionLaws(
-                            learned_version,
-                            shape_definition,
-                            vocabulary,
-                            registry,
-                        )()
-                        learned_version = M.Head(shape_result)()
-                        shape_count = M.Head(M.Tail(shape_result)())()
-                        shape_count_text = M.GMPRepText(
-                            M.NatRepOf(shape_count, registry)(),
-                        )()
-                        if G.GMPEqualText(shape_count_text, "0")() is M.false_value:
-                            _persist_talk_state()
-                            return (
-                                "Recorded and activated. The shape is now"
-                                + " a template, and the definition compiled"
-                                + " to " + shape_count_text
-                                + " law(s); the prover now rewrites with"
-                                + " them."
-                            )
+                # An approved split or shape unblocks the definition it
+                # came from; its operators or template now stand
+                # interpreted and the definition can be compiled.
+                compiled_line = _unblock_definition_for(decided_proposal)
+                if compiled_line != "":
+                    _persist_talk_state()
+                    return (
+                        "Recorded and activated. The deduction is now"
+                        + " installed in the graph." + compiled_line
+                    )
                 taught_rule_terms = M.EmptyList
+                rule_origin = G.ProposalOrigin(decided_proposal)()
                 if M.IsPair(rule_origin)() is M.truth_value:
                     # A rule origin carries premises and a replacement;
                     # a case-split origin carries its exactly-one and
-                    # nothing past it.
-                    if M.IsPair(
-                        M.Tail(M.Tail(rule_origin)())(),
-                    )() is M.truth_value:
-                        taught_rule_terms = M.Pair(
-                            M.Head(M.Tail(rule_origin)())(),
-                            M.Pair(
-                                M.Head(
-                                    M.Tail(M.Tail(rule_origin)())(),
-                                )(),
-                                M.EmptyList,
-                            ),
-                        )
+                    # the term it interprets, and neither is a rule
+                    # source.
+                    if M.Compare(
+                        M.Head(rule_origin)(), M.Char("case-split"),
+                    )() is M.false_value:
+                        if M.IsPair(
+                            M.Tail(M.Tail(rule_origin)())(),
+                        )() is M.truth_value:
+                            taught_rule_terms = M.Pair(
+                                M.Head(M.Tail(rule_origin)())(),
+                                M.Pair(
+                                    M.Head(
+                                        M.Tail(M.Tail(rule_origin)())(),
+                                    )(),
+                                    M.EmptyList,
+                                ),
+                            )
                 inspection = G.InspectGaps(
                     pending_gaps,
                     last_goal,
@@ -3645,10 +3687,11 @@ def run_talk_mode(sentence: str = None):
             # mode standalone keeps activating in-process, so nothing about
             # single-process use changes.
             if os.path.exists(daemon_live_path):
+                compiled_line = _unblock_definition_for(decided_proposal)
                 _persist_talk_state()
                 _debug("submitted to the daemon inbox; it will activate")
                 return ("Recorded and submitted. The daemon will activate it "
-                        "on its next cycle.")
+                        "on its next cycle." + compiled_line)
             _debug("activating through ActivateProposal; "
                    "recording the Next splice in the learned version")
             activated = G.ActivateProposal(
@@ -3665,7 +3708,10 @@ def run_talk_mode(sentence: str = None):
             _persist_talk_state()
             _debug("vocabulary rebuilt from installed correspondence laws; "
                    "rule persists via the lesson transcript")
-            outcome = "Recorded and activated. The rule is now part of my grammar."
+            outcome = (
+                "Recorded and activated. The rule is now part of my grammar."
+                + _unblock_definition_for(decided_proposal)
+            )
         else:
             _debug("attaching Rejected(proposal, trainer, declined) "
                    "to the proposal store")
@@ -5962,6 +6008,61 @@ def run_talk_mode(sentence: str = None):
             Lmod.ReasonUnknownWordLabel,
         )() is M.truth_value:
             unknown = _speak_chain(M.Head(M.Tail(reason)())())
+            # The word may be defined as a term yet carry no law: its
+            # definition never compiled, so the surface grammar does
+            # not know it. Say that, with the words that block the
+            # compilation, instead of bare deafness.
+            unknown_word = M.Char(unknown)
+            defined = G.DefinitionFor(learned_version, unknown_word)()
+            if M.IdentityCompare(
+                defined, M.EmptyList,
+            )() is M.truth_value:
+                singular = G.WordSingular(unknown_word)()
+                if M.IdentityCompare(
+                    singular, M.EmptyList,
+                )() is M.false_value:
+                    defined = G.DefinitionFor(
+                        learned_version, singular,
+                    )()
+            if M.IdentityCompare(
+                defined, M.EmptyList,
+            )() is M.false_value:
+                open_words = G.DefinitionOpenDependencies(
+                    learned_version, defined, vocabulary, registry,
+                )()
+                spoken_open = []
+                open_scan = open_words
+                while M.IdentityCompare(
+                    open_scan, M.EmptyList,
+                )() is M.false_value:
+                    spoken_open.append(
+                        str(M.Head(open_scan)()()),
+                    )
+                    open_scan = M.Tail(open_scan)()
+                body_chain = M.Head(
+                    M.Tail(G.DefinitionBody(defined)())(),
+                )()
+                if spoken_open:
+                    return (
+                        "I have a definition of '" + unknown + "': "
+                        + _speak_chain(body_chain)
+                        + ". But it compiled to no law, so I cannot"
+                        + " read it in a sentence: "
+                        + " or ".join(
+                            "'" + w + "'" for w in spoken_open
+                        )
+                        + " "
+                        + ("is" if len(spoken_open) == 1 else "are")
+                        + " not grounded. Define or ground "
+                        + ("it" if len(spoken_open) == 1 else "them")
+                        + " first."
+                    )
+                return (
+                    "I have a definition of '" + unknown + "': "
+                    + _speak_chain(body_chain)
+                    + ". But it compiled to no law, so I cannot read it"
+                    + " in a sentence."
+                )
             return "I do not know the word: " + unknown
         if M.IdentityCompare(
             reason_label,
