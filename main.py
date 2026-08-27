@@ -6823,6 +6823,103 @@ def run_talk_mode(sentence: str = None):
                 M.Tail(M.Tail(M.Tail(M.Tail(certified)())())())(),
             )()
             if M.IdentityCompare(reason, M.EmptyList)() is M.false_value:
+                # When only the base is missing, the step is in hand
+                # and the base follows from the step's own shape: the
+                # claim at zero over the step's side premises. The
+                # derived base is proposed, and the trainer decides.
+                if M.Compare(
+                    reason, M.Char("no-base"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        steps, M.EmptyList,
+                    )() is M.false_value:
+                        step_rule = M.Head(steps)()
+                        step_replacement = P.RuleReplacement(
+                            step_rule,
+                        )()
+                        if M.IsPair(
+                            step_replacement,
+                        )() is M.truth_value:
+                            kept_reversed = M.EmptyList
+                            premise_walk = P.RulePremises(step_rule)()
+                            while M.IdentityCompare(
+                                premise_walk, M.EmptyList,
+                            )() is M.false_value:
+                                step_premise = M.Head(premise_walk)()
+                                keep_premise = M.truth_value
+                                if M.IsPair(step_premise)() is M.truth_value:
+                                    if M.Compare(
+                                        M.Head(step_premise)(), claim,
+                                    )() is M.truth_value:
+                                        keep_premise = M.false_value
+                                if M.IdentityCompare(
+                                    keep_premise, M.truth_value,
+                                )() is M.truth_value:
+                                    kept_reversed = M.Pair(
+                                        step_premise, kept_reversed,
+                                    )
+                                premise_walk = M.Tail(premise_walk)()
+                            kept_premises = M.Reverse(kept_reversed)()
+                            base_replacement = M.Pair(
+                                claim,
+                                M.Pair(
+                                    M.Char("zero"),
+                                    M.Tail(
+                                        M.Tail(step_replacement)(),
+                                    )(),
+                                ),
+                            )
+                            if M.IdentityCompare(
+                                kept_premises, M.EmptyList,
+                            )() is M.false_value:
+                                base_rule = P.MultiRule(
+                                    kept_premises, base_replacement,
+                                )()
+                                base_law = G.CompileDeductionToLaw(
+                                    base_rule,
+                                )()
+                                if M.IdentityCompare(
+                                    base_law, M.EmptyList,
+                                )() is M.false_value:
+                                    base_origin = M.Pair(
+                                        M.Char("dialogue-rule"),
+                                        M.Pair(
+                                            kept_premises,
+                                            M.Pair(
+                                                base_replacement,
+                                                M.EmptyList,
+                                            ),
+                                        ),
+                                    )
+                                    base_proposal = G.Proposal(
+                                        base_law, base_origin,
+                                    )()
+                                    proposal_store = (
+                                        G.ProposalStoreSubmit(
+                                            proposal_store,
+                                            base_proposal,
+                                        )()
+                                    )
+                                    pending_rule = base_proposal
+                                    _persist_talk_state()
+                                    return (
+                                        "I could not certify an"
+                                        + " induction over '"
+                                        + claim_text
+                                        + "' (no-base). The step is"
+                                        + " recorded: "
+                                        + P.PrettyRule(
+                                            step_rule,
+                                            M.AllConstructors,
+                                        )()
+                                        + ". From its own shape the"
+                                        + " base would be: "
+                                        + P.PrettyRule(
+                                            base_rule,
+                                            M.AllConstructors,
+                                        )()
+                                        + ". Approve? (yes/no)"
+                                    )
                 _persist_talk_state()
                 return (
                     "I could not certify an induction over '"
