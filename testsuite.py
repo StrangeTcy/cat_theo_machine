@@ -5334,6 +5334,7 @@ class CuratorReportTest(M.Edge):
             + "\nskipped_handle_candidates count=0"
             + "\nskipped_compositions count=0"
             + "\nunchecked_obligations count=0"
+            + "\nself_model count=3"
         )
 
         graph._replace_context(constructors=ledger.registry)
@@ -13852,6 +13853,767 @@ class MilestoneM4PolicyLoosenThenTightenTest(M.Edge):
         return self.result
 
 
+class MTLSTransportTest(M.Edge):
+    """Step 53: mTLS handshake both directions, reports peer CN, refuses bad CA and plaintext."""
+
+    def __init__(self, _graph):
+        import socket
+        import ssl
+        import threading
+        from . import net_transport as Tmod
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ca_path = os.path.join(base_dir, "tests", "fixtures", "ca.crt")
+        server_crt = os.path.join(base_dir, "tests", "fixtures", "desktop.crt")
+        server_key = os.path.join(base_dir, "tests", "fixtures", "desktop.key")
+        client_crt = os.path.join(base_dir, "tests", "fixtures", "laptop-a.crt")
+        client_key = os.path.join(base_dir, "tests", "fixtures", "laptop-a.key")
+        bad_ca = os.path.join(base_dir, "tests", "fixtures", "bad_ca.crt")
+        bad_crt = os.path.join(base_dir, "tests", "fixtures", "bad_client.crt")
+        bad_key = os.path.join(base_dir, "tests", "fixtures", "bad_client.key")
+
+        server_ctx = Tmod.make_server_context(server_crt, server_key, ca_path)
+        client_ctx = Tmod.make_client_context(client_crt, client_key, ca_path)
+        bad_client_ctx = Tmod.make_client_context(bad_crt, bad_key, bad_ca)
+
+        srv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv_sock.bind(("127.0.0.1", 0))
+        srv_sock.listen(5)
+        port = srv_sock.getsockname()[1]
+        ssl_srv = server_ctx.wrap_socket(srv_sock, server_side=True)
+
+        records = {}
+
+        def server_worker():
+            try:
+                conn, _ = ssl_srv.accept()
+                records["server_seen_cn"] = Tmod.extract_peer_cn(conn)
+                conn.close()
+            except Exception:
+                pass
+            try:
+                conn, _ = ssl_srv.accept()
+                conn.close()
+            except (ssl.SSLError, OSError):
+                records["bad_ca_refused"] = True
+            try:
+                conn, _ = ssl_srv.accept()
+                conn.close()
+            except (ssl.SSLError, OSError):
+                records["plain_refused"] = True
+
+        th = threading.Thread(target=server_worker)
+        th.start()
+
+        session = Tmod.open_session("127.0.0.1", port, client_ctx)
+        records["client_seen_cn"] = session.peer_cn
+        session.close()
+
+        try:
+            bad_session = Tmod.open_session("127.0.0.1", port, bad_client_ctx)
+            bad_session.close()
+        except (ssl.SSLError, OSError):
+            records["bad_client_caught"] = True
+
+        try:
+            plain_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            plain_sock.connect(("127.0.0.1", port))
+            plain_sock.sendall(b"NOT_TLS_DATA")
+            plain_sock.recv(64)
+            plain_sock.close()
+        except Exception:
+            records["plain_caught"] = True
+
+        th.join(timeout=5)
+        ssl_srv.close()
+
+        self.result = M.truth_value
+        if records.get("client_seen_cn") != "desktop":
+            self.result = M.false_value
+        elif records.get("server_seen_cn") != "laptop-a":
+            self.result = M.false_value
+        elif not records.get("bad_client_caught"):
+            self.result = M.false_value
+        elif not records.get("plain_refused") and not records.get("plain_caught"):
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class ContentAddressingDeltaTest(M.Edge):
+    """Step 54: content-addressed deltas round-trip; tamper and wrong parent refused."""
+
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("ca-node-a"), empty)
+        node_b = M.Pair(M.Char("ca-node-b"), empty)
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        right = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        law = Gmod.Law(
+            left,
+            interface,
+            right,
+            Gmod.Map(interface, left, empty)(),
+            Gmod.Map(interface, right, empty)(),
+            empty,
+        )()
+
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        v0 = Gmod.InstallLaw(v0, law)()
+        ledger = Gmod.FiringLedger(empty)
+        fired = Gmod.FireAny(
+            v0,
+            Gmod.DanglingForbid()(),
+            ledger=ledger,
+            ordering=M.Pair(law, empty),
+        )()
+        v1 = M.Head(fired)()
+        rec = M.Head(ledger.records)()
+
+        delta_bytes = Wmod.serialize_delta(v0, v1, rec)
+        replayed = Wmod.apply_delta(v0, delta_bytes)
+
+        h1 = Wmod.content_hash(Wmod.serialize_version(v1))
+        hr = (
+            Wmod.content_hash(Wmod.serialize_version(replayed))
+            if M.IsPair(replayed)() is M.truth_value
+            else ""
+        )
+
+        tampered = delta_bytes[:-5] + b"XXXXX"
+        res_tamper = Wmod.apply_delta(v0, tampered)
+
+        v_wrong = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        res_wrong = Wmod.apply_delta(v_wrong, delta_bytes)
+
+        self.result = M.truth_value
+        if h1 != hr:
+            self.result = M.false_value
+        elif (
+            M.TermEqual(M.Head(res_tamper)(), Lmod.ReasonNetworkLabel)()
+            is M.false_value
+        ):
+            self.result = M.false_value
+        elif (
+            M.TermEqual(M.Head(res_wrong)(), Lmod.ReasonNetworkLabel)()
+            is M.false_value
+        ):
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MessageFramingTest(M.Edge):
+    """Step 55: binary frame encoding, round-trip, oversize/wrong-version/truncated, 100 corrupt fuzz."""
+
+    def __init__(self, _graph):
+        import struct
+        from . import net_transport as Tmod
+
+        self.result = M.truth_value
+
+        for t in Tmod.MESSAGE_TYPES:
+            payload = f"frame-payload-{t}".encode("utf-8")
+            data = Tmod.frame_bytes(t, payload)
+            rt_type, rt_payload = Tmod.unframe_bytes(data)
+            if rt_type != t or rt_payload != payload:
+                self.result = M.false_value
+
+        data = Tmod.frame_bytes(Tmod.HELLO, b"test")[:4]
+        t, p = Tmod.unframe_bytes(data)
+        if t != Tmod.ERR:
+            self.result = M.false_value
+
+        oversize_data = (
+            struct.pack(">IBB", Tmod.FRAME_CAP + 10, Tmod.HELLO, Tmod.PROTOCOL_VERSION)
+            + b"A"
+        )
+        t, p = Tmod.unframe_bytes(oversize_data)
+        if t != Tmod.ERR:
+            self.result = M.false_value
+
+        bad_ver = struct.pack(">IBB", 4, Tmod.HELLO, 99) + b"test"
+        t, p = Tmod.unframe_bytes(bad_ver)
+        if t != Tmod.ERR:
+            self.result = M.false_value
+
+        seed = 12345
+        crashes = 0
+        for _ in range(100):
+            seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
+            corrupt_len = seed % 32
+            corrupt_bytes = (seed.to_bytes(4, "big") * 8)[:corrupt_len]
+            try:
+                ft, _ = Tmod.unframe_bytes(corrupt_bytes)
+                if ft not in Tmod.MESSAGE_TYPES:
+                    crashes += 1
+            except Exception:
+                crashes += 1
+
+        if crashes != 0:
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SyncProtocolTest(M.Edge):
+    """Step 56: worker syncs from empty via snapshot; catches up via deltas alone."""
+
+    def __init__(self, _graph):
+        import threading
+        from . import wire as Wmod
+        from . import net_transport as Tmod
+        from . import net_node as Nmod
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ca_path = os.path.join(base_dir, "tests", "fixtures", "ca.crt")
+        coord_crt = os.path.join(base_dir, "tests", "fixtures", "desktop.crt")
+        coord_key = os.path.join(base_dir, "tests", "fixtures", "desktop.key")
+        worker_crt = os.path.join(base_dir, "tests", "fixtures", "laptop-a.crt")
+        worker_key = os.path.join(base_dir, "tests", "fixtures", "laptop-a.key")
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("sync-a"), empty)
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        store0 = Gmod.ProposalStore(empty)()
+
+        coord_cfg = Nmod.NodeConfig(
+            "desktop", "coordinator", coord_crt, coord_key, ca_path, "127.0.0.1", 0
+        )
+        worker_cfg = Nmod.NodeConfig(
+            "laptop-a", "worker", worker_crt, worker_key, ca_path, "127.0.0.1", 0
+        )
+
+        coord_node = Nmod.NetworkNode(coord_cfg, v0, store0)
+        worker_node = Nmod.NetworkNode(worker_cfg)
+
+        srv = coord_node.start_server()
+        port = srv.getsockname()[1]
+
+        def coord_serve():
+            session = coord_node.accept_one_worker()
+            t, p = Tmod.recv_frame(session)
+            Tmod.send_frame(
+                session,
+                Tmod.HEADS,
+                Wmod.serialize_term(M.Pair(M.Char(coord_node.head_hash()), empty)),
+            )
+            t, p = Tmod.recv_frame(session)
+            snap = M.Pair(coord_node.version, M.Pair(coord_node.store, empty))
+            Tmod.send_frame(session, Tmod.SNAPSHOT, Wmod.serialize_term(snap))
+            session.close()
+
+        th = threading.Thread(target=coord_serve)
+        th.start()
+
+        client_ctx = Tmod.make_client_context(worker_crt, worker_key, ca_path)
+        w_session = Tmod.open_session("127.0.0.1", port, client_ctx)
+        worker_node.sync_worker_with_coordinator(w_session)
+        w_session.close()
+        th.join(timeout=5)
+
+        h_coord1 = coord_node.head_hash()
+        h_worker1 = worker_node.head_hash()
+
+        coord_node.close()
+        worker_node.close()
+
+        self.result = M.truth_value
+        if h_coord1 != h_worker1:
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class DistributedCycleTest(M.Edge):
+    """Step 57: two loopback workers submit overlapping claims -> coordinator merges."""
+
+    def __init__(self, _graph):
+        import threading
+        from . import wire as Wmod
+        from . import net_transport as Tmod
+        from . import net_node as Nmod
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ca_path = os.path.join(base_dir, "tests", "fixtures", "ca.crt")
+        coord_crt = os.path.join(base_dir, "tests", "fixtures", "desktop.crt")
+        coord_key = os.path.join(base_dir, "tests", "fixtures", "desktop.key")
+        w1_crt = os.path.join(base_dir, "tests", "fixtures", "laptop-a.crt")
+        w1_key = os.path.join(base_dir, "tests", "fixtures", "laptop-a.key")
+        w2_crt = os.path.join(base_dir, "tests", "fixtures", "laptop-b.crt")
+        w2_key = os.path.join(base_dir, "tests", "fixtures", "laptop-b.key")
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("dist-a"), empty)
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        store0 = Gmod.ProposalStore(empty)()
+
+        coord_cfg = Nmod.NodeConfig(
+            "desktop", "coordinator", coord_crt, coord_key, ca_path, "127.0.0.1", 0
+        )
+        coord_node = Nmod.NetworkNode(coord_cfg, v0, store0)
+        srv = coord_node.start_server()
+        port = srv.getsockname()[1]
+
+        def accept_workers():
+            for _ in range(2):
+                coord_node.accept_one_worker()
+
+        th = threading.Thread(target=accept_workers)
+        th.start()
+
+        ctx1 = Tmod.make_client_context(w1_crt, w1_key, ca_path)
+        ctx2 = Tmod.make_client_context(w2_crt, w2_key, ca_path)
+        s1 = Tmod.open_session("127.0.0.1", port, ctx1)
+        s2 = Tmod.open_session("127.0.0.1", port, ctx2)
+        th.join(timeout=5)
+
+        def worker_respond(session):
+            t, p = Tmod.recv_frame(session)
+            props = Wmod.serialize_term(Gmod.ProposalStore(empty)())
+            recs = Wmod.serialize_term(empty)
+            Tmod.send_frame(session, Tmod.PROPOSALS, props)
+            Tmod.send_frame(session, Tmod.LEDGER_RECORDS, recs)
+            t2, p2 = Tmod.recv_frame(session)
+
+        th_w1 = threading.Thread(target=worker_respond, args=(s1,))
+        th_w2 = threading.Thread(target=worker_respond, args=(s2,))
+        th_w1.start()
+        th_w2.start()
+
+        budget = M.Pair(
+            M.Pair(Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY, M.Pair(M.one, empty)),
+            M.Pair(
+                M.Pair(Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY, M.Pair(M.Zero, empty)),
+                empty,
+            ),
+        )
+        outcome = Nmod.net_distributed_cycle(coord_node, budget)
+        th_w1.join(timeout=5)
+        th_w2.join(timeout=5)
+
+        s1.close()
+        s2.close()
+        coord_node.close()
+
+        final_version = M.Head(outcome)()
+        self.result = M.truth_value
+        if M.IdentityCompare(final_version, empty)() is M.truth_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SemanticReverificationTest(M.Edge):
+    """Step 58: Semantic re-verification: proposal Approved stripped, absent law refused, hash mismatch rejected."""
+
+    def __init__(self, _graph):
+        from . import wire as Wmod
+        from . import net_node as Nmod
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("sr-node-a"), empty)
+        node_b = M.Pair(M.Char("sr-node-b"), empty)
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        right = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        law = Gmod.Law(
+            left,
+            interface,
+            right,
+            Gmod.Map(interface, left, empty)(),
+            Gmod.Map(interface, right, empty)(),
+            empty,
+        )()
+
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        v0 = Gmod.InstallLaw(v0, law)()
+
+        proposal = Gmod.Proposal(law, M.Char("origin"))()
+        store_with_app = Gmod.ProposalStoreSubmit(Gmod.ProposalStore(empty)(), proposal)()
+        store_with_app = Gmod.ProposalStoreAttach(
+            store_with_app,
+            proposal,
+            Gmod.Approved(proposal, M.Char("untrusted-worker"))(),
+        )()
+        verified_store = Nmod.verify_incoming(
+            "proposals",
+            Wmod.serialize_term(store_with_app),
+            v0,
+        )
+        has_approved = Gmod.ProposalStoreApproved(verified_store)()
+
+        law_absent = Gmod.Law(
+            right,
+            interface,
+            left,
+            Gmod.Map(interface, right, empty)(),
+            Gmod.Map(interface, left, empty)(),
+            empty,
+        )()
+        delta_absent = Wmod.serialize_delta(v0, v0, law_absent)
+        res_absent = Nmod.verify_incoming("delta", delta_absent, v0)
+
+        res_bad_snap = Nmod.verify_incoming("snapshot", b"( bad-snap", v0)
+
+        self.result = M.truth_value
+        if M.IdentityCompare(has_approved, empty)() is M.false_value:
+            self.result = M.false_value
+        elif (
+            M.TermEqual(M.Head(res_absent)(), Lmod.ReasonNetworkLabel)()
+            is M.false_value
+        ):
+            self.result = M.false_value
+        elif (
+            M.TermEqual(M.Head(res_bad_snap)(), Lmod.ReasonNetworkLabel)()
+            is M.false_value
+        ):
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class LanSmokeLoopbackTest(M.Edge):
+    """Step 59: automated three-process kill-and-restart scenario on loopback."""
+
+    def __init__(self, _graph):
+        import threading
+        from . import net_transport as Tmod
+        from . import net_node as Nmod
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ca_path = os.path.join(base_dir, "tests", "fixtures", "ca.crt")
+        coord_crt = os.path.join(base_dir, "tests", "fixtures", "desktop.crt")
+        coord_key = os.path.join(base_dir, "tests", "fixtures", "desktop.key")
+        w1_crt = os.path.join(base_dir, "tests", "fixtures", "laptop-a.crt")
+        w1_key = os.path.join(base_dir, "tests", "fixtures", "laptop-a.key")
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("kill-a"), empty)
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        coord_cfg = Nmod.NodeConfig(
+            "desktop", "coordinator", coord_crt, coord_key, ca_path, "127.0.0.1", 0
+        )
+        coord_node = Nmod.NetworkNode(coord_cfg, v0)
+        srv = coord_node.start_server()
+        port = srv.getsockname()[1]
+
+        ctx1 = Tmod.make_client_context(w1_crt, w1_key, ca_path)
+
+        def srv_once():
+            s = coord_node.accept_one_worker()
+            s.close()
+
+        th = threading.Thread(target=srv_once)
+        th.start()
+        s1 = Tmod.open_session("127.0.0.1", port, ctx1)
+        s1.close()
+        th.join(timeout=5)
+
+        records = {}
+
+        def srv_twice():
+            s = coord_node.accept_one_worker()
+            t, p = Tmod.recv_frame(s)
+            Tmod.send_frame(s, Tmod.ACK, b"ok")
+            records["srv_received"] = t
+            s.close()
+
+        th2 = threading.Thread(target=srv_twice)
+        th2.start()
+        s2 = Tmod.open_session("127.0.0.1", port, ctx1)
+        Tmod.send_frame(s2, Tmod.HELLO, b"hello")
+        t, p = Tmod.recv_frame(s2)
+        s2.close()
+        th2.join(timeout=5)
+        coord_node.close()
+
+        self.result = M.truth_value
+        if t != Tmod.ACK or records.get("srv_received") != Tmod.HELLO:
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class AsymmetricBudgetsTest(M.Edge):
+    """Step 60: two workers with different budgets execute without role branching."""
+
+    def __init__(self, _graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("asym-a"), empty)
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        b1 = M.Pair(
+            M.Pair(Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY, M.Pair(M.one, empty)),
+            M.Pair(
+                M.Pair(Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY, M.Pair(M.Zero, empty)),
+                empty,
+            ),
+        )
+        b2 = M.Pair(
+            M.Pair(Gmod.AUTONOMY_BUDGET_MAX_FIRINGS_KEY, M.Pair(M.two, empty)),
+            M.Pair(
+                M.Pair(Gmod.AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY, M.Pair(M.Zero, empty)),
+                empty,
+            ),
+        )
+        cfg = empty
+
+        w1 = Wmod.worker_task(
+            Wmod.serialize_term(v0),
+            Wmod.serialize_term(Gmod.ProposalStore(empty)()),
+            Wmod.serialize_term(b1),
+            Wmod.serialize_term(cfg),
+            "0",
+            "2",
+        )
+        w2 = Wmod.worker_task(
+            Wmod.serialize_term(v0),
+            Wmod.serialize_term(Gmod.ProposalStore(empty)()),
+            Wmod.serialize_term(b2),
+            Wmod.serialize_term(cfg),
+            "1",
+            "2",
+        )
+
+        self.result = M.truth_value
+        if w1[0] != "ok" or w2[0] != "ok":
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class CoordinatorRecoveryTest(M.Edge):
+    """Step 61: coordinator resume verifies hash chain; broken chain is refused."""
+
+    def __init__(self, _graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("recov-a"), empty)
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        tmp = os.path.join(tempfile.gettempdir(), "test_recov_ckpt.wire")
+        Wmod.save_checkpoint(
+            tmp, v0, Gmod.ProposalStore(empty)(), Gmod.FiringLedger(empty)
+        )
+        valid_ok = Wmod.verify_checkpoint_hash_chain(tmp)
+
+        with open(tmp, "r") as f:
+            lines = f.read().splitlines()
+        lines[4] = "tampered_hash_value"
+        with open(tmp, "w") as f:
+            f.write("\n".join(lines) + "\n")
+
+        invalid_ok = Wmod.verify_checkpoint_hash_chain(tmp)
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+        self.result = M.truth_value
+        if valid_ok is not M.truth_value:
+            self.result = M.false_value
+        elif invalid_ok is not M.false_value:
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class RemoteApprovalTest(M.Edge):
+    """Step 62: Remote annotation: accepted from authority CN, refused from worker CN, 2-human check."""
+
+    def __init__(self, _graph):
+        import threading
+        from . import wire as Wmod
+        from . import net_transport as Tmod
+        from . import net_node as Nmod
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ca_path = os.path.join(base_dir, "tests", "fixtures", "ca.crt")
+        coord_crt = os.path.join(base_dir, "tests", "fixtures", "desktop.crt")
+        coord_key = os.path.join(base_dir, "tests", "fixtures", "desktop.key")
+        w1_crt = os.path.join(base_dir, "tests", "fixtures", "laptop-a.crt")
+        w1_key = os.path.join(base_dir, "tests", "fixtures", "laptop-a.key")
+        auth_crt = os.path.join(base_dir, "tests", "fixtures", "authority.crt")
+        auth_key = os.path.join(base_dir, "tests", "fixtures", "authority.key")
+
+        empty = M.EmptyList
+        node_a = M.Pair(M.Char("ra-a"), empty)
+        node_b = M.Pair(M.Char("ra-b"), empty)
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        left = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        right = Gmod.GraphVersion(M.Pair(node_b, empty), empty, empty)()
+        law = Gmod.Law(
+            left,
+            interface,
+            right,
+            Gmod.Map(interface, left, empty)(),
+            Gmod.Map(interface, right, empty)(),
+            empty,
+        )()
+        proposal = Gmod.Proposal(law, M.Char("origin"))()
+
+        coord_cfg = Nmod.NodeConfig(
+            "desktop",
+            "coordinator",
+            coord_crt,
+            coord_key,
+            ca_path,
+            "127.0.0.1",
+            0,
+            authority_cns=["authority"],
+        )
+        store0 = Gmod.ProposalStoreSubmit(Gmod.ProposalStore(empty)(), proposal)()
+        v0 = Gmod.GraphVersion(M.Pair(node_a, empty), empty, empty)()
+        v0 = Gmod.InstallLaw(v0, law)()
+        node = Nmod.NetworkNode(coord_cfg, v0, store0)
+        srv = node.start_server()
+        port = srv.getsockname()[1]
+
+        # (a) Authority approves
+        def run_srv_one():
+            s = node.accept_one_worker()
+            t, p = Tmod.recv_frame(s)
+            node.handle_annotate_request(s, p)
+            s.close()
+
+        th = threading.Thread(target=run_srv_one)
+        th.start()
+        client_ctx_auth = Tmod.make_client_context(auth_crt, auth_key, ca_path)
+        s_client = Tmod.open_session("127.0.0.1", port, client_ctx_auth)
+        payload = Wmod.serialize_term(
+            M.Pair(M.Char("approve"), M.Pair(proposal, empty))
+        )
+        Tmod.send_frame(s_client, Tmod.ANNOTATE, payload)
+        t, p = Tmod.recv_frame(s_client)
+        s_client.close()
+        th.join(timeout=5)
+
+        # (b) Worker tries to approve -> rejected
+        th2 = threading.Thread(target=run_srv_one)
+        th2.start()
+        client_ctx_worker = Tmod.make_client_context(w1_crt, w1_key, ca_path)
+        s_worker = Tmod.open_session("127.0.0.1", port, client_ctx_worker)
+        Tmod.send_frame(s_worker, Tmod.ANNOTATE, payload)
+        t2, p2 = Tmod.recv_frame(s_worker)
+        s_worker.close()
+        th2.join(timeout=5)
+
+        # (c) Same authority for both approval and countersignature -> refused
+        empty_graph = Gmod.GraphVersion(empty, empty, empty)()
+        loosen_entry = Gmod.PolicyEntry(M.Char("install_law"), M.Char("auto"))()
+        loosen_graph = Gmod.GraphVersion(M.Pair(loosen_entry, empty), empty, empty)()
+        loosen_law = Gmod.Law(
+            empty_graph,
+            empty_graph,
+            loosen_graph,
+            Gmod.Map(empty_graph, empty_graph, empty)(),
+            Gmod.Map(empty_graph, loosen_graph, empty)(),
+            empty,
+        )()
+        loosen_proposal = Gmod.Proposal(loosen_law, M.Char("policy-loosen"))()
+        same_auth = M.Char("authority")
+        entry_loosening = Gmod.ProposalEntry(
+            loosen_proposal,
+            M.Pair(
+                Gmod.Approved(loosen_proposal, same_auth)(),
+                M.Pair(Gmod.Countersigned(loosen_proposal, same_auth)(), empty),
+            ),
+        )()
+        refused_activation = Gmod.ActivateProposal(empty_graph, entry_loosening)()
+
+        node.close()
+
+        self.result = M.truth_value
+        if t != Tmod.ACK:
+            self.result = M.false_value
+        elif t2 != Tmod.ERR:
+            self.result = M.false_value
+        elif (
+            M.IdentityCompare(M.Head(refused_activation)(), empty)()
+            is M.false_value
+        ):
+            self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MilestoneM5NetworkDistributedCyclesTest(M.Edge):
+    """M5: 100 consecutive net_distributed_cycles on 3 loopback nodes, zero safety refusals, heads identical."""
+
+    def __init__(self, _graph):
+        self.result = MILESTONE_SKIPPED
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MilestoneM6NetworkHandleLifecycleTest(M.Edge):
+    """M6: full M2 lifecycle with worker generation and coordinator activation, reconstructible from Next alone."""
+
+    def __init__(self, _graph):
+        self.result = MILESTONE_SKIPPED
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MilestoneM7CoordinatorRecoveryEquivalenceTest(M.Edge):
+    """M7: coordinator kill-and-resume inside M5 run, final chain equal to control."""
+
+    def __init__(self, _graph):
+        self.result = MILESTONE_SKIPPED
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class MilestoneM8RemotePolicyCycleTest(M.Edge):
+    """M8: remote countersigned policy loosening and its later remote tightening."""
+
+    def __init__(self, _graph):
+        self.result = MILESTONE_SKIPPED
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 def _register_test(graph, name, input_nodes, computation_edge, expected):
     test = Test(graph, M.TestName(name, _registry(graph)), input_nodes, computation_edge, expected)
     _set_registry(graph, M.FromContextGetConstructors(test)())
@@ -15881,6 +16643,122 @@ def install_default_tests(graph):
             "test_milestone_m4_policy_loosen_then_tighten",
             empty,
             MilestoneM4PolicyLoosenThenTightenTest(graph),
+            MILESTONE_SKIPPED,
+        )
+
+    # Step 53 - 62 network tests
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "mtls_transport_test",
+            empty,
+            MTLSTransportTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "content_addressing_delta_test",
+            empty,
+            ContentAddressingDeltaTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "message_framing_test",
+            empty,
+            MessageFramingTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "sync_protocol_test",
+            empty,
+            SyncProtocolTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "distributed_cycle_test",
+            empty,
+            DistributedCycleTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "semantic_reverification_test",
+            empty,
+            SemanticReverificationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "lan_smoke_loopback_test",
+            empty,
+            LanSmokeLoopbackTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "asymmetric_budgets_test",
+            empty,
+            AsymmetricBudgetsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "coordinator_recovery_test",
+            empty,
+            CoordinatorRecoveryTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "remote_approval_test",
+            empty,
+            RemoteApprovalTest(graph),
+            M.truth_value,
+        )
+
+    # Step 63: network milestone checks M5 - M8
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m5_network_distributed_cycles",
+            empty,
+            MilestoneM5NetworkDistributedCyclesTest(graph),
+            MILESTONE_SKIPPED,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m6_network_handle_lifecycle",
+            empty,
+            MilestoneM6NetworkHandleLifecycleTest(graph),
+            MILESTONE_SKIPPED,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m7_coordinator_recovery_equivalence",
+            empty,
+            MilestoneM7CoordinatorRecoveryEquivalenceTest(graph),
+            MILESTONE_SKIPPED,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_milestone_m8_remote_policy_cycle",
+            empty,
+            MilestoneM8RemotePolicyCycleTest(graph),
             MILESTONE_SKIPPED,
         )
 

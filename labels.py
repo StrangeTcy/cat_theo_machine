@@ -1255,6 +1255,14 @@ class ReasonEvaluationLabel(ConstructorLabel):
     pass
 
 
+class HashRefLabel(ConstructorLabel):
+    pass
+
+
+class ReasonNetworkLabel(ConstructorLabel):
+    pass
+
+
 class CorrespondenceExampleLabel(ConstructorLabel):
     pass
 
@@ -1708,6 +1716,8 @@ ReasonUnknownWordLabel = ReasonUnknownWordLabel()
 ReasonNoCorrespondenceLabel = ReasonNoCorrespondenceLabel()
 ReasonGroupLabel = ReasonGroupLabel()
 ReasonEvaluationLabel = ReasonEvaluationLabel()
+HashRefLabel = HashRefLabel()
+ReasonNetworkLabel = ReasonNetworkLabel()
 CorrespondenceExampleLabel = CorrespondenceExampleLabel()
 TaskLabel = TaskLabel()
 HandleLabel = HandleLabel()
@@ -2244,6 +2254,8 @@ def sync_from_namespace(namespace):
         "ReasonNoCorrespondenceLabel",
         "ReasonGroupLabel",
         "ReasonEvaluationLabel",
+        "HashRefLabel",
+        "ReasonNetworkLabel",
         "CorrespondenceExampleLabel",
         "TaskLabel",
         "HandleLabel",

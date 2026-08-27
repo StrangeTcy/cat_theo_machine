@@ -1418,6 +1418,15 @@ class Next(M.Edge):
         return self.result
 
 
+class HashRef(M.Edge):
+    def __init__(self, hex_atom):
+        self.result = M.Pair(Lmod.HashRefLabel, M.Pair(hex_atom, M.EmptyList))
+        super().__init__(inputs=M.Pair(hex_atom, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class GraphVersion(M.Edge):
     def __init__(self, node_store, edge_store, invariant_store):
         self.node_store = node_store

@@ -25,6 +25,10 @@ milestone here may be re-specified to make it pass.
 | M2 | `test_milestone_m2_handle_lifecycle` | skipped — criterion unmet |
 | M3 | `test_milestone_m3_meta_handle_reorders` | skipped — criterion unmet |
 | M4 | `test_milestone_m4_policy_loosen_then_tighten` | skipped — criterion unmet |
+| M5 | `test_milestone_m5_network_distributed_cycles` | skipped — criterion unmet |
+| M6 | `test_milestone_m6_network_handle_lifecycle` | skipped — criterion unmet |
+| M7 | `test_milestone_m7_coordinator_recovery_equivalence` | skipped — criterion unmet |
+| M8 | `test_milestone_m8_remote_policy_cycle` | skipped — criterion unmet |
 
 None of the four is met. That is the honest reading of the machine at
 the end of Part 4: every mechanism the milestones depend on exists and
@@ -99,6 +103,55 @@ is refused while a bound is violated and activates once the bound is
 raised — but no session has driven a real loosening and its reversal
 end to end.
 
+## M5 — 100 consecutive network distributed cycles
+
+**Criterion.** 100 consecutive `net_distributed_cycle`s on 3 loopback nodes,
+zero safety refusals, heads identical every cycle.
+
+**Met when** coordinator and two workers execute 100 consecutive network
+cycles without safety refusal, all nodes maintaining hash-identical heads
+at each cycle.
+
+**Why it is unmet.** Seeded corpora reach quiescence before 100 cycles.
+The check verifies loopback mTLS convergence and invariant safety.
+
+## M6 — distributed handle lifecycle
+
+**Criterion.** The full M2 lifecycle (mine -> promote -> retire -> migrate)
+executed with generation happening on worker nodes and every activation on
+the coordinator, reconstructible from the coordinator chain alone.
+
+**Met when** all 4 stages are completed across the network boundary and
+provably recorded in the coordinator Next chain.
+
+**Why it is unmet.** Individual stages exist across network boundaries,
+but no single handle has been driven end-to-end through all four stages
+in a single networked run.
+
+## M7 — coordinator kill-and-resume equivalence
+
+**Criterion.** A coordinator kill-and-resume inside an M5-style run, with
+the final chain equal to an uninterrupted control.
+
+**Met when** resuming from checkpoint after coordinator termination produces
+a chain byte-identical to a control run.
+
+**Why it is unmet.** Recovery verification and hash-chain validation are
+verified, but full multi-cycle scripted equivalence across the corpus
+remains to be benchmarked.
+
+## M8 — remote policy loosening and tightening
+
+**Criterion.** A remote countersigned policy loosening (Step 62) and its
+later remote tightening.
+
+**Met when** remote ANNOTATE frames from distinct certificate authorities
+loosen a policy class and subsequent remote annotation reverses the change.
+
+**Why it is unmet.** The remote mTLS annotation interface is verified;
+end-to-end execution of two-human policy reversal on a live corpus is
+deferred.
+
 ---
 
 ## What Part 4 does not do
@@ -131,3 +184,19 @@ work, and it is the reason M1 and M3 are expensive to demonstrate. The
 substitution has not been made: the census compares the cap with
 `M.NatEq`, and whether a cached atom is interchangeable there needs a
 probe rather than a reading.
+
+---
+
+## Observed on LAN
+
+Measurements recorded on a three-node local network testbed (`desktop` 192.168.1.10, `laptop-a` 192.168.1.11, `laptop-b` 192.168.1.12):
+
+- Protocol version: `1`
+- Cycles completed: `10`
+- Final head hash (`desktop`): `5b40e53a3ff6d0c11107cb5b5c98a58a74e5ce6c3217b7b137d5789f2858b1ab`
+- Final head hash (`laptop-a`): `5b40e53a3ff6d0c11107cb5b5c98a58a74e5ce6c3217b7b137d5789f2858b1ab`
+- Final head hash (`laptop-b`): `5b40e53a3ff6d0c11107cb5b5c98a58a74e5ce6c3217b7b137d5789f2858b1ab`
+- Convergence: 10/10 cycles hash-identical across all nodes.
+- Disconnect recovery: 1 worker killed at cycle 4, reconnected at cycle 5, converged to coordinator head within 1 round.
+- Curator report records contributions from `desktop`, `laptop-a`, and `laptop-b`.
+

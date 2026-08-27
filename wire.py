@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import urllib.parse
+from hashlib import sha256
 
 from . import machine as M
 from . import labels as Lmod
@@ -467,12 +468,121 @@ def distributed_cycle(graph_version, proposal_store, ledger, budget,
     )
 
 
+def content_hash(payload_bytes):
+    return sha256(payload_bytes).hexdigest()
+
+
+def serialize_delta(parent_version, child_version, fire_record):
+    from .graph import HashRef
+
+    parent_hash = content_hash(serialize_version(parent_version))
+    child_hash = content_hash(serialize_version(child_version))
+    parent_ref = HashRef(M.Char(parent_hash))()
+    child_ref = HashRef(M.Char(child_hash))()
+    delta_term = M.Pair(parent_ref, M.Pair(fire_record, M.Pair(child_ref, M.EmptyList)))
+    return serialize_term(delta_term)
+
+
+def apply_delta(version, delta_bytes):
+    try:
+        delta_term = deserialize_term(delta_bytes)
+    except Exception:
+        return M.Pair(Lmod.ReasonNetworkLabel, M.Pair(M.Char("delta-corrupt"), M.EmptyList))
+
+    if M.IsPair(delta_term)() is M.false_value:
+        return M.Pair(Lmod.ReasonNetworkLabel, M.Pair(M.Char("delta-corrupt"), M.EmptyList))
+    parent_ref = M.Head(delta_term)()
+    tail1 = M.Tail(delta_term)()
+    if M.IsPair(tail1)() is M.false_value:
+        return M.Pair(Lmod.ReasonNetworkLabel, M.Pair(M.Char("delta-corrupt"), M.EmptyList))
+    fire_record = M.Head(tail1)()
+    tail2 = M.Tail(tail1)()
+    if M.IsPair(tail2)() is M.false_value:
+        return M.Pair(Lmod.ReasonNetworkLabel, M.Pair(M.Char("delta-corrupt"), M.EmptyList))
+    child_ref = M.Head(tail2)()
+
+    local_hash = content_hash(serialize_version(version))
+    parent_hash_char = M.Head(M.Tail(parent_ref)())()
+    expected_parent_hash = parent_hash_char()
+    if local_hash != expected_parent_hash:
+        return M.Pair(
+            Lmod.ReasonNetworkLabel,
+            M.Pair(
+                M.Char("parent-mismatch"),
+                M.Pair(M.Char(local_hash), M.Pair(parent_hash_char, M.EmptyList)),
+            ),
+        )
+
+    law = fire_record
+    if M.IsPair(fire_record)() is M.truth_value:
+        tag = M.Head(fire_record)()
+        if (
+            M.TermEqual(tag, Lmod.FiringRecordLabel)() is M.truth_value
+            or M.TermEqual(tag, Lmod.FireLabel)() is M.truth_value
+        ):
+            law = M.Head(M.Tail(fire_record)())()
+        elif M.TermEqual(tag, Lmod.NextLabel)() is M.truth_value:
+            fire_sub = M.Head(M.Tail(M.Tail(fire_record)())())()
+            if M.IsPair(fire_sub)() is M.truth_value:
+                law = M.Head(M.Tail(fire_sub)())()
+
+    from . import graph as Gmod
+
+    installed = Gmod.InstalledLaws(version)()
+    matching_law = M.EmptyList
+    rem = installed
+    while M.IdentityCompare(rem, M.EmptyList)() is M.false_value:
+        cand = M.Head(rem)()
+        if M.Compare(cand, law)() is M.truth_value:
+            matching_law = cand
+            break
+        rem = M.Tail(rem)()
+
+    if M.IdentityCompare(matching_law, M.EmptyList)() is M.truth_value:
+        return M.Pair(Lmod.ReasonNetworkLabel, M.Pair(M.Char("law-absent"), M.EmptyList))
+
+    ordering = M.Pair(matching_law, M.EmptyList)
+    replayed = Gmod.FireAny(version, Gmod.DanglingForbid()(), ordering=ordering)()
+    replayed_version = M.Head(replayed)()
+    if M.IdentityCompare(replayed_version, M.EmptyList)() is M.truth_value:
+        return M.Pair(Lmod.ReasonNetworkLabel, M.Pair(M.Char("replay-failed"), M.EmptyList))
+
+    child_hash_char = M.Head(M.Tail(child_ref)())()
+    expected_child_hash = child_hash_char()
+    replayed_hash = content_hash(serialize_version(replayed_version))
+    if replayed_hash != expected_child_hash:
+        return M.Pair(
+            Lmod.ReasonNetworkLabel,
+            M.Pair(
+                M.Char("hash-mismatch"),
+                M.Pair(M.Char(replayed_hash), M.Pair(child_hash_char, M.EmptyList)),
+            ),
+        )
+    return replayed_version
+
+
+def verify_checkpoint_hash_chain(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    if len(lines) < 4 or lines[0] != _WIRE_HEADER:
+        return M.false_value
+    version_bytes = lines[1].encode("utf-8")
+    computed_hash = content_hash(version_bytes)
+    if len(lines) > 4:
+        recorded_hash = lines[4].strip()
+        if recorded_hash and recorded_hash != computed_hash:
+            return M.false_value
+    return M.truth_value
+
+
 def save_checkpoint(path, graph_version, proposal_store, ledger):
+    version_bytes = serialize_version(graph_version)
     lines = [
         _WIRE_HEADER,
-        serialize_version(graph_version).decode("utf-8"),
+        version_bytes.decode("utf-8"),
         serialize_proposal_store(proposal_store).decode("utf-8"),
         serialize_ledger(ledger).decode("utf-8"),
+        content_hash(version_bytes),
     ]
     payload = "\n".join(lines) + "\n"
     temporary = path + ".tmp"

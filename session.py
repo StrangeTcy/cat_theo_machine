@@ -216,6 +216,14 @@ def write_session_report(report_path, proposal_store, ledger, graph_version):
     return report_path
 
 
+def make_annotation(verb, target, authority):
+    if M.Compare(verb, SESSION_VERB_APPROVE)() is M.truth_value:
+        return Gmod.Approved(target, authority)()
+    elif M.Compare(verb, SESSION_VERB_COUNTERSIGN)() is M.truth_value:
+        return Gmod.Countersigned(target, authority)()
+    return M.EmptyList
+
+
 def apply_verb(checkpoint_path, verb, proposal_index, authority_name):
     """Attach one approval or countersignature to one pending proposal.
 
@@ -241,11 +249,7 @@ def apply_verb(checkpoint_path, verb, proposal_index, authority_name):
 
     if M.IdentityCompare(target, M.EmptyList)() is M.false_value:
         authority = M.Char(authority_name)
-        annotation = M.EmptyList
-        if M.Compare(verb, SESSION_VERB_APPROVE)() is M.truth_value:
-            annotation = Gmod.Approved(target, authority)()
-        elif M.Compare(verb, SESSION_VERB_COUNTERSIGN)() is M.truth_value:
-            annotation = Gmod.Countersigned(target, authority)()
+        annotation = make_annotation(verb, target, authority)
         if M.IdentityCompare(annotation, M.EmptyList)() is M.false_value:
             proposal_store = Gmod.ProposalStoreAttach(
                 proposal_store,
@@ -261,8 +265,117 @@ def apply_verb(checkpoint_path, verb, proposal_index, authority_name):
     return proposal_store
 
 
+def remote_annotate(remote_addr, verb_name, proposal_index, cert_path, key_path, ca_path):
+    """Step 62: Send ANNOTATE frame to remote coordinator over mTLS."""
+    from . import net_transport as Tmod
+
+    parts = remote_addr.split(":")
+    host = parts[0]
+    port = int(parts[1]) if len(parts) > 1 else 7433
+
+    client_ctx = Tmod.make_client_context(cert_path, key_path, ca_path)
+    session = Tmod.open_session(host, port, client_ctx)
+
+    payload = Wmod.serialize_term(
+        M.Pair(
+            M.Char(verb_name),
+            M.Pair(M.GMPRep(str(proposal_index)), M.EmptyList),
+        )
+    )
+    Tmod.send_frame(session, Tmod.ANNOTATE, payload)
+    resp_type, resp_payload = Tmod.recv_frame(session)
+    session.close()
+
+    if resp_type == Tmod.ACK:
+        return M.truth_value
+    try:
+        return Wmod.deserialize_term(resp_payload)
+    except Exception:
+        return M.false_value
+
+
+def run_net_session(config_path, checkpoint_path=None, report_path=None, max_cycles="10", resume_path=None):
+    """Run distributed coordinator or worker session over network."""
+    from . import net_node as Nmod
+
+    config = Nmod.load_config(config_path)
+    if resume_path is not None:
+        if Wmod.verify_checkpoint_hash_chain(resume_path) is M.false_value:
+            raise RuntimeError("Checkpoint hash chain broken; refusing to serve")
+        checkpoint_path = resume_path
+
+    if config.role == "coordinator":
+        loaded = Wmod.load_checkpoint(checkpoint_path) if checkpoint_path else M.EmptyList
+        graph_version = M.Head(loaded)() if M.IdentityCompare(loaded, M.EmptyList)() is M.false_value else None
+        store = M.Head(M.Tail(loaded)())() if M.IdentityCompare(loaded, M.EmptyList)() is M.false_value else None
+        ledger = M.Head(M.Tail(M.Tail(loaded)())())() if M.IdentityCompare(loaded, M.EmptyList)() is M.false_value else None
+
+        node = Nmod.NetworkNode(config, graph_version, store, ledger)
+        node.start_server()
+
+        budget = M.EmptyList
+        from . import graph as Gmod
+        for k, v in config.budgets.items():
+            budget = M.Pair(M.Pair(M.Char(k), M.Pair(M.GMPRep(str(v)), M.EmptyList)), budget)
+
+        cycles = 0
+        max_c = int(max_cycles)
+        while cycles < max_c:
+            cycles += 1
+            outcome = Nmod.net_distributed_cycle(node, budget)
+            if checkpoint_path:
+                Wmod.save_checkpoint(checkpoint_path, node.version, node.store, node.ledger)
+            if report_path:
+                write_session_report(report_path, node.store, node.ledger, node.version)
+        node.close()
+        return node.version
+
+    else:
+        node = Nmod.NetworkNode(config)
+        coord_peer = None
+        for peer_name, peer_info in config.peers.items():
+            try:
+                if peer_info.get("role") == "coordinator":
+                    coord_peer = peer_info
+                    break
+            except AttributeError:
+                pass
+        if coord_peer is None:
+            return node.version
+
+        from . import net_transport as Tmod
+        client_ctx = Tmod.make_client_context(config.cert_path, config.key_path, config.ca_path)
+        session = Tmod.open_session(coord_peer["host"], coord_peer["port"], client_ctx)
+        node.sync_worker_with_coordinator(session)
+        session.close()
+        return node.version
+
+
 def main(argv):
-    """CLI verb parser: `approve` and `countersign` only."""
+    """CLI verb parser: `approve`, `countersign`, and `--net`."""
+    if "--net" in argv:
+        config_path = "node_config.json"
+        cycles = "10"
+        resume_path = None
+        for i in range(len(argv)):
+            if argv[i] == "--config" and i + 1 < len(argv):
+                config_path = argv[i + 1]
+            elif argv[i] == "--cycles" and i + 1 < len(argv):
+                cycles = argv[i + 1]
+            elif argv[i] == "--resume" and i + 1 < len(argv):
+                resume_path = argv[i + 1]
+        return run_net_session(config_path, max_cycles=cycles, resume_path=resume_path)
+
+    if "--remote" in argv:
+        remote_idx = argv.index("--remote")
+        remote_addr = argv[remote_idx + 1]
+        verb_text = argv[1]
+        proposal_index = argv[2]
+        cert_path = argv[argv.index("--cert") + 1] if "--cert" in argv else "certs/authority.crt"
+        key_path = argv[argv.index("--key") + 1] if "--key" in argv else "certs/authority.key"
+        ca_path = argv[argv.index("--ca") + 1] if "--ca" in argv else "certs/ca.crt"
+        return remote_annotate(remote_addr, verb_text, proposal_index, cert_path, key_path, ca_path)
+
     arguments = M.EmptyList
     remaining = argv
     while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -278,3 +391,8 @@ def main(argv):
         M.Tail(M.Tail(M.Tail(M.Tail(arguments)())())())(),
     )()
     return apply_verb(checkpoint_path, verb, proposal_index, authority_name)
+
+
+if __name__ == "__main__":
+    import sys
+    main(sys.argv)
