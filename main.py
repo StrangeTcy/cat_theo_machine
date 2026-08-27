@@ -1526,6 +1526,123 @@ def run_talk_mode(sentence: str = None):
             return M.EmptyList
         return M.Head(M.Head(interpretations)())()
 
+    def _numeral_value_text(term):
+        """The GMP value text of a vocabulary numeral word, or EmptyList."""
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        entry_scan = word_entries
+        while M.IdentityCompare(
+            entry_scan, M.EmptyList,
+        )() is M.false_value:
+            entry = M.Head(entry_scan)()
+            if M.Compare(M.Head(entry)(), term)() is M.truth_value:
+                return M.GMPRepText(
+                    M.NatRepOf(
+                        M.Head(M.Tail(entry)())(), registry,
+                    )(),
+                )()
+            entry_scan = M.Tail(entry_scan)()
+        return M.EmptyList
+
+    def _ground_arithmetic_value(term):
+        """Evaluate add and times over numeral words, or EmptyList.
+
+        The machine's own numbers do the work: word entries carry Nat
+        values, and the GMP text arithmetic computes with them. A term
+        that is not ground arithmetic evaluates to nothing.
+        """
+        if M.IsPair(term)() is not M.truth_value:
+            return _numeral_value_text(term)
+        head = M.Head(term)()
+        args = M.Tail(term)()
+        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.Compare(head, M.Char("add"))() is M.truth_value:
+            if M.IdentityCompare(
+                M.Tail(args)(), M.EmptyList,
+            )() is M.false_value:
+                left = _ground_arithmetic_value(M.Head(args)())
+                right = _ground_arithmetic_value(
+                    M.Head(M.Tail(args)())(),
+                )
+                if left is not M.EmptyList:
+                    if right is not M.EmptyList:
+                        return G.GMPAddText(left, right)()
+            return M.EmptyList
+        if M.Compare(head, M.Char("times"))() is M.truth_value:
+            if M.IdentityCompare(
+                M.Tail(args)(), M.EmptyList,
+            )() is M.false_value:
+                left = _ground_arithmetic_value(M.Head(args)())
+                right = _ground_arithmetic_value(
+                    M.Head(M.Tail(args)())(),
+                )
+                if left is not M.EmptyList:
+                    if right is not M.EmptyList:
+                        return G.GMPMulText(left, right)()
+            return M.EmptyList
+        return _numeral_value_text(term)
+
+    def _words_of_value_text(value_text):
+        """The spoken words of a small value, from the word entries."""
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        entry_scan = word_entries
+        while M.IdentityCompare(
+            entry_scan, M.EmptyList,
+        )() is M.false_value:
+            entry = M.Head(entry_scan)()
+            entry_text = M.GMPRepText(
+                M.NatRepOf(
+                    M.Head(M.Tail(entry)())(), registry,
+                )(),
+            )()
+            if M.IdentityCompare(
+                G.GMPEqualText(entry_text, value_text)(),
+                M.truth_value,
+            )() is M.truth_value:
+                return str(M.Head(entry)()())
+            entry_scan = M.Tail(entry_scan)()
+        return value_text
+
+    def _verify_ground_equation(fact):
+        """Check a ground arithmetic equation before recording it.
+
+        Returns EmptyList when the fact is not a same(equation,
+        numeral) claim. Returns Pair(Char("holds"), EmptyList) when
+        the machine's own numbers confirm it, and Pair(Char("differs"),
+        Pair(computed_text, EmptyList)) with the computed value when
+        they do not.
+        """
+        if M.IsPair(fact)() is not M.truth_value:
+            return M.EmptyList
+        if M.Compare(
+            M.Head(fact)(), M.Char("same"),
+        )() is not M.truth_value:
+            return M.EmptyList
+        args = M.Tail(fact)()
+        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if M.IdentityCompare(
+            M.Tail(args)(), M.EmptyList,
+        )() is M.truth_value:
+            return M.EmptyList
+        left = M.Head(args)()
+        right = M.Head(M.Tail(args)())()
+        left_value = _ground_arithmetic_value(left)
+        right_value = _ground_arithmetic_value(right)
+        if left_value is M.EmptyList:
+            return M.EmptyList
+        if right_value is M.EmptyList:
+            return M.EmptyList
+        if M.IdentityCompare(
+            G.GMPEqualText(left_value, right_value)(),
+            M.truth_value,
+        )() is M.truth_value:
+            return M.Pair(M.Char("holds"), M.EmptyList)
+        return M.Pair(
+            M.Char("differs"),
+            M.Pair(left_value, M.EmptyList),
+        )
+
     def _extend_vocabulary():
         nonlocal vocabulary
         learned = G.InstalledCorrespondenceLaws(learned_version)()
@@ -5158,6 +5275,29 @@ def run_talk_mode(sentence: str = None):
                         + "). Use Predicate(constant)."
                     )
                 return "I could not parse that fact. Use Predicate(constant)."
+            # A ground arithmetic equation is computed, not trusted:
+            # the machine's own numbers check same(add(times(two,
+            # three), one), seven) before it is recorded, and a false
+            # equation is refused rather than learned.
+            equation_check = _verify_ground_equation(fact)
+            if M.IdentityCompare(
+                equation_check, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(equation_check)(), M.Char("differs"),
+                )() is M.truth_value:
+                    _persist_talk_state()
+                    return (
+                        "That is not so: the left side computes to "
+                        + _words_of_value_text(
+                            str(
+                                M.Head(
+                                    M.Tail(equation_check)(),
+                                )(),
+                            ),
+                        )
+                        + ". I will not record it."
+                    )
             installed_fact = G.InstallTaughtFact(learned_version, fact)()
             learned_version = M.Head(installed_fact)()
             if record:
@@ -5187,12 +5327,19 @@ def run_talk_mode(sentence: str = None):
                     M.Head(M.Tail(M.Head(gap_ask)())())(),
                 )
             _persist_talk_state()
+            computed_line = ""
+            if M.IdentityCompare(
+                equation_check, M.EmptyList,
+            )() is M.false_value:
+                computed_line = (
+                    " Computed: the machine's own numbers confirm it."
+                )
             acknowledged = G.RenderAcknowledgement(fact)()
             if M.IdentityCompare(acknowledged, M.EmptyList)() is M.false_value:
                 return _speak_chain(
                     M.Head(M.Tail(acknowledged)())(),
-                )
-            return "Recorded fact: " + line[5:].strip()
+                ) + computed_line
+            return "Recorded fact: " + line[5:].strip() + computed_line
         if lowered.startswith("keep ") and M.IdentityCompare(
             pending_process, M.EmptyList,
         )() is M.truth_value:
