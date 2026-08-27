@@ -2279,6 +2279,22 @@ def run_talk_mode(sentence: str = None):
                         + " (bridge yes/bridge no)",
                     )
             _propose_bridge(term_text)
+            # The duplicate's open words get their grounding offers
+            # too: a word the packs or the taught rules can name is
+            # offered here, not only at first teach.
+            duplicate_open = G.DefinitionOpenDependencies(
+                learned_version, existing, vocabulary, registry,
+            )()
+            duplicate_spoken = []
+            duplicate_open_scan = duplicate_open
+            while M.IdentityCompare(
+                duplicate_open_scan, M.EmptyList,
+            )() is M.false_value:
+                duplicate_spoken.append(
+                    str(M.Head(duplicate_open_scan)()()),
+                )
+                duplicate_open_scan = M.Tail(duplicate_open_scan)()
+            _queue_open_word_candidates(duplicate_spoken)
             return duplicate_line + _ask_next_line()
         learned_version = new_version
         # The body is interpreted with the binder discipline before any
@@ -2713,61 +2729,8 @@ def run_talk_mode(sentence: str = None):
         while M.IdentityCompare(remaining_open, M.EmptyList)() is M.false_value:
             spoken.append(str(M.Head(remaining_open)()()))
             remaining_open = M.Tail(remaining_open)()
-        # The packs may know the open words: each one with a pack
-        # candidate queues a bridge question behind the definition's
-        # own gates, so the body can ground without a re-teach.
-        candidates_reversed = M.EmptyList
-        for open_word_text in spoken:
-            open_candidate = _pack_candidate_for_word(open_word_text)
-            candidate_source = "pack"
-            if M.IdentityCompare(
-                open_candidate, M.EmptyList,
-            )() is M.truth_value:
-                open_candidate = _taught_predicate_for_word(open_word_text)
-                candidate_source = "taught"
-            if M.IdentityCompare(
-                open_candidate, M.EmptyList,
-            )() is M.false_value:
-                candidate_word_text = str(M.Head(open_candidate)()())
-                if candidate_source == "pack":
-                    ask_text = (
-                        " The packs know '" + candidate_word_text
-                        + "'; link '" + open_word_text + "' to it?"
-                        + " (bridge yes/bridge no)"
-                    )
-                else:
-                    ask_text = (
-                        " The taught rules speak '" + candidate_word_text
-                        + "'; link '" + open_word_text + "' to it?"
-                        + " (bridge yes/bridge no)"
-                    )
-                candidates_reversed = M.Pair(
-                    M.Pair(
-                        M.Pair(
-                            M.Char(open_word_text),
-                            M.Pair(
-                                M.Head(M.Tail(open_candidate)())(),
-                                M.EmptyList,
-                            ),
-                        ),
-                        M.Pair(M.Char(ask_text), M.EmptyList),
-                    ),
-                    candidates_reversed,
-                )
-        candidate_scan = M.Reverse(candidates_reversed)()
-        queued_reversed = M.EmptyList
-        while M.IdentityCompare(
-            candidate_scan, M.EmptyList,
-        )() is M.false_value:
-            candidate_pair = M.Head(candidate_scan)()
-            candidate_entry = M.Head(candidate_pair)()
-            candidate_ask = M.Head(M.Tail(candidate_pair)())()
-            queued_reversed = M.Pair(
-                candidate_entry, queued_reversed,
-            )
-            _push_ask("bridge", str(candidate_ask()))
-            candidate_scan = M.Tail(candidate_scan)()
-        pending_bridge_queue = M.Reverse(queued_reversed)()
+        # The packs or the taught rules may know the open words.
+        _queue_open_word_candidates(spoken)
         return (
             "Recorded: a " + term_display + " is " + _speak_chain(body_chain) + ". "
             + "But I do not know what "
@@ -3036,6 +2999,97 @@ def run_talk_mode(sentence: str = None):
                         )
             rule_scan = M.Tail(rule_scan)()
         return M.EmptyList
+
+    def _queue_open_word_candidates(spoken_list):
+        """Offer pack or taught-predicate links for open words.
+
+        Each open word with a pack concept or a taught predicate
+        behind it queues a bridge question; the asks surface one at a
+        time behind whatever is already on the table. The same offers
+        are raised wherever an open word blocks -- a fresh definition,
+        a duplicate definition probing its gaps, a question the word
+        keeps out -- so the grounding is offered at the point of
+        failure, not only at first teach.
+        """
+        nonlocal pending_bridge_queue
+        candidates_reversed = M.EmptyList
+        for open_word_text in spoken_list:
+            # An offer already standing for this word is not repeated:
+            # the pending bridge or its queue carries it.
+            already_offered = M.false_value
+            offer_word = M.Char(open_word_text)
+            if M.IdentityCompare(
+                pending_bridge, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(pending_bridge)(), offer_word,
+                )() is M.truth_value:
+                    already_offered = M.truth_value
+            offer_scan = pending_bridge_queue
+            while M.IdentityCompare(
+                offer_scan, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(M.Head(offer_scan)())(), offer_word,
+                )() is M.truth_value:
+                    already_offered = M.truth_value
+                    offer_scan = M.EmptyList
+                else:
+                    offer_scan = M.Tail(offer_scan)()
+            if M.IdentityCompare(
+                already_offered, M.truth_value,
+            )() is M.truth_value:
+                continue
+            open_candidate = _pack_candidate_for_word(open_word_text)
+            candidate_source = "pack"
+            if M.IdentityCompare(
+                open_candidate, M.EmptyList,
+            )() is M.truth_value:
+                open_candidate = _taught_predicate_for_word(open_word_text)
+                candidate_source = "taught"
+            if M.IdentityCompare(
+                open_candidate, M.EmptyList,
+            )() is M.false_value:
+                candidate_word_text = str(M.Head(open_candidate)()())
+                if candidate_source == "pack":
+                    ask_text = (
+                        " The packs know '" + candidate_word_text
+                        + "'; link '" + open_word_text + "' to it?"
+                        + " (bridge yes/bridge no)"
+                    )
+                else:
+                    ask_text = (
+                        " The taught rules speak '" + candidate_word_text
+                        + "'; link '" + open_word_text + "' to it?"
+                        + " (bridge yes/bridge no)"
+                    )
+                candidates_reversed = M.Pair(
+                    M.Pair(
+                        M.Pair(
+                            M.Char(open_word_text),
+                            M.Pair(
+                                M.Head(M.Tail(open_candidate)())(),
+                                M.EmptyList,
+                            ),
+                        ),
+                        M.Pair(M.Char(ask_text), M.EmptyList),
+                    ),
+                    candidates_reversed,
+                )
+        candidate_scan = M.Reverse(candidates_reversed)()
+        combined_reversed = M.Reverse(pending_bridge_queue)()
+        while M.IdentityCompare(
+            candidate_scan, M.EmptyList,
+        )() is M.false_value:
+            candidate_pair = M.Head(candidate_scan)()
+            candidate_entry = M.Head(candidate_pair)()
+            candidate_ask = M.Head(M.Tail(candidate_pair)())()
+            combined_reversed = M.Pair(
+                candidate_entry, combined_reversed,
+            )
+            _push_ask("bridge", str(candidate_ask()))
+            candidate_scan = M.Tail(candidate_scan)()
+        pending_bridge_queue = M.Reverse(combined_reversed)()
 
     def _ensure_bridge_loaded():
         """Load the next queued open-word bridge, if one waits."""
@@ -6321,6 +6375,10 @@ def run_talk_mode(sentence: str = None):
                 )() is M.false_value:
                     has_rules = M.truth_value
                 if spoken_open:
+                    # The blocking words get their grounding offers
+                    # right here: the packs or the taught rules may
+                    # know them, and the offer is the way out.
+                    _queue_open_word_candidates(spoken_open)
                     return (
                         "I have a definition of '" + unknown + "': "
                         + _speak_chain(body_chain)
@@ -6333,7 +6391,7 @@ def run_talk_mode(sentence: str = None):
                         + ("is" if len(spoken_open) == 1 else "are")
                         + " not grounded. Define or ground "
                         + ("it" if len(spoken_open) == 1 else "them")
-                        + " first."
+                        + " first." + _ask_next_line()
                     )
                 if M.IdentityCompare(
                     has_rules, M.truth_value,
