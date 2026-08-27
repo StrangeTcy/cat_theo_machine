@@ -5375,11 +5375,22 @@ def run_talk_mode(sentence: str = None):
                 return _handle_decision(lowered, record=record)
             if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
                 return _handle_decision(lowered, record=record)
-            # The yes or no decided no rule question: either a question
-            # stands that wants another grammar, or none stands.
+            # No rule question is decidable. A bare yes or no still
+            # answers the one question on the table when that question
+            # is a bridge question: nothing else could be meant by it.
             if M.IdentityCompare(
                 pending_asks, M.EmptyList,
             )() is M.false_value:
+                head_entry = M.Head(pending_asks)()
+                if M.Compare(
+                    M.Head(head_entry)(), M.Char("bridge"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        pending_bridge, M.EmptyList,
+                    )() is M.false_value:
+                        return _handle_bridge_decision(
+                            "bridge " + lowered, record=record,
+                        )
                 return (
                     "A yes or no does not answer the question on the"
                     + " table." + _ask_next_line()
