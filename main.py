@@ -1337,7 +1337,13 @@ def run_talk_mode(sentence: str = None):
         )()
 
     def _pop_ask(kind_text):
-        """Drop the head question when it is the kind just answered."""
+        """Retire the first queued question of the answered kind.
+
+        The answered question is not always the head -- an answer can
+        decide a rule question while a bridge question stands in front
+        of it -- so the first ask of the kind is retired wherever it
+        sits.
+        """
         nonlocal pending_asks
         if M.IdentityCompare(pending_asks, M.EmptyList)() is M.truth_value:
             return
@@ -1346,6 +1352,28 @@ def run_talk_mode(sentence: str = None):
             M.Head(head_entry)(), M.Char(kind_text),
         )() is M.truth_value:
             pending_asks = M.Tail(pending_asks)()
+            return
+        kept_reversed = M.EmptyList
+        scan = pending_asks
+        retired = M.false_value
+        while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+            entry = M.Head(scan)()
+            if M.IdentityCompare(
+                retired, M.truth_value,
+            )() is M.truth_value:
+                kept_reversed = M.Pair(entry, kept_reversed)
+            else:
+                if M.Compare(
+                    M.Head(entry)(), M.Char(kind_text),
+                )() is M.truth_value:
+                    retired = M.truth_value
+                else:
+                    kept_reversed = M.Pair(entry, kept_reversed)
+            scan = M.Tail(scan)()
+        if M.IdentityCompare(
+            retired, M.truth_value,
+        )() is M.truth_value:
+            pending_asks = M.Reverse(kept_reversed)()
 
     def _ask_next_line():
         """The one question on the table, or nothing."""
@@ -2896,6 +2924,15 @@ def run_talk_mode(sentence: str = None):
     def _handle_bridge_decision(line, record=True):
         nonlocal pending_bridge, learned_version
         if M.IdentityCompare(pending_bridge, M.EmptyList)() is M.truth_value:
+            # A bridge answer with no bridge awaiting it: either a
+            # question stands that wants another grammar, or none does.
+            if M.IdentityCompare(
+                pending_asks, M.EmptyList,
+            )() is M.false_value:
+                return (
+                    "A bridge answer does not fit the question on the"
+                    + " table." + _ask_next_line()
+                )
             return "There is no bridge awaiting a decision."
         if record:
             _log_lesson(line)
@@ -4366,6 +4403,19 @@ def run_talk_mode(sentence: str = None):
                     M.Head(M.Tail(acknowledged)())(),
                 )
             return "Recorded fact: " + line[5:].strip()
+        if lowered.startswith("keep ") and M.IdentityCompare(
+            pending_process, M.EmptyList,
+        )() is M.truth_value:
+            # A keep/strike answer with no process awaiting it: either
+            # it misses the question on the table, or nothing does.
+            if M.IdentityCompare(
+                pending_asks, M.EmptyList,
+            )() is M.false_value:
+                return (
+                    "A keep/strike answer does not fit the question on"
+                    + " the table." + _ask_next_line()
+                )
+            return "No process is awaiting a keep/strike answer."
         if M.IdentityCompare(pending_process, M.EmptyList)() is M.false_value:
             if lowered.startswith("keep "):
                 # The operational answer to the process ask: keep and
@@ -5325,9 +5375,15 @@ def run_talk_mode(sentence: str = None):
                 return _handle_decision(lowered, record=record)
             if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
                 return _handle_decision(lowered, record=record)
-            # A yes or no with nothing awaiting it is an answer to a
-            # question that is not on the table; say so instead of
-            # parsing the word as a sentence.
+            # The yes or no decided no rule question: either a question
+            # stands that wants another grammar, or none stands.
+            if M.IdentityCompare(
+                pending_asks, M.EmptyList,
+            )() is M.false_value:
+                return (
+                    "A yes or no does not answer the question on the"
+                    + " table." + _ask_next_line()
+                )
             return "There is no question awaiting an answer."
         if lowered.strip() in ("bridge yes", "bridge no"):
             return _handle_bridge_decision(lowered.strip(), record=record)
