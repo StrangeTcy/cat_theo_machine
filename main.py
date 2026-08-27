@@ -2719,39 +2719,55 @@ def run_talk_mode(sentence: str = None):
         candidates_reversed = M.EmptyList
         for open_word_text in spoken:
             open_candidate = _pack_candidate_for_word(open_word_text)
+            candidate_source = "pack"
+            if M.IdentityCompare(
+                open_candidate, M.EmptyList,
+            )() is M.truth_value:
+                open_candidate = _taught_predicate_for_word(open_word_text)
+                candidate_source = "taught"
             if M.IdentityCompare(
                 open_candidate, M.EmptyList,
             )() is M.false_value:
                 candidate_word_text = str(M.Head(open_candidate)()())
+                if candidate_source == "pack":
+                    ask_text = (
+                        " The packs know '" + candidate_word_text
+                        + "'; link '" + open_word_text + "' to it?"
+                        + " (bridge yes/bridge no)"
+                    )
+                else:
+                    ask_text = (
+                        " The taught rules speak '" + candidate_word_text
+                        + "'; link '" + open_word_text + "' to it?"
+                        + " (bridge yes/bridge no)"
+                    )
                 candidates_reversed = M.Pair(
                     M.Pair(
-                        M.Char(open_word_text),
                         M.Pair(
-                            M.Head(M.Tail(open_candidate)())(),
-                            M.EmptyList,
+                            M.Char(open_word_text),
+                            M.Pair(
+                                M.Head(M.Tail(open_candidate)())(),
+                                M.EmptyList,
+                            ),
                         ),
+                        M.Pair(M.Char(ask_text), M.EmptyList),
                     ),
-                    M.Pair(
-                        M.Char(candidate_word_text),
-                        candidates_reversed,
-                    ),
+                    candidates_reversed,
                 )
-        candidate_scan = candidates_reversed
+        candidate_scan = M.Reverse(candidates_reversed)()
+        queued_reversed = M.EmptyList
         while M.IdentityCompare(
             candidate_scan, M.EmptyList,
         )() is M.false_value:
-            candidate_entry = M.Head(candidate_scan)()
-            candidate_name = M.Head(M.Tail(candidate_scan)())()
-            pending_bridge_queue = M.Pair(
-                candidate_entry, pending_bridge_queue,
+            candidate_pair = M.Head(candidate_scan)()
+            candidate_entry = M.Head(candidate_pair)()
+            candidate_ask = M.Head(M.Tail(candidate_pair)())()
+            queued_reversed = M.Pair(
+                candidate_entry, queued_reversed,
             )
-            _push_ask(
-                "bridge",
-                " The packs know '" + str(candidate_name())
-                + "'; link '" + str(M.Head(candidate_entry)()())
-                + "' to it? (bridge yes/bridge no)",
-            )
-            candidate_scan = M.Tail(M.Tail(candidate_scan)())()
+            _push_ask("bridge", str(candidate_ask()))
+            candidate_scan = M.Tail(candidate_scan)()
+        pending_bridge_queue = M.Reverse(queued_reversed)()
         return (
             "Recorded: a " + term_display + " is " + _speak_chain(body_chain) + ". "
             + "But I do not know what "
@@ -2989,6 +3005,38 @@ def run_talk_mode(sentence: str = None):
                 remaining = M.Tail(remaining)()
         return M.EmptyList
 
+    def _taught_predicate_for_word(word_text):
+        """A predicate the installed taught rules already speak.
+
+        Returns Pair(predicate_word, Pair(predicate_word, EmptyList))
+        shaped like a pack entry, so the same bridge machinery links an
+        open body word to the predicate the rules use -- 'number' can
+        name what the taught number rules speak.
+        """
+        word = M.Char(word_text)
+        singular = G.WordSingular(word)()
+        rule_scan = G.InstalledTaughtRules(learned_version)()
+        while M.IdentityCompare(
+            rule_scan, M.EmptyList,
+        )() is M.false_value:
+            taught_rule = M.Head(rule_scan)()
+            replacement = P.RuleReplacement(taught_rule)()
+            if M.IsPair(replacement)() is M.truth_value:
+                head_word = M.Head(replacement)()
+                if M.Compare(head_word, word)() is M.truth_value:
+                    return M.Pair(
+                        head_word, M.Pair(head_word, M.EmptyList),
+                    )
+                if M.IdentityCompare(
+                    singular, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(head_word, singular)() is M.truth_value:
+                        return M.Pair(
+                            head_word, M.Pair(head_word, M.EmptyList),
+                        )
+            rule_scan = M.Tail(rule_scan)()
+        return M.EmptyList
+
     def _ensure_bridge_loaded():
         """Load the next queued open-word bridge, if one waits."""
         nonlocal pending_bridge, pending_bridge_queue
@@ -3094,30 +3142,40 @@ def run_talk_mode(sentence: str = None):
                     other_genus = G.ReadingWordConstructor(
                         learned_version, other_genus_slot,
                     )()
-                    word_in_open = M.false_value
-                    other_open = G.DefinitionOpenDependencies(
-                        learned_version,
-                        other_definition,
-                        vocabulary,
-                        registry,
+                    word_in_body = M.false_value
+                    other_body = M.Head(
+                        M.Tail(
+                            G.DefinitionBody(other_definition)(),
+                        )(),
                     )()
-                    open_dep_scan = other_open
+                    body_word_scan = other_body
+                    body_singular = G.WordSingular(word)()
                     while M.IdentityCompare(
-                        open_dep_scan, M.EmptyList,
+                        body_word_scan, M.EmptyList,
                     )() is M.false_value:
-                        if M.Compare(
-                            M.Head(open_dep_scan)(), word,
-                        )() is M.truth_value:
-                            word_in_open = M.truth_value
-                            open_dep_scan = M.EmptyList
+                        body_word = M.Head(body_word_scan)()
+                        if M.Compare(body_word, word)() is M.truth_value:
+                            word_in_body = M.truth_value
+                            body_word_scan = M.EmptyList
                         else:
-                            open_dep_scan = M.Tail(open_dep_scan)()
+                            if M.IdentityCompare(
+                                body_singular, M.EmptyList,
+                            )() is M.false_value:
+                                if M.Compare(
+                                    body_word, body_singular,
+                                )() is M.truth_value:
+                                    word_in_body = M.truth_value
+                                    body_word_scan = M.EmptyList
+                            if M.IdentityCompare(
+                                body_word_scan, M.EmptyList,
+                            )() is M.false_value:
+                                body_word_scan = M.Tail(body_word_scan)()
                     if M.IdentityCompare(
                         M.OrAtom(
                             M.IdentityCompare(
                                 other_genus, constructor,
                             )(),
-                            word_in_open,
+                            word_in_body,
                         )(),
                         M.truth_value,
                     )() is M.truth_value:
@@ -3165,7 +3223,32 @@ def run_talk_mode(sentence: str = None):
         if M.IdentityCompare(pack_known, M.truth_value)() is M.truth_value:
             source_line = " now names the pack constructor."
         else:
-            source_line = " now names a constructor of its own."
+            taught_known = M.false_value
+            taught_scan = G.InstalledTaughtRules(learned_version)()
+            while M.IdentityCompare(
+                taught_scan, M.EmptyList,
+            )() is M.false_value:
+                taught_rule = M.Head(taught_scan)()
+                taught_replacement = P.RuleReplacement(taught_rule)()
+                if M.IsPair(taught_replacement)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(taught_replacement)(), constructor,
+                    )() is M.truth_value:
+                        taught_known = M.truth_value
+                        taught_scan = M.EmptyList
+                    else:
+                        taught_scan = M.Tail(taught_scan)()
+                else:
+                    taught_scan = M.Tail(taught_scan)()
+            if M.IdentityCompare(
+                taught_known, M.truth_value,
+            )() is M.truth_value:
+                source_line = (
+                    " now names the taught predicate '"
+                    + str(constructor()) + "'."
+                )
+            else:
+                source_line = " now names a constructor of its own."
         ontology_line = ""
         if proof_runtime is not M.EmptyList:
             ontology_facts = G.OntologyFactsFor(
