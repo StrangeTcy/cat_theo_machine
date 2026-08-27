@@ -2221,6 +2221,10 @@ def run_talk_mode(sentence: str = None):
                 "I already have a definition of '" + term_display + "': "
                 + _speak_chain(existing_body)
             )
+            # An operator still standing in the recorded reading gates
+            # the compilation: its case split is re-proposed first, so
+            # the definition can be interpreted and compiled.
+            _reraise_operator_gap(term_word, term_text)
             body_is_process = M.false_value
             body_scan = existing_body
             while M.IdentityCompare(
@@ -3090,6 +3094,258 @@ def run_talk_mode(sentence: str = None):
             _push_ask("bridge", str(candidate_ask()))
             candidate_scan = M.Tail(candidate_scan)()
         pending_bridge_queue = M.Reverse(combined_reversed)()
+
+    def _propose_restriction_from_conditions(term_word, term_text, conditions):
+        """Rebuild the case split an OnlyOf condition carries.
+
+        The recorded reading's conditions hold the same list the
+        fresh-teach flow parsed; the split is rebuilt from them so a
+        decision that predates the interpretation machinery -- or was
+        never made -- can be proposed again. Returns
+        Pair(proposal, Pair(split_text, EmptyList)), or EmptyList when
+        no Only condition stands.
+        """
+        nonlocal proposal_store
+        condition_scan = conditions
+        while M.IdentityCompare(
+            condition_scan, M.EmptyList,
+        )() is M.false_value:
+            condition = M.Head(condition_scan)()
+            if M.IsPair(condition)() is M.truth_value:
+                if M.Compare(
+                    M.Head(condition)(), Lmod.OnlyLabel,
+                )() is M.truth_value:
+                    segment = M.Head(M.Tail(condition)())()
+                    items_reversed = M.EmptyList
+                    current_reversed = M.EmptyList
+                    segment_walk = segment
+                    while M.IdentityCompare(
+                        segment_walk, M.EmptyList,
+                    )() is M.false_value:
+                        seg_item = M.Head(segment_walk)()
+                        if M.Compare(
+                            seg_item, M.Char("and"),
+                        )() is M.truth_value:
+                            items_reversed = M.Pair(
+                                M.Reverse(current_reversed)(),
+                                items_reversed,
+                            )
+                            current_reversed = M.EmptyList
+                        else:
+                            current_reversed = M.Pair(
+                                seg_item, current_reversed,
+                            )
+                        segment_walk = M.Tail(segment_walk)()
+                    if M.IdentityCompare(
+                        current_reversed, M.EmptyList,
+                    )() is M.false_value:
+                        items_reversed = M.Pair(
+                            M.Reverse(current_reversed)(),
+                            items_reversed,
+                        )
+                    items = M.Reverse(items_reversed)()
+                    branch_texts_reversed = []
+                    item_scan = items
+                    while M.IdentityCompare(
+                        item_scan, M.EmptyList,
+                    )() is M.false_value:
+                        item_chain = M.Head(item_scan)()
+                        item_text = ""
+                        inner_scan = item_chain
+                        while M.IdentityCompare(
+                            inner_scan, M.EmptyList,
+                        )() is M.false_value:
+                            part = M.Head(inner_scan)()
+                            part_text = ""
+                            if M.IsPair(part)() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(part)(), M.VarTag,
+                                )() is M.truth_value:
+                                    part_text = term_text
+                            else:
+                                if G.SurfaceChainHasWord(
+                                    G.DEFINITION_STOP_WORDS, part,
+                                )() is M.false_value:
+                                    part_text = str(part())
+                            if part_text != "":
+                                if item_text == "":
+                                    item_text = part_text
+                                else:
+                                    item_text = (
+                                        item_text + " " + part_text
+                                    )
+                            inner_scan = M.Tail(inner_scan)()
+                        if item_text != "":
+                            branch_texts_reversed.append(
+                                "same(d, " + item_text + ")"
+                            )
+                        item_scan = M.Tail(item_scan)()
+                    if branch_texts_reversed:
+                        only_split_body = ", ".join(branch_texts_reversed)
+                        known_constructors = G.RuleConstructors(
+                            learned_version,
+                            pack_concepts,
+                        )()
+                        parsed_only = G.ParseRuleText(
+                            only_split_body,
+                            reading_policy,
+                            reading_digits,
+                            known_constructors,
+                            M.Char("exactly-one"),
+                        )()
+                        only_split = M.Head(parsed_only)()
+                        if M.IdentityCompare(
+                            only_split, M.EmptyList,
+                        )() is M.false_value:
+                            only_exactly = G.CaseSplitExactlyOne(
+                                only_split,
+                            )()
+                            only_origin = M.Pair(
+                                M.Char("case-split"),
+                                M.Pair(
+                                    only_exactly,
+                                    M.Pair(term_word, M.EmptyList),
+                                ),
+                            )
+                            only_proposal = G.Proposal(
+                                only_split, only_origin,
+                            )()
+                            proposal_store = G.ProposalStoreSubmit(
+                                proposal_store, only_proposal,
+                            )()
+                            return M.Pair(
+                                only_proposal,
+                                M.Pair(
+                                    "one of " + only_split_body,
+                                    M.EmptyList,
+                                ),
+                            )
+            condition_scan = M.Tail(condition_scan)()
+        return M.EmptyList
+
+    def _reraise_operator_gap(term_word, term_text):
+        """Queue the case-split question a standing operator gates on.
+
+        A reading whose chain still carries Only/No markers gates the
+        compilation; the split that interprets them is re-proposed from
+        the reading's own conditions and queued as the question on the
+        table, so a stale decision -- or a missing one -- can be made
+        wherever the gap blocks.
+        """
+        nonlocal pending_queue
+        # An identical split already queued or pending is not
+        # re-proposed.
+        already_raised = M.false_value
+        queue_scan = pending_queue
+        while M.IdentityCompare(
+            queue_scan, M.EmptyList,
+        )() is M.false_value:
+            queued_proposal = M.Head(M.Head(queue_scan)())()
+            queued_origin = G.ProposalOrigin(queued_proposal)()
+            if M.IsPair(queued_origin)() is M.truth_value:
+                if M.Compare(
+                    M.Head(queued_origin)(), M.Char("case-split"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Tail(M.Tail(queued_origin)())(),
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(
+                                M.Tail(M.Tail(queued_origin)())(),
+                            )(),
+                            term_word,
+                        )() is M.truth_value:
+                            already_raised = M.truth_value
+                            queue_scan = M.EmptyList
+            if M.IdentityCompare(
+                queue_scan, M.EmptyList,
+            )() is M.false_value:
+                queue_scan = M.Tail(queue_scan)()
+        if M.IdentityCompare(
+            already_raised, M.false_value,
+        )() is M.truth_value:
+            if M.IdentityCompare(
+                pending_rule, M.EmptyList,
+            )() is M.false_value:
+                pending_origin = G.ProposalOrigin(pending_rule)()
+                if M.IsPair(pending_origin)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(pending_origin)(), M.Char("case-split"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(M.Tail(pending_origin)())(),
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if M.Compare(
+                                M.Head(
+                                    M.Tail(M.Tail(pending_origin)())(),
+                                )(),
+                                term_word,
+                            )() is M.truth_value:
+                                already_raised = M.truth_value
+        if M.IdentityCompare(
+            already_raised, M.truth_value,
+        )() is M.truth_value:
+            return M.false_value
+        reading = G.DefinitionReadingFor(learned_version, term_word)()
+        if M.IdentityCompare(reading, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        reading_chain = M.Head(
+            M.Tail(M.Tail(M.Tail(reading)())())(),
+        )()
+        markers_stand = M.false_value
+        chain_scan = reading_chain
+        while M.IdentityCompare(
+            chain_scan, M.EmptyList,
+        )() is M.false_value:
+            chain_item = M.Head(chain_scan)()
+            if M.IsPair(chain_item)() is M.truth_value:
+                if M.OrAtom(
+                    M.Compare(
+                        M.Head(chain_item)(), Lmod.OnlyLabel,
+                    )(),
+                    M.Compare(
+                        M.Head(chain_item)(), Lmod.NoLabel,
+                    )(),
+                )() is M.truth_value:
+                    markers_stand = M.truth_value
+                    chain_scan = M.EmptyList
+            if M.IdentityCompare(
+                chain_scan, M.EmptyList,
+            )() is M.false_value:
+                chain_scan = M.Tail(chain_scan)()
+        if M.IdentityCompare(
+            markers_stand, M.false_value,
+        )() is M.truth_value:
+            return M.false_value
+        reading_conditions = M.Head(
+            M.Tail(
+                M.Tail(M.Tail(M.Tail(reading)())())(),
+            )(),
+        )()
+        rebuilt = _propose_restriction_from_conditions(
+            term_word, term_text, reading_conditions,
+        )
+        if M.IdentityCompare(rebuilt, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        split_proposal = M.Head(rebuilt)()
+        split_text = str(M.Head(M.Tail(rebuilt)())())
+        prompt_text = (
+            " The 'only' restricts to its list, so a case split is"
+            + " proposed: " + split_text + ". Approve? (yes/no)"
+        )
+        pending_queue = M.Reverse(
+            M.Pair(
+                M.Pair(
+                    split_proposal,
+                    M.Pair(prompt_text, M.EmptyList),
+                ),
+                M.Reverse(pending_queue)(),
+            ),
+        )()
+        _push_ask("rule", prompt_text)
+        return M.truth_value
 
     def _ensure_bridge_loaded():
         """Load the next queued open-word bridge, if one waits."""
@@ -6403,6 +6659,23 @@ def run_talk_mode(sentence: str = None):
                         + " knows, but the sentence grammar does not"
                         + " read the word yet; ask as 'query: "
                         + unknown + "(seven)'."
+                    )
+                # No laws and no open words: the blocker may be an
+                # operator that still stands uninterpreted. Its split
+                # is re-proposed here, at the point of failure.
+                defined_term = G.DefinitionTerm(defined)()
+                if M.IdentityCompare(
+                    _reraise_operator_gap(
+                        defined_term, str(defined_term()),
+                    ),
+                    M.truth_value,
+                )() is M.truth_value:
+                    return (
+                        "I have a definition of '" + unknown + "': "
+                        + _speak_chain(body_chain)
+                        + ". But its 'only' still stands uninterpreted,"
+                        + " so it compiles to no law."
+                        + _ask_next_line()
                     )
                 return (
                     "I have a definition of '" + unknown + "': "
