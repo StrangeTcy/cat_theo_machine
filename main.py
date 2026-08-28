@@ -7976,6 +7976,13 @@ def run_talk_mode(sentence: str = None):
                     + " base and step and certify with 'induction:'."
                 )
             # record the equivalence proof
+            certificate_record = M.Pair(
+                M.Char("certificate"),
+                M.Pair(
+                    lemma_pairs,
+                    M.Pair(certificate_node, M.EmptyList),
+                ),
+            )
             learned_version = G.GraphVersion(
                 M.Pair(
                     M.Pair(
@@ -7991,11 +7998,36 @@ def run_talk_mode(sentence: str = None):
                             ),
                         ),
                     ),
-                    G.GraphNodes(learned_version)(),
+                    M.Pair(
+                        certificate_record,
+                        G.GraphNodes(learned_version)(),
+                    ),
                 ),
                 G.GraphEdges(learned_version)(),
                 G.GraphVersionInvariants(learned_version)(),
             )()
+            if proof_runtime is M.EmptyList:
+                quiet_boot = io.StringIO()
+                with redirect_stdout(quiet_boot):
+                    proof_runtime, _proof_packs = boot_from_packs(
+                        PACK_PATHS,
+                        _runtime_namespace(),
+                    )
+                _adopt_pack_concepts(
+                    proof_runtime.loaded_packs,
+                    M.FromContextGetAllRules(proof_runtime.graph)(),
+                )
+                _teach_runtime_taught_rules(
+                    proof_runtime,
+                    learned_version,
+                )
+                proof_runtime.graph._search_disable_console = M.truth_value
+                proof_runtime.graph._search_disable_progress_ticker = M.truth_value
+            proof_runtime.graph.add_derivation(
+                lemma_pairs,
+                M.Char(prove_target),
+                certificate_node,
+            )
             if record:
                 _log_lesson(line)
             _persist_talk_state()
