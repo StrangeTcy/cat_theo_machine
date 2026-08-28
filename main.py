@@ -4377,7 +4377,8 @@ def run_talk_mode(sentence: str = None):
         return "; ".join(texts)
 
     def _word_is_known(word_atom):
-        """A word the correspondence vocabulary already resolves."""
+        """A word the machine already holds: the vocabulary resolves
+        it, or the version carries a grounding taught for it."""
         word_entries = M.Head(M.Tail(vocabulary)())()
         resolved = G.CorrespondenceResolveWord(
             word_entries,
@@ -4387,10 +4388,30 @@ def run_talk_mode(sentence: str = None):
             resolved, M.EmptyList,
         )() is M.false_value:
             return True
+        fact_scan = G.InstalledTaughtFacts(learned_version)()
+        while M.IdentityCompare(
+            fact_scan, M.EmptyList,
+        )() is M.false_value:
+            fact = M.Head(fact_scan)()
+            if M.IsPair(fact)() is M.truth_value:
+                if M.TermEqual(
+                    M.Head(fact)(), Lmod.WordLabel,
+                )() is M.truth_value:
+                    word_term = M.Head(M.Tail(fact)())()
+                    if M.Compare(
+                        word_term, word_atom,
+                    )() is M.truth_value:
+                        return True
+            fact_scan = M.Tail(fact_scan)()
         return False
 
     def _unknown_words_of_text(text):
-        """The distinct unknown words of a text, in order."""
+        """The distinct unknown words of a text, in order.
+
+        A word is known when the correspondence vocabulary resolves it
+        or the version already holds a grounding for it -- the words
+        the trainer has answered are no longer unknown to the asking.
+        """
         words = G.WordsOfText(
             text, reading_policy, reading_digits,
         )()
@@ -5546,22 +5567,21 @@ def run_talk_mode(sentence: str = None):
                         continue
                     answer_atoms.append(word_atom)
                     answer_texts.append(str(word_atom()))
-                copula_at = -1
-                for position in range(
-                    min(3, len(answer_texts) - 1),
+                # The answer speaks to the standing question. A line
+                # that begins '<standing word> is ...' defines that
+                # word and the rest is its meaning; any other line --
+                # copula or not -- is the meaning of the standing word
+                # entire.
+                standing_text = str(pending_unknown_word())
+                target_word = pending_unknown_word
+                body_atoms = answer_atoms
+                if (
+                    len(answer_texts) >= 3
+                    and answer_texts[0] == standing_text
+                    and answer_texts[1] == "is"
                 ):
-                    if answer_texts[position] == "is":
-                        copula_at = position
-                        break
-                if copula_at >= 1:
-                    target_word = answer_atoms[copula_at - 1]
-                    body_atoms = answer_atoms[copula_at + 1:]
-                else:
-                    target_word = pending_unknown_word
-                    body_atoms = answer_atoms
-                if not body_atoms:
-                    target_word = pending_unknown_word
-                    body_atoms = answer_atoms
+                    target_word = answer_atoms[0]
+                    body_atoms = answer_atoms[2:]
                 body_texts = [
                     str(atom()) for atom in body_atoms
                 ]
