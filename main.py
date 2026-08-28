@@ -6979,12 +6979,100 @@ def run_talk_mode(sentence: str = None):
                         how_many_chain = G.InstalledDefinitions(
                             learned_version,
                         )()
+                    elif (
+                        how_many_kind == "law"
+                        or how_many_kind == "proposal"
+                    ):
+                        # Laws and pending proposals are read from the
+                        # Step-50 self-model: the machine's own state
+                        # rendered in its own substrate, quoted back to
+                        # the dialogue instead of re-walked from the
+                        # graph.
+                        self_model = G.SelfModelVersion(
+                            learned_version,
+                            proposal_store,
+                            M.EmptyList,
+                        )()
+                        self_subterms = M.Head(
+                            M.Tail(self_model)(),
+                        )()
+                        self_term = M.EmptyList
+                        self_scan = self_subterms
+                        while M.IdentityCompare(
+                            self_scan, M.EmptyList,
+                        )() is M.false_value:
+                            self_candidate = M.Head(self_scan)()
+                            if M.IsPair(self_candidate)() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(self_candidate)(),
+                                    Lmod.SelfModelLabel,
+                                )() is M.truth_value:
+                                    self_term = self_candidate
+                                    self_scan = M.EmptyList
+                                else:
+                                    self_scan = M.Tail(self_scan)()
+                            else:
+                                self_scan = M.Tail(self_scan)()
+                        if M.IdentityCompare(
+                            self_term, M.EmptyList,
+                        )() is M.truth_value:
+                            return (
+                                "I could not render my own state;"
+                                + " the self-model came back empty."
+                            )
+                        if how_many_kind == "law":
+                            how_many_chain = M.Head(
+                                M.Tail(self_term)(),
+                            )()
+                        else:
+                            # Pair(label, Pair(laws, Pair(contracts,
+                            # Pair(policy, Pair(schedule, Pair(safety,
+                            # Pair(quoted, Pair(pending, Empty))))))))
+                            pending_term = M.Head(
+                                M.Tail(
+                                    M.Tail(
+                                        M.Tail(
+                                            M.Tail(
+                                                M.Tail(
+                                                    M.Tail(
+                                                        M.Tail(
+                                                            self_term,
+                                                        )(),
+                                                    )(),
+                                                )(),
+                                            )(),
+                                        )(),
+                                    )(),
+                                )(),
+                            )()
+                            if M.IdentityCompare(
+                                pending_term, M.EmptyList,
+                            )() is M.truth_value:
+                                how_many_count = 0
+                            else:
+                                how_many_count = int(
+                                    str(
+                                        M.GMPRepText(pending_term)(),
+                                    ),
+                                )
+                            if how_many_count == 1:
+                                return (
+                                    "I have one proposal"
+                                    + " pending."
+                                )
+                            return (
+                                "I have "
+                                + _words_of_value_text(
+                                    str(how_many_count),
+                                )
+                                + " proposals pending."
+                            )
                     else:
                         return (
                             "I do not know the word: "
                             + how_many_noun_text
-                            + ". I count rules, facts, and"
-                            + " definitions."
+                            + ". I count rules, facts,"
+                            + " definitions, laws, and proposals."
                         )
                     how_many_count = _count_chain(how_many_chain)
                     how_many_text = _words_of_value_text(
