@@ -1333,6 +1333,13 @@ def run_talk_mode(sentence: str = None):
     # answers the standing question; the meaning graph grows from the
     # machine's own questions.
     pending_problem_kind = ""
+    # Words of the taught problem still without meaning, asked one at
+    # a time: the chain holds the words in order of appearance, the
+    # slot holds the word the standing question asks about. A bare
+    # line at the prompt is its meaning; 'skip' passes one word,
+    # 'skip all' stops the asking.
+    pending_unknown_words = M.EmptyList
+    pending_unknown_word = M.EmptyList
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
     last_outcome = M.EmptyList
@@ -4373,6 +4380,50 @@ def run_talk_mode(sentence: str = None):
             entries = M.Tail(entries)()
         return "; ".join(texts)
 
+    def _advance_unknown_word():
+        """Retire the asked word; ask the next, or stop the asking."""
+        nonlocal pending_unknown_words, pending_unknown_word
+        _pop_ask("word")
+        if M.IdentityCompare(
+            pending_unknown_words, M.EmptyList,
+        )() is M.false_value:
+            pending_unknown_word = M.Head(pending_unknown_words)()
+            pending_unknown_words = M.Tail(pending_unknown_words)()
+            _push_ask(
+                "word",
+                "What does '"
+                + str(pending_unknown_word())
+                + "' mean?",
+            )
+        else:
+            pending_unknown_word = M.EmptyList
+
+    def _chain_count_text(chain):
+        """Count a chain by the machine's own text arithmetic.
+
+        Not M.Count: the count is spoken, never carried as a Succ
+        chain, so the cached text counter is the right tool -- the
+        same one the daemon's cycles are counted with.
+        """
+        count_text = "0"
+        chain_scan = chain
+        while M.IdentityCompare(
+            chain_scan, M.EmptyList,
+        )() is M.false_value:
+            count_text = G.GMPSuccText(count_text)()
+            chain_scan = M.Tail(chain_scan)()
+        return count_text
+
+    def _words_of_count_text(count_text):
+        """A count spoken digit-wise, the machine's way past nine."""
+        digit_words = []
+        for digit_char in count_text:
+            digit_word = _numeral_word_of_value(digit_char)
+            if digit_word is M.EmptyList:
+                return count_text
+            digit_words.append(str(digit_word()))
+        return " ".join(digit_words)
+
     def _numeral_word_of_value(value_text):
         """The spoken word of a value, from the word entries."""
         word_entries = M.Head(M.Tail(vocabulary)())()
@@ -4540,10 +4591,15 @@ def run_talk_mode(sentence: str = None):
             M.Char(step_text),
         )()
         findings = M.Head(outcome)()
-        states_rep = M.Head(M.Tail(outcome)())()
-        tested_rep = M.Head(M.Tail(M.Tail(outcome)())())()
-        # Each finding is recorded in the graph before it is spoken:
-        # what the machine noticed exists as machine data.
+        states_chain = M.Head(M.Tail(outcome)())()
+        tested_chain = M.Head(M.Tail(M.Tail(outcome)())())()
+        # The sweep is recorded whole before anything is spoken: the
+        # states it walked, the expressions it tested, the findings.
+        # The counts in the reply are counted from these recorded
+        # chains by the machine's own counting, so every number the
+        # reply speaks is a number the graph can be asked for.
+        states_count_text = _chain_count_text(states_chain)
+        tested_count_text = _chain_count_text(tested_chain)
         findings_scan = findings
         while M.IdentityCompare(
             findings_scan, M.EmptyList,
@@ -4559,17 +4615,34 @@ def run_talk_mode(sentence: str = None):
                 G.GraphEdges(learned_version)(),
                 G.GraphVersionInvariants(learned_version)(),
             )()
+        sweep_node = M.Pair(
+            M.Char("invariant-sweep"),
+            M.Pair(
+                states_chain,
+                M.Pair(
+                    tested_chain,
+                    M.Pair(findings, M.EmptyList),
+                ),
+            ),
+        )
+        learned_version = G.GraphVersion(
+            M.Pair(sweep_node, G.GraphNodes(learned_version)()),
+            G.GraphEdges(learned_version)(),
+            G.GraphVersionInvariants(learned_version)(),
+        )()
         _persist_talk_state()
         reply_lines = [
-            "I walked "
-            + _words_of_value_text(
-                M.GMPRepText(states_rep)(),
+            "The sweep is recorded in the graph. It holds "
+            + _words_of_count_text(
+                states_count_text,
             )
-            + " states within two moves and tested "
-            + _words_of_value_text(
-                M.GMPRepText(tested_rep)(),
+            + " states, each within two moves and each a chain of"
+            + " sector and value, and "
+            + _words_of_count_text(
+                tested_count_text,
             )
-            + " expressions, each number added or subtracted once.",
+            + " expressions, each number added, subtracted, or left"
+            + " out -- counted from the record, not claimed.",
         ]
         if M.IdentityCompare(
             findings, M.EmptyList,
@@ -5306,12 +5379,66 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_rule, learned_version, proposal_store
         nonlocal pending_gaps
         nonlocal pending_process
+        nonlocal pending_unknown_words, pending_unknown_word
         lowered = line.lower()
         # A bare line at the prompt answers the problem question that
         # stands: the numbers, the pairs a move touches, or the step.
         problem_answer = _try_problem_answer(line, record=record)
         if problem_answer is not None:
             return problem_answer
+        # A bare line is the meaning of the word the standing
+        # question asks about; it is recorded through the word
+        # teaching path, as if the trainer had typed it there.
+        if M.IdentityCompare(
+            pending_unknown_word, M.EmptyList,
+        )() is M.false_value:
+            if ":" not in line and lowered not in ("yes", "no"):
+                if lowered == "skip all":
+                    _pop_ask("word")
+                    pending_unknown_words = M.EmptyList
+                    pending_unknown_word = M.EmptyList
+                    if record:
+                        _log_lesson(line)
+                    return (
+                        "Stopped asking for word meanings."
+                        + _ask_next_line()
+                    )
+                if lowered == "skip":
+                    skipped_word = str(pending_unknown_word())
+                    _advance_unknown_word()
+                    if record:
+                        _log_lesson(line)
+                    if M.IdentityCompare(
+                        pending_unknown_word, M.EmptyList,
+                    )() is M.truth_value:
+                        return (
+                            "Passed '"
+                            + skipped_word
+                            + "'. No more words to ask about."
+                            + _ask_next_line()
+                        )
+                    return (
+                        "Passed '"
+                        + skipped_word
+                        + "'."
+                        + _ask_next_line()
+                    )
+                word_line = (
+                    "word: "
+                    + str(pending_unknown_word())
+                    + " means "
+                    + line.strip()
+                )
+                word_reply = _respond(word_line, record=record)
+                _advance_unknown_word()
+                if M.IdentityCompare(
+                    pending_unknown_word, M.EmptyList,
+                )() is M.truth_value:
+                    return (
+                        word_reply
+                        + " No more words to ask about."
+                    )
+                return word_reply + _ask_next_line()
         if lowered.startswith("word:"):
             parsed_word = G.ParseWordText(
                 line[5:].strip(),
@@ -5462,15 +5589,33 @@ def run_talk_mode(sentence: str = None):
                 reply_text = reply_text + (
                     " These words I do not know: "
                     + ", ".join(unknown_texts)
-                    + ". Ground them with 'word: "
-                    + unknown_texts[0]
-                    + " means ...' or teach their definition."
+                    + ". I will ask for each meaning in turn; say"
+                    + " skip to pass one, skip all to stop."
                 )
+                unknown_chain = M.EmptyList
+                for unknown_word in reversed(problem_unknown):
+                    unknown_chain = M.Pair(unknown_word, unknown_chain)
+                pending_unknown_words = unknown_chain
+                if M.IdentityCompare(
+                    pending_unknown_words, M.EmptyList,
+                )() is M.false_value:
+                    pending_unknown_word = M.Head(
+                        pending_unknown_words,
+                    )()
+                    pending_unknown_words = M.Tail(
+                        pending_unknown_words,
+                    )()
+                    _push_ask(
+                        "word",
+                        "What does '"
+                        + str(pending_unknown_word())
+                        + "' mean?",
+                    )
             elif known_texts:
                 reply_text = reply_text + (
                     " Every word in it is known to me."
                 )
-            return reply_text
+            return reply_text + _ask_next_line()
         if lowered.startswith("suggest invariants"):
             # The machine explores its own reach and returns what
             # never changes, as terms: the sweep itself runs in the

@@ -4991,50 +4991,9 @@ class SuggestInvariants(M.Edge):
             return value_text
 
         findings = []
-        tested = 0
-        coefficients = []
+        tested_terms = []
 
-        def sweep(position):
-            nonlocal tested
-            if position == count:
-                first_nonzero = 0
-                for coefficient in coefficients:
-                    if coefficient != 0:
-                        first_nonzero = coefficient
-                        break
-                if first_nonzero != 1:
-                    return
-                tested = tested + 1
-                constant_text = evaluate(coefficients, states[0])
-                for state in states[1:]:
-                    value_text = evaluate(coefficients, state)
-                    if GMPEqualText(
-                        value_text, constant_text,
-                    )() is not M.truth_value:
-                        return
-                opposite = True
-                for position_a, position_b in move_indices:
-                    if (
-                        coefficients[position_a]
-                        * coefficients[position_b]
-                        != -1
-                    ):
-                        opposite = False
-                findings.append(
-                    (list(coefficients), constant_text, opposite),
-                )
-                return
-            for choice in (1, 0, -1):
-                coefficients.append(choice)
-                sweep(position + 1)
-                coefficients.pop()
-
-        sweep(0)
-        # Each finding as a term: the expression, an add/sub chain
-        # over the sector terms in board order, beside its value and
-        # whether every move's pair carries opposite signs in it.
-        reversed_findings = M.EmptyList
-        for coefficients, constant_text, opposite in findings:
+        def expression_term(coefficients):
             # The expression as an add/sub chain in board order. The
             # sweep fixed the earliest signed coefficient at +1, so
             # the chain starts from that sector and adds or subtracts
@@ -5065,6 +5024,51 @@ class SuggestInvariants(M.Edge):
                             M.Pair(sector, M.EmptyList),
                         ),
                     )
+            return expression
+
+        coefficients = []
+
+        def sweep(position):
+            if position == count:
+                first_nonzero = 0
+                for coefficient in coefficients:
+                    if coefficient != 0:
+                        first_nonzero = coefficient
+                        break
+                if first_nonzero != 1:
+                    return
+                tested_terms.append(expression_term(coefficients))
+                constant_text = evaluate(coefficients, states[0])
+                for state in states[1:]:
+                    value_text = evaluate(coefficients, state)
+                    if GMPEqualText(
+                        value_text, constant_text,
+                    )() is not M.truth_value:
+                        return
+                opposite = True
+                for position_a, position_b in move_indices:
+                    if (
+                        coefficients[position_a]
+                        * coefficients[position_b]
+                        != -1
+                    ):
+                        opposite = False
+                findings.append(
+                    (list(coefficients), constant_text, opposite),
+                )
+                return
+            for choice in (1, 0, -1):
+                coefficients.append(choice)
+                sweep(position + 1)
+                coefficients.pop()
+
+        sweep(0)
+        # Each finding as a term: the expression, an add/sub chain
+        # over the sector terms in board order, beside its value and
+        # whether every move's pair carries opposite signs in it.
+        reversed_findings = M.EmptyList
+        for coefficients, constant_text, opposite in findings:
+            expression = expression_term(coefficients)
             finding = M.Pair(
                 expression,
                 M.Pair(
@@ -5077,11 +5081,35 @@ class SuggestInvariants(M.Edge):
             )
             reversed_findings = M.Pair(finding, reversed_findings)
         findings_chain = M.Reverse(reversed_findings)()
+        # The walk itself is returned as terms: every state reached,
+        # each as a chain of sector and value, and every expression
+        # tested. What the sweep did is machine data, countable and
+        # inspectable, not a claim in prose.
+        reversed_states = M.EmptyList
+        for state in states:
+            reversed_state = M.EmptyList
+            for position in reversed(range(count)):
+                reversed_state = M.Pair(
+                    M.Pair(
+                        sectors[position],
+                        M.Pair(
+                            M.GMPRep(state[position]),
+                            M.EmptyList,
+                        ),
+                    ),
+                    reversed_state,
+                )
+            reversed_states = M.Pair(reversed_state, reversed_states)
+        states_chain = M.Reverse(reversed_states)()
+        reversed_tested = M.EmptyList
+        for term in tested_terms:
+            reversed_tested = M.Pair(term, reversed_tested)
+        tested_chain = M.Reverse(reversed_tested)()
         self.result = M.Pair(
             findings_chain,
             M.Pair(
-                M.GMPRep(str(len(states))),
-                M.Pair(M.GMPRep(str(tested)), M.EmptyList),
+                states_chain,
+                M.Pair(tested_chain, M.EmptyList),
             ),
         )
         super().__init__(
