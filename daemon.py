@@ -30,6 +30,8 @@ import time
 
 from . import machine as M
 from . import graph as Gmod
+from . import labels as Lmod
+from . import proof as Proof
 from . import wire as Wmod
 
 
@@ -64,6 +66,7 @@ class DaemonCycleSummary(M.Edge):
         activated = M.EmptyList
         handles = M.EmptyList
         compositions = M.EmptyList
+        correspondences = M.EmptyList
         stopped = M.EmptyList
         remaining = report
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -89,23 +92,69 @@ class DaemonCycleSummary(M.Edge):
                 compositions = value
             elif M.Compare(
                 key,
+                Gmod.AUTONOMY_REPORT_GENERATED_CORRESPONDENCES_KEY,
+            )() is M.truth_value:
+                correspondences = value
+            elif M.Compare(
+                key,
                 Gmod.AUTONOMY_REPORT_STOPPED_REASON_KEY,
             )() is M.truth_value:
                 stopped = value
             remaining = M.Tail(remaining)()
+        unified_text = DaemonActivatedKindText(activated)()
         self.result = (
             "fired "
             + DaemonCountText(firings)()
             + ", activated "
             + DaemonCountText(activated)()
+            + unified_text
             + ", proposed "
             + DaemonCountText(handles)()
             + " handle(s) and "
             + DaemonCountText(compositions)()
             + " composition(s)"
+            + ", found "
+            + DaemonCountText(correspondences)()
+            + " correspondence(s)"
             + DaemonStoppedText(stopped)()
         )
         super().__init__(inputs=M.Pair(report, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DaemonActivatedKindText(M.Edge):
+    """Name what a cycle's activations did, from the proposals themselves.
+
+    A count says how many; the payload of each activated proposal says
+    what kind of change the graph took -- rules unified, subgraphs
+    reformed -- so the commentary can say it in words.
+    """
+
+    def __init__(self, activated):
+        unified = 0
+        reformed = 0
+        remaining = activated
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            proposal = M.Head(remaining)()
+            payload = Gmod.ProposalLaw(proposal)()
+            if Gmod.IsRuleUnification(payload)() is M.truth_value:
+                unified = unified + 1
+            elif Gmod.IsSubgraphReformulation(payload)() is M.truth_value:
+                reformed = reformed + 1
+            remaining = M.Tail(remaining)()
+        self.result = ""
+        if unified:
+            self.result = self.result + " (unified " + str(unified) + " rule pair(s)"
+            if reformed:
+                self.result = (
+                    self.result + ", reformed " + str(reformed) + " subgraph(s)"
+                )
+            self.result = self.result + ")"
+        elif reformed:
+            self.result = " (reformed " + str(reformed) + " subgraph(s))"
+        super().__init__(inputs=M.Pair(activated, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -200,6 +249,134 @@ class DaemonStoppedText(M.Edge):
         return self.result
 
 
+class DaemonCycleFindingsText(M.Edge):
+    """The cycle's own count of correspondences found, as text."""
+
+    def __init__(self, report):
+        self.result = "0"
+        remaining = report
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            key = M.Head(entry)()
+            if M.Compare(
+                key,
+                Gmod.AUTONOMY_REPORT_GENERATED_CORRESPONDENCES_KEY,
+            )() is M.truth_value:
+                self.result = DaemonCountText(
+                    M.Head(M.Head(M.Tail(entry)())())(),
+                )()
+                remaining = M.EmptyList
+            else:
+                remaining = M.Tail(remaining)()
+        super().__init__(inputs=M.Pair(report, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DaemonCorrespondenceLines(M.Edge):
+    """Say, in words, what the cycle's findings are waiting on.
+
+    The proposals carry their own terms; this renders the pending
+    machine-found ones as the statements they are -- two rules that are
+    one rule, a subgraph the graph holds several times -- so the
+    commentary names the correspondence rather than counting it.
+    """
+
+    def __init__(self, proposal_store):
+        lines = []
+        remaining = Gmod.ProposalStoreEntries(proposal_store)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            entry = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+            proposal = Gmod.ProposalEntryProposal(entry)()
+            origin = Gmod.ProposalOrigin(proposal)()
+            machine_found = M.false_value
+            if M.IsPair(origin)() is M.truth_value:
+                if M.Compare(
+                    M.Head(origin)(),
+                    M.Char("machine-correspondence"),
+                )() is M.truth_value:
+                    machine_found = M.truth_value
+            if M.IdentityCompare(machine_found, M.false_value)() is M.truth_value:
+                continue
+            decided = M.false_value
+            annotation_scan = Gmod.ProposalEntryAnnotations(entry)()
+            while M.IdentityCompare(
+                annotation_scan,
+                M.EmptyList,
+            )() is M.false_value:
+                annotation = M.Head(annotation_scan)()
+                if M.IsPair(annotation)() is M.truth_value:
+                    if M.TermEqual(
+                        M.Head(annotation)(),
+                        Lmod.ApprovedLabel,
+                    )() is M.truth_value:
+                        decided = M.truth_value
+                        annotation_scan = M.EmptyList
+                    elif M.TermEqual(
+                        M.Head(annotation)(),
+                        Lmod.RejectedLabel,
+                    )() is M.truth_value:
+                        decided = M.truth_value
+                        annotation_scan = M.EmptyList
+                if M.IdentityCompare(
+                    annotation_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    annotation_scan = M.Tail(annotation_scan)()
+            if M.IdentityCompare(decided, M.truth_value)() is M.truth_value:
+                continue
+            payload = Gmod.ProposalLaw(proposal)()
+            if Gmod.IsRuleUnification(payload)() is M.truth_value:
+                keep = Proof.PrettyRule(
+                    Proof.MultiRule(
+                        Gmod.RuleUnificationKeepPremises(payload)(),
+                        Gmod.RuleUnificationKeepReplacement(payload)(),
+                    )(),
+                    M.AllConstructors,
+                )()
+                retire = Proof.PrettyRule(
+                    Proof.MultiRule(
+                        Gmod.RuleUnificationRetirePremises(payload)(),
+                        Gmod.RuleUnificationRetireReplacement(payload)(),
+                    )(),
+                    M.AllConstructors,
+                )()
+                kind_text = "up to instantiation"
+                if M.Compare(
+                    Gmod.RuleUnificationKind(payload)(),
+                    M.Char("renaming"),
+                )() is M.truth_value:
+                    kind_text = "up to renaming"
+                lines.append(
+                    "the rule '"
+                    + keep
+                    + "' and the rule '"
+                    + retire
+                    + "' are one rule "
+                    + kind_text,
+                )
+            elif Gmod.IsSubgraphReformulation(payload)() is M.truth_value:
+                lines.append(
+                    "the subgraph "
+                    + M.PrettyTerm(
+                        Gmod.SubgraphReformulationPattern(payload)(),
+                        M.AllConstructors,
+                    )()
+                    + " is in the graph "
+                    + M.GMPRepText(
+                        Gmod.SubgraphReformulationCount(payload)(),
+                    )()
+                    + " times",
+                )
+        self.result = "; ".join(lines)
+        super().__init__(inputs=M.Pair(proposal_store, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class DaemonSafetyText(M.Edge):
     """Name a violated safety bound, or empty when the floor is clear."""
 
@@ -217,6 +394,69 @@ class DaemonSafetyText(M.Edge):
             )
         super().__init__(
             inputs=M.Pair(graph_version, M.Pair(proposal_store, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DaemonAnnotationForTarget(M.Edge):
+    """Repoint an annotation at the proposal of the entry it lands on.
+
+    An annotation speaks about a proposal: Approved(proposal, ...),
+    Rejected(proposal, ...), Activation(proposal), JustifiedBy(proposal,
+    ...). A submission whose entry is known under the store's own
+    proposal -- the same teaching, or the same term restored from
+    another blob -- carries annotations about the submitted term, and
+    the gates downstream read them by identity against the entry's own
+    proposal. The annotation is rewritten to speak about the proposal
+    it now annotates; every other annotation passes through untouched.
+    """
+
+    def __init__(self, annotation, submitted, target):
+        result = annotation
+        if M.IsPair(annotation)() is M.truth_value:
+            speaks_of = M.Head(M.Tail(annotation)())()
+            if M.Compare(speaks_of, submitted)() is M.truth_value:
+                label = M.Head(annotation)()
+                if M.TermEqual(label, Lmod.ApprovedLabel)() is M.truth_value:
+                    result = Gmod.Approved(
+                        target,
+                        M.Head(M.Tail(M.Tail(annotation)())())(),
+                    )()
+                elif M.TermEqual(label, Lmod.RejectedLabel)() is M.truth_value:
+                    result = Gmod.Rejected(
+                        target,
+                        M.Head(M.Tail(M.Tail(annotation)())())(),
+                        M.Head(
+                            M.Tail(M.Tail(M.Tail(annotation)())())(),
+                        )(),
+                    )()
+                elif M.TermEqual(label, Lmod.ActivationLabel)() is M.truth_value:
+                    result = Gmod.Activation(target)()
+                elif M.TermEqual(
+                    label,
+                    Lmod.JustifiedByLabel,
+                )() is M.truth_value:
+                    result = Gmod.JustifiedBy(
+                        target,
+                        M.Head(M.Tail(M.Tail(annotation)())())(),
+                    )()
+                elif M.TermEqual(
+                    label,
+                    Lmod.CountersignedLabel,
+                )() is M.truth_value:
+                    result = Gmod.Countersigned(
+                        target,
+                        M.Head(M.Tail(M.Tail(annotation)())())(),
+                    )()
+        self.result = result
+        super().__init__(
+            inputs=M.Pair(
+                annotation,
+                M.Pair(submitted, M.Pair(target, M.EmptyList)),
+            ),
             results=self.result,
         )
 
@@ -243,25 +483,72 @@ class DaemonMergeInbox(M.Edge):
             entry = M.Head(remaining)()
             proposal = Gmod.ProposalEntryProposal(entry)()
             known = M.false_value
+            # The entry the annotations land on: the submitted proposal
+            # when it is itself known, or the store's own proposal when
+            # the teaching is known under a guarded law.
+            attach_target = proposal
             probe = Gmod.ProposalStoreEntries(current)()
             while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                known_proposal = Gmod.ProposalEntryProposal(
+                    M.Head(probe)(),
+                )()
                 if M.Compare(
-                    Gmod.ProposalEntryProposal(M.Head(probe)())(),
+                    known_proposal,
                     proposal,
                 )() is M.truth_value:
                     known = M.truth_value
+                    attach_target = known_proposal
                     probe = M.EmptyList
                 else:
-                    probe = M.Tail(probe)()
+                    # The daemon activates a submitted rule under a
+                    # guarded law -- the node-budget obligation is added
+                    # to the proposal's own law -- so the same teaching
+                    # crosses this boundary as two structurally
+                    # different proposals. A taught rule is identified
+                    # by its teaching: the dialogue-rule origin carrying
+                    # its premises and replacement. Same origin, same
+                    # entry, whatever guard the law wears.
+                    same_teaching = M.false_value
+                    known_origin = Gmod.ProposalOrigin(known_proposal)()
+                    submitted_origin = Gmod.ProposalOrigin(proposal)()
+                    if M.IsPair(known_origin)() is M.truth_value:
+                        if M.IsPair(submitted_origin)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(known_origin)(),
+                                M.Char("dialogue-rule"),
+                            )() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(submitted_origin)(),
+                                    M.Char("dialogue-rule"),
+                                )() is M.truth_value:
+                                    if M.Compare(
+                                        known_origin,
+                                        submitted_origin,
+                                    )() is M.truth_value:
+                                        same_teaching = M.truth_value
+                    if M.IdentityCompare(
+                        same_teaching,
+                        M.truth_value,
+                    )() is M.truth_value:
+                        known = M.truth_value
+                        attach_target = known_proposal
+                        probe = M.EmptyList
+                    else:
+                        probe = M.Tail(probe)()
             if M.IdentityCompare(known, M.false_value)() is M.truth_value:
                 current = Gmod.ProposalStoreSubmit(current, proposal)()
                 merged_text = Gmod.GMPSuccText(merged_text)()
             annotations = Gmod.ProposalEntryAnnotations(entry)()
             while M.IdentityCompare(annotations, M.EmptyList)() is M.false_value:
+                annotation = DaemonAnnotationForTarget(
+                    M.Head(annotations)(),
+                    proposal,
+                    attach_target,
+                )()
                 current = Gmod.ProposalStoreAttach(
                     current,
-                    proposal,
-                    M.Head(annotations)(),
+                    attach_target,
+                    annotation,
                 )()
                 annotations = M.Tail(annotations)()
             remaining = M.Tail(remaining)()
@@ -328,6 +615,24 @@ def daemon_budget(graph_version):
     )
 
 
+def daemon_correspondence_config():
+    """The live daemon's mining: correspondences only.
+
+    Firing laws over ground facts is one thing the cycle does; finding
+    structure is the other, and it is the one the background process is
+    for. Handle and composition mining stay off in live sessions -- they
+    fire and fold without asking -- while rule correspondence and
+    recurring-subgraph findings are proposals for the human.
+    """
+    return M.Pair(
+        M.Pair(
+            Gmod.AUTONOMY_GENERATE_CORRESPONDENCES_KEY,
+            M.Pair(M.truth_value, M.EmptyList),
+        ),
+        M.EmptyList,
+    )
+
+
 def daemon_generator_config(graph_version):
     """Switch mining on. Without this the daemon cannot propose anything.
 
@@ -339,6 +644,8 @@ def daemon_generator_config(graph_version):
 
     Handle mining censuses candidate patterns across a version history;
     the current version is that history until a Next chain accumulates.
+    Correspondence mining -- rules against rules, subgraphs against the
+    graph -- runs in every mode, live included.
     """
     return M.Pair(
         M.Pair(
@@ -352,13 +659,19 @@ def daemon_generator_config(graph_version):
             ),
             M.Pair(
                 M.Pair(
-                    Gmod.AUTONOMY_GENERATOR_VERSIONS_KEY,
-                    M.Pair(
-                        M.Pair(graph_version, M.EmptyList),
-                        M.EmptyList,
-                    ),
+                    Gmod.AUTONOMY_GENERATE_CORRESPONDENCES_KEY,
+                    M.Pair(M.truth_value, M.EmptyList),
                 ),
-                M.EmptyList,
+                M.Pair(
+                    M.Pair(
+                        Gmod.AUTONOMY_GENERATOR_VERSIONS_KEY,
+                        M.Pair(
+                            M.Pair(graph_version, M.EmptyList),
+                            M.EmptyList,
+                        ),
+                    ),
+                    M.EmptyList,
+                ),
             ),
         ),
     )
@@ -389,6 +702,13 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     """
     state_path = os.path.join(snapshot_dir, DAEMON_STATE_NAME)
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
+    # The fold takes the inbox by renaming it: atomic, so a submission
+    # arriving mid-cycle lands in a fresh talk_inbox.wire the next cycle
+    # drains, instead of being deleted unread by the end-of-cycle
+    # cleanup. A daemon killed between the take and the durable state
+    # write leaves the taken file behind; boot folds it back in, so a
+    # kill loses nothing.
+    inbox_taken_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME + ".taken")
     live_daemon = M.false_value
     if M.Compare(
         M.Char(os.environ.get("HYGE_LIVE_DAEMON", "")),
@@ -405,6 +725,22 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
             graph_version = M.Head(restored)()
             proposal_store = M.Head(M.Tail(restored)())()
             ledger = M.Head(M.Tail(M.Tail(restored)())())()
+    # An inbox taken but not yet folded into durable state when the
+    # previous daemon died: fold it now, before anything else, so the
+    # take loses nothing across a kill.
+    if os.path.exists(inbox_taken_path):
+        taken = Wmod.load_checkpoint(inbox_taken_path)
+        if M.IdentityCompare(taken, M.EmptyList)() is M.false_value:
+            graph_version = Gmod.MergeGraphVersion(
+                graph_version,
+                M.Head(taken)(),
+            )()
+            taken_merge = DaemonMergeInbox(
+                proposal_store,
+                M.Head(M.Tail(taken)())(),
+            )()
+            proposal_store = M.Head(taken_merge)()
+        os.remove(inbox_taken_path)
     worker_count = daemon_worker_count(worker_count)
     live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
     with open(live_path, "w", encoding="utf-8") as handle:
@@ -433,6 +769,13 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
             max_text = M.GMPRepText(max_cycles)()
     cycles_text = "0"
     stop_reason = DAEMON_STOP_CYCLES
+    # Mining reads the version, so it runs when the version moved. A
+    # stable graph re-mined every half second would find the same
+    # nothing forever; these stamps say whether anything changed since
+    # the last pass. Host strings at the process boundary, like the
+    # cycle counter beside them.
+    mined_nodes_text = ""
+    mined_edges_text = ""
     cycling = M.truth_value
     while M.IdentityCompare(cycling, M.truth_value)() is M.truth_value:
         cycling = M.false_value
@@ -444,7 +787,12 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
 
             inbox_taken = M.false_value
             if os.path.exists(inbox_path):
-                submitted = Wmod.load_checkpoint(inbox_path)
+                # Take the whole file by rename before reading it. A
+                # submission written while this cycle runs creates a new
+                # talk_inbox.wire after the rename, untouched by this
+                # cycle's cleanup, and the next cycle drains it.
+                os.replace(inbox_path, inbox_taken_path)
+                submitted = Wmod.load_checkpoint(inbox_taken_path)
                 inbox_taken = M.truth_value
                 if M.IdentityCompare(submitted, M.EmptyList)() is M.false_value:
                     graph_version = Gmod.MergeGraphVersion(
@@ -476,11 +824,42 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 # the coordinator version rather than transplanted, and the
                 # single in-process AutonomyCycle is still the only place
                 # activation happens. Without workers it is that cycle alone.
-                generator_config = daemon_generator_config(graph_version)
-                if M.IdentityCompare(
-                    live_daemon, M.truth_value,
-                )() is M.truth_value:
-                    generator_config = M.EmptyList
+                version_nodes_text = M.GMPRepText(
+                    M.NatRepOf(
+                        M.Head(
+                            M.Count(
+                                Gmod.GraphNodes(graph_version)(),
+                                M.AllConstructors,
+                            )(),
+                        )(),
+                        M.AllConstructors,
+                    )(),
+                )()
+                version_edges_text = M.GMPRepText(
+                    M.NatRepOf(
+                        M.Head(
+                            M.Count(
+                                Gmod.GraphEdges(graph_version)(),
+                                M.AllConstructors,
+                            )(),
+                        )(),
+                        M.AllConstructors,
+                    )(),
+                )()
+                version_moved = (
+                    version_nodes_text != mined_nodes_text
+                    or version_edges_text != mined_edges_text
+                )
+                generator_config = M.EmptyList
+                if version_moved:
+                    if M.IdentityCompare(
+                        live_daemon, M.truth_value,
+                    )() is M.truth_value:
+                        generator_config = daemon_correspondence_config()
+                    else:
+                        generator_config = daemon_generator_config(
+                            graph_version,
+                        )
                 if worker_count:
                     outcome = Wmod.distributed_cycle(
                         graph_version,
@@ -501,24 +880,36 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 graph_version = M.Head(outcome)()
                 proposal_store = M.Head(M.Tail(outcome)())()
                 report = M.Head(M.Tail(M.Tail(outcome)())())()
+                if version_moved:
+                    mined_nodes_text = version_nodes_text
+                    mined_edges_text = version_edges_text
                 Wmod.save_checkpoint(
                     state_path,
                     graph_version,
                     proposal_store,
                     ledger,
                 )
-                # The submission file outlives the write that consumed it:
-                # removing it earlier opened a window where a kill between
-                # drain and write lost the drained data. Now the inbox is
-                # removed only once its content is durable in the state --
-                # at-least-once delivery into an idempotent merge.
+                # The taken file is removed only once its content is
+                # durable in the state -- at-least-once delivery into an
+                # idempotent merge, and never a deletion of a submission
+                # this cycle did not read.
                 if M.IdentityCompare(inbox_taken, M.truth_value)() is M.truth_value:
-                    if os.path.exists(inbox_path):
-                        os.remove(inbox_path)
+                    if os.path.exists(inbox_taken_path):
+                        os.remove(inbox_taken_path)
                 print(
                     "daemon cycle " + cycles_text + ": " + DaemonCycleSummary(report)(),
                     flush=True,
                 )
+                findings_text = DaemonCycleFindingsText(report)()
+                if findings_text != "0":
+                    correspondence_lines = DaemonCorrespondenceLines(
+                        proposal_store,
+                    )()
+                    if correspondence_lines != "":
+                        print(
+                            "daemon: correspondence: " + correspondence_lines,
+                            flush=True,
+                        )
                 if DaemonCycleIsQuiescent(report)() is M.truth_value:
                     stop_reason = DAEMON_STOP_QUIESCENT
                     if M.IdentityCompare(

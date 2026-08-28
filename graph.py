@@ -31,7 +31,7 @@ from .firing import (
     FiringRecordG1, FiringRecordLaw, FiringRecordNodesAfter,
     FiringRecordNodesBefore, FiringRecordTrace, FiringRecordTraceSteps,
 )
-from .mining import MineNatFromGMPRep, MineNatSuccessor
+from .mining import MineNatFromGMPRep, MineNatSuccessor, MineNatAdd
 from .deduction import DeductionPlan, DeltaAgenda, IndexedFiring
 
 
@@ -1977,7 +1977,11 @@ class ActivateProposal(M.Edge):
             )
         else:
             payload = ProposalLaw(proposal)()
-            if IsCaseSplit(payload)() is M.truth_value:
+            if IsRuleUnification(payload)() is M.truth_value:
+                installed = UnifyRules(graph_version, payload)()
+            elif IsSubgraphReformulation(payload)() is M.truth_value:
+                installed = ReformulateSubgraph(graph_version, payload)()
+            elif IsCaseSplit(payload)() is M.truth_value:
                 installed = InstallCaseSplit(graph_version, payload)()
             else:
                 installed = InstallLaw(graph_version, payload)()
@@ -3624,6 +3628,17 @@ class ClassifyProposal(M.Edge):
             self.result = M.Char("case_split")
             super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
             return
+        if IsRuleUnification(payload)() is M.truth_value:
+            # A unification retires a law; retiring is the human's gate.
+            self.result = M.Char("retire_law")
+            super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+            return
+        if IsSubgraphReformulation(payload)() is M.truth_value:
+            # A reformulation rewrites how the graph says what it means
+            # -- a meta rewrite, and the human's gate.
+            self.result = M.Char("meta_rewrite")
+            super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+            return
         policy = ImpactPolicy()()
         fold_class = M.Head(M.Head(policy)())()
         policy = M.Tail(policy)()
@@ -3750,6 +3765,15 @@ AUTONOMY_REPORT_GENERATED_HANDLES_KEY = M.Char("generated_handles")
 AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY = M.Char("generated_compositions")
 AUTONOMY_GENERATE_HANDLES_KEY = M.Char("generate_handles")
 AUTONOMY_GENERATE_COMPOSITIONS_KEY = M.Char("generate_compositions")
+AUTONOMY_GENERATE_CORRESPONDENCES_KEY = M.Char("generate_correspondences")
+AUTONOMY_REPORT_GENERATED_CORRESPONDENCES_KEY = M.Char("generated_correspondences")
+# The correspondence miner reads only the shared version: every taught
+# rule it may pair, every pair it may scan, and every recurring subgraph
+# pattern it may name. Caps keep one mining pass proportional to what
+# was taught, not to the node store.
+RULE_CORRESPONDENCE_RULE_CAP = M.GMPRep("60")
+RULE_CORRESPONDENCE_PAIR_CAP = M.GMPRep("400")
+SUBGRAPH_CORRESPONDENCE_PATTERN_CAP = M.GMPRep("200")
 AUTONOMY_GENERATOR_VERSIONS_KEY = M.Char("versions")
 AUTONOMY_GENERATOR_MIN_COUNT_KEY = M.Char("min_count")
 AUTONOMY_GENERATOR_SLICE_INDEX_KEY = M.Char("slice_index")
@@ -3757,6 +3781,1234 @@ AUTONOMY_GENERATOR_SLICE_COUNT_KEY = M.Char("slice_count")
 AUTONOMY_STOP_EXHAUSTED = M.Char("exhausted")
 AUTONOMY_STOP_BUDGET_FIRINGS = M.Char("budget_firings")
 AUTONOMY_STOP_BUDGET_NODES = M.Char("budget_nodes")
+
+
+class RuleUnification(M.Edge):
+    """A machine-found equivalence between two taught rules.
+
+    The payload carries both rules' source terms -- premises and
+    replacement for the rule that stays, then for the rule the finding
+    would retire -- and the kind of equivalence: "renaming" when the two
+    are one rule up to a consistent variable renaming, "instance" when
+    one is the other under a substitution. Activation retires the
+    redundant law and records the correspondence in the graph.
+    """
+
+    def __init__(
+        self,
+        keep_premises,
+        keep_replacement,
+        retire_premises,
+        retire_replacement,
+        kind,
+    ):
+        self.result = M.Pair(
+            M.Char("rule-unification"),
+            M.Pair(
+                keep_premises,
+                M.Pair(
+                    keep_replacement,
+                    M.Pair(
+                        retire_premises,
+                        M.Pair(
+                            retire_replacement,
+                            M.Pair(kind, M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                keep_premises,
+                M.Pair(
+                    keep_replacement,
+                    M.Pair(
+                        retire_premises,
+                        M.Pair(
+                            retire_replacement,
+                            M.Pair(kind, M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsRuleUnification(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), M.Char("rule-unification"))() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleUnificationKeepPremises(M.Edge):
+    def __init__(self, unification):
+        self.result = M.Head(M.Tail(unification)())()
+        super().__init__(inputs=M.Pair(unification, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleUnificationKeepReplacement(M.Edge):
+    def __init__(self, unification):
+        self.result = M.Head(M.Tail(M.Tail(unification)())())()
+        super().__init__(inputs=M.Pair(unification, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleUnificationRetirePremises(M.Edge):
+    def __init__(self, unification):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(unification)())())())()
+        super().__init__(inputs=M.Pair(unification, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleUnificationRetireReplacement(M.Edge):
+    def __init__(self, unification):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(unification)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(unification, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RuleUnificationKind(M.Edge):
+    def __init__(self, unification):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(unification)())())())())(),
+        )()
+        super().__init__(inputs=M.Pair(unification, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubgraphReformulation(M.Edge):
+    """A machine-found recurrence of one subgraph across taught rules.
+
+    The payload carries the recurring pattern term and the number of
+    taught rules it occurs in. Activation names the pattern -- a Handle
+    over its encoding -- and records the correspondence, so the graph
+    itself carries that these sites are one shape.
+    """
+
+    def __init__(self, pattern, count):
+        self.result = M.Pair(
+            M.Char("subgraph-reformulation"),
+            M.Pair(pattern, M.Pair(count, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(count, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsSubgraphReformulation(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(
+                M.Head(term)(),
+                M.Char("subgraph-reformulation"),
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubgraphReformulationPattern(M.Edge):
+    def __init__(self, reformulation):
+        self.result = M.Head(M.Tail(reformulation)())()
+        super().__init__(inputs=M.Pair(reformulation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubgraphReformulationCount(M.Edge):
+    def __init__(self, reformulation):
+        self.result = M.Head(M.Tail(M.Tail(reformulation)())())()
+        super().__init__(inputs=M.Pair(reformulation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TermsAlphaEquivalent(M.Edge):
+    """Two terms equal up to one consistent variable renaming.
+
+    The walk carries two association chains, left-variable to
+    right-variable and back, so a renaming is accepted only when it is a
+    bijection used the same way everywhere compared. Pair chains --
+    a premise list, an argument list -- walk under the same rule, so
+    one walker serves terms and premise lists alike.
+    """
+
+    def __init__(self, left, right, forward=M.EmptyList, backward=M.EmptyList):
+        walked = self._walk(left, right, forward, backward)
+        self.result = M.Head(walked)()
+        self.forward = M.Head(M.Tail(walked)())()
+        self.backward = M.Head(M.Tail(M.Tail(walked)())())()
+        super().__init__(
+            inputs=M.Pair(left, M.Pair(right, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _walk(self, left, right, forward, backward):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+                return M.Pair(
+                    M.truth_value,
+                    M.Pair(forward, M.Pair(backward, M.EmptyList)),
+                )
+            return M.Pair(
+                M.false_value,
+                M.Pair(forward, M.Pair(backward, M.EmptyList)),
+            )
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            return M.Pair(
+                M.false_value,
+                M.Pair(forward, M.Pair(backward, M.EmptyList)),
+            )
+        left_is_var = P.IsVarPattern(left)() is M.truth_value
+        right_is_var = P.IsVarPattern(right)() is M.truth_value
+        if left_is_var == right_is_var:
+            if left_is_var:
+                mapped = M.EmptyList
+                scan = forward
+                while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+                    entry = M.Head(scan)()
+                    if M.Compare(M.Head(entry)(), left)() is M.truth_value:
+                        mapped = M.Head(M.Tail(entry)())()
+                        scan = M.EmptyList
+                    else:
+                        scan = M.Tail(scan)()
+                if M.IdentityCompare(mapped, M.EmptyList)() is M.false_value:
+                    if M.Compare(mapped, right)() is M.truth_value:
+                        return M.Pair(
+                            M.truth_value,
+                            M.Pair(forward, M.Pair(backward, M.EmptyList)),
+                        )
+                    return M.Pair(
+                        M.false_value,
+                        M.Pair(forward, M.Pair(backward, M.EmptyList)),
+                    )
+                mapped_back = M.EmptyList
+                scan = backward
+                while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+                    entry = M.Head(scan)()
+                    if M.Compare(M.Head(entry)(), right)() is M.truth_value:
+                        mapped_back = M.Head(M.Tail(entry)())()
+                        scan = M.EmptyList
+                    else:
+                        scan = M.Tail(scan)()
+                if M.IdentityCompare(mapped_back, M.EmptyList)() is M.false_value:
+                    return M.Pair(
+                        M.false_value,
+                        M.Pair(forward, M.Pair(backward, M.EmptyList)),
+                    )
+                return M.Pair(
+                    M.truth_value,
+                    M.Pair(
+                        M.Pair(M.Pair(left, M.Pair(right, M.EmptyList)), forward),
+                        M.Pair(M.Pair(right, M.Pair(left, M.EmptyList)), backward),
+                    ),
+                )
+            if M.IsPair(left)() is M.truth_value:
+                if M.IsPair(right)() is M.truth_value:
+                    walked_head = self._walk(
+                        M.Head(left)(),
+                        M.Head(right)(),
+                        forward,
+                        backward,
+                    )
+                    if M.IdentityCompare(
+                        M.Head(walked_head)(),
+                        M.truth_value,
+                    )() is M.truth_value:
+                        return self._walk(
+                            M.Tail(left)(),
+                            M.Tail(right)(),
+                            M.Head(M.Tail(walked_head)())(),
+                            M.Head(M.Tail(M.Tail(walked_head)())())(),
+                        )
+                    return walked_head
+                return M.Pair(
+                    M.false_value,
+                    M.Pair(forward, M.Pair(backward, M.EmptyList)),
+                )
+            if M.IsPair(right)() is M.truth_value:
+                return M.Pair(
+                    M.false_value,
+                    M.Pair(forward, M.Pair(backward, M.EmptyList)),
+                )
+            if M.Compare(left, right)() is M.truth_value:
+                return M.Pair(
+                    M.truth_value,
+                    M.Pair(forward, M.Pair(backward, M.EmptyList)),
+                )
+            return M.Pair(
+                M.false_value,
+                M.Pair(forward, M.Pair(backward, M.EmptyList)),
+            )
+        return M.Pair(
+            M.false_value,
+            M.Pair(forward, M.Pair(backward, M.EmptyList)),
+        )
+
+
+class RuleSourcesAlphaEquivalent(M.Edge):
+    """Two taught rules equal up to renaming: premises, then conclusion.
+
+    The renaming established across the premises is the one the
+    replacement must respect, so a rule is its twin only when the whole
+    rule -- not just a premise -- renames cleanly.
+    """
+
+    def __init__(self, left_premises, left_replacement, right_premises, right_replacement):
+        premises_walk = TermsAlphaEquivalent(left_premises, right_premises)
+        self.result = M.false_value
+        if M.IdentityCompare(
+            premises_walk.result,
+            M.truth_value,
+        )() is M.truth_value:
+            conclusion_walk = TermsAlphaEquivalent(
+                left_replacement,
+                right_replacement,
+                premises_walk.forward,
+                premises_walk.backward,
+            )
+            self.result = conclusion_walk.result
+        super().__init__(
+            inputs=M.Pair(
+                left_premises,
+                M.Pair(
+                    left_replacement,
+                    M.Pair(
+                        right_premises,
+                        M.Pair(right_replacement, M.EmptyList),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TermMatchBindings(M.Edge):
+    """Match a pattern term against a host term, collecting bindings.
+
+    A variable in the pattern binds the host subterm it meets; the same
+    variable must meet the same subterm again or the match fails. This
+    is the term-native form of the matching the laws fire under, asked
+    between two rules rather than between a rule and a fact.
+    """
+
+    def __init__(self, pattern, host, bindings):
+        self.result = self._match(pattern, host, bindings)
+        super().__init__(
+            inputs=M.Pair(pattern, M.Pair(host, M.Pair(bindings, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _match(self, pattern, host, bindings):
+        if P.IsVarPattern(pattern)() is M.truth_value:
+            bound = M.EmptyList
+            scan = bindings
+            while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+                entry = M.Head(scan)()
+                if M.Compare(M.Head(entry)(), pattern)() is M.truth_value:
+                    bound = M.Head(M.Tail(entry)())()
+                    scan = M.EmptyList
+                else:
+                    scan = M.Tail(scan)()
+            if M.IdentityCompare(bound, M.EmptyList)() is M.false_value:
+                if M.Compare(bound, host)() is M.truth_value:
+                    return M.Pair(M.truth_value, bindings)
+                return M.Pair(M.false_value, bindings)
+            return M.Pair(
+                M.truth_value,
+                M.Pair(M.Pair(pattern, M.Pair(host, M.EmptyList)), bindings),
+            )
+        if M.IdentityCompare(pattern, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(host, M.EmptyList)() is M.truth_value:
+                return M.Pair(M.truth_value, bindings)
+            return M.Pair(M.false_value, bindings)
+        if M.IdentityCompare(host, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, bindings)
+        if M.IsPair(pattern)() is M.truth_value:
+            if M.IsPair(host)() is M.truth_value:
+                matched_head = self._match(
+                    M.Head(pattern)(),
+                    M.Head(host)(),
+                    bindings,
+                )
+                if M.IdentityCompare(
+                    M.Head(matched_head)(),
+                    M.truth_value,
+                )() is M.truth_value:
+                    return self._match(
+                        M.Tail(pattern)(),
+                        M.Tail(host)(),
+                        M.Tail(matched_head)(),
+                    )
+                return matched_head
+            return M.Pair(M.false_value, bindings)
+        if M.IsPair(host)() is M.truth_value:
+            return M.Pair(M.false_value, bindings)
+        if M.Compare(pattern, host)() is M.truth_value:
+            return M.Pair(M.truth_value, bindings)
+        return M.Pair(M.false_value, bindings)
+
+
+class RuleIsInstanceOf(M.Edge):
+    """One rule is another under a substitution of its variables.
+
+    Premises walk in lockstep -- a substitution does not change how many
+    there are -- and the specific rule's replacement must be the general
+    rule's replacement under the same bindings.
+    """
+
+    def __init__(
+        self,
+        general_premises,
+        general_replacement,
+        specific_premises,
+        specific_replacement,
+    ):
+        self.result = self._premises(
+            general_premises,
+            specific_premises,
+            M.EmptyList,
+            general_replacement,
+            specific_replacement,
+        )
+        super().__init__(
+            inputs=M.Pair(
+                general_premises,
+                M.Pair(
+                    general_replacement,
+                    M.Pair(
+                        specific_premises,
+                        M.Pair(specific_replacement, M.EmptyList),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _premises(
+        self,
+        general_premises,
+        specific_premises,
+        bindings,
+        general_replacement,
+        specific_replacement,
+    ):
+        general_done = M.IdentityCompare(
+            general_premises,
+            M.EmptyList,
+        )() is M.truth_value
+        specific_done = M.IdentityCompare(
+            specific_premises,
+            M.EmptyList,
+        )() is M.truth_value
+        if general_done == specific_done:
+            if general_done:
+                matched = TermMatchBindings(
+                    general_replacement,
+                    specific_replacement,
+                    bindings,
+                )()
+                return M.Head(matched)()
+            matched = TermMatchBindings(
+                M.Head(general_premises)(),
+                M.Head(specific_premises)(),
+                bindings,
+            )()
+            if M.IdentityCompare(M.Head(matched)(), M.truth_value)() is M.truth_value:
+                return self._premises(
+                    M.Tail(general_premises)(),
+                    M.Tail(specific_premises)(),
+                    M.Tail(matched)(),
+                    general_replacement,
+                    specific_replacement,
+                )
+        return M.false_value
+
+    def __call__(self):
+        return self.result
+
+
+class RuleSourcesCoverPair(M.Edge):
+    """Four rule sources name the same unordered pair of rules."""
+
+    def __init__(
+        self,
+        first_premises,
+        first_replacement,
+        second_premises,
+        second_replacement,
+        recorded_first_premises,
+        recorded_first_replacement,
+        recorded_second_premises,
+        recorded_second_replacement,
+    ):
+        forward = (
+            M.Compare(first_premises, recorded_first_premises)()
+            is M.truth_value
+            and M.Compare(first_replacement, recorded_first_replacement)()
+            is M.truth_value
+            and M.Compare(second_premises, recorded_second_premises)()
+            is M.truth_value
+            and M.Compare(second_replacement, recorded_second_replacement)()
+            is M.truth_value
+        )
+        backward = (
+            M.Compare(first_premises, recorded_second_premises)()
+            is M.truth_value
+            and M.Compare(first_replacement, recorded_second_replacement)()
+            is M.truth_value
+            and M.Compare(second_premises, recorded_first_premises)()
+            is M.truth_value
+            and M.Compare(second_replacement, recorded_first_replacement)()
+            is M.truth_value
+        )
+        if forward:
+            self.result = M.truth_value
+        elif backward:
+            self.result = M.truth_value
+        else:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawsOperationallyEqual(M.Edge):
+    """Two laws with the same left and right graphs.
+
+    The daemon activates a submitted rule under a guarded law -- the
+    node-budget obligation rides in the law's obligations. What the law
+    says, its left and right graphs, is what the rule means; a
+    correspondence between rules asks exactly that, and nothing about
+    budgets.
+    """
+
+    def __init__(self, first, second):
+        self.result = M.false_value
+        if M.Compare(LawLeft(first)(), LawLeft(second)())() is M.truth_value:
+            if M.Compare(
+                LawRight(first)(),
+                LawRight(second)(),
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(
+            inputs=M.Pair(first, M.Pair(second, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateRuleCorrespondenceProposals(M.Edge):
+    """Find equivalent taught rules and submit unification proposals.
+
+    The daemon's background reading of its own graph: every active
+    taught rule against every other. Two rules one renaming apart, or
+    one an instance of the other, are one rule wearing two faces; the
+    finding is proposed to the human, because unifying them retires a
+    law, and retiring is the human's gate.
+    """
+
+    def __init__(self, proposal_store, graph_version):
+        pair_cap = MineNatFromGMPRep(RULE_CORRESPONDENCE_PAIR_CAP)()
+        registry = M.AllConstructors
+        installed = InstalledLaws(graph_version)()
+        reversed_sources = M.EmptyList
+        remaining_nodes = GraphNodes(graph_version)()
+        while M.IdentityCompare(remaining_nodes, M.EmptyList)() is M.false_value:
+            node = M.Head(remaining_nodes)()
+            remaining_nodes = M.Tail(remaining_nodes)()
+            if M.IsPair(node)() is M.truth_value:
+                if M.Compare(M.Head(node)(), M.Char("taught-rule"))() is M.truth_value:
+                    premises = M.Head(M.Tail(node)())()
+                    replacement = M.Head(M.Tail(M.Tail(node)())())()
+                    law = CompileDeductionToLaw(
+                        P.MultiRule(premises, replacement)(),
+                    )()
+                    active = M.false_value
+                    if M.IdentityCompare(law, M.EmptyList)() is M.false_value:
+                        law_scan = installed
+                        while M.IdentityCompare(
+                            law_scan,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            if LawsOperationallyEqual(
+                                M.Head(law_scan)(),
+                                law,
+                            )() is M.truth_value:
+                                active = M.truth_value
+                                law_scan = M.EmptyList
+                            else:
+                                law_scan = M.Tail(law_scan)()
+                    if M.IdentityCompare(active, M.truth_value)() is M.truth_value:
+                        reversed_sources = M.Pair(
+                            M.Pair(
+                                premises,
+                                M.Pair(replacement, M.EmptyList),
+                            ),
+                            reversed_sources,
+                        )
+        # Walk order is newest node first, so the reversed chain is
+        # oldest first: the earlier-taught rule is the one a unification
+        # keeps.
+        sources = reversed_sources
+        # The version may hold the same taught rule more than once -- the
+        # conversation records its source and the daemon's activation
+        # records it again -- and one rule is one rule however many
+        # copies carry it. The scan pairs rules, not copies.
+        deduped_reversed = M.EmptyList
+        source_scan = sources
+        while M.IdentityCompare(source_scan, M.EmptyList)() is M.false_value:
+            source = M.Head(source_scan)()
+            source_scan = M.Tail(source_scan)()
+            known = M.false_value
+            known_scan = deduped_reversed
+            while M.IdentityCompare(
+                known_scan,
+                M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(known_scan)(),
+                    source,
+                )() is M.truth_value:
+                    known = M.truth_value
+                    known_scan = M.EmptyList
+                else:
+                    known_scan = M.Tail(known_scan)()
+            if M.IdentityCompare(known, M.false_value)() is M.truth_value:
+                deduped_reversed = M.Pair(source, deduped_reversed)
+        sources = deduped_reversed
+        current_store = proposal_store
+        submitted_count = M.Zero
+        pair_count = M.Zero
+        remaining_first = sources
+        while M.IdentityCompare(remaining_first, M.EmptyList)() is M.false_value:
+            if M.NatEq(pair_count, pair_cap, registry)() is M.truth_value:
+                remaining_first = M.EmptyList
+            else:
+                first = M.Head(remaining_first)()
+                first_premises = M.Head(first)()
+                first_replacement = M.Head(M.Tail(first)())()
+                remaining_second = M.Tail(remaining_first)()
+                while M.IdentityCompare(
+                    remaining_second,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.NatEq(pair_count, pair_cap, registry)() is M.truth_value:
+                        remaining_second = M.EmptyList
+                    else:
+                        second = M.Head(remaining_second)()
+                        second_premises = M.Head(second)()
+                        second_replacement = M.Head(M.Tail(second)())()
+                        stepped = M.Succ(pair_count, registry)()
+                        pair_count = M.Head(stepped)()
+                        kind = M.EmptyList
+                        keep_premises = first_premises
+                        keep_replacement = first_replacement
+                        retire_premises = second_premises
+                        retire_replacement = second_replacement
+                        if RuleSourcesAlphaEquivalent(
+                            first_premises,
+                            first_replacement,
+                            second_premises,
+                            second_replacement,
+                        )() is M.truth_value:
+                            kind = M.Char("renaming")
+                        elif RuleIsInstanceOf(
+                            first_premises,
+                            first_replacement,
+                            second_premises,
+                            second_replacement,
+                        )() is M.truth_value:
+                            kind = M.Char("instance")
+                        elif RuleIsInstanceOf(
+                            second_premises,
+                            second_replacement,
+                            first_premises,
+                            first_replacement,
+                        )() is M.truth_value:
+                            kind = M.Char("instance")
+                            keep_premises = second_premises
+                            keep_replacement = second_replacement
+                            retire_premises = first_premises
+                            retire_replacement = first_replacement
+                        if M.IdentityCompare(kind, M.EmptyList)() is M.false_value:
+                            already = M.false_value
+                            node_scan = GraphNodes(graph_version)()
+                            while M.IdentityCompare(
+                                node_scan,
+                                M.EmptyList,
+                            )() is M.false_value:
+                                node = M.Head(node_scan)()
+                                if M.IsPair(node)() is M.truth_value:
+                                    if M.Compare(
+                                        M.Head(node)(),
+                                        M.Char("rule-correspondence"),
+                                    )() is M.truth_value:
+                                        recorded_keep_premises = M.Head(
+                                            M.Tail(node)(),
+                                        )()
+                                        recorded_keep_replacement = M.Head(
+                                            M.Tail(M.Tail(node)())(),
+                                        )()
+                                        recorded_retire_premises = M.Head(
+                                            M.Tail(M.Tail(M.Tail(node)())())(),
+                                        )()
+                                        recorded_retire_replacement = M.Head(
+                                            M.Tail(
+                                                M.Tail(
+                                                    M.Tail(
+                                                        M.Tail(node)(),
+                                                    )(),
+                                                )(),
+                                            )(),
+                                        )()
+                                        if RuleSourcesCoverPair(
+                                            keep_premises,
+                                            keep_replacement,
+                                            retire_premises,
+                                            retire_replacement,
+                                            recorded_keep_premises,
+                                            recorded_keep_replacement,
+                                            recorded_retire_premises,
+                                            recorded_retire_replacement,
+                                        )() is M.truth_value:
+                                            already = M.truth_value
+                                            node_scan = M.EmptyList
+                                if M.IdentityCompare(
+                                    node_scan,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    node_scan = M.Tail(node_scan)()
+                            if M.IdentityCompare(
+                                already,
+                                M.false_value,
+                            )() is M.truth_value:
+                                in_store = M.false_value
+                                entry_scan = ProposalStoreEntries(current_store)()
+                                while M.IdentityCompare(
+                                    entry_scan,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    entry_proposal = ProposalEntryProposal(
+                                        M.Head(entry_scan)(),
+                                    )()
+                                    entry_payload = ProposalLaw(entry_proposal)()
+                                    if IsRuleUnification(
+                                        entry_payload,
+                                    )() is M.truth_value:
+                                        if RuleSourcesCoverPair(
+                                            keep_premises,
+                                            keep_replacement,
+                                            retire_premises,
+                                            retire_replacement,
+                                            RuleUnificationKeepPremises(
+                                                entry_payload,
+                                            )(),
+                                            RuleUnificationKeepReplacement(
+                                                entry_payload,
+                                            )(),
+                                            RuleUnificationRetirePremises(
+                                                entry_payload,
+                                            )(),
+                                            RuleUnificationRetireReplacement(
+                                                entry_payload,
+                                            )(),
+                                        )() is M.truth_value:
+                                            in_store = M.truth_value
+                                            entry_scan = M.EmptyList
+                                    if M.IdentityCompare(
+                                        entry_scan,
+                                        M.EmptyList,
+                                    )() is M.false_value:
+                                        entry_scan = M.Tail(entry_scan)()
+                                if M.IdentityCompare(
+                                    in_store,
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    origin = M.Pair(
+                                        M.Char("machine-correspondence"),
+                                        M.Pair(M.Char("rule"), M.EmptyList),
+                                    )
+                                    proposal = Proposal(
+                                        RuleUnification(
+                                            keep_premises,
+                                            keep_replacement,
+                                            retire_premises,
+                                            retire_replacement,
+                                            kind,
+                                        )(),
+                                        origin,
+                                    )()
+                                    current_store = ProposalStoreSubmit(
+                                        current_store,
+                                        proposal,
+                                    )()
+                                    stepped_count = M.Succ(
+                                        submitted_count,
+                                        registry,
+                                    )()
+                                    submitted_count = M.Head(stepped_count)()
+                        remaining_second = M.Tail(remaining_second)()
+                remaining_first = M.Tail(remaining_first)()
+        self.result = M.Pair(
+            current_store,
+            M.Pair(submitted_count, M.Pair(M.EmptyList, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal_store, M.Pair(graph_version, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GenerateSubgraphCorrespondenceProposals(M.Edge):
+    """Find subgraphs recurring across taught rules; propose a name.
+
+    The other background reading: not rule against rule but shape
+    against graph. A ground subterm that occurs in two or more taught
+    rules is one subgraph the graph holds several times; the finding is
+    proposed so the human may have it named and recorded as one shape.
+    """
+
+    def __init__(self, proposal_store, graph_version):
+        pattern_cap = MineNatFromGMPRep(SUBGRAPH_CORRESPONDENCE_PATTERN_CAP)()
+        registry = M.AllConstructors
+        reversed_rules = M.EmptyList
+        remaining_nodes = GraphNodes(graph_version)()
+        while M.IdentityCompare(remaining_nodes, M.EmptyList)() is M.false_value:
+            node = M.Head(remaining_nodes)()
+            remaining_nodes = M.Tail(remaining_nodes)()
+            if M.IsPair(node)() is M.truth_value:
+                if M.Compare(M.Head(node)(), M.Char("taught-rule"))() is M.truth_value:
+                    reversed_rules = M.Pair(
+                        M.Pair(
+                            M.Head(M.Tail(node)())(),
+                            M.Pair(
+                                M.Head(M.Tail(M.Tail(node)())())(),
+                                M.EmptyList,
+                            ),
+                        ),
+                        reversed_rules,
+                    )
+        rules = reversed_rules
+        # One rule is one rule however many copies of its source the
+        # version holds; sites are taught rules, not copies.
+        deduped_rules_reversed = M.EmptyList
+        rule_dedup_scan = rules
+        while M.IdentityCompare(
+            rule_dedup_scan,
+            M.EmptyList,
+        )() is M.false_value:
+            rule_entry = M.Head(rule_dedup_scan)()
+            rule_dedup_scan = M.Tail(rule_dedup_scan)()
+            rule_known = M.false_value
+            rule_known_scan = deduped_rules_reversed
+            while M.IdentityCompare(
+                rule_known_scan,
+                M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(rule_known_scan)(),
+                    rule_entry,
+                )() is M.truth_value:
+                    rule_known = M.truth_value
+                    rule_known_scan = M.EmptyList
+                else:
+                    rule_known_scan = M.Tail(rule_known_scan)()
+            if M.IdentityCompare(rule_known, M.false_value)() is M.truth_value:
+                deduped_rules_reversed = M.Pair(
+                    rule_entry,
+                    deduped_rules_reversed,
+                )
+        rules = deduped_rules_reversed
+        reversed_patterns = M.EmptyList
+        pattern_count = M.Zero
+        rule_scan = rules
+        while M.IdentityCompare(rule_scan, M.EmptyList)() is M.false_value:
+            rule = M.Head(rule_scan)()
+            rule_scan = M.Tail(rule_scan)()
+            term_scan = M.Pair(
+                M.Head(M.Tail(rule)())(),
+                M.EmptyList,
+            )
+            premise_scan = M.Head(rule)()
+            premise_reversed = M.EmptyList
+            while M.IdentityCompare(
+                premise_scan,
+                M.EmptyList,
+            )() is M.false_value:
+                premise_reversed = M.Pair(
+                    M.Head(premise_scan)(),
+                    premise_reversed,
+                )
+                premise_scan = M.Tail(premise_scan)()
+            premise_scan = premise_reversed
+            while M.IdentityCompare(
+                premise_scan,
+                M.EmptyList,
+            )() is M.false_value:
+                term_scan = M.Pair(
+                    M.Head(premise_scan)(),
+                    term_scan,
+                )
+                premise_scan = M.Tail(premise_scan)()
+            while M.IdentityCompare(term_scan, M.EmptyList)() is M.false_value:
+                term = M.Head(term_scan)()
+                term_scan = M.Tail(term_scan)()
+                subterm_scan = TermSubterms(term)()
+                while M.IdentityCompare(
+                    subterm_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    subterm = M.Head(subterm_scan)()
+                    subterm_scan = M.Tail(subterm_scan)()
+                    if M.IsPair(subterm)() is M.truth_value:
+                        if P.IsVarPattern(subterm)() is M.false_value:
+                            if SubgraphPatternIsGround(subterm)() is M.truth_value:
+                                known = M.false_value
+                                pattern_scan = reversed_patterns
+                                while M.IdentityCompare(
+                                    pattern_scan,
+                                    M.EmptyList,
+                                )() is M.false_value:
+                                    if M.Compare(
+                                        M.Head(pattern_scan)(),
+                                        subterm,
+                                    )() is M.truth_value:
+                                        known = M.truth_value
+                                        pattern_scan = M.EmptyList
+                                    else:
+                                        pattern_scan = M.Tail(pattern_scan)()
+                                if M.IdentityCompare(
+                                    known,
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    if M.NatEq(
+                                        pattern_count,
+                                        pattern_cap,
+                                        registry,
+                                    )() is M.truth_value:
+                                        subterm_scan = M.EmptyList
+                                        term_scan = M.EmptyList
+                                        rule_scan = M.EmptyList
+                                    else:
+                                        stepped = M.Succ(
+                                            pattern_count,
+                                            registry,
+                                        )()
+                                        pattern_count = M.Head(stepped)()
+                                        reversed_patterns = M.Pair(
+                                            subterm,
+                                            reversed_patterns,
+                                        )
+        patterns = M.Reverse(reversed_patterns)()
+        current_store = proposal_store
+        submitted_count = M.Zero
+        pattern_scan = patterns
+        while M.IdentityCompare(pattern_scan, M.EmptyList)() is M.false_value:
+            pattern = M.Head(pattern_scan)()
+            pattern_scan = M.Tail(pattern_scan)()
+            sites = M.Zero
+            site_scan = rules
+            while M.IdentityCompare(site_scan, M.EmptyList)() is M.false_value:
+                rule = M.Head(site_scan)()
+                site_scan = M.Tail(site_scan)()
+                holds = M.false_value
+                term_scan = M.Pair(
+                    M.Head(M.Tail(rule)())(),
+                    M.EmptyList,
+                )
+                premise_scan = M.Head(rule)()
+                premise_reversed = M.EmptyList
+                while M.IdentityCompare(
+                    premise_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    premise_reversed = M.Pair(
+                        M.Head(premise_scan)(),
+                        premise_reversed,
+                    )
+                    premise_scan = M.Tail(premise_scan)()
+                premise_scan = premise_reversed
+                while M.IdentityCompare(
+                    premise_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    term_scan = M.Pair(
+                        M.Head(premise_scan)(),
+                        term_scan,
+                    )
+                    premise_scan = M.Tail(premise_scan)()
+                while M.IdentityCompare(
+                    term_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    term = M.Head(term_scan)()
+                    term_scan = M.Tail(term_scan)()
+                    subterm_scan = TermSubterms(term)()
+                    while M.IdentityCompare(
+                        subterm_scan,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(subterm_scan)(),
+                            pattern,
+                        )() is M.truth_value:
+                            holds = M.truth_value
+                            subterm_scan = M.EmptyList
+                            term_scan = M.EmptyList
+                        else:
+                            subterm_scan = M.Tail(subterm_scan)()
+                if M.IdentityCompare(holds, M.truth_value)() is M.truth_value:
+                    stepped = M.Succ(sites, registry)()
+                    sites = M.Head(stepped)()
+            if M.NatLess(M.one, sites, registry)() is M.truth_value:
+                already = M.false_value
+                node_scan = GraphNodes(graph_version)()
+                while M.IdentityCompare(
+                    node_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    node = M.Head(node_scan)()
+                    if M.IsPair(node)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(node)(),
+                            M.Char("subgraph-correspondence"),
+                        )() is M.truth_value:
+                            if M.Compare(
+                                M.Head(M.Tail(node)())(),
+                                pattern,
+                            )() is M.truth_value:
+                                already = M.truth_value
+                                node_scan = M.EmptyList
+                    if M.IdentityCompare(
+                        node_scan,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        node_scan = M.Tail(node_scan)()
+                if M.IdentityCompare(already, M.false_value)() is M.truth_value:
+                    in_store = M.false_value
+                    entry_scan = ProposalStoreEntries(current_store)()
+                    while M.IdentityCompare(
+                        entry_scan,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        entry_proposal = ProposalEntryProposal(
+                            M.Head(entry_scan)(),
+                        )()
+                        entry_payload = ProposalLaw(entry_proposal)()
+                        if IsSubgraphReformulation(
+                            entry_payload,
+                        )() is M.truth_value:
+                            if M.Compare(
+                                SubgraphReformulationPattern(entry_payload)(),
+                                pattern,
+                            )() is M.truth_value:
+                                in_store = M.truth_value
+                                entry_scan = M.EmptyList
+                        if M.IdentityCompare(
+                            entry_scan,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            entry_scan = M.Tail(entry_scan)()
+                    if M.IdentityCompare(
+                        in_store,
+                        M.false_value,
+                    )() is M.truth_value:
+                        sites_rep = M.NatRepOf(sites, registry)()
+                        origin = M.Pair(
+                            M.Char("machine-correspondence"),
+                            M.Pair(M.Char("subgraph"), M.EmptyList),
+                        )
+                        proposal = Proposal(
+                            SubgraphReformulation(
+                                pattern,
+                                M.GMPRep(M.GMPRepText(sites_rep)()),
+                            )(),
+                            origin,
+                        )()
+                        current_store = ProposalStoreSubmit(
+                            current_store,
+                            proposal,
+                        )()
+                        stepped_count = M.Succ(submitted_count, registry)()
+                        submitted_count = M.Head(stepped_count)()
+        self.result = M.Pair(
+            current_store,
+            M.Pair(submitted_count, M.Pair(M.EmptyList, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(proposal_store, M.Pair(graph_version, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SubgraphPatternIsGround(M.Edge):
+    """A term with no variable anywhere in it."""
+
+    def __init__(self, term):
+        self.result = M.truth_value
+        subterm_scan = TermSubterms(term)()
+        while M.IdentityCompare(subterm_scan, M.EmptyList)() is M.false_value:
+            if P.IsVarPattern(M.Head(subterm_scan)())() is M.truth_value:
+                self.result = M.false_value
+                subterm_scan = M.EmptyList
+            else:
+                subterm_scan = M.Tail(subterm_scan)()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class UnifyRules(M.Edge):
+    """Retire the redundant law; record the correspondence in the graph.
+
+    The law is recompiled from the retiring rule's sources, then located
+    among the version's own installed laws by structure: the Retired
+    mark must name the very term the version holds, or a later reader
+    walking marks by identity would see two laws where this sees one.
+    """
+
+    def __init__(self, graph_version, payload):
+        keep_premises = RuleUnificationKeepPremises(payload)()
+        keep_replacement = RuleUnificationKeepReplacement(payload)()
+        retire_premises = RuleUnificationRetirePremises(payload)()
+        retire_replacement = RuleUnificationRetireReplacement(payload)()
+        kind = RuleUnificationKind(payload)()
+        unified = graph_version
+        retire_law = CompileDeductionToLaw(
+            P.MultiRule(retire_premises, retire_replacement)(),
+        )()
+        if M.IdentityCompare(retire_law, M.EmptyList)() is M.false_value:
+            target_law = retire_law
+            mark_scan = GraphVersionInvariants(graph_version)()
+            while M.IdentityCompare(
+                mark_scan,
+                M.EmptyList,
+            )() is M.false_value:
+                mark = M.Head(mark_scan)()
+                if IsInstalledLaw(mark)() is M.truth_value:
+                    if LawsOperationallyEqual(
+                        InstalledLawValue(mark)(),
+                        retire_law,
+                    )() is M.truth_value:
+                        target_law = InstalledLawValue(mark)()
+                        mark_scan = M.EmptyList
+                    else:
+                        mark_scan = M.Tail(mark_scan)()
+                else:
+                    mark_scan = M.Tail(mark_scan)()
+            unified = RetireLaw(graph_version, target_law)()
+        node = M.Pair(
+            M.Char("rule-correspondence"),
+            M.Pair(
+                keep_premises,
+                M.Pair(
+                    keep_replacement,
+                    M.Pair(
+                        retire_premises,
+                        M.Pair(
+                            retire_replacement,
+                            M.Pair(kind, M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        self.result = GraphVersion(
+            M.Pair(node, GraphNodes(unified)()),
+            GraphEdges(unified)(),
+            GraphVersionInvariants(unified)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(payload, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReformulateSubgraph(M.Edge):
+    """Name a recurring subgraph and record where it was found."""
+
+    def __init__(self, graph_version, payload):
+        pattern = SubgraphReformulationPattern(payload)()
+        count = SubgraphReformulationCount(payload)()
+        ordinal_text = "0"
+        node_scan = GraphNodes(graph_version)()
+        while M.IdentityCompare(node_scan, M.EmptyList)() is M.false_value:
+            node = M.Head(node_scan)()
+            node_scan = M.Tail(node_scan)()
+            if M.IsPair(node)() is M.truth_value:
+                if M.Compare(
+                    M.Head(node)(),
+                    M.Char("subgraph-correspondence"),
+                )() is M.truth_value:
+                    ordinal_text = GMPSuccText(ordinal_text)()
+        name = M.Char("reformed-" + ordinal_text)
+        handle = Handle(name, EncodeTermAsGraph(pattern)())()
+        node = M.Pair(
+            M.Char("subgraph-correspondence"),
+            M.Pair(pattern, M.Pair(count, M.Pair(name, M.EmptyList))),
+        )
+        self.result = GraphVersion(
+            M.Pair(handle, M.Pair(node, GraphNodes(graph_version)())),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(payload, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 
 
 class AutonomyAuthority(M.Edge):
@@ -3817,6 +5069,7 @@ class AutonomyCycle(M.Edge):
 
         generate_handles = M.false_value
         generate_compositions = M.false_value
+        generate_correspondences = M.false_value
         generator_versions = M.EmptyList
         generator_min_count = M.one
         generator_slice_index = M.EmptyList
@@ -3836,6 +5089,11 @@ class AutonomyCycle(M.Edge):
                 AUTONOMY_GENERATE_COMPOSITIONS_KEY,
             )() is M.truth_value:
                 generate_compositions = value
+            elif M.Compare(
+                key,
+                AUTONOMY_GENERATE_CORRESPONDENCES_KEY,
+            )() is M.truth_value:
+                generate_correspondences = value
             elif M.Compare(
                 key,
                 AUTONOMY_GENERATOR_VERSIONS_KEY,
@@ -3906,6 +5164,49 @@ class AutonomyCycle(M.Edge):
                         M.Pair(
                             composition_count,
                             M.Pair(composition_skipped, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                reversed_generation_report,
+            )
+        if M.IdentityCompare(
+            generate_correspondences,
+            M.truth_value,
+        )() is M.truth_value:
+            corresponded_rules = GenerateRuleCorrespondenceProposals(
+                current_store,
+                current_version,
+            )()
+            current_store = M.Head(corresponded_rules)()
+            rule_findings = M.Head(M.Tail(corresponded_rules)())()
+            corresponded_subgraphs = GenerateSubgraphCorrespondenceProposals(
+                current_store,
+                current_version,
+            )()
+            current_store = M.Head(corresponded_subgraphs)()
+            subgraph_findings = M.Head(M.Tail(corresponded_subgraphs)())()
+            added_rules = MineNatAdd(
+                M.Zero,
+                rule_findings,
+                ledger.registry,
+            )()
+            findings_total = M.Head(added_rules)()
+            ledger.registry = M.Head(M.Tail(added_rules)())()
+            added_subgraphs = MineNatAdd(
+                findings_total,
+                subgraph_findings,
+                ledger.registry,
+            )()
+            findings_total = M.Head(added_subgraphs)()
+            ledger.registry = M.Head(M.Tail(added_subgraphs)())()
+            reversed_generation_report = M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_GENERATED_CORRESPONDENCES_KEY,
+                    M.Pair(
+                        M.Pair(
+                            findings_total,
+                            M.Pair(M.EmptyList, M.EmptyList),
                         ),
                         M.EmptyList,
                     ),
@@ -4167,6 +5468,16 @@ class AutonomyCycle(M.Edge):
                                 proposal,
                                 reversed_activated,
                             )
+                            # An auto-activated proposal is activated; the
+                            # mark says so. Without it the same entry,
+                            # approved one turn later, activates again:
+                            # a second TaughtRule, a second law invariant,
+                            # and the graph counts one rule twice.
+                            current_store = ProposalStoreAttach(
+                                current_store,
+                                proposal,
+                                Activation(proposal)(),
+                            )()
                             next_activation = M.Succ(
                                 activation_count,
                                 ledger.registry,
@@ -4224,6 +5535,18 @@ class AutonomyCycle(M.Edge):
                                     entry,
                                 )()
                                 active_version = M.Head(activated)()
+                                debug_reason = M.Head(M.Tail(activated)())()
+                                debug_reason_text = "?"
+                                if M.IsPair(debug_reason)() is M.truth_value:
+                                    debug_label = M.Head(debug_reason)()
+                                    if M.TermEqual(debug_label, Lmod.ReasonSafetyLabel)() is M.truth_value:
+                                        debug_reason_text = "safety"
+                                    elif M.TermEqual(debug_label, Lmod.ReasonUnapprovedLabel)() is M.truth_value:
+                                        debug_reason_text = "unapproved"
+                                    elif M.TermEqual(debug_label, Lmod.ReasonUncountersignedLabel)() is M.truth_value:
+                                        debug_reason_text = "uncountersigned"
+                                    else:
+                                        debug_reason_text = "unknown"
                                 if M.IdentityCompare(
                                     active_version,
                                     M.EmptyList,
