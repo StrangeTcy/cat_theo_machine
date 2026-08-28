@@ -1587,6 +1587,18 @@ def run_talk_mode(sentence: str = None):
                     if right is not M.EmptyList:
                         return G.GMPMulText(left, right)()
             return M.EmptyList
+        if M.Compare(head, M.Char("sub"))() is M.truth_value:
+            if M.IdentityCompare(
+                M.Tail(args)(), M.EmptyList,
+            )() is M.false_value:
+                left = _ground_arithmetic_value(M.Head(args)())
+                right = _ground_arithmetic_value(
+                    M.Head(M.Tail(args)())(),
+                )
+                if left is not M.EmptyList:
+                    if right is not M.EmptyList:
+                        return G.GMPSubText(left, right)()
+            return M.EmptyList
         return _numeral_value_text(term)
 
     def _words_of_value_text(value_text):
@@ -4942,6 +4954,648 @@ def run_talk_mode(sentence: str = None):
                     M.Head(M.Tail(acknowledged)())(),
                 )
             return "Recorded word grounding: " + line[5:].strip()
+        if lowered.startswith("suggest invariants"):
+            # The machine explores its own reach: from the numbers it
+            # was taught, through every move the teaching allows, to
+            # the states two moves away; and over those states it
+            # tests, with its own arithmetic, every expression that
+            # adds or subtracts each number once. What never changes
+            # is reported, together with the reason the moves leave it
+            # alone -- computed, not assumed. Nothing here is told;
+            # the configuration and the move came in as facts, and the
+            # rest is the machine looking at its own search space.
+            suggest_facts = G.InstalledTaughtFacts(learned_version)()
+            suggest_holds = []
+            suggest_neighbors = []
+            suggest_step_text = ""
+            suggest_scan = suggest_facts
+            while M.IdentityCompare(
+                suggest_scan, M.EmptyList,
+            )() is M.false_value:
+                suggest_fact = M.Head(suggest_scan)()
+                if M.IsPair(suggest_fact)() is M.truth_value:
+                    suggest_head = M.Head(suggest_fact)()
+                    suggest_args = M.Tail(suggest_fact)()
+                    if M.Compare(
+                        suggest_head, M.Char("holds"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(M.Tail(suggest_args)())(),
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            suggest_sector = M.Head(suggest_args)()
+                            suggest_value = M.Head(
+                                M.Tail(suggest_args)(),
+                            )()
+                            suggest_value_text = _numeral_value_text(
+                                suggest_value,
+                            )
+                            if suggest_value_text is not M.EmptyList:
+                                if M.IsPair(suggest_sector)() is M.false_value:
+                                    suggest_holds.append(
+                                        (
+                                            suggest_sector,
+                                            suggest_value_text,
+                                        ),
+                                    )
+                    elif M.Compare(
+                        suggest_head, M.Char("neighbor"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(M.Tail(suggest_args)())(),
+                            M.EmptyList,
+                        )() is M.truth_value:
+                            suggest_neighbors.append(
+                                (
+                                    M.Head(suggest_args)(),
+                                    M.Head(M.Tail(suggest_args)())(),
+                                ),
+                            )
+                    elif M.Compare(
+                        suggest_head, M.Char("step"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(suggest_args)(), M.EmptyList,
+                        )() is M.truth_value:
+                            suggest_step_text = _numeral_value_text(
+                                M.Head(suggest_args)(),
+                            )
+                suggest_scan = M.Tail(suggest_scan)()
+            if (
+                not suggest_holds
+                or not suggest_neighbors
+                or suggest_step_text is M.EmptyList
+                or suggest_step_text == ""
+            ):
+                return (
+                    "Teach the configuration first: holds(sector, value)"
+                    + " for the numbers on the board, neighbor(a, b) for"
+                    + " each pair a move may touch, and step(n) for how"
+                    + " much one move adds to each of its two numbers."
+                )
+            # The board's own order: sectors by their own numerals,
+            # where the sectors are numbered; otherwise the taught
+            # order stands.
+            suggest_order_keys = []
+            suggest_ordered = True
+            for suggest_sector, _suggest_value_text in suggest_holds:
+                suggest_sector_text = _numeral_value_text(
+                    suggest_sector,
+                )
+                if suggest_sector_text is M.EmptyList:
+                    suggest_ordered = False
+                else:
+                    suggest_order_keys.append(
+                        int(suggest_sector_text),
+                    )
+            if suggest_ordered and len(suggest_order_keys) == len(
+                suggest_holds,
+            ):
+                suggest_holds = [
+                    entry
+                    for _, entry in sorted(
+                        zip(suggest_order_keys, suggest_holds),
+                        key=lambda pair: pair[0],
+                    )
+                ]
+            suggest_sectors = []
+            suggest_values = []
+            for suggest_sector, suggest_value_text in suggest_holds:
+                suggest_sectors.append(suggest_sector)
+                suggest_values.append(suggest_value_text)
+            suggest_index = {}
+            for suggest_position, suggest_sector in enumerate(
+                suggest_sectors,
+            ):
+                suggest_index[str(suggest_sector())] = suggest_position
+            suggest_moves = []
+            for suggest_a, suggest_b in suggest_neighbors:
+                if M.IsPair(suggest_a)() is M.truth_value:
+                    continue
+                if M.IsPair(suggest_b)() is M.truth_value:
+                    continue
+                suggest_ia = suggest_index.get(str(suggest_a()))
+                suggest_ib = suggest_index.get(str(suggest_b()))
+                if suggest_ia is None or suggest_ib is None:
+                    continue
+                suggest_moves.append((suggest_ia, suggest_ib))
+            if not suggest_moves:
+                return (
+                    "The taught neighbor pairs do not speak the sectors"
+                    + " the numbers are held in; I cannot walk the moves."
+                )
+            # Forward exploration: every state within two moves, each
+            # state computed by the machine's own addition.
+            suggest_start = tuple(suggest_values)
+            suggest_seen = {suggest_start}
+            suggest_states = [suggest_start]
+            suggest_frontier = [suggest_start]
+            suggest_depth = 0
+            while suggest_depth < 2:
+                suggest_next_frontier = []
+                for suggest_state in suggest_frontier:
+                    for suggest_ia, suggest_ib in suggest_moves:
+                        suggest_new = list(suggest_state)
+                        suggest_new[suggest_ia] = G.GMPAddText(
+                            suggest_new[suggest_ia], suggest_step_text,
+                        )()
+                        suggest_new[suggest_ib] = G.GMPAddText(
+                            suggest_new[suggest_ib], suggest_step_text,
+                        )()
+                        suggest_tuple = tuple(suggest_new)
+                        if suggest_tuple not in suggest_seen:
+                            suggest_seen.add(suggest_tuple)
+                            suggest_next_frontier.append(suggest_tuple)
+                suggest_states.extend(suggest_next_frontier)
+                suggest_frontier = suggest_next_frontier
+                suggest_depth = suggest_depth + 1
+            # Candidate expressions: each number added, subtracted, or
+            # absent, the overall negation counted once. Evaluated on
+            # every explored state by the machine's own arithmetic.
+            suggest_count = len(suggest_sectors)
+            if suggest_count > 8:
+                return (
+                    "That board holds more numbers than I can sweep"
+                    + " expression by expression."
+                )
+            suggest_survivors = []
+            suggest_tested = 0
+
+            def _suggest_evaluate(coefficients, state):
+                value_text = "0"
+                for suggest_position, suggest_coefficient in enumerate(
+                    coefficients,
+                ):
+                    if suggest_coefficient == 1:
+                        value_text = G.GMPAddText(
+                            value_text, state[suggest_position],
+                        )()
+                    elif suggest_coefficient == -1:
+                        value_text = G.GMPSubText(
+                            value_text, state[suggest_position],
+                        )()
+                return value_text
+
+            def _suggest_sweep(coefficients, position):
+                nonlocal suggest_tested
+                if position == suggest_count:
+                    first_nonzero = 0
+                    for suggest_coefficient in coefficients:
+                        if suggest_coefficient != 0:
+                            first_nonzero = suggest_coefficient
+                            break
+                    if first_nonzero != 1:
+                        return
+                    suggest_tested = suggest_tested + 1
+                    constant_text = _suggest_evaluate(
+                        coefficients, suggest_states[0],
+                    )
+                    for suggest_state in suggest_states[1:]:
+                        value_text = _suggest_evaluate(
+                            coefficients, suggest_state,
+                        )
+                        if G.GMPEqualText(
+                            value_text, constant_text,
+                        )() is not M.truth_value:
+                            return
+                    suggest_survivors.append(
+                        (list(coefficients), constant_text),
+                    )
+                    return
+                for suggest_choice in (1, 0, -1):
+                    coefficients.append(suggest_choice)
+                    _suggest_sweep(coefficients, position + 1)
+                    coefficients.pop()
+
+            _suggest_sweep([], 0)
+            if not suggest_survivors:
+                return (
+                    "I walked "
+                    + str(len(suggest_states))
+                    + " states within two moves of the taught numbers"
+                    + " and tested "
+                    + str(suggest_tested)
+                    + " expressions over them. Nothing stayed"
+                    + " unchanged."
+                )
+            # The reason each survivor survives: every move adds the
+            # step to two neighboring numbers, and in the survivor the
+            # two carry opposite signs -- the machine computes the
+            # cancellation itself.
+            suggest_cancel_text = _words_of_value_text(
+                G.GMPSubText(
+                    suggest_step_text, suggest_step_text,
+                )(),
+            )
+            suggest_lines = []
+            for suggest_coefficients, suggest_constant in suggest_survivors:
+                suggest_pieces = []
+                for suggest_position, suggest_coefficient in enumerate(
+                    suggest_coefficients,
+                ):
+                    if suggest_coefficient == 1:
+                        suggest_pieces.append(
+                            "+ " + str(suggest_sectors[suggest_position]()),
+                        )
+                    elif suggest_coefficient == -1:
+                        suggest_pieces.append(
+                            "- " + str(suggest_sectors[suggest_position]()),
+                        )
+                suggest_expression = " ".join(suggest_pieces).lstrip("+ ")
+                suggest_opposite = M.truth_value
+                for suggest_ia, suggest_ib in suggest_moves:
+                    if (
+                        suggest_coefficients[suggest_ia]
+                        * suggest_coefficients[suggest_ib]
+                        != -1
+                    ):
+                        suggest_opposite = M.false_value
+                suggest_reason = ""
+                if M.IdentityCompare(
+                    suggest_opposite, M.truth_value,
+                )() is M.truth_value:
+                    suggest_reason = (
+                        " Every move adds "
+                        + _words_of_value_text(suggest_step_text)
+                        + " to two neighboring numbers, and in it each"
+                        + " neighboring pair carries opposite signs: "
+                        + _words_of_value_text(suggest_step_text)
+                        + " minus "
+                        + _words_of_value_text(suggest_step_text)
+                        + " is "
+                        + suggest_cancel_text
+                        + ", so a move changes nothing."
+                    )
+                suggest_lines.append(
+                    suggest_expression
+                    + " stays "
+                    + _words_of_value_text(suggest_constant)
+                    + "." + suggest_reason
+                )
+            return (
+                "I walked "
+                + str(len(suggest_states))
+                + " states within two moves of the taught numbers and"
+                + " tested "
+                + str(suggest_tested)
+                + " expressions, each number added or subtracted"
+                + " once.\nWhat never changed:\n"
+                + "\n".join(suggest_lines)
+            )
+        if lowered.startswith("explain "):
+            # The derivation itself, spoken: the claim is re-derived
+            # from the taught facts under the taught rules, and the
+            # steps that reach it are narrated -- which rule applied,
+            # from what, to what. Nothing new is concluded; the
+            # recorded teaching is only said out loud.
+            explain_text = line[8:].strip()
+            known_constructors = G.RuleConstructors(
+                learned_version,
+                pack_concepts,
+            )()
+            parsed_explain = G.ParseRuleText(
+                explain_text,
+                reading_policy,
+                reading_digits,
+                known_constructors,
+                M.truth_value,
+            )()
+            explain_goal = M.Head(parsed_explain)()
+            if M.IdentityCompare(
+                explain_goal, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "I could not read that as a claim. Use"
+                    + " 'explain Predicate(constant)?'"
+                )
+            explain_rules = G.InstalledTaughtRules(learned_version)()
+            # The machine's own arithmetic joins the start knowledge:
+            # every ground equation or divisibility the rules' premises
+            # speak is computed here, exactly as the query path does,
+            # so the narrative rests on the machine's numbers.
+            explain_facts = G.InstalledTaughtFacts(learned_version)()
+            explain_compute_reversed = M.EmptyList
+            explain_rule_scan = explain_rules
+            while M.IdentityCompare(
+                explain_rule_scan, M.EmptyList,
+            )() is M.false_value:
+                explain_premise_scan = P.RulePremises(
+                    M.Head(explain_rule_scan)(),
+                )()
+                while M.IdentityCompare(
+                    explain_premise_scan, M.EmptyList,
+                )() is M.false_value:
+                    explain_compute_reversed = M.Pair(
+                        M.Head(explain_premise_scan)(),
+                        explain_compute_reversed,
+                    )
+                    explain_premise_scan = M.Tail(
+                        explain_premise_scan,
+                    )()
+                explain_rule_scan = M.Tail(explain_rule_scan)()
+            explain_compute_scan = M.Reverse(
+                explain_compute_reversed,
+            )()
+            while M.IdentityCompare(
+                explain_compute_scan, M.EmptyList,
+            )() is M.false_value:
+                explain_term = M.Head(explain_compute_scan)()
+                explain_target = explain_term
+                if M.IsPair(explain_term)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(explain_term)(), M.Char("not"),
+                    )() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(explain_term)(), M.EmptyList,
+                        )() is M.false_value:
+                            explain_target = M.Head(
+                                M.Tail(explain_term)(),
+                            )()
+                explain_division = _computed_divisibility(
+                    explain_target,
+                )
+                explain_equation = _verify_ground_equation(
+                    explain_target,
+                )
+                explain_verdicts = M.Pair(
+                    explain_division,
+                    M.Pair(explain_equation, M.EmptyList),
+                )
+                explain_verdict_scan = explain_verdicts
+                while M.IdentityCompare(
+                    explain_verdict_scan, M.EmptyList,
+                )() is M.false_value:
+                    explain_verdict = M.Head(explain_verdict_scan)()
+                    if M.IdentityCompare(
+                        explain_verdict, M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(explain_verdict)(),
+                            M.Char("holds"),
+                        )() is M.truth_value:
+                            explain_facts = M.Pair(
+                                explain_target,
+                                explain_facts,
+                            )
+                        else:
+                            explain_facts = M.Pair(
+                                M.Pair(
+                                    M.Char("not"),
+                                    M.Pair(
+                                        explain_target,
+                                        M.EmptyList,
+                                    ),
+                                ),
+                                explain_facts,
+                            )
+                    explain_verdict_scan = M.Tail(
+                        explain_verdict_scan,
+                    )()
+                explain_compute_scan = M.Tail(explain_compute_scan)()
+            # The narrative walks the teaching backward: the claim,
+            # the rule that concludes it, each premise -- a fact the
+            # trainer stated, a sum the machine computed, or another
+            # concluded claim, followed in turn. A rule is used only
+            # when every one of its premises resolves; a premise left
+            # with variables is grounded against the recorded facts.
+            # Nothing is searched beyond the teaching and nothing new
+            # is derived; the recorded argument is spoken from its own
+            # steps.
+            def _explain_has_var(term, depth):
+                if depth > 12:
+                    return False
+                if P.IsVarPattern(term)() is M.truth_value:
+                    return True
+                if M.IsPair(term)() is not M.truth_value:
+                    return False
+                if _explain_has_var(M.Head(term)(), depth + 1):
+                    return True
+                return _explain_has_var(M.Tail(term)(), depth + 1)
+
+            def _explain_ground_from_facts(
+                pattern, bindings, fact_chain, rule_chain,
+            ):
+                # A premise still holding variables is grounded first
+                # against the recorded facts, then against the rules'
+                # own conclusions: a derived premise names the rule
+                # that concludes it, and the narrative follows.
+                fact_scan = fact_chain
+                while M.IdentityCompare(
+                    fact_scan, M.EmptyList,
+                )() is M.false_value:
+                    candidate = M.Head(fact_scan)()
+                    grounded = G.TermMatchBindings(
+                        pattern,
+                        candidate,
+                        bindings,
+                    )()
+                    if M.IdentityCompare(
+                        M.Head(grounded)(), M.truth_value,
+                    )() is M.truth_value:
+                        return M.Pair(
+                            candidate,
+                            M.Pair(M.Tail(grounded)(), M.EmptyList),
+                        )
+                    fact_scan = M.Tail(fact_scan)()
+                rule_scan = rule_chain
+                while M.IdentityCompare(
+                    rule_scan, M.EmptyList,
+                )() is M.false_value:
+                    candidate_rule = M.Head(rule_scan)()
+                    candidate = P.RuleReplacement(candidate_rule)()
+                    grounded = G.TermMatchBindings(
+                        pattern,
+                        candidate,
+                        bindings,
+                    )()
+                    if M.IdentityCompare(
+                        M.Head(grounded)(), M.truth_value,
+                    )() is M.truth_value:
+                        instantiated = M.Head(
+                            M.Instantiate(
+                                candidate,
+                                M.Tail(grounded)(),
+                            )(),
+                        )()
+                        if _explain_has_var(instantiated, 0) is False:
+                            return M.Pair(
+                                instantiated,
+                                M.Pair(
+                                    M.Tail(grounded)(),
+                                    M.EmptyList,
+                                ),
+                            )
+                    rule_scan = M.Tail(rule_scan)()
+                return M.EmptyList
+
+            def _explain_resolve(target, depth, rule_chain, fact_chain):
+                if depth > 12:
+                    return M.EmptyList
+                if M.IdentityCompare(
+                    target, M.EmptyList,
+                )() is M.truth_value:
+                    return M.EmptyList
+                target_text = M.PrettyTerm(target, registry)()
+                is_computed_equation = M.false_value
+                computed_line = ""
+                if M.IsPair(target)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(target)(), M.Char("same"),
+                    )() is M.truth_value:
+                        verdict = _verify_ground_equation(target)
+                        if M.IdentityCompare(
+                            verdict, M.EmptyList,
+                        )() is M.false_value:
+                            is_computed_equation = M.truth_value
+                            if M.Compare(
+                                M.Head(verdict)(),
+                                M.Char("holds"),
+                            )() is M.truth_value:
+                                computed_line = (
+                                    "the machine computed the left"
+                                    + " side; it is the right side"
+                                )
+                    if M.Compare(
+                        M.Head(target)(), M.Char("not"),
+                    )() is M.truth_value:
+                        inner = M.Head(M.Tail(target)())()
+                        if M.IsPair(inner)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(inner)(), M.Char("same"),
+                            )() is M.truth_value:
+                                verdict = _verify_ground_equation(inner)
+                                if M.IdentityCompare(
+                                    verdict, M.EmptyList,
+                                )() is M.false_value:
+                                    is_computed_equation = M.truth_value
+                                    if M.Compare(
+                                        M.Head(verdict)(),
+                                        M.Char("differs"),
+                                    )() is M.truth_value:
+                                        computed_line = (
+                                            "the machine computed"
+                                            + " the left side; it is "
+                                            + _words_of_value_text(
+                                                str(
+                                                    M.Head(
+                                                        M.Tail(
+                                                            verdict,
+                                                        )(),
+                                                    )(),
+                                                ),
+                                            )
+                                            + ", not the right side"
+                                        )
+                if M.IdentityCompare(
+                    is_computed_equation, M.truth_value,
+                )() is M.truth_value:
+                    return [
+                        " " * depth
+                        + target_text
+                        + " -- " + computed_line + ".",
+                    ]
+                fact_scan = fact_chain
+                while M.IdentityCompare(
+                    fact_scan, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(fact_scan)(), target,
+                    )() is M.truth_value:
+                        return [
+                            " " * depth
+                            + target_text
+                            + " -- a recorded fact.",
+                        ]
+                    fact_scan = M.Tail(fact_scan)()
+                rule_scan = rule_chain
+                while M.IdentityCompare(
+                    rule_scan, M.EmptyList,
+                )() is M.false_value:
+                    explain_rule = M.Head(rule_scan)()
+                    replacement = P.RuleReplacement(explain_rule)()
+                    matched = G.TermMatchBindings(
+                        replacement,
+                        target,
+                        M.EmptyList,
+                    )()
+                    if M.IdentityCompare(
+                        M.Head(matched)(), M.truth_value,
+                    )() is M.truth_value:
+                        bindings = M.Tail(matched)()
+                        premise_scan = P.RulePremises(explain_rule)()
+                        premise_lines = []
+                        resolved = M.truth_value
+                        while M.IdentityCompare(
+                            premise_scan, M.EmptyList,
+                        )() is M.false_value:
+                            premise = M.Head(premise_scan)()
+                            premise_scan = M.Tail(premise_scan)()
+                            bound_premise = M.Head(
+                                M.Instantiate(
+                                    premise, bindings,
+                                )(),
+                            )()
+                            if _explain_has_var(bound_premise, 0):
+                                grounding = _explain_ground_from_facts(
+                                    bound_premise,
+                                    bindings,
+                                    fact_chain,
+                                    rule_chain,
+                                )
+                                if M.IdentityCompare(
+                                    grounding, M.EmptyList,
+                                )() is M.truth_value:
+                                    resolved = M.false_value
+                                    premise_scan = M.EmptyList
+                                else:
+                                    bound_premise = M.Head(
+                                        grounding,
+                                    )()
+                                    bindings = M.Head(
+                                        M.Tail(grounding)(),
+                                    )()
+                            if M.IdentityCompare(
+                                resolved, M.truth_value,
+                            )() is M.truth_value:
+                                sub_lines = _explain_resolve(
+                                    bound_premise,
+                                    depth + 2,
+                                    rule_chain,
+                                    fact_chain,
+                                )
+                                if sub_lines is None:
+                                    resolved = M.false_value
+                                    premise_scan = M.EmptyList
+                                else:
+                                    premise_lines.extend(sub_lines)
+                        if M.IdentityCompare(
+                            resolved, M.truth_value,
+                        )() is M.truth_value:
+                            return [
+                                " " * depth
+                                + target_text
+                                + " -- by the taught rule '"
+                                + P.PrettyRule(
+                                    explain_rule, registry,
+                                )()
+                                + "':",
+                            ] + premise_lines
+                    rule_scan = M.Tail(rule_scan)()
+                return None
+
+            explain_lines = _explain_resolve(
+                explain_goal,
+                0,
+                explain_rules,
+                explain_facts,
+            )
+            if explain_lines is None:
+                return (
+                    "I could not account for "
+                    + explain_text
+                    + " from the recorded teaching."
+                )
+            return "\n".join(explain_lines)
         if lowered.startswith("query:"):
             known_constructors = G.RuleConstructors(
                 learned_version,
@@ -5149,6 +5803,31 @@ def run_talk_mode(sentence: str = None):
                 )() is M.false_value:
                     if M.Compare(
                         M.Head(division_verdict)(), M.Char("holds"),
+                    )() is M.truth_value:
+                        facts = M.Pair(compute_target, facts)
+                    else:
+                        facts = M.Pair(
+                            M.Pair(
+                                M.Char("not"),
+                                M.Pair(compute_target, M.EmptyList),
+                            ),
+                            facts,
+                        )
+                # The same discipline for equations: a ground
+                # same(expression, numeral) the goal or a rule's
+                # premises speak is computed by the machine's own
+                # numbers, and the computed polarity joins the working
+                # set. A taught rule may lean on arithmetic the machine
+                # never ran.
+                equation_verdict = _verify_ground_equation(
+                    compute_target,
+                )
+                if M.IdentityCompare(
+                    equation_verdict, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(equation_verdict)(),
+                        M.Char("holds"),
                     )() is M.truth_value:
                         facts = M.Pair(compute_target, facts)
                     else:
@@ -5864,25 +6543,63 @@ def run_talk_mode(sentence: str = None):
             # the machine's own numbers check same(add(times(two,
             # three), one), seven) before it is recorded, and a false
             # equation is refused rather than learned.
-            equation_check = _verify_ground_equation(fact)
+            equation_target = fact
+            equation_negated = M.false_value
+            equation_computed_line = ""
+            if M.IsPair(fact)() is M.truth_value:
+                if M.Compare(
+                    M.Head(fact)(), M.Char("not"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Tail(fact)(), M.EmptyList,
+                    )() is M.false_value:
+                        equation_target = M.Head(
+                            M.Tail(fact)(),
+                        )()
+                        equation_negated = M.truth_value
+            equation_check = _verify_ground_equation(equation_target)
             if M.IdentityCompare(
                 equation_check, M.EmptyList,
             )() is M.false_value:
                 if M.Compare(
                     M.Head(equation_check)(), M.Char("differs"),
                 )() is M.truth_value:
-                    _persist_talk_state()
-                    return (
-                        "That is not so: the left side computes to "
-                        + _words_of_value_text(
-                            str(
-                                M.Head(
-                                    M.Tail(equation_check)(),
-                                )(),
-                            ),
+                    if M.IdentityCompare(
+                        equation_negated, M.truth_value,
+                    )() is M.truth_value:
+                        equation_computed_line = (
+                            " Computed: the left side computes to "
+                            + _words_of_value_text(
+                                str(
+                                    M.Head(
+                                        M.Tail(equation_check)(),
+                                    )(),
+                                ),
+                            )
+                            + ", not the right side."
                         )
-                        + ". I will not record it."
-                    )
+                    else:
+                        _persist_talk_state()
+                        return (
+                            "That is not so: the left side computes to "
+                            + _words_of_value_text(
+                                str(
+                                    M.Head(
+                                        M.Tail(equation_check)(),
+                                    )(),
+                                ),
+                            )
+                            + ". I will not record it."
+                        )
+                else:
+                    if M.IdentityCompare(
+                        equation_negated, M.truth_value,
+                    )() is M.truth_value:
+                        _persist_talk_state()
+                        return (
+                            "That is not so: the two sides are equal."
+                            + " I will not record it."
+                        )
             # A ground divisibility claim is computed the same way: the
             # machine divides N by A itself, refuses a claim its own
             # division contradicts, and confirms one it verifies.
@@ -5979,9 +6696,15 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(
                 equation_check, M.EmptyList,
             )() is M.false_value:
-                computed_line = (
-                    " Computed: the machine's own numbers confirm it."
-                )
+                if M.IdentityCompare(
+                    equation_negated, M.truth_value,
+                )() is M.false_value:
+                    computed_line = (
+                        " Computed: the machine's own numbers confirm it."
+                    )
+            computed_line = (
+                computed_line + equation_computed_line
+            )
             computed_line = computed_line + division_computed_line
             acknowledged = G.RenderAcknowledgement(fact)()
             if M.IdentityCompare(acknowledged, M.EmptyList)() is M.false_value:
