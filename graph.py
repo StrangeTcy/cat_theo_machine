@@ -6119,6 +6119,77 @@ class CompileDeductionToLaw(M.Edge):
         return self.result
 
 
+class SuggestCandidateLemma(M.Edge):
+    """Synthesize an intermediate candidate lemma from a stalled goal and working set."""
+
+    def __init__(self, goal, rules, facts, registry):
+        self.result = self._suggest(goal, rules, facts, registry)
+        super().__init__(
+            inputs=M.Pair(goal, M.Pair(rules, M.Pair(facts, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+    def _suggest(self, goal, rules, facts, registry):
+        goal_head = goal
+        if M.IsPair(goal)() is M.truth_value:
+            goal_head = M.Head(goal)()
+        matching_rule = self._find_rule(rules, goal_head)
+        if M.IdentityCompare(matching_rule, M.EmptyList)() is M.false_value:
+            partition = self._partition_premises(P.RulePremises(matching_rule)(), facts)
+            sat = M.Head(partition)()
+            unmet = M.Head(M.Tail(partition)())()
+            if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
+                cand_conclusion = M.Head(unmet)()
+                cand_premises = sat
+                if M.IdentityCompare(cand_premises, M.EmptyList)() is M.truth_value:
+                    cand_premises = facts
+                if M.IdentityCompare(cand_premises, M.EmptyList)() is M.false_value:
+                    if self._is_refuted_by_facts(cand_conclusion, facts) is M.false_value:
+                        return P.MultiRule(cand_premises, cand_conclusion)()
+        if M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
+            if self._is_refuted_by_facts(goal, facts) is M.false_value:
+                return P.MultiRule(facts, goal)()
+        return M.EmptyList
+
+    def _find_rule(self, rules, goal_head):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rule = M.Head(rules)()
+        replacement = P.RuleReplacement(rule)()
+        if M.IsPair(replacement)() is M.truth_value:
+            if M.Compare(M.Head(replacement)(), goal_head)() is M.truth_value:
+                return rule
+        return self._find_rule(M.Tail(rules)(), goal_head)
+
+    def _partition_premises(self, premises, facts):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        prem = M.Head(premises)()
+        rest = self._partition_premises(M.Tail(premises)(), facts)
+        sat = M.Head(rest)()
+        unmet = M.Head(M.Tail(rest)())()
+        bindings = P.JoinPremises(M.Pair(prem, M.EmptyList), facts, M.EmptyList)()
+        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+            return M.Pair(sat, M.Pair(M.Pair(prem, unmet), M.EmptyList))
+        return M.Pair(M.Pair(prem, sat), M.Pair(unmet, M.EmptyList))
+
+    def _is_refuted_by_facts(self, conclusion, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        if M.IsPair(fact)() is M.truth_value:
+            if M.Compare(M.Head(fact)(), M.Char("not"))() is M.truth_value:
+                tail = M.Tail(fact)()
+                if M.IsPair(tail)() is M.truth_value:
+                    negated = M.Head(tail)()
+                    if M.Compare(negated, conclusion)() is M.truth_value:
+                        return M.truth_value
+        return self._is_refuted_by_facts(conclusion, M.Tail(facts)())
+
+
 class UncompiledRules(M.Edge):
     """Step 12 term-native record of rules skipped from the trigonometry pack."""
 

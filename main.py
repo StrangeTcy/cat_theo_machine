@@ -5630,6 +5630,40 @@ def run_talk_mode(sentence: str = None):
                     + _ask_next_line()
                 )
             return _run_invariant_sweep()
+        if lowered.startswith("suggest lemmas"):
+            if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
+                return "Please approve or reject the pending rule first."
+            if M.IdentityCompare(last_goal, M.EmptyList)() is M.truth_value:
+                return "No recent search has stalled; ask a question or run a query first."
+            rules = G.InstalledTaughtRules(learned_version)()
+            facts = G.InstalledTaughtFacts(learned_version)()
+            cand_rule = G.SuggestCandidateLemma(last_goal, rules, facts, registry)()
+            if M.IdentityCompare(cand_rule, M.EmptyList)() is M.truth_value:
+                return "I could not derive a sound candidate lemma for the stalled goal."
+            cand_law = G.CompileDeductionToLaw(cand_rule)()
+            if M.IdentityCompare(cand_law, M.EmptyList)() is M.truth_value:
+                return "I could not compile a candidate lemma for the stalled goal."
+            cand_origin = M.Pair(
+                M.Char("dialogue-rule"),
+                M.Pair(
+                    P.RulePremises(cand_rule)(),
+                    M.Pair(
+                        P.RuleReplacement(cand_rule)(),
+                        M.EmptyList,
+                    ),
+                ),
+            )
+            cand_proposal = G.Proposal(cand_law, cand_origin)()
+            proposal_store = G.ProposalStoreSubmit(proposal_store, cand_proposal)()
+            pending_rule = cand_proposal
+            _persist_talk_state()
+            return (
+                "From the stalled goal "
+                + M.PrettyTerm(last_goal, registry)()
+                + ", I propose candidate lemma: "
+                + P.PrettyRule(cand_rule, M.AllConstructors)()
+                + ". Approve? (yes/no)"
+            )
         if lowered.startswith("explain "):
             # The derivation itself, spoken: the claim is re-derived
             # from the taught facts under the taught rules, and the
@@ -6593,10 +6627,20 @@ def run_talk_mode(sentence: str = None):
                     goal,
                     last_proof_registry,
                 )()
+            goal_target = goal
+            if M.IsPair(goal)() is M.truth_value:
+                goal_target = M.Head(goal)()
+            residual_gap = M.Pair(
+                Lmod.ResidualGapLabel,
+                M.Pair(goal_target, M.EmptyList),
+            )
+            pending_gaps = M.Pair(residual_gap, pending_gaps)
+            learned_version = G.InstallGap(learned_version, residual_gap)()
+            _persist_talk_state()
             return (
                 "no; I could not derive " + line[6:].strip()
                 + ". Ask 'why not " + line[6:].strip()
-                + "?' for what is missing."
+                + "?' for what is missing, or 'suggest lemmas' to propose an intermediate lemma."
             )
         if lowered.startswith("why not "):
             # The failed query's own explanation: what stands between
