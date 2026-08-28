@@ -570,6 +570,43 @@ class DaemonMergeInbox(M.Edge):
 DAEMON_NODE_HEADROOM = M.GMPRep("64")
 
 
+def daemon_process_alive(pid_text):
+    """Whether a pid is a live process, on either host.
+
+    Host process inquiry at the daemon boundary: the liveness file
+    carries a pid, and a second daemon must not start beside a live
+    one -- two writers on one state file is the invariant the whole
+    boundary exists to keep. A stale file from a dead daemon is
+    cleared, not obeyed.
+    """
+    try:
+        pid = int(str(pid_text).strip())
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            kernel32.GetExitCodeProcess(
+                handle, ctypes.byref(exit_code),
+            )
+            return exit_code.value == 259
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 def daemon_chain_count_text(chain):
     """Count a chain by text arithmetic, never by Succ construction.
 
@@ -767,6 +804,29 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
         os.remove(inbox_taken_path)
     worker_count = daemon_worker_count(worker_count)
     live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
+    if os.path.exists(live_path):
+        try:
+            with open(live_path, "r", encoding="utf-8") as handle:
+                held_pid = handle.read().strip()
+        except OSError:
+            held_pid = ""
+        if held_pid and daemon_process_alive(held_pid):
+            print(
+                "daemon: another daemon (pid "
+                + held_pid
+                + ") is already cycling this state; refusing to"
+                + " start a second writer beside it. Stop that one"
+                + " first.",
+                flush=True,
+            )
+            return M.Pair(
+                graph_version,
+                M.Pair(
+                    proposal_store,
+                    M.Pair(ledger, M.Pair(M.Char("refused"), M.EmptyList)),
+                ),
+            )
+        os.remove(live_path)
     with open(live_path, "w", encoding="utf-8") as handle:
         handle.write(str(os.getpid()))
     print(

@@ -14,23 +14,26 @@ import webbrowser
 from contextlib import redirect_stdout
 
 if __package__ in (None, ""):
-    IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    PACKAGE_NAME = os.path.basename(os.path.abspath(os.path.dirname(__file__)))
-    CHILD_ARGS = [sys.executable, "-m", PACKAGE_NAME + ".main"]
-    ARG_INDEX = 1
-    while ARG_INDEX != len(sys.argv):
-        CHILD_ARGS.append(sys.argv[ARG_INDEX])
-        ARG_INDEX = ARG_INDEX + 1
-    CHILD_ENV = os.environ.copy()
-    CHILD_ENV["PYTHONPATH"] = IMPORT_ROOT
-    # A console interrupt reaches the re-exec parent as well as the
-    # child; the parent bows out quietly and lets the child's own
-    # teardown speak.
-    try:
-        CHILD = subprocess.run(CHILD_ARGS, cwd=IMPORT_ROOT, env=CHILD_ENV)
-    except KeyboardInterrupt:
-        raise SystemExit(130)
-    raise SystemExit(CHILD.returncode)
+    # Run as a script from inside the package directory. Import the
+    # package's own main module in place and dispatch into it: one
+    # command, one interpreter, on every host. The old way re-executed
+    # a second interpreter as a module -- and on Windows, where there
+    # is no exec, that meant a parent process idling beside every
+    # session for its whole life.
+    if __name__ == "__main__":
+        _PKG_PARENT = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)),
+        )
+        _PKG_NAME = os.path.basename(
+            os.path.abspath(os.path.dirname(__file__)),
+        )
+        if _PKG_PARENT not in sys.path:
+            sys.path.insert(0, _PKG_PARENT)
+        import importlib
+
+        _PKG_MAIN = importlib.import_module(_PKG_NAME + ".main")
+        raise SystemExit(_PKG_MAIN.main())
+
 else:
     from .math import arithmetic as A
     from . import graph as G
@@ -10301,6 +10304,15 @@ def run_live_mode(requested_workers):
     try:
         run_talk_mode()
     finally:
+        # The daemon must die with the session, and so must anything it
+        # spawned: on Windows terminate() reaches only the daemon
+        # itself, leaving its workers orphaned and cycling -- so the
+        # whole tree is killed there.
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(daemon_child.pid)],
+                capture_output=True,
+            )
         daemon_child.terminate()
         try:
             daemon_child.wait(timeout=5)
