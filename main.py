@@ -8287,7 +8287,7 @@ def run_talk_mode(sentence: str = None):
 
     print("HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.")
     print("Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',")
-    print("'A times B', 'A to the power B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
+    print("'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
     print("Parentheses group subexpressions: 'two times (two plus two)'.")
     print("Teach me: 'training example: double two <-> mul ( two , two )'.")
     print("Teach facts: 'fact: Human(alice)'.")

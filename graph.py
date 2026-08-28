@@ -12034,15 +12034,6 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                 ),
             ),
         )()
-        pow_meaning = Meaning(
-            M.Pair(
-                M.ExprPowLabel,
-                M.Pair(
-                    Surface(M.Pair(var_a, empty))(),
-                    M.Pair(Surface(M.Pair(var_b, empty))(), empty),
-                ),
-            ),
-        )()
 
         sum_sentence = Surface(
             M.Pair(
@@ -12079,21 +12070,6 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         )()
         times_sentence = Surface(
             M.Pair(var_a, M.Pair(M.Char("times"), M.Pair(var_b, empty))),
-        )()
-        power_sentence = Surface(
-            M.Pair(
-                var_a,
-                M.Pair(
-                    M.Char("to"),
-                    M.Pair(
-                        M.Char("the"),
-                        M.Pair(
-                            M.Char("power"),
-                            M.Pair(var_b, empty),
-                        ),
-                    ),
-                ),
-            ),
         )()
         formal_mul_sentence = Surface(
             M.Pair(
@@ -12304,12 +12280,8 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                                 )(),
                                 M.Pair(
                                     CompileRuleToLaw(
-                                        P.Rule(power_sentence, pow_meaning),
+                                        P.Rule(formal_mul_sentence, mul_meaning),
                                     )(),
-                                    M.Pair(
-                                        CompileRuleToLaw(
-                                            P.Rule(formal_mul_sentence, mul_meaning),
-                                        )(),
                                     M.Pair(
                                         CompileRuleToLaw(
                                             P.Rule(formal_add_sentence, add_meaning),
@@ -12380,7 +12352,6 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
-            ),
             ),
             ),
             ),
