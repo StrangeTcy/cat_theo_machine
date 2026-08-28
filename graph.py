@@ -12034,6 +12034,15 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                 ),
             ),
         )()
+        pow_meaning = Meaning(
+            M.Pair(
+                M.ExprPowLabel,
+                M.Pair(
+                    Surface(M.Pair(var_a, empty))(),
+                    M.Pair(Surface(M.Pair(var_b, empty))(), empty),
+                ),
+            ),
+        )()
 
         sum_sentence = Surface(
             M.Pair(
@@ -12070,6 +12079,21 @@ class DefaultCorrespondenceVocabulary(M.Edge):
         )()
         times_sentence = Surface(
             M.Pair(var_a, M.Pair(M.Char("times"), M.Pair(var_b, empty))),
+        )()
+        power_sentence = Surface(
+            M.Pair(
+                var_a,
+                M.Pair(
+                    M.Char("to"),
+                    M.Pair(
+                        M.Char("the"),
+                        M.Pair(
+                            M.Char("power"),
+                            M.Pair(var_b, empty),
+                        ),
+                    ),
+                ),
+            ),
         )()
         formal_mul_sentence = Surface(
             M.Pair(
@@ -12280,8 +12304,12 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                                 )(),
                                 M.Pair(
                                     CompileRuleToLaw(
-                                        P.Rule(formal_mul_sentence, mul_meaning),
+                                        P.Rule(power_sentence, pow_meaning),
                                     )(),
+                                    M.Pair(
+                                        CompileRuleToLaw(
+                                            P.Rule(formal_mul_sentence, mul_meaning),
+                                        )(),
                                     M.Pair(
                                         CompileRuleToLaw(
                                             P.Rule(formal_add_sentence, add_meaning),
@@ -12352,6 +12380,7 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
+            ),
             ),
             ),
             ),
@@ -12658,6 +12687,56 @@ class MeaningEvaluate(M.Edge):
                 if M.IdentityCompare(is_add, M.truth_value)() is M.truth_value:
                     return M.Add(left_value, right_value, registry)()
                 return M.Multiply(left_value, right_value, registry)()
+            if M.TermEqual(label, M.ExprPowLabel)() is M.truth_value:
+                # A power is the machine's own product applied exponent
+                # times: the base multiplied into a running product once
+                # per step of the exponent's count. Non-Nat operands
+                # stay symbolic, the way Sqrt does.
+                base_pair = self._eval(
+                    M.Head(arguments)(), registry, next_depth,
+                )
+                base_value = M.Head(base_pair)()
+                registry = M.Head(M.Tail(base_pair)())()
+                if M.IdentityCompare(
+                    base_value, M.EmptyList,
+                )() is M.truth_value:
+                    return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+                exponent_pair = self._eval(
+                    M.Head(M.Tail(arguments)())(), registry, next_depth,
+                )
+                exponent_value = M.Head(exponent_pair)()
+                registry = M.Head(M.Tail(exponent_pair)())()
+                if M.IdentityCompare(
+                    exponent_value, M.EmptyList,
+                )() is M.truth_value:
+                    return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+                base_nat = M.IsNat(base_value, registry)()
+                exponent_nat = M.IsNat(exponent_value, registry)()
+                if M.AndAtom(base_nat, exponent_nat)() is M.false_value:
+                    return M.Pair(
+                        M.Pair(
+                            label,
+                            M.Pair(
+                                base_value,
+                                M.Pair(exponent_value, M.EmptyList),
+                            ),
+                        ),
+                        M.Pair(registry, M.EmptyList),
+                    )
+                exponent_text = M.GMPRepText(
+                    M.NatRepOf(exponent_value, registry)(),
+                )()
+                result_value = M.one
+                while exponent_text != "0":
+                    product = M.Multiply(
+                        result_value, base_value, registry,
+                    )()
+                    result_value = M.Head(product)()
+                    registry = M.Head(M.Tail(product)())()
+                    exponent_text = GMPSubText(exponent_text, "1")()
+                return M.Pair(
+                    result_value, M.Pair(registry, M.EmptyList),
+                )
             if M.TermEqual(label, M.SqrtLabel)() is M.truth_value:
                 # A root has no Nat value, but it is a perfectly good term and
                 # the prover takes it as one. Evaluate the radicand so a

@@ -6947,6 +6947,55 @@ def run_talk_mode(sentence: str = None):
             question_answer = _question_graph_answer(line)
             if question_answer is not None:
                 return question_answer
+        if lowered.startswith("how many "):
+            # Self-knowledge, counted from the state: how many rules,
+            # facts, or definitions the machine holds. The count is
+            # walked from the graph; the words are the machine's own.
+            how_many_rest = lowered[len("how many "):].rstrip("?!. ")
+            if how_many_rest.endswith("do you know"):
+                how_many_noun_text = how_many_rest[
+                    : -len("do you know")
+                ].strip().rstrip("?!. ")
+                if how_many_noun_text != "":
+                    how_many_word = M.Char(how_many_noun_text)
+                    how_many_singular = G.WordSingular(
+                        how_many_word,
+                    )()
+                    if M.IdentityCompare(
+                        how_many_singular, M.EmptyList,
+                    )() is M.truth_value:
+                        how_many_singular = how_many_word
+                    how_many_kind = str(how_many_singular())
+                    how_many_chain = M.EmptyList
+                    if how_many_kind == "rule":
+                        how_many_chain = G.InstalledTaughtRules(
+                            learned_version,
+                        )()
+                    elif how_many_kind == "fact":
+                        how_many_chain = G.InstalledTaughtFacts(
+                            learned_version,
+                        )()
+                    elif how_many_kind == "definition":
+                        how_many_chain = G.InstalledDefinitions(
+                            learned_version,
+                        )()
+                    else:
+                        return (
+                            "I do not know the word: "
+                            + how_many_noun_text
+                            + ". I count rules, facts, and"
+                            + " definitions."
+                        )
+                    how_many_count = _count_chain(how_many_chain)
+                    how_many_text = _words_of_value_text(
+                        str(how_many_count),
+                    )
+                    if how_many_count == 1:
+                        return "I know one " + how_many_kind + "."
+                    return (
+                        "I know " + how_many_text + " "
+                        + how_many_kind + "s."
+                    )
         if lowered.startswith("what are the "):
             # An enumeration question: "what are the <concept>s of
             # <number>". The concept and its meaning are the
@@ -8150,7 +8199,7 @@ def run_talk_mode(sentence: str = None):
 
     print("HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.")
     print("Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',")
-    print("'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
+    print("'A times B', 'A to the power B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
     print("Parentheses group subexpressions: 'two times (two plus two)'.")
     print("Teach me: 'training example: double two <-> mul ( two , two )'.")
     print("Teach facts: 'fact: Human(alice)'.")
