@@ -4905,6 +4905,197 @@ class SubgraphPatternIsGround(M.Edge):
         return self.result
 
 
+class SuggestInvariants(M.Edge):
+    """Sweep the machine's own reach and return what never changes.
+
+    The board arrives as a chain of Pair(sector, value-text) in board
+    order, the moves as a chain of Pair(sector-a, sector-b), and the
+    step as its text. Every state within two moves of the board is
+    computed by the machine's own addition; every expression that
+    adds, subtracts, or leaves out each number is evaluated on every
+    state by the machine's own arithmetic. Each survivor is returned
+    as a term -- the expression itself, an add/sub chain over the
+    sector terms, beside its constant value -- so what the machine
+    noticed exists as machine data, to be spoken, recorded, or taught
+    from. Nothing here knows what the board or the moves mean; it
+    only walks them.
+    """
+
+    def __init__(self, holds, neighbors, step_text):
+        sectors = []
+        values = []
+        remaining_holds = holds
+        while M.IdentityCompare(
+            remaining_holds, M.EmptyList,
+        )() is M.false_value:
+            entry = M.Head(remaining_holds)()
+            sectors.append(M.Head(entry)())
+            values.append(str(M.Head(M.Tail(entry)())()()))
+            remaining_holds = M.Tail(remaining_holds)()
+        moves = []
+        remaining_neighbors = neighbors
+        while M.IdentityCompare(
+            remaining_neighbors, M.EmptyList,
+        )() is M.false_value:
+            pair = M.Head(remaining_neighbors)()
+            moves.append((M.Head(pair)(), M.Head(M.Tail(pair)())()))
+            remaining_neighbors = M.Tail(remaining_neighbors)()
+        index = {}
+        for position, sector in enumerate(sectors):
+            index[str(sector())] = position
+        move_indices = []
+        for sector_a, sector_b in moves:
+            key_a = str(sector_a())
+            key_b = str(sector_b())
+            if key_a in index and key_b in index:
+                move_indices.append((index[key_a], index[key_b]))
+        step = str(step_text())
+        # Every state within two moves, each successor computed by the
+        # machine's own addition.
+        start = tuple(values)
+        seen = {start}
+        states = [start]
+        frontier = [start]
+        depth = 0
+        while depth < 2:
+            next_frontier = []
+            for state in frontier:
+                for position_a, position_b in move_indices:
+                    grown = list(state)
+                    grown[position_a] = GMPAddText(
+                        grown[position_a], step,
+                    )()
+                    grown[position_b] = GMPAddText(
+                        grown[position_b], step,
+                    )()
+                    grown_tuple = tuple(grown)
+                    if grown_tuple not in seen:
+                        seen.add(grown_tuple)
+                        next_frontier.append(grown_tuple)
+            states.extend(next_frontier)
+            frontier = next_frontier
+            depth = depth + 1
+        count = len(sectors)
+
+        def evaluate(coefficients, state):
+            value_text = "0"
+            for position, coefficient in enumerate(coefficients):
+                if coefficient == 1:
+                    value_text = GMPAddText(
+                        value_text, state[position],
+                    )()
+                elif coefficient == -1:
+                    value_text = GMPSubText(
+                        value_text, state[position],
+                    )()
+            return value_text
+
+        findings = []
+        tested = 0
+        coefficients = []
+
+        def sweep(position):
+            nonlocal tested
+            if position == count:
+                first_nonzero = 0
+                for coefficient in coefficients:
+                    if coefficient != 0:
+                        first_nonzero = coefficient
+                        break
+                if first_nonzero != 1:
+                    return
+                tested = tested + 1
+                constant_text = evaluate(coefficients, states[0])
+                for state in states[1:]:
+                    value_text = evaluate(coefficients, state)
+                    if GMPEqualText(
+                        value_text, constant_text,
+                    )() is not M.truth_value:
+                        return
+                opposite = True
+                for position_a, position_b in move_indices:
+                    if (
+                        coefficients[position_a]
+                        * coefficients[position_b]
+                        != -1
+                    ):
+                        opposite = False
+                findings.append(
+                    (list(coefficients), constant_text, opposite),
+                )
+                return
+            for choice in (1, 0, -1):
+                coefficients.append(choice)
+                sweep(position + 1)
+                coefficients.pop()
+
+        sweep(0)
+        # Each finding as a term: the expression, an add/sub chain
+        # over the sector terms in board order, beside its value and
+        # whether every move's pair carries opposite signs in it.
+        reversed_findings = M.EmptyList
+        for coefficients, constant_text, opposite in findings:
+            # The expression as an add/sub chain in board order. The
+            # sweep fixed the earliest signed coefficient at +1, so
+            # the chain starts from that sector and adds or subtracts
+            # each later signed one; no unary minus is ever needed.
+            expression = M.EmptyList
+            for position in range(count):
+                coefficient = coefficients[position]
+                if coefficient == 0:
+                    continue
+                sector = sectors[position]
+                if M.IdentityCompare(
+                    expression, M.EmptyList,
+                )() is M.truth_value:
+                    expression = sector
+                elif coefficient == 1:
+                    expression = M.Pair(
+                        M.Char("add"),
+                        M.Pair(
+                            expression,
+                            M.Pair(sector, M.EmptyList),
+                        ),
+                    )
+                else:
+                    expression = M.Pair(
+                        M.Char("sub"),
+                        M.Pair(
+                            expression,
+                            M.Pair(sector, M.EmptyList),
+                        ),
+                    )
+            finding = M.Pair(
+                expression,
+                M.Pair(
+                    M.GMPRep(constant_text),
+                    M.Pair(
+                        M.truth_value if opposite else M.false_value,
+                        M.EmptyList,
+                    ),
+                ),
+            )
+            reversed_findings = M.Pair(finding, reversed_findings)
+        findings_chain = M.Reverse(reversed_findings)()
+        self.result = M.Pair(
+            findings_chain,
+            M.Pair(
+                M.GMPRep(str(len(states))),
+                M.Pair(M.GMPRep(str(tested)), M.EmptyList),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                holds,
+                M.Pair(neighbors, M.Pair(step_text, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class UnifyRules(M.Edge):
     """Retire the redundant law; record the correspondence in the graph.
 

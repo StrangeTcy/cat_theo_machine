@@ -1327,6 +1327,12 @@ def run_talk_mode(sentence: str = None):
     # surfaced, so a pending finding is asked once, not once per cycle.
     pending_machine = M.EmptyList
     machine_asked = M.EmptyList
+    # The part of a taught problem the machine is still asking for:
+    # "board" (the numbers), "neighbors" (the pairs a move touches),
+    # or "step" (how much a move adds). A bare line at the prompt
+    # answers the standing question; the meaning graph grows from the
+    # machine's own questions.
+    pending_problem_kind = ""
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
     last_outcome = M.EmptyList
@@ -4367,6 +4373,411 @@ def run_talk_mode(sentence: str = None):
             entries = M.Tail(entries)()
         return "; ".join(texts)
 
+    def _numeral_word_of_value(value_text):
+        """The spoken word of a value, from the word entries."""
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        entry_scan = word_entries
+        while M.IdentityCompare(
+            entry_scan, M.EmptyList,
+        )() is M.false_value:
+            entry = M.Head(entry_scan)()
+            entry_text = M.GMPRepText(
+                M.NatRepOf(
+                    M.Head(M.Tail(entry)())(), registry,
+                )(),
+            )()
+            if M.IdentityCompare(
+                G.GMPEqualText(entry_text, value_text)(),
+                M.truth_value,
+            )() is M.truth_value:
+                return M.Head(entry)()
+            entry_scan = M.Tail(entry_scan)()
+        return M.EmptyList
+
+    def _problem_state():
+        """The taught problem's parts: numbers, move pairs, step."""
+        holds = []
+        neighbors = []
+        step_text = M.EmptyList
+        fact_scan = G.InstalledTaughtFacts(learned_version)()
+        while M.IdentityCompare(
+            fact_scan, M.EmptyList,
+        )() is M.false_value:
+            fact = M.Head(fact_scan)()
+            if M.IsPair(fact)() is M.truth_value:
+                fact_head = M.Head(fact)()
+                fact_args = M.Tail(fact)()
+                if M.Compare(
+                    fact_head, M.Char("holds"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Tail(M.Tail(fact_args)())(),
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        sector = M.Head(fact_args)()
+                        value = M.Head(M.Tail(fact_args)())()
+                        value_text = _numeral_value_text(value)
+                        if value_text is not M.EmptyList:
+                            if M.IsPair(sector)() is M.false_value:
+                                holds.append((sector, value_text))
+                elif M.Compare(
+                    fact_head, M.Char("neighbor"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Tail(M.Tail(fact_args)())(),
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        neighbors.append(
+                            (
+                                M.Head(fact_args)(),
+                                M.Head(M.Tail(fact_args)())(),
+                            ),
+                        )
+                elif M.Compare(
+                    fact_head, M.Char("step"),
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Tail(fact_args)(), M.EmptyList,
+                    )() is M.truth_value:
+                        step_text = _numeral_value_text(
+                            M.Head(fact_args)(),
+                        )
+            fact_scan = M.Tail(fact_scan)()
+        ordered = True
+        for sector, _value_text in holds:
+            if _numeral_value_text(sector) is M.EmptyList:
+                ordered = False
+        if ordered and holds:
+            holds = sorted(
+                holds,
+                key=lambda entry: int(
+                    _numeral_value_text(entry[0]),
+                ),
+            )
+        return holds, neighbors, step_text
+
+    def _missing_problem_parts():
+        """The question for the first part the graph still lacks."""
+        nonlocal pending_problem_kind
+        holds, neighbors, step_text = _problem_state()
+        if not holds:
+            pending_problem_kind = "board"
+            return (
+                "Which numbers are written into the sectors, in order?"
+                + " Answer with the numbers alone, like:"
+                + " one, zero, one."
+            )
+        if not neighbors:
+            pending_problem_kind = "neighbors"
+            return (
+                "Which pairs of sectors may one move touch? Answer"
+                + " like: one and two, two and three."
+            )
+        if step_text is M.EmptyList:
+            pending_problem_kind = "step"
+            return (
+                "How much does one move add to each of its two"
+                + " numbers? Answer with the number alone, like: one."
+            )
+        pending_problem_kind = ""
+        return ""
+
+    def _speak_arithmetic(term):
+        """An add/sub chain over sectors, spoken as words."""
+        if M.IsPair(term)() is M.truth_value:
+            term_head = M.Head(term)()
+            term_args = M.Tail(term)()
+            if M.IdentityCompare(
+                M.Tail(M.Tail(term_args)())(),
+                M.EmptyList,
+            )() is M.truth_value:
+                left = M.Head(term_args)()
+                right = M.Head(M.Tail(term_args)())()
+                if M.Compare(
+                    term_head, M.Char("add"),
+                )() is M.truth_value:
+                    return (
+                        _speak_arithmetic(left)
+                        + " plus "
+                        + _speak_arithmetic(right)
+                    )
+                if M.Compare(
+                    term_head, M.Char("sub"),
+                )() is M.truth_value:
+                    return (
+                        _speak_arithmetic(left)
+                        + " minus "
+                        + _speak_arithmetic(right)
+                    )
+        if term is M.EmptyList:
+            return ""
+        try:
+            return str(term())
+        except Exception:
+            return "?"
+
+    def _run_invariant_sweep():
+        """Run the sweep and speak what it returns, as terms."""
+        nonlocal learned_version
+        holds, neighbors, step_text = _problem_state()
+        holds_chain = M.EmptyList
+        for sector, value_text in reversed(holds):
+            holds_chain = M.Pair(
+                M.Pair(sector, M.Pair(M.Char(value_text), M.EmptyList)),
+                holds_chain,
+            )
+        neighbors_chain = M.EmptyList
+        for sector_a, sector_b in reversed(neighbors):
+            neighbors_chain = M.Pair(
+                M.Pair(
+                    sector_a, M.Pair(sector_b, M.EmptyList),
+                ),
+                neighbors_chain,
+            )
+        outcome = G.SuggestInvariants(
+            holds_chain,
+            neighbors_chain,
+            M.Char(step_text),
+        )()
+        findings = M.Head(outcome)()
+        states_rep = M.Head(M.Tail(outcome)())()
+        tested_rep = M.Head(M.Tail(M.Tail(outcome)())())()
+        # Each finding is recorded in the graph before it is spoken:
+        # what the machine noticed exists as machine data.
+        findings_scan = findings
+        while M.IdentityCompare(
+            findings_scan, M.EmptyList,
+        )() is M.false_value:
+            finding = M.Head(findings_scan)()
+            findings_scan = M.Tail(findings_scan)()
+            node = M.Pair(
+                M.Char("suggested-invariant"),
+                M.Pair(finding, M.EmptyList),
+            )
+            learned_version = G.GraphVersion(
+                M.Pair(node, G.GraphNodes(learned_version)()),
+                G.GraphEdges(learned_version)(),
+                G.GraphVersionInvariants(learned_version)(),
+            )()
+        _persist_talk_state()
+        reply_lines = [
+            "I walked "
+            + _words_of_value_text(
+                M.GMPRepText(states_rep)(),
+            )
+            + " states within two moves and tested "
+            + _words_of_value_text(
+                M.GMPRepText(tested_rep)(),
+            )
+            + " expressions, each number added or subtracted once.",
+        ]
+        if M.IdentityCompare(
+            findings, M.EmptyList,
+        )() is M.truth_value:
+            reply_lines.append("Nothing stayed unchanged.")
+        findings_scan = findings
+        while M.IdentityCompare(
+            findings_scan, M.EmptyList,
+        )() is M.false_value:
+            finding = M.Head(findings_scan)()
+            findings_scan = M.Tail(findings_scan)()
+            expression = M.Head(finding)()
+            constant_rep = M.Head(M.Tail(finding)())()
+            opposite = M.Head(M.Tail(M.Tail(finding)())())()
+            finding_text = (
+                _speak_arithmetic(expression)
+                + " stays "
+                + _words_of_value_text(
+                    M.GMPRepText(constant_rep)(),
+                )
+            )
+            if M.IdentityCompare(
+                opposite, M.truth_value,
+            )() is M.truth_value:
+                cancellation = _words_of_value_text(
+                    G.GMPSubText(step_text, step_text)(),
+                )
+                finding_text = finding_text + (
+                    ". Every move adds "
+                    + _words_of_value_text(step_text)
+                    + " to two neighboring numbers, and in it each"
+                    + " neighboring pair carries opposite signs: "
+                    + _words_of_value_text(step_text)
+                    + " minus "
+                    + _words_of_value_text(step_text)
+                    + " is "
+                    + cancellation
+                    + ", so a move changes nothing"
+                )
+            reply_lines.append(finding_text + ".")
+        return "\n".join(reply_lines)
+
+    def _try_problem_answer(line, record=True):
+        """A bare line answers the standing problem question."""
+        nonlocal learned_version, pending_problem_kind
+        if pending_problem_kind == "":
+            return None
+        if ":" in line:
+            return None
+        words = G.WordsOfText(
+            line.lower(), reading_policy, reading_digits,
+        )()
+        word_atoms = []
+        word_texts = []
+        word_scan = words
+        while M.IdentityCompare(
+            word_scan, M.EmptyList,
+        )() is M.false_value:
+            word_atom = M.Head(word_scan)()
+            word_scan = M.Tail(word_scan)()
+            if M.Compare(
+                word_atom, M.Char(","),
+            )() is M.truth_value:
+                continue
+            word_atoms.append(word_atom)
+            word_texts.append(str(word_atom()))
+
+        def _numeral_or_none(text):
+            value_text = _numeral_value_text(M.Char(text))
+            if value_text is M.EmptyList:
+                return None
+            return value_text
+
+        if pending_problem_kind == "board":
+            values = []
+            for word_text in word_texts:
+                value_text = _numeral_or_none(word_text)
+                if value_text is None:
+                    return None
+                values.append(value_text)
+            if len(values) < 2:
+                return None
+            recorded = []
+            for position, value_text in enumerate(values):
+                sector = _numeral_word_of_value(str(position + 1))
+                if sector is M.EmptyList:
+                    return None
+                value_word = _numeral_word_of_value(value_text)
+                if value_word is M.EmptyList:
+                    return None
+                fact = M.Pair(
+                    M.Char("holds"),
+                    M.Pair(sector, M.Pair(value_word, M.EmptyList)),
+                )
+                installed = G.InstallTaughtFact(
+                    learned_version, fact,
+                )()
+                learned_version = M.Head(installed)()
+                recorded.append(
+                    "sector "
+                    + str(sector())
+                    + " holds "
+                    + str(value_word()),
+                )
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            _pop_ask("problem")
+            next_missing = _missing_problem_parts()
+            if next_missing != "":
+                _push_ask("problem", next_missing)
+                return (
+                    "Recorded: "
+                    + "; ".join(recorded)
+                    + "."
+                    + _ask_next_line()
+                )
+            return (
+                "Recorded: "
+                + "; ".join(recorded)
+                + ".\n"
+                + _run_invariant_sweep()
+            )
+        if pending_problem_kind == "neighbors":
+            pairs = []
+            index = 0
+            while index < len(word_texts):
+                first = _numeral_or_none(word_texts[index])
+                if first is None:
+                    return None
+                if index + 2 >= len(word_texts):
+                    return None
+                if word_texts[index + 1] != "and":
+                    return None
+                second = _numeral_or_none(word_texts[index + 2])
+                if second is None:
+                    return None
+                pairs.append(
+                    (word_atoms[index], word_atoms[index + 2]),
+                )
+                index = index + 3
+            if not pairs:
+                return None
+            for sector_a, sector_b in pairs:
+                fact = M.Pair(
+                    M.Char("neighbor"),
+                    M.Pair(
+                        sector_a,
+                        M.Pair(sector_b, M.EmptyList),
+                    ),
+                )
+                installed = G.InstallTaughtFact(
+                    learned_version, fact,
+                )()
+                learned_version = M.Head(installed)()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            _pop_ask("problem")
+            recorded_text = "; ".join(
+                str(sector_a()) + " and " + str(sector_b())
+                for sector_a, sector_b in pairs
+            )
+            next_missing = _missing_problem_parts()
+            if next_missing != "":
+                _push_ask("problem", next_missing)
+                return (
+                    "Recorded the pairs a move may touch: "
+                    + recorded_text
+                    + "."
+                    + _ask_next_line()
+                )
+            return (
+                "Recorded the pairs a move may touch: "
+                + recorded_text
+                + ".\n"
+                + _run_invariant_sweep()
+            )
+        if pending_problem_kind == "step":
+            if len(word_texts) != 1:
+                return None
+            value_text = _numeral_or_none(word_texts[0])
+            if value_text is None:
+                return None
+            value_word = _numeral_word_of_value(value_text)
+            if value_word is M.EmptyList:
+                return None
+            fact = M.Pair(
+                M.Char("step"),
+                M.Pair(value_word, M.EmptyList),
+            )
+            installed = G.InstallTaughtFact(
+                learned_version, fact,
+            )()
+            learned_version = M.Head(installed)()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            _pop_ask("problem")
+            return (
+                "Recorded: one move adds "
+                + str(value_word())
+                + " to each of its two numbers.\n"
+                + _run_invariant_sweep()
+            )
+        return None
+
+
     def _unblock_definition_for(decided_proposal):
         """An approved split or shape unblocks the definition it came
         from: its operators or its template now stand interpreted, so
@@ -4896,6 +5307,11 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_gaps
         nonlocal pending_process
         lowered = line.lower()
+        # A bare line at the prompt answers the problem question that
+        # stands: the numbers, the pairs a move touches, or the step.
+        problem_answer = _try_problem_answer(line, record=record)
+        if problem_answer is not None:
+            return problem_answer
         if lowered.startswith("word:"):
             parsed_word = G.ParseWordText(
                 line[5:].strip(),
@@ -4954,294 +5370,121 @@ def run_talk_mode(sentence: str = None):
                     M.Head(M.Tail(acknowledged)())(),
                 )
             return "Recorded word grounding: " + line[5:].strip()
-        if lowered.startswith("suggest invariants"):
-            # The machine explores its own reach: from the numbers it
-            # was taught, through every move the teaching allows, to
-            # the states two moves away; and over those states it
-            # tests, with its own arithmetic, every expression that
-            # adds or subtracts each number once. What never changes
-            # is reported, together with the reason the moves leave it
-            # alone -- computed, not assumed. Nothing here is told;
-            # the configuration and the move came in as facts, and the
-            # rest is the machine looking at its own search space.
-            suggest_facts = G.InstalledTaughtFacts(learned_version)()
-            suggest_holds = []
-            suggest_neighbors = []
-            suggest_step_text = ""
-            suggest_scan = suggest_facts
+        if lowered.startswith("training problem:"):
+            # The problem enters as its own words, one utterance. The
+            # machine reads it with its reading policy, keeps it as a
+            # term in the graph, and says what it could and could not
+            # read: the words it knows, the numbers it speaks, and the
+            # words still without meaning, to be grounded by teaching.
+            problem_text = line[len("training problem:"):].strip()
+            problem_words = G.WordsOfText(
+                problem_text,
+                reading_policy,
+                reading_digits,
+            )()
+            word_entries = M.Head(M.Tail(vocabulary)())()
+            problem_known = []
+            problem_unknown = []
+            problem_numbers = []
+            current_run = []
+            word_scan = problem_words
             while M.IdentityCompare(
-                suggest_scan, M.EmptyList,
+                word_scan, M.EmptyList,
             )() is M.false_value:
-                suggest_fact = M.Head(suggest_scan)()
-                if M.IsPair(suggest_fact)() is M.truth_value:
-                    suggest_head = M.Head(suggest_fact)()
-                    suggest_args = M.Tail(suggest_fact)()
-                    if M.Compare(
-                        suggest_head, M.Char("holds"),
-                    )() is M.truth_value:
-                        if M.IdentityCompare(
-                            M.Tail(M.Tail(suggest_args)())(),
-                            M.EmptyList,
-                        )() is M.truth_value:
-                            suggest_sector = M.Head(suggest_args)()
-                            suggest_value = M.Head(
-                                M.Tail(suggest_args)(),
-                            )()
-                            suggest_value_text = _numeral_value_text(
-                                suggest_value,
-                            )
-                            if suggest_value_text is not M.EmptyList:
-                                if M.IsPair(suggest_sector)() is M.false_value:
-                                    suggest_holds.append(
-                                        (
-                                            suggest_sector,
-                                            suggest_value_text,
-                                        ),
-                                    )
-                    elif M.Compare(
-                        suggest_head, M.Char("neighbor"),
-                    )() is M.truth_value:
-                        if M.IdentityCompare(
-                            M.Tail(M.Tail(suggest_args)())(),
-                            M.EmptyList,
-                        )() is M.truth_value:
-                            suggest_neighbors.append(
-                                (
-                                    M.Head(suggest_args)(),
-                                    M.Head(M.Tail(suggest_args)())(),
-                                ),
-                            )
-                    elif M.Compare(
-                        suggest_head, M.Char("step"),
-                    )() is M.truth_value:
-                        if M.IdentityCompare(
-                            M.Tail(suggest_args)(), M.EmptyList,
-                        )() is M.truth_value:
-                            suggest_step_text = _numeral_value_text(
-                                M.Head(suggest_args)(),
-                            )
-                suggest_scan = M.Tail(suggest_scan)()
-            if (
-                not suggest_holds
-                or not suggest_neighbors
-                or suggest_step_text is M.EmptyList
-                or suggest_step_text == ""
-            ):
-                return (
-                    "Teach the configuration first: holds(sector, value)"
-                    + " for the numbers on the board, neighbor(a, b) for"
-                    + " each pair a move may touch, and step(n) for how"
-                    + " much one move adds to each of its two numbers."
-                )
-            # The board's own order: sectors by their own numerals,
-            # where the sectors are numbered; otherwise the taught
-            # order stands.
-            suggest_order_keys = []
-            suggest_ordered = True
-            for suggest_sector, _suggest_value_text in suggest_holds:
-                suggest_sector_text = _numeral_value_text(
-                    suggest_sector,
-                )
-                if suggest_sector_text is M.EmptyList:
-                    suggest_ordered = False
-                else:
-                    suggest_order_keys.append(
-                        int(suggest_sector_text),
-                    )
-            if suggest_ordered and len(suggest_order_keys) == len(
-                suggest_holds,
-            ):
-                suggest_holds = [
-                    entry
-                    for _, entry in sorted(
-                        zip(suggest_order_keys, suggest_holds),
-                        key=lambda pair: pair[0],
-                    )
-                ]
-            suggest_sectors = []
-            suggest_values = []
-            for suggest_sector, suggest_value_text in suggest_holds:
-                suggest_sectors.append(suggest_sector)
-                suggest_values.append(suggest_value_text)
-            suggest_index = {}
-            for suggest_position, suggest_sector in enumerate(
-                suggest_sectors,
-            ):
-                suggest_index[str(suggest_sector())] = suggest_position
-            suggest_moves = []
-            for suggest_a, suggest_b in suggest_neighbors:
-                if M.IsPair(suggest_a)() is M.truth_value:
-                    continue
-                if M.IsPair(suggest_b)() is M.truth_value:
-                    continue
-                suggest_ia = suggest_index.get(str(suggest_a()))
-                suggest_ib = suggest_index.get(str(suggest_b()))
-                if suggest_ia is None or suggest_ib is None:
-                    continue
-                suggest_moves.append((suggest_ia, suggest_ib))
-            if not suggest_moves:
-                return (
-                    "The taught neighbor pairs do not speak the sectors"
-                    + " the numbers are held in; I cannot walk the moves."
-                )
-            # Forward exploration: every state within two moves, each
-            # state computed by the machine's own addition.
-            suggest_start = tuple(suggest_values)
-            suggest_seen = {suggest_start}
-            suggest_states = [suggest_start]
-            suggest_frontier = [suggest_start]
-            suggest_depth = 0
-            while suggest_depth < 2:
-                suggest_next_frontier = []
-                for suggest_state in suggest_frontier:
-                    for suggest_ia, suggest_ib in suggest_moves:
-                        suggest_new = list(suggest_state)
-                        suggest_new[suggest_ia] = G.GMPAddText(
-                            suggest_new[suggest_ia], suggest_step_text,
-                        )()
-                        suggest_new[suggest_ib] = G.GMPAddText(
-                            suggest_new[suggest_ib], suggest_step_text,
-                        )()
-                        suggest_tuple = tuple(suggest_new)
-                        if suggest_tuple not in suggest_seen:
-                            suggest_seen.add(suggest_tuple)
-                            suggest_next_frontier.append(suggest_tuple)
-                suggest_states.extend(suggest_next_frontier)
-                suggest_frontier = suggest_next_frontier
-                suggest_depth = suggest_depth + 1
-            # Candidate expressions: each number added, subtracted, or
-            # absent, the overall negation counted once. Evaluated on
-            # every explored state by the machine's own arithmetic.
-            suggest_count = len(suggest_sectors)
-            if suggest_count > 8:
-                return (
-                    "That board holds more numbers than I can sweep"
-                    + " expression by expression."
-                )
-            suggest_survivors = []
-            suggest_tested = 0
-
-            def _suggest_evaluate(coefficients, state):
-                value_text = "0"
-                for suggest_position, suggest_coefficient in enumerate(
-                    coefficients,
-                ):
-                    if suggest_coefficient == 1:
-                        value_text = G.GMPAddText(
-                            value_text, state[suggest_position],
-                        )()
-                    elif suggest_coefficient == -1:
-                        value_text = G.GMPSubText(
-                            value_text, state[suggest_position],
-                        )()
-                return value_text
-
-            def _suggest_sweep(coefficients, position):
-                nonlocal suggest_tested
-                if position == suggest_count:
-                    first_nonzero = 0
-                    for suggest_coefficient in coefficients:
-                        if suggest_coefficient != 0:
-                            first_nonzero = suggest_coefficient
-                            break
-                    if first_nonzero != 1:
-                        return
-                    suggest_tested = suggest_tested + 1
-                    constant_text = _suggest_evaluate(
-                        coefficients, suggest_states[0],
-                    )
-                    for suggest_state in suggest_states[1:]:
-                        value_text = _suggest_evaluate(
-                            coefficients, suggest_state,
-                        )
-                        if G.GMPEqualText(
-                            value_text, constant_text,
-                        )() is not M.truth_value:
-                            return
-                    suggest_survivors.append(
-                        (list(coefficients), constant_text),
-                    )
-                    return
-                for suggest_choice in (1, 0, -1):
-                    coefficients.append(suggest_choice)
-                    _suggest_sweep(coefficients, position + 1)
-                    coefficients.pop()
-
-            _suggest_sweep([], 0)
-            if not suggest_survivors:
-                return (
-                    "I walked "
-                    + str(len(suggest_states))
-                    + " states within two moves of the taught numbers"
-                    + " and tested "
-                    + str(suggest_tested)
-                    + " expressions over them. Nothing stayed"
-                    + " unchanged."
-                )
-            # The reason each survivor survives: every move adds the
-            # step to two neighboring numbers, and in the survivor the
-            # two carry opposite signs -- the machine computes the
-            # cancellation itself.
-            suggest_cancel_text = _words_of_value_text(
-                G.GMPSubText(
-                    suggest_step_text, suggest_step_text,
-                )(),
-            )
-            suggest_lines = []
-            for suggest_coefficients, suggest_constant in suggest_survivors:
-                suggest_pieces = []
-                for suggest_position, suggest_coefficient in enumerate(
-                    suggest_coefficients,
-                ):
-                    if suggest_coefficient == 1:
-                        suggest_pieces.append(
-                            "+ " + str(suggest_sectors[suggest_position]()),
-                        )
-                    elif suggest_coefficient == -1:
-                        suggest_pieces.append(
-                            "- " + str(suggest_sectors[suggest_position]()),
-                        )
-                suggest_expression = " ".join(suggest_pieces).lstrip("+ ")
-                suggest_opposite = M.truth_value
-                for suggest_ia, suggest_ib in suggest_moves:
-                    if (
-                        suggest_coefficients[suggest_ia]
-                        * suggest_coefficients[suggest_ib]
-                        != -1
-                    ):
-                        suggest_opposite = M.false_value
-                suggest_reason = ""
-                if M.IdentityCompare(
-                    suggest_opposite, M.truth_value,
+                problem_word = M.Head(word_scan)()
+                word_scan = M.Tail(word_scan)()
+                if M.Compare(
+                    problem_word, M.Char(","),
                 )() is M.truth_value:
-                    suggest_reason = (
-                        " Every move adds "
-                        + _words_of_value_text(suggest_step_text)
-                        + " to two neighboring numbers, and in it each"
-                        + " neighboring pair carries opposite signs: "
-                        + _words_of_value_text(suggest_step_text)
-                        + " minus "
-                        + _words_of_value_text(suggest_step_text)
-                        + " is "
-                        + suggest_cancel_text
-                        + ", so a move changes nothing."
-                    )
-                suggest_lines.append(
-                    suggest_expression
-                    + " stays "
-                    + _words_of_value_text(suggest_constant)
-                    + "." + suggest_reason
-                )
-            return (
-                "I walked "
-                + str(len(suggest_states))
-                + " states within two moves of the taught numbers and"
-                + " tested "
-                + str(suggest_tested)
-                + " expressions, each number added or subtracted"
-                + " once.\nWhat never changed:\n"
-                + "\n".join(suggest_lines)
+                    continue
+                resolved = G.CorrespondenceResolveWord(
+                    word_entries,
+                    G.Surface(M.Pair(problem_word, M.EmptyList))(),
+                )()
+                if M.IdentityCompare(
+                    resolved, M.EmptyList,
+                )() is M.false_value:
+                    problem_known.append(problem_word)
+                    if M.IsNat(resolved, registry)() is M.truth_value:
+                        current_run.append(problem_word)
+                    else:
+                        if len(current_run) > 1:
+                            problem_numbers.append(list(current_run))
+                        current_run = []
+                else:
+                    if len(current_run) > 1:
+                        problem_numbers.append(list(current_run))
+                    current_run = []
+                    known_unknown = False
+                    for seen_word in problem_unknown:
+                        if M.Compare(
+                            seen_word, problem_word,
+                        )() is M.truth_value:
+                            known_unknown = True
+                    if not known_unknown:
+                        problem_unknown.append(problem_word)
+            if len(current_run) > 1:
+                problem_numbers.append(list(current_run))
+            problem_node = M.Pair(
+                M.Char("training-problem"),
+                M.Pair(problem_words, M.EmptyList),
             )
+            learned_version = G.GraphVersion(
+                M.Pair(problem_node, G.GraphNodes(learned_version)()),
+                G.GraphEdges(learned_version)(),
+                G.GraphVersionInvariants(learned_version)(),
+            )()
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            known_texts = [
+                str(word()) for word in problem_known
+            ]
+            number_texts = [
+                ", ".join(str(word()) for word in run)
+                for run in problem_numbers
+            ]
+            unknown_texts = [
+                str(word()) for word in problem_unknown
+            ]
+            reply_text = (
+                "Recorded the problem, "
+                + str(len(problem_known) + len(problem_unknown))
+                + " words."
+            )
+            if number_texts:
+                reply_text = reply_text + (
+                    " The numbers it speaks: "
+                    + "; and ".join(number_texts)
+                    + "."
+                )
+            if unknown_texts:
+                reply_text = reply_text + (
+                    " These words I do not know: "
+                    + ", ".join(unknown_texts)
+                    + ". Ground them with 'word: "
+                    + unknown_texts[0]
+                    + " means ...' or teach their definition."
+                )
+            elif known_texts:
+                reply_text = reply_text + (
+                    " Every word in it is known to me."
+                )
+            return reply_text
+        if lowered.startswith("suggest invariants"):
+            # The machine explores its own reach and returns what
+            # never changes, as terms: the sweep itself runs in the
+            # graph layer over the taught board, moves, and step, and
+            # each finding is an add/sub chain over the sectors beside
+            # its constant value. The reply is those terms, spoken.
+            parts_missing = _missing_problem_parts()
+            if parts_missing != "":
+                _push_ask("problem", parts_missing)
+                return (
+                    "The problem is not fully held yet."
+                    + _ask_next_line()
+                )
+            return _run_invariant_sweep()
         if lowered.startswith("explain "):
             # The derivation itself, spoken: the claim is re-derived
             # from the taught facts under the taught rules, and the
