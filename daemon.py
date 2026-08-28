@@ -26,6 +26,7 @@ safety floor refused, as it happens.
 
 import multiprocessing
 import os
+import sys
 import time
 
 from . import machine as M
@@ -692,17 +693,22 @@ def daemon_generator_config(graph_version):
 
 
 def daemon_worker_count(requested):
-    """Workers per cycle: what was asked for, or the daemon's share.
+    """Workers per cycle: zero by default, an ask honoured as given.
 
-    A negative or absent request means autoscale.  The daemon no longer
-    claims one process per core: it draws a share of the single host budget
-    in `wire.host_process_budget`, because a foreground proof fans out at
-    the same time and the two used to oversubscribe the machine between
-    them.  An explicit request is honoured as given.
+    A cycle with workers fans generation out through a process fleet,
+    and under spawn -- every non-POSIX host -- the fleet is a fresh
+    interpreter per worker per cycle. Beside a live conversation that
+    is a process storm: eight interpreters, gigabytes of memory, and a
+    daemon spending its cycles booting workers instead of folding
+    teaching. So the daemon runs single-process unless workers are
+    asked for; a negative ask draws the host's shared budget, for the
+    batch runs that want the fan-out.
     """
-    if requested:
+    if requested > 0:
         return requested
-    return Wmod.share_process_budget(DAEMON_BUDGET_CLAIMANTS)
+    if requested < 0:
+        return Wmod.share_process_budget(DAEMON_BUDGET_CLAIMANTS)
+    return 0
 
 
 def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
@@ -714,6 +720,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     only writer of talk_state.wire, so the conversation never has to
     coordinate with it beyond dropping submissions in the inbox.
     """
+    # The substrate spends interpreter stack per machine step, and a
+    # real taught graph walks deeper than the interpreter's default
+    # ceiling -- the daemon sets its own depth like its workers do.
+    sys.setrecursionlimit(Wmod.WORKER_RECURSION_LIMIT)
     state_path = os.path.join(snapshot_dir, DAEMON_STATE_NAME)
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
     # The fold takes the inbox by renaming it: atomic, so a submission

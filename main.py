@@ -10370,6 +10370,12 @@ def run_live_mode(requested_workers):
 
 
 def main():
+    # The substrate spends interpreter stack per machine step -- every
+    # Edge construction and every recursive comparison -- and a real
+    # taught graph walks deeper than the interpreter's default
+    # ceiling. Host process configuration, like the daemon's poll
+    # interval: the machine's own bounds live in its budgets and caps.
+    sys.setrecursionlimit(30000)
     parser = argparse.ArgumentParser(description="HYGE runtime modes")
     parser.add_argument(
         "mode",

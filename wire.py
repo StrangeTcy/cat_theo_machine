@@ -29,6 +29,7 @@ This module is substrate-only: it must never import from search/.
 from __future__ import annotations
 
 import os
+import sys
 import urllib.parse
 
 from . import machine as M
@@ -87,6 +88,14 @@ _WIRE_HEADER = "WIRE1"
 
 WORKER_STATUS_OK = M.Char("ok")
 WORKER_STATUS_REFUSED = M.Char("refused-nonzero-activations")
+WORKER_STATUS_FAILED = M.Char("worker-failed")
+# The substrate spends interpreter stack per machine step -- every Edge
+# construction, every recursive comparison -- and a real taught graph
+# walks deeper than the interpreter's default ceiling. Host process
+# configuration, like the timeout beside it: the machine's own bounds
+# live in its budgets and caps.
+WORKER_RECURSION_LIMIT = 30000
+WORKER_JOIN_TIMEOUT = 300.0
 
 
 def _label_map():
@@ -312,6 +321,9 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
 def _worker_entry(queue, serialized_version, serialized_store,
                   serialized_budget, serialized_config, slice_index_text,
                   slice_count_text):
+    # A worker is a fresh interpreter under spawn: it sets its own
+    # stack depth, since it inherits no one's.
+    sys.setrecursionlimit(WORKER_RECURSION_LIMIT)
     try:
         queue.put(worker_task(
             serialized_version,
@@ -325,6 +337,17 @@ def _worker_entry(queue, serialized_version, serialized_store,
         # A console interrupt reaches every attached process; the
         # worker bows out quietly instead of spewing its death stack.
         return None
+    except BaseException as failure:
+        # A worker that dies silently wedges the coordinator forever:
+        # it waits on a queue no one will ever fill again. A failed
+        # worker reports itself, and the cycle goes on without its
+        # claim.
+        queue.put((
+            WORKER_STATUS_FAILED(),
+            str(failure).encode("utf-8"),
+            b"",
+            b"",
+        ))
 
 
 def run_workers(graph_version, proposal_store, budget, generator_config,
@@ -387,8 +410,17 @@ def run_workers(graph_version, proposal_store, budget, generator_config,
         index = index + 1
     outputs = []
     for process, queue in workers:
-        outputs.append(queue.get())
-        process.join()
+        try:
+            outputs.append(queue.get(timeout=WORKER_JOIN_TIMEOUT))
+        except Exception:
+            process.terminate()
+            outputs.append(
+                (WORKER_STATUS_FAILED(), b"worker silent", b"", b""),
+            )
+        try:
+            process.join(timeout=10)
+        except Exception:
+            pass
         queue.close()
     return outputs
 
@@ -446,7 +478,16 @@ def distributed_cycle(graph_version, proposal_store, ledger, budget,
     while M.IdentityCompare(remaining_outputs, M.EmptyList)() is M.false_value:
         entry = M.Head(remaining_outputs)()
         status = M.Head(entry)()
-        if M.Compare(status, WORKER_STATUS_OK)() is M.truth_value:
+        if M.Compare(
+            status, WORKER_STATUS_FAILED,
+        )() is M.truth_value:
+            print(
+                "daemon: a worker failed ("
+                + M.Head(M.Tail(entry)())().decode("utf-8")
+                + "); its claim is skipped",
+                flush=True,
+            )
+        elif M.Compare(status, WORKER_STATUS_OK)() is M.truth_value:
             serialized_store = M.Head(M.Tail(entry)())()
             serialized_ledger = M.Head(M.Tail(M.Tail(entry)())())()
             worker_ledger = deserialize_ledger(
