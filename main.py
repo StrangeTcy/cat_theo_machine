@@ -3193,15 +3193,26 @@ def run_talk_mode(sentence: str = None):
         """
         word = M.Char(word_text)
         singular = G.WordSingular(word)()
-        remaining = pack_concepts
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            entry = M.Head(remaining)()
-            if M.Compare(M.Head(entry)(), word)() is M.truth_value:
-                return entry
-            if M.IdentityCompare(singular, M.EmptyList)() is M.false_value:
-                if M.Compare(M.Head(entry)(), singular)() is M.truth_value:
+        # Both chains of the concept index: the pattern heads the
+        # rules fire on, and every word the pack sources speak -- a
+        # constructor nested in an argument is as linkable as one a
+        # rule fires on.
+        for concept_chain in (pack_concepts, pack_label_names):
+            remaining = concept_chain
+            while M.IdentityCompare(
+                remaining, M.EmptyList,
+            )() is M.false_value:
+                entry = M.Head(remaining)()
+                if M.Compare(M.Head(entry)(), word)() is M.truth_value:
                     return entry
-            remaining = M.Tail(remaining)()
+                if M.IdentityCompare(
+                    singular, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(entry)(), singular,
+                    )() is M.truth_value:
+                        return entry
+                remaining = M.Tail(remaining)()
         if len(word_text) >= 6:
             stem = word_text[:4]
             remaining = pack_concepts
@@ -3795,6 +3806,20 @@ def run_talk_mode(sentence: str = None):
         pending_bridge = M.EmptyList
         if line.strip().lower() == "bridge no":
             _pop_ask("bridge")
+            # A refused link leaves the word without a grounding; if
+            # the asking holds it, its meaning is still wanted.
+            if M.Compare(
+                pending_unknown_word, word,
+            )() is M.truth_value:
+                _push_ask(
+                    "word",
+                    "What does '" + str(word()) + "' mean?",
+                )
+                return (
+                    "Recorded; the word stays unlinked."
+                    + _ask_next_line()
+                )
+            _retire_unknown_word(word)
             return "Recorded; the word stays unlinked." + _ask_next_line()
         installed = G.InstallBridge(learned_version, word, constructor)()
         learned_version = M.Head(installed)()
@@ -3972,6 +3997,16 @@ def run_talk_mode(sentence: str = None):
                     + " the ontology."
                 )
         _pop_ask("bridge")
+        # A linked word is grounded: the asking moves past it, whether
+        # it stands or waits in the queue.
+        if M.Compare(
+            pending_unknown_word, word,
+        )() is M.truth_value:
+            _extend_vocabulary()
+            _advance_unknown_word()
+        else:
+            _retire_unknown_word(word)
+            _extend_vocabulary()
         return (
             "Linked: '" + str(word()) + "'" + source_line
             + ontology_line + law_line + _ask_next_line()
@@ -4378,7 +4413,13 @@ def run_talk_mode(sentence: str = None):
 
     def _word_is_known(word_atom):
         """A word the machine already holds: the vocabulary resolves
-        it, or the version carries a grounding taught for it."""
+        it, the version carries a grounding taught for it, or a bridge
+        already links it to a constructor."""
+        if M.IdentityCompare(
+            G.BridgeFor(learned_version, word_atom)(),
+            M.EmptyList,
+        )() is M.false_value:
+            return True
         word_entries = M.Head(M.Tail(vocabulary)())()
         resolved = G.CorrespondenceResolveWord(
             word_entries,
@@ -4476,6 +4517,38 @@ def run_talk_mode(sentence: str = None):
             queue_scan = M.Tail(queue_scan)()
         pending_unknown_words = M.Reverse(kept_reversed)()
 
+    def _ask_standing_unknown_word():
+        """Ask about the standing word -- and offer the machine's own
+        grounding first: when a pack concept matches the word, the
+        question is whether to link them, and a yes grounds the word
+        with no further asking. Only a word the machine holds nothing
+        for is asked of the trainer."""
+        nonlocal pending_bridge
+        word_text = str(pending_unknown_word())
+        candidate = _pack_candidate_for_word(word_text)
+        if M.IdentityCompare(
+            candidate, M.EmptyList,
+        )() is M.false_value:
+            constructor = M.Head(M.Tail(candidate)())()
+            pending_bridge = M.Pair(
+                M.Char(word_text),
+                M.Pair(constructor, M.EmptyList),
+            )
+            candidate_word_text = str(M.Head(candidate)()())
+            _push_ask(
+                "bridge",
+                "The packs know '"
+                + candidate_word_text
+                + "'; link '"
+                + word_text
+                + "' to it? (bridge yes/bridge no)",
+            )
+            return
+        _push_ask(
+            "word",
+            "What does '" + word_text + "' mean?",
+        )
+
     def _advance_unknown_word():
         """Retire the asked word; ask the next, or stop the asking."""
         nonlocal pending_unknown_words, pending_unknown_word
@@ -4485,12 +4558,7 @@ def run_talk_mode(sentence: str = None):
         )() is M.false_value:
             pending_unknown_word = M.Head(pending_unknown_words)()
             pending_unknown_words = M.Tail(pending_unknown_words)()
-            _push_ask(
-                "word",
-                "What does '"
-                + str(pending_unknown_word())
-                + "' mean?",
-            )
+            _ask_standing_unknown_word()
         else:
             pending_unknown_word = M.EmptyList
 
@@ -5517,7 +5585,11 @@ def run_talk_mode(sentence: str = None):
         if M.IdentityCompare(
             pending_unknown_word, M.EmptyList,
         )() is M.false_value:
-            if ":" not in line and lowered not in ("yes", "no"):
+            if (
+                ":" not in line
+                and lowered not in ("yes", "no")
+                and not lowered.startswith("bridge ")
+            ):
                 if lowered == "skip all":
                     _pop_ask("word")
                     pending_unknown_words = M.EmptyList
@@ -5857,12 +5929,7 @@ def run_talk_mode(sentence: str = None):
                     pending_unknown_words = M.Tail(
                         pending_unknown_words,
                     )()
-                    _push_ask(
-                        "word",
-                        "What does '"
-                        + str(pending_unknown_word())
-                        + "' mean?",
-                    )
+                    _ask_standing_unknown_word()
             elif known_texts:
                 reply_text = reply_text + (
                     " Every word in it is known to me."
