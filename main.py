@@ -4376,6 +4376,85 @@ def run_talk_mode(sentence: str = None):
             entries = M.Tail(entries)()
         return "; ".join(texts)
 
+    def _word_is_known(word_atom):
+        """A word the correspondence vocabulary already resolves."""
+        word_entries = M.Head(M.Tail(vocabulary)())()
+        resolved = G.CorrespondenceResolveWord(
+            word_entries,
+            G.Surface(M.Pair(word_atom, M.EmptyList))(),
+        )()
+        if M.IdentityCompare(
+            resolved, M.EmptyList,
+        )() is M.false_value:
+            return True
+        return False
+
+    def _unknown_words_of_text(text):
+        """The distinct unknown words of a text, in order."""
+        words = G.WordsOfText(
+            text, reading_policy, reading_digits,
+        )()
+        unknown = []
+        word_scan = words
+        while M.IdentityCompare(
+            word_scan, M.EmptyList,
+        )() is M.false_value:
+            word_atom = M.Head(word_scan)()
+            word_scan = M.Tail(word_scan)()
+            if M.Compare(
+                word_atom, M.Char(","),
+            )() is M.truth_value:
+                continue
+            if _word_is_known(word_atom):
+                continue
+            already = False
+            for seen in unknown:
+                if M.Compare(seen, word_atom)() is M.truth_value:
+                    already = True
+            if not already:
+                unknown.append(word_atom)
+        return unknown
+
+    def _queue_unknown_words_front(unknown_list):
+        """Put words at the front of the asking queue, unasked ones only."""
+        nonlocal pending_unknown_words, pending_unknown_word
+        for word_atom in reversed(unknown_list):
+            already = M.IdentityCompare(
+                pending_unknown_word, word_atom,
+            )() is M.truth_value
+            queue_scan = pending_unknown_words
+            while M.IdentityCompare(
+                queue_scan, M.EmptyList,
+            )() is M.false_value:
+                if M.Compare(
+                    M.Head(queue_scan)(), word_atom,
+                )() is M.truth_value:
+                    already = True
+                    queue_scan = M.EmptyList
+                else:
+                    queue_scan = M.Tail(queue_scan)()
+            if not already:
+                pending_unknown_words = M.Pair(
+                    word_atom,
+                    pending_unknown_words,
+                )
+
+    def _retire_unknown_word(word_atom):
+        """Drop a word from the asking queue wherever it sits."""
+        nonlocal pending_unknown_words
+        kept_reversed = M.EmptyList
+        queue_scan = pending_unknown_words
+        while M.IdentityCompare(
+            queue_scan, M.EmptyList,
+        )() is M.false_value:
+            entry = M.Head(queue_scan)()
+            if M.Compare(entry, word_atom)() is M.truth_value:
+                pass
+            else:
+                kept_reversed = M.Pair(entry, kept_reversed)
+            queue_scan = M.Tail(queue_scan)()
+        pending_unknown_words = M.Reverse(kept_reversed)()
+
     def _advance_unknown_word():
         """Retire the asked word; ask the next, or stop the asking."""
         nonlocal pending_unknown_words, pending_unknown_word
@@ -5406,9 +5485,14 @@ def run_talk_mode(sentence: str = None):
         problem_answer = _try_problem_answer(line, record=record)
         if problem_answer is not None:
             return problem_answer
-        # A bare line is the meaning of the word the standing
-        # question asks about; it is recorded through the word
-        # teaching path, as if the trainer had typed it there.
+        # A bare line answers the standing word question. Two answer
+        # shapes carry the same teaching: a meaning alone ("a round
+        # closed curve") or a definition ("an article is a part of
+        # speech ...") -- the word before the copula is the word
+        # defined, and the rest is its meaning. Either way the
+        # grounding is recorded through the word teaching path, the
+        # words of the meaning that are still unknown become the next
+        # questions, and one question stands at a time.
         if M.IdentityCompare(
             pending_unknown_word, M.EmptyList,
         )() is M.false_value:
@@ -5443,22 +5527,124 @@ def run_talk_mode(sentence: str = None):
                         + "'."
                         + _ask_next_line()
                     )
+                # Read the line; find a definition's copula among its
+                # first words.
+                answer_words = G.WordsOfText(
+                    line, reading_policy, reading_digits,
+                )()
+                answer_atoms = []
+                answer_texts = []
+                word_scan = answer_words
+                while M.IdentityCompare(
+                    word_scan, M.EmptyList,
+                )() is M.false_value:
+                    word_atom = M.Head(word_scan)()
+                    word_scan = M.Tail(word_scan)()
+                    if M.Compare(
+                        word_atom, M.Char(","),
+                    )() is M.truth_value:
+                        continue
+                    answer_atoms.append(word_atom)
+                    answer_texts.append(str(word_atom()))
+                copula_at = -1
+                for position in range(
+                    min(3, len(answer_texts) - 1),
+                ):
+                    if answer_texts[position] == "is":
+                        copula_at = position
+                        break
+                if copula_at >= 1:
+                    target_word = answer_atoms[copula_at - 1]
+                    body_atoms = answer_atoms[copula_at + 1:]
+                else:
+                    target_word = pending_unknown_word
+                    body_atoms = answer_atoms
+                if not body_atoms:
+                    target_word = pending_unknown_word
+                    body_atoms = answer_atoms
+                body_texts = [
+                    str(atom()) for atom in body_atoms
+                ]
+                body_text = " ".join(body_texts)
                 word_line = (
                     "word: "
-                    + str(pending_unknown_word())
+                    + str(target_word())
                     + " means "
-                    + line.strip()
+                    + body_text
                 )
-                word_reply = _respond(word_line, record=record)
-                _advance_unknown_word()
+                parsed_word = G.ParseWordText(
+                    str(target_word())
+                    + " means "
+                    + body_text,
+                    reading_policy,
+                    reading_digits,
+                )()
+                word_facts = M.Head(parsed_word)()
+                if M.IdentityCompare(
+                    word_facts, M.EmptyList,
+                )() is M.truth_value:
+                    return (
+                        "I could not record that grounding. Give the"
+                        + " meaning alone, or '<word> is <meaning>'."
+                        + _ask_next_line()
+                    )
+                while M.IdentityCompare(
+                    word_facts, M.EmptyList,
+                )() is M.false_value:
+                    installed_word_fact = G.InstallTaughtFact(
+                        learned_version,
+                        M.Head(word_facts)(),
+                    )()
+                    learned_version = M.Head(installed_word_fact)()
+                    word_facts = M.Tail(word_facts)()
+                if record:
+                    _log_lesson(word_line)
+                _persist_talk_state()
+                _retire_unknown_word(target_word)
+                if M.Compare(
+                    pending_unknown_word, target_word,
+                )() is M.truth_value:
+                    _advance_unknown_word()
+                _queue_unknown_words_front(
+                    _unknown_words_of_text(body_text),
+                )
+                if M.IdentityCompare(
+                    pending_unknown_word, M.EmptyList,
+                )() is M.truth_value:
+                    if M.IdentityCompare(
+                        pending_unknown_words, M.EmptyList,
+                    )() is M.false_value:
+                        pending_unknown_word = M.Head(
+                            pending_unknown_words,
+                        )()
+                        pending_unknown_words = M.Tail(
+                            pending_unknown_words,
+                        )()
+                        _push_ask(
+                            "word",
+                            "What does '"
+                            + str(pending_unknown_word())
+                            + "' mean?",
+                        )
                 if M.IdentityCompare(
                     pending_unknown_word, M.EmptyList,
                 )() is M.truth_value:
                     return (
-                        word_reply
-                        + " No more words to ask about."
+                        "Recorded: "
+                        + str(target_word())
+                        + " means "
+                        + body_text
+                        + ". No more words to ask about."
+                        + _ask_next_line()
                     )
-                return word_reply + _ask_next_line()
+                return (
+                    "Recorded: "
+                    + str(target_word())
+                    + " means "
+                    + body_text
+                    + "."
+                    + _ask_next_line()
+                )
         if lowered.startswith("word:"):
             parsed_word = G.ParseWordText(
                 line[5:].strip(),
@@ -5616,6 +5802,32 @@ def run_talk_mode(sentence: str = None):
                 for unknown_word in reversed(problem_unknown):
                     unknown_chain = M.Pair(unknown_word, unknown_chain)
                 pending_unknown_words = unknown_chain
+                # A replayed lesson line runs this verb again with the
+                # queue already holding its words; retire every
+                # standing word question before asking the first, so
+                # the asking never doubles.
+                word_ask_stands = M.truth_value
+                while M.IdentityCompare(
+                    word_ask_stands, M.truth_value,
+                )() is M.truth_value:
+                    word_ask_stands = M.false_value
+                    ask_scan = pending_asks
+                    while M.IdentityCompare(
+                        ask_scan, M.EmptyList,
+                    )() is M.false_value:
+                        ask_entry = M.Head(ask_scan)()
+                        if M.Compare(
+                            M.Head(ask_entry)(),
+                            M.Char("word"),
+                        )() is M.truth_value:
+                            word_ask_stands = M.truth_value
+                            ask_scan = M.EmptyList
+                        else:
+                            ask_scan = M.Tail(ask_scan)()
+                    if M.IdentityCompare(
+                        word_ask_stands, M.truth_value,
+                    )() is M.truth_value:
+                        _pop_ask("word")
                 if M.IdentityCompare(
                     pending_unknown_words, M.EmptyList,
                 )() is M.false_value:
