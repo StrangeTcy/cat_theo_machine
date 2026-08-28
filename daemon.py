@@ -569,6 +569,23 @@ class DaemonMergeInbox(M.Edge):
 DAEMON_NODE_HEADROOM = M.GMPRep("64")
 
 
+def daemon_chain_count_text(chain):
+    """Count a chain by text arithmetic, never by Succ construction.
+
+    M.Count materializes its result as a Succ chain and interns every
+    link -- recursion proportional to the count, which a real taught
+    graph crosses without noticing. The daemon counts cycles, nodes,
+    and edges the way it always counted cycles: one text increment per
+    element, no chains, no interning.
+    """
+    count_text = "0"
+    remaining = chain
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        count_text = Gmod.GMPSuccText(count_text)()
+        remaining = M.Tail(remaining)()
+    return count_text
+
+
 def daemon_budget(graph_version):
     """A per-cycle budget with room to actually do something.
 
@@ -577,12 +594,9 @@ def daemon_budget(graph_version):
     """
     one = M.Head(M.Succ(M.Zero, M.AllConstructors)())()
     two = M.Head(M.Succ(one, M.AllConstructors)())()
-    current_text = M.GMPRepText(
-        M.NatRepOf(
-            M.Head(M.Count(Gmod.GraphNodes(graph_version)(), M.AllConstructors)())(),
-            M.AllConstructors,
-        )(),
-    )()
+    current_text = daemon_chain_count_text(
+        Gmod.GraphNodes(graph_version)(),
+    )
     node_ceiling = Gmod.MineNatFromGMPRep(
         M.GMPRep(
             Gmod.GMPAddText(
@@ -824,28 +838,12 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 # the coordinator version rather than transplanted, and the
                 # single in-process AutonomyCycle is still the only place
                 # activation happens. Without workers it is that cycle alone.
-                version_nodes_text = M.GMPRepText(
-                    M.NatRepOf(
-                        M.Head(
-                            M.Count(
-                                Gmod.GraphNodes(graph_version)(),
-                                M.AllConstructors,
-                            )(),
-                        )(),
-                        M.AllConstructors,
-                    )(),
-                )()
-                version_edges_text = M.GMPRepText(
-                    M.NatRepOf(
-                        M.Head(
-                            M.Count(
-                                Gmod.GraphEdges(graph_version)(),
-                                M.AllConstructors,
-                            )(),
-                        )(),
-                        M.AllConstructors,
-                    )(),
-                )()
+                version_nodes_text = daemon_chain_count_text(
+                    Gmod.GraphNodes(graph_version)(),
+                )
+                version_edges_text = daemon_chain_count_text(
+                    Gmod.GraphEdges(graph_version)(),
+                )
                 version_moved = (
                     version_nodes_text != mined_nodes_text
                     or version_edges_text != mined_edges_text

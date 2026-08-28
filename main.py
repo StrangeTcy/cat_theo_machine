@@ -4336,11 +4336,7 @@ def run_talk_mode(sentence: str = None):
                 proposal_store,
                 learned_version,
             )
-            _debug(
-                "submitted taught graph data to the daemon inbox ("
-                + _store_origins_text(proposal_store)
-                + ")",
-            )
+            _debug("submitted taught graph data to the daemon inbox")
             return
         W.save_checkpoint(
             talk_checkpoint_path,
@@ -4615,18 +4611,42 @@ def run_talk_mode(sentence: str = None):
                 G.GraphEdges(learned_version)(),
                 G.GraphVersionInvariants(learned_version)(),
             )()
-        sweep_node = M.Pair(
-            M.Char("invariant-sweep"),
-            M.Pair(
-                states_chain,
+        # The record is one small node per state and per expression,
+        # not one giant term: chains thousands of links deep drown the
+        # recursive comparators, and the graph's own shape is a chain
+        # of nodes anyway. Every state and every expression tested is
+        # still in the graph, each its own inspectable node.
+        record_nodes_reversed = M.EmptyList
+        record_scan = states_chain
+        while M.IdentityCompare(
+            record_scan, M.EmptyList,
+        )() is M.false_value:
+            record_nodes_reversed = M.Pair(
                 M.Pair(
-                    tested_chain,
-                    M.Pair(findings, M.EmptyList),
+                    M.Char("sweep-state"),
+                    M.Pair(M.Head(record_scan)(), M.EmptyList),
                 ),
-            ),
-        )
+                record_nodes_reversed,
+            )
+            record_scan = M.Tail(record_scan)()
+        record_scan = tested_chain
+        while M.IdentityCompare(
+            record_scan, M.EmptyList,
+        )() is M.false_value:
+            record_nodes_reversed = M.Pair(
+                M.Pair(
+                    M.Char("sweep-expression"),
+                    M.Pair(M.Head(record_scan)(), M.EmptyList),
+                ),
+                record_nodes_reversed,
+            )
+            record_scan = M.Tail(record_scan)()
+        record_nodes = M.Reverse(record_nodes_reversed)()
         learned_version = G.GraphVersion(
-            M.Pair(sweep_node, G.GraphNodes(learned_version)()),
+            G.ChainAddStructurallyMissing(
+                record_nodes,
+                G.GraphNodes(learned_version)(),
+            )(),
             G.GraphEdges(learned_version)(),
             G.GraphVersionInvariants(learned_version)(),
         )()
