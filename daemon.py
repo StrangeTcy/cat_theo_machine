@@ -48,6 +48,16 @@ DAEMON_INBOX_NAME = "talk_inbox.wire"
 # Presence of this file means a daemon is cycling. The inbox cannot serve
 # as that signal: the daemon consumes it, so its absence is ambiguous.
 DAEMON_LIVE_NAME = "talk_daemon.live"
+# A cycling daemon touches its liveness file every few seconds, so the
+# file says two things at once: a pid, and a heartbeat. The pid alone
+# lies on Windows -- a killed daemon's pid is reused by any later
+# process, and OpenProcess then reports the recycled pid as alive, so a
+# stale file would refuse every later daemon forever. The heartbeat
+# cannot be faked by a recycled pid: nothing touches the file but the
+# daemon that owns it. A file older than this bound is stale whatever
+# its pid says.
+DAEMON_LIVE_FRESH_SECONDS = 30.0
+DAEMON_LIVE_HEARTBEAT_SECONDS = 5.0
 
 DAEMON_STOP_CYCLES = M.Char("daemon-stop-max-cycles")
 DAEMON_STOP_SAFETY = M.Char("daemon-stop-safety-refusal")
@@ -570,6 +580,26 @@ class DaemonMergeInbox(M.Edge):
 DAEMON_NODE_HEADROOM = M.GMPRep("64")
 
 
+def daemon_liveness_is_fresh(snapshot_dir):
+    """Whether the liveness file carries a live daemon's heartbeat.
+
+    A file no daemon has touched within the freshness bound is stale
+    whatever pid it names: on Windows a dead daemon's pid is reused by
+    unrelated processes, and the pid probe reports them alive. The
+    heartbeat is the truth; the pid is only a label.
+    """
+    import os as _os
+
+    live_path = _os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
+    if not _os.path.exists(live_path):
+        return False
+    try:
+        age = time.time() - _os.path.getmtime(live_path)
+    except OSError:
+        return False
+    return age < DAEMON_LIVE_FRESH_SECONDS
+
+
 def daemon_process_alive(pid_text):
     """Whether a pid is a live process, on either host.
 
@@ -808,7 +838,11 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 held_pid = handle.read().strip()
         except OSError:
             held_pid = ""
-        if held_pid and daemon_process_alive(held_pid):
+        if (
+            held_pid
+            and daemon_process_alive(held_pid)
+            and daemon_liveness_is_fresh(snapshot_dir)
+        ):
             print(
                 "daemon: another daemon (pid "
                 + held_pid
@@ -824,9 +858,33 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                     M.Pair(ledger, M.Pair(M.Char("refused"), M.EmptyList)),
                 ),
             )
-        os.remove(live_path)
+        # Either the pid is dead, or the file carries no heartbeat: a
+        # live-looking pid beside a stale heartbeat is a recycled pid,
+        # not a daemon -- Windows hands dead daemons' pids to unrelated
+        # processes, and obeying the label would refuse every daemon
+        # after one hard kill. The heartbeat wins; the stale file goes.
+        try:
+            os.remove(live_path)
+        except OSError:
+            pass
     with open(live_path, "w", encoding="utf-8") as handle:
         handle.write(str(os.getpid()))
+
+    # The heartbeat: touch the liveness file every few seconds for as
+    # long as this daemon cycles, so a later boot can tell a live
+    # daemon from a recycled pid. The thread dies with the process, and
+    # with the file.
+    def _liveness_heartbeat():
+        while True:
+            time.sleep(DAEMON_LIVE_HEARTBEAT_SECONDS)
+            try:
+                os.utime(live_path, None)
+            except OSError:
+                return
+
+    import threading
+
+    threading.Thread(target=_liveness_heartbeat, daemon=True).start()
     print(
         "daemon: cycling shared state at "
         + state_path

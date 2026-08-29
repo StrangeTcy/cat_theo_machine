@@ -4580,8 +4580,13 @@ def run_talk_mode(sentence: str = None):
         """Write the shared checkpoint, unless a daemon owns it.
 
         One writer per file. With a daemon cycling, talk state reaches the
-        shared version through the inbox instead.
+        shared version through the inbox instead. When the daemon is gone
+        -- its child exited and the watchdog took the liveness file back
+        -- this console is the writer again, and its own writes update the
+        read-back stamp so the next turn does not adopt its own state as
+        if a daemon had written it.
         """
+        nonlocal last_state_stamp
         if os.path.exists(daemon_live_path):
             Dmn.submit_to_inbox(
                 SNAPSHOT_DIR,
@@ -4596,6 +4601,8 @@ def run_talk_mode(sentence: str = None):
             proposal_store,
             talk_ledger,
         )
+        if os.path.exists(talk_checkpoint_path):
+            last_state_stamp = os.path.getmtime(talk_checkpoint_path)
         _debug("talk state written to " + talk_checkpoint_path)
 
     def _store_origins_text(store):
@@ -5544,12 +5551,18 @@ def run_talk_mode(sentence: str = None):
                 _log_lesson(line)
             _persist_talk_state()
             _pop_ask("problem")
-            return (
-                "Recorded: one move adds "
-                + str(value_word())
-                + " to each of its two numbers.\n"
-                + _run_invariant_sweep()
-            )
+            # The step answer completes the problem, and the sweep that
+            # follows can run long on a heavy state. The ack is spoken
+            # the moment the fact lands, so the trainer is never left
+            # staring at silence while the sweep walks its states.
+            if record:
+                print(
+                    "hyge> Recorded: one move adds "
+                    + str(value_word())
+                    + " to each of its two numbers.",
+                    flush=True,
+                )
+            return _run_invariant_sweep()
         return None
 
 
@@ -10806,7 +10819,13 @@ def run_live_mode(requested_workers):
 
     Killing this process kills the daemon with it: the child is terminated
     in the finally block, and its liveness file removed, so a later talk
-    session does not believe a dead daemon is still cycling.
+    session does not believe a dead daemon is still cycling. A liveness
+    file left by a session that died too hard to clean up is judged by its
+    heartbeat, not its pid -- a recycled pid reads as alive on Windows and
+    would refuse every later daemon forever. A watchdog thread watches the
+    child: when it exits, the console says so and takes the state writes
+    back; when it falls silent, the console says that too, so live mode
+    never quietly becomes a bunch of nothing.
     """
     import threading
 
@@ -10814,6 +10833,36 @@ def run_live_mode(requested_workers):
     # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
     # only exists in the re-exec branch above, so it is recomputed here.
     import_root = os.path.dirname(PACKAGE_DIR)
+
+    # A leftover liveness file from a session that died before its
+    # teardown: a fresh heartbeat means a real daemon is still cycling
+    # and this session must not start a second writer beside it; a stale
+    # heartbeat means the file names a dead daemon, or a pid Windows
+    # has since handed to an unrelated process -- it goes, and this
+    # session's daemon starts clean.
+    boot_live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
+    if os.path.exists(boot_live_path):
+        if Dmn.daemon_liveness_is_fresh(SNAPSHOT_DIR):
+            try:
+                with open(boot_live_path, "r", encoding="utf-8") as handle:
+                    held_pid = handle.read().strip()
+            except OSError:
+                held_pid = ""
+            print(
+                "live mode: a daemon (pid "
+                + held_pid
+                + ") is cycling this state and its heartbeat is fresh;"
+                + " stop it before starting another live session."
+            )
+            return
+        try:
+            os.remove(boot_live_path)
+        except OSError:
+            pass
+        print(
+            "live mode: cleared a stale daemon liveness file; no"
+            + " heartbeat, whatever its pid says."
+        )
 
     if os.name == "nt":
         # The host shell cannot speak the POSIX spawn line: cmd.exe reads
@@ -10860,13 +10909,84 @@ def run_live_mode(requested_workers):
             shell=True,
         )
 
+    # The drain thread stamps every line it takes from the daemon, so
+    # the watchdog can tell a quiet daemon from a dead one.
+    daemon_pulse = [time.time()]
+
     def drain():
         for line in daemon_child.stdout:
+            daemon_pulse[0] = time.time()
             sys.stdout.write("\r\033[K[machine] " + line.rstrip() + "\nyou> ")
             sys.stdout.flush()
 
     reader = threading.Thread(target=drain, daemon=True)
     reader.start()
+
+    def watch():
+        """Say what the daemon is doing when it stops saying it itself.
+
+        A live session that loses its daemon must not go quiet: the
+        trainer is told the child exited and that the console takes the
+        state writes back, or told it is silent and still working. The
+        announcements are spoken once, in the same voice as the daemon's
+        own lines."""
+        announced_exit = False
+        announced_silent = False
+        while True:
+            time.sleep(10)
+            if daemon_child.poll() is not None:
+                if not announced_exit:
+                    announced_exit = True
+                    child_live_path = os.path.join(
+                        SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME,
+                    )
+                    taken_back = False
+                    if os.path.exists(child_live_path):
+                        try:
+                            with open(
+                                child_live_path, "r", encoding="utf-8",
+                            ) as handle:
+                                named_pid = handle.read().strip()
+                        except OSError:
+                            named_pid = ""
+                        if named_pid == str(daemon_child.pid):
+                            try:
+                                os.remove(child_live_path)
+                                taken_back = True
+                            except OSError:
+                                pass
+                    if taken_back:
+                        message = (
+                            "the daemon process has exited; this console"
+                            + " now writes the state itself, and anything"
+                            + " queued in the inbox merges at goodbye."
+                        )
+                    else:
+                        message = (
+                            "the daemon process has exited; teaching"
+                            + " stays queued in the inbox and merges at"
+                            + " goodbye."
+                        )
+                    sys.stdout.write(
+                        "\r\033[K[machine] " + message + "\nyou> "
+                    )
+                    sys.stdout.flush()
+                return
+            quiet = time.time() - daemon_pulse[0]
+            if quiet > 180.0:
+                if not announced_silent:
+                    announced_silent = True
+                    sys.stdout.write(
+                        "\r\033[K[machine] the daemon has not spoken in "
+                        + str(int(quiet))
+                        + "s; it is loading state or mining, and teaching"
+                        + " is queued in the inbox.\nyou> "
+                    )
+                    sys.stdout.flush()
+            elif quiet <= 30.0:
+                announced_silent = False
+
+    threading.Thread(target=watch, daemon=True).start()
     print("live mode: the machine is cycling while you talk. "
           "Its work appears as [machine] lines.")
     try:
