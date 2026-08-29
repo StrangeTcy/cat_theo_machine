@@ -6662,11 +6662,33 @@ def run_talk_mode(sentence: str = None):
                         remaining_rules, M.EmptyList,
                     )() is M.false_value:
                         taught_rule = M.Head(remaining_rules)()
-                        bindings = P.JoinPremises(
-                            P.RulePremises(taught_rule)(),
-                            facts,
+                        taught_premises = P.RulePremises(taught_rule)()
+                        if M.IdentityCompare(
+                            taught_premises,
                             M.EmptyList,
-                        )()
+                        )() is M.truth_value:
+                            # A zero-premise taught schema is an axiom. Bind
+                            # it against this query rather than materializing
+                            # an open variable as a fact.
+                            axiom_match = M.Match(
+                                P.RuleReplacement(taught_rule)(),
+                                goal,
+                            )()
+                            bindings = M.EmptyList
+                            if M.IdentityCompare(
+                                M.Head(axiom_match)(),
+                                M.truth_value,
+                            )() is M.truth_value:
+                                bindings = M.Pair(
+                                    M.Tail(axiom_match)(),
+                                    M.EmptyList,
+                                )
+                        else:
+                            bindings = P.JoinPremises(
+                                taught_premises,
+                                facts,
+                                M.EmptyList,
+                            )()
                         while M.IdentityCompare(
                             bindings, M.EmptyList,
                         )() is M.false_value:

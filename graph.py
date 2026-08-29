@@ -1987,9 +1987,15 @@ class ActivateProposal(M.Edge):
                 installed = InstallLaw(graph_version, payload)()
                 origin = ProposalOrigin(proposal)()
                 if M.IsPair(origin)() is M.truth_value:
-                    if M.Compare(
+                    source_origin = M.Compare(
                         M.Head(origin)(), M.Char("dialogue-rule"),
-                    )() is M.truth_value:
+                    )()
+                    if M.IdentityCompare(source_origin, M.false_value)() is M.truth_value:
+                        source_origin = M.Compare(
+                            M.Head(origin)(),
+                            M.Char("residual-generalization"),
+                        )()
+                    if M.IdentityCompare(source_origin, M.truth_value)() is M.truth_value:
                         source_premises = M.Head(M.Tail(origin)())()
                         source_replacement = M.Head(
                             M.Tail(M.Tail(origin)())(),
@@ -6082,8 +6088,6 @@ class CompileDeductionToLaw(M.Edge):
 
     def _compile(self, rule):
         premises = P.RulePremises(rule)()
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
         replacement = P.RuleReplacement(rule)()
         if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
             return M.EmptyList
@@ -6747,8 +6751,10 @@ class GeneralizeResidualWitness(M.Edge):
                     ResidualWitnessGoal(witness)(),
                 )() is M.truth_value:
                     usable = M.false_value
+            # cluster_text is the bounded node-scan position, not a count of
+            # clusters formed. Its prefix is temporary and canonicalization
+            # below removes it before promotion.
             residual_lgg = M.EmptyList
-            full_lgg = M.EmptyList
             if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
                 residual_lgg = TermAntiUnify(
                     ResidualWitnessConclusion(prior)(),
@@ -6765,27 +6771,16 @@ class GeneralizeResidualWitness(M.Edge):
                 if M.IdentityCompare(M.Head(checked)(), M.truth_value)() is M.false_value:
                     usable = M.false_value
             if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
-                prior_source = M.Pair(
-                    ResidualWitnessPremises(prior)(),
-                    M.Pair(ResidualWitnessConclusion(prior)(), M.EmptyList),
-                )
-                witness_source = M.Pair(
-                    ResidualWitnessPremises(witness)(),
-                    M.Pair(ResidualWitnessConclusion(witness)(), M.EmptyList),
-                )
-                full_lgg = TermAntiUnify(
-                    prior_source,
-                    witness_source,
-                    "c" + cluster_text,
+                # Validation above established the generalized conclusion
+                # without antecedent help. Every inherited premise is
+                # therefore removable; retaining any would weaken transfer
+                # and split the alpha-equivalent reuse census.
+                canonical = CanonicalizeVariables(
+                    M.Head(M.Tail(residual_lgg)())(),
                 )()
-                if M.IdentityCompare(M.Head(full_lgg)(), M.truth_value)() is M.false_value:
-                    usable = M.false_value
-            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
-                canonical = CanonicalizeVariables(M.Head(M.Tail(full_lgg)())())()
-                canonical_source = M.Head(canonical)()
                 self.result = P.MultiRule(
-                    M.Head(canonical_source)(),
-                    M.Head(M.Tail(canonical_source)())(),
+                    M.EmptyList,
+                    M.Head(canonical)(),
                 )()
             else:
                 self.result = GeneralizeResidualWitness(
