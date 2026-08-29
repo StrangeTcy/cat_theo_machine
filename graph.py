@@ -6368,18 +6368,18 @@ class TaughtDerivationSchema(M.Edge):
     carry its inputs across a checkpoint.
     """
 
-    def __init__(self, start_pattern, goal_pattern, robustness):
+    def __init__(self, start_pattern, goal_pattern, evidence):
         self.result = M.Pair(
             M.Char("taught-derivation-schema"),
             M.Pair(
                 start_pattern,
-                M.Pair(goal_pattern, M.Pair(robustness, M.EmptyList)),
+                M.Pair(goal_pattern, M.Pair(evidence, M.EmptyList)),
             ),
         )
         super().__init__(
             inputs=M.Pair(
                 start_pattern,
-                M.Pair(goal_pattern, M.Pair(robustness, M.EmptyList)),
+                M.Pair(goal_pattern, M.Pair(evidence, M.EmptyList)),
             ),
             results=self.result,
         )
@@ -6432,7 +6432,7 @@ class TaughtDerivationSchemaPlan(M.Edge):
 
 
 
-class TaughtDerivationSchemaRobustness(M.Edge):
+class TaughtDerivationSchemaEvidence(M.Edge):
     def __init__(self, schema):
         self.result = M.Head(M.Tail(M.Tail(M.Tail(schema)())())())()
         super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
@@ -6456,13 +6456,63 @@ class SchemaCandidateCount(M.Edge):
         return self.result
 
 
-class SchemaValidationRobustness(M.Edge):
-    """Auditable bounded validation count for a promoted residual schema."""
+class SchemaValidationEvidence(M.Edge):
+    """Tried, refuted, and exhausted status for the declared five-value domain."""
 
     def __init__(self, goal_pattern):
-        total = SchemaCandidateCount(ResidualVariables(goal_pattern)())()
-        self.result = Robustness(goal_pattern, total, total)()
+        tried = SchemaCandidateCount(ResidualVariables(goal_pattern)())()
+        self.result = M.Pair(
+            M.Char("schema-validation-evidence"),
+            M.Pair(
+                tried,
+                M.Pair(
+                    tried,
+                    M.Pair(
+                        M.Zero,
+                        M.Pair(M.Char("domain-exhausted"), M.EmptyList),
+                    ),
+                ),
+            ),
+        )
         super().__init__(inputs=M.Pair(goal_pattern, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationTried(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(M.Tail(evidence)())()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationPassed(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(M.Tail(M.Tail(evidence)())())()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationRefuted(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(evidence)())())())()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationTermination(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(evidence)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -6484,6 +6534,41 @@ class SchemaConsultation(M.Edge):
 
 
 
+
+class DurableTermEqual(M.Edge):
+    """Structural equality with value comparison for separately loaded Nats."""
+
+    def __init__(self, left, right, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        if M.IdentityCompare(left, right)() is M.truth_value:
+            self.result = M.truth_value
+        elif M.AndAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            heads = DurableTermEqual(M.Head(left)(), M.Head(right)(), registry)()
+            tails = DurableTermEqual(M.Tail(left)(), M.Tail(right)(), registry)()
+            self.result = M.AndAtom(heads, tails)()
+        elif M.OrAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_rep = M.NatRepOf(left, registry)()
+            right_rep = M.NatRepOf(right, registry)()
+            if M.IdentityCompare(left_rep, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(right_rep, M.EmptyList)() is M.false_value:
+                    self.result = GMPEqualText(
+                        M.GMPRepText(left_rep)(),
+                        M.GMPRepText(right_rep)(),
+                    )()
+                else:
+                    self.result = M.false_value
+            else:
+                self.result = M.Compare(left, right)()
+        super().__init__(
+            inputs=M.Pair(left, M.Pair(right, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 class SchemaPatternsEqual(M.Edge):
     def __init__(self, left, right):
         starts = M.Compare(
@@ -8079,7 +8164,9 @@ class FiringLedgerDelta(M.Edge):
         remaining_records = records
         while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
             record = M.Head(remaining_records)()
-            if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+            if DurableTermEqual(
+                FiringRecordLaw(record)(), law, registry,
+            )() is M.truth_value:
                 positive_pair = M.Add(
                     positive_total,
                     FiringRecordNodesAfter(record)(),
@@ -9193,9 +9280,10 @@ class InstalledRobustness(M.Edge):
                             element_scan_text = GMPSuccText(element_scan_text)()
                             element = M.Head(remaining_elements)()
                             if IsRobustness(element)() is M.truth_value:
-                                if M.TermEqual(
+                                if DurableTermEqual(
                                     RobustnessLaw(element)(),
                                     law,
+                                    M.AllConstructors,
                                 )() is M.truth_value:
                                     self.result = element
                                     remaining_elements = M.EmptyList
@@ -9440,7 +9528,9 @@ class MeasureCostSavings(M.Edge):
             else:
                 scan_text = GMPSuccText(scan_text)()
                 record = M.Head(remaining)()
-                if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                if DurableTermEqual(
+                    FiringRecordLaw(record)(), law, registry,
+                )() is M.truth_value:
                     before_text = M.GMPRepText(
                         M.NatRepOf(FiringRecordNodesBefore(record)(), registry)(),
                     )()
@@ -11542,9 +11632,10 @@ class GenerateCompositionProposals(M.Edge):
                 next_index_step = MineNatSuccessor(record_index, registry)()
                 next_index = M.Head(next_index_step)()
                 registry = M.Head(M.Tail(next_index_step)())()
-                contiguous = M.TermEqual(
+                contiguous = DurableTermEqual(
                     FiringRecordG1(record_a)(),
                     FiringRecordG0(record_b)(),
+                    registry,
                 )()
                 distinct = M.NotAtom(M.TermEqual(law_a, law_b)())()
                 if M.AndAtom(contiguous, distinct)() is M.truth_value:
@@ -20803,9 +20894,10 @@ class GenerateRetirementProposals(M.Edge):
                     M.EmptyList,
                 )() is M.false_value:
                     record = M.Head(remaining_records)()
-                    if M.TermEqual(
+                    if DurableTermEqual(
                         FiringRecordLaw(record)(),
                         law,
+                        registry,
                     )() is M.truth_value:
                         success_text = GMPSuccText(success_text)()
                     remaining_records = M.Tail(remaining_records)()
@@ -20908,9 +21000,10 @@ class SelfModelVersion(M.Edge):
                     remaining_records,
                     M.EmptyList,
                 )() is M.false_value:
-                    if M.TermEqual(
+                    if DurableTermEqual(
                         FiringRecordLaw(M.Head(remaining_records)())(),
                         law,
+                        registry,
                     )() is M.truth_value:
                         fired_text = GMPSuccText(fired_text)()
                     remaining_records = M.Tail(remaining_records)()

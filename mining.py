@@ -2685,6 +2685,44 @@ class RobustnessPassed(M.Edge):
         return self.result
 
 
+
+class MiningDurableTermEqual(M.Edge):
+    def __init__(self, left, right, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        if M.IdentityCompare(left, right)() is M.truth_value:
+            self.result = M.truth_value
+        elif M.AndAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            self.result = M.AndAtom(
+                MiningDurableTermEqual(
+                    M.Head(left)(), M.Head(right)(), registry,
+                )(),
+                MiningDurableTermEqual(
+                    M.Tail(left)(), M.Tail(right)(), registry,
+                )(),
+            )()
+        elif M.OrAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_rep = M.NatRepOf(left, registry)()
+            right_rep = M.NatRepOf(right, registry)()
+            if M.IdentityCompare(left_rep, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(right_rep, M.EmptyList)() is M.false_value:
+                    self.result = GMPEqualText(
+                        M.GMPRepText(left_rep)(),
+                        M.GMPRepText(right_rep)(),
+                    )()
+                else:
+                    self.result = M.false_value
+            else:
+                self.result = M.Compare(left, right)()
+        super().__init__(
+            inputs=M.Pair(left, M.Pair(right, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 class InstalledRobustness(M.Edge):
     """Newest installed Robustness term for a law, or EmptyList."""
 
@@ -2716,9 +2754,10 @@ class InstalledRobustness(M.Edge):
                             element_scan_text = GMPSuccText(element_scan_text)()
                             element = M.Head(remaining_elements)()
                             if IsRobustness(element)() is M.truth_value:
-                                if M.TermEqual(
+                                if MiningDurableTermEqual(
                                     RobustnessLaw(element)(),
                                     law,
+                                    M.AllConstructors,
                                 )() is M.truth_value:
                                     self.result = element
                                     remaining_elements = M.EmptyList
@@ -2963,7 +3002,9 @@ class MeasureCostSavings(M.Edge):
             else:
                 scan_text = GMPSuccText(scan_text)()
                 record = M.Head(remaining)()
-                if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                if MiningDurableTermEqual(
+                    FiringRecordLaw(record)(), law, registry,
+                )() is M.truth_value:
                     before_text = M.GMPRepText(
                         M.NatRepOf(FiringRecordNodesBefore(record)(), registry)(),
                     )()

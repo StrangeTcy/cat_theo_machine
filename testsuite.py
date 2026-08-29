@@ -2890,12 +2890,18 @@ class WitnessedCompositionProposalTest(M.Edge):
         empty = M.EmptyList
         registry = M.FromContextGetConstructors(graph)()
         witnessed_ledger = Gmod.FiringLedger(registry)
-        node_a = M.Thingy()
-        node_b = M.Thingy()
-        node_c = M.Thingy()
-        preserved = M.Thingy()
-        interface_a_node = M.Thingy()
-        interface_b_node = M.Thingy()
+        node_a = M.Pair(
+            M.Char("composition-node-a"), M.Pair(M.seven, empty),
+        )
+        node_b = M.Pair(
+            M.Char("composition-node-b"), M.Pair(M.seven, empty),
+        )
+        node_c = M.Pair(
+            M.Char("composition-node-c"), M.Pair(M.seven, empty),
+        )
+        preserved = M.Char("composition-preserved")
+        interface_a_node = M.Char("composition-interface-a")
+        interface_b_node = M.Char("composition-interface-b")
         left_a = Gmod.GraphVersion(
             M.Pair(preserved, M.Pair(node_a, empty)),
             empty,
@@ -2996,6 +3002,16 @@ class WitnessedCompositionProposalTest(M.Edge):
         )()
         sequential_result = M.Head(fired_b)()
 
+        from . import wire as Wmod
+        checkpoint_ledger = Wmod.deserialize_ledger(
+            Wmod.serialize_ledger(witnessed_ledger),
+            witnessed_ledger.registry,
+        )
+        checkpoint_generated = Gmod.GenerateCompositionProposals(
+            Gmod.ProposalStore(empty)(),
+            checkpoint_ledger,
+        )()
+        checkpoint_count = M.Head(M.Tail(checkpoint_generated)())()
         generated = Gmod.GenerateCompositionProposals(
             Gmod.ProposalStore(empty)(),
             witnessed_ledger,
@@ -3008,7 +3024,13 @@ class WitnessedCompositionProposalTest(M.Edge):
         self.result = M.truth_value
         proposal = empty
         composite = empty
-        if M.IdentityCompare(
+        if M.NatEq(
+            checkpoint_count,
+            M.one,
+            checkpoint_ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
             M.Tail(M.Tail(M.Tail(generated)())())(),
             empty,
         )() is M.false_value:
@@ -4913,6 +4935,140 @@ class WorkerProtocolTest(M.Edge):
             inputs=M.Pair(graph, empty),
             results=self.result,
         )
+
+    def __call__(self):
+        return self.result
+
+
+class CheckpointMeasurementRoundTripTest(M.Edge):
+    """Independent version/ledger decoding preserves law measurements."""
+
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        measured_node = M.Pair(
+            M.Char("checkpoint-measured-node"),
+            M.Pair(M.seven, empty),
+        )
+        measured_graph = Gmod.GraphVersion(
+            M.Pair(measured_node, empty), empty, empty,
+        )()
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        measured_law = Gmod.Law(
+            measured_graph,
+            interface,
+            measured_graph,
+            Gmod.Map(interface, measured_graph, empty)(),
+            Gmod.Map(interface, measured_graph, empty)(),
+            empty,
+        )()
+        version = Gmod.InstallLaw(measured_graph, measured_law)()
+        ledger = Gmod.FiringLedger(registry)
+        ledger.append(
+            Gmod.FiringRecord(
+                measured_law,
+                measured_graph,
+                measured_graph,
+                empty,
+                M.one,
+                M.one,
+                M.Zero,
+                M.Zero,
+                M.one,
+            )()
+        )
+        store = Gmod.ProposalStore(empty)()
+        before_model = Gmod.SelfModelVersion(version, store, ledger)()
+
+        loaded_version = Wmod.deserialize_version(
+            Wmod.serialize_version(version),
+        )
+        loaded_store = Wmod.deserialize_proposal_store(
+            Wmod.serialize_proposal_store(store),
+        )
+        loaded_ledger = Wmod.deserialize_ledger(
+            Wmod.serialize_ledger(ledger),
+            registry,
+        )
+        after_model = Gmod.SelfModelVersion(
+            loaded_version, loaded_store, loaded_ledger,
+        )()
+
+        report = M.Pair(
+            M.Pair(
+                M.Char("checkpoint-seed"),
+                M.Pair(M.truth_value, M.Pair(M.truth_value, empty)),
+            ),
+            empty,
+        )
+        annotation = Gmod.GenerateRobustnessAnnotation(
+            store, measured_law, report,
+        )()
+        annotation_entry = M.Head(
+            Gmod.ProposalStoreAll(M.Head(annotation)())(),
+        )()
+        carrier = Gmod.ProposalLaw(
+            Gmod.ProposalEntryProposal(annotation_entry)(),
+        )()
+        annotated_version = Gmod.InstallLaw(version, carrier)()
+        loaded_annotated = Wmod.deserialize_version(
+            Wmod.serialize_version(annotated_version),
+        )
+        loaded_law = Wmod.deserialize_term(
+            Wmod.serialize_term(measured_law),
+        )
+        found = Gmod.InstalledRobustness(
+            loaded_annotated, loaded_law,
+        )()
+
+        schema_variable = M.Pair(
+            M.VarTag,
+            M.Pair(M.Char("checkpoint-schema-variable"), empty),
+        )
+        schema_goal = M.Pair(
+            M.Char("leq"),
+            M.Pair(schema_variable, M.Pair(schema_variable, empty)),
+        )
+        schema_evidence = Wmod.deserialize_term(
+            Wmod.serialize_term(
+                Gmod.SchemaValidationEvidence(schema_goal)(),
+            ),
+        )
+
+        self.result = M.truth_value
+        if Gmod.DurableTermEqual(
+            before_model, after_model, registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(found, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.IsRobustness(schema_evidence)() is M.truth_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SchemaValidationTried(schema_evidence)(),
+            M.five,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SchemaValidationPassed(schema_evidence)(),
+            M.five,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.SchemaValidationRefuted(schema_evidence)(),
+            M.Zero,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.SchemaValidationTermination(schema_evidence)(),
+            M.Char("domain-exhausted"),
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
         return self.result
@@ -15897,6 +16053,14 @@ def install_default_tests(graph):
             "migration_lifecycle_test",
             empty,
             MigrationLifecycleTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "checkpoint_measurement_round_trip_test",
+            empty,
+            CheckpointMeasurementRoundTripTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

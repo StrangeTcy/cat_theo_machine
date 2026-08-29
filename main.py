@@ -5861,7 +5861,7 @@ def run_talk_mode(sentence: str = None):
                 cand_payload = G.TaughtDerivationSchema(
                     schema_start,
                     schema_goal,
-                    G.SchemaValidationRobustness(schema_goal)(),
+                    G.SchemaValidationEvidence(schema_goal)(),
                 )()
             else:
                 cand_payload = G.CompileDeductionToLaw(cand_rule)()
