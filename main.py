@@ -1298,7 +1298,7 @@ def run_talk_mode(sentence: str = None):
         "value expressions added subtracted out counted from record "
         "claimed nothing unchanged adds so changes base step certify "
         "induction propose rule approve here first validated on parse "
-        "render round trip",
+        "render round trip define give example",
         reading_policy,
         reading_digits,
     )()
@@ -4890,19 +4890,49 @@ def run_talk_mode(sentence: str = None):
         )() is M.truth_value
 
     def _gap_ask_is_askable(gap_ask):
-        """A gap question goes to the trainer only when its word is not
-        already held. The machine does not ask what its own numerals or
-        its own spoken words mean: 'what is six ?' from a machine that
-        counts with six is not a question, it is a stutter."""
+        """A gap question goes to the trainer only when it names words
+        the machine does not already hold. Its own numerals, its own
+        spoken words, its syntax -- 'what is six ?' or 'define six'
+        from a machine that counts with six every day is not a
+        question, it is a stutter. The target may be one word or a
+        small term of them; every word in it must be unknown before
+        the question is asked."""
         if M.IdentityCompare(gap_ask, M.EmptyList)() is M.truth_value:
             return M.false_value
         gap = M.Head(gap_ask)()
         target = G.GapTarget(gap)()
         if M.IdentityCompare(target, M.EmptyList)() is M.truth_value:
             return M.truth_value
-        if _word_is_known(target):
-            return M.false_value
-        return M.truth_value
+        words_reversed = M.EmptyList
+        stack = M.Pair(target, M.EmptyList)
+        while M.IdentityCompare(
+            stack, M.EmptyList,
+        )() is M.false_value:
+            item = M.Head(stack)()
+            stack = M.Tail(stack)()
+            if M.IsPair(item)() is M.truth_value:
+                stack = M.Pair(
+                    M.Tail(item)(), M.Pair(M.Head(item)(), stack),
+                )
+            else:
+                try:
+                    symbol = item()
+                except Exception:
+                    symbol = None
+                if symbol is not None and symbol.isalpha():
+                    words_reversed = M.Pair(item, words_reversed)
+        if M.IdentityCompare(
+            words_reversed, M.EmptyList,
+        )() is M.truth_value:
+            return M.truth_value
+        word_scan = words_reversed
+        while M.IdentityCompare(
+            word_scan, M.EmptyList,
+        )() is M.false_value:
+            if not _word_is_known(M.Head(word_scan)()):
+                return M.truth_value
+            word_scan = M.Tail(word_scan)()
+        return M.false_value
 
     def _unknown_words_of_text(text):
         """The distinct unknown words of a text, in order.
