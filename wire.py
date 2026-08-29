@@ -310,11 +310,62 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
     )()
     frontier_version = M.Head(cycle)()
     result_store = M.Head(M.Tail(cycle)())()
+    report = M.Head(M.Tail(M.Tail(cycle)())())()
+    # What this worker did, said in its own numbers: the report the
+    # cycle recorded, not a count taken here.
+    scanned_pairs = "0"
+    scanned_patterns = "0"
+    found = "0"
+
+    def report_count(value):
+        # The report's counts ride in the same tolerant shape the
+        # daemon's own summary reads: a count, or a pair holding a
+        # count, or a pair holding that -- whichever the entry carries.
+        candidate = value
+        if M.IsPair(candidate)() is M.truth_value:
+            candidate = M.Head(candidate)()
+            if M.IsPair(candidate)() is M.truth_value:
+                candidate = M.Head(candidate)()
+        rep = M.NatRepOf(candidate, M.AllConstructors)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            return M.GMPRepText(rep)()
+        return "0"
+
+    report_scan = report
+    while M.IdentityCompare(
+        report_scan, M.EmptyList,
+    )() is M.false_value:
+        report_entry = M.Head(report_scan)()
+        report_key = M.Head(report_entry)()
+        report_value = M.Head(M.Tail(report_entry)())()
+        if M.Compare(
+            report_key, Gmod.AUTONOMY_REPORT_CORRESPONDENCE_SCAN_KEY,
+        )() is M.truth_value:
+            scanned_pairs = report_count(report_value)
+            scanned_patterns = report_count(
+                M.Tail(report_value)(),
+            )
+        elif M.Compare(
+            report_key,
+            Gmod.AUTONOMY_REPORT_GENERATED_CORRESPONDENCES_KEY,
+        )() is M.truth_value:
+            found = report_count(report_value)
+        report_scan = M.Tail(report_scan)()
+    report_text = (
+        "scanned "
+        + scanned_pairs
+        + " rule pairs and "
+        + scanned_patterns
+        + " subgraph shapes; found "
+        + found
+        + " correspondence(s)"
+    )
     return (
         WORKER_STATUS_OK(),
         serialize_term(result_store),
         serialize_ledger(ledger),
         serialize_term(frontier_version),
+        report_text.encode("utf-8"),
     )
 
 
@@ -345,6 +396,7 @@ def _worker_entry(queue, serialized_version, serialized_store,
         queue.put((
             WORKER_STATUS_FAILED(),
             str(failure).encode("utf-8"),
+            b"",
             b"",
             b"",
         ))
@@ -415,7 +467,13 @@ def run_workers(graph_version, proposal_store, budget, generator_config,
         except Exception:
             process.terminate()
             outputs.append(
-                (WORKER_STATUS_FAILED(), b"worker silent", b"", b""),
+                (
+                    WORKER_STATUS_FAILED(),
+                    b"worker silent",
+                    b"",
+                    b"",
+                    b"",
+                ),
             )
         try:
             process.join(timeout=10)
@@ -423,6 +481,46 @@ def run_workers(graph_version, proposal_store, budget, generator_config,
             pass
         queue.close()
     return outputs
+
+
+def union_proposal_stores(first, second):
+    """The entries of both stores, proposals taken once by structure.
+
+    Each worker mines its slice from the same starting store, so the
+    same entry returns from many workers; the findings differ. Entries
+    are kept by proposal structure, first occurrence first, so the
+    union is order-stable and no worker's finding is lost to another's.
+    """
+    from . import graph as Gmod
+
+    merged_reversed = M.EmptyList
+    scan = Gmod.ProposalStoreEntries(second)()
+    while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+        merged_reversed = M.Pair(M.Head(scan)(), merged_reversed)
+        scan = M.Tail(scan)()
+    scan = Gmod.ProposalStoreEntries(first)()
+    while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+        entry = M.Head(scan)()
+        proposal = Gmod.ProposalEntryProposal(entry)()
+        present = M.false_value
+        inner = merged_reversed
+        while M.IdentityCompare(inner, M.EmptyList)() is M.false_value:
+            if M.Compare(
+                Gmod.ProposalEntryProposal(M.Head(inner)())(),
+                proposal,
+            )() is M.truth_value:
+                present = M.truth_value
+                inner = M.EmptyList
+            else:
+                inner = M.Tail(inner)()
+        if M.IdentityCompare(present, M.false_value)() is M.truth_value:
+            merged_reversed = M.Pair(entry, merged_reversed)
+        scan = M.Tail(scan)()
+    kept = M.EmptyList
+    while M.IdentityCompare(merged_reversed, M.EmptyList)() is M.false_value:
+        kept = M.Pair(M.Head(merged_reversed)(), kept)
+        merged_reversed = M.Tail(merged_reversed)()
+    return Gmod.ProposalStore(kept)()
 
 
 def distributed_cycle(graph_version, proposal_store, ledger, budget,
@@ -456,13 +554,25 @@ def distributed_cycle(graph_version, proposal_store, ledger, budget,
     # run_workers hands back host tuples across the process boundary; convert
     # them to a machine chain once, here, and walk that.
     reversed_outputs = M.EmptyList
-    for status_text, store_blob, ledger_blob, _frontier_blob in outputs:
+    for worker_output in outputs:
+        status_text = worker_output[0]
+        store_blob = worker_output[1]
+        ledger_blob = worker_output[2]
+        report_blob = (
+            worker_output[4] if len(worker_output) > 4 else b""
+        )
         reversed_outputs = M.Pair(
             M.Pair(
                 M.Char(status_text),
                 M.Pair(
                     M.Char(store_blob.decode("utf-8")),
-                    M.Pair(M.Char(ledger_blob.decode("utf-8")), M.EmptyList),
+                    M.Pair(
+                        M.Char(ledger_blob.decode("utf-8")),
+                        M.Pair(
+                            M.Char(report_blob.decode("utf-8")),
+                            M.EmptyList,
+                        ),
+                    ),
                 ),
             ),
             reversed_outputs,
@@ -474,26 +584,57 @@ def distributed_cycle(graph_version, proposal_store, ledger, budget,
 
     reversed_claims = M.EmptyList
     merged_store = proposal_store
+    worker_position = 0
+    worker_total = len(outputs)
     remaining_outputs = ordered_outputs
     while M.IdentityCompare(remaining_outputs, M.EmptyList)() is M.false_value:
         entry = M.Head(remaining_outputs)()
         status = M.Head(entry)()
+        worker_position = worker_position + 1
         if M.Compare(
             status, WORKER_STATUS_FAILED,
         )() is M.truth_value:
+            failure_text = M.Head(M.Tail(entry)())()
+            if M.IsPair(failure_text)() is M.truth_value:
+                failure_text = M.Head(M.Tail(failure_text)())()
             print(
-                "daemon: a worker failed ("
-                + M.Head(M.Tail(entry)())().decode("utf-8")
+                "daemon: worker "
+                + str(worker_position)
+                + "/"
+                + str(worker_total)
+                + " failed ("
+                + str(failure_text())
                 + "); its claim is skipped",
                 flush=True,
             )
         elif M.Compare(status, WORKER_STATUS_OK)() is M.truth_value:
             serialized_store = M.Head(M.Tail(entry)())()
             serialized_ledger = M.Head(M.Tail(M.Tail(entry)())())()
+            worker_report = M.Head(
+                M.Tail(M.Tail(M.Tail(entry)())())(),
+            )()
+            print(
+                "daemon: worker "
+                + str(worker_position)
+                + "/"
+                + str(worker_total)
+                + ": "
+                + str(worker_report()),
+                flush=True,
+            )
             worker_ledger = deserialize_ledger(
                 serialized_ledger().encode("utf-8"), ledger.registry)
             reversed_claims = M.Pair(worker_ledger.records, reversed_claims)
-            merged_store = deserialize_term(serialized_store().encode("utf-8"))
+            # Every worker mined its own slice from the same store; the
+            # findings are the point of the fleet, so the stores are
+            # unioned -- one worker's proposals are never dropped for
+            # arriving beside another's.
+            worker_store = deserialize_term(
+                serialized_store().encode("utf-8"),
+            )
+            merged_store = union_proposal_stores(
+                merged_store, worker_store,
+            )
         remaining_outputs = M.Tail(remaining_outputs)()
     worker_records = M.EmptyList
     while M.IdentityCompare(reversed_claims, M.EmptyList)() is M.false_value:
@@ -504,16 +645,58 @@ def distributed_cycle(graph_version, proposal_store, ledger, budget,
     merged_version = M.Head(merged)()
     conflicts = M.Head(M.Tail(merged)())()
 
+    # The workers mined their slices; the coordinator activates and
+    # fires. Mining again here, unsliced, would repeat the whole scan
+    # the fleet just divided.
     activated = Gmod.AutonomyCycle(
         merged_version,
         merged_store,
         ledger,
         budget,
-        generator_config,
+        M.EmptyList,
     )()
     final_version = M.Head(activated)()
     final_store = M.Head(M.Tail(activated)())()
     report = M.Head(M.Tail(M.Tail(activated)())())()
+    # The report should say what the fleet found, not only what the
+    # coordinator itself generated: the entries that entered the store
+    # this cycle are counted from the unioned stores, and the finding
+    # rides the report the daemon speaks.
+    base_count_text = "0"
+    base_scan = Gmod.ProposalStoreEntries(proposal_store)()
+    while M.IdentityCompare(base_scan, M.EmptyList)() is M.false_value:
+        base_scan = M.Tail(base_scan)()
+        base_count_text = Gmod.GMPSuccText(base_count_text)()
+    union_count_text = "0"
+    union_scan = Gmod.ProposalStoreEntries(merged_store)()
+    while M.IdentityCompare(union_scan, M.EmptyList)() is M.false_value:
+        union_scan = M.Tail(union_scan)()
+        union_count_text = Gmod.GMPSuccText(union_count_text)()
+    added_text = Gmod.GMPSubText(
+        union_count_text, base_count_text,
+    )()
+    if Gmod.GMPLessText(added_text, "0")() is M.truth_value:
+        added_text = "0"
+    # The count rides as a Nat in the same shape the cycle's own
+    # entries carry, so every reader of the report -- the daemon's
+    # summary and correspondence lines among them -- reads it the way
+    # they read the cycle's own counts.
+    from .mining import MineNatFromGMPRep
+
+    added_nat = MineNatFromGMPRep(M.GMPRep(added_text))()
+    report = M.Pair(
+        M.Pair(
+            Gmod.AUTONOMY_REPORT_GENERATED_CORRESPONDENCES_KEY,
+            M.Pair(
+                M.Pair(
+                    added_nat,
+                    M.Pair(M.EmptyList, M.EmptyList),
+                ),
+                M.EmptyList,
+            ),
+        ),
+        report,
+    )
     return M.Pair(
         final_version,
         M.Pair(

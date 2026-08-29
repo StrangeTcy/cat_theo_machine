@@ -3767,6 +3767,7 @@ AUTONOMY_GENERATE_HANDLES_KEY = M.Char("generate_handles")
 AUTONOMY_GENERATE_COMPOSITIONS_KEY = M.Char("generate_compositions")
 AUTONOMY_GENERATE_CORRESPONDENCES_KEY = M.Char("generate_correspondences")
 AUTONOMY_REPORT_GENERATED_CORRESPONDENCES_KEY = M.Char("generated_correspondences")
+AUTONOMY_REPORT_CORRESPONDENCE_SCAN_KEY = M.Char("correspondence_scan")
 # The correspondence miner reads only the shared version: every taught
 # rule it may pair, every pair it may scan, and every recurring subgraph
 # pattern it may name. Caps keep one mining pass proportional to what
@@ -4347,9 +4348,27 @@ class GenerateRuleCorrespondenceProposals(M.Edge):
     law, and retiring is the human's gate.
     """
 
-    def __init__(self, proposal_store, graph_version):
+    def __init__(
+        self,
+        proposal_store,
+        graph_version,
+        slice_index=M.EmptyList,
+        slice_count=M.EmptyList,
+    ):
         pair_cap = MineNatFromGMPRep(RULE_CORRESPONDENCE_PAIR_CAP)()
         registry = M.AllConstructors
+        sliced = M.false_value
+        slice_index_text = "0"
+        slice_count_text = "1"
+        if M.IdentityCompare(
+            slice_index, M.EmptyList,
+        )() is M.false_value:
+            if M.IdentityCompare(
+                slice_count, M.EmptyList,
+            )() is M.false_value:
+                sliced = M.truth_value
+                slice_index_text = M.GMPRepText(slice_index)()
+                slice_count_text = M.GMPRepText(slice_count)()
         installed = InstalledLaws(graph_version)()
         reversed_sources = M.EmptyList
         remaining_nodes = GraphNodes(graph_version)()
@@ -4419,6 +4438,7 @@ class GenerateRuleCorrespondenceProposals(M.Edge):
         current_store = proposal_store
         submitted_count = M.Zero
         pair_count = M.Zero
+        scanned_count = M.Zero
         remaining_first = sources
         while M.IdentityCompare(remaining_first, M.EmptyList)() is M.false_value:
             if M.NatEq(pair_count, pair_cap, registry)() is M.truth_value:
@@ -4440,6 +4460,42 @@ class GenerateRuleCorrespondenceProposals(M.Edge):
                         second_replacement = M.Head(M.Tail(second)())()
                         stepped = M.Succ(pair_count, registry)()
                         pair_count = M.Head(stepped)()
+                        in_slice = M.truth_value
+                        if M.IdentityCompare(
+                            sliced, M.truth_value,
+                        )() is M.truth_value:
+                            ordinal_text = M.GMPRepText(
+                                M.NatRepOf(pair_count, registry)(),
+                            )()
+                            remainder_text = ordinal_text
+                            remainder_guard = 0
+                            while (
+                                M.IdentityCompare(
+                                    GMPLessText(
+                                        remainder_text, slice_count_text,
+                                    )(),
+                                    M.truth_value,
+                                )() is M.false_value
+                                and remainder_guard < 10000
+                            ):
+                                remainder_text = GMPSubText(
+                                    remainder_text, slice_count_text,
+                                )()
+                                remainder_guard = remainder_guard + 1
+                            if M.IdentityCompare(
+                                GMPEqualText(
+                                    remainder_text, slice_index_text,
+                                )(),
+                                M.truth_value,
+                            )() is M.false_value:
+                                in_slice = M.false_value
+                        if M.IdentityCompare(
+                            in_slice, M.false_value,
+                        )() is M.truth_value:
+                            remaining_second = M.Tail(remaining_second)()
+                            continue
+                        scanned_stepped = M.Succ(scanned_count, registry)()
+                        scanned_count = M.Head(scanned_stepped)()
                         kind = M.EmptyList
                         keep_premises = first_premises
                         keep_replacement = first_replacement
@@ -4591,7 +4647,10 @@ class GenerateRuleCorrespondenceProposals(M.Edge):
                 remaining_first = M.Tail(remaining_first)()
         self.result = M.Pair(
             current_store,
-            M.Pair(submitted_count, M.Pair(M.EmptyList, M.EmptyList)),
+            M.Pair(
+                submitted_count,
+                M.Pair(scanned_count, M.Pair(M.EmptyList, M.EmptyList)),
+            ),
         )
         super().__init__(
             inputs=M.Pair(proposal_store, M.Pair(graph_version, M.EmptyList)),
@@ -4611,9 +4670,27 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
     proposed so the human may have it named and recorded as one shape.
     """
 
-    def __init__(self, proposal_store, graph_version):
+    def __init__(
+        self,
+        proposal_store,
+        graph_version,
+        slice_index=M.EmptyList,
+        slice_count=M.EmptyList,
+    ):
         pattern_cap = MineNatFromGMPRep(SUBGRAPH_CORRESPONDENCE_PATTERN_CAP)()
         registry = M.AllConstructors
+        sliced = M.false_value
+        slice_index_text = "0"
+        slice_count_text = "1"
+        if M.IdentityCompare(
+            slice_index, M.EmptyList,
+        )() is M.false_value:
+            if M.IdentityCompare(
+                slice_count, M.EmptyList,
+            )() is M.false_value:
+                sliced = M.truth_value
+                slice_index_text = M.GMPRepText(slice_index)()
+                slice_count_text = M.GMPRepText(slice_count)()
         reversed_rules = M.EmptyList
         remaining_nodes = GraphNodes(graph_version)()
         while M.IdentityCompare(remaining_nodes, M.EmptyList)() is M.false_value:
@@ -4664,6 +4741,8 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
         rules = deduped_rules_reversed
         reversed_patterns = M.EmptyList
         pattern_count = M.Zero
+        pattern_ordinal = M.Zero
+        scanned_count = M.Zero
         rule_scan = rules
         while M.IdentityCompare(rule_scan, M.EmptyList)() is M.false_value:
             rule = M.Head(rule_scan)()
@@ -4706,6 +4785,53 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                     if M.IsPair(subterm)() is M.truth_value:
                         if P.IsVarPattern(subterm)() is M.false_value:
                             if SubgraphPatternIsGround(subterm)() is M.truth_value:
+                                pattern_stepped = M.Succ(
+                                    pattern_ordinal, registry,
+                                )()
+                                pattern_ordinal = M.Head(pattern_stepped)()
+                                ordinal_in_slice = M.truth_value
+                                if M.IdentityCompare(
+                                    sliced, M.truth_value,
+                                )() is M.truth_value:
+                                    ordinal_text = M.GMPRepText(
+                                        M.NatRepOf(
+                                            pattern_ordinal, registry,
+                                        )(),
+                                    )()
+                                    remainder_text = ordinal_text
+                                    remainder_guard = 0
+                                    while (
+                                        M.IdentityCompare(
+                                            GMPLessText(
+                                                remainder_text,
+                                                slice_count_text,
+                                            )(),
+                                            M.truth_value,
+                                        )() is M.false_value
+                                        and remainder_guard < 10000
+                                    ):
+                                        remainder_text = GMPSubText(
+                                            remainder_text,
+                                            slice_count_text,
+                                        )()
+                                        remainder_guard = remainder_guard + 1
+                                    if M.IdentityCompare(
+                                        GMPEqualText(
+                                            remainder_text,
+                                            slice_index_text,
+                                        )(),
+                                        M.truth_value,
+                                    )() is M.false_value:
+                                        ordinal_in_slice = M.false_value
+                                if M.IdentityCompare(
+                                    ordinal_in_slice,
+                                    M.false_value,
+                                )() is M.truth_value:
+                                    continue
+                                scanned_stepped = M.Succ(
+                                    scanned_count, registry,
+                                )()
+                                scanned_count = M.Head(scanned_stepped)()
                                 known = M.false_value
                                 pattern_scan = reversed_patterns
                                 while M.IdentityCompare(
@@ -4876,7 +5002,10 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                         submitted_count = M.Head(stepped_count)()
         self.result = M.Pair(
             current_store,
-            M.Pair(submitted_count, M.Pair(M.EmptyList, M.EmptyList)),
+            M.Pair(
+                submitted_count,
+                M.Pair(scanned_count, M.Pair(M.EmptyList, M.EmptyList)),
+            ),
         )
         super().__init__(
             inputs=M.Pair(proposal_store, M.Pair(graph_version, M.EmptyList)),
@@ -5396,15 +5525,23 @@ class AutonomyCycle(M.Edge):
             corresponded_rules = GenerateRuleCorrespondenceProposals(
                 current_store,
                 current_version,
+                generator_slice_index,
+                generator_slice_count,
             )()
             current_store = M.Head(corresponded_rules)()
             rule_findings = M.Head(M.Tail(corresponded_rules)())()
+            rule_scanned = M.Head(M.Tail(M.Tail(corresponded_rules)())())()
             corresponded_subgraphs = GenerateSubgraphCorrespondenceProposals(
                 current_store,
                 current_version,
+                generator_slice_index,
+                generator_slice_count,
             )()
             current_store = M.Head(corresponded_subgraphs)()
             subgraph_findings = M.Head(M.Tail(corresponded_subgraphs)())()
+            subgraph_scanned = M.Head(
+                M.Tail(M.Tail(corresponded_subgraphs)())(),
+            )()
             added_rules = MineNatAdd(
                 M.Zero,
                 rule_findings,
@@ -5426,6 +5563,19 @@ class AutonomyCycle(M.Edge):
                         M.Pair(
                             findings_total,
                             M.Pair(M.EmptyList, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                reversed_generation_report,
+            )
+            reversed_generation_report = M.Pair(
+                M.Pair(
+                    AUTONOMY_REPORT_CORRESPONDENCE_SCAN_KEY,
+                    M.Pair(
+                        M.Pair(
+                            rule_scanned,
+                            M.Pair(subgraph_scanned, M.EmptyList),
                         ),
                         M.EmptyList,
                     ),

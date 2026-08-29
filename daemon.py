@@ -730,22 +730,20 @@ def daemon_generator_config(graph_version):
 
 
 def daemon_worker_count(requested):
-    """Workers per cycle: zero by default, an ask honoured as given.
+    """Workers per cycle: the host's share by default, an ask honoured.
 
-    A cycle with workers fans generation out through a process fleet,
-    and under spawn -- every non-POSIX host -- the fleet is a fresh
-    interpreter per worker per cycle. Beside a live conversation that
-    is a process storm: eight interpreters, gigabytes of memory, and a
-    daemon spending its cycles booting workers instead of folding
-    teaching. So the daemon runs single-process unless workers are
-    asked for; a negative ask draws the host's shared budget, for the
-    batch runs that want the fan-out.
+    The fleet is the point when it works: each worker mines its own
+    slice of the correspondence scan and reports what it scanned and
+    found, so the processes are visibly doing the machine's work. The
+    share is drawn from the single host budget so a foreground proof
+    fanning out at the same time does not oversubscribe the machine.
+    A negative ask means no workers -- one in-process cycle.
     """
     if requested > 0:
         return requested
     if requested < 0:
-        return Wmod.share_process_budget(DAEMON_BUDGET_CLAIMANTS)
-    return 0
+        return 0
+    return Wmod.share_process_budget(DAEMON_BUDGET_CLAIMANTS)
 
 
 def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
