@@ -6120,7 +6120,18 @@ class CompileDeductionToLaw(M.Edge):
 
 
 class SuggestCandidateLemma(M.Edge):
-    """Synthesize an intermediate candidate lemma from a stalled goal and working set."""
+    """One-hop backward premise abductor for a stalled goal.
+
+    Reasons backward one rule application from `goal`: searches installed
+    rules concluding the goal head, partitions their premises under joint
+    unification bindings into satisfied and unmet sets, and proposes the
+    first unmet premise as a candidate lemma conditioned on the satisfied
+    premises. If no rule matches or no rule has both satisfied and unmet
+    premises, returns EmptyList.
+
+    Note on scope: this abduces unsatisfied premises of a direct
+    goal-concluding rule rather than a multi-rewrite search residual.
+    """
 
     def __init__(self, goal, rules, facts, registry):
         self.result = self._suggest(goal, rules, facts, registry)
@@ -6136,47 +6147,59 @@ class SuggestCandidateLemma(M.Edge):
         goal_head = goal
         if M.IsPair(goal)() is M.truth_value:
             goal_head = M.Head(goal)()
-        matching_rule = self._find_rule(rules, goal_head)
-        if M.IdentityCompare(matching_rule, M.EmptyList)() is M.false_value:
-            partition = self._partition_premises(P.RulePremises(matching_rule)(), facts)
-            sat = M.Head(partition)()
-            unmet = M.Head(M.Tail(partition)())()
-            if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
-                cand_conclusion = M.Head(unmet)()
-                cand_premises = sat
-                if M.IdentityCompare(cand_premises, M.EmptyList)() is M.truth_value:
-                    cand_premises = facts
-                if M.IdentityCompare(cand_premises, M.EmptyList)() is M.false_value:
-                    if self._is_refuted_by_facts(cand_conclusion, facts) is M.false_value:
-                        return P.MultiRule(cand_premises, cand_conclusion)()
-        if M.IdentityCompare(facts, M.EmptyList)() is M.false_value:
-            if self._is_refuted_by_facts(goal, facts) is M.false_value:
-                return P.MultiRule(facts, goal)()
-        return M.EmptyList
+        return self._search_rules(rules, goal_head, facts, registry)
 
-    def _find_rule(self, rules, goal_head):
+    def _search_rules(self, rules, goal_head, facts, registry):
         if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         rule = M.Head(rules)()
+        rest = M.Tail(rules)()
         replacement = P.RuleReplacement(rule)()
         if M.IsPair(replacement)() is M.truth_value:
             if M.Compare(M.Head(replacement)(), goal_head)() is M.truth_value:
-                return rule
-        return self._find_rule(M.Tail(rules)(), goal_head)
+                partition = self._partition_premises(
+                    P.RulePremises(rule)(), facts, M.EmptyList,
+                )
+                sat = M.Head(partition)()
+                unmet = M.Head(M.Tail(partition)())()
+                if M.IdentityCompare(sat, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
+                        cand_conclusion = M.Head(unmet)()
+                        if self._is_sound_candidate(cand_conclusion, facts, registry) is M.truth_value:
+                            return P.MultiRule(sat, cand_conclusion)()
+        return self._search_rules(rest, goal_head, facts, registry)
 
-    def _partition_premises(self, premises, facts):
+    def _partition_premises(self, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
         prem = M.Head(premises)()
-        rest = self._partition_premises(M.Tail(premises)(), facts)
-        sat = M.Head(rest)()
-        unmet = M.Head(M.Tail(rest)())()
-        bindings = P.JoinPremises(M.Pair(prem, M.EmptyList), facts, M.EmptyList)()
-        if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
+        new_bindings_chain = P.JoinPremises(
+            M.Pair(prem, M.EmptyList), facts, bindings,
+        )()
+        if M.IdentityCompare(new_bindings_chain, M.EmptyList)() is M.false_value:
+            next_bindings = M.Head(new_bindings_chain)()
+            rest = self._partition_premises(
+                M.Tail(premises)(), facts, next_bindings,
+            )
+            sat = M.Head(rest)()
+            unmet = M.Head(M.Tail(rest)())()
+            return M.Pair(M.Pair(prem, sat), M.Pair(unmet, M.EmptyList))
+        else:
+            rest = self._partition_premises(
+                M.Tail(premises)(), facts, bindings,
+            )
+            sat = M.Head(rest)()
+            unmet = M.Head(M.Tail(rest)())()
             return M.Pair(sat, M.Pair(M.Pair(prem, unmet), M.EmptyList))
-        return M.Pair(M.Pair(prem, sat), M.Pair(unmet, M.EmptyList))
 
-    def _is_refuted_by_facts(self, conclusion, facts):
+    def _is_sound_candidate(self, conclusion, facts, registry):
+        if self._is_contradicted_by_facts(conclusion, facts) is M.truth_value:
+            return M.false_value
+        if self._is_ground_refuted(conclusion, registry) is M.truth_value:
+            return M.false_value
+        return M.truth_value
+
+    def _is_contradicted_by_facts(self, conclusion, facts):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
@@ -6187,7 +6210,87 @@ class SuggestCandidateLemma(M.Edge):
                     negated = M.Head(tail)()
                     if M.Compare(negated, conclusion)() is M.truth_value:
                         return M.truth_value
-        return self._is_refuted_by_facts(conclusion, M.Tail(facts)())
+        return self._is_contradicted_by_facts(conclusion, M.Tail(facts)())
+
+    def _numeral_word_digit(self, word_text):
+        if word_text == "zero" or word_text == "0":
+            return "0"
+        if word_text == "one" or word_text == "1":
+            return "1"
+        if word_text == "two" or word_text == "2":
+            return "2"
+        if word_text == "three" or word_text == "3":
+            return "3"
+        if word_text == "four" or word_text == "4":
+            return "4"
+        if word_text == "five" or word_text == "5":
+            return "5"
+        if word_text == "six" or word_text == "6":
+            return "6"
+        if word_text == "seven" or word_text == "7":
+            return "7"
+        if word_text == "eight" or word_text == "8":
+            return "8"
+        if word_text == "nine" or word_text == "9":
+            return "9"
+        return ""
+
+    def _numeral_text(self, term, registry):
+        if M.IdentityCompare(term, M.Zero)() is M.truth_value:
+            return "0"
+        rep = M.NatRepOf(term, registry)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            return M.GMPRepText(rep)()
+        symbol = term()
+        if symbol is not None:
+            text = self._numeral_word_digit(str(symbol))
+            if text != "":
+                return text
+        return ""
+
+    def _is_ground_refuted(self, conclusion, registry):
+        if M.IsPair(conclusion)() is M.false_value:
+            return M.false_value
+        head = M.Head(conclusion)()
+        args = M.Tail(conclusion)()
+        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Tail(args)(), M.EmptyList)() is M.truth_value:
+            return M.false_value
+        arg1 = M.Head(args)()
+        arg2 = M.Head(M.Tail(args)())()
+        t1 = self._numeral_text(arg1, registry)
+        t2 = self._numeral_text(arg2, registry)
+
+        if M.Compare(head, M.Char("leq"))() is M.truth_value:
+            if t1 != "" and t2 != "":
+                if GMPLessText(t2, t1)() is M.truth_value:
+                    return M.truth_value
+
+        if M.Compare(head, M.Char("bounded"))() is M.truth_value:
+            if t1 != "" and t2 != "":
+                if GMPLessText(t2, t1)() is M.truth_value:
+                    return M.truth_value
+                a_squared = GMPMulText(t1, t1)()
+                if GMPLessText(t2, a_squared)() is M.truth_value:
+                    return M.truth_value
+
+        if M.Compare(head, M.Char("divisible"))() is M.truth_value:
+            trailing = M.Tail(M.Tail(args)())()
+            if M.IdentityCompare(trailing, M.EmptyList)() is M.false_value:
+                arg3 = M.Head(trailing)()
+                t3 = self._numeral_text(arg3, registry)
+                if t1 != "" and t2 != "" and t3 != "":
+                    prod = GMPMulText(t1, t2)()
+                    if GMPEqualText(prod, t3)() is M.false_value:
+                        return M.truth_value
+
+        if M.Compare(head, M.Char("same"))() is M.truth_value:
+            if t1 != "" and t2 != "":
+                if GMPEqualText(t1, t2)() is M.false_value:
+                    return M.truth_value
+
+        return M.false_value
 
 
 class UncompiledRules(M.Edge):

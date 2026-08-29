@@ -5392,7 +5392,17 @@ def run_talk_mode(sentence: str = None):
         if M.IdentityCompare(
             pending_unknown_word, M.EmptyList,
         )() is M.false_value:
-            if ":" not in line and lowered not in ("yes", "no"):
+            is_command = (
+                lowered.startswith("suggest ")
+                or lowered.startswith("bridge ")
+                or lowered.startswith("why not ")
+                or lowered.startswith("explain ")
+                or lowered.startswith("prove that")
+                or lowered.startswith("solve ")
+                or lowered == "goodbye"
+                or lowered == "help"
+            )
+            if ":" not in line and lowered not in ("yes", "no") and not is_command:
                 if lowered == "skip all":
                     _pop_ask("word")
                     pending_unknown_words = M.EmptyList
