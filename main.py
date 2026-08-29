@@ -3189,6 +3189,23 @@ def run_talk_mode(sentence: str = None):
         open_words = G.DefinitionOpenDependencies(
             learned_version, definition, vocabulary, registry,
         )()
+        # The definition layer's own check predates the packs: a word
+        # the machine already holds -- a pack concept's name, its own
+        # dialogue, the training language's function words, a word it
+        # has a definition for -- is not an open dependency. What
+        # survives the filter is what the trainer owes.
+        held_filtered_reversed = M.EmptyList
+        open_scan = open_words
+        while M.IdentityCompare(
+            open_scan, M.EmptyList,
+        )() is M.false_value:
+            open_word = M.Head(open_scan)()
+            if not _word_is_anchor_known(open_word):
+                held_filtered_reversed = M.Pair(
+                    open_word, held_filtered_reversed,
+                )
+            open_scan = M.Tail(open_scan)()
+        open_words = M.Reverse(held_filtered_reversed)()
         if M.IdentityCompare(open_words, M.EmptyList)() is M.truth_value:
             return (
                 "Recorded: a " + term_display + " is "
@@ -4382,9 +4399,24 @@ def run_talk_mode(sentence: str = None):
         open_words = G.DefinitionOpenDependencies(
             learned_version, definition, vocabulary, registry,
         )()
-        if M.IdentityCompare(open_words, M.EmptyList)() is M.false_value:
+        # The same filter the recording applies: a pack concept's
+        # name, a dialogue word, a function word, a defined word --
+        # none of them is undefined, and the answer must not say so.
+        answer_open_reversed = M.EmptyList
+        answer_scan = open_words
+        while M.IdentityCompare(
+            answer_scan, M.EmptyList,
+        )() is M.false_value:
+            open_word = M.Head(answer_scan)()
+            if not _word_is_anchor_known(open_word):
+                answer_open_reversed = M.Pair(
+                    open_word, answer_open_reversed,
+                )
+            answer_scan = M.Tail(answer_scan)()
+        answer_open = M.Reverse(answer_open_reversed)()
+        if M.IdentityCompare(answer_open, M.EmptyList)() is M.false_value:
             spoken = []
-            remaining_open = open_words
+            remaining_open = answer_open
             while M.IdentityCompare(
                 remaining_open, M.EmptyList,
             )() is M.false_value:
@@ -4693,6 +4725,14 @@ def run_talk_mode(sentence: str = None):
                     chain_scan = M.Tail(chain_scan)()
             if M.IdentityCompare(
                 G.BridgeFor(learned_version, form)(),
+                M.EmptyList,
+            )() is M.false_value:
+                return True
+            # A word the machine holds a definition for is known: the
+            # definition layer grounds it, and the asking layer has no
+            # question left to put to the trainer.
+            if M.IdentityCompare(
+                G.DefinitionFor(learned_version, form)(),
                 M.EmptyList,
             )() is M.false_value:
                 return True
