@@ -6368,13 +6368,19 @@ class TaughtDerivationSchema(M.Edge):
     carry its inputs across a checkpoint.
     """
 
-    def __init__(self, start_pattern, goal_pattern):
+    def __init__(self, start_pattern, goal_pattern, robustness):
         self.result = M.Pair(
             M.Char("taught-derivation-schema"),
-            M.Pair(start_pattern, M.Pair(goal_pattern, M.EmptyList)),
+            M.Pair(
+                start_pattern,
+                M.Pair(goal_pattern, M.Pair(robustness, M.EmptyList)),
+            ),
         )
         super().__init__(
-            inputs=M.Pair(start_pattern, M.Pair(goal_pattern, M.EmptyList)),
+            inputs=M.Pair(
+                start_pattern,
+                M.Pair(goal_pattern, M.Pair(robustness, M.EmptyList)),
+            ),
             results=self.result,
         )
 
@@ -6425,6 +6431,104 @@ class TaughtDerivationSchemaPlan(M.Edge):
         return self.result
 
 
+
+class TaughtDerivationSchemaRobustness(M.Edge):
+    def __init__(self, schema):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(schema)())())())()
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaCandidateCount(M.Edge):
+    def __init__(self, variables, total_text="1"):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
+        else:
+            self.result = SchemaCandidateCount(
+                M.Tail(variables)(),
+                GMPMulText(total_text, "5")(),
+            )()
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationRobustness(M.Edge):
+    """Auditable bounded validation count for a promoted residual schema."""
+
+    def __init__(self, goal_pattern):
+        total = SchemaCandidateCount(ResidualVariables(goal_pattern)())()
+        self.result = Robustness(goal_pattern, total, total)()
+        super().__init__(inputs=M.Pair(goal_pattern, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaConsultation(M.Edge):
+    def __init__(self, schema, start, goal):
+        self.result = M.Pair(
+            M.Char("schema-consultation"),
+            M.Pair(schema, M.Pair(start, M.Pair(goal, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(schema, M.Pair(start, M.Pair(goal, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+
+class SchemaPatternsEqual(M.Edge):
+    def __init__(self, left, right):
+        starts = M.Compare(
+            TaughtDerivationSchemaStart(left)(),
+            TaughtDerivationSchemaStart(right)(),
+        )()
+        goals = M.Compare(
+            TaughtDerivationSchemaGoal(left)(),
+            TaughtDerivationSchemaGoal(right)(),
+        )()
+        self.result = M.AndAtom(starts, goals)()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+class SchemaReuseCount(M.Edge):
+    def __init__(
+        self, records, schema, registry, count_text="0", scan_text="0",
+    ):
+        if M.IdentityCompare(records, M.EmptyList)() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(MINE_CANDIDATE_CAP)(),
+        )() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        else:
+            next_text = count_text
+            record = M.Head(records)()
+            recorded_schema = FiringRecordLaw(record)()
+            if IsTaughtDerivationSchema(recorded_schema)() is M.truth_value:
+                if SchemaPatternsEqual(
+                    recorded_schema, schema,
+                )() is M.truth_value:
+                    next_text = GMPSuccText(count_text)()
+            self.result = SchemaReuseCount(
+                M.Tail(records)(),
+                schema,
+                registry,
+                next_text,
+                GMPSuccText(scan_text)(),
+            )()
+        super().__init__(inputs=M.Pair(records, M.Pair(schema, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
 class InstalledTaughtDerivationSchemata(M.Edge):
     """Direct bounded GraphNodes scan; schema terms remain out of law stores."""
 
@@ -6456,10 +6560,22 @@ class InstalledTaughtDerivationSchemata(M.Edge):
 
 
 class LookupTaughtDerivationSchema(M.Edge):
-    def __init__(self, graph_version, start, goal, schemata=M.EmptyList, started=M.false_value):
+    def __init__(
+        self,
+        graph_version,
+        start,
+        goal,
+        schemata=M.EmptyList,
+        started=M.false_value,
+        scan_text="0",
+    ):
         if M.IdentityCompare(started, M.false_value)() is M.truth_value:
             schemata = InstalledTaughtDerivationSchemata(graph_version)()
         if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(MINE_CANDIDATE_CAP)(),
+        )() is M.truth_value:
             self.result = M.EmptyList
         else:
             schema = M.Head(schemata)()
@@ -6474,7 +6590,10 @@ class LookupTaughtDerivationSchema(M.Edge):
             if M.IdentityCompare(M.Head(merged)(), M.truth_value)() is M.truth_value:
                 self.result = M.Pair(
                     TaughtDerivationSchemaPlan(schema)(),
-                    M.Pair(M.Tail(merged)(), M.EmptyList),
+                    M.Pair(
+                        M.Tail(merged)(),
+                        M.Pair(schema, M.EmptyList),
+                    ),
                 )
             else:
                 self.result = LookupTaughtDerivationSchema(
@@ -6483,6 +6602,7 @@ class LookupTaughtDerivationSchema(M.Edge):
                     goal,
                     M.Tail(schemata)(),
                     M.truth_value,
+                    GMPSuccText(scan_text)(),
                 )()
         super().__init__(
             inputs=M.Pair(graph_version, M.Pair(start, M.Pair(goal, M.EmptyList))),
@@ -9351,17 +9471,22 @@ class MeasureReuse(M.Edge):
     """
 
     def __init__(self, ledger, handle, versions):
-        counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
-        total_text = "0"
-        remaining = counts
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            count = M.Head(remaining)()
-            total_text = GMPAddText(
-                total_text,
-                M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+        if IsTaughtDerivationSchema(handle)() is M.truth_value:
+            self.result = SchemaReuseCount(
+                ledger.records, handle, ledger.registry,
             )()
-            remaining = M.Tail(remaining)()
-        self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
+        else:
+            counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
+            total_text = "0"
+            remaining = counts
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                count = M.Head(remaining)()
+                total_text = GMPAddText(
+                    total_text,
+                    M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+                )()
+                remaining = M.Tail(remaining)()
+            self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
         super().__init__(
             inputs=M.Pair(handle, M.Pair(versions, M.EmptyList)),
             results=self.result,

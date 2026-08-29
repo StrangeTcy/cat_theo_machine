@@ -2986,6 +2986,64 @@ class MeasureCostSavings(M.Edge):
         return self.result
 
 
+
+class MiningIsTaughtDerivationSchema(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(
+                M.Head(term)(), M.Char("taught-derivation-schema"),
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+
+class MiningSchemaPatternsEqual(M.Edge):
+    def __init__(self, left, right):
+        left_start = M.Head(M.Tail(left)())()
+        right_start = M.Head(M.Tail(right)())()
+        left_goal = M.Head(M.Tail(M.Tail(left)())())()
+        right_goal = M.Head(M.Tail(M.Tail(right)())())()
+        self.result = M.AndAtom(
+            M.Compare(left_start, right_start)(),
+            M.Compare(left_goal, right_goal)(),
+        )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+class MiningSchemaReuseCount(M.Edge):
+    def __init__(self, records, schema, count_text="0", scan_text="0"):
+        if M.IdentityCompare(records, M.EmptyList)() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(METRIC_RECORD_SCAN_CAP)(),
+        )() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        else:
+            next_text = count_text
+            recorded_schema = FiringRecordLaw(M.Head(records)())()
+            if MiningIsTaughtDerivationSchema(
+                recorded_schema,
+            )() is M.truth_value:
+                if MiningSchemaPatternsEqual(
+                    recorded_schema, schema,
+                )() is M.truth_value:
+                    next_text = GMPSuccText(count_text)()
+            self.result = MiningSchemaReuseCount(
+                M.Tail(records)(),
+                schema,
+                next_text,
+                GMPSuccText(scan_text)(),
+            )()
+        super().__init__(inputs=M.Pair(records, M.Pair(schema, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
 class MeasureReuse(M.Edge):
     """Census count of one handle's pattern across a version history.
 
@@ -2994,17 +3052,22 @@ class MeasureReuse(M.Edge):
     """
 
     def __init__(self, ledger, handle, versions):
-        counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
-        total_text = "0"
-        remaining = counts
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            count = M.Head(remaining)()
-            total_text = GMPAddText(
-                total_text,
-                M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+        if MiningIsTaughtDerivationSchema(handle)() is M.truth_value:
+            self.result = MiningSchemaReuseCount(
+                ledger.records, handle,
             )()
-            remaining = M.Tail(remaining)()
-        self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
+        else:
+            counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
+            total_text = "0"
+            remaining = counts
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                count = M.Head(remaining)()
+                total_text = GMPAddText(
+                    total_text,
+                    M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+                )()
+                remaining = M.Tail(remaining)()
+            self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
         super().__init__(
             inputs=M.Pair(handle, M.Pair(versions, M.EmptyList)),
             results=self.result,

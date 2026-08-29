@@ -5552,7 +5552,7 @@ def run_talk_mode(sentence: str = None):
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
-        nonlocal pending_rule, learned_version, proposal_store
+        nonlocal pending_rule, learned_version, proposal_store, talk_ledger
         nonlocal pending_gaps
         nonlocal pending_process
         nonlocal pending_unknown_words, pending_unknown_word
@@ -5857,9 +5857,11 @@ def run_talk_mode(sentence: str = None):
                     M.VarTag,
                     M.Pair(M.Char("?schema-start"), M.EmptyList),
                 )
+                schema_goal = P.RuleReplacement(cand_rule)()
                 cand_payload = G.TaughtDerivationSchema(
                     schema_start,
-                    P.RuleReplacement(cand_rule)(),
+                    schema_goal,
+                    G.SchemaValidationRobustness(schema_goal)(),
                 )()
             else:
                 cand_payload = G.CompileDeductionToLaw(cand_rule)()
@@ -6299,7 +6301,27 @@ def run_talk_mode(sentence: str = None):
                 goal,
             )()
             if M.IdentityCompare(schema_hit, M.EmptyList)() is M.false_value:
+                schema = M.Head(M.Tail(M.Tail(schema_hit)())())()
+                consultation = G.SchemaConsultation(
+                    schema,
+                    P.Knowledge(facts)(),
+                    goal,
+                )()
+                talk_ledger.append(
+                    G.FiringRecord(
+                        schema,
+                        learned_version,
+                        learned_version,
+                        M.Pair(consultation, M.EmptyList),
+                        M.Zero,
+                        M.Zero,
+                        M.Zero,
+                        M.Zero,
+                        M.one,
+                    )(),
+                )
                 last_goal = goal
+                _persist_talk_state()
                 return (
                     "yes; derived " + line[6:].strip()
                     + " from an approved taught schema."
