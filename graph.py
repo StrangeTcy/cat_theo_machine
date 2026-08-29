@@ -6156,27 +6156,24 @@ class SuggestCandidateLemma(M.Edge):
         rest = M.Tail(rules)()
         replacement = P.RuleReplacement(rule)()
         repl_term = replacement
-        if M.IsPair(replacement)() is M.truth_value:
-            repl_term = M.Head(replacement)()
         repl_head = repl_term
         if M.IsPair(repl_term)() is M.truth_value:
             repl_head = M.Head(repl_term)()
         if M.Compare(repl_head, goal_head)() is M.truth_value:
             goal_match = M.Match(repl_term, goal)()
-            initial_bindings = M.EmptyList
             if M.IdentityCompare(M.Head(goal_match)(), M.truth_value)() is M.truth_value:
                 initial_bindings = M.Tail(goal_match)()
-            initial_fuel = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
-            partition = self._partition_premises(
-                P.RulePremises(rule)(), facts, initial_bindings, initial_fuel, registry,
-            )
-            sat = M.Head(partition)()
-            unmet = M.Head(M.Tail(partition)())()
-            if M.IdentityCompare(sat, M.EmptyList)() is M.false_value:
-                if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
-                    cand_conclusion = M.Head(unmet)()
-                    if self._is_sound_candidate(cand_conclusion, facts, registry) is M.truth_value:
-                        return P.MultiRule(sat, cand_conclusion)()
+                initial_fuel = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+                partition = self._partition_premises(
+                    P.RulePremises(rule)(), facts, initial_bindings, initial_fuel, registry,
+                )
+                sat = M.Head(partition)()
+                unmet = M.Head(M.Tail(partition)())()
+                if M.IdentityCompare(sat, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
+                        cand_conclusion = M.Head(unmet)()
+                        if self._is_sound_candidate(cand_conclusion, facts, registry) is M.truth_value:
+                            return P.MultiRule(sat, cand_conclusion)()
         return self._search_rules(rest, goal, goal_head, facts, registry)
 
     def _is_longer(self, c1, c2):

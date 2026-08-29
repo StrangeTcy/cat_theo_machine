@@ -6606,11 +6606,13 @@ def run_talk_mode(sentence: str = None):
                 )
             growing = M.truth_value
             rounds_text = "0"
+            chain_capped = M.false_value
             while M.IdentityCompare(
                 growing, M.truth_value,
             )() is M.truth_value:
                 if G.GMPEqualText(rounds_text, "2")() is M.truth_value:
                     growing = M.false_value
+                    chain_capped = M.truth_value
                 else:
                     rounds_text = G.GMPSuccText(rounds_text)()
                     goal_early = M.false_value
@@ -6754,6 +6756,14 @@ def run_talk_mode(sentence: str = None):
                     "no; " + line[6:].strip() + " is refuted -- its"
                     + " negation is derivable from the taught rules and"
                     + " the numeral words' own differences."
+                )
+            if M.IdentityCompare(
+                chain_capped, M.truth_value,
+            )() is M.truth_value:
+                return (
+                    "no; I could not derive " + line[6:].strip()
+                    + " within the forward-chaining cap. Ask 'why not "
+                    + line[6:].strip() + "?' for what is missing."
                 )
             return (
                 "no; I could not derive " + line[6:].strip()
