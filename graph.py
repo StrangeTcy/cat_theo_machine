@@ -31,7 +31,7 @@ from .firing import (
     FiringRecordG1, FiringRecordLaw, FiringRecordNodesAfter,
     FiringRecordNodesBefore, FiringRecordTrace, FiringRecordTraceSteps,
 )
-from .mining import MineNatFromGMPRep, MineNatSuccessor, MineNatAdd
+from .mining import MineNatFromGMPRep, MineNatSuccessor, MineNatAdd, MINE_CANDIDATE_CAP
 from .deduction import DeductionPlan, DeltaAgenda, IndexedFiring
 
 
@@ -6147,27 +6147,37 @@ class SuggestCandidateLemma(M.Edge):
         goal_head = goal
         if M.IsPair(goal)() is M.truth_value:
             goal_head = M.Head(goal)()
-        return self._search_rules(rules, goal_head, facts, registry)
+        return self._search_rules(rules, goal, goal_head, facts, registry)
 
-    def _search_rules(self, rules, goal_head, facts, registry):
+    def _search_rules(self, rules, goal, goal_head, facts, registry):
         if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         rule = M.Head(rules)()
         rest = M.Tail(rules)()
         replacement = P.RuleReplacement(rule)()
+        repl_term = replacement
         if M.IsPair(replacement)() is M.truth_value:
-            if M.Compare(M.Head(replacement)(), goal_head)() is M.truth_value:
-                partition = self._partition_premises(
-                    P.RulePremises(rule)(), facts, M.EmptyList,
-                )
-                sat = M.Head(partition)()
-                unmet = M.Head(M.Tail(partition)())()
-                if M.IdentityCompare(sat, M.EmptyList)() is M.false_value:
-                    if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
-                        cand_conclusion = M.Head(unmet)()
-                        if self._is_sound_candidate(cand_conclusion, facts, registry) is M.truth_value:
-                            return P.MultiRule(sat, cand_conclusion)()
-        return self._search_rules(rest, goal_head, facts, registry)
+            repl_term = M.Head(replacement)()
+        repl_head = repl_term
+        if M.IsPair(repl_term)() is M.truth_value:
+            repl_head = M.Head(repl_term)()
+        if M.Compare(repl_head, goal_head)() is M.truth_value:
+            goal_match = M.Match(repl_term, goal)()
+            initial_bindings = M.EmptyList
+            if M.IdentityCompare(M.Head(goal_match)(), M.truth_value)() is M.truth_value:
+                initial_bindings = M.Tail(goal_match)()
+            initial_fuel = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+            partition = self._partition_premises(
+                P.RulePremises(rule)(), facts, initial_bindings, initial_fuel, registry,
+            )
+            sat = M.Head(partition)()
+            unmet = M.Head(M.Tail(partition)())()
+            if M.IdentityCompare(sat, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
+                    cand_conclusion = M.Head(unmet)()
+                    if self._is_sound_candidate(cand_conclusion, facts, registry) is M.truth_value:
+                        return P.MultiRule(sat, cand_conclusion)()
+        return self._search_rules(rest, goal, goal_head, facts, registry)
 
     def _is_longer(self, c1, c2):
         if M.IdentityCompare(c1, M.EmptyList)() is M.truth_value:
@@ -6176,39 +6186,54 @@ class SuggestCandidateLemma(M.Edge):
             return M.truth_value
         return self._is_longer(M.Tail(c1)(), M.Tail(c2)())
 
-    def _partition_premises(self, premises, facts, bindings):
+    def _partition_premises(self, premises, facts, bindings, fuel, registry):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(premises, M.EmptyList))
+        pred_pair = M.NatPred(fuel, registry)()
+        next_fuel = M.Head(pred_pair)()
+        next_registry = M.Head(M.Tail(pred_pair)())()
         prem = M.Head(premises)()
         new_bindings_chain = P.JoinPremises(
             M.Pair(prem, M.EmptyList), facts, bindings,
         )()
         if M.IdentityCompare(new_bindings_chain, M.EmptyList)() is M.false_value:
             return self._try_binding_alternatives(
-                prem, M.Tail(premises)(), facts, new_bindings_chain,
+                prem, M.Tail(premises)(), facts, new_bindings_chain, next_fuel, next_registry,
             )
         else:
+            unmet_prem = M.Head(M.Instantiate(prem, bindings)())()
             rest = self._partition_premises(
-                M.Tail(premises)(), facts, bindings,
+                M.Tail(premises)(), facts, bindings, next_fuel, next_registry,
             )
             sat = M.Head(rest)()
             unmet = M.Head(M.Tail(rest)())()
-            return M.Pair(sat, M.Pair(M.Pair(prem, unmet), M.EmptyList))
+            return M.Pair(sat, M.Pair(M.Pair(unmet_prem, unmet), M.EmptyList))
 
-    def _try_binding_alternatives(self, prem, rest_premises, facts, bindings_chain):
+    def _try_binding_alternatives(self, prem, rest_premises, facts, bindings_chain, fuel, registry):
         if M.IdentityCompare(bindings_chain, M.EmptyList)() is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            inst = M.Head(M.Instantiate(prem, M.Head(bindings_chain)())())()
+            return M.Pair(M.Pair(inst, M.EmptyList), M.Pair(rest_premises, M.EmptyList))
         cand_binding = M.Head(bindings_chain)()
-        rest_partition = self._partition_premises(rest_premises, facts, cand_binding)
+        pred_pair = M.NatPred(fuel, registry)()
+        next_fuel = M.Head(pred_pair)()
+        next_registry = M.Head(M.Tail(pred_pair)())()
+        cand_inst = M.Head(M.Instantiate(prem, cand_binding)())()
+        rest_partition = self._partition_premises(
+            rest_premises, facts, cand_binding, next_fuel, next_registry,
+        )
         first_partition = M.Pair(
-            M.Pair(prem, M.Head(rest_partition)()),
+            M.Pair(cand_inst, M.Head(rest_partition)()),
             M.Pair(M.Head(M.Tail(rest_partition)()), M.EmptyList),
         )
         more_bindings = M.Tail(bindings_chain)()
         if M.IdentityCompare(more_bindings, M.EmptyList)() is M.truth_value:
             return first_partition
         other_partition = self._try_binding_alternatives(
-            prem, rest_premises, facts, more_bindings,
+            prem, rest_premises, facts, more_bindings, next_fuel, next_registry,
         )
         if self._is_longer(M.Head(other_partition)(), M.Head(first_partition)()) is M.truth_value:
             return other_partition
@@ -6297,7 +6322,12 @@ class SuggestCandidateLemma(M.Edge):
                 if GMPLessText(t2, a_squared)() is M.truth_value:
                     return M.truth_value
 
-        if M.Compare(head, M.Char("divisible"))() is M.truth_value:
+        is_divisible = M.Compare(head, M.Char("divisible"))()
+        if is_divisible is M.false_value:
+            is_divisible = M.Compare(head, Lmod.DividesLabel)()
+        if is_divisible is M.false_value:
+            is_divisible = M.Compare(head, M.Char("Divides"))()
+        if is_divisible is M.truth_value:
             trailing = M.Tail(M.Tail(args)())()
             if M.IdentityCompare(trailing, M.EmptyList)() is M.false_value:
                 arg3 = M.Head(trailing)()
