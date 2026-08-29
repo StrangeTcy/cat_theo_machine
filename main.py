@@ -7033,7 +7033,13 @@ def run_talk_mode(sentence: str = None):
             while M.IdentityCompare(
                 growing, M.truth_value,
             )() is M.truth_value:
-                if G.GMPEqualText(rounds_text, "2")() is M.truth_value:
+                # The saturation bound: a taught chain of any real
+                # depth -- the sieve's substrate, e3's invariant
+                # argument -- closes in a handful of rounds, and the
+                # loop already stops early when the goal is reached or
+                # nothing new grows. Two rounds starved exactly those
+                # chains; the bound is a ceiling, not a step budget.
+                if G.GMPEqualText(rounds_text, "200")() is M.truth_value:
                     growing = M.false_value
                     chain_capped = M.truth_value
                 else:
