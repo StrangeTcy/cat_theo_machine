@@ -4579,8 +4579,29 @@ def run_talk_mode(sentence: str = None):
 
     def _word_is_known(word_atom):
         """A word the machine already holds: the vocabulary resolves
-        it, the version carries a grounding taught for it, or a bridge
-        already links it to a constructor."""
+        it, the version carries a grounding taught for it, a bridge
+        already links it to a constructor, or its own grammar gives it
+        a structural role -- articles and copulas are the glue of
+        every definition it reads, not words wanting meanings."""
+        grammar_words = M.Pair(
+            M.Head(ARTICLE_WORDS)(),
+            M.Pair(
+                M.Head(M.Tail(ARTICLE_WORDS)())(),
+                M.Pair(
+                    M.Head(M.Tail(M.Tail(ARTICLE_WORDS)())())(),
+                    COPULA_WORDS,
+                ),
+            ),
+        )
+        grammar_scan = grammar_words
+        while M.IdentityCompare(
+            grammar_scan, M.EmptyList,
+        )() is M.false_value:
+            if M.Compare(
+                M.Head(grammar_scan)(), word_atom,
+            )() is M.truth_value:
+                return True
+            grammar_scan = M.Tail(grammar_scan)()
         if M.IdentityCompare(
             G.BridgeFor(learned_version, word_atom)(),
             M.EmptyList,
@@ -6030,6 +6051,12 @@ def run_talk_mode(sentence: str = None):
                 if M.Compare(
                     problem_word, M.Char(","),
                 )() is M.truth_value:
+                    continue
+                if _word_is_known(problem_word):
+                    problem_known.append(problem_word)
+                    if len(current_run) > 1:
+                        problem_numbers.append(list(current_run))
+                    current_run = []
                     continue
                 resolved = G.CorrespondenceResolveWord(
                     word_entries,
