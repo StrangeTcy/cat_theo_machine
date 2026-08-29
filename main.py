@@ -5259,6 +5259,67 @@ def run_talk_mode(sentence: str = None):
         except Exception:
             return "?"
 
+    def _arithmetic_rule_text(term):
+        """An add/sub term as the machine's own rule syntax speaks it."""
+        if M.IsPair(term)() is M.truth_value:
+            operator = str(M.Head(term)()())
+            left = M.Head(M.Tail(term)())()
+            right = M.Head(M.Tail(M.Tail(term)())())()
+            return (
+                operator
+                + "("
+                + _arithmetic_rule_text(left)
+                + ", "
+                + _arithmetic_rule_text(right)
+                + ")"
+            )
+        return str(term())
+
+    def _arithmetic_sign_pairs(term):
+        """The sectors of an add/sub expression with the sign each
+        carries -- the leftmost is the expression's own positive head,
+        each later sector the sign of the operator above it."""
+        pairs = []
+        if M.IsPair(term)() is not M.truth_value:
+            pairs.append((term, "plus"))
+            return pairs
+        pairs.extend(_arithmetic_sign_pairs(M.Head(M.Tail(term)())()))
+        operator = str(M.Head(term)()())
+        sign = "plus" if operator == "add" else "minus"
+        pairs.append((M.Head(M.Tail(M.Tail(term)())())(), sign))
+        return pairs
+
+    def _arithmetic_releafed(term, leaf):
+        """The same expression with every leaf replaced by one word."""
+        if M.IsPair(term)() is not M.truth_value:
+            return leaf
+        operator = M.Head(term)()
+        left = M.Head(M.Tail(term)())()
+        right = M.Head(M.Tail(M.Tail(term)())())()
+        return M.Pair(
+            operator,
+            M.Pair(
+                _arithmetic_releafed(left, leaf),
+                M.Pair(_arithmetic_releafed(right, leaf), M.EmptyList),
+            ),
+        )
+
+    def _arithmetic_value_text(term, leaf_value_text):
+        """The expression's value by the machine's own text arithmetic,
+        every leaf standing for one chosen number."""
+        if M.IsPair(term)() is not M.truth_value:
+            return leaf_value_text
+        operator = str(M.Head(term)()())
+        left = _arithmetic_value_text(
+            M.Head(M.Tail(term)())(), leaf_value_text,
+        )
+        right = _arithmetic_value_text(
+            M.Head(M.Tail(M.Tail(term)())())(), leaf_value_text,
+        )
+        if operator == "add":
+            return G.GMPAddText(left, right)()
+        return G.GMPSubText(left, right)()
+
     def _run_invariant_sweep():
         """Run the sweep and speak what it returns, as terms."""
         nonlocal learned_version
@@ -5367,6 +5428,13 @@ def run_talk_mode(sentence: str = None):
             findings, M.EmptyList,
         )() is M.truth_value:
             reply_lines.append("Nothing stayed unchanged.")
+        if M.IdentityCompare(
+            findings, M.EmptyList,
+        )() is M.false_value:
+            reply_lines.append(
+                "Say 'prove the problem' and I will try to answer it"
+                + " with what I found."
+            )
         findings_scan = findings
         while M.IdentityCompare(
             findings_scan, M.EmptyList,
@@ -6085,6 +6153,7 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_gaps
         nonlocal pending_process
         nonlocal pending_unknown_words, pending_unknown_word
+        nonlocal pending_queue
         lowered = line.lower()
         # A bare line at the prompt answers the problem question that
         # stands: the numbers, the pairs a move touches, or the step.
@@ -6108,6 +6177,7 @@ def run_talk_mode(sentence: str = None):
             # swallows one.
             is_command = (
                 lowered.startswith("suggest ")
+                or lowered.startswith("prove the problem")
                 or lowered.startswith("bridge ")
                 or lowered.startswith("why not ")
                 or lowered.startswith("explain ")
@@ -6493,6 +6563,291 @@ def run_talk_mode(sentence: str = None):
                     " Every word in it is known to me."
                 )
             return reply_text + _ask_next_line()
+        if lowered.startswith("prove the problem"):
+            # The machine answers the problem with what it found
+            # itself. The signs are read out of its own expression,
+            # the ring out of its own neighbor facts, the invariant's
+            # value and the equalized value out of its own arithmetic,
+            # the goal out of its own grounding of the problem's
+            # question word. The rules are composed from that data,
+            # parsed by the machine's own rule reader, and each one is
+            # proposed for approval; the trainer decides, the machine
+            # supplies the mathematics.
+            holds, neighbors, step_text = _problem_state()
+            if not holds or not neighbors or step_text is M.EmptyList:
+                parts_missing = _missing_problem_parts()
+                if parts_missing != "":
+                    _push_ask("problem", parts_missing)
+                    return (
+                        "The problem is not fully held yet."
+                        + _ask_next_line()
+                    )
+                return "The problem is not fully held yet."
+            holds_chain = M.EmptyList
+            for sector, value_text in reversed(holds):
+                holds_chain = M.Pair(
+                    M.Pair(
+                        sector, M.Pair(M.Char(value_text), M.EmptyList),
+                    ),
+                    holds_chain,
+                )
+            neighbors_chain = M.EmptyList
+            for sector_a, sector_b in reversed(neighbors):
+                neighbors_chain = M.Pair(
+                    M.Pair(
+                        sector_a, M.Pair(sector_b, M.EmptyList),
+                    ),
+                    neighbors_chain,
+                )
+            sweep_outcome = G.SuggestInvariants(
+                holds_chain, neighbors_chain, M.Char(step_text),
+            )()
+            findings = M.Head(sweep_outcome)()
+            if M.IdentityCompare(
+                findings, M.EmptyList,
+            )() is M.truth_value:
+                return (
+                    "I have no invariant of my own to prove with."
+                    + " Say 'suggest invariants' and I will look."
+                )
+            finding = M.Head(findings)()
+            findings_rest = M.Tail(findings)()
+            while M.IdentityCompare(
+                findings_rest, M.EmptyList,
+            )() is M.false_value:
+                candidate = M.Head(findings_rest)()
+                if M.IdentityCompare(
+                    M.Head(M.Tail(M.Tail(candidate)())())(),
+                    M.truth_value,
+                )() is M.truth_value:
+                    finding = candidate
+                    findings_rest = M.EmptyList
+                else:
+                    findings_rest = M.Tail(findings_rest)()
+            expression = M.Head(finding)()
+            constant_rep = M.Head(M.Tail(finding)())()
+            constant_word = _numeral_word_of_value(
+                M.GMPRepText(constant_rep)(),
+            )
+            if constant_word is M.EmptyList:
+                return "I could not speak my invariant's value."
+            step_word = _numeral_word_of_value(step_text)
+            if step_word is M.EmptyList:
+                return "I could not speak the step's value."
+            one_word = _numeral_word_of_value("1")
+            # the signs, read out of the machine's own expression
+            sign_texts = []
+            for sector, sign in _arithmetic_sign_pairs(expression):
+                sign_fact = M.Pair(
+                    M.Char("sign"),
+                    M.Pair(sector, M.Pair(M.Char(sign), M.EmptyList)),
+                )
+                installed = G.InstallTaughtFact(
+                    learned_version, sign_fact,
+                )()
+                learned_version = M.Head(installed)()
+                sign_texts.append(
+                    "sign(" + str(sector()) + ", " + sign + ")",
+                )
+            # the invariant's value, the machine's own computation
+            value_fact = M.Pair(
+                M.Char("same"),
+                M.Pair(expression, M.Pair(constant_word, M.EmptyList)),
+            )
+            installed = G.InstallTaughtFact(
+                learned_version, value_fact,
+            )()
+            learned_version = M.Head(installed)()
+            # the equalized board: every number the same, the value the
+            # machine's own arithmetic computes
+            equalized_value_text = _arithmetic_value_text(
+                expression, "1",
+            )
+            goal_value_word = _numeral_word_of_value(
+                equalized_value_text,
+            )
+            if goal_value_word is M.EmptyList:
+                return "I could not speak the equal board's value."
+            # the goal, read out of the machine's own grounding of the
+            # problem's question word
+            goal_word = M.EmptyList
+            fact_scan = G.InstalledTaughtFacts(learned_version)()
+            while M.IdentityCompare(
+                fact_scan, M.EmptyList,
+            )() is M.false_value:
+                fact = M.Head(fact_scan)()
+                if M.IsPair(fact)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(fact)(), Lmod.IsALabel,
+                    )() is M.truth_value:
+                        if M.Compare(
+                            M.Head(M.Tail(fact)())(),
+                            M.Char("possible"),
+                        )() is M.truth_value:
+                            compound = M.Head(
+                                M.Tail(M.Tail(fact)())(),
+                            )()
+                            for part in str(compound()).split("_"):
+                                if part and not _word_is_anchor_known(
+                                    M.Char(part),
+                                ):
+                                    goal_word = M.Char(part)
+                                    break
+                            fact_scan = M.EmptyList
+                            continue
+                fact_scan = M.Tail(fact_scan)()
+            if goal_word is M.EmptyList:
+                return (
+                    "I cannot read the problem's goal from my words"
+                    + " yet. Ground 'possible' with what the moves"
+                    + " would have to do."
+                )
+            goal_fact = M.Pair(
+                M.Char("goal"), M.Pair(goal_word, M.EmptyList),
+            )
+            installed = G.InstallTaughtFact(
+                learned_version, goal_fact,
+            )()
+            learned_version = M.Head(installed)()
+            # the rules, composed from the machine's own data
+            expr_text = _arithmetic_rule_text(expression)
+            step_text_word = str(step_word())
+            constant_text_word = str(constant_word())
+            goal_text_word = str(goal_word())
+            goal_value_text_word = str(goal_value_word())
+            ring_premises = []
+            for sector_a, sector_b in neighbors:
+                ring_premises.append(
+                    "preserved("
+                    + str(sector_a())
+                    + ", "
+                    + str(sector_b())
+                    + ")"
+                )
+            composed_texts = [
+                "neighbor(a, b), sign(a, plus), sign(b, minus), "
+                "same(sub(" + step_text_word + ", " + step_text_word
+                + "), zero) -> preserved(a, b)",
+                "neighbor(a, b), sign(a, minus), sign(b, plus), "
+                "same(sub(" + step_text_word + ", " + step_text_word
+                + "), zero) -> preserved(a, b)",
+                ", ".join(ring_premises) + " -> invariant(" + expr_text + ")",
+                "invariant(" + expr_text + "), same(" + expr_text + ", "
+                + constant_text_word + "), not(same(" + constant_text_word
+                + ", " + goal_value_text_word + ")) -> never(" + expr_text
+                + ", " + goal_value_text_word + ")",
+                "goal(" + goal_text_word + ") -> requires("
+                + goal_text_word + ", " + goal_value_text_word + ")",
+                "requires(" + goal_text_word + ", n), never(" + expr_text
+                + ", n) -> impossible(" + goal_text_word + ")",
+            ]
+            known_constructors = G.RuleConstructors(
+                learned_version, pack_concepts,
+            )()
+            proposal_lines = []
+            for composed_text in composed_texts:
+                parsed_rule = G.ParseRuleText(
+                    composed_text,
+                    reading_policy,
+                    reading_digits,
+                    known_constructors,
+                )()
+                rule = M.Head(parsed_rule)()
+                if M.IdentityCompare(
+                    rule, M.EmptyList,
+                )() is M.truth_value:
+                    return (
+                        "I could not compose my own rule: "
+                        + composed_text
+                    )
+                law = G.CompileDeductionToLaw(rule)()
+                if M.IdentityCompare(
+                    law, M.EmptyList,
+                )() is M.truth_value:
+                    return (
+                        "I could not compile my own rule: "
+                        + composed_text
+                    )
+                # A machine-composed rule is a dialogue rule: the
+                # origin's word decides how the activation installs,
+                # and anything but a dialogue rule installs the law
+                # without the taught-rule record the query machinery
+                # reads. The composition's provenance rides the
+                # justification, not the origin.
+                proposal = G.Proposal(
+                    law,
+                    M.Pair(
+                        M.Char("dialogue-rule"),
+                        M.Pair(
+                            P.RulePremises(rule)(),
+                            M.Pair(
+                                P.RuleReplacement(rule)(), M.EmptyList,
+                            ),
+                        ),
+                    ),
+                )()
+                proposal_store = G.ProposalStoreAttach(
+                    proposal_store,
+                    proposal,
+                    G.JustifiedBy(
+                        proposal,
+                        M.Pair(
+                            M.Char("machine"),
+                            M.Pair(
+                                M.Char(
+                                    "composed from my own invariant: "
+                                    + _speak_arithmetic(expression)
+                                    + " stays "
+                                    + constant_text_word,
+                                ),
+                                M.EmptyList,
+                            ),
+                        ),
+                    )(),
+                )()
+                proposal_store = G.ProposalStoreSubmit(
+                    proposal_store, proposal,
+                )()
+                pending_queue = M.Reverse(
+                    M.Pair(
+                        M.Pair(
+                            proposal,
+                            M.Pair(
+                                "I propose a deduction rule: "
+                                + composed_text
+                                + ". I composed it from my own"
+                                + " invariant. Approve? (yes/no)",
+                                M.EmptyList,
+                            ),
+                        ),
+                        M.Reverse(pending_queue)(),
+                    ),
+                )()
+                _push_ask(
+                    "rule",
+                    "I propose a deduction rule: " + composed_text
+                    + ". I composed it from my own invariant."
+                    + " Approve? (yes/no)",
+                )
+                proposal_lines.append(composed_text)
+            if record:
+                _log_lesson(line)
+            _persist_talk_state()
+            return (
+                "From my own expression I read the signs: "
+                + "; ".join(sign_texts)
+                + ". My expression computes "
+                + constant_text_word
+                + "; an equal board, every number one, computes "
+                + goal_value_text_word
+                + ". The problem asks whether the moves can "
+                + goal_text_word
+                + ", so goal(" + goal_text_word + ") is recorded. "
+                + "I composed "
+                + str(len(proposal_lines))
+                + " rules from my finding; each needs your approval."
+                + _ask_next_line()
+            )
         if lowered.startswith("suggest invariants"):
             # The machine explores its own reach and returns what
             # never changes, as terms: the sweep itself runs in the
