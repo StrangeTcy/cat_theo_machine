@@ -2685,6 +2685,44 @@ class RobustnessPassed(M.Edge):
         return self.result
 
 
+
+class MiningDurableTermEqual(M.Edge):
+    def __init__(self, left, right, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        if M.IdentityCompare(left, right)() is M.truth_value:
+            self.result = M.truth_value
+        elif M.AndAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            self.result = M.AndAtom(
+                MiningDurableTermEqual(
+                    M.Head(left)(), M.Head(right)(), registry,
+                )(),
+                MiningDurableTermEqual(
+                    M.Tail(left)(), M.Tail(right)(), registry,
+                )(),
+            )()
+        elif M.OrAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_rep = M.NatRepOf(left, registry)()
+            right_rep = M.NatRepOf(right, registry)()
+            if M.IdentityCompare(left_rep, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(right_rep, M.EmptyList)() is M.false_value:
+                    self.result = GMPEqualText(
+                        M.GMPRepText(left_rep)(),
+                        M.GMPRepText(right_rep)(),
+                    )()
+                else:
+                    self.result = M.false_value
+            else:
+                self.result = M.Compare(left, right)()
+        super().__init__(
+            inputs=M.Pair(left, M.Pair(right, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 class InstalledRobustness(M.Edge):
     """Newest installed Robustness term for a law, or EmptyList."""
 
@@ -2716,9 +2754,10 @@ class InstalledRobustness(M.Edge):
                             element_scan_text = GMPSuccText(element_scan_text)()
                             element = M.Head(remaining_elements)()
                             if IsRobustness(element)() is M.truth_value:
-                                if M.TermEqual(
+                                if MiningDurableTermEqual(
                                     RobustnessLaw(element)(),
                                     law,
+                                    M.AllConstructors,
                                 )() is M.truth_value:
                                     self.result = element
                                     remaining_elements = M.EmptyList
@@ -2963,7 +3002,9 @@ class MeasureCostSavings(M.Edge):
             else:
                 scan_text = GMPSuccText(scan_text)()
                 record = M.Head(remaining)()
-                if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                if MiningDurableTermEqual(
+                    FiringRecordLaw(record)(), law, registry,
+                )() is M.truth_value:
                     before_text = M.GMPRepText(
                         M.NatRepOf(FiringRecordNodesBefore(record)(), registry)(),
                     )()
@@ -2986,6 +3027,64 @@ class MeasureCostSavings(M.Edge):
         return self.result
 
 
+
+class MiningIsTaughtDerivationSchema(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(
+                M.Head(term)(), M.Char("taught-derivation-schema"),
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+
+class MiningSchemaPatternsEqual(M.Edge):
+    def __init__(self, left, right):
+        left_start = M.Head(M.Tail(left)())()
+        right_start = M.Head(M.Tail(right)())()
+        left_goal = M.Head(M.Tail(M.Tail(left)())())()
+        right_goal = M.Head(M.Tail(M.Tail(right)())())()
+        self.result = M.AndAtom(
+            M.Compare(left_start, right_start)(),
+            M.Compare(left_goal, right_goal)(),
+        )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+class MiningSchemaReuseCount(M.Edge):
+    def __init__(self, records, schema, count_text="0", scan_text="0"):
+        if M.IdentityCompare(records, M.EmptyList)() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(METRIC_RECORD_SCAN_CAP)(),
+        )() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        else:
+            next_text = count_text
+            recorded_schema = FiringRecordLaw(M.Head(records)())()
+            if MiningIsTaughtDerivationSchema(
+                recorded_schema,
+            )() is M.truth_value:
+                if MiningSchemaPatternsEqual(
+                    recorded_schema, schema,
+                )() is M.truth_value:
+                    next_text = GMPSuccText(count_text)()
+            self.result = MiningSchemaReuseCount(
+                M.Tail(records)(),
+                schema,
+                next_text,
+                GMPSuccText(scan_text)(),
+            )()
+        super().__init__(inputs=M.Pair(records, M.Pair(schema, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
 class MeasureReuse(M.Edge):
     """Census count of one handle's pattern across a version history.
 
@@ -2994,17 +3093,22 @@ class MeasureReuse(M.Edge):
     """
 
     def __init__(self, ledger, handle, versions):
-        counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
-        total_text = "0"
-        remaining = counts
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            count = M.Head(remaining)()
-            total_text = GMPAddText(
-                total_text,
-                M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+        if MiningIsTaughtDerivationSchema(handle)() is M.truth_value:
+            self.result = MiningSchemaReuseCount(
+                ledger.records, handle,
             )()
-            remaining = M.Tail(remaining)()
-        self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
+        else:
+            counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
+            total_text = "0"
+            remaining = counts
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                count = M.Head(remaining)()
+                total_text = GMPAddText(
+                    total_text,
+                    M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+                )()
+                remaining = M.Tail(remaining)()
+            self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
         super().__init__(
             inputs=M.Pair(handle, M.Pair(versions, M.EmptyList)),
             results=self.result,

@@ -1533,6 +1533,10 @@ class GapOpen(M.Edge):
         elif M.Compare(gap_head, Lmod.UndefinedConceptLabel)() is M.truth_value:
             if M.IdentityCompare(known_concept, M.truth_value)() is M.false_value:
                 self.result = M.truth_value
+        elif M.Compare(gap_head, Lmod.ResidualGapLabel)() is M.truth_value:
+            self.result = M.truth_value
+            if M.IdentityCompare(fact_head_match, M.truth_value)() is M.truth_value:
+                self.result = M.false_value
         elif M.Compare(gap_head, Lmod.NoUsageExampleLabel)() is M.truth_value:
             if M.IdentityCompare(usage, M.truth_value)() is M.false_value:
                 self.result = M.truth_value
@@ -1923,15 +1927,19 @@ class InstallGap(M.Edge):
     """Store a detected gap once in the learned graph."""
 
     def __init__(self, graph_version, gap):
-        known = InstalledGaps(graph_version)()
         found = M.false_value
-        scan = known
-        while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
-            if M.Compare(M.Head(scan)(), gap)() is M.truth_value:
-                found = M.truth_value
-                scan = M.EmptyList
-            else:
-                scan = M.Tail(scan)()
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.Compare(
+                    node_head, Lmod.GapRecordLabel,
+                )() is M.truth_value:
+                    if M.Compare(GapRecordGap(node)(), gap)() is M.truth_value:
+                        found = M.truth_value
+                        agenda = M.EmptyList
         if M.IdentityCompare(found, M.truth_value)() is M.truth_value:
             self.result = graph_version
         else:
@@ -1969,6 +1977,10 @@ class GapRenderLaws(M.Edge):
             Lmod.NoUsageExampleLabel,
             M.Pair(var_c, empty),
         )
+        residual = M.Pair(
+            Lmod.ResidualGapLabel,
+            M.Pair(var_c, empty),
+        )
         undefined_surface = M.Pair(
             Lmod.SurfaceLabel,
             M.Pair(
@@ -1977,6 +1989,22 @@ class GapRenderLaws(M.Edge):
                     M.Pair(
                         M.Char("is"),
                         M.Pair(var_c, M.Pair(M.Char("?"), empty)),
+                    ),
+                ),
+                empty,
+            ),
+        )
+        residual_surface = M.Pair(
+            Lmod.SurfaceLabel,
+            M.Pair(
+                M.Pair(
+                    M.Char("what"),
+                    M.Pair(
+                        M.Char("lemma"),
+                        M.Pair(
+                            M.Char("proves"),
+                            M.Pair(var_c, M.Pair(M.Char("?"), empty)),
+                        ),
                     ),
                 ),
                 empty,
@@ -2011,10 +2039,13 @@ class GapRenderLaws(M.Edge):
         self.result = M.Pair(
             CompileRuleToLaw(P.Rule(undefined, undefined_surface))(),
             M.Pair(
-                CompileRuleToLaw(P.Rule(modifier, modifier_surface))(),
+                CompileRuleToLaw(P.Rule(residual, residual_surface))(),
                 M.Pair(
-                    CompileRuleToLaw(P.Rule(no_usage, usage_surface))(),
-                    empty,
+                    CompileRuleToLaw(P.Rule(modifier, modifier_surface))(),
+                    M.Pair(
+                        CompileRuleToLaw(P.Rule(no_usage, usage_surface))(),
+                        empty,
+                    ),
                 ),
             ),
         )
@@ -2153,16 +2184,19 @@ class GapRankPriority(M.Edge):
         priority_chain = M.Pair(
             Lmod.UndefinedConceptLabel,
             M.Pair(
-                Lmod.NoParentLabel,
+                Lmod.ResidualGapLabel,
                 M.Pair(
-                    Lmod.UngroundedModifierLabel,
+                    Lmod.NoParentLabel,
                     M.Pair(
-                        Lmod.NoUsageExampleLabel,
+                        Lmod.UngroundedModifierLabel,
                         M.Pair(
-                            Lmod.DanglingReferenceLabel,
+                            Lmod.NoUsageExampleLabel,
                             M.Pair(
-                                Lmod.MissingRenderLawLabel,
-                                M.EmptyList,
+                                Lmod.DanglingReferenceLabel,
+                                M.Pair(
+                                    Lmod.MissingRenderLawLabel,
+                                    M.EmptyList,
+                                ),
                             ),
                         ),
                     ),

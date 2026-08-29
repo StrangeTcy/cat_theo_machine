@@ -312,7 +312,11 @@ class FireAny(M.Edge):
         remaining = laws
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             law = M.Head(remaining)()
-            mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
+            mapping = M.EmptyList
+            if M.IdentityCompare(
+                GraphNodes(LawLeft(law)())(), M.EmptyList,
+            )() is M.false_value:
+                mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
             active_law = law
             if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
                 bindings = LawMatchBindings(law, mapping)()
@@ -545,9 +549,13 @@ class SaturateLaws(M.Edge):
                         law_scan_text = GMPSuccText(law_scan_text)()
                         law = M.Head(remaining_laws)()
                         match_scan_text = "0"
-                        remaining_matches = CompletedMatches(
-                            LawLeft(law)(), current, match_cap_text,
-                        )()
+                        remaining_matches = M.EmptyList
+                        if M.IdentityCompare(
+                            GraphNodes(LawLeft(law)())(), M.EmptyList,
+                        )() is M.false_value:
+                            remaining_matches = CompletedMatches(
+                                LawLeft(law)(), current, match_cap_text,
+                            )()
                         while M.IdentityCompare(
                             remaining_matches, M.EmptyList,
                         )() is M.false_value:

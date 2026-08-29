@@ -1107,6 +1107,11 @@ def _teach_runtime_taught_rules(runtime, taught_version=M.EmptyList):
         stepped = M.Succ(taught_count, M.FromContextGetConstructors(runtime.graph)())()
         taught_count = M.Head(stepped)()
         remaining = M.Tail(remaining)()
+    taught_count = G.AddTaughtDerivationSchemata(
+        runtime.graph,
+        G.InstalledTaughtDerivationSchemata(taught_version)(),
+        taught_count,
+    )()
     taught_text = M.GMPRepText(
         M.NatRepOf(taught_count, M.FromContextGetConstructors(runtime.graph)())(),
     )()
@@ -1410,6 +1415,164 @@ def run_talk_mode(sentence: str = None):
         head_entry = M.Head(pending_asks)()
         prompt_atom = M.Head(M.Tail(head_entry)())()
         return " " + str(prompt_atom())
+
+    # Read-back: the daemon is the only writer of the shared state, so
+    # this process adopts its writes. At each turn the checkpoint's
+    # stamp is checked; when the daemon has written, its version, its
+    # proposals, and its firing ledger merge into memory through the
+    # same idempotent union the daemon itself applies.
+    last_state_stamp = 0.0
+    if os.path.exists(talk_checkpoint_path):
+        last_state_stamp = os.path.getmtime(talk_checkpoint_path)
+
+    def _machine_ask_text(proposal):
+        """The question a machine-found correspondence puts to the human."""
+        payload = G.ProposalLaw(proposal)()
+        if G.IsRuleUnification(payload)() is M.truth_value:
+            keep_rule = P.PrettyRule(
+                P.MultiRule(
+                    G.RuleUnificationKeepPremises(payload)(),
+                    G.RuleUnificationKeepReplacement(payload)(),
+                )(),
+                registry,
+            )()
+            retire_rule = P.PrettyRule(
+                P.MultiRule(
+                    G.RuleUnificationRetirePremises(payload)(),
+                    G.RuleUnificationRetireReplacement(payload)(),
+                )(),
+                registry,
+            )()
+            kind_text = "up to instantiation"
+            if M.Compare(
+                G.RuleUnificationKind(payload)(),
+                M.Char("renaming"),
+            )() is M.truth_value:
+                kind_text = "up to renaming"
+            return (
+                "A correspondence turned up in the background: the rule '"
+                + keep_rule
+                + "' and the rule '"
+                + retire_rule
+                + "' are one rule "
+                + kind_text
+                + ". Unify them? (yes/no)"
+            )
+        if G.IsSubgraphReformulation(payload)() is M.truth_value:
+            pattern_text = M.PrettyTerm(
+                G.SubgraphReformulationPattern(payload)(),
+                registry,
+            )()
+            count_text = M.GMPRepText(
+                G.SubgraphReformulationCount(payload)(),
+            )()
+            return (
+                "A correspondence turned up in the background: the subgraph "
+                + pattern_text
+                + " is in the graph "
+                + count_text
+                + " times. Reformulate it under one name? (yes/no)"
+            )
+        return "The machine proposes a correspondence. Approve? (yes/no)"
+
+    def _adopt_daemon_state():
+        """Take the daemon's writes in, and surface what it found."""
+        nonlocal learned_version, proposal_store, talk_ledger
+        nonlocal pending_machine, machine_asked, last_state_stamp
+        if not os.path.exists(daemon_live_path):
+            return
+        if not os.path.exists(talk_checkpoint_path):
+            return
+        current_state_stamp = os.path.getmtime(talk_checkpoint_path)
+        if current_state_stamp == last_state_stamp:
+            return
+        last_state_stamp = current_state_stamp
+        read_back = W.load_checkpoint(talk_checkpoint_path)
+        if M.IdentityCompare(read_back, M.EmptyList)() is M.false_value:
+            learned_version = G.MergeGraphVersion(
+                M.Head(read_back)(),
+                learned_version,
+            )()
+            read_back_store = Dmn.DaemonMergeInbox(
+                proposal_store,
+                M.Head(M.Tail(read_back)())(),
+            )()
+            proposal_store = M.Head(read_back_store)()
+            talk_ledger = M.Head(
+                M.Tail(M.Tail(read_back)())(),
+            )()
+            _debug("read the daemon's state back")
+        # What the daemon found in the background becomes a question on
+        # the table, one at a time: pending proposals the machine itself
+        # submitted, waiting on the human, not yet surfaced.
+        machine_scan = G.ProposalStoreEntries(proposal_store)()
+        while M.IdentityCompare(machine_scan, M.EmptyList)() is M.false_value:
+            entry = M.Head(machine_scan)()
+            machine_scan = M.Tail(machine_scan)()
+            proposal = G.ProposalEntryProposal(entry)()
+            origin = G.ProposalOrigin(proposal)()
+            machine_found = M.false_value
+            if M.IsPair(origin)() is M.truth_value:
+                if M.Compare(
+                    M.Head(origin)(),
+                    M.Char("machine-correspondence"),
+                )() is M.truth_value:
+                    machine_found = M.truth_value
+            undecided = M.false_value
+            if M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value:
+                undecided = M.truth_value
+                annotation_scan = G.ProposalEntryAnnotations(entry)()
+                while M.IdentityCompare(
+                    annotation_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    annotation = M.Head(annotation_scan)()
+                    if M.IsPair(annotation)() is M.truth_value:
+                        if M.TermEqual(
+                            M.Head(annotation)(),
+                            Lmod.ApprovedLabel,
+                        )() is M.truth_value:
+                            undecided = M.false_value
+                            annotation_scan = M.EmptyList
+                        elif M.TermEqual(
+                            M.Head(annotation)(),
+                            Lmod.RejectedLabel,
+                        )() is M.truth_value:
+                            undecided = M.false_value
+                            annotation_scan = M.EmptyList
+                    if M.IdentityCompare(
+                        annotation_scan,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        annotation_scan = M.Tail(annotation_scan)()
+            already_asked = M.false_value
+            if M.IdentityCompare(undecided, M.truth_value)() is M.truth_value:
+                asked_scan = machine_asked
+                while M.IdentityCompare(
+                    asked_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(M.Head(asked_scan)(), proposal)() is M.truth_value:
+                        already_asked = M.truth_value
+                        asked_scan = M.EmptyList
+                    else:
+                        asked_scan = M.Tail(asked_scan)()
+            slot_free = M.IdentityCompare(
+                pending_machine,
+                M.EmptyList,
+            )() is M.truth_value
+            if (
+                M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value
+                and M.IdentityCompare(undecided, M.truth_value)() is M.truth_value
+                and M.IdentityCompare(already_asked, M.truth_value)() is M.false_value
+                and slot_free
+            ):
+                question = _machine_ask_text(proposal)
+                machine_asked = M.Pair(proposal, machine_asked)
+                pending_machine = proposal
+                _push_ask("machine", question)
+                print("hyge> " + question)
+                machine_scan = M.EmptyList
 
     def _words(text):
         """A typed line as a chain of words, by the reading policy.
@@ -5278,25 +5441,38 @@ def run_talk_mode(sentence: str = None):
                         entry = candidate
                     approved_entries = M.Tail(approved_entries)()
                 if os.path.exists(daemon_live_path):
-                    rule_origin = G.ProposalOrigin(decided_proposal)()
-                    if M.IsPair(rule_origin)() is M.truth_value:
-                        if M.Compare(
-                            M.Head(rule_origin)(), M.Char("case-split"),
-                        )() is M.false_value:
-                            if M.IsPair(
-                                M.Tail(M.Tail(rule_origin)())(),
-                            )() is M.truth_value:
-                                source_premises = M.Head(
-                                    M.Tail(rule_origin)(),
-                                )()
-                                source_replacement = M.Head(
+                    proposal_payload = G.ProposalLaw(decided_proposal)()
+                    if G.IsTaughtDerivationSchema(
+                        proposal_payload,
+                    )() is M.truth_value:
+                        learned_version = G.GraphVersion(
+                            M.Pair(
+                                proposal_payload,
+                                G.GraphNodes(learned_version)(),
+                            ),
+                            G.GraphEdges(learned_version)(),
+                            G.GraphVersionInvariants(learned_version)(),
+                        )()
+                    else:
+                        rule_origin = G.ProposalOrigin(decided_proposal)()
+                        if M.IsPair(rule_origin)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(rule_origin)(), M.Char("case-split"),
+                            )() is M.false_value:
+                                if M.IsPair(
                                     M.Tail(M.Tail(rule_origin)())(),
-                                )()
-                                learned_version = G.InstallTaughtRuleSource(
-                                    learned_version,
-                                    source_premises,
-                                    source_replacement,
-                                )()
+                                )() is M.truth_value:
+                                    source_premises = M.Head(
+                                        M.Tail(rule_origin)(),
+                                    )()
+                                    source_replacement = M.Head(
+                                        M.Tail(M.Tail(rule_origin)())(),
+                                    )()
+                                    learned_version = G.InstallTaughtRuleSource(
+                                        learned_version,
+                                        source_premises,
+                                        source_replacement,
+                                    )()
                     compiled_line = _unblock_definition_for(decided_proposal)
                     _persist_talk_state()
                     return (
@@ -5567,7 +5743,7 @@ def run_talk_mode(sentence: str = None):
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
-        nonlocal pending_rule, learned_version, proposal_store
+        nonlocal pending_rule, learned_version, proposal_store, talk_ledger
         nonlocal pending_gaps
         nonlocal pending_process
         nonlocal pending_unknown_words, pending_unknown_word
@@ -5588,10 +5764,29 @@ def run_talk_mode(sentence: str = None):
         if M.IdentityCompare(
             pending_unknown_word, M.EmptyList,
         )() is M.false_value:
+            # A bare line is a word's meaning only when it is not
+            # another command arriving bare: the parallel session
+            # gathered every bare command shape so the asking never
+            # swallows one.
+            is_command = (
+                lowered.startswith("suggest ")
+                or lowered.startswith("bridge ")
+                or lowered.startswith("why not ")
+                or lowered.startswith("explain ")
+                or lowered.startswith("prove that")
+                or lowered.startswith("solve ")
+                or lowered.startswith("keep ")
+                or lowered.startswith("what is ")
+                or lowered.startswith("what are the ")
+                or lowered.startswith("how many ")
+                or lowered.startswith("why are these two definitions equivalent")
+                or lowered == "goodbye"
+                or lowered == "help"
+            )
             if (
                 ":" not in line
                 and lowered not in ("yes", "no")
-                and not lowered.startswith("bridge ")
+                and not is_command
             ):
                 if lowered == "skip all":
                     _pop_ask("word")
@@ -5952,6 +6147,77 @@ def run_talk_mode(sentence: str = None):
                     + _ask_next_line()
                 )
             return _run_invariant_sweep()
+        if lowered.startswith("suggest lemmas"):
+            if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
+                return "Please approve or reject the pending rule first."
+            if M.IdentityCompare(last_goal, M.EmptyList)() is M.truth_value:
+                return "No recent search has stalled; ask a question or run a query first."
+            rules = G.InstalledTaughtRules(learned_version)()
+            facts = G.InstalledTaughtFacts(learned_version)()
+            cand_rule = G.SuggestCandidateLemma(last_goal, rules, facts, registry)()
+            if M.IdentityCompare(cand_rule, M.EmptyList)() is M.truth_value:
+                return "I could not derive a sound candidate lemma for the stalled goal."
+            witness = G.ResidualWitness(
+                last_goal,
+                P.RulePremises(cand_rule)(),
+                P.RuleReplacement(cand_rule)(),
+            )()
+            learned_version = G.InstallResidualWitness(
+                learned_version,
+                witness,
+            )()
+            generalized_rule = G.GeneralizeResidualWitness(
+                learned_version,
+                witness,
+                registry,
+            )()
+            generalized = M.false_value
+            if M.IdentityCompare(generalized_rule, M.EmptyList)() is M.false_value:
+                cand_rule = generalized_rule
+                generalized = M.truth_value
+            cand_payload = M.EmptyList
+            if M.IdentityCompare(
+                P.RulePremises(cand_rule)(), M.EmptyList,
+            )() is M.truth_value:
+                schema_start = M.Pair(
+                    M.VarTag,
+                    M.Pair(M.Char("?schema-start"), M.EmptyList),
+                )
+                schema_goal = P.RuleReplacement(cand_rule)()
+                cand_payload = G.TaughtDerivationSchema(
+                    schema_start,
+                    schema_goal,
+                    G.SchemaValidationEvidence(schema_goal)(),
+                )()
+            else:
+                cand_payload = G.CompileDeductionToLaw(cand_rule)()
+            if M.IdentityCompare(cand_payload, M.EmptyList)() is M.truth_value:
+                _persist_talk_state()
+                return "I could not compile a candidate lemma for the stalled goal."
+            origin_label = M.Char("dialogue-rule")
+            if M.IdentityCompare(generalized, M.truth_value)() is M.truth_value:
+                origin_label = M.Char("residual-generalization")
+            cand_origin = M.Pair(
+                origin_label,
+                M.Pair(
+                    P.RulePremises(cand_rule)(),
+                    M.Pair(
+                        P.RuleReplacement(cand_rule)(),
+                        M.EmptyList,
+                    ),
+                ),
+            )
+            cand_proposal = G.Proposal(cand_payload, cand_origin)()
+            proposal_store = G.ProposalStoreSubmit(proposal_store, cand_proposal)()
+            pending_rule = cand_proposal
+            _persist_talk_state()
+            return (
+                "From the stalled goal "
+                + M.PrettyTerm(last_goal, registry)()
+                + ", I propose candidate lemma: "
+                + P.PrettyRule(cand_rule, M.AllConstructors)()
+                + ". Approve? (yes/no)"
+            )
         if lowered.startswith("explain "):
             # The derivation itself, spoken: the claim is re-derived
             # from the taught facts under the taught rules, and the
@@ -6355,6 +6621,37 @@ def run_talk_mode(sentence: str = None):
                     + " is already recorded as a case-elimination conclusion."
                 )
             facts = G.InstalledTaughtFacts(learned_version)()
+            schema_hit = G.LookupTaughtDerivationSchema(
+                learned_version,
+                P.Knowledge(facts)(),
+                goal,
+            )()
+            if M.IdentityCompare(schema_hit, M.EmptyList)() is M.false_value:
+                schema = M.Head(M.Tail(M.Tail(schema_hit)())())()
+                consultation = G.SchemaConsultation(
+                    schema,
+                    P.Knowledge(facts)(),
+                    goal,
+                )()
+                talk_ledger.append(
+                    G.FiringRecord(
+                        schema,
+                        learned_version,
+                        learned_version,
+                        M.Pair(consultation, M.EmptyList),
+                        M.Zero,
+                        M.Zero,
+                        M.Zero,
+                        M.Zero,
+                        M.one,
+                    )(),
+                )
+                last_goal = goal
+                _persist_talk_state()
+                return (
+                    "yes; derived " + line[6:].strip()
+                    + " from an approved taught schema."
+                )
             # Recorded case conclusions join the working set the way
             # taught facts do: what the elimination established is
             # available to later rules, so the sieve's process rules
@@ -6721,11 +7018,13 @@ def run_talk_mode(sentence: str = None):
                 )
             growing = M.truth_value
             rounds_text = "0"
+            chain_capped = M.false_value
             while M.IdentityCompare(
                 growing, M.truth_value,
             )() is M.truth_value:
-                if G.GMPEqualText(rounds_text, "200")() is M.truth_value:
+                if G.GMPEqualText(rounds_text, "2")() is M.truth_value:
                     growing = M.false_value
+                    chain_capped = M.truth_value
                 else:
                     rounds_text = G.GMPSuccText(rounds_text)()
                     goal_early = M.false_value
@@ -6744,7 +7043,7 @@ def run_talk_mode(sentence: str = None):
                         goal_early, M.truth_value,
                     )() is M.truth_value:
                         growing = M.false_value
-                        rounds_text = "200"
+                        rounds_text = "2"
                         remaining_rules = M.EmptyList
                     else:
                         growing = M.false_value
@@ -6870,6 +7169,14 @@ def run_talk_mode(sentence: str = None):
                     + " negation is derivable from the taught rules and"
                     + " the numeral words' own differences."
                 )
+            if M.IdentityCompare(
+                chain_capped, M.truth_value,
+            )() is M.truth_value:
+                return (
+                    "no; I could not derive " + line[6:].strip()
+                    + " within the forward-chaining cap. Ask 'why not "
+                    + line[6:].strip() + "?' for what is missing."
+                )
             return (
                 "no; I could not derive " + line[6:].strip()
                 + ". Ask 'why not " + line[6:].strip()
@@ -6915,10 +7222,20 @@ def run_talk_mode(sentence: str = None):
                     goal,
                     last_proof_registry,
                 )()
+            goal_target = goal
+            if M.IsPair(goal)() is M.truth_value:
+                goal_target = M.Head(goal)()
+            residual_gap = M.Pair(
+                Lmod.ResidualGapLabel,
+                M.Pair(goal_target, M.EmptyList),
+            )
+            pending_gaps = M.Pair(residual_gap, pending_gaps)
+            learned_version = G.InstallGap(learned_version, residual_gap)()
+            _persist_talk_state()
             return (
                 "no; I could not derive " + line[6:].strip()
                 + ". Ask 'why not " + line[6:].strip()
-                + "?' for what is missing."
+                + "?' for what is missing, or 'suggest lemmas' to propose an intermediate lemma."
             )
         if lowered.startswith("why not "):
             # The failed query's own explanation: what stands between
@@ -9883,167 +10200,6 @@ def run_talk_mode(sentence: str = None):
         print("hyge> (" + str(_count_chain(pending_queue))
               + " proposal(s) from the replayed lessons still await your decision)")
         print("hyge> " + M.Head(M.Tail(first_pending)())())
-    # Read-back: the daemon is the only writer of the shared state, so
-    # this process adopts its writes. At each turn the checkpoint's
-    # stamp is checked; when the daemon has written, its version, its
-    # proposals, and its firing ledger merge into memory through the
-    # same idempotent union the daemon itself applies. Its invariants go
-    # first in the merge, because status marks are newest-first and the
-    # daemon's marks -- a retirement, an activation -- are the newest
-    # ones; the conversation's own teaching is already a superset of
-    # what it submitted, so nothing is lost and nothing is duplicated.
-    last_state_stamp = 0.0
-    if os.path.exists(talk_checkpoint_path):
-        last_state_stamp = os.path.getmtime(talk_checkpoint_path)
-
-    def _adopt_daemon_state():
-        """Take the daemon's writes in, and surface what it found."""
-        nonlocal learned_version, proposal_store, talk_ledger
-        nonlocal pending_machine, machine_asked, last_state_stamp
-        if not os.path.exists(daemon_live_path):
-            return
-        if not os.path.exists(talk_checkpoint_path):
-            return
-        current_state_stamp = os.path.getmtime(talk_checkpoint_path)
-        if current_state_stamp == last_state_stamp:
-            return
-        last_state_stamp = current_state_stamp
-        read_back = W.load_checkpoint(talk_checkpoint_path)
-        if M.IdentityCompare(read_back, M.EmptyList)() is M.false_value:
-            learned_version = G.MergeGraphVersion(
-                M.Head(read_back)(),
-                learned_version,
-            )()
-            read_back_store = Dmn.DaemonMergeInbox(
-                proposal_store,
-                M.Head(M.Tail(read_back)())(),
-            )()
-            proposal_store = M.Head(read_back_store)()
-            talk_ledger = M.Head(
-                M.Tail(M.Tail(read_back)())(),
-            )()
-            _debug("read the daemon's state back")
-        # What the daemon found in the background becomes a question on
-        # the table, one at a time: pending proposals the machine itself
-        # submitted, waiting on the human, not yet surfaced.
-        machine_scan = G.ProposalStoreEntries(proposal_store)()
-        while M.IdentityCompare(machine_scan, M.EmptyList)() is M.false_value:
-            entry = M.Head(machine_scan)()
-            machine_scan = M.Tail(machine_scan)()
-            proposal = G.ProposalEntryProposal(entry)()
-            origin = G.ProposalOrigin(proposal)()
-            machine_found = M.false_value
-            if M.IsPair(origin)() is M.truth_value:
-                if M.Compare(
-                    M.Head(origin)(),
-                    M.Char("machine-correspondence"),
-                )() is M.truth_value:
-                    machine_found = M.truth_value
-            undecided = M.false_value
-            if M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value:
-                undecided = M.truth_value
-                annotation_scan = G.ProposalEntryAnnotations(entry)()
-                while M.IdentityCompare(
-                    annotation_scan,
-                    M.EmptyList,
-                )() is M.false_value:
-                    annotation = M.Head(annotation_scan)()
-                    if M.IsPair(annotation)() is M.truth_value:
-                        if M.TermEqual(
-                            M.Head(annotation)(),
-                            Lmod.ApprovedLabel,
-                        )() is M.truth_value:
-                            undecided = M.false_value
-                            annotation_scan = M.EmptyList
-                        elif M.TermEqual(
-                            M.Head(annotation)(),
-                            Lmod.RejectedLabel,
-                        )() is M.truth_value:
-                            undecided = M.false_value
-                            annotation_scan = M.EmptyList
-                    if M.IdentityCompare(
-                        annotation_scan,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        annotation_scan = M.Tail(annotation_scan)()
-            already_asked = M.false_value
-            if M.IdentityCompare(undecided, M.truth_value)() is M.truth_value:
-                asked_scan = machine_asked
-                while M.IdentityCompare(
-                    asked_scan,
-                    M.EmptyList,
-                )() is M.false_value:
-                    if M.Compare(M.Head(asked_scan)(), proposal)() is M.truth_value:
-                        already_asked = M.truth_value
-                        asked_scan = M.EmptyList
-                    else:
-                        asked_scan = M.Tail(asked_scan)()
-            slot_free = M.IdentityCompare(
-                pending_machine,
-                M.EmptyList,
-            )() is M.truth_value
-            if (
-                M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value
-                and M.IdentityCompare(undecided, M.truth_value)() is M.truth_value
-                and M.IdentityCompare(already_asked, M.truth_value)() is M.false_value
-                and slot_free
-            ):
-                question = _machine_ask_text(proposal)
-                machine_asked = M.Pair(proposal, machine_asked)
-                pending_machine = proposal
-                _push_ask("machine", question)
-                print("hyge> " + question)
-                machine_scan = M.EmptyList
-
-    def _machine_ask_text(proposal):
-        """The question a machine-found correspondence puts to the human."""
-        payload = G.ProposalLaw(proposal)()
-        if G.IsRuleUnification(payload)() is M.truth_value:
-            keep_rule = P.PrettyRule(
-                P.MultiRule(
-                    G.RuleUnificationKeepPremises(payload)(),
-                    G.RuleUnificationKeepReplacement(payload)(),
-                )(),
-                registry,
-            )()
-            retire_rule = P.PrettyRule(
-                P.MultiRule(
-                    G.RuleUnificationRetirePremises(payload)(),
-                    G.RuleUnificationRetireReplacement(payload)(),
-                )(),
-                registry,
-            )()
-            kind_text = "up to instantiation"
-            if M.Compare(
-                G.RuleUnificationKind(payload)(),
-                M.Char("renaming"),
-            )() is M.truth_value:
-                kind_text = "up to renaming"
-            return (
-                "A correspondence turned up in the background: the rule '"
-                + keep_rule
-                + "' and the rule '"
-                + retire_rule
-                + "' are one rule "
-                + kind_text
-                + ". Unify them? (yes/no)"
-            )
-        if G.IsSubgraphReformulation(payload)() is M.truth_value:
-            pattern_text = M.PrettyTerm(
-                G.SubgraphReformulationPattern(payload)(),
-                registry,
-            )()
-            count_text = M.GMPRepText(
-                G.SubgraphReformulationCount(payload)(),
-            )()
-            return (
-                "A correspondence turned up in the background: the subgraph "
-                + pattern_text
-                + " is in the graph "
-                + count_text
-                + " times. Reformulate it under one name? (yes/no)"
-            )
-        return "The machine proposes a correspondence. Approve? (yes/no)"
 
     def _wait_for_daemon_fold():
         """Wait, bounded, for the daemon to take the inbox and write state.

@@ -2574,6 +2574,10 @@ class UndefinedConceptLabel(ConstructorLabel):
     pass
 
 
+class ResidualGapLabel(ConstructorLabel):
+    pass
+
+
 class UngroundedModifierLabel(ConstructorLabel):
     pass
 
@@ -2738,6 +2742,7 @@ ResponsibleForLabel = ResponsibleForLabel()
 OpportunityLabel = OpportunityLabel()
 ModifierOfLabel = ModifierOfLabel()
 UndefinedConceptLabel = UndefinedConceptLabel()
+ResidualGapLabel = ResidualGapLabel()
 UngroundedModifierLabel = UngroundedModifierLabel()
 NoUsageExampleLabel = NoUsageExampleLabel()
 NoParentLabel = NoParentLabel()

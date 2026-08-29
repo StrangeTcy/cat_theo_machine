@@ -3643,6 +3643,35 @@ class Prove(M.Edge):
                     new_registry = M.Head(M.Tail(deriv_pair)())()
                     return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
 
+        schema_hit = self.graph.lookup_derivation_schema(
+            self.start,
+            self.goal,
+        )
+        if M.Compare(schema_hit, M.EmptyList)() is M.false_value:
+            plan = M.Head(schema_hit)()
+            bindings = M.Head(M.Tail(schema_hit)())()
+            derivation_pair = BuildDerivation(
+                self.start,
+                plan,
+                M.FromContextGetConstructors(self.graph)(),
+                bindings,
+            )()
+            derivation = M.Head(derivation_pair)()
+            new_registry = M.Head(M.Tail(derivation_pair)())()
+            if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                if self._derivation_reaches_goal(
+                    derivation, new_registry,
+                ) is M.truth_value:
+                    zero_search_pair = self._zero_search_cost(new_registry)
+                    zero_search_cost = M.Head(zero_search_pair)()
+                    zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                    return self._store_success(
+                        derivation,
+                        zero_registry,
+                        zero_search_cost,
+                        self.heuristic,
+                    )
+
         start_has_var = ContainsVar(self.start)()
         goal_has_var = ContainsVar(self.goal)()
         schematic_proof = M.OrAtom(start_has_var, goal_has_var)()

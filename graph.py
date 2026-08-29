@@ -31,7 +31,7 @@ from .firing import (
     FiringRecordG1, FiringRecordLaw, FiringRecordNodesAfter,
     FiringRecordNodesBefore, FiringRecordTrace, FiringRecordTraceSteps,
 )
-from .mining import MineNatFromGMPRep, MineNatSuccessor, MineNatAdd
+from .mining import MineNatFromGMPRep, MineNatSuccessor, MineNatAdd, MINE_CANDIDATE_CAP
 from .deduction import DeductionPlan, DeltaAgenda, IndexedFiring
 
 
@@ -1983,13 +1983,25 @@ class ActivateProposal(M.Edge):
                 installed = ReformulateSubgraph(graph_version, payload)()
             elif IsCaseSplit(payload)() is M.truth_value:
                 installed = InstallCaseSplit(graph_version, payload)()
+            elif IsTaughtDerivationSchema(payload)() is M.truth_value:
+                installed = GraphVersion(
+                    M.Pair(payload, GraphNodes(graph_version)()),
+                    GraphEdges(graph_version)(),
+                    GraphVersionInvariants(graph_version)(),
+                )()
             else:
                 installed = InstallLaw(graph_version, payload)()
                 origin = ProposalOrigin(proposal)()
                 if M.IsPair(origin)() is M.truth_value:
-                    if M.Compare(
+                    source_origin = M.Compare(
                         M.Head(origin)(), M.Char("dialogue-rule"),
-                    )() is M.truth_value:
+                    )()
+                    if M.IdentityCompare(source_origin, M.false_value)() is M.truth_value:
+                        source_origin = M.Compare(
+                            M.Head(origin)(),
+                            M.Char("residual-generalization"),
+                        )()
+                    if M.IdentityCompare(source_origin, M.truth_value)() is M.truth_value:
                         source_premises = M.Head(M.Tail(origin)())()
                         source_replacement = M.Head(
                             M.Tail(M.Tail(origin)())(),
@@ -3626,6 +3638,10 @@ class ClassifyProposal(M.Edge):
         payload = ProposalLaw(proposal)()
         if IsCaseSplit(payload)() is M.truth_value:
             self.result = M.Char("case_split")
+            super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+            return
+        if IsTaughtDerivationSchema(payload)() is M.truth_value:
+            self.result = M.Char("install_law")
             super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
             return
         if IsRuleUnification(payload)() is M.truth_value:
@@ -6269,6 +6285,1104 @@ class CompileDeductionToLaw(M.Edge):
         return self.result
 
 
+class SuggestCandidateLemma(M.Edge):
+    """One-hop backward premise abductor for a stalled goal.
+
+    Reasons backward one rule application from `goal`: searches installed
+    rules concluding the goal head, partitions their premises under joint
+    unification bindings into satisfied and unmet sets, and proposes the
+    first unmet premise as a candidate lemma conditioned on the satisfied
+    premises. If no rule matches or no rule has both satisfied and unmet
+    premises, returns EmptyList.
+
+    Note on scope: this abduces unsatisfied premises of a direct
+    goal-concluding rule rather than a multi-rewrite search residual.
+    """
+
+    def __init__(self, goal, rules, facts, registry):
+        self.result = self._suggest(goal, rules, facts, registry)
+        super().__init__(
+            inputs=M.Pair(goal, M.Pair(rules, M.Pair(facts, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+    def _suggest(self, goal, rules, facts, registry):
+        goal_head = goal
+        if M.IsPair(goal)() is M.truth_value:
+            goal_head = M.Head(goal)()
+        return self._search_rules(rules, goal, goal_head, facts, registry)
+
+    def _search_rules(self, rules, goal, goal_head, facts, registry):
+        if M.IdentityCompare(rules, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rule = M.Head(rules)()
+        rest = M.Tail(rules)()
+        replacement = P.RuleReplacement(rule)()
+        repl_term = replacement
+        repl_head = repl_term
+        if M.IsPair(repl_term)() is M.truth_value:
+            repl_head = M.Head(repl_term)()
+        if M.Compare(repl_head, goal_head)() is M.truth_value:
+            goal_match = M.Match(repl_term, goal)()
+            if M.IdentityCompare(M.Head(goal_match)(), M.truth_value)() is M.truth_value:
+                initial_bindings = M.Tail(goal_match)()
+                initial_fuel = MineNatFromGMPRep(MINE_CANDIDATE_CAP)()
+                partition = self._partition_premises(
+                    P.RulePremises(rule)(), facts, initial_bindings, initial_fuel, registry,
+                )
+                sat = M.Head(partition)()
+                unmet = M.Head(M.Tail(partition)())()
+                if M.IdentityCompare(sat, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(unmet, M.EmptyList)() is M.false_value:
+                        cand_conclusion = M.Head(unmet)()
+                        if self._is_sound_candidate(cand_conclusion, facts, registry) is M.truth_value:
+                            return P.MultiRule(sat, cand_conclusion)()
+        return self._search_rules(rest, goal, goal_head, facts, registry)
+
+    def _is_longer(self, c1, c2):
+        if M.IdentityCompare(c1, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(c2, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        return self._is_longer(M.Tail(c1)(), M.Tail(c2)())
+
+    def _partition_premises(self, premises, facts, bindings, fuel, registry):
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(premises, M.EmptyList))
+        pred_pair = M.NatPred(fuel, registry)()
+        next_fuel = M.Head(pred_pair)()
+        next_registry = M.Head(M.Tail(pred_pair)())()
+        prem = M.Head(premises)()
+        new_bindings_chain = P.JoinPremises(
+            M.Pair(prem, M.EmptyList), facts, bindings,
+        )()
+        if M.IdentityCompare(new_bindings_chain, M.EmptyList)() is M.false_value:
+            return self._try_binding_alternatives(
+                prem, M.Tail(premises)(), facts, new_bindings_chain, next_fuel, next_registry,
+            )
+        else:
+            unmet_prem = M.Head(M.Instantiate(prem, bindings)())()
+            rest = self._partition_premises(
+                M.Tail(premises)(), facts, bindings, next_fuel, next_registry,
+            )
+            sat = M.Head(rest)()
+            unmet = M.Head(M.Tail(rest)())()
+            return M.Pair(sat, M.Pair(M.Pair(unmet_prem, unmet), M.EmptyList))
+
+    def _try_binding_alternatives(self, prem, rest_premises, facts, bindings_chain, fuel, registry):
+        if M.IdentityCompare(bindings_chain, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        if M.IdentityCompare(fuel, M.Zero)() is M.truth_value:
+            inst = M.Head(M.Instantiate(prem, M.Head(bindings_chain)())())()
+            return M.Pair(M.Pair(inst, M.EmptyList), M.Pair(rest_premises, M.EmptyList))
+        cand_binding = M.Head(bindings_chain)()
+        pred_pair = M.NatPred(fuel, registry)()
+        next_fuel = M.Head(pred_pair)()
+        next_registry = M.Head(M.Tail(pred_pair)())()
+        cand_inst = M.Head(M.Instantiate(prem, cand_binding)())()
+        rest_partition = self._partition_premises(
+            rest_premises, facts, cand_binding, next_fuel, next_registry,
+        )
+        first_partition = M.Pair(
+            M.Pair(cand_inst, M.Head(rest_partition)()),
+            M.Pair(M.Head(M.Tail(rest_partition)())() , M.EmptyList),
+        )
+        more_bindings = M.Tail(bindings_chain)()
+        if M.IdentityCompare(more_bindings, M.EmptyList)() is M.truth_value:
+            return first_partition
+        other_partition = self._try_binding_alternatives(
+            prem, rest_premises, facts, more_bindings, next_fuel, next_registry,
+        )
+        if self._is_longer(M.Head(other_partition)(), M.Head(first_partition)()) is M.truth_value:
+            return other_partition
+        return first_partition
+
+    def _is_sound_candidate(self, conclusion, facts, registry):
+        if self._is_contradicted_by_facts(conclusion, facts) is M.truth_value:
+            return M.false_value
+        if self._is_ground_refuted(conclusion, registry) is M.truth_value:
+            return M.false_value
+        return M.truth_value
+
+    def _is_contradicted_by_facts(self, conclusion, facts):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        fact = M.Head(facts)()
+        if M.IsPair(fact)() is M.truth_value:
+            if M.Compare(M.Head(fact)(), M.Char("not"))() is M.truth_value:
+                tail = M.Tail(fact)()
+                if M.IsPair(tail)() is M.truth_value:
+                    negated = M.Head(tail)()
+                    if M.Compare(negated, conclusion)() is M.truth_value:
+                        return M.truth_value
+        return self._is_contradicted_by_facts(conclusion, M.Tail(facts)())
+
+    def _numeral_word_digit(self, word_text):
+        if word_text == "zero" or word_text == "0":
+            return "0"
+        if word_text == "one" or word_text == "1":
+            return "1"
+        if word_text == "two" or word_text == "2":
+            return "2"
+        if word_text == "three" or word_text == "3":
+            return "3"
+        if word_text == "four" or word_text == "4":
+            return "4"
+        if word_text == "five" or word_text == "5":
+            return "5"
+        if word_text == "six" or word_text == "6":
+            return "6"
+        if word_text == "seven" or word_text == "7":
+            return "7"
+        if word_text == "eight" or word_text == "8":
+            return "8"
+        if word_text == "nine" or word_text == "9":
+            return "9"
+        return ""
+
+    def _numeral_text(self, term, registry):
+        if M.IdentityCompare(term, M.Zero)() is M.truth_value:
+            return "0"
+        rep = M.NatRepOf(term, registry)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            return M.GMPRepText(rep)()
+        symbol = term()
+        if symbol is not None:
+            text = self._numeral_word_digit(str(symbol))
+            if text != "":
+                return text
+        return ""
+
+    def _is_ground_refuted(self, conclusion, registry):
+        if M.IsPair(conclusion)() is M.false_value:
+            return M.false_value
+        head = M.Head(conclusion)()
+        args = M.Tail(conclusion)()
+        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(M.Tail(args)(), M.EmptyList)() is M.truth_value:
+            return M.false_value
+        arg1 = M.Head(args)()
+        arg2 = M.Head(M.Tail(args)())()
+        t1 = self._numeral_text(arg1, registry)
+        t2 = self._numeral_text(arg2, registry)
+
+        if M.Compare(head, M.Char("leq"))() is M.truth_value:
+            if t1 != "" and t2 != "":
+                if GMPLessText(t2, t1)() is M.truth_value:
+                    return M.truth_value
+
+        if M.Compare(head, M.Char("bounded"))() is M.truth_value:
+            if t1 != "" and t2 != "":
+                if GMPLessText(t2, t1)() is M.truth_value:
+                    return M.truth_value
+                a_squared = GMPMulText(t1, t1)()
+                if GMPLessText(t2, a_squared)() is M.truth_value:
+                    return M.truth_value
+
+        is_divisible = M.Compare(head, M.Char("divisible"))()
+        if is_divisible is M.false_value:
+            is_divisible = M.Compare(head, Lmod.DividesLabel)()
+        if is_divisible is M.false_value:
+            is_divisible = M.Compare(head, M.Char("Divides"))()
+        if is_divisible is M.truth_value:
+            trailing = M.Tail(M.Tail(args)())()
+            if M.IdentityCompare(trailing, M.EmptyList)() is M.false_value:
+                arg3 = M.Head(trailing)()
+                t3 = self._numeral_text(arg3, registry)
+                if t1 != "" and t2 != "" and t3 != "":
+                    prod = GMPMulText(t1, t2)()
+                    if GMPEqualText(prod, t3)() is M.false_value:
+                        return M.truth_value
+
+        if M.Compare(head, M.Char("same"))() is M.truth_value:
+            if t1 != "" and t2 != "":
+                if GMPEqualText(t1, t2)() is M.false_value:
+                    return M.truth_value
+
+        return M.false_value
+
+
+
+
+class TaughtDerivationSchema(M.Edge):
+    """A goal-directed taught axiom that never enters forward saturation.
+
+    Only its term patterns persist. The theorem action is reconstructed on
+    lookup because a raw MultiRule edge is an anonymous wire atom and cannot
+    carry its inputs across a checkpoint.
+    """
+
+    def __init__(self, start_pattern, goal_pattern, evidence):
+        self.result = M.Pair(
+            M.Char("taught-derivation-schema"),
+            M.Pair(
+                start_pattern,
+                M.Pair(goal_pattern, M.Pair(evidence, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                start_pattern,
+                M.Pair(goal_pattern, M.Pair(evidence, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsTaughtDerivationSchema(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(
+                M.Head(term)(), M.Char("taught-derivation-schema"),
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TaughtDerivationSchemaStart(M.Edge):
+    def __init__(self, schema):
+        self.result = M.Head(M.Tail(schema)())()
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TaughtDerivationSchemaGoal(M.Edge):
+    def __init__(self, schema):
+        self.result = M.Head(M.Tail(M.Tail(schema)())())()
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TaughtDerivationSchemaPlan(M.Edge):
+    def __init__(self, schema):
+        goal_pattern = TaughtDerivationSchemaGoal(schema)()
+        rule = P.MultiRule(M.EmptyList, goal_pattern)
+        self.result = M.Pair(P.TheoremAction(rule)(), M.EmptyList)
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+
+class TaughtDerivationSchemaEvidence(M.Edge):
+    def __init__(self, schema):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(schema)())())())()
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaCandidateCount(M.Edge):
+    def __init__(self, variables, total_text="1"):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
+        else:
+            self.result = SchemaCandidateCount(
+                M.Tail(variables)(),
+                GMPMulText(total_text, "5")(),
+            )()
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationEvidence(M.Edge):
+    """Tried, refuted, and exhausted status for the declared five-value domain."""
+
+    def __init__(self, goal_pattern):
+        tried = SchemaCandidateCount(ResidualVariables(goal_pattern)())()
+        self.result = M.Pair(
+            M.Char("schema-validation-evidence"),
+            M.Pair(
+                tried,
+                M.Pair(
+                    tried,
+                    M.Pair(
+                        M.Zero,
+                        M.Pair(M.Char("domain-exhausted"), M.EmptyList),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.Pair(goal_pattern, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationTried(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(M.Tail(evidence)())()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationPassed(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(M.Tail(M.Tail(evidence)())())()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationRefuted(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(evidence)())())())()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaValidationTermination(M.Edge):
+    def __init__(self, evidence):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(evidence)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(evidence, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SchemaConsultation(M.Edge):
+    def __init__(self, schema, start, goal):
+        self.result = M.Pair(
+            M.Char("schema-consultation"),
+            M.Pair(schema, M.Pair(start, M.Pair(goal, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(schema, M.Pair(start, M.Pair(goal, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+
+
+class DurableTermEqual(M.Edge):
+    """Structural equality with value comparison for separately loaded Nats."""
+
+    def __init__(self, left, right, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        if M.IdentityCompare(left, right)() is M.truth_value:
+            self.result = M.truth_value
+        elif M.AndAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            heads = DurableTermEqual(M.Head(left)(), M.Head(right)(), registry)()
+            tails = DurableTermEqual(M.Tail(left)(), M.Tail(right)(), registry)()
+            self.result = M.AndAtom(heads, tails)()
+        elif M.OrAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_rep = M.NatRepOf(left, registry)()
+            right_rep = M.NatRepOf(right, registry)()
+            if M.IdentityCompare(left_rep, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(right_rep, M.EmptyList)() is M.false_value:
+                    self.result = GMPEqualText(
+                        M.GMPRepText(left_rep)(),
+                        M.GMPRepText(right_rep)(),
+                    )()
+                else:
+                    self.result = M.false_value
+            else:
+                self.result = M.Compare(left, right)()
+        super().__init__(
+            inputs=M.Pair(left, M.Pair(right, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+class SchemaPatternsEqual(M.Edge):
+    def __init__(self, left, right):
+        starts = M.Compare(
+            TaughtDerivationSchemaStart(left)(),
+            TaughtDerivationSchemaStart(right)(),
+        )()
+        goals = M.Compare(
+            TaughtDerivationSchemaGoal(left)(),
+            TaughtDerivationSchemaGoal(right)(),
+        )()
+        self.result = M.AndAtom(starts, goals)()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+class SchemaReuseCount(M.Edge):
+    def __init__(
+        self, records, schema, registry, count_text="0", scan_text="0",
+    ):
+        if M.IdentityCompare(records, M.EmptyList)() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(MINE_CANDIDATE_CAP)(),
+        )() is M.truth_value:
+            self.result = MineNatFromGMPRep(M.GMPRep(count_text))()
+        else:
+            next_text = count_text
+            record = M.Head(records)()
+            recorded_schema = FiringRecordLaw(record)()
+            if IsTaughtDerivationSchema(recorded_schema)() is M.truth_value:
+                if SchemaPatternsEqual(
+                    recorded_schema, schema,
+                )() is M.truth_value:
+                    next_text = GMPSuccText(count_text)()
+            self.result = SchemaReuseCount(
+                M.Tail(records)(),
+                schema,
+                registry,
+                next_text,
+                GMPSuccText(scan_text)(),
+            )()
+        super().__init__(inputs=M.Pair(records, M.Pair(schema, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+class InstalledTaughtDerivationSchemata(M.Edge):
+    """Direct bounded GraphNodes scan; schema terms remain out of law stores."""
+
+    def __init__(self, graph_version, nodes=M.EmptyList, scan_text="0", started=M.false_value):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            nodes = GraphNodes(graph_version)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(MINE_CANDIDATE_CAP)(),
+        )() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            rest = InstalledTaughtDerivationSchemata(
+                graph_version,
+                M.Tail(nodes)(),
+                GMPSuccText(scan_text)(),
+                M.truth_value,
+            )()
+            node = M.Head(nodes)()
+            if IsTaughtDerivationSchema(node)() is M.truth_value:
+                self.result = M.Pair(node, rest)
+            else:
+                self.result = rest
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LookupTaughtDerivationSchema(M.Edge):
+    def __init__(
+        self,
+        graph_version,
+        start,
+        goal,
+        schemata=M.EmptyList,
+        started=M.false_value,
+        scan_text="0",
+    ):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            schemata = InstalledTaughtDerivationSchemata(graph_version)()
+        if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(MINE_CANDIDATE_CAP)(),
+        )() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            schema = M.Head(schemata)()
+            start_match = M.Match(TaughtDerivationSchemaStart(schema)(), start)()
+            goal_match = M.Match(TaughtDerivationSchemaGoal(schema)(), goal)()
+            merged = M.Pair(M.false_value, M.EmptyList)
+            if M.IdentityCompare(M.Head(start_match)(), M.truth_value)() is M.truth_value:
+                if M.IdentityCompare(M.Head(goal_match)(), M.truth_value)() is M.truth_value:
+                    merged = M.MergeBindings(
+                        M.Tail(start_match)(), M.Tail(goal_match)(),
+                    )()
+            if M.IdentityCompare(M.Head(merged)(), M.truth_value)() is M.truth_value:
+                self.result = M.Pair(
+                    TaughtDerivationSchemaPlan(schema)(),
+                    M.Pair(
+                        M.Tail(merged)(),
+                        M.Pair(schema, M.EmptyList),
+                    ),
+                )
+            else:
+                self.result = LookupTaughtDerivationSchema(
+                    graph_version,
+                    start,
+                    goal,
+                    M.Tail(schemata)(),
+                    M.truth_value,
+                    GMPSuccText(scan_text)(),
+                )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(start, M.Pair(goal, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+class AddTaughtDerivationSchemata(M.Edge):
+    """Route persisted taught schema terms through the context schema store."""
+
+    def __init__(self, graph, schemata, count):
+        if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+            self.result = count
+        else:
+            schema = M.Head(schemata)()
+            graph.add_derivation_schema(
+                TaughtDerivationSchemaStart(schema)(),
+                TaughtDerivationSchemaGoal(schema)(),
+                TaughtDerivationSchemaPlan(schema)(),
+            )
+            stepped = M.Succ(
+                count,
+                M.FromContextGetConstructors(graph)(),
+            )()
+            self.result = AddTaughtDerivationSchemata(
+                graph,
+                M.Tail(schemata)(),
+                M.Head(stepped)(),
+            )()
+        super().__init__(
+            inputs=M.Pair(schemata, M.Pair(count, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+class ResidualWitness(M.Edge):
+    """Ground abduction evidence retained independently of proposal status."""
+
+    def __init__(self, goal, premises, residual):
+        self.result = M.Pair(
+            M.Char("residual-witness"),
+            M.Pair(goal, M.Pair(premises, M.Pair(residual, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(goal, M.Pair(premises, M.Pair(residual, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessGoal(M.Edge):
+    def __init__(self, witness):
+        self.result = M.Head(M.Tail(witness)())()
+        super().__init__(inputs=M.Pair(witness, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessPremises(M.Edge):
+    def __init__(self, witness):
+        self.result = M.Head(M.Tail(M.Tail(witness)())())()
+        super().__init__(inputs=M.Pair(witness, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessConclusion(M.Edge):
+    def __init__(self, witness):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(witness)())())())()
+        super().__init__(inputs=M.Pair(witness, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsResidualWitness(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), M.Char("residual-witness"))() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessPresent(M.Edge):
+    def __init__(self, witness, nodes, scan_text="0"):
+        cap_text = M.GMPRepText(MINE_CANDIDATE_CAP)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif GMPEqualText(scan_text, cap_text)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(nodes)(), witness)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = ResidualWitnessPresent(
+                witness,
+                M.Tail(nodes)(),
+                GMPSuccText(scan_text)(),
+            )()
+        super().__init__(inputs=M.Pair(witness, M.Pair(nodes, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstallResidualWitness(M.Edge):
+    """Install one witness by a bounded direct GraphNodes walk."""
+
+    def __init__(self, graph_version, witness):
+        nodes = GraphNodes(graph_version)()
+        if ResidualWitnessPresent(witness, nodes)() is M.truth_value:
+            self.result = graph_version
+        else:
+            self.result = GraphVersion(
+                M.Pair(witness, nodes),
+                GraphEdges(graph_version)(),
+                GraphVersionInvariants(graph_version)(),
+            )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(witness, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DisagreementVariable(M.Edge):
+    def __init__(self, term_a, term_b, diffs, scan_text="0"):
+        cap_text = M.GMPRepText(MINE_CANDIDATE_CAP)()
+        if M.IdentityCompare(diffs, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(scan_text, cap_text)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            entry = M.Head(diffs)()
+            same_a = M.Compare(M.Head(entry)(), term_a)()
+            same_b = M.Compare(M.Head(M.Tail(entry)())(), term_b)()
+            if M.AndAtom(same_a, same_b)() is M.truth_value:
+                self.result = M.Head(M.Tail(M.Tail(entry)())())()
+            else:
+                self.result = DisagreementVariable(
+                    term_a,
+                    term_b,
+                    M.Tail(diffs)(),
+                    GMPSuccText(scan_text)(),
+                )()
+        super().__init__(
+            inputs=M.Pair(term_a, M.Pair(term_b, M.Pair(diffs, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TermAntiUnify(M.Edge):
+    """Recursive Plotkin LGG with variables keyed by disagreement pairs.
+
+    The result is verdict, generalized term, disagreement table, fresh
+    variable count, and differing-leaf count. A cluster-local prefix keeps
+    simultaneous LGGs disjoint until canonical promotion.
+    """
+
+    def __init__(
+        self,
+        term_a,
+        term_b,
+        prefix,
+        diffs=M.EmptyList,
+        variable_text="0",
+        position_text="0",
+        depth_text="0",
+    ):
+        cap_text = M.GMPRepText(MINE_CANDIDATE_CAP)()
+        if GMPEqualText(depth_text, cap_text)() is M.truth_value:
+            self.result = M.Pair(
+                M.false_value,
+                M.Pair(term_a, M.Pair(diffs, M.Pair(M.GMPRep(variable_text), M.Pair(M.GMPRep(position_text), M.EmptyList)))),
+            )
+        elif M.Compare(term_a, term_b)() is M.truth_value:
+            self.result = M.Pair(
+                M.truth_value,
+                M.Pair(term_a, M.Pair(diffs, M.Pair(M.GMPRep(variable_text), M.Pair(M.GMPRep(position_text), M.EmptyList)))),
+            )
+        elif M.AndAtom(M.IsPair(term_a)(), M.IsPair(term_b)())() is M.truth_value:
+            head_walk = TermAntiUnify(
+                M.Head(term_a)(),
+                M.Head(term_b)(),
+                prefix,
+                diffs,
+                variable_text,
+                position_text,
+                GMPSuccText(depth_text)(),
+            )()
+            if M.IdentityCompare(M.Head(head_walk)(), M.false_value)() is M.truth_value:
+                self.result = head_walk
+            else:
+                tail_walk = TermAntiUnify(
+                    M.Tail(term_a)(),
+                    M.Tail(term_b)(),
+                    prefix,
+                    M.Head(M.Tail(M.Tail(head_walk)())())(),
+                    M.GMPRepText(M.Head(M.Tail(M.Tail(M.Tail(head_walk)())())())())(),
+                    M.GMPRepText(M.Head(M.Tail(M.Tail(M.Tail(M.Tail(head_walk)())())())())())(),
+                    GMPSuccText(depth_text)(),
+                )()
+                if M.IdentityCompare(M.Head(tail_walk)(), M.false_value)() is M.truth_value:
+                    self.result = tail_walk
+                else:
+                    self.result = M.Pair(
+                        M.truth_value,
+                        M.Pair(
+                            M.Pair(
+                                M.Head(M.Tail(head_walk)())(),
+                                M.Head(M.Tail(tail_walk)())(),
+                            ),
+                            M.Tail(M.Tail(tail_walk)())(),
+                        ),
+                    )
+        else:
+            variable = DisagreementVariable(term_a, term_b, diffs)()
+            next_variable_text = variable_text
+            next_diffs = diffs
+            if M.IdentityCompare(variable, M.EmptyList)() is M.truth_value:
+                variable = M.Pair(
+                    M.VarTag,
+                    M.Pair(M.Char("?" + prefix + "_v" + variable_text), M.EmptyList),
+                )
+                next_variable_text = GMPSuccText(variable_text)()
+                next_diffs = M.Pair(
+                    M.Pair(term_a, M.Pair(term_b, M.Pair(variable, M.EmptyList))),
+                    diffs,
+                )
+            self.result = M.Pair(
+                M.truth_value,
+                M.Pair(
+                    variable,
+                    M.Pair(
+                        next_diffs,
+                        M.Pair(
+                            M.GMPRep(next_variable_text),
+                            M.Pair(M.GMPRep(GMPSuccText(position_text)()), M.EmptyList),
+                        ),
+                    ),
+                ),
+            )
+        super().__init__(
+            inputs=M.Pair(term_a, M.Pair(term_b, M.Pair(prefix, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+
+class ResidualVariableSeen(M.Edge):
+    def __init__(self, variable, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(variable, M.Head(variables)())() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = ResidualVariableSeen(variable, M.Tail(variables)())()
+        super().__init__(inputs=M.Pair(variable, M.Pair(variables, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualVariables(M.Edge):
+    def __init__(self, term, variables=M.EmptyList):
+        if P.IsVarPattern(term)() is M.truth_value:
+            if ResidualVariableSeen(term, variables)() is M.truth_value:
+                self.result = variables
+            else:
+                self.result = M.Pair(term, variables)
+        elif M.IsPair(term)() is M.truth_value:
+            head_variables = ResidualVariables(M.Head(term)(), variables)()
+            self.result = ResidualVariables(M.Tail(term)(), head_variables)()
+        else:
+            self.result = variables
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GroundResidualValueSearch(M.Edge):
+    def __init__(self, template, variable, variables, values, all_values, bindings, registry):
+        if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.false_value, M.EmptyList)
+        else:
+            next_bindings = M.Pair(
+                M.Pair(variable, M.Pair(M.Head(values)(), M.EmptyList)),
+                bindings,
+            )
+            trial = GroundResidualSearch(
+                template,
+                variables,
+                all_values,
+                next_bindings,
+                registry,
+            )()
+            if M.IdentityCompare(M.Head(trial)(), M.truth_value)() is M.truth_value:
+                self.result = trial
+            else:
+                self.result = GroundResidualValueSearch(
+                    template,
+                    variable,
+                    variables,
+                    M.Tail(values)(),
+                    all_values,
+                    bindings,
+                    registry,
+                )()
+        super().__init__(inputs=M.Pair(template, M.Pair(variable, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GroundResidualSearch(M.Edge):
+    """Find a small concrete arithmetic counterexample to one residual LGG."""
+
+    def __init__(self, template, variables, values, bindings, registry):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            ground = M.Head(M.Instantiate(template, bindings)())()
+            checker = SuggestCandidateLemma(
+                M.EmptyList,
+                M.EmptyList,
+                M.EmptyList,
+                registry,
+            )
+            if checker._is_ground_refuted(ground, registry) is M.truth_value:
+                self.result = M.Pair(M.truth_value, M.Pair(ground, M.EmptyList))
+            else:
+                self.result = M.Pair(M.false_value, M.EmptyList)
+        else:
+            self.result = GroundResidualValueSearch(
+                template,
+                M.Head(variables)(),
+                M.Tail(variables)(),
+                values,
+                values,
+                bindings,
+                registry,
+            )()
+        super().__init__(inputs=M.Pair(template, M.Pair(variables, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ValidateResidualGeneralization(M.Edge):
+    """Accept only checked arithmetic heads with no bounded ground refutation."""
+
+    def __init__(self, residual, registry):
+        recognized = M.false_value
+        if M.IsPair(residual)() is M.truth_value:
+            head = M.Head(residual)()
+            if M.Compare(head, M.Char("leq"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("same"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("bounded"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("divisible"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, Lmod.DividesLabel)() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("Divides"))() is M.truth_value:
+                recognized = M.truth_value
+        variables = ResidualVariables(residual)()
+        values = M.Pair(
+            M.Char("zero"),
+            M.Pair(
+                M.Char("one"),
+                M.Pair(
+                    M.Char("two"),
+                    M.Pair(
+                        M.Char("three"),
+                        M.Pair(M.Char("four"), M.EmptyList),
+                    ),
+                ),
+            ),
+        )
+        refutation = M.Pair(M.false_value, M.EmptyList)
+        if M.IdentityCompare(recognized, M.truth_value)() is M.truth_value:
+            if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+                refutation = GroundResidualSearch(
+                    residual,
+                    variables,
+                    values,
+                    M.EmptyList,
+                    registry,
+                )()
+        if M.IdentityCompare(recognized, M.truth_value)() is M.truth_value:
+            if M.IdentityCompare(M.Head(refutation)(), M.false_value)() is M.truth_value:
+                self.result = M.Pair(M.truth_value, M.Pair(M.EmptyList, M.EmptyList))
+            else:
+                self.result = M.Pair(M.false_value, M.Tail(refutation)())
+        else:
+            self.result = M.Pair(M.false_value, M.Pair(M.EmptyList, M.EmptyList))
+        super().__init__(inputs=M.Pair(residual, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GeneralizeResidualWitness(M.Edge):
+    """Seed sound two-witness clusters without globally coarsening them."""
+
+    def __init__(self, graph_version, witness, registry, nodes=M.EmptyList, cluster_text="0", started=M.false_value):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            nodes = GraphNodes(graph_version)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(cluster_text, M.GMPRepText(MINE_CANDIDATE_CAP)())() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            prior = M.Head(nodes)()
+            usable = IsResidualWitness(prior)()
+            if M.Compare(prior, witness)() is M.truth_value:
+                usable = M.false_value
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                if M.Compare(
+                    ResidualWitnessGoal(prior)(),
+                    ResidualWitnessGoal(witness)(),
+                )() is M.truth_value:
+                    usable = M.false_value
+            # cluster_text is the bounded node-scan position, not a count of
+            # clusters formed. Its prefix is temporary and canonicalization
+            # below removes it before promotion.
+            residual_lgg = M.EmptyList
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                residual_lgg = TermAntiUnify(
+                    ResidualWitnessConclusion(prior)(),
+                    ResidualWitnessConclusion(witness)(),
+                    "c" + cluster_text,
+                )()
+                if M.IdentityCompare(M.Head(residual_lgg)(), M.truth_value)() is M.false_value:
+                    usable = M.false_value
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                checked = ValidateResidualGeneralization(
+                    M.Head(M.Tail(residual_lgg)())(),
+                    registry,
+                )()
+                if M.IdentityCompare(M.Head(checked)(), M.truth_value)() is M.false_value:
+                    usable = M.false_value
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                # Validation above established the generalized conclusion
+                # without antecedent help. Every inherited premise is
+                # therefore removable; retaining any would weaken transfer
+                # and split the alpha-equivalent reuse census.
+                canonical = CanonicalizeVariables(
+                    M.Head(M.Tail(residual_lgg)())(),
+                )()
+                self.result = P.MultiRule(
+                    M.EmptyList,
+                    M.Head(canonical)(),
+                )()
+            else:
+                self.result = GeneralizeResidualWitness(
+                    graph_version,
+                    witness,
+                    registry,
+                    M.Tail(nodes)(),
+                    GMPSuccText(cluster_text)(),
+                    M.truth_value,
+                )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(witness, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+class CanonicalVariableLookup(M.Edge):
+    def __init__(self, variable, mapping):
+        if M.IdentityCompare(mapping, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.Compare(M.Head(M.Head(mapping)())(), variable)() is M.truth_value:
+            self.result = M.Head(M.Tail(M.Head(mapping)())())()
+        else:
+            self.result = CanonicalVariableLookup(variable, M.Tail(mapping)())()
+        super().__init__(inputs=M.Pair(variable, M.Pair(mapping, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalizeVariables(M.Edge):
+    """Rename variables by first occurrence in a fixed head-before-tail walk."""
+
+    def __init__(self, term, mapping=M.EmptyList, next_text="0"):
+        if P.IsVarPattern(term)() is M.truth_value:
+            canonical = CanonicalVariableLookup(term, mapping)()
+            next_mapping = mapping
+            final_text = next_text
+            if M.IdentityCompare(canonical, M.EmptyList)() is M.truth_value:
+                canonical = M.Pair(
+                    M.VarTag,
+                    M.Pair(M.Char("?v" + next_text), M.EmptyList),
+                )
+                next_mapping = M.Pair(
+                    M.Pair(term, M.Pair(canonical, M.EmptyList)),
+                    mapping,
+                )
+                final_text = GMPSuccText(next_text)()
+            self.result = M.Pair(
+                canonical,
+                M.Pair(next_mapping, M.Pair(M.GMPRep(final_text), M.EmptyList)),
+            )
+        elif M.IsPair(term)() is M.truth_value:
+            head_walk = CanonicalizeVariables(M.Head(term)(), mapping, next_text)()
+            tail_walk = CanonicalizeVariables(
+                M.Tail(term)(),
+                M.Head(M.Tail(head_walk)())(),
+                M.GMPRepText(M.Head(M.Tail(M.Tail(head_walk)())())())(),
+            )()
+            self.result = M.Pair(
+                M.Pair(M.Head(head_walk)(), M.Head(tail_walk)()),
+                M.Tail(tail_walk)(),
+            )
+        else:
+            self.result = M.Pair(
+                term,
+                M.Pair(mapping, M.Pair(M.GMPRep(next_text), M.EmptyList)),
+            )
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
 class UncompiledRules(M.Edge):
     """Step 12 term-native record of rules skipped from the trigonometry pack."""
 
@@ -6781,7 +7895,11 @@ class FireAny(M.Edge):
         remaining = laws
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             law = M.Head(remaining)()
-            mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
+            mapping = M.EmptyList
+            if M.IdentityCompare(
+                GraphNodes(LawLeft(law)())(), M.EmptyList,
+            )() is M.false_value:
+                mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
             active_law = law
             if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
                 bindings = LawMatchBindings(law, mapping)()
@@ -7014,9 +8132,13 @@ class SaturateLaws(M.Edge):
                         law_scan_text = GMPSuccText(law_scan_text)()
                         law = M.Head(remaining_laws)()
                         match_scan_text = "0"
-                        remaining_matches = CompletedMatches(
-                            LawLeft(law)(), current, match_cap_text,
-                        )()
+                        remaining_matches = M.EmptyList
+                        if M.IdentityCompare(
+                            GraphNodes(LawLeft(law)())(), M.EmptyList,
+                        )() is M.false_value:
+                            remaining_matches = CompletedMatches(
+                                LawLeft(law)(), current, match_cap_text,
+                            )()
                         while M.IdentityCompare(
                             remaining_matches, M.EmptyList,
                         )() is M.false_value:
@@ -7192,7 +8314,9 @@ class FiringLedgerDelta(M.Edge):
         remaining_records = records
         while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
             record = M.Head(remaining_records)()
-            if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+            if DurableTermEqual(
+                FiringRecordLaw(record)(), law, registry,
+            )() is M.truth_value:
                 positive_pair = M.Add(
                     positive_total,
                     FiringRecordNodesAfter(record)(),
@@ -8306,9 +9430,10 @@ class InstalledRobustness(M.Edge):
                             element_scan_text = GMPSuccText(element_scan_text)()
                             element = M.Head(remaining_elements)()
                             if IsRobustness(element)() is M.truth_value:
-                                if M.TermEqual(
+                                if DurableTermEqual(
                                     RobustnessLaw(element)(),
                                     law,
+                                    M.AllConstructors,
                                 )() is M.truth_value:
                                     self.result = element
                                     remaining_elements = M.EmptyList
@@ -8553,7 +9678,9 @@ class MeasureCostSavings(M.Edge):
             else:
                 scan_text = GMPSuccText(scan_text)()
                 record = M.Head(remaining)()
-                if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                if DurableTermEqual(
+                    FiringRecordLaw(record)(), law, registry,
+                )() is M.truth_value:
                     before_text = M.GMPRepText(
                         M.NatRepOf(FiringRecordNodesBefore(record)(), registry)(),
                     )()
@@ -8584,17 +9711,22 @@ class MeasureReuse(M.Edge):
     """
 
     def __init__(self, ledger, handle, versions):
-        counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
-        total_text = "0"
-        remaining = counts
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            count = M.Head(remaining)()
-            total_text = GMPAddText(
-                total_text,
-                M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+        if IsTaughtDerivationSchema(handle)() is M.truth_value:
+            self.result = SchemaReuseCount(
+                ledger.records, handle, ledger.registry,
             )()
-            remaining = M.Tail(remaining)()
-        self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
+        else:
+            counts = PatternCensus(ledger, HandlePattern(handle)(), versions)()
+            total_text = "0"
+            remaining = counts
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                count = M.Head(remaining)()
+                total_text = GMPAddText(
+                    total_text,
+                    M.GMPRepText(M.NatRepOf(count, ledger.registry)())(),
+                )()
+                remaining = M.Tail(remaining)()
+            self.result = MineNatFromGMPRep(M.GMPRep(total_text))()
         super().__init__(
             inputs=M.Pair(handle, M.Pair(versions, M.EmptyList)),
             results=self.result,
@@ -10650,9 +11782,10 @@ class GenerateCompositionProposals(M.Edge):
                 next_index_step = MineNatSuccessor(record_index, registry)()
                 next_index = M.Head(next_index_step)()
                 registry = M.Head(M.Tail(next_index_step)())()
-                contiguous = M.TermEqual(
+                contiguous = DurableTermEqual(
                     FiringRecordG1(record_a)(),
                     FiringRecordG0(record_b)(),
+                    registry,
                 )()
                 distinct = M.NotAtom(M.TermEqual(law_a, law_b)())()
                 if M.AndAtom(contiguous, distinct)() is M.truth_value:
@@ -19911,9 +21044,10 @@ class GenerateRetirementProposals(M.Edge):
                     M.EmptyList,
                 )() is M.false_value:
                     record = M.Head(remaining_records)()
-                    if M.TermEqual(
+                    if DurableTermEqual(
                         FiringRecordLaw(record)(),
                         law,
+                        registry,
                     )() is M.truth_value:
                         success_text = GMPSuccText(success_text)()
                     remaining_records = M.Tail(remaining_records)()
@@ -20016,9 +21150,10 @@ class SelfModelVersion(M.Edge):
                     remaining_records,
                     M.EmptyList,
                 )() is M.false_value:
-                    if M.TermEqual(
+                    if DurableTermEqual(
                         FiringRecordLaw(M.Head(remaining_records)())(),
                         law,
+                        registry,
                     )() is M.truth_value:
                         fired_text = GMPSuccText(fired_text)()
                     remaining_records = M.Tail(remaining_records)()
