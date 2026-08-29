@@ -5894,6 +5894,17 @@ def run_talk_mode(sentence: str = None):
                 if M.Compare(
                     pending_unknown_word, target_word,
                 )() is M.truth_value:
+                    # The standing ask retires whichever shape it took:
+                    # a meaning ask, or the bridge offer this answer
+                    # supersedes -- a meaning given where a link was
+                    # offered leaves the offer standing otherwise.
+                    if M.IdentityCompare(
+                        _pack_candidate_for_word(
+                            str(pending_unknown_word()),
+                        ),
+                        M.EmptyList,
+                    )() is M.false_value:
+                        _pop_ask("bridge")
                     _advance_unknown_word()
                 _queue_unknown_words_front(
                     _unknown_words_of_text(body_text),
