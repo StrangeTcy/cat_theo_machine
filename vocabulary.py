@@ -1927,15 +1927,19 @@ class InstallGap(M.Edge):
     """Store a detected gap once in the learned graph."""
 
     def __init__(self, graph_version, gap):
-        known = InstalledGaps(graph_version)()
         found = M.false_value
-        scan = known
-        while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
-            if M.Compare(M.Head(scan)(), gap)() is M.truth_value:
-                found = M.truth_value
-                scan = M.EmptyList
-            else:
-                scan = M.Tail(scan)()
+        agenda = GraphNodes(graph_version)()
+        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
+            node = M.Head(agenda)()
+            agenda = M.Tail(agenda)()
+            if M.IsPair(node)() is M.truth_value:
+                node_head = M.Head(node)()
+                if M.Compare(
+                    node_head, Lmod.GapRecordLabel,
+                )() is M.truth_value:
+                    if M.Compare(GapRecordGap(node)(), gap)() is M.truth_value:
+                        found = M.truth_value
+                        agenda = M.EmptyList
         if M.IdentityCompare(found, M.truth_value)() is M.truth_value:
             self.result = graph_version
         else:

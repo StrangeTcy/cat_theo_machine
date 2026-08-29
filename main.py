@@ -1408,6 +1408,164 @@ def run_talk_mode(sentence: str = None):
         prompt_atom = M.Head(M.Tail(head_entry)())()
         return " " + str(prompt_atom())
 
+    # Read-back: the daemon is the only writer of the shared state, so
+    # this process adopts its writes. At each turn the checkpoint's
+    # stamp is checked; when the daemon has written, its version, its
+    # proposals, and its firing ledger merge into memory through the
+    # same idempotent union the daemon itself applies.
+    last_state_stamp = 0.0
+    if os.path.exists(talk_checkpoint_path):
+        last_state_stamp = os.path.getmtime(talk_checkpoint_path)
+
+    def _machine_ask_text(proposal):
+        """The question a machine-found correspondence puts to the human."""
+        payload = G.ProposalLaw(proposal)()
+        if G.IsRuleUnification(payload)() is M.truth_value:
+            keep_rule = P.PrettyRule(
+                P.MultiRule(
+                    G.RuleUnificationKeepPremises(payload)(),
+                    G.RuleUnificationKeepReplacement(payload)(),
+                )(),
+                registry,
+            )()
+            retire_rule = P.PrettyRule(
+                P.MultiRule(
+                    G.RuleUnificationRetirePremises(payload)(),
+                    G.RuleUnificationRetireReplacement(payload)(),
+                )(),
+                registry,
+            )()
+            kind_text = "up to instantiation"
+            if M.Compare(
+                G.RuleUnificationKind(payload)(),
+                M.Char("renaming"),
+            )() is M.truth_value:
+                kind_text = "up to renaming"
+            return (
+                "A correspondence turned up in the background: the rule '"
+                + keep_rule
+                + "' and the rule '"
+                + retire_rule
+                + "' are one rule "
+                + kind_text
+                + ". Unify them? (yes/no)"
+            )
+        if G.IsSubgraphReformulation(payload)() is M.truth_value:
+            pattern_text = M.PrettyTerm(
+                G.SubgraphReformulationPattern(payload)(),
+                registry,
+            )()
+            count_text = M.GMPRepText(
+                G.SubgraphReformulationCount(payload)(),
+            )()
+            return (
+                "A correspondence turned up in the background: the subgraph "
+                + pattern_text
+                + " is in the graph "
+                + count_text
+                + " times. Reformulate it under one name? (yes/no)"
+            )
+        return "The machine proposes a correspondence. Approve? (yes/no)"
+
+    def _adopt_daemon_state():
+        """Take the daemon's writes in, and surface what it found."""
+        nonlocal learned_version, proposal_store, talk_ledger
+        nonlocal pending_machine, machine_asked, last_state_stamp
+        if not os.path.exists(daemon_live_path):
+            return
+        if not os.path.exists(talk_checkpoint_path):
+            return
+        current_state_stamp = os.path.getmtime(talk_checkpoint_path)
+        if current_state_stamp == last_state_stamp:
+            return
+        last_state_stamp = current_state_stamp
+        read_back = W.load_checkpoint(talk_checkpoint_path)
+        if M.IdentityCompare(read_back, M.EmptyList)() is M.false_value:
+            learned_version = G.MergeGraphVersion(
+                M.Head(read_back)(),
+                learned_version,
+            )()
+            read_back_store = Dmn.DaemonMergeInbox(
+                proposal_store,
+                M.Head(M.Tail(read_back)())(),
+            )()
+            proposal_store = M.Head(read_back_store)()
+            talk_ledger = M.Head(
+                M.Tail(M.Tail(read_back)())(),
+            )()
+            _debug("read the daemon's state back")
+        # What the daemon found in the background becomes a question on
+        # the table, one at a time: pending proposals the machine itself
+        # submitted, waiting on the human, not yet surfaced.
+        machine_scan = G.ProposalStoreEntries(proposal_store)()
+        while M.IdentityCompare(machine_scan, M.EmptyList)() is M.false_value:
+            entry = M.Head(machine_scan)()
+            machine_scan = M.Tail(machine_scan)()
+            proposal = G.ProposalEntryProposal(entry)()
+            origin = G.ProposalOrigin(proposal)()
+            machine_found = M.false_value
+            if M.IsPair(origin)() is M.truth_value:
+                if M.Compare(
+                    M.Head(origin)(),
+                    M.Char("machine-correspondence"),
+                )() is M.truth_value:
+                    machine_found = M.truth_value
+            undecided = M.false_value
+            if M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value:
+                undecided = M.truth_value
+                annotation_scan = G.ProposalEntryAnnotations(entry)()
+                while M.IdentityCompare(
+                    annotation_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    annotation = M.Head(annotation_scan)()
+                    if M.IsPair(annotation)() is M.truth_value:
+                        if M.TermEqual(
+                            M.Head(annotation)(),
+                            Lmod.ApprovedLabel,
+                        )() is M.truth_value:
+                            undecided = M.false_value
+                            annotation_scan = M.EmptyList
+                        elif M.TermEqual(
+                            M.Head(annotation)(),
+                            Lmod.RejectedLabel,
+                        )() is M.truth_value:
+                            undecided = M.false_value
+                            annotation_scan = M.EmptyList
+                    if M.IdentityCompare(
+                        annotation_scan,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        annotation_scan = M.Tail(annotation_scan)()
+            already_asked = M.false_value
+            if M.IdentityCompare(undecided, M.truth_value)() is M.truth_value:
+                asked_scan = machine_asked
+                while M.IdentityCompare(
+                    asked_scan,
+                    M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(M.Head(asked_scan)(), proposal)() is M.truth_value:
+                        already_asked = M.truth_value
+                        asked_scan = M.EmptyList
+                    else:
+                        asked_scan = M.Tail(asked_scan)()
+            slot_free = M.IdentityCompare(
+                pending_machine,
+                M.EmptyList,
+            )() is M.truth_value
+            if (
+                M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value
+                and M.IdentityCompare(undecided, M.truth_value)() is M.truth_value
+                and M.IdentityCompare(already_asked, M.truth_value)() is M.false_value
+                and slot_free
+            ):
+                question = _machine_ask_text(proposal)
+                machine_asked = M.Pair(proposal, machine_asked)
+                pending_machine = proposal
+                _push_ask("machine", question)
+                print("hyge> " + question)
+                machine_scan = M.EmptyList
+
     def _words(text):
         """A typed line as a chain of words, by the reading policy.
 
@@ -6451,7 +6609,7 @@ def run_talk_mode(sentence: str = None):
             while M.IdentityCompare(
                 growing, M.truth_value,
             )() is M.truth_value:
-                if G.GMPEqualText(rounds_text, "200")() is M.truth_value:
+                if G.GMPEqualText(rounds_text, "2")() is M.truth_value:
                     growing = M.false_value
                 else:
                     rounds_text = G.GMPSuccText(rounds_text)()
@@ -6471,7 +6629,7 @@ def run_talk_mode(sentence: str = None):
                         goal_early, M.truth_value,
                     )() is M.truth_value:
                         growing = M.false_value
-                        rounds_text = "200"
+                        rounds_text = "2"
                         remaining_rules = M.EmptyList
                     else:
                         growing = M.false_value
@@ -9620,167 +9778,6 @@ def run_talk_mode(sentence: str = None):
         print("hyge> (" + str(_count_chain(pending_queue))
               + " proposal(s) from the replayed lessons still await your decision)")
         print("hyge> " + M.Head(M.Tail(first_pending)())())
-    # Read-back: the daemon is the only writer of the shared state, so
-    # this process adopts its writes. At each turn the checkpoint's
-    # stamp is checked; when the daemon has written, its version, its
-    # proposals, and its firing ledger merge into memory through the
-    # same idempotent union the daemon itself applies. Its invariants go
-    # first in the merge, because status marks are newest-first and the
-    # daemon's marks -- a retirement, an activation -- are the newest
-    # ones; the conversation's own teaching is already a superset of
-    # what it submitted, so nothing is lost and nothing is duplicated.
-    last_state_stamp = 0.0
-    if os.path.exists(talk_checkpoint_path):
-        last_state_stamp = os.path.getmtime(talk_checkpoint_path)
-
-    def _adopt_daemon_state():
-        """Take the daemon's writes in, and surface what it found."""
-        nonlocal learned_version, proposal_store, talk_ledger
-        nonlocal pending_machine, machine_asked, last_state_stamp
-        if not os.path.exists(daemon_live_path):
-            return
-        if not os.path.exists(talk_checkpoint_path):
-            return
-        current_state_stamp = os.path.getmtime(talk_checkpoint_path)
-        if current_state_stamp == last_state_stamp:
-            return
-        last_state_stamp = current_state_stamp
-        read_back = W.load_checkpoint(talk_checkpoint_path)
-        if M.IdentityCompare(read_back, M.EmptyList)() is M.false_value:
-            learned_version = G.MergeGraphVersion(
-                M.Head(read_back)(),
-                learned_version,
-            )()
-            read_back_store = Dmn.DaemonMergeInbox(
-                proposal_store,
-                M.Head(M.Tail(read_back)())(),
-            )()
-            proposal_store = M.Head(read_back_store)()
-            talk_ledger = M.Head(
-                M.Tail(M.Tail(read_back)())(),
-            )()
-            _debug("read the daemon's state back")
-        # What the daemon found in the background becomes a question on
-        # the table, one at a time: pending proposals the machine itself
-        # submitted, waiting on the human, not yet surfaced.
-        machine_scan = G.ProposalStoreEntries(proposal_store)()
-        while M.IdentityCompare(machine_scan, M.EmptyList)() is M.false_value:
-            entry = M.Head(machine_scan)()
-            machine_scan = M.Tail(machine_scan)()
-            proposal = G.ProposalEntryProposal(entry)()
-            origin = G.ProposalOrigin(proposal)()
-            machine_found = M.false_value
-            if M.IsPair(origin)() is M.truth_value:
-                if M.Compare(
-                    M.Head(origin)(),
-                    M.Char("machine-correspondence"),
-                )() is M.truth_value:
-                    machine_found = M.truth_value
-            undecided = M.false_value
-            if M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value:
-                undecided = M.truth_value
-                annotation_scan = G.ProposalEntryAnnotations(entry)()
-                while M.IdentityCompare(
-                    annotation_scan,
-                    M.EmptyList,
-                )() is M.false_value:
-                    annotation = M.Head(annotation_scan)()
-                    if M.IsPair(annotation)() is M.truth_value:
-                        if M.TermEqual(
-                            M.Head(annotation)(),
-                            Lmod.ApprovedLabel,
-                        )() is M.truth_value:
-                            undecided = M.false_value
-                            annotation_scan = M.EmptyList
-                        elif M.TermEqual(
-                            M.Head(annotation)(),
-                            Lmod.RejectedLabel,
-                        )() is M.truth_value:
-                            undecided = M.false_value
-                            annotation_scan = M.EmptyList
-                    if M.IdentityCompare(
-                        annotation_scan,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        annotation_scan = M.Tail(annotation_scan)()
-            already_asked = M.false_value
-            if M.IdentityCompare(undecided, M.truth_value)() is M.truth_value:
-                asked_scan = machine_asked
-                while M.IdentityCompare(
-                    asked_scan,
-                    M.EmptyList,
-                )() is M.false_value:
-                    if M.Compare(M.Head(asked_scan)(), proposal)() is M.truth_value:
-                        already_asked = M.truth_value
-                        asked_scan = M.EmptyList
-                    else:
-                        asked_scan = M.Tail(asked_scan)()
-            slot_free = M.IdentityCompare(
-                pending_machine,
-                M.EmptyList,
-            )() is M.truth_value
-            if (
-                M.IdentityCompare(machine_found, M.truth_value)() is M.truth_value
-                and M.IdentityCompare(undecided, M.truth_value)() is M.truth_value
-                and M.IdentityCompare(already_asked, M.truth_value)() is M.false_value
-                and slot_free
-            ):
-                question = _machine_ask_text(proposal)
-                machine_asked = M.Pair(proposal, machine_asked)
-                pending_machine = proposal
-                _push_ask("machine", question)
-                print("hyge> " + question)
-                machine_scan = M.EmptyList
-
-    def _machine_ask_text(proposal):
-        """The question a machine-found correspondence puts to the human."""
-        payload = G.ProposalLaw(proposal)()
-        if G.IsRuleUnification(payload)() is M.truth_value:
-            keep_rule = P.PrettyRule(
-                P.MultiRule(
-                    G.RuleUnificationKeepPremises(payload)(),
-                    G.RuleUnificationKeepReplacement(payload)(),
-                )(),
-                registry,
-            )()
-            retire_rule = P.PrettyRule(
-                P.MultiRule(
-                    G.RuleUnificationRetirePremises(payload)(),
-                    G.RuleUnificationRetireReplacement(payload)(),
-                )(),
-                registry,
-            )()
-            kind_text = "up to instantiation"
-            if M.Compare(
-                G.RuleUnificationKind(payload)(),
-                M.Char("renaming"),
-            )() is M.truth_value:
-                kind_text = "up to renaming"
-            return (
-                "A correspondence turned up in the background: the rule '"
-                + keep_rule
-                + "' and the rule '"
-                + retire_rule
-                + "' are one rule "
-                + kind_text
-                + ". Unify them? (yes/no)"
-            )
-        if G.IsSubgraphReformulation(payload)() is M.truth_value:
-            pattern_text = M.PrettyTerm(
-                G.SubgraphReformulationPattern(payload)(),
-                registry,
-            )()
-            count_text = M.GMPRepText(
-                G.SubgraphReformulationCount(payload)(),
-            )()
-            return (
-                "A correspondence turned up in the background: the subgraph "
-                + pattern_text
-                + " is in the graph "
-                + count_text
-                + " times. Reformulate it under one name? (yes/no)"
-            )
-        return "The machine proposes a correspondence. Approve? (yes/no)"
 
     def _wait_for_daemon_fold():
         """Wait, bounded, for the daemon to take the inbox and write state.

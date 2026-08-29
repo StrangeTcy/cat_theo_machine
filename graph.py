@@ -6227,7 +6227,7 @@ class SuggestCandidateLemma(M.Edge):
         )
         first_partition = M.Pair(
             M.Pair(cand_inst, M.Head(rest_partition)()),
-            M.Pair(M.Head(M.Tail(rest_partition)()), M.EmptyList),
+            M.Pair(M.Head(M.Tail(rest_partition)())() , M.EmptyList),
         )
         more_bindings = M.Tail(bindings_chain)()
         if M.IdentityCompare(more_bindings, M.EmptyList)() is M.truth_value:
