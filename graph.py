@@ -6169,6 +6169,13 @@ class SuggestCandidateLemma(M.Edge):
                             return P.MultiRule(sat, cand_conclusion)()
         return self._search_rules(rest, goal_head, facts, registry)
 
+    def _is_longer(self, c1, c2):
+        if M.IdentityCompare(c1, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(c2, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        return self._is_longer(M.Tail(c1)(), M.Tail(c2)())
+
     def _partition_premises(self, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
@@ -6177,13 +6184,9 @@ class SuggestCandidateLemma(M.Edge):
             M.Pair(prem, M.EmptyList), facts, bindings,
         )()
         if M.IdentityCompare(new_bindings_chain, M.EmptyList)() is M.false_value:
-            next_bindings = M.Head(new_bindings_chain)()
-            rest = self._partition_premises(
-                M.Tail(premises)(), facts, next_bindings,
+            return self._try_binding_alternatives(
+                prem, M.Tail(premises)(), facts, new_bindings_chain,
             )
-            sat = M.Head(rest)()
-            unmet = M.Head(M.Tail(rest)())()
-            return M.Pair(M.Pair(prem, sat), M.Pair(unmet, M.EmptyList))
         else:
             rest = self._partition_premises(
                 M.Tail(premises)(), facts, bindings,
@@ -6191,6 +6194,25 @@ class SuggestCandidateLemma(M.Edge):
             sat = M.Head(rest)()
             unmet = M.Head(M.Tail(rest)())()
             return M.Pair(sat, M.Pair(M.Pair(prem, unmet), M.EmptyList))
+
+    def _try_binding_alternatives(self, prem, rest_premises, facts, bindings_chain):
+        if M.IdentityCompare(bindings_chain, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
+        cand_binding = M.Head(bindings_chain)()
+        rest_partition = self._partition_premises(rest_premises, facts, cand_binding)
+        first_partition = M.Pair(
+            M.Pair(prem, M.Head(rest_partition)()),
+            M.Pair(M.Head(M.Tail(rest_partition)()), M.EmptyList),
+        )
+        more_bindings = M.Tail(bindings_chain)()
+        if M.IdentityCompare(more_bindings, M.EmptyList)() is M.truth_value:
+            return first_partition
+        other_partition = self._try_binding_alternatives(
+            prem, rest_premises, facts, more_bindings,
+        )
+        if self._is_longer(M.Head(other_partition)(), M.Head(first_partition)()) is M.truth_value:
+            return other_partition
+        return first_partition
 
     def _is_sound_candidate(self, conclusion, facts, registry):
         if self._is_contradicted_by_facts(conclusion, facts) is M.truth_value:

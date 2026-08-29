@@ -5399,6 +5399,11 @@ def run_talk_mode(sentence: str = None):
                 or lowered.startswith("explain ")
                 or lowered.startswith("prove that")
                 or lowered.startswith("solve ")
+                or lowered.startswith("keep ")
+                or lowered.startswith("what is ")
+                or lowered.startswith("what are the ")
+                or lowered.startswith("how many ")
+                or lowered.startswith("why are these two definitions equivalent")
                 or lowered == "goodbye"
                 or lowered == "help"
             )
