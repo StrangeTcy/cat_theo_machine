@@ -1280,6 +1280,59 @@ def run_talk_mode(sentence: str = None):
     )
     reading_digits = M.Head(M.Tail(M.Tail(vocabulary)())())()
     registry = M.AllConstructors
+    # The words of the machine's own dialogue. Every question it asks
+    # and every reply it gives speaks these; asking the trainer what
+    # 'numbers' or 'written' or 'into' means while its own questions
+    # say them would be asking about its own speech. The set is the
+    # console's language, not any problem's content, so it holds for
+    # every problem the trainer brings.
+    MACHINE_DIALOGUE_WORDS = G.WordsOfText(
+        "which numbers are written into the sectors in order answer "
+        "with alone like pairs of may move touch how much does add to "
+        "each its number what mean packs know link it yes no bridge "
+        "recorded problem words these i do not will ask for meaning "
+        "turn say skip pass all stop every word known me passed more "
+        "about stays unlinked could that give or and you neighboring "
+        "pair carries opposite signs plus minus machine computed left "
+        "side right sweep graph holds states within moves chain sector "
+        "value expressions added subtracted out counted from record "
+        "claimed nothing unchanged adds so changes base step certify "
+        "induction propose rule approve here first validated on parse "
+        "render round trip",
+        reading_policy,
+        reading_digits,
+    )()
+    # The closed function-word class of the training language: the
+    # glue that carries grammar, not content, in any prose the trainer
+    # brings. These were never grounding material -- a synonym pair
+    # like 'may means can' beside 'can means may' teaches nothing --
+    # they are the language the machine reads problems in, once and
+    # for all problems.
+    FUNCTION_WORDS = G.WordsOfText(
+        "then by such where when while since whether because although "
+        "unless than if both either neither nor any some few many most "
+        "several other another those there here now once again also "
+        "just very too can could would shall should must might been "
+        "being was were am have has had did done us we they them their "
+        "our your my he she his her him at down off on onto over under "
+        "up through without within upon toward towards between among "
+        "across against along around behind beside beyond during inside "
+        "outside per via let suppose consider",
+        reading_policy,
+        reading_digits,
+    )()
+    # The machine's own syntax atoms: parentheses and brackets are the
+    # terms it prints, not words wanting meanings.
+    SYNTAX_ATOM_WORDS = M.Pair(
+        M.Char("("),
+        M.Pair(
+            M.Char(")"),
+            M.Pair(
+                M.Char("["),
+                M.Pair(M.Char("]"), M.EmptyList),
+            ),
+        ),
+    )
     examples = M.EmptyList
     proposal_store = G.ProposalStore(M.EmptyList)()
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
@@ -3069,13 +3122,11 @@ def run_talk_mode(sentence: str = None):
                                 M.Pair(
                                     shape_proposal,
                                     M.Pair(
-                                        M.Char(
-                                            " The body's shape is new to"
-                                            + " me; reading its first word"
-                                            + " as the genus would make it"
-                                            + " a template. Approve this"
-                                            + " shape? (yes/no)",
-                                        ),
+                                        " The body's shape is new to"
+                                        + " me; reading its first word"
+                                        + " as the genus would make it"
+                                        + " a template. Approve this"
+                                        + " shape? (yes/no)",
                                         M.EmptyList,
                                     ),
                                 ),
@@ -4577,12 +4628,14 @@ def run_talk_mode(sentence: str = None):
             entries = M.Tail(entries)()
         return "; ".join(texts)
 
-    def _word_is_known(word_atom):
-        """A word the machine already holds: the vocabulary resolves
-        it, the version carries a grounding taught for it, a bridge
-        already links it to a constructor, or its own grammar gives it
-        a structural role -- articles and copulas are the glue of
-        every definition it reads, not words wanting meanings."""
+    def _word_is_anchor_known(word_atom):
+        """A word the machine holds outright, with no grounding to
+        check: its grammar words, the words of its own dialogue, the
+        function words of the training language, its syntax atoms, the
+        name of one of its own pack concepts, a bridge already linking
+        it to a constructor, or the correspondence vocabulary itself.
+        A plural folds to its singular before the same shelves are
+        checked -- 'steps' is the 'step' the machine itself speaks."""
         grammar_words = M.Pair(
             M.Head(ARTICLE_WORDS)(),
             M.Pair(
@@ -4593,45 +4646,263 @@ def run_talk_mode(sentence: str = None):
                 ),
             ),
         )
-        grammar_scan = grammar_words
+        word_forms = M.Pair(word_atom, M.EmptyList)
+        singular = G.WordSingular(word_atom)()
+        if M.IdentityCompare(
+            singular, M.EmptyList,
+        )() is M.false_value:
+            word_forms = M.Pair(singular, word_forms)
+        form_scan = word_forms
         while M.IdentityCompare(
-            grammar_scan, M.EmptyList,
+            form_scan, M.EmptyList,
         )() is M.false_value:
-            if M.Compare(
-                M.Head(grammar_scan)(), word_atom,
-            )() is M.truth_value:
+            form = M.Head(form_scan)()
+            for known_chain in (
+                grammar_words,
+                MACHINE_DIALOGUE_WORDS,
+                FUNCTION_WORDS,
+                SYNTAX_ATOM_WORDS,
+            ):
+                if G.ChainHasWordStructural(
+                    known_chain, form,
+                )() is M.truth_value:
+                    return True
+            for concept_chain in (pack_concepts, pack_label_names):
+                chain_scan = concept_chain
+                while M.IdentityCompare(
+                    chain_scan, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(M.Head(chain_scan)())(), form,
+                    )() is M.truth_value:
+                        return True
+                    chain_scan = M.Tail(chain_scan)()
+            if M.IdentityCompare(
+                G.BridgeFor(learned_version, form)(),
+                M.EmptyList,
+            )() is M.false_value:
                 return True
-            grammar_scan = M.Tail(grammar_scan)()
-        if M.IdentityCompare(
-            G.BridgeFor(learned_version, word_atom)(),
-            M.EmptyList,
-        )() is M.false_value:
-            return True
-        word_entries = M.Head(M.Tail(vocabulary)())()
-        resolved = G.CorrespondenceResolveWord(
-            word_entries,
-            G.Surface(M.Pair(word_atom, M.EmptyList))(),
-        )()
-        if M.IdentityCompare(
-            resolved, M.EmptyList,
-        )() is M.false_value:
-            return True
-        fact_scan = G.InstalledTaughtFacts(learned_version)()
+            word_entries = M.Head(M.Tail(vocabulary)())()
+            resolved = G.CorrespondenceResolveWord(
+                word_entries,
+                G.Surface(M.Pair(form, M.EmptyList))(),
+            )()
+            if M.IdentityCompare(
+                resolved, M.EmptyList,
+            )() is M.false_value:
+                return True
+            form_scan = M.Tail(form_scan)()
+        return False
+
+    def _word_groundings():
+        """Pair(word, Pair(body_word_chain, EmptyList)) for every
+        taught word grounding: the Word fact beside the IsA fact that
+        carries the words of its meaning."""
+        facts = G.InstalledTaughtFacts(learned_version)()
+        groundings_reversed = M.EmptyList
+        fact_scan = facts
         while M.IdentityCompare(
             fact_scan, M.EmptyList,
         )() is M.false_value:
             fact = M.Head(fact_scan)()
             if M.IsPair(fact)() is M.truth_value:
-                if M.TermEqual(
+                if M.Compare(
                     M.Head(fact)(), Lmod.WordLabel,
                 )() is M.truth_value:
-                    word_term = M.Head(M.Tail(fact)())()
-                    if M.Compare(
-                        word_term, word_atom,
-                    )() is M.truth_value:
-                        return True
+                    grounded_word = M.Head(M.Tail(fact)())()
+                    isa_scan = facts
+                    while M.IdentityCompare(
+                        isa_scan, M.EmptyList,
+                    )() is M.false_value:
+                        isa_fact = M.Head(isa_scan)()
+                        if M.IsPair(isa_fact)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(isa_fact)(), Lmod.IsALabel,
+                            )() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(M.Tail(isa_fact)())(),
+                                    grounded_word,
+                                )() is M.truth_value:
+                                    try:
+                                        compound_pair = M.Tail(
+                                            M.Tail(isa_fact)(),
+                                        )()
+                                        compound_atom = M.Head(
+                                            compound_pair,
+                                        )()
+                                        compound_text = str(
+                                            compound_atom(),
+                                        )
+                                    except Exception:
+                                        compound_text = ""
+                                    body_reversed = M.EmptyList
+                                    for part in compound_text.split("_"):
+                                        if part:
+                                            body_reversed = M.Pair(
+                                                M.Char(part),
+                                                body_reversed,
+                                            )
+                                    groundings_reversed = M.Pair(
+                                        M.Pair(
+                                            grounded_word,
+                                            M.Pair(
+                                                M.Reverse(
+                                                    body_reversed,
+                                                )(),
+                                                M.EmptyList,
+                                            ),
+                                        ),
+                                        groundings_reversed,
+                                    )
+                                    isa_scan = M.EmptyList
+                                else:
+                                    isa_scan = M.Tail(isa_scan)()
+                            else:
+                                isa_scan = M.Tail(isa_scan)()
+                        else:
+                            isa_scan = M.Tail(isa_scan)()
             fact_scan = M.Tail(fact_scan)()
-        return False
+        return M.Reverse(groundings_reversed)()
+
+    def _terminating_grounding_words():
+        """The words whose taught groundings terminate: every word of
+        the meaning held outright or itself terminating, all the way
+        down. Groundings that reach only each other -- 'divided means
+        split' beside 'split means divided' -- never qualify; neither
+        word of such a pair becomes known from the pair alone."""
+        groundings = _word_groundings()
+        known_reversed = M.EmptyList
+        grounding_scan = groundings
+        while M.IdentityCompare(
+            grounding_scan, M.EmptyList,
+        )() is M.false_value:
+            grounded_word = M.Head(M.Head(grounding_scan)())()
+            if _word_is_anchor_known(grounded_word):
+                known_reversed = M.Pair(grounded_word, known_reversed)
+            grounding_scan = M.Tail(grounding_scan)()
+        grounding_count_text = "0"
+        count_scan = groundings
+        while M.IdentityCompare(
+            count_scan, M.EmptyList,
+        )() is M.false_value:
+            grounding_count_text = G.GMPSuccText(grounding_count_text)()
+            count_scan = M.Tail(count_scan)()
+        pass_text = "0"
+        growing = M.truth_value
+        while M.IdentityCompare(
+            growing, M.truth_value,
+        )() is M.truth_value:
+            grew = M.false_value
+            grounding_scan = groundings
+            while M.IdentityCompare(
+                grounding_scan, M.EmptyList,
+            )() is M.false_value:
+                entry = M.Head(grounding_scan)()
+                grounded_word = M.Head(entry)()
+                body_words = M.Head(M.Tail(entry)())()
+                if G.ChainHasWordStructural(
+                    known_reversed, grounded_word,
+                )() is M.false_value:
+                    body_known = True
+                    body_scan = body_words
+                    while M.IdentityCompare(
+                        body_scan, M.EmptyList,
+                    )() is M.false_value:
+                        body_word = M.Head(body_scan)()
+                        if G.ChainHasWordStructural(
+                            known_reversed, body_word,
+                        )() is M.truth_value:
+                            body_scan = M.Tail(body_scan)()
+                        else:
+                            if _word_is_anchor_known(body_word):
+                                body_scan = M.Tail(body_scan)()
+                            else:
+                                body_known = False
+                                body_scan = M.EmptyList
+                    if body_known:
+                        known_reversed = M.Pair(
+                            grounded_word, known_reversed,
+                        )
+                        grew = M.truth_value
+                grounding_scan = M.Tail(grounding_scan)()
+            if M.IdentityCompare(grew, M.truth_value)() is M.false_value:
+                growing = M.false_value
+            pass_text = G.GMPSuccText(pass_text)()
+            if G.GMPEqualText(
+                pass_text, grounding_count_text,
+            )() is M.truth_value:
+                growing = M.false_value
+        return known_reversed
+
+    def _dangling_groundings_text():
+        """The report the never-terminating groundings earn: a meaning
+        that reaches no held word teaches nothing, and the words stay
+        unknown -- said aloud, not silently absorbed."""
+        groundings = _word_groundings()
+        known_words = _terminating_grounding_words()
+        dangling_reversed = M.EmptyList
+        grounding_scan = groundings
+        while M.IdentityCompare(
+            grounding_scan, M.EmptyList,
+        )() is M.false_value:
+            grounded_word = M.Head(M.Head(grounding_scan)())()
+            if G.ChainHasWordStructural(
+                known_words, grounded_word,
+            )() is M.false_value:
+                if not _word_is_anchor_known(grounded_word):
+                    if G.ChainHasWordStructural(
+                        dangling_reversed, grounded_word,
+                    )() is M.false_value:
+                        dangling_reversed = M.Pair(
+                            grounded_word, dangling_reversed,
+                        )
+            grounding_scan = M.Tail(grounding_scan)()
+        if M.IdentityCompare(
+            dangling_reversed, M.EmptyList,
+        )() is M.truth_value:
+            return ""
+        texts = []
+        dangling_scan = dangling_reversed
+        while M.IdentityCompare(
+            dangling_scan, M.EmptyList,
+        )() is M.false_value:
+            texts.append(str(M.Head(dangling_scan)()()))
+            dangling_scan = M.Tail(dangling_scan)()
+        return (
+            " These words are grounded only in words I do not know: "
+            + ", ".join(texts)
+            + ". They stay unknown."
+        )
+
+    def _word_is_known(word_atom):
+        """A word the machine already holds: held outright -- its
+        grammar, its own dialogue, the training language's function
+        words, its syntax, a pack concept's name, a bridge, the
+        vocabulary -- or taught a grounding that terminates, every
+        word of its meaning known all the way down. A grounding that
+        only reaches more grounded-by-each-other words leaves the word
+        unknown; the machine says so instead of pretending a synonym
+        loop taught it anything."""
+        if _word_is_anchor_known(word_atom):
+            return True
+        return G.ChainHasWordStructural(
+            _terminating_grounding_words(), word_atom,
+        )() is M.truth_value
+
+    def _gap_ask_is_askable(gap_ask):
+        """A gap question goes to the trainer only when its word is not
+        already held. The machine does not ask what its own numerals or
+        its own spoken words mean: 'what is six ?' from a machine that
+        counts with six is not a question, it is a stutter."""
+        if M.IdentityCompare(gap_ask, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        gap = M.Head(gap_ask)()
+        target = G.GapTarget(gap)()
+        if M.IdentityCompare(target, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        if _word_is_known(target):
+            return M.false_value
+        return M.truth_value
 
     def _unknown_words_of_text(text):
         """The distinct unknown words of a text, in order.
@@ -4665,7 +4936,12 @@ def run_talk_mode(sentence: str = None):
         return unknown
 
     def _queue_unknown_words_front(unknown_list):
-        """Put words at the front of the asking queue, unasked ones only."""
+        """Put words at the front of the asking queue, unasked ones only.
+
+        A word that already carries a recorded grounding is not asked
+        again: its meaning is on record, and if that meaning reaches no
+        held word the dangling report names it -- re-asking could only
+        bounce between two groundings that point at each other."""
         nonlocal pending_unknown_words, pending_unknown_word
         for word_atom in reversed(unknown_list):
             already = M.IdentityCompare(
@@ -4682,6 +4958,27 @@ def run_talk_mode(sentence: str = None):
                     queue_scan = M.EmptyList
                 else:
                     queue_scan = M.Tail(queue_scan)()
+            if not already:
+                fact_scan = G.InstalledTaughtFacts(learned_version)()
+                while M.IdentityCompare(
+                    fact_scan, M.EmptyList,
+                )() is M.false_value:
+                    fact = M.Head(fact_scan)()
+                    if M.IsPair(fact)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(fact)(), Lmod.WordLabel,
+                        )() is M.truth_value:
+                            if M.Compare(
+                                M.Head(M.Tail(fact)())(), word_atom,
+                            )() is M.truth_value:
+                                already = True
+                                fact_scan = M.EmptyList
+                            else:
+                                fact_scan = M.Tail(fact_scan)()
+                        else:
+                            fact_scan = M.Tail(fact_scan)()
+                    else:
+                        fact_scan = M.Tail(fact_scan)()
             if not already:
                 pending_unknown_words = M.Pair(
                     word_atom,
@@ -5557,7 +5854,9 @@ def run_talk_mode(sentence: str = None):
                 gap_ask = M.Head(
                     M.Tail(M.Tail(M.Tail(inspection)())())(),
                 )()
-                if M.IdentityCompare(gap_ask, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(
+                    _gap_ask_is_askable(gap_ask), M.truth_value,
+                )() is M.truth_value:
                     learned_version = G.InstallAskedQuestion(
                         learned_version,
                         G.AskedQuestion(
@@ -5817,6 +6116,7 @@ def run_talk_mode(sentence: str = None):
                         _log_lesson(line)
                     return (
                         "Stopped asking for word meanings."
+                        + _dangling_groundings_text()
                         + _ask_next_line()
                     )
                 if lowered == "skip":
@@ -5831,6 +6131,7 @@ def run_talk_mode(sentence: str = None):
                             "Passed '"
                             + skipped_word
                             + "'. No more words to ask about."
+                            + _dangling_groundings_text()
                             + _ask_next_line()
                         )
                     return (
@@ -5957,6 +6258,7 @@ def run_talk_mode(sentence: str = None):
                         + " means "
                         + body_text
                         + ". No more words to ask about."
+                        + _dangling_groundings_text()
                         + _ask_next_line()
                     )
                 return (
@@ -6003,7 +6305,9 @@ def run_talk_mode(sentence: str = None):
             gap_ask = M.Head(
                 M.Tail(M.Tail(M.Tail(inspection)())())(),
             )()
-            if M.IdentityCompare(gap_ask, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(
+                _gap_ask_is_askable(gap_ask), M.truth_value,
+            )() is M.truth_value:
                 learned_version = G.InstallAskedQuestion(
                     learned_version,
                     G.AskedQuestion(
@@ -7749,7 +8053,9 @@ def run_talk_mode(sentence: str = None):
             gap_ask = M.Head(
                 M.Tail(M.Tail(M.Tail(inspection)())())(),
             )()
-            if M.IdentityCompare(gap_ask, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(
+                _gap_ask_is_askable(gap_ask), M.truth_value,
+            )() is M.truth_value:
                 learned_version = G.InstallAskedQuestion(
                     learned_version,
                     G.AskedQuestion(
