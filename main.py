@@ -1104,6 +1104,11 @@ def _teach_runtime_taught_rules(runtime, taught_version=M.EmptyList):
         stepped = M.Succ(taught_count, M.FromContextGetConstructors(runtime.graph)())()
         taught_count = M.Head(stepped)()
         remaining = M.Tail(remaining)()
+    taught_count = G.AddTaughtDerivationSchemata(
+        runtime.graph,
+        G.InstalledTaughtDerivationSchemata(taught_version)(),
+        taught_count,
+    )()
     taught_text = M.GMPRepText(
         M.NatRepOf(taught_count, M.FromContextGetConstructors(runtime.graph)())(),
     )()
@@ -5245,25 +5250,38 @@ def run_talk_mode(sentence: str = None):
                         entry = candidate
                     approved_entries = M.Tail(approved_entries)()
                 if os.path.exists(daemon_live_path):
-                    rule_origin = G.ProposalOrigin(decided_proposal)()
-                    if M.IsPair(rule_origin)() is M.truth_value:
-                        if M.Compare(
-                            M.Head(rule_origin)(), M.Char("case-split"),
-                        )() is M.false_value:
-                            if M.IsPair(
-                                M.Tail(M.Tail(rule_origin)())(),
-                            )() is M.truth_value:
-                                source_premises = M.Head(
-                                    M.Tail(rule_origin)(),
-                                )()
-                                source_replacement = M.Head(
+                    proposal_payload = G.ProposalLaw(decided_proposal)()
+                    if G.IsTaughtDerivationSchema(
+                        proposal_payload,
+                    )() is M.truth_value:
+                        learned_version = G.GraphVersion(
+                            M.Pair(
+                                proposal_payload,
+                                G.GraphNodes(learned_version)(),
+                            ),
+                            G.GraphEdges(learned_version)(),
+                            G.GraphVersionInvariants(learned_version)(),
+                        )()
+                    else:
+                        rule_origin = G.ProposalOrigin(decided_proposal)()
+                        if M.IsPair(rule_origin)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(rule_origin)(), M.Char("case-split"),
+                            )() is M.false_value:
+                                if M.IsPair(
                                     M.Tail(M.Tail(rule_origin)())(),
-                                )()
-                                learned_version = G.InstallTaughtRuleSource(
-                                    learned_version,
-                                    source_premises,
-                                    source_replacement,
-                                )()
+                                )() is M.truth_value:
+                                    source_premises = M.Head(
+                                        M.Tail(rule_origin)(),
+                                    )()
+                                    source_replacement = M.Head(
+                                        M.Tail(M.Tail(rule_origin)())(),
+                                    )()
+                                    learned_version = G.InstallTaughtRuleSource(
+                                        learned_version,
+                                        source_premises,
+                                        source_replacement,
+                                    )()
                     compiled_line = _unblock_definition_for(decided_proposal)
                     _persist_talk_state()
                     return (
@@ -5831,8 +5849,21 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(generalized_rule, M.EmptyList)() is M.false_value:
                 cand_rule = generalized_rule
                 generalized = M.truth_value
-            cand_law = G.CompileDeductionToLaw(cand_rule)()
-            if M.IdentityCompare(cand_law, M.EmptyList)() is M.truth_value:
+            cand_payload = M.EmptyList
+            if M.IdentityCompare(
+                P.RulePremises(cand_rule)(), M.EmptyList,
+            )() is M.truth_value:
+                schema_start = M.Pair(
+                    M.VarTag,
+                    M.Pair(M.Char("?schema-start"), M.EmptyList),
+                )
+                cand_payload = G.TaughtDerivationSchema(
+                    schema_start,
+                    P.RuleReplacement(cand_rule)(),
+                )()
+            else:
+                cand_payload = G.CompileDeductionToLaw(cand_rule)()
+            if M.IdentityCompare(cand_payload, M.EmptyList)() is M.truth_value:
                 _persist_talk_state()
                 return "I could not compile a candidate lemma for the stalled goal."
             origin_label = M.Char("dialogue-rule")
@@ -5848,7 +5879,7 @@ def run_talk_mode(sentence: str = None):
                     ),
                 ),
             )
-            cand_proposal = G.Proposal(cand_law, cand_origin)()
+            cand_proposal = G.Proposal(cand_payload, cand_origin)()
             proposal_store = G.ProposalStoreSubmit(proposal_store, cand_proposal)()
             pending_rule = cand_proposal
             _persist_talk_state()
@@ -6262,6 +6293,17 @@ def run_talk_mode(sentence: str = None):
                     + " is already recorded as a case-elimination conclusion."
                 )
             facts = G.InstalledTaughtFacts(learned_version)()
+            schema_hit = G.LookupTaughtDerivationSchema(
+                learned_version,
+                P.Knowledge(facts)(),
+                goal,
+            )()
+            if M.IdentityCompare(schema_hit, M.EmptyList)() is M.false_value:
+                last_goal = goal
+                return (
+                    "yes; derived " + line[6:].strip()
+                    + " from an approved taught schema."
+                )
             # Recorded case conclusions join the working set the way
             # taught facts do: what the elimination established is
             # available to later rules, so the sieve's process rules
@@ -6662,33 +6704,11 @@ def run_talk_mode(sentence: str = None):
                         remaining_rules, M.EmptyList,
                     )() is M.false_value:
                         taught_rule = M.Head(remaining_rules)()
-                        taught_premises = P.RulePremises(taught_rule)()
-                        if M.IdentityCompare(
-                            taught_premises,
+                        bindings = P.JoinPremises(
+                            P.RulePremises(taught_rule)(),
+                            facts,
                             M.EmptyList,
-                        )() is M.truth_value:
-                            # A zero-premise taught schema is an axiom. Bind
-                            # it against this query rather than materializing
-                            # an open variable as a fact.
-                            axiom_match = M.Match(
-                                P.RuleReplacement(taught_rule)(),
-                                goal,
-                            )()
-                            bindings = M.EmptyList
-                            if M.IdentityCompare(
-                                M.Head(axiom_match)(),
-                                M.truth_value,
-                            )() is M.truth_value:
-                                bindings = M.Pair(
-                                    M.Tail(axiom_match)(),
-                                    M.EmptyList,
-                                )
-                        else:
-                            bindings = P.JoinPremises(
-                                taught_premises,
-                                facts,
-                                M.EmptyList,
-                            )()
+                        )()
                         while M.IdentityCompare(
                             bindings, M.EmptyList,
                         )() is M.false_value:

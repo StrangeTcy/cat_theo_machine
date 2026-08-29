@@ -1983,6 +1983,12 @@ class ActivateProposal(M.Edge):
                 installed = ReformulateSubgraph(graph_version, payload)()
             elif IsCaseSplit(payload)() is M.truth_value:
                 installed = InstallCaseSplit(graph_version, payload)()
+            elif IsTaughtDerivationSchema(payload)() is M.truth_value:
+                installed = GraphVersion(
+                    M.Pair(payload, GraphNodes(graph_version)()),
+                    GraphEdges(graph_version)(),
+                    GraphVersionInvariants(graph_version)(),
+                )()
             else:
                 installed = InstallLaw(graph_version, payload)()
                 origin = ProposalOrigin(proposal)()
@@ -3632,6 +3638,10 @@ class ClassifyProposal(M.Edge):
         payload = ProposalLaw(proposal)()
         if IsCaseSplit(payload)() is M.truth_value:
             self.result = M.Char("case_split")
+            super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
+            return
+        if IsTaughtDerivationSchema(payload)() is M.truth_value:
+            self.result = M.Char("install_law")
             super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
             return
         if IsRuleUnification(payload)() is M.truth_value:
@@ -6088,6 +6098,8 @@ class CompileDeductionToLaw(M.Edge):
 
     def _compile(self, rule):
         premises = P.RulePremises(rule)()
+        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
         replacement = P.RuleReplacement(rule)()
         if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
             return M.EmptyList
@@ -6347,6 +6359,168 @@ class SuggestCandidateLemma(M.Edge):
 
 
 
+
+class TaughtDerivationSchema(M.Edge):
+    """A goal-directed taught axiom that never enters forward saturation.
+
+    Only its term patterns persist. The theorem action is reconstructed on
+    lookup because a raw MultiRule edge is an anonymous wire atom and cannot
+    carry its inputs across a checkpoint.
+    """
+
+    def __init__(self, start_pattern, goal_pattern):
+        self.result = M.Pair(
+            M.Char("taught-derivation-schema"),
+            M.Pair(start_pattern, M.Pair(goal_pattern, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(start_pattern, M.Pair(goal_pattern, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class IsTaughtDerivationSchema(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(
+                M.Head(term)(), M.Char("taught-derivation-schema"),
+            )() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TaughtDerivationSchemaStart(M.Edge):
+    def __init__(self, schema):
+        self.result = M.Head(M.Tail(schema)())()
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TaughtDerivationSchemaGoal(M.Edge):
+    def __init__(self, schema):
+        self.result = M.Head(M.Tail(M.Tail(schema)())())()
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TaughtDerivationSchemaPlan(M.Edge):
+    def __init__(self, schema):
+        goal_pattern = TaughtDerivationSchemaGoal(schema)()
+        rule = P.MultiRule(M.EmptyList, goal_pattern)
+        self.result = M.Pair(P.TheoremAction(rule)(), M.EmptyList)
+        super().__init__(inputs=M.Pair(schema, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledTaughtDerivationSchemata(M.Edge):
+    """Direct bounded GraphNodes scan; schema terms remain out of law stores."""
+
+    def __init__(self, graph_version, nodes=M.EmptyList, scan_text="0", started=M.false_value):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            nodes = GraphNodes(graph_version)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(
+            scan_text, M.GMPRepText(MINE_CANDIDATE_CAP)(),
+        )() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            rest = InstalledTaughtDerivationSchemata(
+                graph_version,
+                M.Tail(nodes)(),
+                GMPSuccText(scan_text)(),
+                M.truth_value,
+            )()
+            node = M.Head(nodes)()
+            if IsTaughtDerivationSchema(node)() is M.truth_value:
+                self.result = M.Pair(node, rest)
+            else:
+                self.result = rest
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LookupTaughtDerivationSchema(M.Edge):
+    def __init__(self, graph_version, start, goal, schemata=M.EmptyList, started=M.false_value):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            schemata = InstalledTaughtDerivationSchemata(graph_version)()
+        if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            schema = M.Head(schemata)()
+            start_match = M.Match(TaughtDerivationSchemaStart(schema)(), start)()
+            goal_match = M.Match(TaughtDerivationSchemaGoal(schema)(), goal)()
+            merged = M.Pair(M.false_value, M.EmptyList)
+            if M.IdentityCompare(M.Head(start_match)(), M.truth_value)() is M.truth_value:
+                if M.IdentityCompare(M.Head(goal_match)(), M.truth_value)() is M.truth_value:
+                    merged = M.MergeBindings(
+                        M.Tail(start_match)(), M.Tail(goal_match)(),
+                    )()
+            if M.IdentityCompare(M.Head(merged)(), M.truth_value)() is M.truth_value:
+                self.result = M.Pair(
+                    TaughtDerivationSchemaPlan(schema)(),
+                    M.Pair(M.Tail(merged)(), M.EmptyList),
+                )
+            else:
+                self.result = LookupTaughtDerivationSchema(
+                    graph_version,
+                    start,
+                    goal,
+                    M.Tail(schemata)(),
+                    M.truth_value,
+                )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(start, M.Pair(goal, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+class AddTaughtDerivationSchemata(M.Edge):
+    """Route persisted taught schema terms through the context schema store."""
+
+    def __init__(self, graph, schemata, count):
+        if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+            self.result = count
+        else:
+            schema = M.Head(schemata)()
+            graph.add_derivation_schema(
+                TaughtDerivationSchemaStart(schema)(),
+                TaughtDerivationSchemaGoal(schema)(),
+                TaughtDerivationSchemaPlan(schema)(),
+            )
+            stepped = M.Succ(
+                count,
+                M.FromContextGetConstructors(graph)(),
+            )()
+            self.result = AddTaughtDerivationSchemata(
+                graph,
+                M.Tail(schemata)(),
+                M.Head(stepped)(),
+            )()
+        super().__init__(
+            inputs=M.Pair(schemata, M.Pair(count, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 class ResidualWitness(M.Edge):
     """Ground abduction evidence retained independently of proposal status."""
 
@@ -7366,7 +7540,11 @@ class FireAny(M.Edge):
         remaining = laws
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             law = M.Head(remaining)()
-            mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
+            mapping = M.EmptyList
+            if M.IdentityCompare(
+                GraphNodes(LawLeft(law)())(), M.EmptyList,
+            )() is M.false_value:
+                mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
             active_law = law
             if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
                 bindings = LawMatchBindings(law, mapping)()
@@ -7599,9 +7777,13 @@ class SaturateLaws(M.Edge):
                         law_scan_text = GMPSuccText(law_scan_text)()
                         law = M.Head(remaining_laws)()
                         match_scan_text = "0"
-                        remaining_matches = CompletedMatches(
-                            LawLeft(law)(), current, match_cap_text,
-                        )()
+                        remaining_matches = M.EmptyList
+                        if M.IdentityCompare(
+                            GraphNodes(LawLeft(law)())(), M.EmptyList,
+                        )() is M.false_value:
+                            remaining_matches = CompletedMatches(
+                                LawLeft(law)(), current, match_cap_text,
+                            )()
                         while M.IdentityCompare(
                             remaining_matches, M.EmptyList,
                         )() is M.false_value:
