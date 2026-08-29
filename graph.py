@@ -6342,6 +6342,523 @@ class SuggestCandidateLemma(M.Edge):
         return M.false_value
 
 
+
+class ResidualWitness(M.Edge):
+    """Ground abduction evidence retained independently of proposal status."""
+
+    def __init__(self, goal, premises, residual):
+        self.result = M.Pair(
+            M.Char("residual-witness"),
+            M.Pair(goal, M.Pair(premises, M.Pair(residual, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(goal, M.Pair(premises, M.Pair(residual, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessGoal(M.Edge):
+    def __init__(self, witness):
+        self.result = M.Head(M.Tail(witness)())()
+        super().__init__(inputs=M.Pair(witness, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessPremises(M.Edge):
+    def __init__(self, witness):
+        self.result = M.Head(M.Tail(M.Tail(witness)())())()
+        super().__init__(inputs=M.Pair(witness, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessConclusion(M.Edge):
+    def __init__(self, witness):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(witness)())())())()
+        super().__init__(inputs=M.Pair(witness, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsResidualWitness(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), M.Char("residual-witness"))() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualWitnessPresent(M.Edge):
+    def __init__(self, witness, nodes, scan_text="0"):
+        cap_text = M.GMPRepText(MINE_CANDIDATE_CAP)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif GMPEqualText(scan_text, cap_text)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(nodes)(), witness)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = ResidualWitnessPresent(
+                witness,
+                M.Tail(nodes)(),
+                GMPSuccText(scan_text)(),
+            )()
+        super().__init__(inputs=M.Pair(witness, M.Pair(nodes, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstallResidualWitness(M.Edge):
+    """Install one witness by a bounded direct GraphNodes walk."""
+
+    def __init__(self, graph_version, witness):
+        nodes = GraphNodes(graph_version)()
+        if ResidualWitnessPresent(witness, nodes)() is M.truth_value:
+            self.result = graph_version
+        else:
+            self.result = GraphVersion(
+                M.Pair(witness, nodes),
+                GraphEdges(graph_version)(),
+                GraphVersionInvariants(graph_version)(),
+            )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(witness, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DisagreementVariable(M.Edge):
+    def __init__(self, term_a, term_b, diffs, scan_text="0"):
+        cap_text = M.GMPRepText(MINE_CANDIDATE_CAP)()
+        if M.IdentityCompare(diffs, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(scan_text, cap_text)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            entry = M.Head(diffs)()
+            same_a = M.Compare(M.Head(entry)(), term_a)()
+            same_b = M.Compare(M.Head(M.Tail(entry)())(), term_b)()
+            if M.AndAtom(same_a, same_b)() is M.truth_value:
+                self.result = M.Head(M.Tail(M.Tail(entry)())())()
+            else:
+                self.result = DisagreementVariable(
+                    term_a,
+                    term_b,
+                    M.Tail(diffs)(),
+                    GMPSuccText(scan_text)(),
+                )()
+        super().__init__(
+            inputs=M.Pair(term_a, M.Pair(term_b, M.Pair(diffs, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class TermAntiUnify(M.Edge):
+    """Recursive Plotkin LGG with variables keyed by disagreement pairs.
+
+    The result is verdict, generalized term, disagreement table, fresh
+    variable count, and differing-leaf count. A cluster-local prefix keeps
+    simultaneous LGGs disjoint until canonical promotion.
+    """
+
+    def __init__(
+        self,
+        term_a,
+        term_b,
+        prefix,
+        diffs=M.EmptyList,
+        variable_text="0",
+        position_text="0",
+        depth_text="0",
+    ):
+        cap_text = M.GMPRepText(MINE_CANDIDATE_CAP)()
+        if GMPEqualText(depth_text, cap_text)() is M.truth_value:
+            self.result = M.Pair(
+                M.false_value,
+                M.Pair(term_a, M.Pair(diffs, M.Pair(M.GMPRep(variable_text), M.Pair(M.GMPRep(position_text), M.EmptyList)))),
+            )
+        elif M.Compare(term_a, term_b)() is M.truth_value:
+            self.result = M.Pair(
+                M.truth_value,
+                M.Pair(term_a, M.Pair(diffs, M.Pair(M.GMPRep(variable_text), M.Pair(M.GMPRep(position_text), M.EmptyList)))),
+            )
+        elif M.AndAtom(M.IsPair(term_a)(), M.IsPair(term_b)())() is M.truth_value:
+            head_walk = TermAntiUnify(
+                M.Head(term_a)(),
+                M.Head(term_b)(),
+                prefix,
+                diffs,
+                variable_text,
+                position_text,
+                GMPSuccText(depth_text)(),
+            )()
+            if M.IdentityCompare(M.Head(head_walk)(), M.false_value)() is M.truth_value:
+                self.result = head_walk
+            else:
+                tail_walk = TermAntiUnify(
+                    M.Tail(term_a)(),
+                    M.Tail(term_b)(),
+                    prefix,
+                    M.Head(M.Tail(M.Tail(head_walk)())())(),
+                    M.GMPRepText(M.Head(M.Tail(M.Tail(M.Tail(head_walk)())())())())(),
+                    M.GMPRepText(M.Head(M.Tail(M.Tail(M.Tail(M.Tail(head_walk)())())())())())(),
+                    GMPSuccText(depth_text)(),
+                )()
+                if M.IdentityCompare(M.Head(tail_walk)(), M.false_value)() is M.truth_value:
+                    self.result = tail_walk
+                else:
+                    self.result = M.Pair(
+                        M.truth_value,
+                        M.Pair(
+                            M.Pair(
+                                M.Head(M.Tail(head_walk)())(),
+                                M.Head(M.Tail(tail_walk)())(),
+                            ),
+                            M.Tail(M.Tail(tail_walk)())(),
+                        ),
+                    )
+        else:
+            variable = DisagreementVariable(term_a, term_b, diffs)()
+            next_variable_text = variable_text
+            next_diffs = diffs
+            if M.IdentityCompare(variable, M.EmptyList)() is M.truth_value:
+                variable = M.Pair(
+                    M.VarTag,
+                    M.Pair(M.Char("?" + prefix + "_v" + variable_text), M.EmptyList),
+                )
+                next_variable_text = GMPSuccText(variable_text)()
+                next_diffs = M.Pair(
+                    M.Pair(term_a, M.Pair(term_b, M.Pair(variable, M.EmptyList))),
+                    diffs,
+                )
+            self.result = M.Pair(
+                M.truth_value,
+                M.Pair(
+                    variable,
+                    M.Pair(
+                        next_diffs,
+                        M.Pair(
+                            M.GMPRep(next_variable_text),
+                            M.Pair(M.GMPRep(GMPSuccText(position_text)()), M.EmptyList),
+                        ),
+                    ),
+                ),
+            )
+        super().__init__(
+            inputs=M.Pair(term_a, M.Pair(term_b, M.Pair(prefix, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+
+class ResidualVariableSeen(M.Edge):
+    def __init__(self, variable, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(variable, M.Head(variables)())() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = ResidualVariableSeen(variable, M.Tail(variables)())()
+        super().__init__(inputs=M.Pair(variable, M.Pair(variables, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidualVariables(M.Edge):
+    def __init__(self, term, variables=M.EmptyList):
+        if P.IsVarPattern(term)() is M.truth_value:
+            if ResidualVariableSeen(term, variables)() is M.truth_value:
+                self.result = variables
+            else:
+                self.result = M.Pair(term, variables)
+        elif M.IsPair(term)() is M.truth_value:
+            head_variables = ResidualVariables(M.Head(term)(), variables)()
+            self.result = ResidualVariables(M.Tail(term)(), head_variables)()
+        else:
+            self.result = variables
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GroundResidualValueSearch(M.Edge):
+    def __init__(self, template, variable, variables, values, all_values, bindings, registry):
+        if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.false_value, M.EmptyList)
+        else:
+            next_bindings = M.Pair(
+                M.Pair(variable, M.Pair(M.Head(values)(), M.EmptyList)),
+                bindings,
+            )
+            trial = GroundResidualSearch(
+                template,
+                variables,
+                all_values,
+                next_bindings,
+                registry,
+            )()
+            if M.IdentityCompare(M.Head(trial)(), M.truth_value)() is M.truth_value:
+                self.result = trial
+            else:
+                self.result = GroundResidualValueSearch(
+                    template,
+                    variable,
+                    variables,
+                    M.Tail(values)(),
+                    all_values,
+                    bindings,
+                    registry,
+                )()
+        super().__init__(inputs=M.Pair(template, M.Pair(variable, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GroundResidualSearch(M.Edge):
+    """Find a small concrete arithmetic counterexample to one residual LGG."""
+
+    def __init__(self, template, variables, values, bindings, registry):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            ground = M.Head(M.Instantiate(template, bindings)())()
+            checker = SuggestCandidateLemma(
+                M.EmptyList,
+                M.EmptyList,
+                M.EmptyList,
+                registry,
+            )
+            if checker._is_ground_refuted(ground, registry) is M.truth_value:
+                self.result = M.Pair(M.truth_value, M.Pair(ground, M.EmptyList))
+            else:
+                self.result = M.Pair(M.false_value, M.EmptyList)
+        else:
+            self.result = GroundResidualValueSearch(
+                template,
+                M.Head(variables)(),
+                M.Tail(variables)(),
+                values,
+                values,
+                bindings,
+                registry,
+            )()
+        super().__init__(inputs=M.Pair(template, M.Pair(variables, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ValidateResidualGeneralization(M.Edge):
+    """Accept only checked arithmetic heads with no bounded ground refutation."""
+
+    def __init__(self, residual, registry):
+        recognized = M.false_value
+        if M.IsPair(residual)() is M.truth_value:
+            head = M.Head(residual)()
+            if M.Compare(head, M.Char("leq"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("same"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("bounded"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("divisible"))() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, Lmod.DividesLabel)() is M.truth_value:
+                recognized = M.truth_value
+            elif M.Compare(head, M.Char("Divides"))() is M.truth_value:
+                recognized = M.truth_value
+        variables = ResidualVariables(residual)()
+        values = M.Pair(
+            M.Char("zero"),
+            M.Pair(
+                M.Char("one"),
+                M.Pair(
+                    M.Char("two"),
+                    M.Pair(
+                        M.Char("three"),
+                        M.Pair(M.Char("four"), M.EmptyList),
+                    ),
+                ),
+            ),
+        )
+        refutation = M.Pair(M.false_value, M.EmptyList)
+        if M.IdentityCompare(recognized, M.truth_value)() is M.truth_value:
+            if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+                refutation = GroundResidualSearch(
+                    residual,
+                    variables,
+                    values,
+                    M.EmptyList,
+                    registry,
+                )()
+        if M.IdentityCompare(recognized, M.truth_value)() is M.truth_value:
+            if M.IdentityCompare(M.Head(refutation)(), M.false_value)() is M.truth_value:
+                self.result = M.Pair(M.truth_value, M.Pair(M.EmptyList, M.EmptyList))
+            else:
+                self.result = M.Pair(M.false_value, M.Tail(refutation)())
+        else:
+            self.result = M.Pair(M.false_value, M.Pair(M.EmptyList, M.EmptyList))
+        super().__init__(inputs=M.Pair(residual, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GeneralizeResidualWitness(M.Edge):
+    """Seed sound two-witness clusters without globally coarsening them."""
+
+    def __init__(self, graph_version, witness, registry, nodes=M.EmptyList, cluster_text="0", started=M.false_value):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            nodes = GraphNodes(graph_version)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif GMPEqualText(cluster_text, M.GMPRepText(MINE_CANDIDATE_CAP)())() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            prior = M.Head(nodes)()
+            usable = IsResidualWitness(prior)()
+            if M.Compare(prior, witness)() is M.truth_value:
+                usable = M.false_value
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                if M.Compare(
+                    ResidualWitnessGoal(prior)(),
+                    ResidualWitnessGoal(witness)(),
+                )() is M.truth_value:
+                    usable = M.false_value
+            residual_lgg = M.EmptyList
+            full_lgg = M.EmptyList
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                residual_lgg = TermAntiUnify(
+                    ResidualWitnessConclusion(prior)(),
+                    ResidualWitnessConclusion(witness)(),
+                    "c" + cluster_text,
+                )()
+                if M.IdentityCompare(M.Head(residual_lgg)(), M.truth_value)() is M.false_value:
+                    usable = M.false_value
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                checked = ValidateResidualGeneralization(
+                    M.Head(M.Tail(residual_lgg)())(),
+                    registry,
+                )()
+                if M.IdentityCompare(M.Head(checked)(), M.truth_value)() is M.false_value:
+                    usable = M.false_value
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                prior_source = M.Pair(
+                    ResidualWitnessPremises(prior)(),
+                    M.Pair(ResidualWitnessConclusion(prior)(), M.EmptyList),
+                )
+                witness_source = M.Pair(
+                    ResidualWitnessPremises(witness)(),
+                    M.Pair(ResidualWitnessConclusion(witness)(), M.EmptyList),
+                )
+                full_lgg = TermAntiUnify(
+                    prior_source,
+                    witness_source,
+                    "c" + cluster_text,
+                )()
+                if M.IdentityCompare(M.Head(full_lgg)(), M.truth_value)() is M.false_value:
+                    usable = M.false_value
+            if M.IdentityCompare(usable, M.truth_value)() is M.truth_value:
+                canonical = CanonicalizeVariables(M.Head(M.Tail(full_lgg)())())()
+                canonical_source = M.Head(canonical)()
+                self.result = P.MultiRule(
+                    M.Head(canonical_source)(),
+                    M.Head(M.Tail(canonical_source)())(),
+                )()
+            else:
+                self.result = GeneralizeResidualWitness(
+                    graph_version,
+                    witness,
+                    registry,
+                    M.Tail(nodes)(),
+                    GMPSuccText(cluster_text)(),
+                    M.truth_value,
+                )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(witness, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+class CanonicalVariableLookup(M.Edge):
+    def __init__(self, variable, mapping):
+        if M.IdentityCompare(mapping, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.Compare(M.Head(M.Head(mapping)())(), variable)() is M.truth_value:
+            self.result = M.Head(M.Tail(M.Head(mapping)())())()
+        else:
+            self.result = CanonicalVariableLookup(variable, M.Tail(mapping)())()
+        super().__init__(inputs=M.Pair(variable, M.Pair(mapping, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalizeVariables(M.Edge):
+    """Rename variables by first occurrence in a fixed head-before-tail walk."""
+
+    def __init__(self, term, mapping=M.EmptyList, next_text="0"):
+        if P.IsVarPattern(term)() is M.truth_value:
+            canonical = CanonicalVariableLookup(term, mapping)()
+            next_mapping = mapping
+            final_text = next_text
+            if M.IdentityCompare(canonical, M.EmptyList)() is M.truth_value:
+                canonical = M.Pair(
+                    M.VarTag,
+                    M.Pair(M.Char("?v" + next_text), M.EmptyList),
+                )
+                next_mapping = M.Pair(
+                    M.Pair(term, M.Pair(canonical, M.EmptyList)),
+                    mapping,
+                )
+                final_text = GMPSuccText(next_text)()
+            self.result = M.Pair(
+                canonical,
+                M.Pair(next_mapping, M.Pair(M.GMPRep(final_text), M.EmptyList)),
+            )
+        elif M.IsPair(term)() is M.truth_value:
+            head_walk = CanonicalizeVariables(M.Head(term)(), mapping, next_text)()
+            tail_walk = CanonicalizeVariables(
+                M.Tail(term)(),
+                M.Head(M.Tail(head_walk)())(),
+                M.GMPRepText(M.Head(M.Tail(M.Tail(head_walk)())())())(),
+            )()
+            self.result = M.Pair(
+                M.Pair(M.Head(head_walk)(), M.Head(tail_walk)()),
+                M.Tail(tail_walk)(),
+            )
+        else:
+            self.result = M.Pair(
+                term,
+                M.Pair(mapping, M.Pair(M.GMPRep(next_text), M.EmptyList)),
+            )
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
 class UncompiledRules(M.Edge):
     """Step 12 term-native record of rules skipped from the trigonometry pack."""
 

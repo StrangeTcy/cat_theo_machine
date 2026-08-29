@@ -5813,11 +5813,33 @@ def run_talk_mode(sentence: str = None):
             cand_rule = G.SuggestCandidateLemma(last_goal, rules, facts, registry)()
             if M.IdentityCompare(cand_rule, M.EmptyList)() is M.truth_value:
                 return "I could not derive a sound candidate lemma for the stalled goal."
+            witness = G.ResidualWitness(
+                last_goal,
+                P.RulePremises(cand_rule)(),
+                P.RuleReplacement(cand_rule)(),
+            )()
+            learned_version = G.InstallResidualWitness(
+                learned_version,
+                witness,
+            )()
+            generalized_rule = G.GeneralizeResidualWitness(
+                learned_version,
+                witness,
+                registry,
+            )()
+            generalized = M.false_value
+            if M.IdentityCompare(generalized_rule, M.EmptyList)() is M.false_value:
+                cand_rule = generalized_rule
+                generalized = M.truth_value
             cand_law = G.CompileDeductionToLaw(cand_rule)()
             if M.IdentityCompare(cand_law, M.EmptyList)() is M.truth_value:
+                _persist_talk_state()
                 return "I could not compile a candidate lemma for the stalled goal."
+            origin_label = M.Char("dialogue-rule")
+            if M.IdentityCompare(generalized, M.truth_value)() is M.truth_value:
+                origin_label = M.Char("residual-generalization")
             cand_origin = M.Pair(
-                M.Char("dialogue-rule"),
+                origin_label,
                 M.Pair(
                     P.RulePremises(cand_rule)(),
                     M.Pair(
