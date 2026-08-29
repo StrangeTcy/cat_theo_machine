@@ -2236,6 +2236,69 @@ class GraphEdges(M.Edge):
         return self.result
 
 
+class TermFingerprint(M.Edge):
+    """A structural fingerprint of a term, as text.
+
+    Chars contribute their symbol, pairs their shape, the singleton
+    atoms -- labels and the empty list -- their identity, which across
+    the wire is their structure: the wire interns labels back to the
+    same singletons. A constructed atom contributes its constructor
+    and that constructor's arguments, exactly the parts its own
+    comparator compares. Two structurally equal terms fingerprint the
+    same; two different terms may collide, never the reverse. The
+    walk is iterative -- a term's depth is not the host stack's to
+    spend.
+    """
+
+    _CLOSE = object()
+    _SPACE = object()
+
+    def __init__(self, term):
+        pieces = []
+        stack = [term]
+        while stack:
+            item = stack.pop()
+            if item is TermFingerprint._CLOSE:
+                pieces.append(")")
+                continue
+            if item is TermFingerprint._SPACE:
+                pieces.append(" ")
+                continue
+            if M.IsPair(item)() is M.truth_value:
+                pieces.append("(")
+                stack.append(TermFingerprint._CLOSE)
+                stack.append(M.Tail(item)())
+                stack.append(TermFingerprint._SPACE)
+                stack.append(M.Head(item)())
+                continue
+            symbol = getattr(item, "symbol", None)
+            if symbol is not None:
+                pieces.append(symbol)
+                continue
+            # A constructed atom compares by its constructor and that
+            # constructor's arguments, so it fingerprints by them too;
+            # a bare atom compares by identity or its call, and both
+            # of those are the identity here.
+            constructor = M.GetConstructor(item)()
+            if M.IdentityCompare(
+                constructor, M.EmptyList,
+            )() is M.false_value:
+                pieces.append("<")
+                stack.append(TermFingerprint._CLOSE)
+                stack.append(M.Tail(constructor)())
+                stack.append(TermFingerprint._SPACE)
+                stack.append(M.Head(constructor)())
+                continue
+            pieces.append("<" + str(id(item)) + ">")
+        self.result = M.Char("".join(pieces))
+        super().__init__(
+            inputs=M.Pair(term, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class ChainAddStructurallyMissing(M.Edge):
     """Add structurally absent elements to a Pair-chain store.
 
@@ -2249,20 +2312,45 @@ class ChainAddStructurallyMissing(M.Edge):
     """
 
     def __init__(self, store, additions):
+        # Every store element is fingerprinted once, and an addition
+        # whose fingerprint never occurs is structurally absent
+        # without a single comparison -- only a fingerprint hit pays
+        # for the machine's own comparator, and what it decides is
+        # exactly what the full scan decided before. A merge on a
+        # heavy store used to be comparisons proportional to the
+        # store times the additions; the sweep records hundreds of
+        # fresh nodes against a state grown over a whole project's
+        # teaching, and each of them walked everything.
+        store_prints = set()
+        scan = store
+        while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
+            store_prints.add(str(TermFingerprint(M.Head(scan)())()))
+            scan = M.Tail(scan)()
         result = store
         remaining = additions
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             element = M.Head(remaining)()
-            scan = result
-            present = M.false_value
-            while M.IdentityCompare(scan, M.EmptyList)() is M.false_value:
-                if M.Compare(M.Head(scan)(), element)() is M.truth_value:
-                    present = M.truth_value
-                    scan = M.EmptyList
-                else:
-                    scan = M.Tail(scan)()
-            if M.IdentityCompare(present, M.false_value)() is M.truth_value:
+            element_print = str(TermFingerprint(element)())
+            if element_print not in store_prints:
+                store_prints.add(element_print)
                 result = M.Pair(element, result)
+            else:
+                scan = result
+                present = M.false_value
+                while M.IdentityCompare(
+                    scan, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(scan)(), element,
+                    )() is M.truth_value:
+                        present = M.truth_value
+                        scan = M.EmptyList
+                    else:
+                        scan = M.Tail(scan)()
+                if M.IdentityCompare(
+                    present, M.false_value,
+                )() is M.truth_value:
+                    result = M.Pair(element, result)
             remaining = M.Tail(remaining)()
         self.result = result
         super().__init__(

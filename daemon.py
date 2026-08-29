@@ -809,6 +809,7 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     )() is M.truth_value:
         live_daemon = M.truth_value
 
+    load_started = time.time()
     graph_version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     proposal_store = Gmod.ProposalStore(M.EmptyList)()
     ledger = Gmod.FiringLedger(M.AllConstructors)
@@ -818,6 +819,11 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
             graph_version = M.Head(restored)()
             proposal_store = M.Head(M.Tail(restored)())()
             ledger = M.Head(M.Tail(M.Tail(restored)())())()
+    print(
+        "daemon: state loaded in "
+        + str(int(time.time() - load_started))
+        + "s", flush=True,
+    )
     # An inbox taken but not yet folded into durable state when the
     # previous daemon died: fold it now, before anything else, so the
     # take loses nothing across a kill.
