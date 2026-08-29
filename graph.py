@@ -4781,7 +4781,15 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
         slice_index=M.EmptyList,
         slice_count=M.EmptyList,
     ):
-        pattern_cap = MineNatFromGMPRep(SUBGRAPH_CORRESPONDENCE_PATTERN_CAP)()
+        # Pattern ordinals, scanned counts, site counts: text
+        # counters, never Succ chains. A Succ chain interns a
+        # uuid-tagged atom per link through the Patricia tree, and the
+        # ground subterms of a real taught state number in the
+        # thousands -- one long mining cycle spent its whole budget
+        # building the counter instead of reading the graph.
+        pattern_cap_text = M.GMPRepText(
+            SUBGRAPH_CORRESPONDENCE_PATTERN_CAP,
+        )()
         registry = M.AllConstructors
         sliced = M.false_value
         slice_index_text = "0"
@@ -4844,9 +4852,9 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                 )
         rules = deduped_rules_reversed
         reversed_patterns = M.EmptyList
-        pattern_count = M.Zero
-        pattern_ordinal = M.Zero
-        scanned_count = M.Zero
+        pattern_count_text = "0"
+        pattern_ordinal_text = "0"
+        scanned_count_text = "0"
         rule_scan = rules
         while M.IdentityCompare(rule_scan, M.EmptyList)() is M.false_value:
             rule = M.Head(rule_scan)()
@@ -4889,19 +4897,14 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                     if M.IsPair(subterm)() is M.truth_value:
                         if P.IsVarPattern(subterm)() is M.false_value:
                             if SubgraphPatternIsGround(subterm)() is M.truth_value:
-                                pattern_stepped = M.Succ(
-                                    pattern_ordinal, registry,
+                                pattern_ordinal_text = GMPSuccText(
+                                    pattern_ordinal_text,
                                 )()
-                                pattern_ordinal = M.Head(pattern_stepped)()
                                 ordinal_in_slice = M.truth_value
                                 if M.IdentityCompare(
                                     sliced, M.truth_value,
                                 )() is M.truth_value:
-                                    ordinal_text = M.GMPRepText(
-                                        M.NatRepOf(
-                                            pattern_ordinal, registry,
-                                        )(),
-                                    )()
+                                    ordinal_text = pattern_ordinal_text
                                     remainder_text = ordinal_text
                                     remainder_guard = 0
                                     while (
@@ -4932,10 +4935,9 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                                     M.false_value,
                                 )() is M.truth_value:
                                     continue
-                                scanned_stepped = M.Succ(
-                                    scanned_count, registry,
+                                scanned_count_text = GMPSuccText(
+                                    scanned_count_text,
                                 )()
-                                scanned_count = M.Head(scanned_stepped)()
                                 known = M.false_value
                                 pattern_scan = reversed_patterns
                                 while M.IdentityCompare(
@@ -4954,32 +4956,29 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                                     known,
                                     M.false_value,
                                 )() is M.truth_value:
-                                    if M.NatEq(
-                                        pattern_count,
-                                        pattern_cap,
-                                        registry,
+                                    if GMPEqualText(
+                                        pattern_count_text,
+                                        pattern_cap_text,
                                     )() is M.truth_value:
                                         subterm_scan = M.EmptyList
                                         term_scan = M.EmptyList
                                         rule_scan = M.EmptyList
                                     else:
-                                        stepped = M.Succ(
-                                            pattern_count,
-                                            registry,
+                                        pattern_count_text = GMPSuccText(
+                                            pattern_count_text,
                                         )()
-                                        pattern_count = M.Head(stepped)()
                                         reversed_patterns = M.Pair(
                                             subterm,
                                             reversed_patterns,
                                         )
         patterns = M.Reverse(reversed_patterns)()
         current_store = proposal_store
-        submitted_count = M.Zero
+        submitted_count_text = "0"
         pattern_scan = patterns
         while M.IdentityCompare(pattern_scan, M.EmptyList)() is M.false_value:
             pattern = M.Head(pattern_scan)()
             pattern_scan = M.Tail(pattern_scan)()
-            sites = M.Zero
+            sites_text = "0"
             site_scan = rules
             while M.IdentityCompare(site_scan, M.EmptyList)() is M.false_value:
                 rule = M.Head(site_scan)()
@@ -5031,9 +5030,8 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                         else:
                             subterm_scan = M.Tail(subterm_scan)()
                 if M.IdentityCompare(holds, M.truth_value)() is M.truth_value:
-                    stepped = M.Succ(sites, registry)()
-                    sites = M.Head(stepped)()
-            if M.NatLess(M.one, sites, registry)() is M.truth_value:
+                    sites_text = GMPSuccText(sites_text)()
+            if GMPLessText("1", sites_text)() is M.truth_value:
                 already = M.false_value
                 node_scan = GraphNodes(graph_version)()
                 while M.IdentityCompare(
@@ -5086,7 +5084,6 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                         in_store,
                         M.false_value,
                     )() is M.truth_value:
-                        sites_rep = M.NatRepOf(sites, registry)()
                         origin = M.Pair(
                             M.Char("machine-correspondence"),
                             M.Pair(M.Char("subgraph"), M.EmptyList),
@@ -5094,7 +5091,7 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                         proposal = Proposal(
                             SubgraphReformulation(
                                 pattern,
-                                M.GMPRep(M.GMPRepText(sites_rep)()),
+                                M.GMPRep(sites_text),
                             )(),
                             origin,
                         )()
@@ -5102,13 +5099,17 @@ class GenerateSubgraphCorrespondenceProposals(M.Edge):
                             current_store,
                             proposal,
                         )()
-                        stepped_count = M.Succ(submitted_count, registry)()
-                        submitted_count = M.Head(stepped_count)()
+                        submitted_count_text = GMPSuccText(
+                            submitted_count_text,
+                        )()
         self.result = M.Pair(
             current_store,
             M.Pair(
-                submitted_count,
-                M.Pair(scanned_count, M.Pair(M.EmptyList, M.EmptyList)),
+                MineNatFromGMPRep(M.GMPRep(submitted_count_text))(),
+                M.Pair(
+                    MineNatFromGMPRep(M.GMPRep(scanned_count_text))(),
+                    M.Pair(M.EmptyList, M.EmptyList),
+                ),
             ),
         )
         super().__init__(
@@ -7954,8 +7955,20 @@ class LawMatchBindings(M.Edge):
         return self.result
 
 
+# The daemon's firing searches under machine fuel, not an open
+# frontier. FireAny is the cycle's firer and nothing else's: a live
+# daemon once spent a whole session inside one unbounded match over a
+# merged state, silent from the first fold to the goodbye. Real
+# matches are shallow; the fuel only ends the pathological ones.
+FIRE_MATCH_FUEL = M.GMPRep("2000")
+
+
 class FireAny(M.Edge):
-    """Fire the first installed Law having a completed Step-10 match."""
+    """Fire the first installed Law having a completed Step-10 match.
+
+    The match is fuel-bounded: this is the background cycle's firing,
+    where an unbounded search over a heavily merged state is a wedged
+    daemon, not a more thorough one."""
 
     def __init__(self, graph_version, dangling_mode, ledger=M.EmptyList, ordering=M.EmptyList):
         self.result = M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList))
@@ -7987,14 +8000,19 @@ class FireAny(M.Edge):
             if M.IdentityCompare(
                 GraphNodes(LawLeft(law)())(), M.EmptyList,
             )() is M.false_value:
-                mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
+                mapping = BoundedFirstCompletedMatch(
+                    LawLeft(law)(), graph_version, FIRE_MATCH_FUEL,
+                )()
             active_law = law
             if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
                 bindings = LawMatchBindings(law, mapping)()
                 if M.IdentityCompare(bindings, M.EmptyList)() is M.false_value:
                     active_law = InstantiateLaw(law, bindings)()
                     if M.IdentityCompare(active_law, M.EmptyList)() is M.false_value:
-                        mapping = FirstCompletedMatch(LawLeft(active_law)(), graph_version)()
+                        mapping = BoundedFirstCompletedMatch(
+                            LawLeft(active_law)(), graph_version,
+                            FIRE_MATCH_FUEL,
+                        )()
                 if M.IdentityCompare(active_law, M.EmptyList)() is M.false_value:
                     if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
                         violation = M.EmptyList

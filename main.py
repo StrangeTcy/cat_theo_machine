@@ -5811,45 +5811,17 @@ def run_talk_mode(sentence: str = None):
                     )() is M.truth_value:
                         entry = candidate
                     approved_entries = M.Tail(approved_entries)()
-                if os.path.exists(daemon_live_path):
-                    proposal_payload = G.ProposalLaw(decided_proposal)()
-                    if G.IsTaughtDerivationSchema(
-                        proposal_payload,
-                    )() is M.truth_value:
-                        learned_version = G.GraphVersion(
-                            M.Pair(
-                                proposal_payload,
-                                G.GraphNodes(learned_version)(),
-                            ),
-                            G.GraphEdges(learned_version)(),
-                            G.GraphVersionInvariants(learned_version)(),
-                        )()
-                    else:
-                        rule_origin = G.ProposalOrigin(decided_proposal)()
-                        if M.IsPair(rule_origin)() is M.truth_value:
-                            if M.Compare(
-                                M.Head(rule_origin)(), M.Char("case-split"),
-                            )() is M.false_value:
-                                if M.IsPair(
-                                    M.Tail(M.Tail(rule_origin)())(),
-                                )() is M.truth_value:
-                                    source_premises = M.Head(
-                                        M.Tail(rule_origin)(),
-                                    )()
-                                    source_replacement = M.Head(
-                                        M.Tail(M.Tail(rule_origin)())(),
-                                    )()
-                                    learned_version = G.InstallTaughtRuleSource(
-                                        learned_version,
-                                        source_premises,
-                                        source_replacement,
-                                    )()
-                    compiled_line = _unblock_definition_for(decided_proposal)
-                    _persist_talk_state()
-                    return (
-                        "Recorded and submitted. The daemon will activate it "
-                        "on its next cycle." + compiled_line
-                    )
+                # The activation happens here, in every mode. A live
+                # session used to defer it to the daemon's next cycle
+                # -- and a daemon wedged in one long mining cycle left
+                # the approved rule unactivated and the proof dead
+                # while the trainer waited. The daemon remains the
+                # only writer of the shared file: the activated
+                # version reaches it through the inbox submission,
+                # and its own activation of the same approved entry
+                # merges as the idempotent union it already is. The
+                # conversation never again depends on a background
+                # cycle finishing to be able to reason.
                 activated = G.ActivateProposal(
                     learned_version,
                     entry,
@@ -5969,17 +5941,10 @@ def run_talk_mode(sentence: str = None):
                 )() is M.truth_value:
                     entry = candidate
                 approved_entries = M.Tail(approved_entries)()
-            # With a daemon running, approval is a submission rather than an
-            # act: the daemon is the only writer of the shared state, so it
-            # takes the activation decision through the ordinary gates. Talk
-            # mode standalone keeps activating in-process, so nothing about
-            # single-process use changes.
-            if os.path.exists(daemon_live_path):
-                compiled_line = _unblock_definition_for(decided_proposal)
-                _persist_talk_state()
-                _debug("submitted to the daemon inbox; it will activate")
-                return ("Recorded and submitted. The daemon will activate it "
-                        "on its next cycle." + compiled_line)
+            # As above: the approval activates here, in every mode.
+            # The submission carries the activated state to the
+            # daemon's shared file; the conversation does not wait
+            # for a background cycle to be able to use its own words.
             _debug("activating through ActivateProposal; "
                    "recording the Next splice in the learned version")
             activated = G.ActivateProposal(
