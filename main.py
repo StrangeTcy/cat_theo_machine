@@ -1352,7 +1352,9 @@ def run_talk_mode(sentence: str = None):
     # never fewer -- a lesson skipped in error is silently forgotten.
     replay_mark_text = "0"
     if os.path.exists(talk_checkpoint_path):
+        restore_started = time.time()
         restored = W.load_checkpoint(talk_checkpoint_path)
+        restore_elapsed = time.time() - restore_started
         if M.IdentityCompare(restored, M.EmptyList)() is M.false_value:
             learned_version = M.Head(restored)()
             proposal_store = M.Head(M.Tail(restored)())()
@@ -1365,6 +1367,11 @@ def run_talk_mode(sentence: str = None):
                         )()
                 except (OSError, ValueError):
                     replay_mark_text = "0"
+            print(
+                "state restored in "
+                + str(int(restore_elapsed))
+                + "s", flush=True,
+            )
     pending_queue = M.EmptyList
     pending_rule = M.EmptyList
     pending_gaps = M.EmptyList
@@ -5255,6 +5262,7 @@ def run_talk_mode(sentence: str = None):
     def _run_invariant_sweep():
         """Run the sweep and speak what it returns, as terms."""
         nonlocal learned_version
+        sweep_started = time.time()
         holds, neighbors, step_text = _problem_state()
         holds_chain = M.EmptyList
         for sector, value_text in reversed(holds):
@@ -5341,7 +5349,9 @@ def run_talk_mode(sentence: str = None):
         )()
         _persist_talk_state()
         reply_lines = [
-            "The sweep is recorded in the graph. It holds "
+            "The sweep is recorded in the graph, in "
+            + str(int(time.time() - sweep_started))
+            + "s. It holds "
             + _words_of_count_text(
                 states_count_text,
             )
@@ -10541,6 +10551,7 @@ def run_talk_mode(sentence: str = None):
 
     replayed = 0
     skipped = 0
+    replay_started = time.time()
     if os.path.exists(lesson_path):
         try:
             with open(lesson_path, "r", encoding="utf-8") as stream:
@@ -10587,7 +10598,11 @@ def run_talk_mode(sentence: str = None):
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
     print("'prove square roots are real'.")
     if replayed:
-        print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
+        print(
+            "(replayed " + str(replayed) + " lesson lines from "
+            + lesson_path + " in "
+            + str(int(time.time() - replay_started)) + "s)",
+        )
     if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
         first_pending = M.Head(pending_queue)()
         print("hyge> (" + str(_count_chain(pending_queue))
@@ -10979,8 +10994,19 @@ def run_live_mode(requested_workers):
                     sys.stdout.write(
                         "\r\033[K[machine] the daemon has not spoken in "
                         + str(int(quiet))
-                        + "s; it is loading state or mining, and teaching"
-                        + " is queued in the inbox.\nyou> "
+                        + "s; it is still starting or mining, and teaching"
+                        + " is queued in the inbox. If no 'daemon:"
+                        + " booting' line has appeared, its process is"
+                        + " stuck before our code runs. Run this beside"
+                        + " the session to see why -- a daemon started"
+                        + " by hand serves the same state, and the"
+                        + " heartbeat keeps the two from ever both"
+                        + " writing: "
+                        + "set HYGE_LIVE_DAEMON=1 && python -u -m "
+                        + __package__
+                        + ".main daemon --workers "
+                        + str(requested_workers)
+                        + "\nyou> "
                     )
                     sys.stdout.flush()
             elif quiet <= 30.0:

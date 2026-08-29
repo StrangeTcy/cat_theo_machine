@@ -791,6 +791,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     sys.setrecursionlimit(Wmod.WORKER_RECURSION_LIMIT)
     state_path = os.path.join(snapshot_dir, DAEMON_STATE_NAME)
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
+    # The daemon's first word: nothing slow happens before it, so its
+    # arrival separates a slow interpreter or import from a slow state
+    # load -- a daemon that says nothing at all never got this far.
+    print("daemon: booting; loading " + state_path, flush=True)
     # The fold takes the inbox by renaming it: atomic, so a submission
     # arriving mid-cycle lands in a fresh talk_inbox.wire the next cycle
     # drains, instead of being deleted unread by the end-of-cycle
