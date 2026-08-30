@@ -36,6 +36,7 @@ class Search(M.Edge):
         self.registry = registry
         self.rules = ordered_rules
         self.heuristic = heuristic
+        self.original_goal = goal
         self.start = HeuristicCanonicalize(start, heuristic, registry)()
         self.goal = HeuristicCanonicalize(goal, heuristic, registry)()
         self.search_aborted = M.false_value
@@ -118,7 +119,7 @@ class Search(M.Edge):
                 from .. import graph as Gmod
 
                 self.graph._last_stall = Gmod.StallRecord(
-                    self.goal,
+                    self.original_goal,
                     Gmod.StallFrontierPrefix(self._stall_frontier)(),
                     M.EmptyList,
                     SearchJobExpanded(job)(),

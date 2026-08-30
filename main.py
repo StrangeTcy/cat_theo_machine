@@ -6960,6 +6960,55 @@ def run_talk_mode(sentence: str = None):
                     + " within the forward-chaining cap."
                 )
             start = M.Knowledge(facts)()
+            if M.IdentityCompare(
+                polynomial_goal, M.EmptyList,
+            )() is M.false_value:
+                stall_graph = G.Hypergraph(registry)
+                stall_graph._search_disable_console = M.truth_value
+                stall_graph._search_disable_progress_ticker = M.truth_value
+                stall_heuristic = Hmod.Heuristic(
+                    M.DFSLabel,
+                    M.InsertionOrderLabel,
+                    M.three,
+                    M.one,
+                    M.one,
+                    M.one,
+                )()
+                M.Search(
+                    stall_graph,
+                    start,
+                    goal,
+                    M.EmptyList,
+                    stall_heuristic,
+                    registry,
+                )()
+                stall = stall_graph._last_stall
+                if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
+                    stall = G.StallRecord(
+                        goal,
+                        M.Pair(start, M.EmptyList),
+                        M.EmptyList,
+                        M.Zero,
+                    )()
+                learned_version = G.InstallStallRecord(
+                    learned_version, stall,
+                )()
+                frontier_count_pair = M.Count(
+                    G.StallRecordFrontier(stall)(), registry,
+                )()
+                frontier_count = M.Head(frontier_count_pair)()
+                registry = M.Head(M.Tail(frontier_count_pair)())()
+                _persist_talk_state()
+                return (
+                    forward_failure + " Search failed after "
+                    + M.PrettyTerm(
+                        G.StallRecordFuelUsed(stall)(), registry,
+                    )()
+                    + " steps. "
+                    + M.PrettyTerm(frontier_count, registry)()
+                    + " frontier states preserved. Type 'suggest lemmas'"
+                    + " to analyze the stall."
+                )
             if proof_runtime is M.EmptyList:
                 print(
                     "hyge> loading the theorem runtime for the taught facts and rules",
