@@ -381,6 +381,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ExprNegLabel",
     "ExprEqLabel",
     "ExprLtLabel",
+    "ExprLeLabel",
     "RewriteActionLabel",
     "DerivationLabel",
     "InsertionOrderLabel",

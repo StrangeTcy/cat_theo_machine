@@ -45,6 +45,7 @@ from .labels import (
     ExprFracLabel,
     ExprIntLabel,
     ExprLtLabel,
+    ExprLeLabel,
     ExprMulLabel,
     ExprNegLabel,
     ExprPowLabel,

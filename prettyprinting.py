@@ -24,6 +24,7 @@ from .labels import (
     ExprFracLabel,
     ExprIntLabel,
     ExprLtLabel,
+    ExprLeLabel,
     ExprMulLabel,
     ExprNegLabel,
     ExprPowLabel,
@@ -870,6 +871,8 @@ class PrettyTerm(Edge):
             return "(" + self._show(Head(tail)()) + " = " + self._show(Head(Tail(tail)())()) + ")"
         if IdentityCompare(head, ExprLtLabel)() is truth_value:
             return "(" + self._show(Head(tail)()) + " < " + self._show(Head(Tail(tail)())()) + ")"
+        if IdentityCompare(head, ExprLeLabel)() is truth_value:
+            return "(" + self._show(Head(tail)()) + " <= " + self._show(Head(Tail(tail)())()) + ")"
         if IdentityCompare(head, ExprIntLabel)() is truth_value:
             return self._show(Head(tail)())
         if IdentityCompare(head, FractionLabel)() is truth_value:
@@ -1121,6 +1124,7 @@ def sync_from_namespace(namespace):
         "ExprFracLabel",
         "ExprIntLabel",
         "ExprLtLabel",
+        "ExprLeLabel",
         "ExprMulLabel",
         "ExprNegLabel",
         "ExprPowLabel",

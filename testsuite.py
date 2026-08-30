@@ -15,6 +15,7 @@ from . import graph as Gmod
 from . import heuristics as Hmod
 from . import labels as Lmod
 from . import matching as Xmod
+from . import mining as Minmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -4935,6 +4936,144 @@ class WorkerProtocolTest(M.Edge):
             inputs=M.Pair(graph, empty),
             results=self.result,
         )
+
+    def __call__(self):
+        return self.result
+
+
+class SearchStallCaptureTest(M.Edge):
+    """An exhausted search preserves its bounded pre-exhaustion frontier."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heuristic = Hmod.Heuristic(
+            M.DFSLabel,
+            M.InsertionOrderLabel,
+            M.three,
+            M.one,
+            M.one,
+            M.one,
+        )()
+        start = M.Knowledge(empty)()
+        goal = M.Pair(M.Char("stall-capture-goal"), empty)
+        searched = M.Search(
+            graph, start, goal, empty, heuristic, registry,
+        )()
+        stall = graph._last_stall
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(searched)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsStallRecord(stall)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.StallRecordFrontier(stall)(), empty,
+        )() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LemmaInventionTest(M.Edge):
+    """A symmetric power stall yields and persists a divided candidate."""
+
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        square_seed = Gmod.ParsePolynomialInequalityText(
+            "(a - b)^2 >= 0", digit_words,
+        )()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3",
+            digit_words,
+        )()
+        renamed = Gmod.ParsePolynomialInequalityText(
+            "a^4 + b^4 >= a^3*b + a*b^3",
+            digit_words,
+        )()
+        cubic_goal = Gmod.ParsePolynomialInequalityText(
+            "x^3 + y^3 >= x^2*y + x*y^2",
+            digit_words,
+        )()
+        cubic_stall = Gmod.StallRecord(
+            cubic_goal, M.Pair(M.Knowledge(empty)(), empty), empty, M.five,
+        )()
+        cubic_candidates = Minmod.InventFromStall(
+            cubic_stall, registry,
+        )()
+        stall = Gmod.StallRecord(
+            goal,
+            M.Pair(M.Knowledge(empty)(), empty),
+            empty,
+            M.five,
+        )()
+        candidates = Minmod.InventFromStall(stall, registry)()
+        self.result = M.truth_value
+        if M.IdentityCompare(square_seed, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(goal, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(renamed, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(cubic_candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            candidate = M.Head(candidates)()
+            proposition = M.Head(candidate)()
+            status = M.Head(M.Tail(M.Tail(candidate)())())()
+            certificate = M.Head(
+                M.Tail(M.Tail(M.Tail(candidate)())())(),
+            )()
+            lemma = Gmod.InventedLemma(
+                proposition,
+                goal,
+                empty,
+                status,
+                M.Zero,
+                certificate,
+            )()
+            version = Gmod.GraphVersion(
+                M.Pair(lemma, M.Pair(stall, empty)), empty, empty,
+            )()
+            loaded = Wmod.deserialize_version(
+                Wmod.serialize_version(version),
+            )
+            found = Gmod.LookupInventedLemma(loaded, renamed)()
+            if M.IdentityCompare(found, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(
+                Gmod.InventedLemmaStatus(found)(),
+                M.Char("verified"),
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                Gmod.InstalledStallRecord(loaded)(), empty,
+            )() is M.truth_value:
+                self.result = M.false_value
+            else:
+                incremented = Gmod.IncrementInventedLemmaUtility(
+                    loaded, found,
+                )()
+                incremented_lemma = Gmod.LookupInventedLemma(
+                    incremented, renamed,
+                )()
+                if M.NatEq(
+                    Gmod.InventedLemmaUtility(incremented_lemma)(),
+                    M.one,
+                    registry,
+                )() is M.false_value:
+                    self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
         return self.result
@@ -16053,6 +16192,22 @@ def install_default_tests(graph):
             "migration_lifecycle_test",
             empty,
             MigrationLifecycleTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_stall_capture_test",
+            empty,
+            SearchStallCaptureTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "lemma_invention_test",
+            empty,
+            LemmaInventionTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

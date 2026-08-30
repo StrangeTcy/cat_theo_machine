@@ -38,6 +38,7 @@ else:
     from . import labels as Lmod
     from . import machine as M
     from . import matching as X
+    from . import mining as Min
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -5237,6 +5238,18 @@ def run_talk_mode(sentence: str = None):
                 proposal_store = G.ProposalStoreAttach(
                     proposal_store, decided_proposal, approval,
                 )()
+                approved_payload = G.ProposalLaw(decided_proposal)()
+                if G.IsInventedLemma(approved_payload)() is M.truth_value:
+                    learned_version = G.GraphVersion(
+                        M.Pair(
+                            approved_payload,
+                            G.GraphNodes(learned_version)(),
+                        ),
+                        G.GraphEdges(learned_version)(),
+                        G.GraphVersionInvariants(learned_version)(),
+                    )()
+                    _persist_talk_state()
+                    return "Recorded the invented lemma in the graph."
                 approved_entries = G.ProposalStoreApproved(proposal_store)()
                 entry = M.EmptyList
                 while M.IdentityCompare(
@@ -5576,6 +5589,7 @@ def run_talk_mode(sentence: str = None):
                 or lowered.startswith("prove that")
                 or lowered.startswith("solve ")
                 or lowered.startswith("keep ")
+                or lowered.startswith("show ")
                 or lowered.startswith("what is ")
                 or lowered.startswith("what are the ")
                 or lowered.startswith("how many ")
@@ -5821,14 +5835,61 @@ def run_talk_mode(sentence: str = None):
                     + _ask_next_line()
                 )
             return _run_invariant_sweep()
+        if lowered.strip() == "show lemmas":
+            display = G.InventedLemmaDisplayRows(
+                G.GraphNodes(learned_version)(), M.one, registry,
+            )()
+            rows = M.Head(display)()
+            if M.IdentityCompare(rows, M.EmptyList)() is M.truth_value:
+                return "No invented lemmas are recorded."
+            return M.PrettyTerm(rows, registry)()
         if lowered.startswith("suggest lemmas"):
+            if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
+                return "Please approve or reject the pending proposal first."
+            stall = G.InstalledStallRecord(learned_version)()
+            if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
+                return "No stalled search to analyze. Run a 'query:' command first."
+            candidates = Min.InventFromStall(stall, registry)()
+            if M.IdentityCompare(candidates, M.EmptyList)() is M.truth_value:
+                return "The bounded invention biases found no useful candidate."
+            candidate = M.Head(candidates)()
+            proposition = M.Head(candidate)()
+            unlock = M.Head(M.Tail(candidate)())()
+            status = M.Head(M.Tail(M.Tail(candidate)())())()
+            certificate = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+            invented = G.InventedLemma(
+                proposition,
+                G.StallRecordGoal(stall)(),
+                M.EmptyList,
+                status,
+                M.Zero,
+                certificate,
+            )()
+            invented_proposal = G.Proposal(
+                invented, M.Char("stall-invention"),
+            )()
+            proposal_store = G.ProposalStoreSubmit(
+                proposal_store, invented_proposal,
+            )()
+            pending_rule = invented_proposal
+            _push_ask("rule", "Approve the invented lemma? (yes/no)")
+            _persist_talk_state()
+            return (
+                "Analyzing stall on: "
+                + M.PrettyTerm(G.StallRecordGoal(stall)(), registry)()
+                + "\n1. " + M.PrettyTerm(proposition, registry)()
+                + " [Unlock: " + str(unlock())
+                + " | Verification: " + str(status()) + "]"
+                + "\nEnter 1 to register it, or no."
+            )
+        if lowered.startswith("suggest premises"):
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
                 return "Please approve or reject the pending rule first."
             if M.IdentityCompare(last_goal, M.EmptyList)() is M.truth_value:
                 return "No recent search has stalled; ask a question or run a query first."
             rules = G.InstalledTaughtRules(learned_version)()
             facts = G.InstalledTaughtFacts(learned_version)()
-            cand_rule = G.SuggestCandidateLemma(last_goal, rules, facts, registry)()
+            cand_rule = G.SuggestMissingPremise(last_goal, rules, facts, registry)()
             if M.IdentityCompare(cand_rule, M.EmptyList)() is M.truth_value:
                 return "I could not derive a sound candidate lemma for the stalled goal."
             witness = G.ResidualWitness(
@@ -6251,15 +6312,25 @@ def run_talk_mode(sentence: str = None):
                 learned_version,
                 pack_concepts,
             )()
-            parsed_query = G.ParseRuleText(
-                line[6:].strip(),
-                reading_policy,
-                reading_digits,
-                known_constructors,
-                M.truth_value,
+            polynomial_goal = G.ParsePolynomialInequalityText(
+                line[6:].strip(), reading_digits,
             )()
-            goal = M.Head(parsed_query)()
-            reason = M.Head(M.Tail(parsed_query)())()
+            parsed_query = M.EmptyList
+            if M.IdentityCompare(
+                polynomial_goal, M.EmptyList,
+            )() is M.truth_value:
+                parsed_query = G.ParseRuleText(
+                    line[6:].strip(),
+                    reading_policy,
+                    reading_digits,
+                    known_constructors,
+                    M.truth_value,
+                )()
+                goal = M.Head(parsed_query)()
+                reason = M.Head(M.Tail(parsed_query)())()
+            else:
+                goal = polynomial_goal
+                reason = M.EmptyList
             if M.IdentityCompare(goal, M.EmptyList)() is M.truth_value:
                 detail = M.EmptyList
                 if M.IsPair(reason)() is M.truth_value:
@@ -6295,6 +6366,40 @@ def run_talk_mode(sentence: str = None):
                     + " is already recorded as a case-elimination conclusion."
                 )
             facts = G.InstalledTaughtFacts(learned_version)()
+            invented_hit = G.LookupInventedLemma(
+                learned_version, goal,
+            )()
+            if M.IdentityCompare(
+                invented_hit, M.EmptyList,
+            )() is M.false_value:
+                talk_ledger.append(
+                    G.FiringRecord(
+                        invented_hit,
+                        learned_version,
+                        learned_version,
+                        M.Pair(
+                            M.Pair(
+                                M.Char("invented-lemma-consultation"),
+                                M.Pair(goal, M.EmptyList),
+                            ),
+                            M.EmptyList,
+                        ),
+                        M.Zero,
+                        M.Zero,
+                        M.Zero,
+                        M.Zero,
+                        M.one,
+                    )(),
+                )
+                learned_version = G.IncrementInventedLemmaUtility(
+                    learned_version, invented_hit,
+                )()
+                last_goal = goal
+                _persist_talk_state()
+                return (
+                    "yes; derived " + line[6:].strip()
+                    + " through an invented lemma."
+                )
             schema_hit = G.LookupTaughtDerivationSchema(
                 learned_version,
                 P.Knowledge(facts)(),
@@ -6843,19 +6948,17 @@ def run_talk_mode(sentence: str = None):
                     + " negation is derivable from the taught rules and"
                     + " the numeral words' own differences."
                 )
+            forward_failure = (
+                "no; I could not derive " + line[6:].strip()
+                + "."
+            )
             if M.IdentityCompare(
                 chain_capped, M.truth_value,
             )() is M.truth_value:
-                return (
+                forward_failure = (
                     "no; I could not derive " + line[6:].strip()
-                    + " within the forward-chaining cap. Ask 'why not "
-                    + line[6:].strip() + "?' for what is missing."
+                    + " within the forward-chaining cap."
                 )
-            return (
-                "no; I could not derive " + line[6:].strip()
-                + ". Ask 'why not " + line[6:].strip()
-                + "?' for what is missing."
-            )
             start = M.Knowledge(facts)()
             if proof_runtime is M.EmptyList:
                 print(
@@ -6896,6 +6999,34 @@ def run_talk_mode(sentence: str = None):
                     goal,
                     last_proof_registry,
                 )()
+            stall = proof_runtime.graph._last_stall
+            if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
+                stall = G.StallRecord(
+                    goal,
+                    M.Pair(start, M.EmptyList),
+                    M.EmptyList,
+                    M.Zero,
+                )()
+            if M.IdentityCompare(stall, M.EmptyList)() is M.false_value:
+                learned_version = G.InstallStallRecord(
+                    learned_version, stall,
+                )()
+                frontier_count_pair = M.Count(
+                    G.StallRecordFrontier(stall)(), registry,
+                )()
+                frontier_count = M.Head(frontier_count_pair)()
+                registry = M.Head(M.Tail(frontier_count_pair)())()
+                _persist_talk_state()
+                return (
+                    forward_failure + " Search failed after "
+                    + M.PrettyTerm(
+                        G.StallRecordFuelUsed(stall)(), registry,
+                    )()
+                    + " steps. "
+                    + M.PrettyTerm(frontier_count, registry)()
+                    + " frontier states preserved. Type 'suggest lemmas'"
+                    + " to analyze the stall."
+                )
             goal_target = goal
             if M.IsPair(goal)() is M.truth_value:
                 goal_target = M.Head(goal)()
@@ -6907,9 +7038,7 @@ def run_talk_mode(sentence: str = None):
             learned_version = G.InstallGap(learned_version, residual_gap)()
             _persist_talk_state()
             return (
-                "no; I could not derive " + line[6:].strip()
-                + ". Ask 'why not " + line[6:].strip()
-                + "?' for what is missing, or 'suggest lemmas' to propose an intermediate lemma."
+                forward_failure + " No bounded search frontier was preserved."
             )
         if lowered.startswith("why not "):
             # The failed query's own explanation: what stands between
@@ -7619,6 +7748,35 @@ def run_talk_mode(sentence: str = None):
                 )
         if lowered.startswith("lemma:"):
             lemma_text = line[6:].strip()
+            polynomial_lemma = G.ParsePolynomialInequalityText(
+                lemma_text, reading_digits,
+            )()
+            if M.IdentityCompare(
+                polynomial_lemma, M.EmptyList,
+            )() is M.false_value:
+                schema_start = M.Pair(
+                    M.VarTag,
+                    M.Pair(M.Char("?lemma-start"), M.EmptyList),
+                )
+                schema = G.TaughtDerivationSchema(
+                    schema_start,
+                    polynomial_lemma,
+                    M.Pair(
+                        M.Char("human-taught-lemma"), M.EmptyList,
+                    ),
+                )()
+                learned_version = G.GraphVersion(
+                    M.Pair(schema, G.GraphNodes(learned_version)()),
+                    G.GraphEdges(learned_version)(),
+                    G.GraphVersionInvariants(learned_version)(),
+                )()
+                if record:
+                    _log_lesson(line)
+                _persist_talk_state()
+                return (
+                    "Recorded the symbolic inequality lemma: "
+                    + M.PrettyTerm(polynomial_lemma, registry)() + "."
+                )
             known_constructors = G.RuleConstructors(
                 learned_version,
                 pack_concepts,
@@ -9077,6 +9235,14 @@ def run_talk_mode(sentence: str = None):
             spoken_definition = _handle_what_is(line)
             if spoken_definition is not None:
                 return spoken_definition
+        if lowered.strip() == "1":
+            if M.IdentityCompare(
+                pending_rule, M.EmptyList,
+            )() is M.false_value:
+                if G.IsInventedLemma(
+                    G.ProposalLaw(pending_rule)(),
+                )() is M.truth_value:
+                    return _handle_decision("yes", record=record)
         if lowered in ("yes", "no"):
             if M.IdentityCompare(
                 pending_rule, M.EmptyList,
@@ -9864,6 +10030,9 @@ def run_talk_mode(sentence: str = None):
     print("Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.")
     print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.")
     print("Ask taught rules: 'query: Sage(alice)'.")
+    print("Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.")
+    print("After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.")
+    print("Inspect invented results: 'show lemmas'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
     print("'prove square roots are real'.")

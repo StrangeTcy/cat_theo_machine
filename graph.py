@@ -70,6 +70,7 @@ class Hypergraph:
         self._search_compare_live_workers = M.EmptyList
         self._search_compare_live_idle_executors = M.EmptyList
         self._last_search_comparison_outcome = M.EmptyList
+        self._last_stall = M.EmptyList
         # self.context = Ctx.Context(
         #     constructor_registry,
         #     M.EmptyList,
@@ -320,6 +321,377 @@ class Miss(M.Edge):
     def __init__(self, pat, reason):
         self.result = M.Pair(Lmod.MissLabel, M.Pair(pat, M.Pair(reason, M.EmptyList)))
         super().__init__(inputs=M.Pair(pat, M.Pair(reason, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecord(M.Edge):
+    """Bounded substrate record of one exhausted theorem search."""
+
+    def __init__(self, goal, frontier, miss_reasons, fuel_used):
+        self.result = M.Pair(
+            M.Char("stall-record"),
+            M.Pair(
+                goal,
+                M.Pair(
+                    frontier,
+                    M.Pair(
+                        miss_reasons,
+                        M.Pair(fuel_used, M.EmptyList),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                goal,
+                M.Pair(
+                    frontier,
+                    M.Pair(
+                        miss_reasons,
+                        M.Pair(fuel_used, M.EmptyList),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecordGoal(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(record)())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecordFrontier(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(M.Tail(record)())())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecordMissReasons(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(record)())())())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecordFuelUsed(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(record)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallFrontierPrefix(M.Edge):
+    def __init__(self, frontier, remaining=M.five):
+        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(remaining, M.Zero)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            predecessor = M.NatPred(remaining, M.AllConstructors)()
+            self.result = M.Pair(
+                M.Head(frontier)(),
+                StallFrontierPrefix(
+                    M.Tail(frontier)(), M.Head(predecessor)(),
+                )(),
+            )
+        super().__init__(inputs=M.Pair(frontier, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsStallRecord(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), M.Char("stall-record"))() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FindStallRecord(M.Edge):
+    def __init__(self, nodes):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif IsStallRecord(M.Head(nodes)())() is M.truth_value:
+            self.result = M.Head(nodes)()
+        else:
+            self.result = FindStallRecord(M.Tail(nodes)())()
+        super().__init__(inputs=M.Pair(nodes, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledStallRecord(M.Edge):
+    def __init__(self, graph_version):
+        self.result = FindStallRecord(GraphNodes(graph_version)())()
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstallStallRecord(M.Edge):
+    def __init__(self, graph_version, record):
+        self.result = GraphVersion(
+            M.Pair(record, GraphNodes(graph_version)()),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(record, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemma(M.Edge):
+    def __init__(self, proposition, invented_at, proof_trace, status, utility, certificate):
+        self.result = M.Pair(
+            M.Char("invented-lemma"),
+            M.Pair(
+                proposition,
+                M.Pair(
+                    invented_at,
+                    M.Pair(
+                        proof_trace,
+                        M.Pair(
+                            status,
+                            M.Pair(
+                                utility,
+                                M.Pair(certificate, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.Pair(proposition, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsInventedLemma(M.Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), M.Char("invented-lemma"))() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaProposition(M.Edge):
+    def __init__(self, lemma):
+        self.result = M.Head(M.Tail(lemma)())()
+        super().__init__(inputs=M.Pair(lemma, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaGoal(M.Edge):
+    def __init__(self, lemma):
+        self.result = M.Head(M.Tail(M.Tail(lemma)())())()
+        super().__init__(inputs=M.Pair(lemma, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaProof(M.Edge):
+    def __init__(self, lemma):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(lemma)())())())()
+        super().__init__(inputs=M.Pair(lemma, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaStatus(M.Edge):
+    def __init__(self, lemma):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(lemma)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(lemma, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaUtility(M.Edge):
+    def __init__(self, lemma):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(lemma)())())())())(),
+        )()
+        super().__init__(inputs=M.Pair(lemma, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaCertificate(M.Edge):
+    def __init__(self, lemma):
+        self.result = M.Head(
+            M.Tail(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(lemma)())())())())(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(lemma, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LookupInventedLemmaNodes(M.Edge):
+    def __init__(self, nodes, goal):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            candidate = M.Head(nodes)()
+            if IsInventedLemma(candidate)() is M.truth_value:
+                if TermsAlphaEquivalent(
+                    InventedLemmaGoal(candidate)(), goal,
+                )() is M.truth_value:
+                    self.result = candidate
+                else:
+                    self.result = LookupInventedLemmaNodes(
+                        M.Tail(nodes)(), goal,
+                    )()
+            else:
+                self.result = LookupInventedLemmaNodes(
+                    M.Tail(nodes)(), goal,
+                )()
+        super().__init__(inputs=M.Pair(nodes, M.Pair(goal, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LookupInventedLemma(M.Edge):
+    def __init__(self, graph_version, goal):
+        self.result = LookupInventedLemmaNodes(
+            GraphNodes(graph_version)(), goal,
+        )()
+        super().__init__(inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplaceInventedLemmaNode(M.Edge):
+    def __init__(self, nodes, used, replacement):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(M.Head(nodes)(), used)() is M.truth_value:
+            self.result = M.Pair(replacement, M.Tail(nodes)())
+        else:
+            self.result = M.Pair(
+                M.Head(nodes)(),
+                ReplaceInventedLemmaNode(
+                    M.Tail(nodes)(), used, replacement,
+                )(),
+            )
+        super().__init__(inputs=M.Pair(nodes, M.Pair(used, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IncrementInventedLemmaUtility(M.Edge):
+    def __init__(self, graph_version, used):
+        next_utility = M.Succ(
+            InventedLemmaUtility(used)(), M.AllConstructors,
+        )()
+        replacement = InventedLemma(
+            InventedLemmaProposition(used)(),
+            InventedLemmaGoal(used)(),
+            InventedLemmaProof(used)(),
+            InventedLemmaStatus(used)(),
+            M.Head(next_utility)(),
+            InventedLemmaCertificate(used)(),
+        )()
+        self.result = GraphVersion(
+            ReplaceInventedLemmaNode(
+                GraphNodes(graph_version)(), used, replacement,
+            )(),
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        super().__init__(inputs=M.Pair(graph_version, M.Pair(used, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaDisplayRows(M.Edge):
+    def __init__(self, nodes, ordinal=M.one, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.Pair(ordinal, M.EmptyList))
+        else:
+            candidate = M.Head(nodes)()
+            next_ordinal = ordinal
+            row = M.EmptyList
+            if IsInventedLemma(candidate)() is M.truth_value:
+                row = M.Pair(
+                    M.Char("invented-lemma-display"),
+                    M.Pair(
+                        ordinal,
+                        M.Pair(
+                            InventedLemmaProposition(candidate)(),
+                            M.Pair(
+                                InventedLemmaUtility(candidate)(),
+                                M.Pair(
+                                    InventedLemmaStatus(candidate)(),
+                                    M.EmptyList,
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+                successor = M.Succ(ordinal, registry)()
+                next_ordinal = M.Head(successor)()
+                registry = M.Head(M.Tail(successor)())()
+            rest = InventedLemmaDisplayRows(
+                M.Tail(nodes)(), next_ordinal, registry,
+            )()
+            rows = M.Head(rest)()
+            if M.IdentityCompare(row, M.EmptyList)() is M.false_value:
+                rows = M.Pair(row, rows)
+            self.result = M.Pair(
+                rows, M.Pair(M.Head(M.Tail(rest)())(), M.EmptyList),
+            )
+        super().__init__(inputs=M.Pair(nodes, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -6135,7 +6507,7 @@ class CompileDeductionToLaw(M.Edge):
         return self.result
 
 
-class SuggestCandidateLemma(M.Edge):
+class SuggestMissingPremise(M.Edge):
     """One-hop backward premise abductor for a stalled goal.
 
     Reasons backward one rule application from `goal`: searches installed
@@ -7027,7 +7399,7 @@ class GroundResidualSearch(M.Edge):
     def __init__(self, template, variables, values, bindings, registry):
         if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
             ground = M.Head(M.Instantiate(template, bindings)())()
-            checker = SuggestCandidateLemma(
+            checker = SuggestMissingPremise(
                 M.EmptyList,
                 M.EmptyList,
                 M.EmptyList,
@@ -14173,6 +14545,265 @@ class DefaultReadingPolicy(M.Edge):
         foldings = M.Pair(M.Pair(M.Char("A"), M.Pair(M.Char("a"), empty)), foldings)
         self.result = ReadingPolicy(separators, discarded, standalone, foldings)()
         super().__init__(inputs=empty, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialReadingPolicy(M.Edge):
+    """A local reader for symbolic polynomial inequalities."""
+
+    def __init__(self):
+        base = DefaultReadingPolicy()()
+        standalone = ReadingPolicyStandalone(base)()
+        standalone = M.Pair(M.Char("+"), standalone)
+        standalone = M.Pair(M.Char("-"), standalone)
+        standalone = M.Pair(M.Char("*"), standalone)
+        standalone = M.Pair(M.Char("^"), standalone)
+        standalone = M.Pair(M.Char("<"), standalone)
+        standalone = M.Pair(M.Char(">"), standalone)
+        standalone = M.Pair(M.Char("="), standalone)
+        self.result = ReadingPolicy(
+            ReadingPolicySeparators(base)(),
+            ReadingPolicyDiscarded(base)(),
+            standalone,
+            ReadingPolicyFoldings(base)(),
+        )()
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialAtomFromToken(M.Edge):
+    def __init__(self, token):
+        numeral = M.EmptyList
+        if M.Compare(token, M.Char("zero"))() is M.truth_value:
+            numeral = M.Zero
+        elif M.Compare(token, M.Char("one"))() is M.truth_value:
+            numeral = M.one
+        elif M.Compare(token, M.Char("two"))() is M.truth_value:
+            numeral = M.two
+        elif M.Compare(token, M.Char("three"))() is M.truth_value:
+            numeral = M.three
+        elif M.Compare(token, M.Char("four"))() is M.truth_value:
+            numeral = M.four
+        elif M.Compare(token, M.Char("five"))() is M.truth_value:
+            numeral = M.five
+        elif M.Compare(token, M.Char("six"))() is M.truth_value:
+            numeral = M.six
+        elif M.Compare(token, M.Char("seven"))() is M.truth_value:
+            numeral = M.seven
+        elif M.Compare(token, M.Char("eight"))() is M.truth_value:
+            numeral = M.eight
+        elif M.Compare(token, M.Char("nine"))() is M.truth_value:
+            numeral = M.nine
+        if M.IdentityCompare(numeral, M.EmptyList)() is M.false_value:
+            self.result = M.Pair(
+                M.ExprIntLabel, M.Pair(numeral, M.EmptyList),
+            )
+        else:
+            self.result = M.Pair(
+                M.VarTag,
+                M.Pair(token, M.EmptyList),
+            )
+        super().__init__(inputs=M.Pair(token, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialPrimary(M.Edge):
+    def __init__(self, tokens):
+        self.result = M.EmptyList
+        if M.IdentityCompare(tokens, M.EmptyList)() is M.false_value:
+            token = M.Head(tokens)()
+            remaining = M.Tail(tokens)()
+            if M.Compare(token, M.Char("("))() is M.truth_value:
+                inner = ParsePolynomialSum(remaining)()
+                if M.IdentityCompare(inner, M.EmptyList)() is M.false_value:
+                    inner_remaining = M.Head(M.Tail(inner)())()
+                    if M.IdentityCompare(
+                        inner_remaining, M.EmptyList,
+                    )() is M.false_value:
+                        if M.Compare(
+                            M.Head(inner_remaining)(), M.Char(")"),
+                        )() is M.truth_value:
+                            self.result = M.Pair(
+                                M.Head(inner)(),
+                                M.Pair(M.Tail(inner_remaining)(), M.EmptyList),
+                            )
+            elif M.Compare(token, M.Char("-"))() is M.truth_value:
+                inner = ParsePolynomialPrimary(remaining)()
+                if M.IdentityCompare(inner, M.EmptyList)() is M.false_value:
+                    self.result = M.Pair(
+                        M.Pair(
+                            M.ExprNegLabel,
+                            M.Pair(M.Head(inner)(), M.EmptyList),
+                        ),
+                        M.Tail(inner)(),
+                    )
+            else:
+                self.result = M.Pair(
+                    PolynomialAtomFromToken(token)(),
+                    M.Pair(remaining, M.EmptyList),
+                )
+        super().__init__(inputs=M.Pair(tokens, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialPower(M.Edge):
+    def __init__(self, tokens):
+        primary = ParsePolynomialPrimary(tokens)()
+        self.result = primary
+        if M.IdentityCompare(primary, M.EmptyList)() is M.false_value:
+            remaining = M.Head(M.Tail(primary)())()
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if M.Compare(M.Head(remaining)(), M.Char("^"))() is M.truth_value:
+                    exponent = ParsePolynomialPrimary(M.Tail(remaining)())()
+                    if M.IdentityCompare(exponent, M.EmptyList)() is M.false_value:
+                        self.result = M.Pair(
+                            M.Pair(
+                                M.ExprPowLabel,
+                                M.Pair(
+                                    M.Head(primary)(),
+                                    M.Pair(M.Head(exponent)(), M.EmptyList),
+                                ),
+                            ),
+                            M.Tail(exponent)(),
+                        )
+        super().__init__(inputs=M.Pair(tokens, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialProductTail(M.Edge):
+    def __init__(self, left, tokens):
+        self.result = M.Pair(left, M.Pair(tokens, M.EmptyList))
+        if M.IdentityCompare(tokens, M.EmptyList)() is M.false_value:
+            if M.Compare(M.Head(tokens)(), M.Char("*"))() is M.truth_value:
+                right = ParsePolynomialPower(M.Tail(tokens)())()
+                if M.IdentityCompare(right, M.EmptyList)() is M.false_value:
+                    product = M.Pair(
+                        M.ExprMulLabel,
+                        M.Pair(left, M.Pair(M.Head(right)(), M.EmptyList)),
+                    )
+                    self.result = ParsePolynomialProductTail(
+                        product, M.Head(M.Tail(right)())(),
+                    )()
+        super().__init__(inputs=M.Pair(left, M.Pair(tokens, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialProduct(M.Edge):
+    def __init__(self, tokens):
+        first = ParsePolynomialPower(tokens)()
+        if M.IdentityCompare(first, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = ParsePolynomialProductTail(
+                M.Head(first)(), M.Head(M.Tail(first)())(),
+            )()
+        super().__init__(inputs=M.Pair(tokens, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialSumTail(M.Edge):
+    def __init__(self, left, tokens):
+        self.result = M.Pair(left, M.Pair(tokens, M.EmptyList))
+        if M.IdentityCompare(tokens, M.EmptyList)() is M.false_value:
+            operator = M.Head(tokens)()
+            is_plus = M.Compare(operator, M.Char("+"))()
+            is_minus = M.Compare(operator, M.Char("-"))()
+            if M.OrAtom(is_plus, is_minus)() is M.truth_value:
+                right = ParsePolynomialProduct(M.Tail(tokens)())()
+                if M.IdentityCompare(right, M.EmptyList)() is M.false_value:
+                    right_term = M.Head(right)()
+                    if M.IdentityCompare(is_minus, M.truth_value)() is M.truth_value:
+                        right_term = M.Pair(
+                            M.ExprNegLabel, M.Pair(right_term, M.EmptyList),
+                        )
+                    summation = M.Pair(
+                        M.ExprAddLabel,
+                        M.Pair(left, M.Pair(right_term, M.EmptyList)),
+                    )
+                    self.result = ParsePolynomialSumTail(
+                        summation, M.Head(M.Tail(right)())(),
+                    )()
+        super().__init__(inputs=M.Pair(left, M.Pair(tokens, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialSum(M.Edge):
+    def __init__(self, tokens):
+        first = ParsePolynomialProduct(tokens)()
+        if M.IdentityCompare(first, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = ParsePolynomialSumTail(
+                M.Head(first)(), M.Head(M.Tail(first)())(),
+            )()
+        super().__init__(inputs=M.Pair(tokens, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialInequalityText(M.Edge):
+    """Parse one symbolic <= or >= polynomial inequality."""
+
+    def __init__(self, text, digit_words):
+        tokens = WordsOfText(
+            text, PolynomialReadingPolicy()(), digit_words,
+        )()
+        left = ParsePolynomialSum(tokens)()
+        self.result = M.EmptyList
+        if M.IdentityCompare(left, M.EmptyList)() is M.false_value:
+            remaining = M.Head(M.Tail(left)())()
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                first_relation = M.Head(remaining)()
+                relation_tail = M.Tail(remaining)()
+                if M.IdentityCompare(
+                    relation_tail, M.EmptyList,
+                )() is M.false_value:
+                    if M.Compare(
+                        M.Head(relation_tail)(), M.Char("="),
+                    )() is M.truth_value:
+                        right = ParsePolynomialSum(M.Tail(relation_tail)())()
+                        if M.IdentityCompare(right, M.EmptyList)() is M.false_value:
+                            if M.IdentityCompare(
+                                M.Head(M.Tail(right)())(), M.EmptyList,
+                            )() is M.truth_value:
+                                if M.Compare(
+                                    first_relation, M.Char("<"),
+                                )() is M.truth_value:
+                                    self.result = M.Pair(
+                                        M.ExprLeLabel,
+                                        M.Pair(
+                                            M.Head(left)(),
+                                            M.Pair(M.Head(right)(), M.EmptyList),
+                                        ),
+                                    )
+                                elif M.Compare(
+                                    first_relation, M.Char(">"),
+                                )() is M.truth_value:
+                                    self.result = M.Pair(
+                                        M.ExprLeLabel,
+                                        M.Pair(
+                                            M.Head(right)(),
+                                            M.Pair(M.Head(left)(), M.EmptyList),
+                                        ),
+                                    )
+        super().__init__(inputs=M.Pair(M.Char(text), M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result

@@ -227,6 +227,10 @@ class ExprLtLabel(ConstructorLabel):
     pass
 
 
+class ExprLeLabel(ConstructorLabel):
+    pass
+
+
 class DFSLabel(ConstructorLabel):
     pass
 
@@ -1836,6 +1840,7 @@ ExprIntLabel = ExprIntLabel()
 ExprNegLabel = ExprNegLabel()
 ExprEqLabel = ExprEqLabel()
 ExprLtLabel = ExprLtLabel()
+ExprLeLabel = ExprLeLabel()
 DFSLabel = DFSLabel()
 BFSLabel = BFSLabel()
 BeamLabel = BeamLabel()
@@ -2121,6 +2126,7 @@ def sync_from_namespace(namespace):
         "ExprNegLabel",
         "ExprEqLabel",
         "ExprLtLabel",
+        "ExprLeLabel",
         "DFSLabel",
         "BFSLabel",
         "BeamLabel",
