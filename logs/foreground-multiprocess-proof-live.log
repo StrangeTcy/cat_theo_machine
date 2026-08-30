@@ -1,4 +1,8 @@
-HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+live mode: the foreground process owns the terminal and runs each requested proof.
+live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.
+live mode: foreground proof lookup uses 4 worker(s); daemon autonomy uses 4.
+[K[machine] daemon: cycling shared state at /home/user/cat_theo_machine/snapshots/talk_state.wire with 4 worker(s)
+you> HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
 Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
 'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
 Parentheses group subexpressions: 'two times (two plus two)'.
@@ -20,59 +24,75 @@ DEBUG [foreground prover]: decomposing the query and looking for a formal goal s
 DEBUG [foreground prover]: recognized a polynomial inequality and normalized both sides
 DEBUG [foreground prover]: looking up recorded conclusions and approved proof schemas
 DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
-DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
-DEBUG [foreground prover]: partitioning the graph equally across the configured 4 foreground proof workers
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 0 of 4 to process 1536
-[foreground worker 1536] starting equal graph shard 0 of 4
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 1 of 4 to process 1537
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 2 of 4 to process 1538
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 3 of 4 to process 1539
-[foreground worker 1537] starting equal graph shard 1 of 4
-[foreground worker 1538] starting equal graph shard 2 of 4
-[foreground worker 1539] starting equal graph shard 3 of 4
-[foreground worker 1537] finished equal graph shard 1 of 4: none
-[foreground worker 1538] finished equal graph shard 2 of 4: none
-[foreground worker 1536] finished equal graph shard 0 of 4: none
-[foreground worker 1539] finished equal graph shard 3 of 4: none
-DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=none
+DEBUG: submitted taught graph data to the daemon inbox
+DEBUG [foreground prover]: submitting the graph for equal partition across the daemon's active worker service
+DEBUG [foreground coordinator 1683]: submitted equal-shard proof lookup to the existing daemon worker service
+[K[machine] daemon cycle 1: fired 0, activated 0, proposed 0 handle(s) and 0 composition(s), found 0 correspondence(s); stopped: exhausted
+you> [K[machine] daemon: accepted foreground proof lookup; distributing the graph equally across 4 existing worker(s)
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 0 of 4 to process 1694
+you> [K[machine] [daemon proof worker 1694] starting equal graph shard 0 of 4
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 1 of 4 to process 1695
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 2 of 4 to process 1696
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 3 of 4 to process 1697
+you> [K[machine] [daemon proof worker 1695] starting equal graph shard 1 of 4
+you> [K[machine] [daemon proof worker 1696] starting equal graph shard 2 of 4
+you> [K[machine] [daemon proof worker 1697] starting equal graph shard 3 of 4
+you> [K[machine] [daemon proof worker 1695] finished equal graph shard 1 of 4: none
+you> [K[machine] [daemon proof worker 1696] finished equal graph shard 2 of 4: none
+you> [K[machine] [daemon proof worker 1694] finished equal graph shard 0 of 4: none
+you> [K[machine] [daemon proof worker 1697] finished equal graph shard 3 of 4: none
+you> [K[machine] daemon: foreground proof lookup complete; selected mode=none
+you> DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=none
 DEBUG [foreground prover]: equal worker lookup finished with no match; recording the exhausted structural goal for lemma invention
 DEBUG [foreground prover]: the bounded search stalled; preserving its frontier for lemma invention
 DEBUG [foreground prover]: waiting for the administrator to ask me to suggest lemmas
-DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: submitted taught graph data to the daemon inbox
 hyge> no; I could not derive x^4 + y^4 >= x^3*y + x*y^3. Search failed after 1 steps. 0 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+DEBUG: read the daemon's state back
 you> DEBUG [foreground prover]: opening the preserved search stall and decomposing its unmet goal
 DEBUG [foreground prover]: examining the normalized residual and trying bounded algebraic decompositions
 DEBUG [foreground prover]: found a fitting candidate; checking its identity and positivity obligations
 DEBUG [foreground prover]: candidate verified; waiting for administrator approval before installing it
-DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: submitted taught graph data to the daemon inbox
 hyge> Analyzing stall on: ((((?x^3) * ?y) + (?x * (?y^3))) <= ((?x^4) + (?y^4)))
 1. ((((?x^4) + (?y^4)) + (-(((?x^3) * ?y) + (?x * (?y^3))))) = ((?x + (-?y)) * ((?x + (-?y)) * ((?x^2) + ((?x * ?y) + (?y^2)))))) [Source: goal-structural | Status: verified-identity]
 Approve this candidate? Enter yes or no.
 you> DEBUG: decision 'yes' appended to /home/user/cat_theo_machine/snapshots/talk_lessons.log
 DEBUG [foreground prover]: administrator approved the candidate; installing its verified rule and replay certificate
-DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: submitted taught graph data to the daemon inbox
 hyge> Recorded the invented lemma and its verified rewrite rule.
-you> DEBUG [foreground prover]: resolved 'what I asked' to the most recent formal proof goal
+you> [K[machine] daemon cycle 2: fired 0, activated 0, proposed 0 handle(s) and 0 composition(s), found 0 correspondence(s); stopped: exhausted
+you> DEBUG: read the daemon's state back
+DEBUG [foreground prover]: resolved 'what I asked' to the most recent formal proof goal
 DEBUG [foreground prover]: decomposing the query and looking for a formal goal shape
-DEBUG [foreground prover]: recognized a polynomial inequality and normalized both sides
+[K[machine] daemon: took 1 submission(s) from the conversation
+you> DEBUG [foreground prover]: recognized a polynomial inequality and normalized both sides
 DEBUG [foreground prover]: looking up recorded conclusions and approved proof schemas
 DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
-DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
-DEBUG [foreground prover]: partitioning the graph equally across the configured 4 foreground proof workers
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 0 of 4 to process 1540
-[foreground worker 1540] starting equal graph shard 0 of 4
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 1 of 4 to process 1541
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 2 of 4 to process 1542
-DEBUG [foreground coordinator 1535]: assigned equal graph shard 3 of 4 to process 1543
-[foreground worker 1541] starting equal graph shard 1 of 4
-[foreground worker 1542] starting equal graph shard 2 of 4
-[foreground worker 1543] starting equal graph shard 3 of 4
-[foreground worker 1541] finished equal graph shard 1 of 4: direct
-[foreground worker 1542] finished equal graph shard 2 of 4: none
-[foreground worker 1540] finished equal graph shard 0 of 4: none
-[foreground worker 1543] finished equal graph shard 3 of 4: none
-DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=direct
+DEBUG: submitted taught graph data to the daemon inbox
+DEBUG [foreground prover]: submitting the graph for equal partition across the daemon's active worker service
+DEBUG [foreground coordinator 1683]: submitted equal-shard proof lookup to the existing daemon worker service
+[K[machine] daemon cycle 3: fired 0, activated 1, proposed 0 handle(s) and 0 composition(s), found 0 correspondence(s); stopped: exhausted
+you> [K[machine] daemon: accepted foreground proof lookup; distributing the graph equally across 4 existing worker(s)
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 0 of 4 to process 1714
+you> [K[machine] [daemon proof worker 1714] starting equal graph shard 0 of 4
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 1 of 4 to process 1715
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 2 of 4 to process 1716
+you> [K[machine] DEBUG [daemon worker coordinator 1684]: assigned equal graph shard 3 of 4 to process 1717
+you> [K[machine] [daemon proof worker 1715] starting equal graph shard 1 of 4
+you> [K[machine] [daemon proof worker 1716] starting equal graph shard 2 of 4
+you> [K[machine] [daemon proof worker 1717] starting equal graph shard 3 of 4
+you> [K[machine] [daemon proof worker 1714] finished equal graph shard 0 of 4: none
+you> [K[machine] [daemon proof worker 1717] finished equal graph shard 3 of 4: none
+you> [K[machine] [daemon proof worker 1715] finished equal graph shard 1 of 4: direct
+you> [K[machine] [daemon proof worker 1716] finished equal graph shard 2 of 4: none
+you> [K[machine] daemon: foreground proof lookup complete; selected mode=direct
+you> DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=direct
 DEBUG [foreground prover]: found a fitting invented lemma; replaying its certificate and obligations
-DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: submitted taught graph data to the daemon inbox
 hyge> yes; replayed the saved algebraic identity, proved its nonnegativity obligations, and derived x^4 + y^4 >= x^3*y + x*y^3.
+DEBUG: read the daemon's state back
 you> hyge> goodbye
+live mode: drained the inbox into the talk state.
+live mode: drained the inbox into the talk state.
+live mode: daemon stopped.

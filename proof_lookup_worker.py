@@ -131,7 +131,7 @@ class ProofLookupWorker:
     def __init__(self, shard_text, worker_count_text, request_path, result_path):
         process_text = str(os.getpid())
         print(
-            "[foreground worker " + process_text + "] starting equal graph shard "
+            "[daemon proof worker " + process_text + "] starting equal graph shard "
             + shard_text + " of " + worker_count_text,
             flush=True,
         )
@@ -174,7 +174,7 @@ class ProofLookupWorker:
             result_stream.write(result_flag)
         os.replace(temporary_path, result_path)
         print(
-            "[foreground worker " + process_text + "] finished equal graph shard "
+            "[daemon proof worker " + process_text + "] finished equal graph shard "
             + shard_text + " of " + worker_count_text + ": " + result_mode,
             flush=True,
         )

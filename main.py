@@ -8084,12 +8084,10 @@ def run_talk_mode(sentence: str = None):
                 replay_hit = M.EmptyList
                 if os.environ.get("HYGE_LIVE_FOREGROUND", "") == "1":
                     _thinking(
-                        "partitioning the graph equally across the configured "
-                        + os.environ.get("HYGE_FOREGROUND_WORKERS", "1")
-                        + " foreground proof workers"
+                        "submitting the graph for equal partition across the daemon's active worker service"
                     )
-                    lookup_mode = ProofLookup.ParallelProofLookupMode(
-                        learned_version, goal, scoped_assumptions,
+                    lookup_mode = ProofLookup.DaemonProofLookupMode(
+                        SNAPSHOT_DIR, learned_version, goal, scoped_assumptions,
                     )()
                     _thinking("foreground lookup workers joined; selected result mode=" + lookup_mode)
                     if lookup_mode == "worker-failure":

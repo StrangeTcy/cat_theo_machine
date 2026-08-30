@@ -3,8 +3,61 @@ import os
 
 from . import machine as M
 from . import wire as W
-from .gmprep import GMPEqualText, GMPLessText, GMPSuccText
+from .gmprep import GMPEqualText, GMPLessText, GMPPredText, GMPSuccText
 from .proof_lookup_worker import ProofLookupWorker
+
+
+PROOF_LOOKUP_REQUEST_NAME = "proof_lookup_request.wire"
+PROOF_LOOKUP_TAKEN_NAME = "proof_lookup_request.wire.taken"
+PROOF_LOOKUP_RESPONSE_NAME = "proof_lookup_response.txt"
+
+
+class WaitForProofLookupResponse(M.Edge):
+    def __init__(self, response_path, attempts_text):
+        if os.path.exists(response_path):
+            with open(response_path, "r", encoding="utf-8") as response_stream:
+                self.result = response_stream.read().strip()
+        elif GMPEqualText(attempts_text, "0")() is M.truth_value:
+            self.result = "worker-failure"
+        else:
+            import time
+
+            time.sleep(0.25)
+            self.result = WaitForProofLookupResponse(
+                response_path, GMPPredText(attempts_text)(),
+            )()
+        super().__init__(inputs=M.Pair(M.Char(response_path), M.EmptyList), results=M.Char(self.result))
+
+    def __call__(self):
+        return self.result
+
+
+class DaemonProofLookupMode(M.Edge):
+    def __init__(self, snapshot_dir, graph_version, goal, assumptions):
+        request_path = os.path.join(snapshot_dir, PROOF_LOOKUP_REQUEST_NAME)
+        response_path = os.path.join(snapshot_dir, PROOF_LOOKUP_RESPONSE_NAME)
+        if os.path.exists(response_path):
+            os.remove(response_path)
+        request = M.Pair(
+            graph_version,
+            M.Pair(goal, M.Pair(assumptions, M.EmptyList)),
+        )
+        temporary_path = request_path + ".tmp"
+        with open(temporary_path, "wb") as request_stream:
+            request_stream.write(W.serialize_term(request))
+        os.replace(temporary_path, request_path)
+        print(
+            "DEBUG [foreground coordinator " + str(os.getpid())
+            + "]: submitted equal-shard proof lookup to the existing daemon worker service",
+            flush=True,
+        )
+        self.result = WaitForProofLookupResponse(response_path, "240")()
+        if os.path.exists(response_path):
+            os.remove(response_path)
+        super().__init__(inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)), results=M.Char(self.result))
+
+    def __call__(self):
+        return self.result
 
 
 class ProofLookupProcess(multiprocessing.Process):
@@ -29,7 +82,7 @@ class ProofLookupProcess(multiprocessing.Process):
                 result_stream.write("E")
             os.replace(temporary_path, self.result_path)
             print(
-                "[foreground worker " + str(os.getpid()) + "] failed equal graph shard "
+                "[daemon proof worker " + str(os.getpid()) + "] failed equal graph shard "
                 + self.shard_text + " of " + self.worker_count_text + ": "
                 + str(failure),
                 flush=True,
@@ -89,7 +142,7 @@ class SpawnProofLookupPlan(M.Edge):
             )
             process.start()
             print(
-                "DEBUG [foreground coordinator " + coordinator_text
+                "DEBUG [daemon worker coordinator " + coordinator_text
                 + "]: assigned equal graph shard " + shard_text + " of "
                 + worker_count_text + " to process " + str(process.pid),
                 flush=True,

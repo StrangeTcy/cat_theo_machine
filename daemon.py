@@ -33,6 +33,7 @@ from . import graph as Gmod
 from . import labels as Lmod
 from . import proof as Proof
 from . import wire as Wmod
+from . import proof_lookup_coordinator as ProofLookup
 
 
 # Host I/O parameters, not machine values: a poll interval in seconds and
@@ -698,6 +699,17 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     # write leaves the taken file behind; boot folds it back in, so a
     # kill loses nothing.
     inbox_taken_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME + ".taken")
+    proof_request_path = os.path.join(
+        snapshot_dir, ProofLookup.PROOF_LOOKUP_REQUEST_NAME,
+    )
+    proof_taken_path = os.path.join(
+        snapshot_dir, ProofLookup.PROOF_LOOKUP_TAKEN_NAME,
+    )
+    proof_response_path = os.path.join(
+        snapshot_dir, ProofLookup.PROOF_LOOKUP_RESPONSE_NAME,
+    )
+    if os.path.exists(proof_taken_path):
+        os.replace(proof_taken_path, proof_request_path)
     live_daemon = M.false_value
     if M.Compare(
         M.Char(os.environ.get("HYGE_LIVE_DAEMON", "")),
@@ -731,6 +743,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
             proposal_store = M.Head(taken_merge)()
         os.remove(inbox_taken_path)
     worker_count = daemon_worker_count(worker_count)
+    proof_worker_count = worker_count
+    if proof_worker_count < 1:
+        proof_worker_count = 1
+    os.environ["HYGE_FOREGROUND_WORKERS"] = str(proof_worker_count)
     live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
     with open(live_path, "w", encoding="utf-8") as handle:
         handle.write(str(os.getpid()))
@@ -801,6 +817,35 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                             + " submission(s) from the conversation",
                             flush=True,
                         )
+
+            if os.path.exists(proof_request_path):
+                os.replace(proof_request_path, proof_taken_path)
+                with open(proof_taken_path, "rb") as proof_stream:
+                    proof_request = Wmod.deserialize_term(proof_stream.read())
+                proof_graph_version = M.Head(proof_request)()
+                proof_goal = M.Head(M.Tail(proof_request)())()
+                proof_assumptions = M.Head(M.Tail(M.Tail(proof_request)())())()
+                print(
+                    "daemon: accepted foreground proof lookup; distributing the graph equally across "
+                    + str(proof_worker_count) + " existing worker(s)",
+                    flush=True,
+                )
+                proof_mode = ProofLookup.ParallelProofLookupMode(
+                    proof_graph_version, proof_goal, proof_assumptions,
+                )()
+                proof_response_temporary = proof_response_path + ".tmp"
+                with open(
+                    proof_response_temporary, "w", encoding="utf-8",
+                ) as proof_response_stream:
+                    proof_response_stream.write(proof_mode)
+                os.replace(proof_response_temporary, proof_response_path)
+                if os.path.exists(proof_taken_path):
+                    os.remove(proof_taken_path)
+                print(
+                    "daemon: foreground proof lookup complete; selected mode="
+                    + proof_mode,
+                    flush=True,
+                )
 
             refusal = DaemonSafetyText(graph_version, proposal_store)()
             if refusal:
