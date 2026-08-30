@@ -4370,6 +4370,128 @@ class CubicLinearFactorCandidate(M.Edge):
         return self.result
 
 
+class FindDifferenceSquareWithFirst(M.Edge):
+    def __init__(self, first, remaining, residual, variables, registry):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            second = M.Head(remaining)()
+            difference = M.Pair(
+                M.ExprAddLabel,
+                M.Pair(
+                    first,
+                    M.Pair(
+                        M.Pair(M.ExprNegLabel, M.Pair(second, M.EmptyList)),
+                        M.EmptyList,
+                    ),
+                ),
+            )
+            square = M.Pair(
+                M.ExprPowLabel,
+                M.Pair(
+                    difference,
+                    M.Pair(
+                        M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
+                        M.EmptyList,
+                    ),
+                ),
+            )
+            normalized = NormalizeCanonicalPolynomial(
+                square, variables, registry,
+            )()
+            if CanonicalPolynomialEqual(normalized, residual)() is M.truth_value:
+                self.result = square
+            else:
+                self.result = FindDifferenceSquareWithFirst(
+                    first,
+                    M.Tail(remaining)(),
+                    residual,
+                    variables,
+                    registry,
+                )()
+        super().__init__(inputs=M.Pair(first, M.Pair(remaining, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FindDifferenceSquare(M.Edge):
+    def __init__(self, expressions, residual, variables, registry):
+        if M.IdentityCompare(expressions, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            found = FindDifferenceSquareWithFirst(
+                M.Head(expressions)(),
+                M.Tail(expressions)(),
+                residual,
+                variables,
+                registry,
+            )()
+            if M.IdentityCompare(found, M.EmptyList)() is M.false_value:
+                self.result = found
+            else:
+                self.result = FindDifferenceSquare(
+                    M.Tail(expressions)(), residual, variables, registry,
+                )()
+        super().__init__(inputs=M.Pair(expressions, M.Pair(residual, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PerfectSquareCandidate(M.Edge):
+    def __init__(self, goal, registry=M.EmptyList):
+        self.result = M.EmptyList
+        if M.IsPair(goal)() is M.truth_value:
+            if M.IdentityCompare(M.Head(goal)(), M.ExprLeLabel)() is M.truth_value:
+                variables = BoundedPolynomialVariables(goal)()
+                lesser = M.Head(M.Tail(goal)())()
+                greater = M.Head(M.Tail(M.Tail(goal)())())()
+                difference_expression = M.Pair(
+                    M.ExprAddLabel,
+                    M.Pair(
+                        greater,
+                        M.Pair(
+                            M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
+                            M.EmptyList,
+                        ),
+                    ),
+                )
+                residual = NormalizeCanonicalPolynomial(
+                    difference_expression, variables, registry,
+                )()
+                products = PairwiseProductExpressions(variables)()
+                square = FindDifferenceSquare(
+                    products, residual, variables, registry,
+                )()
+                if M.IdentityCompare(square, M.EmptyList)() is M.false_value:
+                    proposition = M.Pair(
+                        M.ExprEqLabel,
+                        M.Pair(difference_expression, M.Pair(square, M.EmptyList)),
+                    )
+                    certificate = M.Pair(
+                        M.Char("bounded-perfect-square"),
+                        M.Pair(
+                            variables,
+                            M.Pair(residual, M.Pair(square, M.EmptyList)),
+                        ),
+                    )
+                    self.result = M.Pair(
+                        proposition,
+                        M.Pair(
+                            M.Char("bilinear-perfect-square"),
+                            M.Pair(
+                                M.Char("verified-identity"),
+                                M.Pair(certificate, M.EmptyList),
+                            ),
+                        ),
+                    )
+        super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class AdditiveSOSCandidate(M.Edge):
     """Search bounded pairwise-difference squares and scales one through six."""
 
@@ -5830,32 +5952,120 @@ class ReplayAdditiveSOSLemmaOnGoal(M.Edge):
         return self.result
 
 
+class ReplayPerfectSquareLemmaOnGoal(M.Edge):
+    def __init__(self, goal, invented_lemma, registry=M.EmptyList):
+        self.result = M.EmptyList
+        certificate = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(invented_lemma)())())())())())(),
+        )()
+        if M.IsPair(certificate)() is M.truth_value:
+            if M.Compare(M.Head(certificate)(), M.Char("invention-evidence"))() is M.truth_value:
+                structural = M.Head(M.Tail(certificate)())()
+                validation = M.Head(M.Tail(M.Tail(M.Tail(certificate)())())())()
+                if M.IsPair(structural)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(structural)(), M.Char("bounded-perfect-square"),
+                    )() is M.truth_value:
+                        if M.Compare(
+                            CandidateValidationStatus(validation)(), M.Char("proved"),
+                        )() is M.truth_value:
+                            proposition = M.Head(M.Tail(invented_lemma)())()
+                            stored_variables = M.Head(M.Tail(structural)())()
+                            stored_residual = M.Head(M.Tail(M.Tail(structural)())())()
+                            square = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+                            query_variables = BoundedPolynomialVariables(goal)()
+                            lesser = M.Head(M.Tail(goal)())()
+                            greater = M.Head(M.Tail(M.Tail(goal)())())()
+                            difference_expression = M.Pair(
+                                M.ExprAddLabel,
+                                M.Pair(
+                                    greater,
+                                    M.Pair(
+                                        M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                            )
+                            query_residual = NormalizeCanonicalPolynomial(
+                                difference_expression, query_variables, registry,
+                            )()
+                            same = CanonicalPolynomialShapeEqual(
+                                stored_residual,
+                                query_residual,
+                                stored_variables,
+                                query_variables,
+                            )()
+                            square_certificate = SquareNonnegCertificate(square)()
+                            if M.AndAtom(
+                                same,
+                                M.NotAtom(
+                                    M.IdentityCompare(square_certificate, M.EmptyList)(),
+                                )(),
+                            )() is M.truth_value:
+                                self.result = M.Pair(
+                                    M.Char("invented-lemma-replay-derivation"),
+                                    M.Pair(
+                                        goal,
+                                        M.Pair(
+                                            invented_lemma,
+                                            M.Pair(
+                                                InequalityDifferenceStep(
+                                                    goal,
+                                                    difference_expression,
+                                                    query_residual,
+                                                )(),
+                                                M.Pair(
+                                                    M.Pair(
+                                                        M.Char("verified-identity-rewrite"),
+                                                        M.Pair(proposition, M.EmptyList),
+                                                    ),
+                                                    M.Pair(
+                                                        square_certificate,
+                                                        M.Pair(M.Char("proved"), M.EmptyList),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                )
+        super().__init__(inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ReplayInventedLemmaOnGoal(M.Edge):
     def __init__(self, goal, invented_lemma, registry=M.EmptyList):
         additive = ReplayAdditiveSOSLemmaOnGoal(goal, invented_lemma, registry)()
         if M.IdentityCompare(additive, M.EmptyList)() is M.false_value:
             self.result = additive
         else:
-            certificate = M.Head(
-                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(invented_lemma)())())())())())(),
+            perfect_square = ReplayPerfectSquareLemmaOnGoal(
+                goal, invented_lemma, registry,
             )()
-            structural = M.EmptyList
-            if M.IsPair(certificate)() is M.truth_value:
-                if M.Compare(
-                    M.Head(certificate)(), M.Char("invention-evidence"),
-                )() is M.truth_value:
-                    structural = M.Head(M.Tail(certificate)())()
-            if M.IsPair(structural)() is M.truth_value:
-                if M.Compare(
-                    M.Head(structural)(), M.Char("bounded-structural-exact-division"),
-                )() is M.truth_value:
-                    self.result = ReplayFactorizationLemmaOnGoal(
-                        goal, invented_lemma, registry,
-                    )()
+            if M.IdentityCompare(perfect_square, M.EmptyList)() is M.false_value:
+                self.result = perfect_square
+            else:
+                certificate = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(invented_lemma)())())())())())(),
+                )()
+                structural = M.EmptyList
+                if M.IsPair(certificate)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(certificate)(), M.Char("invention-evidence"),
+                    )() is M.truth_value:
+                        structural = M.Head(M.Tail(certificate)())()
+                if M.IsPair(structural)() is M.truth_value:
+                    if M.Compare(
+                        M.Head(structural)(), M.Char("bounded-structural-exact-division"),
+                    )() is M.truth_value:
+                        self.result = ReplayFactorizationLemmaOnGoal(
+                            goal, invented_lemma, registry,
+                        )()
+                    else:
+                        self.result = M.EmptyList
                 else:
                     self.result = M.EmptyList
-            else:
-                self.result = M.EmptyList
         super().__init__(inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
 
     def __call__(self):
@@ -6021,6 +6231,83 @@ class PairwiseProductExpressions(M.Edge):
         return self.result
 
 
+class RepeatedUnitExpressions(M.Edge):
+    def __init__(self):
+        unit = M.Pair(M.ExprIntLabel, M.Pair(M.one, M.EmptyList))
+        self.result = M.Pair(unit, M.Pair(unit, M.EmptyList))
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MachineChainCardinalityText(M.Edge):
+    def __init__(self, chain):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            self.result = "0"
+        else:
+            self.result = GMPSuccText(
+                MachineChainCardinalityText(M.Tail(chain)())(),
+            )()
+        super().__init__(inputs=M.Pair(chain, M.EmptyList), results=M.Char(self.result))
+
+    def __call__(self):
+        return self.result
+
+
+class PrependExpressionAssignments(M.Edge):
+    def __init__(self, expressions, assignments):
+        if M.IdentityCompare(expressions, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = AppendMachineChains(
+                PrependOneExpressionToAssignments(
+                    M.Head(expressions)(), assignments,
+                )(),
+                PrependExpressionAssignments(
+                    M.Tail(expressions)(), assignments,
+                )(),
+            )()
+        super().__init__(inputs=M.Pair(expressions, M.Pair(assignments, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PrependOneExpressionToAssignments(M.Edge):
+    def __init__(self, expression, assignments):
+        if M.IdentityCompare(assignments, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = M.Pair(
+                M.Pair(expression, M.Head(assignments)()),
+                PrependOneExpressionToAssignments(
+                    expression, M.Tail(assignments)(),
+                )(),
+            )
+        super().__init__(inputs=M.Pair(expression, M.Pair(assignments, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExpressionAssignments(M.Edge):
+    def __init__(self, expressions, remaining_text):
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.EmptyList)
+        else:
+            tails = ExpressionAssignments(
+                expressions, GMPPredText(remaining_text)(),
+            )()
+            self.result = PrependExpressionAssignments(
+                expressions, tails,
+            )()
+        super().__init__(inputs=M.Pair(expressions, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ChooseExpressionChains(M.Edge):
     def __init__(self, expressions, remaining_text):
         if GMPEqualText(remaining_text, "0")() is M.truth_value:
@@ -6088,6 +6375,35 @@ class InstantiateInequalityChains(M.Edge):
                 )(),
             )
         super().__init__(inputs=M.Pair(template, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FindDirectInequalityInstance(M.Edge):
+    def __init__(self, instances, goal, registry):
+        if M.IdentityCompare(instances, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            entry = M.Head(instances)()
+            instance = M.Head(entry)()
+            same_lesser = CanonicalExpressionEqual(
+                M.Head(M.Tail(instance)())(),
+                M.Head(M.Tail(goal)())(),
+                registry,
+            )()
+            same_greater = CanonicalExpressionEqual(
+                M.Head(M.Tail(M.Tail(instance)())())(),
+                M.Head(M.Tail(M.Tail(goal)())())(),
+                registry,
+            )()
+            if M.AndAtom(same_lesser, same_greater)() is M.truth_value:
+                self.result = entry
+            else:
+                self.result = FindDirectInequalityInstance(
+                    M.Tail(instances)(), goal, registry,
+                )()
+        super().__init__(inputs=M.Pair(instances, M.Pair(goal, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
@@ -6205,56 +6521,87 @@ class ReplayInventedLemmaChainOnGoal(M.Edge):
         template = M.Head(M.Tail(M.Tail(invented_lemma)())())()
         template_variables = BoundedPolynomialVariables(template)()
         goal_variables = BoundedPolynomialVariables(goal)()
-        basis = AppendMachineChains(
-            SquaredVariableExpressions(goal_variables)(),
-            PairwiseProductExpressions(goal_variables)(),
-        )()
-        triples = ChooseExpressionChains(basis, "3")()
-        instances = InstantiateInequalityChains(
-            template, template_variables, triples,
-        )()
-        chain = FindChainedInequalityInstances(instances, goal, registry)()
-        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
-            self.result = M.EmptyList
+        template_count = MachineChainCardinalityText(template_variables)()
+        instances = M.EmptyList
+        if GMPLessText("3", template_count)() is M.false_value:
+            basis = AppendMachineChains(
+                SquaredVariableExpressions(goal_variables)(),
+                PairwiseProductExpressions(goal_variables)(),
+            )()
+            expression_chains = ChooseExpressionChains(
+                basis, template_count,
+            )()
+            instances = InstantiateInequalityChains(
+                template, template_variables, expression_chains,
+            )()
+        direct = FindDirectInequalityInstance(instances, goal, registry)()
+        if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
+            self.result = ReplaySubstitutedLemmaInstance(
+                direct, invented_lemma, registry,
+            )()
         else:
-            first = M.Head(chain)()
-            second = M.Head(M.Tail(chain)())()
-            first_goal = M.Head(first)()
-            second_goal = M.Head(second)()
-            first_replay = ReplaySubstitutedLemmaInstance(
-                first, invented_lemma, registry,
-            )()
-            second_replay = ReplaySubstitutedLemmaInstance(
-                second, invented_lemma, registry,
-            )()
-            if M.IdentityCompare(first_replay, M.EmptyList)() is M.truth_value:
-                self.result = M.EmptyList
-            elif M.IdentityCompare(second_replay, M.EmptyList)() is M.truth_value:
-                self.result = M.EmptyList
+            grounding = M.EmptyList
+            goal_count = MachineChainCardinalityText(goal_variables)()
+            if GMPLessText(goal_count, template_count)() is M.truth_value:
+                unit = M.Pair(M.ExprIntLabel, M.Pair(M.one, M.EmptyList))
+                grounding_basis = AppendMachineChains(
+                    goal_variables, M.Pair(unit, M.EmptyList),
+                )()
+                grounding_chains = ExpressionAssignments(
+                    grounding_basis, template_count,
+                )()
+                grounding_instances = InstantiateInequalityChains(
+                    template, template_variables, grounding_chains,
+                )()
+                grounding = FindDirectInequalityInstance(
+                    grounding_instances, goal, registry,
+                )()
+            if M.IdentityCompare(grounding, M.EmptyList)() is M.false_value:
+                self.result = ReplaySubstitutedLemmaInstance(
+                    grounding, invented_lemma, registry,
+                )()
             else:
-                intermediate = M.Head(M.Tail(first_goal)())()
-                self.result = M.Pair(
-                    M.Char("invented-lemma-replay-derivation"),
-                    M.Pair(
-                        goal,
-                        M.Pair(
-                            invented_lemma,
+                chain = FindChainedInequalityInstances(instances, goal, registry)()
+                if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+                    self.result = M.EmptyList
+                else:
+                    first = M.Head(chain)()
+                    second = M.Head(M.Tail(chain)())()
+                    first_goal = M.Head(first)()
+                    first_replay = ReplaySubstitutedLemmaInstance(
+                        first, invented_lemma, registry,
+                    )()
+                    second_replay = ReplaySubstitutedLemmaInstance(
+                        second, invented_lemma, registry,
+                    )()
+                    if M.IdentityCompare(first_replay, M.EmptyList)() is M.truth_value:
+                        self.result = M.EmptyList
+                    elif M.IdentityCompare(second_replay, M.EmptyList)() is M.truth_value:
+                        self.result = M.EmptyList
+                    else:
+                        intermediate = M.Head(M.Tail(first_goal)())()
+                        self.result = M.Pair(
+                            M.Char("invented-lemma-replay-derivation"),
                             M.Pair(
-                                first_replay,
+                                goal,
                                 M.Pair(
-                                    second_replay,
+                                    invented_lemma,
                                     M.Pair(
+                                        first_replay,
                                         M.Pair(
-                                            M.Char("inequality-transitivity"),
-                                            M.Pair(intermediate, M.EmptyList),
+                                            second_replay,
+                                            M.Pair(
+                                                M.Pair(
+                                                    M.Char("inequality-transitivity"),
+                                                    M.Pair(intermediate, M.EmptyList),
+                                                ),
+                                                M.Pair(M.Char("proved"), M.EmptyList),
+                                            ),
                                         ),
-                                        M.Pair(M.Char("proved"), M.EmptyList),
                                     ),
                                 ),
                             ),
-                        ),
-                    ),
-                )
+                        )
         super().__init__(inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
 
     def __call__(self):
@@ -6779,6 +7126,8 @@ class InventFromStall(M.Edge):
         fields = M.Tail(stall)()
         goal = M.Head(fields)()
         candidate = AdditiveSOSCandidate(goal, registry)()
+        if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
+            candidate = PerfectSquareCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
             candidate = CubicLinearFactorCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:

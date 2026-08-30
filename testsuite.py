@@ -5373,6 +5373,284 @@ class CubicNestedReuseTest(M.Edge):
         return self.result
 
 
+class PolynomialReuseCurriculumTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        fixture = ThreeVariableSOSFixture(graph)()
+        version = M.Head(M.Tail(M.Tail(M.Tail(fixture)())())())()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        powered = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x^2*y^2 + y^2*z^2 + z^2*x^2",
+            digit_words,
+        )()
+        powered_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, powered, registry,
+        )()
+        powered_ok = M.NotAtom(
+            M.IdentityCompare(powered_hit, M.EmptyList)(),
+        )()
+        credited_once = Gmod.CreditInventedLemmaReplay(
+            loaded,
+            M.Head(powered_hit)(),
+            M.Head(M.Tail(powered_hit)())(),
+            registry,
+        )()
+        chained = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y*z*(x+y+z)", digit_words,
+        )()
+        chained_hit = Minmod.ReplaySavedInventedLemma(
+            credited_once, chained, registry,
+        )()
+        chained_ok = M.NotAtom(
+            M.IdentityCompare(chained_hit, M.EmptyList)(),
+        )()
+        credited_twice = Gmod.CreditInventedLemmaReplay(
+            credited_once,
+            M.Head(chained_hit)(),
+            M.Head(M.Tail(chained_hit)())(),
+            registry,
+        )()
+        second_occurrence_lemma = Gmod.LookupInventedLemma(
+            credited_twice, Gmod.InventedLemmaGoal(M.Head(M.Tail(chained_hit)())())(),
+        )()
+        chained_replay_for_credit = M.Head(chained_hit)()
+        second_occurrence = M.Head(
+            M.Tail(
+                M.Tail(M.Tail(M.Tail(chained_replay_for_credit)())())(),
+            )(),
+        )()
+        credited_three = Gmod.CreditInventedLemmaReplay(
+            credited_twice,
+            second_occurrence,
+            second_occurrence_lemma,
+            registry,
+        )()
+        utility_three = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited_three)())(),
+            )(),
+            M.three,
+            registry,
+        )()
+        powered_replay = M.Head(powered_hit)()
+        powered_substitutions = M.Head(
+            M.Tail(M.Tail(M.Tail(powered_replay)())())(),
+        )()
+        direct_certificate = M.IsPair(powered_substitutions)()
+        chained_replay = M.Head(chained_hit)()
+        first_nested = M.Head(
+            M.Tail(M.Tail(M.Tail(chained_replay)())())(),
+        )()
+        second_nested = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(chained_replay)())())())(),
+        )()
+        two_instances = M.AndAtom(
+            M.Compare(
+                M.Head(first_nested)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+            M.Compare(
+                M.Head(second_nested)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= 2*x^2*y^2 + y^2*z^2 + z^2*x^2",
+            digit_words,
+        )()
+        false_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, false_goal, registry,
+        )()
+        false_blocked = M.IdentityCompare(false_hit, M.EmptyList)()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited_three)(),
+            M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            powered_ok,
+            M.AndAtom(
+                chained_ok,
+                M.AndAtom(
+                    utility_three,
+                    M.AndAtom(
+                        direct_certificate,
+                        M.AndAtom(
+                            two_instances,
+                            M.AndAtom(false_blocked, no_schema)(),
+                        )(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CauchySpecializationTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "(a^2+b^2)*(c^2+d^2) >= (a*c+b*d)^2", digit_words,
+        )()
+        candidate = M.Head(
+            Minmod.InventFromStall(
+                Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)(),
+                registry,
+            )(),
+        )()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(structural, M.Pair(trial, M.Pair(validation, M.EmptyList))),
+        )
+        lemma = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialInequalityText(
+            "(w^2+x^2)*(y^2+z^2) >= (w*y+x*z)^2", digit_words,
+        )()
+        renamed_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, renamed, registry,
+        )()
+        renamed_ok = M.NotAtom(
+            M.IdentityCompare(renamed_hit, M.EmptyList)(),
+        )()
+        credited_once = Gmod.CreditInventedLemmaReplay(
+            loaded,
+            M.Head(renamed_hit)(),
+            M.Head(M.Tail(renamed_hit)())(),
+            registry,
+        )()
+        grounded = Gmod.ParsePolynomialInequalityText(
+            "(x+y)^2 <= 2*(x^2+y^2)", digit_words,
+        )()
+        grounded_hit = Minmod.ReplaySavedInventedLemma(
+            credited_once, grounded, registry,
+        )()
+        grounded_ok = M.NotAtom(
+            M.IdentityCompare(grounded_hit, M.EmptyList)(),
+        )()
+        credited_twice = Gmod.CreditInventedLemmaReplay(
+            credited_once,
+            M.Head(grounded_hit)(),
+            M.Head(M.Tail(grounded_hit)())(),
+            registry,
+        )()
+        utility_two = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited_twice)())(),
+            )(),
+            M.two,
+            registry,
+        )()
+        source_ok = M.Compare(
+            M.Head(structural)(), M.Char("bounded-perfect-square"),
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "(a^2+b^2)*(c^2+d^2) >= 2*(a*c+b*d)^2", digit_words,
+        )()
+        false_candidate = Minmod.PerfectSquareCandidate(
+            false_goal, registry,
+        )()
+        false_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, false_goal, registry,
+        )()
+        false_blocked = M.AndAtom(
+            M.IdentityCompare(false_candidate, M.EmptyList)(),
+            M.IdentityCompare(false_hit, M.EmptyList)(),
+        )()
+        repeated_goal = Gmod.ParsePolynomialInequalityText(
+            "a^4+b^4+2*a^2*b^2 >= 2*a^3*b+2*a*b^3",
+            digit_words,
+        )()
+        repeated_candidate = M.Head(
+            Minmod.InventFromStall(
+                Gmod.StallRecord(
+                    repeated_goal, M.EmptyList, M.EmptyList, M.Zero,
+                )(),
+                registry,
+            )(),
+        )()
+        repeated_structural = M.Head(
+            M.Tail(M.Tail(M.Tail(repeated_candidate)())())(),
+        )()
+        repeated_trial = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(repeated_candidate)())())())(),
+        )()
+        repeated_validation = M.Head(
+            M.Tail(
+                M.Tail(M.Tail(M.Tail(M.Tail(repeated_candidate)())())())(),
+            )(),
+        )()
+        repeated_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                repeated_structural,
+                M.Pair(
+                    repeated_trial,
+                    M.Pair(repeated_validation, M.EmptyList),
+                ),
+            ),
+        )
+        repeated_lemma = Gmod.InventedLemma(
+            M.Head(repeated_candidate)(),
+            repeated_goal,
+            M.EmptyList,
+            M.Char("verified-identity"),
+            M.Zero,
+            repeated_certificate,
+        )()
+        repeated_replay = Minmod.ReplayInventedLemmaOnGoal(
+            repeated_goal, repeated_lemma, registry,
+        )()
+        repeated_available = M.NotAtom(
+            M.IdentityCompare(repeated_replay, M.EmptyList)(),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited_twice)(),
+            M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            source_ok,
+            M.AndAtom(
+                renamed_ok,
+                M.AndAtom(
+                    grounded_ok,
+                    M.AndAtom(
+                        utility_two,
+                        M.AndAtom(
+                            false_blocked,
+                            M.AndAtom(repeated_available, no_schema)(),
+                        )(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class CompoundSubstitutionChainTest(M.Edge):
     def __init__(self, graph):
         from . import wire as Wmod
@@ -17108,6 +17386,22 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "polynomial_reuse_curriculum_test",
+            empty,
+            PolynomialReuseCurriculumTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "cauchy_specialization_test",
+            empty,
+            CauchySpecializationTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

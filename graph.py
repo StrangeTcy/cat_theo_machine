@@ -757,7 +757,18 @@ class CreditInventedLemmaReplay(M.Edge):
                 replay_status = M.Head(
                     M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())())(),
                 )()
-                if M.IdentityCompare(replay_lemma, invented)() is M.truth_value:
+                same_lemma = M.IdentityCompare(replay_lemma, invented)()
+                if same_lemma is M.false_value:
+                    same_goal = TermsAlphaEquivalent(
+                        InventedLemmaGoal(replay_lemma)(),
+                        InventedLemmaGoal(invented)(),
+                    )()
+                    same_proposition = TermsAlphaEquivalent(
+                        InventedLemmaProposition(replay_lemma)(),
+                        InventedLemmaProposition(invented)(),
+                    )()
+                    same_lemma = M.AndAtom(same_goal, same_proposition)()
+                if same_lemma is M.truth_value:
                     if M.Compare(replay_status, M.Char("proved"))() is M.truth_value:
                         proved = M.truth_value
         if proved is M.truth_value:

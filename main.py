@@ -5940,6 +5940,19 @@ def run_talk_mode(sentence: str = None):
                     )
                 elif M.Compare(
                     M.Head(structural_certificate)(),
+                    M.Char("bounded-perfect-square"),
+                )() is M.truth_value:
+                    square = M.Head(
+                        M.Tail(M.Tail(M.Tail(structural_certificate)())())(),
+                    )()
+                    obligations_text = (
+                        "\nPositivity obligations:"
+                        + Min.SquareObligationDisplayText(
+                            M.Pair(square, M.EmptyList), registry,
+                        )()
+                    )
+                elif M.Compare(
+                    M.Head(structural_certificate)(),
                     M.Char("bounded-linear-factor-vanishing"),
                 )() is M.truth_value:
                     cubic_variables = M.Head(M.Tail(structural_certificate)())()
@@ -7105,6 +7118,35 @@ def run_talk_mode(sentence: str = None):
                                         nested_lemma,
                                         registry,
                                     )()
+                    first_composed_replay = M.Head(
+                        M.Tail(M.Tail(M.Tail(replay)())())(),
+                    )()
+                    second_composed_replay = M.Head(
+                        M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())(),
+                    )()
+                    if M.IsPair(first_composed_replay)() is M.truth_value:
+                        if M.IsPair(second_composed_replay)() is M.truth_value:
+                            if M.Compare(
+                                M.Head(first_composed_replay)(),
+                                M.Char("invented-lemma-replay-derivation"),
+                            )() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(second_composed_replay)(),
+                                    M.Char("invented-lemma-replay-derivation"),
+                                )() is M.truth_value:
+                                    refreshed_lemma = G.LookupInventedLemma(
+                                        learned_version,
+                                        G.InventedLemmaGoal(replay_lemma)(),
+                                    )()
+                                    if M.IdentityCompare(
+                                        refreshed_lemma, M.EmptyList,
+                                    )() is M.false_value:
+                                        learned_version = G.CreditInventedLemmaReplay(
+                                            learned_version,
+                                            second_composed_replay,
+                                            refreshed_lemma,
+                                            registry,
+                                        )()
                     last_goal = goal
                     last_derivation = replay
                     replay_explanation = (

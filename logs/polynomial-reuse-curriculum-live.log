@@ -1,0 +1,43 @@
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> no; I could not derive a^4 + b^4 >= a^3*b + a*b^3. Search failed after 1 steps. 1 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> no; I could not derive x^2 + y^2 + z^2 >= x*y + y*z + z*x. Search failed after 1 steps. 1 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Analyzing stall on: ((((?x * ?y) + (?y * ?z)) + (?z * ?x)) <= (((?x^2) + (?y^2)) + (?z^2)))
+1. ((2 * ((((?x^2) + (?y^2)) + (?z^2)) + (-(((?x * ?y) + (?y * ?z)) + (?z * ?x))))) = (((?x + (-?y))^2) + (((?x + (-?z))^2) + ((?y + (-?z))^2)))) [Source: goal-structural-sos | Status: verified-identity]
+Positivity obligations:
+  1. (0 <= ((?x + (-?y))^2)) [square-nonnegative]
+  2. (0 <= ((?x + (-?z))^2)) [square-nonnegative]
+  3. (0 <= ((?y + (-?z))^2)) [square-nonnegative]
+Approve this candidate? Enter yes or no.
+you> DEBUG: decision 'yes' appended to /home/user/cat_theo_machine/snapshots/talk_lessons.log
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Recorded the invented lemma and its verified rewrite rule.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; replayed the saved algebraic identity, proved its nonnegativity obligations, and derived x^4 + y^4 + z^4 >= x^2*y^2 + y^2*z^2 + z^2*x^2.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; composed two independently revalidated compound substitutions of the saved lemma:
+1. (((((?x^2) * (?y^2)) + ((?y^2) * (?z^2))) + ((?z^2) * (?x^2))) <= ((((?x^2)^2) + ((?y^2)^2)) + ((?z^2)^2)))
+2. (((((?x * ?y) * (?x * ?z)) + ((?x * ?z) * (?y * ?z))) + ((?y * ?z) * (?x * ?y))) <= ((((?x * ?y)^2) + ((?x * ?z)^2)) + ((?y * ?z)^2)))
+Then inequality transitivity derived x^4 + y^4 + z^4 >= x*y*z*(x+y+z).
+you> hyge> InventedLemma_1: ((2 * ((((?x^2) + (?y^2)) + (?z^2)) + (-(((?x * ?y) + (?y * ?z)) + (?z * ?x))))) = (((?x + (-?y))^2) + (((?x + (-?z))^2) + ((?y + (-?z))^2)))) [utility: 3, verification: proved]
+you> hyge> goodbye
