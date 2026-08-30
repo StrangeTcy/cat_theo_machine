@@ -8243,19 +8243,31 @@ def run_talk_mode(sentence: str = None):
                 stall_rules = P.CompileRuleChain(
                     G.InstalledTaughtRules(learned_version)(), registry,
                 )()
-                _thinking("no fitting saved proof was found; exploring a bounded search frontier")
-                searched = M.Search(
-                    stall_graph,
-                    start,
-                    goal,
-                    stall_rules,
-                    stall_heuristic,
-                    registry,
-                )()
-                stall = M.Head(M.Tail(M.Tail(searched)())())()
-                if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
-                    _persist_talk_state()
-                    return forward_failure + " Search returned no stall evidence."
+                if os.environ.get("HYGE_LIVE_FOREGROUND", "") == "1":
+                    _thinking("equal worker lookup finished with no match; recording the exhausted structural goal for lemma invention")
+                    stall = G.StallRecord(
+                        goal,
+                        M.EmptyList,
+                        M.EmptyList,
+                        M.one,
+                        start,
+                        stall_rules,
+                        stall_heuristic,
+                    )()
+                else:
+                    _thinking("no fitting saved proof was found; exploring a bounded search frontier")
+                    searched = M.Search(
+                        stall_graph,
+                        start,
+                        goal,
+                        stall_rules,
+                        stall_heuristic,
+                        registry,
+                    )()
+                    stall = M.Head(M.Tail(M.Tail(searched)())())()
+                    if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
+                        _persist_talk_state()
+                        return forward_failure + " Search returned no stall evidence."
                 learned_version = G.InstallStallRecord(
                     learned_version, stall,
                 )()

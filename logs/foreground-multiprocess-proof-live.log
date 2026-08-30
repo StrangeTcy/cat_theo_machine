@@ -22,21 +22,21 @@ DEBUG [foreground prover]: looking up recorded conclusions and approved proof sc
 DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
 DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
 DEBUG [foreground prover]: partitioning the graph equally across three foreground proof workers
-[foreground worker 1547] starting equal graph shard 0 of 3
-DEBUG [foreground coordinator 1546]: assigned equal graph shard 0 of 3 to process 1547
-DEBUG [foreground coordinator 1546]: assigned equal graph shard 1 of 3 to process 1548
-DEBUG [foreground coordinator 1546]: assigned equal graph shard 2 of 3 to process 1549
-[foreground worker 1548] starting equal graph shard 1 of 3
-[foreground worker 1549] starting equal graph shard 2 of 3
-[foreground worker 1548] finished equal graph shard 1 of 3: none
-[foreground worker 1549] finished equal graph shard 2 of 3: none
-[foreground worker 1547] finished equal graph shard 0 of 3: none
+[foreground worker 1402] starting equal graph shard 0 of 3
+DEBUG [foreground coordinator 1401]: assigned equal graph shard 0 of 3 to process 1402
+DEBUG [foreground coordinator 1401]: assigned equal graph shard 1 of 3 to process 1403
+DEBUG [foreground coordinator 1401]: assigned equal graph shard 2 of 3 to process 1404
+[foreground worker 1403] starting equal graph shard 1 of 3
+[foreground worker 1404] starting equal graph shard 2 of 3
+[foreground worker 1403] finished equal graph shard 1 of 3: none
+[foreground worker 1404] finished equal graph shard 2 of 3: none
+[foreground worker 1402] finished equal graph shard 0 of 3: none
 DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=none
-DEBUG [foreground prover]: no fitting saved proof was found; exploring a bounded search frontier
+DEBUG [foreground prover]: equal worker lookup finished with no match; recording the exhausted structural goal for lemma invention
 DEBUG [foreground prover]: the bounded search stalled; preserving its frontier for lemma invention
 DEBUG [foreground prover]: waiting for the administrator to ask me to suggest lemmas
 DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
-hyge> no; I could not derive x^4 + y^4 >= x^3*y + x*y^3. Search failed after 1 steps. 1 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+hyge> no; I could not derive x^4 + y^4 >= x^3*y + x*y^3. Search failed after 1 steps. 0 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
 you> DEBUG [foreground prover]: opening the preserved search stall and decomposing its unmet goal
 DEBUG [foreground prover]: examining the normalized residual and trying bounded algebraic decompositions
 DEBUG [foreground prover]: found a fitting candidate; checking its identity and positivity obligations
@@ -56,15 +56,15 @@ DEBUG [foreground prover]: looking up recorded conclusions and approved proof sc
 DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
 DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
 DEBUG [foreground prover]: partitioning the graph equally across three foreground proof workers
-[foreground worker 1550] starting equal graph shard 0 of 3
-DEBUG [foreground coordinator 1546]: assigned equal graph shard 0 of 3 to process 1550
-DEBUG [foreground coordinator 1546]: assigned equal graph shard 1 of 3 to process 1551
-DEBUG [foreground coordinator 1546]: assigned equal graph shard 2 of 3 to process 1552
-[foreground worker 1551] starting equal graph shard 1 of 3
-[foreground worker 1552] starting equal graph shard 2 of 3
-[foreground worker 1551] finished equal graph shard 1 of 3: direct
-[foreground worker 1550] finished equal graph shard 0 of 3: none
-[foreground worker 1552] finished equal graph shard 2 of 3: none
+[foreground worker 1405] starting equal graph shard 0 of 3
+DEBUG [foreground coordinator 1401]: assigned equal graph shard 0 of 3 to process 1405
+DEBUG [foreground coordinator 1401]: assigned equal graph shard 1 of 3 to process 1406
+DEBUG [foreground coordinator 1401]: assigned equal graph shard 2 of 3 to process 1407
+[foreground worker 1406] starting equal graph shard 1 of 3
+[foreground worker 1407] starting equal graph shard 2 of 3
+[foreground worker 1405] finished equal graph shard 0 of 3: none
+[foreground worker 1406] finished equal graph shard 1 of 3: direct
+[foreground worker 1407] finished equal graph shard 2 of 3: none
 DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=direct
 DEBUG [foreground prover]: found a fitting invented lemma; replaying its certificate and obligations
 DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
