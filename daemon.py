@@ -220,15 +220,7 @@ class DaemonCountText(M.Edge):
         if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
             self.result = M.GMPRepText(rep)()
         elif M.IdentityCompare(count, M.EmptyList)() is M.false_value:
-            counted = M.Count(count, M.AllConstructors)()
-            counted_rep = M.NatRepOf(
-                M.Head(counted)(),
-                M.AllConstructors,
-            )()
-            if M.IdentityCompare(
-                counted_rep, M.EmptyList,
-            )() is M.false_value:
-                self.result = M.GMPRepText(counted_rep)()
+            self.result = M.GMPRepText(M.CountRep(count)())()
         super().__init__(inputs=M.Pair(count, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -578,10 +570,7 @@ def daemon_budget(graph_version):
     one = M.Head(M.Succ(M.Zero, M.AllConstructors)())()
     two = M.Head(M.Succ(one, M.AllConstructors)())()
     current_text = M.GMPRepText(
-        M.NatRepOf(
-            M.Head(M.Count(Gmod.GraphNodes(graph_version)(), M.AllConstructors)())(),
-            M.AllConstructors,
-        )(),
+        M.CountRep(Gmod.GraphNodes(graph_version)())(),
     )()
     node_ceiling = Gmod.MineNatFromGMPRep(
         M.GMPRep(
@@ -825,26 +814,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 # single in-process AutonomyCycle is still the only place
                 # activation happens. Without workers it is that cycle alone.
                 version_nodes_text = M.GMPRepText(
-                    M.NatRepOf(
-                        M.Head(
-                            M.Count(
-                                Gmod.GraphNodes(graph_version)(),
-                                M.AllConstructors,
-                            )(),
-                        )(),
-                        M.AllConstructors,
-                    )(),
+                    M.CountRep(Gmod.GraphNodes(graph_version)())(),
                 )()
                 version_edges_text = M.GMPRepText(
-                    M.NatRepOf(
-                        M.Head(
-                            M.Count(
-                                Gmod.GraphEdges(graph_version)(),
-                                M.AllConstructors,
-                            )(),
-                        )(),
-                        M.AllConstructors,
-                    )(),
+                    M.CountRep(Gmod.GraphEdges(graph_version)())(),
                 )()
                 version_moved = (
                     version_nodes_text != mined_nodes_text
