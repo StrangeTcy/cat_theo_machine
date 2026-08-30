@@ -9,9 +9,9 @@ class WordIsThen(M.Edge):
         super().__init__(inputs=M.Pair(word, M.EmptyList), results=self.result)
 
     def _check(self, word):
-        if M.TermEqual(word, M.Char("then"))() is M.truth_value:
+        if M.Compare(word, M.Char("then"))() is M.truth_value:
             return M.truth_value
-        if M.TermEqual(word, M.Char("Then"))() is M.truth_value:
+        if M.Compare(word, M.Char("Then"))() is M.truth_value:
             return M.truth_value
         return M.false_value
 
@@ -25,9 +25,9 @@ class WordIsBecause(M.Edge):
         super().__init__(inputs=M.Pair(word, M.EmptyList), results=self.result)
 
     def _check(self, word):
-        if M.TermEqual(word, M.Char("because"))() is M.truth_value:
+        if M.Compare(word, M.Char("because"))() is M.truth_value:
             return M.truth_value
-        if M.TermEqual(word, M.Char("Because"))() is M.truth_value:
+        if M.Compare(word, M.Char("Because"))() is M.truth_value:
             return M.truth_value
         return M.false_value
 
