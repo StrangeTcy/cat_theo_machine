@@ -8094,6 +8094,7 @@ def run_talk_mode(sentence: str = None):
                 polynomial_goal, M.EmptyList,
             )() is M.false_value:
                 replay_hit = M.EmptyList
+                lookup_mode = "foreground"
                 if os.environ.get("HYGE_LIVE_FOREGROUND", "") == "1":
                     _thinking(
                         "submitting the graph for equal partition across the daemon's active worker service"
@@ -8113,14 +8114,26 @@ def run_talk_mode(sentence: str = None):
                         )
                         lookup_mode = "none"
                     if lookup_mode == "cubic":
+                        _thinking(
+                            "foreground process " + str(os.getpid())
+                            + " is independently rebuilding the cubic replay proof term selected by the daemon"
+                        )
                         replay_hit = Min.ReplayInstalledCubicLemma(
                             learned_version, goal, scoped_assumptions, registry,
                         )()
                     elif lookup_mode == "direct":
+                        _thinking(
+                            "foreground process " + str(os.getpid())
+                            + " is independently rebuilding the direct replay proof term selected by the daemon"
+                        )
                         replay_hit = Min.ReplayInventedLemma(
                             learned_version, goal, registry,
                         )()
                     elif lookup_mode == "chain":
+                        _thinking(
+                            "foreground process " + str(os.getpid())
+                            + " is independently rebuilding the chained replay proof term selected by the daemon"
+                        )
                         replay_hit = Min.ReplayInventedLemmaChain(
                             learned_version, goal, registry,
                         )()
@@ -8140,7 +8153,10 @@ def run_talk_mode(sentence: str = None):
                             learned_version, goal, registry,
                         )()
                 if M.IdentityCompare(replay_hit, M.EmptyList)() is M.false_value:
-                    _thinking("found a fitting invented lemma; replaying its certificate and obligations")
+                    _thinking(
+                        "foreground process " + str(os.getpid())
+                        + " finished rebuilding the replay proof term; reading its recorded status"
+                    )
                     replay = M.Head(replay_hit)()
                     replay_lemma = M.Head(M.Tail(replay_hit)())()
                     replay_status = M.Head(
@@ -8156,9 +8172,26 @@ def run_talk_mode(sentence: str = None):
                         )() is M.truth_value:
                             return "Cannot replay cubic lemma: x+y+z nonnegativity is not supported by the scoped assumptions."
                         return "Cannot replay the saved cubic lemma: " + str(replay_status()) + "."
+                    if lookup_mode == "direct":
+                        _thinking(
+                            "direct certificate proved: the normalized goal residual equals the stored factorization residual; the repeated linear factors form a square; the quadratic cofactor is positive semidefinite"
+                        )
+                    elif lookup_mode == "cubic":
+                        _thinking(
+                            "cubic certificate proved: the normalized identity, scoped nonnegativity assumptions, saved SOS dependency, and product-nonnegativity step all replayed"
+                        )
+                    elif lookup_mode == "chain":
+                        _thinking(
+                            "chain certificate proved: both independently substituted lemma instances replayed and inequality transitivity reaches the requested goal"
+                        )
+                    _thinking(
+                        "foreground process " + str(os.getpid())
+                        + " is recording one completed-proof utility credit on the matched lemma"
+                    )
                     learned_version = G.CreditInventedLemmaReplay(
                         learned_version, replay, replay_lemma, registry,
                     )()
+                    _thinking("utility credit recorded; preparing the replay explanation")
                     used_nested_dependency = M.false_value
                     nested_evidence = M.Head(
                         M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())(),
@@ -8245,7 +8278,12 @@ def run_talk_mode(sentence: str = None):
                                 + "\nThen inequality transitivity derived "
                                 + line[6:].strip() + "."
                             )
+                    _thinking(
+                        "foreground process " + str(os.getpid())
+                        + " is persisting the credited replay before returning the proof"
+                    )
                     _persist_talk_state()
+                    _thinking("credited replay persisted; returning the completed proof")
                     return replay_explanation
                 stall_graph = G.Hypergraph(registry)
                 stall_graph._search_disable_console = M.truth_value

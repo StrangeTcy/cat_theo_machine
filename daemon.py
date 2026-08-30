@@ -707,11 +707,8 @@ def run_proof_worker_service(
         + " worker(s)",
         flush=True,
     )
-    serving = M.truth_value
-    while M.IdentityCompare(serving, M.truth_value)() is M.truth_value:
-        if stop_signal.is_set():
-            serving = M.false_value
-        elif os.path.exists(proof_request_path):
+    while not stop_signal.is_set():
+        if os.path.exists(proof_request_path):
             os.replace(proof_request_path, proof_taken_path)
             with open(proof_taken_path, "rb") as proof_stream:
                 proof_request = Wmod.deserialize_term(proof_stream.read())
@@ -743,8 +740,7 @@ def run_proof_worker_service(
                 + proof_mode,
                 flush=True,
             )
-        if M.IdentityCompare(serving, M.truth_value)() is M.truth_value:
-            time.sleep(0.1)
+        time.sleep(0.1)
 
 
 def run_daemon(snapshot_dir, max_cycles=M.EmptyList,

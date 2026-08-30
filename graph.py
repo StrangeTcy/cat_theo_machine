@@ -803,6 +803,7 @@ class CreditInventedLemmaReplay(M.Edge):
                 M.Head(successor)(),
                 InventedLemmaCertificate(node)(),
             )()
+            return M.Pair(replacement, M.Tail(nodes)())
         return M.Pair(
             replacement,
             self._credit(M.Tail(nodes)(), invented, replay, registry),
