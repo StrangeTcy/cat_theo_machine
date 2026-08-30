@@ -39,6 +39,7 @@ else:
     from . import machine as M
     from . import matching as X
     from . import mining as Min
+    from . import parity as Par
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -1282,6 +1283,9 @@ def run_talk_mode(sentence: str = None):
     proposal_store = G.ProposalStore(M.EmptyList)()
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     scoped_assumptions = M.EmptyList
+    scoped_divisibility_assumptions = M.EmptyList
+    scoped_integer_equations = M.EmptyList
+    last_parity_stall = M.EmptyList
     # Talk state is checkpoint-backed so that a cycling process and this
     # conversation share one version rather than two disjoint ones. The
     # daemon is the only writer of activations; talk submits and reads.
@@ -5272,6 +5276,21 @@ def run_talk_mode(sentence: str = None):
                         approved_payload,
                     )()
                     if M.IsPair(approved_certificate)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(approved_certificate)(),
+                            M.Char("well-ordering-descent-certificate"),
+                        )() is M.truth_value:
+                            return "Recorded the invented minimal-counterexample descent with nested parity dependencies."
+                        if M.Compare(
+                            M.Head(approved_certificate)(), M.Char("invention-evidence"),
+                        )() is M.truth_value:
+                            approved_structural = M.Head(M.Tail(approved_certificate)())()
+                            if M.IsPair(approved_structural)() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(approved_structural)(),
+                                    M.Char("parity-case-split"),
+                                )() is M.truth_value:
+                                    return "Recorded the parity lemma with both case branches in its replay certificate."
                         dependency_tail = M.Tail(
                             M.Tail(M.Tail(M.Tail(approved_certificate)())())(),
                         )()
@@ -5599,14 +5618,79 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_gaps
         nonlocal pending_process
         nonlocal pending_unknown_words, pending_unknown_word
-        nonlocal scoped_assumptions
+        nonlocal scoped_assumptions, scoped_divisibility_assumptions
+        nonlocal scoped_integer_equations, last_parity_stall
         lowered = line.lower()
         if lowered.strip() == "clear assumptions":
             scoped_assumptions = M.EmptyList
+            scoped_divisibility_assumptions = M.EmptyList
+            scoped_integer_equations = M.EmptyList
             return "Cleared the session-scoped assumptions."
         if lowered.startswith("assume:"):
+            assumption_text = line[7:].strip()
+            folded_assumption = assumption_text.lower()
+            if folded_assumption.startswith("divides(") and folded_assumption.endswith(")"):
+                body_text = assumption_text[8:-1]
+                first_comma = body_text.find(",")
+                second_comma = body_text.find(",", first_comma + 1)
+                if first_comma == -1 or second_comma == -1:
+                    return "I could not parse that witnessed divisibility fact."
+                divisor = G.ParsePolynomialExpressionText(
+                    body_text[:first_comma].strip(), reading_digits,
+                )()
+                dividend = G.ParsePolynomialExpressionText(
+                    body_text[first_comma + 1:second_comma].strip(), reading_digits,
+                )()
+                witness = G.ParsePolynomialExpressionText(
+                    body_text[second_comma + 1:].strip(), reading_digits,
+                )()
+                fact = Par.WitnessedDivides(divisor, dividend, witness)()
+                verified = Par.VerifyWitnessedDivisibility(
+                    fact, M.EmptyList, registry,
+                )()
+                if verified is M.false_value:
+                    return "Rejected the fabricated divisibility witness: n-d*w did not normalize to zero."
+                record = Par.DivisibilityAssumption(
+                    fact, M.EmptyList, M.Char("normalized-zero"),
+                )()
+                scoped_divisibility_assumptions = M.Pair(
+                    record, scoped_divisibility_assumptions,
+                )
+                return "Scoped witnessed divisibility fact; n-d*w normalized to zero."
+            if folded_assumption.startswith("even(") and folded_assumption.endswith(")"):
+                expression = G.ParsePolynomialExpressionText(
+                    assumption_text[5:-1], reading_digits,
+                )()
+                if M.IdentityCompare(expression, M.EmptyList)() is M.truth_value:
+                    return "I could not parse that witnessed parity assumption."
+                verified_assumption = Par.MakeEvenAssumption(expression, registry)()
+                if M.IdentityCompare(
+                    verified_assumption, M.EmptyList,
+                )() is M.truth_value:
+                    return "Rejected the parity assumption because its witness did not normalize."
+                scoped_divisibility_assumptions = M.Pair(
+                    verified_assumption, scoped_divisibility_assumptions,
+                )
+                fact = Par.DivisibilityAssumptionFact(verified_assumption)()
+                return (
+                    "Scoped witnessed assumption: "
+                    + M.PrettyTerm(fact, registry)()
+                    + "; witness identity normalized to zero."
+                )
+            equation = G.ParsePolynomialEquationText(
+                assumption_text, reading_digits,
+            )()
+            if M.IdentityCompare(equation, M.EmptyList)() is M.false_value:
+                scoped_integer_equations = M.Pair(
+                    equation, scoped_integer_equations,
+                )
+                return (
+                    "Scoped integer equation: "
+                    + M.PrettyTerm(equation, registry)()
+                    + "."
+                )
             assumption = G.ParsePolynomialInequalityText(
-                line[7:].strip(), reading_digits,
+                assumption_text, reading_digits,
             )()
             if M.IdentityCompare(assumption, M.EmptyList)() is M.truth_value:
                 return "I could not parse that scoped assumption."
@@ -5889,6 +5973,76 @@ def run_talk_mode(sentence: str = None):
                 return "No invented lemmas are recorded."
             return str(rendered())
         if lowered.startswith("suggest lemmas"):
+            if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
+                return "Please approve or reject the pending proposal first."
+            if M.IdentityCompare(last_parity_stall, M.EmptyList)() is M.false_value:
+                stall_kind = M.Head(last_parity_stall)()
+                invented = M.EmptyList
+                response = ""
+                if M.Compare(
+                    stall_kind, M.Char("parity-case-split-stall"),
+                )() is M.truth_value:
+                    variable = M.Head(M.Tail(last_parity_stall)())()
+                    invented = Par.ParityCaseSplitLemma(variable, registry)()
+                    response = (
+                        "Invented parity case split with two explicit branches:\n"
+                        "  1. " + M.PrettyTerm(variable, registry)()
+                        + " := 2*k [even branch closed]\n"
+                        "  2. " + M.PrettyTerm(variable, registry)()
+                        + " := 2*k+1 [odd-square contradiction closed]\n"
+                        "Both branches were independently normalized."
+                    )
+                elif M.Compare(
+                    stall_kind, M.Char("descent-stall"),
+                )() is M.truth_value:
+                    equation = M.Head(M.Tail(last_parity_stall)())()
+                    positivity = M.Head(M.Tail(M.Tail(last_parity_stall)())())()
+                    parity_lemma = Par.FindParityLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    coupled_lemma = Par.FindCoupledParityLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    descent_map = Par.GenDescentMap(
+                        equation,
+                        coupled_lemma,
+                        parity_lemma,
+                        positivity,
+                        registry,
+                    )()
+                    if M.IdentityCompare(
+                        parity_lemma, M.EmptyList,
+                    )() is M.truth_value:
+                        return "Cannot invent descent: the saved parity case-split lemma is missing."
+                    if M.IdentityCompare(
+                        coupled_lemma, M.EmptyList,
+                    )() is M.truth_value:
+                        return "Cannot invent descent: the coupled-parity lemma is missing."
+                    if M.IdentityCompare(
+                        descent_map, M.EmptyList,
+                    )() is M.truth_value:
+                        return "Descent refused: positivity, reproduction, or strict decrease was not verified."
+                    invented = Par.DescentLemma(
+                        equation, descent_map, coupled_lemma, parity_lemma,
+                    )()
+                    response = (
+                        "Discovered descent map from the witnessed parity substitution:\n"
+                        "  (x,y) -> (y,u)\n"
+                        "Reproduced the equation by normalization and discharged "
+                        "0<u, u<y, and y<x with the positive-square comparison rule."
+                    )
+                if M.IdentityCompare(invented, M.EmptyList)() is M.false_value:
+                    invented_proposal = G.Proposal(
+                        invented, M.Char("integer-domain-invention"),
+                    )()
+                    proposal_store = G.ProposalStoreSubmit(
+                        proposal_store, invented_proposal,
+                    )()
+                    pending_rule = invented_proposal
+                    last_parity_stall = M.EmptyList
+                    _push_ask("rule", "Approve the invented integer lemma? (yes/no)")
+                    _persist_talk_state()
+                    return response + "\nApprove this candidate? Enter yes or no."
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
                 return "Please approve or reject the pending proposal first."
             stall = G.InstalledStallRecord(learned_version)()
@@ -6453,6 +6607,194 @@ def run_talk_mode(sentence: str = None):
                 )
             return "\n".join(explain_lines)
         if lowered.startswith("query:"):
+            parity_query_text = line[6:].strip()
+            folded_parity_query = parity_query_text.lower()
+            if folded_parity_query.startswith("divides(") and folded_parity_query.endswith(")"):
+                body_text = parity_query_text[8:-1]
+                first_comma = body_text.find(",")
+                second_comma = body_text.find(",", first_comma + 1)
+                if first_comma == -1 or second_comma == -1:
+                    return "I could not parse that witnessed divisibility query."
+                divisor = G.ParsePolynomialExpressionText(
+                    body_text[:first_comma].strip(), reading_digits,
+                )()
+                dividend = G.ParsePolynomialExpressionText(
+                    body_text[first_comma + 1:second_comma].strip(), reading_digits,
+                )()
+                witness = G.ParsePolynomialExpressionText(
+                    body_text[second_comma + 1:].strip(), reading_digits,
+                )()
+                fact = Par.WitnessedDivides(divisor, dividend, witness)()
+                if Par.VerifyWitnessedDivisibility(
+                    fact, M.EmptyList, registry,
+                )() is M.truth_value:
+                    return "yes; the supplied divisibility witness normalized n-d*w to zero."
+                return "no; the supplied divisibility witness failed normalization."
+            if folded_parity_query.startswith("even("):
+                implication_marker = folded_parity_query.find(" implies ")
+                if M.Compare(
+                    M.Char(str(implication_marker)), M.Char("-1"),
+                )() is M.false_value:
+                    implication_tail = parity_query_text[implication_marker + 9:].strip()
+                    variable_text = implication_tail[5:-1]
+                    variable = G.ParsePolynomialExpressionText(variable_text, reading_digits)()
+                    parity_lemma = Par.FindParityLemma(G.GraphNodes(learned_version)())()
+                    if M.IdentityCompare(parity_lemma, M.EmptyList)() is M.truth_value:
+                        last_parity_stall = M.Pair(
+                            M.Char("parity-case-split-stall"), M.Pair(variable, M.EmptyList),
+                        )
+                        return (
+                            "no; Even(" + variable_text + "^2) -> Even(" + variable_text
+                            + ") needs exhaustive parity cases. Type 'suggest lemmas' to invent them."
+                        )
+                    square_fact = Par.WitnessedDivides(
+                        Par.IntegerTwo()(), Par.SquareExpression(variable)(),
+                        Par.SquareExpression(Par.EvenWitnessVariable(variable)())(),
+                    )()
+                    replay = Par.ReplayParityLemma(parity_lemma, variable, square_fact, registry)()
+                    if M.IdentityCompare(replay, M.EmptyList)() is M.truth_value:
+                        return "no; the saved parity case split did not revalidate."
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, replay, parity_lemma, registry,
+                    )()
+                    _persist_talk_state()
+                    return (
+                        "yes; replayed both parity branches: the even branch provides a "
+                        "witness, and the odd branch contradicts Even(" + variable_text + "^2)."
+                    )
+                conjunction_marker = folded_parity_query.find(" and even(")
+                if M.Compare(
+                    M.Char(str(conjunction_marker)), M.Char("-1"),
+                )() is M.false_value:
+                    if M.IdentityCompare(scoped_integer_equations, M.EmptyList)() is M.truth_value:
+                        return "no; coupled parity needs a scoped integer equation."
+                    equation = M.Head(scoped_integer_equations)()
+                    parity_lemma = Par.FindParityLemma(G.GraphNodes(learned_version)())()
+                    if M.IdentityCompare(parity_lemma, M.EmptyList)() is M.truth_value:
+                        return "no; coupled parity needs the saved parity case-split lemma."
+                    coupled = Par.CoupledParityProof(equation, parity_lemma, registry)()
+                    if M.IdentityCompare(coupled, M.EmptyList)() is M.truth_value:
+                        return "no; the two witnessed parity steps did not normalize."
+                    first_nested = M.Head(M.Tail(M.Tail(coupled)())())()
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, first_nested, parity_lemma, registry,
+                    )()
+                    refreshed_parity = Par.FindParityLemma(G.GraphNodes(learned_version)())()
+                    coupled_lemma = Par.CoupledParityLemma(
+                        equation, refreshed_parity, coupled,
+                    )()
+                    if M.IdentityCompare(
+                        Par.FindCoupledParityLemma(G.GraphNodes(learned_version)())(),
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        learned_version = G.GraphVersion(
+                            M.Pair(coupled_lemma, G.GraphNodes(learned_version)()),
+                            G.GraphEdges(learned_version)(),
+                            G.GraphVersionInvariants(learned_version)(),
+                        )()
+                    _persist_talk_state()
+                    return (
+                        "yes; derived Even(x^2), replayed the saved parity lemma for x, "
+                        "normalized y^2 = 2*u^2, replayed it for y, and credited the "
+                        "dependency once."
+                    )
+                expression = G.ParsePolynomialExpressionText(
+                    parity_query_text[5:-1], reading_digits,
+                )()
+                propagated = Par.PropagateEvenSquare(
+                    expression, scoped_divisibility_assumptions, registry,
+                )()
+                if M.IdentityCompare(propagated, M.EmptyList)() is M.truth_value:
+                    return "no; no normalization-verified divisibility witness supports that parity goal."
+                return (
+                    "yes; propagated witnessed divisibility through squaring; the new "
+                    "witness is 2*k^2 and its identity normalized to zero."
+                )
+            if folded_parity_query.startswith("no positive integers") or folded_parity_query.startswith("no integers"):
+                marker = folded_parity_query.find("satisfy")
+                if marker == -1:
+                    return "I could not parse that nonexistence goal."
+                equation = G.ParsePolynomialEquationText(
+                    parity_query_text[marker + 7:].strip(), reading_digits,
+                )()
+                if M.IdentityCompare(equation, M.EmptyList)() is M.truth_value:
+                    return "I could not parse the descent equation."
+                positivity = M.false_value
+                if folded_parity_query.startswith("no positive integers"):
+                    positivity = M.truth_value
+                descent_lemma = Par.FindDescentLemma(G.GraphNodes(learned_version)())()
+                if M.IdentityCompare(descent_lemma, M.EmptyList)() is M.truth_value:
+                    last_parity_stall = M.Pair(
+                        M.Char("descent-stall"),
+                        M.Pair(equation, M.Pair(positivity, M.EmptyList)),
+                    )
+                    return (
+                        "no; no verified minimal-counterexample descent is saved. "
+                        "Type 'suggest lemmas' to search for a descent map."
+                    )
+                replay = Par.ReplayDescentLemma(
+                    descent_lemma, equation, G.GraphNodes(learned_version)(),
+                    positivity, registry,
+                )()
+                if M.Compare(
+                    M.Head(replay)(), M.Char("descent-replay-failure"),
+                )() is M.truth_value:
+                    return "Cannot replay descent: " + str(M.Head(M.Tail(replay)())()()) + "."
+                learned_version = G.CreditInventedLemmaReplay(
+                    learned_version, replay, descent_lemma, registry,
+                )()
+                parity_dependency = Par.FindParityLemma(
+                    G.GraphNodes(learned_version)(),
+                )()
+                coupled_dependency = Par.FindCoupledParityLemma(
+                    G.GraphNodes(learned_version)(),
+                )()
+                coupled_replay = Par.CoupledParityProof(
+                    equation, parity_dependency, registry,
+                )()
+                parity_replay = M.Head(
+                    M.Tail(M.Tail(coupled_replay)())(),
+                )()
+                learned_version = G.CreditInventedLemmaReplay(
+                    learned_version,
+                    parity_replay,
+                    parity_dependency,
+                    registry,
+                )()
+                coupled_dependency = Par.FindCoupledParityLemma(
+                    G.GraphNodes(learned_version)(),
+                )()
+                coupled_credit_replay = M.Pair(
+                    M.Char("invented-lemma-replay-derivation"),
+                    M.Pair(
+                        Par.CoupledParityGoal(equation)(),
+                        M.Pair(
+                            coupled_dependency,
+                            M.Pair(
+                                coupled_replay,
+                                M.Pair(
+                                    M.Char("nested-parity-replay"),
+                                    M.Pair(
+                                        M.Char("witness-normalization"),
+                                        M.Pair(M.Char("proved"), M.EmptyList),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+                learned_version = G.CreditInventedLemmaReplay(
+                    learned_version,
+                    coupled_credit_replay,
+                    coupled_dependency,
+                    registry,
+                )()
+                _persist_talk_state()
+                return (
+                    "yes; replayed the nested parity dependencies, reconstructed "
+                    "(x,y)->(y,u), verified positivity and strict decrease, and "
+                    "applied minimal-counterexample descent."
+                )
             known_constructors = G.RuleConstructors(
                 learned_version,
                 pack_concepts,

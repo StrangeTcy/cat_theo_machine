@@ -1,0 +1,77 @@
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> no; I could not derive a^4 + b^4 >= a^3*b + a*b^3. Search failed after 1 steps. 1 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+you> hyge> Scoped witnessed assumption: [Divides, 2, ?x, ?even-witness-x]; witness identity normalized to zero.
+you> hyge> yes; propagated witnessed divisibility through squaring; the new witness is 2*k^2 and its identity normalized to zero.
+you> hyge> Rejected the fabricated divisibility witness: n-d*w did not normalize to zero.
+you> hyge> no; Even(x^2) -> Even(x) needs exhaustive parity cases. Type 'suggest lemmas' to invent them.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Invented parity case split with two explicit branches:
+  1. ?x := 2*k [even branch closed]
+  2. ?x := 2*k+1 [odd-square contradiction closed]
+Both branches were independently normalized.
+Approve this candidate? Enter yes or no.
+you> DEBUG: decision 'yes' appended to /home/user/cat_theo_machine/snapshots/talk_lessons.log
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Recorded the parity lemma with both case branches in its replay certificate.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; replayed both parity branches: the even branch provides a witness, and the odd branch contradicts Even(x^2).
+you> hyge> Scoped integer equation: ((?x^2) = (2 * (?y^2))).
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; derived Even(x^2), replayed the saved parity lemma for x, normalized y^2 = 2*u^2, replayed it for y, and credited the dependency once.
+you> hyge> no; no verified minimal-counterexample descent is saved. Type 'suggest lemmas' to search for a descent map.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Discovered descent map from the witnessed parity substitution:
+  (x,y) -> (y,u)
+Reproduced the equation by normalization and discharged 0<u, u<y, and y<x with the positive-square comparison rule.
+Approve this candidate? Enter yes or no.
+you> DEBUG: decision 'yes' appended to /home/user/cat_theo_machine/snapshots/talk_lessons.log
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Recorded the invented minimal-counterexample descent with nested parity dependencies.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; replayed the nested parity dependencies, reconstructed (x,y)->(y,u), verified positivity and strict decrease, and applied minimal-counterexample descent.
+you> hyge> Cannot replay descent: strict-decrease-unresolved.
+you> hyge> Cannot replay descent: strict-decrease-unresolved.
+you> hyge> InventedLemma_1: [no-positive-integer-solution, ((?x^2) = (2 * (?y^2)))] [utility: 1, verification: proved]
+InventedLemma_2: [coupled-even-goal, ((?x^2) = (2 * (?y^2)))] [utility: 1, verification: proved]
+InventedLemma_3: [even-square-implies-even, ?x] [utility: 3, verification: proved]
+you> hyge> goodbye
+--- checkpoint reload and renamed replay ---
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+(replayed 2 lesson lines from /home/user/cat_theo_machine/snapshots/talk_lessons.log)
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; replayed the nested parity dependencies, reconstructed (x,y)->(y,u), verified positivity and strict decrease, and applied minimal-counterexample descent.
+you> hyge> InventedLemma_1: [no-positive-integer-solution, ((?x^2) = (2 * (?y^2)))] [utility: 2, verification: proved]
+InventedLemma_2: [coupled-even-goal, ((?x^2) = (2 * (?y^2)))] [utility: 2, verification: proved]
+InventedLemma_3: [even-square-implies-even, ?x] [utility: 4, verification: proved]
+you> hyge> goodbye

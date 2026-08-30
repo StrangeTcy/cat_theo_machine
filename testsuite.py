@@ -16,6 +16,7 @@ from . import heuristics as Hmod
 from . import labels as Lmod
 from . import matching as Xmod
 from . import mining as Minmod
+from . import parity as Parmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -5365,6 +5366,322 @@ class CubicNestedReuseTest(M.Edge):
                         M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
                     )(),
                 )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParityWitnessTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        square = Gmod.ParsePolynomialExpressionText("x^2", digit_words)()
+        assumption = Parmod.MakeEvenAssumption(variable, registry)()
+        propagated = Parmod.PropagateEvenSquare(
+            square, M.Pair(assumption, M.EmptyList), registry,
+        )()
+        propagated_ok = M.NotAtom(
+            M.IdentityCompare(propagated, M.EmptyList)(),
+        )()
+        witness = Parmod.EvenWitnessVariable(variable)()
+        fabricated = Parmod.WitnessedDivides(
+            Parmod.IntegerTwo()(), square, witness,
+        )()
+        fabricated_ok = M.NotAtom(
+            Parmod.VerifyWitnessedDivisibility(
+                fabricated,
+                Parmod.DivisibilityAssumptionSubstitution(assumption)(),
+                registry,
+            )(),
+        )()
+        self.result = M.AndAtom(propagated_ok, fabricated_ok)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CaseSplitReplayTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Parmod.FindParityLemma(Gmod.GraphNodes(loaded)())()
+        renamed = Gmod.ParsePolynomialExpressionText("a", digit_words)()
+        premise = Parmod.WitnessedDivides(
+            Parmod.IntegerTwo()(),
+            Parmod.SquareExpression(renamed)(),
+            Parmod.SquareExpression(Parmod.EvenWitnessVariable(renamed)())(),
+        )()
+        replay = Parmod.ReplayParityLemma(
+            loaded_lemma, renamed, premise, registry,
+        )()
+        replay_ok = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        structural = M.Head(
+            M.Tail(Gmod.InventedLemmaCertificate(loaded_lemma)())(),
+        )()
+        even_branch = M.Head(M.Tail(M.Tail(structural)())())()
+        odd_branch = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+        both = M.AndAtom(M.IsPair(even_branch)(), M.IsPair(odd_branch)())()
+        split_axiom = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(structural)())())())(),
+        )()
+        axiom_marked = M.Compare(
+            M.Head(split_axiom)(), M.Char("domain-axiom"),
+        )()
+        incomplete_structural = M.Pair(
+            M.Char("parity-case-split"),
+            M.Pair(
+                variable,
+                M.Pair(even_branch, M.Pair(M.Char("proved"), M.EmptyList)),
+            ),
+        )
+        incomplete_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                incomplete_structural,
+                M.Pair(
+                    M.Char("bounded-exhaustive-parity-split"),
+                    M.Pair(M.Char("proved"), M.EmptyList),
+                ),
+            ),
+        )
+        incomplete = Gmod.InventedLemma(
+            Parmod.EvenImplicationGoal(variable)(),
+            Parmod.EvenImplicationGoal(variable)(),
+            M.EmptyList,
+            M.Char("verified-case-split"),
+            M.Zero,
+            incomplete_certificate,
+        )()
+        incomplete_replay = Parmod.ReplayParityLemma(
+            incomplete, variable, premise, registry,
+        )()
+        one_branch_blocked = M.IdentityCompare(
+            incomplete_replay, M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.AndAtom(
+                both, M.AndAtom(axiom_marked, one_branch_blocked)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoupledParityNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        parity_lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 2*y^2", digit_words,
+        )()
+        proof = Parmod.CoupledParityProof(
+            equation, parity_lemma, registry,
+        )()
+        first_replay = M.Head(M.Tail(M.Tail(proof)())())()
+        second_replay = M.Head(M.Tail(M.Tail(M.Tail(proof)())())())()
+        nested_twice = M.AndAtom(
+            M.Compare(
+                M.Head(first_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+            M.Compare(
+                M.Head(second_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(parity_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first_replay, parity_lemma, registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited)())(),
+            )(),
+            M.one,
+            registry,
+        )()
+        coupled_lemma = Parmod.CoupledParityLemma(
+            equation, M.Head(Gmod.GraphNodes(credited)())(), proof,
+        )()
+        combined = Gmod.GraphVersion(
+            M.Pair(coupled_lemma, Gmod.GraphNodes(credited)()),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(combined))
+        renamed_equation = Gmod.ParsePolynomialEquationText(
+            "a^2 = 2*b^2", digit_words,
+        )()
+        renamed_proof = Parmod.CoupledParityProof(
+            renamed_equation,
+            Parmod.FindParityLemma(Gmod.GraphNodes(loaded)())(),
+            registry,
+        )()
+        renamed_ok = M.NotAtom(
+            M.IdentityCompare(renamed_proof, M.EmptyList)(),
+        )()
+        self.result = M.AndAtom(
+            nested_twice, M.AndAtom(utility_once, renamed_ok)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InfiniteDescentTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        parity_lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 2*y^2", digit_words,
+        )()
+        coupled_proof = Parmod.CoupledParityProof(
+            equation, parity_lemma, registry,
+        )()
+        coupled_lemma = Parmod.CoupledParityLemma(
+            equation, parity_lemma, coupled_proof,
+        )()
+        descent_map = Parmod.GenDescentMap(
+            equation, coupled_lemma, parity_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Parmod.DescentLemma(
+            equation, descent_map, coupled_lemma, parity_lemma,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(
+                descent_lemma,
+                M.Pair(coupled_lemma, M.Pair(parity_lemma, M.EmptyList)),
+            ),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialEquationText(
+            "a^2 = 2*b^2", digit_words,
+        )()
+        replay = Parmod.ReplayDescentLemma(
+            Parmod.FindDescentLemma(Gmod.GraphNodes(loaded)())(),
+            renamed,
+            Gmod.GraphNodes(loaded)(),
+            M.truth_value,
+            registry,
+        )()
+        replay_ok = M.Compare(
+            M.Head(replay)(),
+            M.Char("invented-lemma-replay-derivation"),
+        )()
+        descent_certificate = Gmod.InventedLemmaCertificate(
+            Parmod.FindDescentLemma(Gmod.GraphNodes(loaded)())(),
+        )()
+        descent_axiom = M.Head(
+            M.Tail(
+                M.Tail(
+                    M.Tail(M.Tail(M.Tail(descent_certificate)())())(),
+                )(),
+            )(),
+        )()
+        axiom_marked = M.Compare(
+            M.Head(descent_axiom)(), M.Char("domain-axiom"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(loaded)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            replay_ok, M.AndAtom(axiom_marked, no_schema)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DescentStrictDecreaseNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        parity_lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 2*y^2", digit_words,
+        )()
+        coupled_proof = Parmod.CoupledParityProof(
+            equation, parity_lemma, registry,
+        )()
+        coupled_lemma = Parmod.CoupledParityLemma(
+            equation, parity_lemma, coupled_proof,
+        )()
+        false_equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 4*y^2", digit_words,
+        )()
+        false_map = Parmod.GenDescentMap(
+            false_equation, coupled_lemma, parity_lemma,
+            M.truth_value, registry,
+        )()
+        no_positive_map = Parmod.GenDescentMap(
+            equation, coupled_lemma, parity_lemma,
+            M.false_value, registry,
+        )()
+        descent_map = Parmod.GenDescentMap(
+            equation, coupled_lemma, parity_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Parmod.DescentLemma(
+            equation, descent_map, coupled_lemma, parity_lemma,
+        )()
+        missing_version = Gmod.GraphVersion(
+            M.Pair(descent_lemma, M.Pair(coupled_lemma, M.EmptyList)),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        missing_replay = Parmod.ReplayDescentLemma(
+            descent_lemma,
+            equation,
+            Gmod.GraphNodes(missing_version)(),
+            M.truth_value,
+            registry,
+        )()
+        missing = M.Compare(
+            M.Head(M.Tail(missing_replay)())(),
+            M.Char("missing-parity-dependency"),
+        )()
+        self.result = M.AndAtom(
+            M.IdentityCompare(false_map, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(no_positive_map, M.EmptyList)(),
+                missing,
             )(),
         )()
         super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
@@ -17386,6 +17703,46 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "parity_witness_test",
+            empty,
+            ParityWitnessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "case_split_replay_test",
+            empty,
+            CaseSplitReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "coupled_parity_nested_reuse_test",
+            empty,
+            CoupledParityNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "infinite_descent_test",
+            empty,
+            InfiniteDescentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "descent_strict_decrease_negative_control_test",
+            empty,
+            DescentStrictDecreaseNegativeControlTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

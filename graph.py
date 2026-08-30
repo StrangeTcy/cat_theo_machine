@@ -14999,6 +14999,57 @@ class ParsePolynomialSum(M.Edge):
         return self.result
 
 
+class ParsePolynomialExpressionText(M.Edge):
+    """Parse one complete symbolic polynomial expression."""
+
+    def __init__(self, text, digit_words):
+        tokens = WordsOfText(
+            text, PolynomialReadingPolicy()(), digit_words,
+        )()
+        parsed = ParsePolynomialSum(tokens)()
+        self.result = M.EmptyList
+        if M.IdentityCompare(parsed, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(
+                M.Head(M.Tail(parsed)())(), M.EmptyList,
+            )() is M.truth_value:
+                self.result = M.Head(parsed)()
+        super().__init__(inputs=M.Pair(M.Char(text), M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParsePolynomialEquationText(M.Edge):
+    """Parse one complete symbolic polynomial equality."""
+
+    def __init__(self, text, digit_words):
+        tokens = WordsOfText(
+            text, PolynomialReadingPolicy()(), digit_words,
+        )()
+        left = ParsePolynomialSum(tokens)()
+        self.result = M.EmptyList
+        if M.IdentityCompare(left, M.EmptyList)() is M.false_value:
+            remaining = M.Head(M.Tail(left)())()
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                if M.Compare(M.Head(remaining)(), M.Char("="))() is M.truth_value:
+                    right = ParsePolynomialSum(M.Tail(remaining)())()
+                    if M.IdentityCompare(right, M.EmptyList)() is M.false_value:
+                        if M.IdentityCompare(
+                            M.Head(M.Tail(right)())(), M.EmptyList,
+                        )() is M.truth_value:
+                            self.result = M.Pair(
+                                M.ExprEqLabel,
+                                M.Pair(
+                                    M.Head(left)(),
+                                    M.Pair(M.Head(right)(), M.EmptyList),
+                                ),
+                            )
+        super().__init__(inputs=M.Pair(M.Char(text), M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ParsePolynomialInequalityText(M.Edge):
     """Parse one symbolic <= or >= polynomial inequality."""
 
