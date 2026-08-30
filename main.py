@@ -5659,6 +5659,36 @@ def run_talk_mode(sentence: str = None):
         lowered = line.lower()
         if StoryTalk.StoryCommandRecognized(line)() is M.truth_value:
             return StoryTalk.StoryTalkResponse(line)()
+        if lowered.startswith("prove that "):
+            claim = line[11:].strip()
+            _thinking("understood a natural proof request; routing its claim into the prover")
+            return _respond("query: " + claim, record=record)
+        if lowered.startswith("prove "):
+            claim = line[6:].strip()
+            _thinking("understood a natural proof request; routing its claim into the prover")
+            return _respond("query: " + claim, record=record)
+        if lowered.startswith("can you prove that "):
+            claim = line[19:].strip()
+            _thinking("understood a conversational proof request; routing its claim into the prover")
+            return _respond("query: " + claim, record=record)
+        if lowered.startswith("is it true that "):
+            claim = line[16:].strip()
+            if claim.endswith("?"):
+                claim = claim[:-1].strip()
+            _thinking("understood a truth question; asking the prover to establish its formal claim")
+            return _respond("query: " + claim, record=record)
+        if lowered.startswith("suggest a lemma"):
+            _thinking("understood a natural request to inspect the last proof stall")
+            return _respond("suggest lemmas", record=record)
+        if lowered.startswith("find a lemma"):
+            _thinking("understood a natural request to inspect the last proof stall")
+            return _respond("suggest lemmas", record=record)
+        if lowered.startswith("approve it"):
+            return _respond("yes", record=record)
+        if lowered.startswith("yes, approve"):
+            return _respond("yes", record=record)
+        if lowered.startswith("reject it"):
+            return _respond("no", record=record)
         if lowered.strip() == "clear assumptions":
             scoped_assumptions = M.EmptyList
             scoped_divisibility_assumptions = M.EmptyList
@@ -11242,8 +11272,8 @@ def run_talk_mode(sentence: str = None):
     print("Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.")
     print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.")
     print("Ask taught rules: 'query: Sage(alice)'.")
-    print("Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.")
-    print("Ask witnessed Euclidean descent: 'query: gcd(1071,462)'.")
+    print("Ask for proofs naturally: 'prove that x^4 + y^4 >= x^3*y + x*y^3'.")
+    print("Formal query syntax also works: 'query: Sage(alice)' or 'query: gcd(1071,462)'.")
     print("Narrate naturally: 'tell me a story about Alice and the wolf', 'how is Alice connected to wolf?', or 'compare the stories'.")
     print("After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.")
     print("Inspect invented results: 'show lemmas'.")
