@@ -3668,6 +3668,415 @@ class CanonicalPolynomialEqual(M.Edge):
         return self.result
 
 
+class CanonicalPolynomialScale(M.Edge):
+    def __init__(self, polynomial, scale_text, variables):
+        scalar = CanonicalMonomial(scale_text, M.EmptyList)()
+        self.result = CanonicalPolynomialMultiplyMonomial(
+            polynomial, scalar, variables,
+        )()
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DifferenceSquareExpression(M.Edge):
+    def __init__(self, first, second):
+        difference = M.Pair(
+            M.ExprAddLabel,
+            M.Pair(
+                first,
+                M.Pair(
+                    M.Pair(M.ExprNegLabel, M.Pair(second, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        self.result = M.Pair(
+            M.ExprPowLabel,
+            M.Pair(
+                difference,
+                M.Pair(
+                    M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        super().__init__(inputs=M.Pair(first, M.Pair(second, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PairwiseSquaresWithFirst(M.Edge):
+    def __init__(self, first, remaining):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = M.Pair(
+                DifferenceSquareExpression(first, M.Head(remaining)())(),
+                PairwiseSquaresWithFirst(first, M.Tail(remaining)())(),
+            )
+        super().__init__(inputs=M.Pair(first, M.Pair(remaining, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AppendMachineChains(M.Edge):
+    def __init__(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            self.result = right
+        else:
+            self.result = M.Pair(
+                M.Head(left)(),
+                AppendMachineChains(M.Tail(left)(), right)(),
+            )
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PairwiseDifferenceSquares(M.Edge):
+    def __init__(self, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            first = M.Head(variables)()
+            rest = M.Tail(variables)()
+            self.result = AppendMachineChains(
+                PairwiseSquaresWithFirst(first, rest)(),
+                PairwiseDifferenceSquares(rest)(),
+            )()
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SumExpressionChain(M.Edge):
+    def __init__(self, expressions):
+        if M.IdentityCompare(expressions, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(M.Tail(expressions)(), M.EmptyList)() is M.truth_value:
+            self.result = M.Head(expressions)()
+        else:
+            self.result = M.Pair(
+                M.ExprAddLabel,
+                M.Pair(
+                    M.Head(expressions)(),
+                    M.Pair(SumExpressionChain(M.Tail(expressions)())(), M.EmptyList),
+                ),
+            )
+        super().__init__(inputs=M.Pair(expressions, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveSOSIdentity(M.Edge):
+    def __init__(self, scale_text, difference, summands, lhs, rhs):
+        self.result = M.Pair(
+            M.Char("additive-sos-identity"),
+            M.Pair(
+                M.Char(scale_text),
+                M.Pair(
+                    difference,
+                    M.Pair(summands, M.Pair(lhs, M.Pair(rhs, M.EmptyList))),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.Pair(difference, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveSOSScale(M.Edge):
+    def __init__(self, identity):
+        self.result = M.Head(M.Tail(identity)())()()
+        super().__init__(inputs=M.Pair(identity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveSOSDifference(M.Edge):
+    def __init__(self, identity):
+        self.result = M.Head(M.Tail(M.Tail(identity)())())()
+        super().__init__(inputs=M.Pair(identity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveSOSSummands(M.Edge):
+    def __init__(self, identity):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(identity)())())())()
+        super().__init__(inputs=M.Pair(identity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveSOSLHS(M.Edge):
+    def __init__(self, identity):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(identity)())())())())()
+        super().__init__(inputs=M.Pair(identity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveSOSRHS(M.Edge):
+    def __init__(self, identity):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(identity)())())())())())()
+        super().__init__(inputs=M.Pair(identity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class VerifyAdditiveSOSIdentity(M.Edge):
+    def __init__(self, identity):
+        same = CanonicalPolynomialEqual(
+            AdditiveSOSLHS(identity)(), AdditiveSOSRHS(identity)(),
+        )()
+        if same is M.truth_value:
+            self.result = M.Char("verified-identity")
+        else:
+            self.result = M.Char("identity-mismatch")
+        super().__init__(inputs=M.Pair(identity, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FindAdditiveSOSScale(M.Edge):
+    def __init__(self, difference, rhs, summands, variables, scale_text="1"):
+        if GMPLessText("6", scale_text)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            lhs = CanonicalPolynomialScale(difference, scale_text, variables)()
+            identity = AdditiveSOSIdentity(
+                scale_text, difference, summands, lhs, rhs,
+            )()
+            if M.Compare(
+                VerifyAdditiveSOSIdentity(identity)(),
+                M.Char("verified-identity"),
+            )() is M.truth_value:
+                self.result = identity
+            else:
+                self.result = FindAdditiveSOSScale(
+                    difference,
+                    rhs,
+                    summands,
+                    variables,
+                    GMPSuccText(scale_text)(),
+                )()
+        super().__init__(inputs=M.Pair(difference, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveSOSCandidate(M.Edge):
+    """Search bounded pairwise-difference squares and scales one through six."""
+
+    def __init__(self, goal, registry=M.EmptyList):
+        self.result = M.EmptyList
+        if M.IsPair(goal)() is M.truth_value:
+            if M.IdentityCompare(M.Head(goal)(), M.ExprLeLabel)() is M.truth_value:
+                variables = BoundedPolynomialVariables(goal)()
+                if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.false_value:
+                        if M.IdentityCompare(M.Tail(M.Tail(variables)())(), M.EmptyList)() is M.false_value:
+                            lesser = M.Head(M.Tail(goal)())()
+                            greater = M.Head(M.Tail(M.Tail(goal)())())()
+                            difference_expression = M.Pair(
+                                M.ExprAddLabel,
+                                M.Pair(
+                                    greater,
+                                    M.Pair(
+                                        M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                            )
+                            difference = NormalizeCanonicalPolynomial(
+                                difference_expression, variables, registry,
+                            )()
+                            summands = PairwiseDifferenceSquares(variables)()
+                            sum_expression = SumExpressionChain(summands)()
+                            rhs = NormalizeCanonicalPolynomial(
+                                sum_expression, variables, registry,
+                            )()
+                            identity = FindAdditiveSOSScale(
+                                difference, rhs, summands, variables,
+                            )()
+                            if M.IdentityCompare(identity, M.EmptyList)() is M.false_value:
+                                scale = AdditiveSOSScale(identity)()
+                                scale_expression = M.Pair(
+                                    M.ExprIntLabel,
+                                    M.Pair(MineNatFromGMPRep(M.GMPRep(scale))(), M.EmptyList),
+                                )
+                                scaled_difference = M.Pair(
+                                    M.ExprMulLabel,
+                                    M.Pair(scale_expression, M.Pair(difference_expression, M.EmptyList)),
+                                )
+                                proposition = M.Pair(
+                                    M.ExprEqLabel,
+                                    M.Pair(scaled_difference, M.Pair(sum_expression, M.EmptyList)),
+                                )
+                                certificate = M.Pair(
+                                    M.Char("bounded-additive-sos"),
+                                    M.Pair(
+                                        variables,
+                                        M.Pair(identity, M.Pair(difference_expression, M.EmptyList)),
+                                    ),
+                                )
+                                self.result = M.Pair(
+                                    proposition,
+                                    M.Pair(
+                                        M.Char("goal-structural-sos"),
+                                        M.Pair(
+                                            M.Char("verified-identity"),
+                                            M.Pair(certificate, M.EmptyList),
+                                        ),
+                                    ),
+                                )
+        super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SquareNonnegCertificate(M.Edge):
+    def __init__(self, expression):
+        status = M.Char("unknown-positive")
+        if M.IsPair(expression)() is M.truth_value:
+            if M.IdentityCompare(M.Head(expression)(), M.ExprPowLabel)() is M.truth_value:
+                exponent_term = M.Head(M.Tail(M.Tail(expression)())())()
+                if M.IsPair(exponent_term)() is M.truth_value:
+                    if M.IdentityCompare(M.Head(exponent_term)(), M.ExprIntLabel)() is M.truth_value:
+                        exponent = M.Head(M.Tail(exponent_term)())()
+                        exponent_rep = M.NatRepOf(exponent, M.AllConstructors)()
+                        if M.IdentityCompare(exponent_rep, M.EmptyList)() is M.false_value:
+                            if GMPEqualText(
+                                M.GMPRepText(exponent_rep)(), "2",
+                            )() is M.truth_value:
+                                status = M.Char("proved-positive")
+        self.result = M.Pair(
+            M.Char("square-nonnegative"),
+            M.Pair(expression, M.Pair(status, M.EmptyList)),
+        )
+        super().__init__(inputs=M.Pair(expression, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SquareNonnegStatus(M.Edge):
+    def __init__(self, certificate):
+        self.result = M.Head(M.Tail(M.Tail(certificate)())())()
+        super().__init__(inputs=M.Pair(certificate, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SquareCertificateChain(M.Edge):
+    def __init__(self, summands):
+        if M.IdentityCompare(summands, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = M.Pair(
+                SquareNonnegCertificate(M.Head(summands)())(),
+                SquareCertificateChain(M.Tail(summands)())(),
+            )
+        super().__init__(inputs=M.Pair(summands, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SquareCertificatesProved(M.Edge):
+    def __init__(self, summands, certificates):
+        if M.IdentityCompare(summands, M.EmptyList)() is M.truth_value:
+            self.result = M.IdentityCompare(certificates, M.EmptyList)()
+        elif M.IdentityCompare(certificates, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            certificate = M.Head(certificates)()
+            same = M.TermEqual(
+                M.Head(M.Tail(certificate)())(), M.Head(summands)(),
+            )()
+            proved = M.Compare(
+                SquareNonnegStatus(certificate)(), M.Char("proved-positive"),
+            )()
+            self.result = M.AndAtom(
+                M.AndAtom(same, proved)(),
+                SquareCertificatesProved(
+                    M.Tail(summands)(), M.Tail(certificates)(),
+                )(),
+            )()
+        super().__init__(inputs=M.Pair(summands, M.Pair(certificates, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SquareObligationDisplayText(M.Edge):
+    def __init__(self, summands, registry, ordinal_text="1"):
+        if M.IdentityCompare(summands, M.EmptyList)() is M.truth_value:
+            self.result = ""
+        else:
+            zero = M.Pair(M.ExprIntLabel, M.Pair(M.Zero, M.EmptyList))
+            obligation = M.Pair(
+                M.ExprLeLabel,
+                M.Pair(zero, M.Pair(M.Head(summands)(), M.EmptyList)),
+            )
+            rest = SquareObligationDisplayText(
+                M.Tail(summands)(), registry, GMPSuccText(ordinal_text)(),
+            )()
+            self.result = (
+                "\n  " + ordinal_text + ". "
+                + M.PrettyTerm(obligation, registry)()
+                + " [square-nonnegative]" + rest
+            )
+        super().__init__(inputs=M.Pair(summands, M.EmptyList), results=M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class AdditiveNonnegStep(M.Edge):
+    def __init__(self, summands, certificates):
+        if SquareCertificatesProved(summands, certificates)() is M.truth_value:
+            self.result = M.Pair(
+                M.Char("additive-nonneg-certificate"),
+                M.Pair(
+                    summands,
+                    M.Pair(
+                        certificates,
+                        M.Pair(
+                            SumExpressionChain(summands)(),
+                            M.Pair(M.Char("proved-nonneg"), M.EmptyList),
+                        ),
+                    ),
+                ),
+            )
+        else:
+            self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(summands, M.Pair(certificates, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class PolynomialMonomial(M.Edge):
     def __init__(self, coefficient_text, first_exponent_text, second_exponent_text):
         self.result = M.Pair(
@@ -4704,7 +5113,7 @@ class InequalityDifferenceStep(M.Edge):
         return self.result
 
 
-class ReplayInventedLemmaOnGoal(M.Edge):
+class ReplayFactorizationLemmaOnGoal(M.Edge):
     """Revalidate identity, paired factors, and a positive semidefinite cofactor."""
 
     def __init__(self, goal, invented_lemma, registry=M.EmptyList):
@@ -4790,6 +5199,182 @@ class ReplayInventedLemmaOnGoal(M.Edge):
         return self.result
 
 
+class CanonicalPowersShapeEqual(M.Edge):
+    def __init__(self, left, right, left_variables, right_variables):
+        if M.IdentityCompare(left_variables, M.EmptyList)() is M.truth_value:
+            self.result = M.IdentityCompare(right_variables, M.EmptyList)()
+        elif M.IdentityCompare(right_variables, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_exponent = CanonicalPowerExponentFor(
+                left, M.Head(left_variables)(),
+            )()
+            right_exponent = CanonicalPowerExponentFor(
+                right, M.Head(right_variables)(),
+            )()
+            self.result = M.AndAtom(
+                GMPEqualText(left_exponent, right_exponent)(),
+                CanonicalPowersShapeEqual(
+                    left,
+                    right,
+                    M.Tail(left_variables)(),
+                    M.Tail(right_variables)(),
+                )(),
+            )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialShapeEqual(M.Edge):
+    def __init__(self, left, right, left_variables, right_variables):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            self.result = M.IdentityCompare(right, M.EmptyList)()
+        elif M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_head = M.Head(left)()
+            right_head = M.Head(right)()
+            coefficient = GMPEqualText(
+                CanonicalMonomialCoefficient(left_head)(),
+                CanonicalMonomialCoefficient(right_head)(),
+            )()
+            powers = CanonicalPowersShapeEqual(
+                CanonicalMonomialPowers(left_head)(),
+                CanonicalMonomialPowers(right_head)(),
+                left_variables,
+                right_variables,
+            )()
+            self.result = M.AndAtom(
+                M.AndAtom(coefficient, powers)(),
+                CanonicalPolynomialShapeEqual(
+                    M.Tail(left)(),
+                    M.Tail(right)(),
+                    left_variables,
+                    right_variables,
+                )(),
+            )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayAdditiveSOSLemmaOnGoal(M.Edge):
+    def __init__(self, goal, invented_lemma, registry=M.EmptyList):
+        self.result = M.EmptyList
+        certificate = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(invented_lemma)())())())())())(),
+        )()
+        if M.IsPair(certificate)() is M.truth_value:
+            if M.Compare(M.Head(certificate)(), M.Char("invention-evidence"))() is M.truth_value:
+                structural = M.Head(M.Tail(certificate)())()
+                validation = M.Head(M.Tail(M.Tail(M.Tail(certificate)())())())()
+                if M.Compare(CandidateValidationStatus(validation)(), M.Char("proved"))() is M.truth_value:
+                    if M.Compare(M.Head(structural)(), M.Char("bounded-additive-sos"))() is M.truth_value:
+                        stored_variables = M.Head(M.Tail(structural)())()
+                        identity = M.Head(M.Tail(M.Tail(structural)())())()
+                        if M.Compare(
+                            VerifyAdditiveSOSIdentity(identity)(),
+                            M.Char("verified-identity"),
+                        )() is M.truth_value:
+                            query_variables = BoundedPolynomialVariables(goal)()
+                            if M.IdentityCompare(query_variables, M.EmptyList)() is M.false_value:
+                                lesser = M.Head(M.Tail(goal)())()
+                                greater = M.Head(M.Tail(M.Tail(goal)())())()
+                                difference_expression = M.Pair(
+                                    M.ExprAddLabel,
+                                    M.Pair(
+                                        greater,
+                                        M.Pair(
+                                            M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
+                                            M.EmptyList,
+                                        ),
+                                    ),
+                                )
+                                query_difference = NormalizeCanonicalPolynomial(
+                                    difference_expression, query_variables, registry,
+                                )()
+                                same = CanonicalPolynomialShapeEqual(
+                                    AdditiveSOSDifference(identity)(),
+                                    query_difference,
+                                    stored_variables,
+                                    query_variables,
+                                )()
+                                positive_scale = GMPLessText(
+                                    "0", AdditiveSOSScale(identity)(),
+                                )()
+                                summands = AdditiveSOSSummands(identity)()
+                                square_certificates = SquareCertificateChain(summands)()
+                                additive = AdditiveNonnegStep(
+                                    summands, square_certificates,
+                                )()
+                                if M.AndAtom(same, positive_scale)() is M.truth_value:
+                                    if M.IdentityCompare(additive, M.EmptyList)() is M.false_value:
+                                        proposition = M.Head(M.Tail(invented_lemma)())()
+                                        self.result = M.Pair(
+                                            M.Char("invented-lemma-replay-derivation"),
+                                            M.Pair(
+                                                goal,
+                                                M.Pair(
+                                                    invented_lemma,
+                                                    M.Pair(
+                                                        InequalityDifferenceStep(
+                                                            goal, difference_expression, query_difference,
+                                                        )(),
+                                                        M.Pair(
+                                                            M.Pair(
+                                                                M.Char("verified-identity-rewrite"),
+                                                                M.Pair(proposition, M.EmptyList),
+                                                            ),
+                                                            M.Pair(
+                                                                additive,
+                                                                M.Pair(M.Char("proved"), M.EmptyList),
+                                                            ),
+                                                        ),
+                                                    ),
+                                                ),
+                                            ),
+                                        )
+        super().__init__(inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayInventedLemmaOnGoal(M.Edge):
+    def __init__(self, goal, invented_lemma, registry=M.EmptyList):
+        additive = ReplayAdditiveSOSLemmaOnGoal(goal, invented_lemma, registry)()
+        if M.IdentityCompare(additive, M.EmptyList)() is M.false_value:
+            self.result = additive
+        else:
+            certificate = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(invented_lemma)())())())())())(),
+            )()
+            structural = M.EmptyList
+            if M.IsPair(certificate)() is M.truth_value:
+                if M.Compare(
+                    M.Head(certificate)(), M.Char("invention-evidence"),
+                )() is M.truth_value:
+                    structural = M.Head(M.Tail(certificate)())()
+            if M.IsPair(structural)() is M.truth_value:
+                if M.Compare(
+                    M.Head(structural)(), M.Char("bounded-additive-sos"),
+                )() is M.truth_value:
+                    self.result = M.EmptyList
+                else:
+                    self.result = ReplayFactorizationLemmaOnGoal(
+                        goal, invented_lemma, registry,
+                    )()
+            else:
+                self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ReplayInventedLemma(M.Edge):
     def __init__(self, graph_version, goal, registry, nodes=M.EmptyList, started=M.false_value):
         if M.IdentityCompare(started, M.false_value)() is M.truth_value:
@@ -4827,17 +5412,34 @@ class CandidateValidation(M.Edge):
                 variables = PolynomialVariables(proposition)()
                 if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
                     if M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.false_value:
-                        first = M.Head(variables)()
-                        second = M.Head(M.Tail(variables)())()
                         left = M.Head(M.Tail(proposition)())()
                         right = M.Head(M.Tail(M.Tail(proposition)())())()
-                        left_polynomial = NormalizePolynomial(
-                            left, first, second, registry,
-                        )()
-                        right_polynomial = NormalizePolynomial(
-                            right, first, second, registry,
-                        )()
-                        if PolynomialEqual(left_polynomial, right_polynomial)() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Tail(M.Tail(variables)())(), M.EmptyList,
+                        )() is M.false_value:
+                            bounded = BoundedPolynomialVariables(proposition)()
+                            left_polynomial = NormalizeCanonicalPolynomial(
+                                left, bounded, registry,
+                            )()
+                            right_polynomial = NormalizeCanonicalPolynomial(
+                                right, bounded, registry,
+                            )()
+                            equal = CanonicalPolynomialEqual(
+                                left_polynomial, right_polynomial,
+                            )()
+                        else:
+                            first = M.Head(variables)()
+                            second = M.Head(M.Tail(variables)())()
+                            left_polynomial = NormalizePolynomial(
+                                left, first, second, registry,
+                            )()
+                            right_polynomial = NormalizePolynomial(
+                                right, first, second, registry,
+                            )()
+                            equal = PolynomialEqual(
+                                left_polynomial, right_polynomial,
+                            )()
+                        if equal is M.truth_value:
                             status = M.Char("proved")
                         else:
                             status = M.Char("refuted")
@@ -5005,7 +5607,9 @@ class InventFromStall(M.Edge):
     def __init__(self, stall, registry=M.EmptyList):
         fields = M.Tail(stall)()
         goal = M.Head(fields)()
-        candidate = NormalizedDifferenceCandidate(goal, registry)()
+        candidate = AdditiveSOSCandidate(goal, registry)()
+        if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
+            candidate = NormalizedDifferenceCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
             candidate = CandidateFromFrontier(
                 M.Head(M.Tail(fields)())(), registry,

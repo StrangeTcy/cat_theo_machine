@@ -5894,6 +5894,21 @@ def run_talk_mode(sentence: str = None):
                     M.Pair(trial, M.Pair(validation, M.EmptyList)),
                 ),
             )
+            obligations_text = ""
+            if M.IsPair(structural_certificate)() is M.truth_value:
+                if M.Compare(
+                    M.Head(structural_certificate)(),
+                    M.Char("bounded-additive-sos"),
+                )() is M.truth_value:
+                    sos_identity = M.Head(
+                        M.Tail(M.Tail(structural_certificate)())(),
+                    )()
+                    obligations_text = (
+                        "\nPositivity obligations:"
+                        + Min.SquareObligationDisplayText(
+                            Min.AdditiveSOSSummands(sos_identity)(), registry,
+                        )()
+                    )
             invented = G.InventedLemma(
                 proposition,
                 G.StallRecordGoal(stall)(),
@@ -5917,6 +5932,7 @@ def run_talk_mode(sentence: str = None):
                 + "\n1. " + M.PrettyTerm(proposition, registry)()
                 + " [Source: " + str(provenance())
                 + " | Status: " + str(status()) + "]"
+                + obligations_text
                 + "\nApprove this candidate? Enter yes or no."
             )
         if lowered.startswith("suggest premises"):
@@ -6979,8 +6995,8 @@ def run_talk_mode(sentence: str = None):
                     last_derivation = replay
                     _persist_talk_state()
                     return (
-                        "yes; replayed the saved factorization identity, "
-                        "proved its factor nonnegativity obligations, and "
+                        "yes; replayed the saved algebraic identity, "
+                        "proved its nonnegativity obligations, and "
                         "derived " + line[6:].strip() + "."
                     )
                 stall_graph = G.Hypergraph(registry)

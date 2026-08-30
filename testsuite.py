@@ -5198,6 +5198,216 @@ class LemmaInventionTest(M.Edge):
         return self.result
 
 
+class ThreeVariableSOSFixture(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^2 + y^2 + z^2 >= x*y + y*z + z*x", digit_words,
+        )()
+        stall = Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)()
+        candidate = M.Head(Minmod.InventFromStall(stall, registry)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(structural, M.Pair(trial, M.Pair(validation, M.EmptyList))),
+        )
+        lemma = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        self.result = M.Pair(
+            goal,
+            M.Pair(candidate, M.Pair(lemma, M.Pair(version, M.EmptyList))),
+        )
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableSOSInventionTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        candidate = M.Head(M.Tail(fixture)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        identity = M.Head(M.Tail(M.Tail(structural)())())()
+        source_ok = M.Compare(
+            M.Head(M.Tail(candidate)())(), M.Char("goal-structural-sos"),
+        )()
+        scale_ok = Gmod.GMPEqualText(
+            Minmod.AdditiveSOSScale(identity)(), "2",
+        )()
+        summands = Minmod.AdditiveSOSSummands(identity)()
+        three_squares = Gmod.GMPEqualText(
+            M.GMPRepText(M.CountRep(summands)())(), "3",
+        )()
+        verified = M.Compare(
+            Minmod.VerifyAdditiveSOSIdentity(identity)(),
+            M.Char("verified-identity"),
+        )()
+        certificates = Minmod.SquareCertificateChain(summands)()
+        independent = Minmod.SquareCertificatesProved(
+            summands, certificates,
+        )()
+        additive = Minmod.AdditiveNonnegStep(summands, certificates)()
+        additive_ok = M.IdentityCompare(additive, M.EmptyList)()
+        self.result = M.AndAtom(
+            source_ok,
+            M.AndAtom(
+                scale_ok,
+                M.AndAtom(
+                    three_squares,
+                    M.AndAtom(
+                        verified,
+                        M.AndAtom(independent, M.NotAtom(additive_ok)())(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableSOSReplayTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        goal = M.Head(fixture)()
+        lemma = M.Head(M.Tail(M.Tail(fixture)())())()
+        registry = M.FromContextGetConstructors(graph)()
+        replay = Minmod.ReplayInventedLemmaOnGoal(goal, lemma, registry)()
+        self.result = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableSOSCheckpointTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        fixture = ThreeVariableSOSFixture(graph)()
+        version = M.Head(M.Tail(M.Tail(M.Tail(fixture)())())())()
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        renamed = Gmod.ParsePolynomialInequalityText(
+            "a^2 + b^2 + c^2 >= a*b + b*c + c*a", digit_words,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = M.Head(Gmod.GraphNodes(loaded)())()
+        not_used = Gmod.CreditInventedLemmaReplay(
+            loaded, M.EmptyList, loaded_lemma, registry,
+        )()
+        utility_still_zero = M.IdentityCompare(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(not_used)())(),
+            )(),
+            M.Zero,
+        )()
+        hit = Minmod.ReplayInventedLemma(not_used, renamed, registry)()
+        replay_ok = M.NotAtom(M.IdentityCompare(hit, M.EmptyList)())()
+        credited = Gmod.CreditInventedLemmaReplay(
+            not_used, M.Head(hit)(), M.Head(M.Tail(hit)())(), registry,
+        )()
+        utility = Gmod.InventedLemmaUtility(
+            M.Head(Gmod.GraphNodes(credited)())(),
+        )()
+        utility_ok = M.NatEq(utility, M.one, registry)()
+        self.result = M.AndAtom(
+            utility_still_zero, M.AndAtom(replay_ok, utility_ok)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TwoVariableRegressionTest(M.Edge):
+    def __init__(self, graph):
+        self.result = M.AndAtom(
+            LemmaInventionTest(graph)(),
+            InventedLemmaReplayCheckpointTest(graph)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FalseIdentityNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        candidate = M.Head(M.Tail(fixture)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        identity = M.Head(M.Tail(M.Tail(structural)())())()
+        false_identity = Minmod.AdditiveSOSIdentity(
+            Minmod.AdditiveSOSScale(identity)(),
+            Minmod.AdditiveSOSDifference(identity)(),
+            Minmod.AdditiveSOSSummands(identity)(),
+            Minmod.AdditiveSOSLHS(identity)(),
+            M.Tail(Minmod.AdditiveSOSRHS(identity)())(),
+        )()
+        self.result = M.Compare(
+            Minmod.VerifyAdditiveSOSIdentity(false_identity)(),
+            M.Char("identity-mismatch"),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NegativeCoefficientNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        candidate = M.Head(M.Tail(fixture)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        identity = M.Head(M.Tail(M.Tail(structural)())())()
+        summand = M.Head(Minmod.AdditiveSOSSummands(identity)())()
+        negative = M.Pair(
+            M.ExprNegLabel, M.Pair(summand, M.EmptyList),
+        )
+        negative_summands = M.Pair(negative, M.EmptyList)
+        variables = M.Head(M.Tail(structural)())()
+        registry = M.FromContextGetConstructors(graph)()
+        negative_polynomial = Minmod.NormalizeCanonicalPolynomial(
+            negative, variables, registry,
+        )()
+        true_negative_identity = Minmod.AdditiveSOSIdentity(
+            "1",
+            negative_polynomial,
+            negative_summands,
+            negative_polynomial,
+            negative_polynomial,
+        )()
+        identity_true = M.Compare(
+            Minmod.VerifyAdditiveSOSIdentity(true_negative_identity)(),
+            M.Char("verified-identity"),
+        )()
+        certificates = Minmod.SquareCertificateChain(negative_summands)()
+        additive = Minmod.AdditiveNonnegStep(
+            negative_summands, certificates,
+        )()
+        positivity_blocked = M.IdentityCompare(additive, M.EmptyList)()
+        self.result = M.AndAtom(identity_true, positivity_blocked)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ThreeVariableCanonicalNormalizationTest(M.Edge):
     def __init__(self, graph):
         registry = M.FromContextGetConstructors(graph)()
@@ -16675,6 +16885,62 @@ def install_default_tests(graph):
             "lemma_invention_test",
             empty,
             LemmaInventionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_canonical_normalization_test",
+            empty,
+            ThreeVariableCanonicalNormalizationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_sos_invention_test",
+            empty,
+            ThreeVariableSOSInventionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_sos_replay_test",
+            empty,
+            ThreeVariableSOSReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_sos_checkpoint_test",
+            empty,
+            ThreeVariableSOSCheckpointTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "two_variable_regression_test",
+            empty,
+            TwoVariableRegressionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "false_identity_negative_control_test",
+            empty,
+            FalseIdentityNegativeControlTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "negative_coefficient_negative_control_test",
+            empty,
+            NegativeCoefficientNegativeControlTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
