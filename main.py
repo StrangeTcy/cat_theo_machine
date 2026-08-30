@@ -43,6 +43,7 @@ else:
     from . import residue as Res
     from . import modular as Mod
     from . import euclid as Euc
+    from . import story_talk_adapter as StoryTalk
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -5655,6 +5656,8 @@ def run_talk_mode(sentence: str = None):
         nonlocal scoped_integer_equations, last_parity_stall, last_residue_stall
         nonlocal last_modular_stall, last_euclidean_stall
         lowered = line.lower()
+        if StoryTalk.StoryCommandRecognized(line)() is M.truth_value:
+            return StoryTalk.StoryTalkResponse(line)()
         if lowered.strip() == "clear assumptions":
             scoped_assumptions = M.EmptyList
             scoped_divisibility_assumptions = M.EmptyList
@@ -11219,6 +11222,7 @@ def run_talk_mode(sentence: str = None):
     print("Ask taught rules: 'query: Sage(alice)'.")
     print("Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.")
     print("Ask witnessed Euclidean descent: 'query: gcd(1071,462)'.")
+    print("Run the pair-schema story core: 'story demo', 'how is Alice connected to wolf?', or 'analogy'.")
     print("After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.")
     print("Inspect invented results: 'show lemmas'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")

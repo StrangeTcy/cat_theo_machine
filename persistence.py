@@ -485,6 +485,23 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ConfidenceLabel",
     "SchemaLabel",
     "StorySchemaLabel",
+    "SemanticGoalLabel",
+    "TaskTypeLabel",
+    "ConceptLabel",
+    "IntermediateLabel",
+    "ConceptTypeLabel",
+    "TimeLabel",
+    "LocationLabel",
+    "DomainLabel",
+    "AttributeValueLabel",
+    "ConnectionLabel",
+    "ExplanationLabel",
+    "NarrativeLabel",
+    "VerificationLabel",
+    "ConfidenceScoreLabel",
+    "SemanticStateLabel",
+    "FocusLabel",
+    "UncertainLabel",
 ]
 
 
