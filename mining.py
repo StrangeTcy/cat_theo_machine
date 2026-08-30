@@ -5375,6 +5375,444 @@ class ReplayInventedLemmaOnGoal(M.Edge):
         return self.result
 
 
+class MergeVariableChains(M.Edge):
+    def __init__(self, left, right):
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            self.result = left
+        else:
+            variable = M.Head(right)()
+            if PolynomialVariableKnown(variable, left)() is M.truth_value:
+                next_left = left
+            else:
+                next_left = PolynomialVariableAppend(left, variable)()
+            self.result = MergeVariableChains(next_left, M.Tail(right)())()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalExpressionEqual(M.Edge):
+    def __init__(self, left, right, registry):
+        variables = MergeVariableChains(
+            BoundedPolynomialVariables(left)(),
+            BoundedPolynomialVariables(right)(),
+        )()
+        left_polynomial = NormalizeCanonicalPolynomial(left, variables, registry)()
+        right_polynomial = NormalizeCanonicalPolynomial(right, variables, registry)()
+        self.result = CanonicalPolynomialEqual(left_polynomial, right_polynomial)()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubstitutionEntry(M.Edge):
+    def __init__(self, variable, expression):
+        self.result = M.Pair(variable, M.Pair(expression, M.EmptyList))
+        super().__init__(inputs=M.Pair(variable, M.Pair(expression, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubstitutionLookup(M.Edge):
+    def __init__(self, variable, substitutions):
+        if M.IdentityCompare(substitutions, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            entry = M.Head(substitutions)()
+            if M.Compare(
+                M.Tail(M.Head(entry)())(), M.Tail(variable)(),
+            )() is M.truth_value:
+                self.result = M.Head(M.Tail(entry)())()
+            else:
+                self.result = SubstitutionLookup(
+                    variable, M.Tail(substitutions)(),
+                )()
+        super().__init__(inputs=M.Pair(variable, M.Pair(substitutions, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubstituteExpressionArguments(M.Edge):
+    def __init__(self, arguments, substitutions):
+        if M.IdentityCompare(arguments, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = M.Pair(
+                SubstituteExpression(M.Head(arguments)(), substitutions)(),
+                SubstituteExpressionArguments(
+                    M.Tail(arguments)(), substitutions,
+                )(),
+            )
+        super().__init__(inputs=M.Pair(arguments, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SubstituteExpression(M.Edge):
+    def __init__(self, expression, substitutions):
+        if Pmod.IsVarPattern(expression)() is M.truth_value:
+            replacement = SubstitutionLookup(expression, substitutions)()
+            if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
+                self.result = expression
+            else:
+                self.result = replacement
+        elif M.IsPair(expression)() is M.truth_value:
+            self.result = M.Pair(
+                M.Head(expression)(),
+                SubstituteExpressionArguments(M.Tail(expression)(), substitutions)(),
+            )
+        else:
+            self.result = expression
+        super().__init__(inputs=M.Pair(expression, M.Pair(substitutions, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SquaredVariableExpressions(M.Edge):
+    def __init__(self, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            square = M.Pair(
+                M.ExprPowLabel,
+                M.Pair(
+                    M.Head(variables)(),
+                    M.Pair(
+                        M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
+                        M.EmptyList,
+                    ),
+                ),
+            )
+            self.result = M.Pair(
+                square, SquaredVariableExpressions(M.Tail(variables)())(),
+            )
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProductsWithFirst(M.Edge):
+    def __init__(self, first, remaining):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            product = M.Pair(
+                M.ExprMulLabel,
+                M.Pair(first, M.Pair(M.Head(remaining)(), M.EmptyList)),
+            )
+            self.result = M.Pair(
+                product,
+                ProductsWithFirst(first, M.Tail(remaining)())(),
+            )
+        super().__init__(inputs=M.Pair(first, M.Pair(remaining, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PairwiseProductExpressions(M.Edge):
+    def __init__(self, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = AppendMachineChains(
+                ProductsWithFirst(M.Head(variables)(), M.Tail(variables)())(),
+                PairwiseProductExpressions(M.Tail(variables)())(),
+            )()
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ChooseExpressionChains(M.Edge):
+    def __init__(self, expressions, remaining_text):
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.EmptyList)
+        elif M.IdentityCompare(expressions, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            with_head_tails = ChooseExpressionChains(
+                M.Tail(expressions)(), GMPPredText(remaining_text)(),
+            )()
+            with_head = self._prepend(M.Head(expressions)(), with_head_tails)
+            without_head = ChooseExpressionChains(
+                M.Tail(expressions)(), remaining_text,
+            )()
+            self.result = AppendMachineChains(with_head, without_head)()
+        super().__init__(inputs=M.Pair(expressions, M.EmptyList), results=self.result)
+
+    def _prepend(self, expression, chains):
+        if M.IdentityCompare(chains, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(
+            M.Pair(expression, M.Head(chains)()),
+            self._prepend(expression, M.Tail(chains)()),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SubstitutionsFromVariables(M.Edge):
+    def __init__(self, variables, expressions):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = M.Pair(
+                SubstitutionEntry(
+                    M.Head(variables)(), M.Head(expressions)(),
+                )(),
+                SubstitutionsFromVariables(
+                    M.Tail(variables)(), M.Tail(expressions)(),
+                )(),
+            )
+        super().__init__(inputs=M.Pair(variables, M.Pair(expressions, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstantiateInequalityChains(M.Edge):
+    def __init__(self, template, template_variables, expression_chains):
+        if M.IdentityCompare(expression_chains, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            expressions = M.Head(expression_chains)()
+            substitutions = SubstitutionsFromVariables(
+                template_variables, expressions,
+            )()
+            instance = SubstituteExpression(template, substitutions)()
+            self.result = M.Pair(
+                M.Pair(instance, M.Pair(substitutions, M.EmptyList)),
+                InstantiateInequalityChains(
+                    template,
+                    template_variables,
+                    M.Tail(expression_chains)(),
+                )(),
+            )
+        super().__init__(inputs=M.Pair(template, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FindChainedInequalityInstances(M.Edge):
+    def __init__(self, instances, goal, registry):
+        self.instances = instances
+        self.goal = goal
+        self.registry = registry
+        self.result = self._left(instances)
+        super().__init__(inputs=M.Pair(instances, M.Pair(goal, M.EmptyList)), results=self.result)
+
+    def _left(self, remaining):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        left_entry = M.Head(remaining)()
+        left = M.Head(left_entry)()
+        target_greater = M.Head(M.Tail(M.Tail(self.goal)())())()
+        left_greater = M.Head(M.Tail(M.Tail(left)())())()
+        if CanonicalExpressionEqual(
+            left_greater, target_greater, self.registry,
+        )() is M.truth_value:
+            found = self._right(left_entry, self.instances)
+            if M.IdentityCompare(found, M.EmptyList)() is M.false_value:
+                return found
+        return self._left(M.Tail(remaining)())
+
+    def _right(self, left_entry, remaining):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        right_entry = M.Head(remaining)()
+        left = M.Head(left_entry)()
+        right = M.Head(right_entry)()
+        left_middle = M.Head(M.Tail(left)())()
+        right_middle = M.Head(M.Tail(M.Tail(right)())())()
+        target_lesser = M.Head(M.Tail(self.goal)())()
+        right_lesser = M.Head(M.Tail(right)())()
+        middle_matches = CanonicalExpressionEqual(
+            left_middle, right_middle, self.registry,
+        )()
+        goal_matches = CanonicalExpressionEqual(
+            right_lesser, target_lesser, self.registry,
+        )()
+        if M.AndAtom(middle_matches, goal_matches)() is M.truth_value:
+            return M.Pair(left_entry, M.Pair(right_entry, M.EmptyList))
+        return self._right(left_entry, M.Tail(remaining)())
+
+    def __call__(self):
+        return self.result
+
+
+class ReplaySubstitutedLemmaInstance(M.Edge):
+    def __init__(self, entry, invented_lemma, registry):
+        instance = M.Head(entry)()
+        substitutions = M.Head(M.Tail(entry)())()
+        proposition = M.Head(M.Tail(invented_lemma)())()
+        substituted_identity = SubstituteExpression(proposition, substitutions)()
+        validation = CandidateValidation(substituted_identity, registry)()
+        template_goal = M.Head(M.Tail(M.Tail(invented_lemma)())())()
+        expected_goal = SubstituteExpression(template_goal, substitutions)()
+        goal_matches = M.TermEqual(expected_goal, instance)()
+        if M.Compare(
+            CandidateValidationStatus(validation)(), M.Char("proved"),
+        )() is M.truth_value:
+            if goal_matches is M.truth_value:
+                right = M.Head(M.Tail(M.Tail(substituted_identity)())())()
+                summands = self._summands(right)
+                certificates = SquareCertificateChain(summands)()
+                additive = AdditiveNonnegStep(summands, certificates)()
+                if M.IdentityCompare(additive, M.EmptyList)() is M.false_value:
+                    self.result = M.Pair(
+                        M.Char("invented-lemma-replay-derivation"),
+                        M.Pair(
+                            instance,
+                            M.Pair(
+                                invented_lemma,
+                                M.Pair(
+                                    substitutions,
+                                    M.Pair(
+                                        substituted_identity,
+                                        M.Pair(
+                                            additive,
+                                            M.Pair(M.Char("proved"), M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                else:
+                    self.result = M.EmptyList
+            else:
+                self.result = M.EmptyList
+        else:
+            self.result = M.EmptyList
+        super().__init__(inputs=M.Pair(entry, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
+
+    def _summands(self, expression):
+        if M.IsPair(expression)() is M.truth_value:
+            if M.IdentityCompare(M.Head(expression)(), M.ExprAddLabel)() is M.truth_value:
+                arguments = M.Tail(expression)()
+                return AppendMachineChains(
+                    self._summands(M.Head(arguments)()),
+                    self._summands(M.Head(M.Tail(arguments)())()),
+                )()
+        return M.Pair(expression, M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayInventedLemmaChainOnGoal(M.Edge):
+    def __init__(self, goal, invented_lemma, registry):
+        template = M.Head(M.Tail(M.Tail(invented_lemma)())())()
+        template_variables = BoundedPolynomialVariables(template)()
+        goal_variables = BoundedPolynomialVariables(goal)()
+        basis = AppendMachineChains(
+            SquaredVariableExpressions(goal_variables)(),
+            PairwiseProductExpressions(goal_variables)(),
+        )()
+        triples = ChooseExpressionChains(basis, "3")()
+        instances = InstantiateInequalityChains(
+            template, template_variables, triples,
+        )()
+        chain = FindChainedInequalityInstances(instances, goal, registry)()
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            first = M.Head(chain)()
+            second = M.Head(M.Tail(chain)())()
+            first_goal = M.Head(first)()
+            second_goal = M.Head(second)()
+            first_replay = ReplaySubstitutedLemmaInstance(
+                first, invented_lemma, registry,
+            )()
+            second_replay = ReplaySubstitutedLemmaInstance(
+                second, invented_lemma, registry,
+            )()
+            if M.IdentityCompare(first_replay, M.EmptyList)() is M.truth_value:
+                self.result = M.EmptyList
+            elif M.IdentityCompare(second_replay, M.EmptyList)() is M.truth_value:
+                self.result = M.EmptyList
+            else:
+                intermediate = M.Head(M.Tail(first_goal)())()
+                self.result = M.Pair(
+                    M.Char("invented-lemma-replay-derivation"),
+                    M.Pair(
+                        goal,
+                        M.Pair(
+                            invented_lemma,
+                            M.Pair(
+                                first_replay,
+                                M.Pair(
+                                    second_replay,
+                                    M.Pair(
+                                        M.Pair(
+                                            M.Char("inequality-transitivity"),
+                                            M.Pair(intermediate, M.EmptyList),
+                                        ),
+                                        M.Pair(M.Char("proved"), M.EmptyList),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+        super().__init__(inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayInventedLemmaChain(M.Edge):
+    def __init__(self, graph_version, goal, registry, nodes=M.EmptyList, started=M.false_value):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            nodes = GraphVersionNodes(graph_version)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            node = M.Head(nodes)()
+            replay = M.EmptyList
+            if M.IsPair(node)() is M.truth_value:
+                if M.Compare(M.Head(node)(), M.Char("invented-lemma"))() is M.truth_value:
+                    replay = ReplayInventedLemmaChainOnGoal(goal, node, registry)()
+            if M.IdentityCompare(replay, M.EmptyList)() is M.false_value:
+                self.result = M.Pair(replay, M.Pair(node, M.EmptyList))
+            else:
+                self.result = ReplayInventedLemmaChain(
+                    graph_version, goal, registry, M.Tail(nodes)(), M.truth_value,
+                )()
+        super().__init__(inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplaySavedInventedLemma(M.Edge):
+    def __init__(self, graph_version, goal, registry):
+        direct = ReplayInventedLemma(graph_version, goal, registry)()
+        if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
+            self.result = direct
+        else:
+            self.result = ReplayInventedLemmaChain(
+                graph_version, goal, registry,
+            )()
+        super().__init__(inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ReplayInventedLemma(M.Edge):
     def __init__(self, graph_version, goal, registry, nodes=M.EmptyList, started=M.false_value):
         if M.IdentityCompare(started, M.false_value)() is M.truth_value:

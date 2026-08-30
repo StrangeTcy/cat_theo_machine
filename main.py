@@ -6982,7 +6982,7 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(
                 polynomial_goal, M.EmptyList,
             )() is M.false_value:
-                replay_hit = Min.ReplayInventedLemma(
+                replay_hit = Min.ReplaySavedInventedLemma(
                     learned_version, goal, registry,
                 )()
                 if M.IdentityCompare(replay_hit, M.EmptyList)() is M.false_value:
@@ -6993,12 +6993,34 @@ def run_talk_mode(sentence: str = None):
                     )()
                     last_goal = goal
                     last_derivation = replay
-                    _persist_talk_state()
-                    return (
+                    replay_explanation = (
                         "yes; replayed the saved algebraic identity, "
-                        "proved its nonnegativity obligations, and "
-                        "derived " + line[6:].strip() + "."
+                        "proved its nonnegativity obligations, and derived "
+                        + line[6:].strip() + "."
                     )
+                    replay_step = M.Head(
+                        M.Tail(M.Tail(M.Tail(replay)())())(),
+                    )()
+                    if M.IsPair(replay_step)() is M.truth_value:
+                        if M.Compare(
+                            M.Head(replay_step)(),
+                            M.Char("invented-lemma-replay-derivation"),
+                        )() is M.truth_value:
+                            second_step = M.Head(
+                                M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())(),
+                            )()
+                            first_instance = M.Head(M.Tail(replay_step)())()
+                            second_instance = M.Head(M.Tail(second_step)())()
+                            replay_explanation = (
+                                "yes; composed two independently revalidated "
+                                "compound substitutions of the saved lemma:\n"
+                                "1. " + M.PrettyTerm(first_instance, registry)()
+                                + "\n2. " + M.PrettyTerm(second_instance, registry)()
+                                + "\nThen inequality transitivity derived "
+                                + line[6:].strip() + "."
+                            )
+                    _persist_talk_state()
+                    return replay_explanation
                 stall_graph = G.Hypergraph(registry)
                 stall_graph._search_disable_console = M.truth_value
                 stall_graph._search_disable_progress_ticker = M.truth_value

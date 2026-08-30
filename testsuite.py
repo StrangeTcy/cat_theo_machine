@@ -5234,6 +5234,74 @@ class ThreeVariableSOSFixture(M.Edge):
         return self.result
 
 
+class CompoundSubstitutionChainTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        fixture = ThreeVariableSOSFixture(graph)()
+        version = M.Head(M.Tail(M.Tail(M.Tail(fixture)())())())()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        target = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y*z*(x+y+z)", digit_words,
+        )()
+        hit = Minmod.ReplaySavedInventedLemma(loaded, target, registry)()
+        replay_ok = M.NotAtom(M.IdentityCompare(hit, M.EmptyList)())()
+        credited = Gmod.CreditInventedLemmaReplay(
+            loaded, M.Head(hit)(), M.Head(M.Tail(hit)())(), registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited)())(),
+            )(),
+            M.one,
+            registry,
+        )()
+        unrelated = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y", digit_words,
+        )()
+        unrelated_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, unrelated, registry,
+        )()
+        unrelated_blocked = M.IdentityCompare(unrelated_hit, M.EmptyList)()
+        replay = M.Head(hit)()
+        first_replay = M.Head(M.Tail(M.Tail(M.Tail(replay)())())())()
+        first_substitutions = M.Head(
+            M.Tail(M.Tail(M.Tail(first_replay)())())(),
+        )()
+        wrong_instance = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y", digit_words,
+        )()
+        invalid_entry = M.Pair(
+            wrong_instance, M.Pair(first_substitutions, M.EmptyList),
+        )
+        lemma = M.Head(M.Tail(hit)())()
+        invalid = Minmod.ReplaySubstitutedLemmaInstance(
+            invalid_entry, lemma, registry,
+        )()
+        invalid_blocked = M.IdentityCompare(invalid, M.EmptyList)()
+        no_axiom_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited)(),
+            M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.AndAtom(
+                utility_once,
+                M.AndAtom(
+                    unrelated_blocked,
+                    M.AndAtom(invalid_blocked, no_axiom_schema)(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ThreeVariableSOSInventionTest(M.Edge):
     def __init__(self, graph):
         fixture = ThreeVariableSOSFixture(graph)()
@@ -16893,6 +16961,14 @@ def install_default_tests(graph):
             "three_variable_canonical_normalization_test",
             empty,
             ThreeVariableCanonicalNormalizationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compound_substitution_chain_test",
+            empty,
+            CompoundSubstitutionChainTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
