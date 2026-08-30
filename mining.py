@@ -3577,12 +3577,13 @@ class NormalizeCanonicalPolynomial(M.Edge):
     def __init__(self, expression, variables, registry):
         self.result = M.EmptyList
         if Pmod.IsVarPattern(expression)() is M.truth_value:
-            self.result = M.Pair(
-                CanonicalMonomial(
-                    "1", CanonicalVariablePowers(variables, expression)(),
-                )(),
-                M.EmptyList,
-            )
+            if PolynomialVariableKnown(expression, variables)() is M.truth_value:
+                self.result = M.Pair(
+                    CanonicalMonomial(
+                        "1", CanonicalVariablePowers(variables, expression)(),
+                    )(),
+                    M.EmptyList,
+                )
         elif M.IsPair(expression)() is M.truth_value:
             label = M.Head(expression)()
             arguments = M.Tail(expression)()
