@@ -14,9 +14,20 @@ class ProofLookupProcess(multiprocessing.Process):
         super().__init__()
 
     def run(self):
-        ProofLookupWorker(
-            self.mode_text, self.request_path, self.result_path,
-        )
+        try:
+            ProofLookupWorker(
+                self.mode_text, self.request_path, self.result_path,
+            )
+        except Exception as failure:
+            temporary_path = self.result_path + ".tmp"
+            with open(temporary_path, "w", encoding="utf-8") as result_stream:
+                result_stream.write("E")
+            os.replace(temporary_path, self.result_path)
+            print(
+                "[foreground worker " + str(os.getpid()) + "] failed "
+                + self.mode_text + " lemma lookup: " + str(failure),
+                flush=True,
+            )
 
 
 class ParallelProofLookupMode(M.Edge):
@@ -72,7 +83,13 @@ class ParallelProofLookupMode(M.Edge):
             with open(chain_path, "r", encoding="utf-8") as result_stream:
                 chain_found = result_stream.read().strip()
         self.result = "none"
-        if cubic_found == "1":
+        if cubic_found == "E":
+            self.result = "worker-failure"
+        elif direct_found == "E":
+            self.result = "worker-failure"
+        elif chain_found == "E":
+            self.result = "worker-failure"
+        elif cubic_found == "1":
             self.result = "cubic"
         elif direct_found == "1":
             self.result = "direct"

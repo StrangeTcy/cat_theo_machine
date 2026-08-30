@@ -8057,6 +8057,12 @@ def run_talk_mode(sentence: str = None):
                         learned_version, goal, scoped_assumptions,
                     )()
                     _thinking("foreground lookup workers joined; selected result mode=" + lookup_mode)
+                    if lookup_mode == "worker-failure":
+                        return (
+                            "Foreground proof lookup stopped because a worker failed. "
+                            "Its process-specific diagnostic is printed above; no missing lemma "
+                            "was inferred from that failure."
+                        )
                     if lookup_mode == "cubic":
                         replay_hit = Min.ReplayInstalledCubicLemma(
                             learned_version, goal, scoped_assumptions, registry,
