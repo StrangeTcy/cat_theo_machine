@@ -21,16 +21,16 @@ DEBUG [foreground prover]: recognized a polynomial inequality and normalized bot
 DEBUG [foreground prover]: looking up recorded conclusions and approved proof schemas
 DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
 DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
-DEBUG [foreground prover]: dispatching saved-lemma lookup to three foreground worker processes
-[foreground worker 2831] starting cubic lemma lookup
-DEBUG [foreground coordinator 2830]: spawned cubic lookup process 2831
-DEBUG [foreground coordinator 2830]: spawned direct lookup process 2832
-DEBUG [foreground coordinator 2830]: spawned chain lookup process 2833
-[foreground worker 2832] starting direct lemma lookup
-[foreground worker 2833] starting chain lemma lookup
-[foreground worker 2831] finished cubic lemma lookup: no match
-[foreground worker 2832] finished direct lemma lookup: no match
-[foreground worker 2833] finished chain lemma lookup: no match
+DEBUG [foreground prover]: partitioning the graph equally across three foreground proof workers
+[foreground worker 1420] starting equal graph shard 0 of 3
+DEBUG [foreground coordinator 1418]: assigned equal graph shard 0 of 3 to process 1420
+DEBUG [foreground coordinator 1418]: assigned equal graph shard 1 of 3 to process 1421
+DEBUG [foreground coordinator 1418]: assigned equal graph shard 2 of 3 to process 1422
+[foreground worker 1421] starting equal graph shard 1 of 3
+[foreground worker 1422] starting equal graph shard 2 of 3
+[foreground worker 1421] finished equal graph shard 1 of 3: none
+[foreground worker 1420] finished equal graph shard 0 of 3: none
+[foreground worker 1422] finished equal graph shard 2 of 3: none
 DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=none
 DEBUG [foreground prover]: no fitting saved proof was found; exploring a bounded search frontier
 DEBUG [foreground prover]: the bounded search stalled; preserving its frontier for lemma invention
@@ -56,16 +56,16 @@ DEBUG [foreground prover]: recognized a polynomial inequality and normalized bot
 DEBUG [foreground prover]: looking up recorded conclusions and approved proof schemas
 DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
 DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
-DEBUG [foreground prover]: dispatching saved-lemma lookup to three foreground worker processes
-[foreground worker 2834] starting cubic lemma lookup
-DEBUG [foreground coordinator 2830]: spawned cubic lookup process 2834
-DEBUG [foreground coordinator 2830]: spawned direct lookup process 2835
-DEBUG [foreground coordinator 2830]: spawned chain lookup process 2836
-[foreground worker 2835] starting direct lemma lookup
-[foreground worker 2836] starting chain lemma lookup
-[foreground worker 2834] finished cubic lemma lookup: no match
-[foreground worker 2835] finished direct lemma lookup: match found
-[foreground worker 2836] finished chain lemma lookup: no match
+DEBUG [foreground prover]: partitioning the graph equally across three foreground proof workers
+[foreground worker 1423] starting equal graph shard 0 of 3
+DEBUG [foreground coordinator 1418]: assigned equal graph shard 0 of 3 to process 1423
+DEBUG [foreground coordinator 1418]: assigned equal graph shard 1 of 3 to process 1424
+DEBUG [foreground coordinator 1418]: assigned equal graph shard 2 of 3 to process 1425
+[foreground worker 1424] starting equal graph shard 1 of 3
+[foreground worker 1425] starting equal graph shard 2 of 3
+[foreground worker 1424] finished equal graph shard 1 of 3: direct
+[foreground worker 1425] finished equal graph shard 2 of 3: none
+[foreground worker 1423] finished equal graph shard 0 of 3: none
 DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=direct
 DEBUG [foreground prover]: found a fitting invented lemma; replaying its certificate and obligations
 DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire

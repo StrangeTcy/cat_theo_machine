@@ -8052,7 +8052,7 @@ def run_talk_mode(sentence: str = None):
             )() is M.false_value:
                 replay_hit = M.EmptyList
                 if os.environ.get("HYGE_LIVE_FOREGROUND", "") == "1":
-                    _thinking("dispatching saved-lemma lookup to three foreground worker processes")
+                    _thinking("partitioning the graph equally across three foreground proof workers")
                     lookup_mode = ProofLookup.ParallelProofLookupMode(
                         learned_version, goal, scoped_assumptions,
                     )()

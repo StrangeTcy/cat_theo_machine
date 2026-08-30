@@ -21,6 +21,7 @@ from . import residue as Resmod
 from . import modular as Modmod
 from . import euclid as Eucmod
 from . import story_talk_adapter as StoryTalkmod
+from . import proof_lookup_worker as ProofLookupWorkermod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -5368,6 +5369,61 @@ class CubicNestedReuseTest(M.Edge):
                     M.AndAtom(
                         no_assumptions,
                         M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EqualProofLookupShardTest(M.Edge):
+    def __init__(self, graph):
+        nodes = M.Pair(
+            M.Char("n0"),
+            M.Pair(
+                M.Char("n1"),
+                M.Pair(
+                    M.Char("n2"),
+                    M.Pair(
+                        M.Char("n3"),
+                        M.Pair(
+                            M.Char("n4"),
+                            M.Pair(
+                                M.Char("n5"),
+                                M.Pair(M.Char("n6"), M.EmptyList),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        first = ProofLookupWorkermod.RoundRobinWorkerShard(
+            nodes, "0", "0", "3",
+        )()
+        second = ProofLookupWorkermod.RoundRobinWorkerShard(
+            nodes, "0", "1", "3",
+        )()
+        third = ProofLookupWorkermod.RoundRobinWorkerShard(
+            nodes, "0", "2", "3",
+        )()
+        first_count = Minmod.MachineChainCardinalityText(first)()
+        second_count = Minmod.MachineChainCardinalityText(second)()
+        third_count = Minmod.MachineChainCardinalityText(third)()
+        self.result = M.AndAtom(
+            M.Compare(M.Char(first_count), M.Char("3"))(),
+            M.AndAtom(
+                M.Compare(M.Char(second_count), M.Char("2"))(),
+                M.AndAtom(
+                    M.Compare(M.Char(third_count), M.Char("2"))(),
+                    M.AndAtom(
+                        M.Compare(M.Head(first)(), M.Char("n0"))(),
+                        M.AndAtom(
+                            M.Compare(M.Head(second)(), M.Char("n1"))(),
+                            M.Compare(M.Head(third)(), M.Char("n2"))(),
+                        )(),
                     )(),
                 )(),
             )(),
@@ -18382,6 +18438,14 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "equal_proof_lookup_shard_test",
+            empty,
+            EqualProofLookupShardTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
