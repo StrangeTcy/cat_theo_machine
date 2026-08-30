@@ -42,6 +42,7 @@ else:
     from . import parity as Par
     from . import residue as Res
     from . import modular as Mod
+    from . import euclid as Euc
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -1291,6 +1292,7 @@ def run_talk_mode(sentence: str = None):
     last_parity_stall = M.EmptyList
     last_residue_stall = M.EmptyList
     last_modular_stall = M.EmptyList
+    last_euclidean_stall = M.EmptyList
     # Talk state is checkpoint-backed so that a cycling process and this
     # conversation share one version rather than two disjoint ones. The
     # daemon is the only writer of activations; talk submits and reads.
@@ -5316,6 +5318,11 @@ def run_talk_mode(sentence: str = None):
                                     M.Char("bounded-residue-case-split"),
                                 )() is M.truth_value:
                                     return "Recorded the modulus-parameterized lemma with every residue branch in its replay certificate."
+                                if M.Compare(
+                                    M.Head(approved_structural)(),
+                                    M.Char("euclidean-descent-trace"),
+                                )() is M.truth_value:
+                                    return "Recorded the Euclidean algorithm lemma with its witnessed remainder-descent trace."
                         dependency_tail = M.Tail(
                             M.Tail(M.Tail(M.Tail(approved_certificate)())())(),
                         )()
@@ -5646,7 +5653,7 @@ def run_talk_mode(sentence: str = None):
         nonlocal scoped_assumptions, scoped_divisibility_assumptions
         nonlocal scoped_congruence_assumptions
         nonlocal scoped_integer_equations, last_parity_stall, last_residue_stall
-        nonlocal last_modular_stall
+        nonlocal last_modular_stall, last_euclidean_stall
         lowered = line.lower()
         if lowered.strip() == "clear assumptions":
             scoped_assumptions = M.EmptyList
@@ -6033,6 +6040,29 @@ def run_talk_mode(sentence: str = None):
         if lowered.startswith("suggest lemmas"):
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
                 return "Please approve or reject the pending proposal first."
+            if M.IdentityCompare(last_euclidean_stall, M.EmptyList)() is M.false_value:
+                first_text = M.Head(last_euclidean_stall)()()
+                second_text = M.Head(M.Tail(last_euclidean_stall)())()()
+                euclidean_invented = Euc.EuclideanAlgorithmLemma(
+                    first_text, second_text, registry,
+                )()
+                if M.IdentityCompare(euclidean_invented, M.EmptyList)() is M.truth_value:
+                    return "Euclidean invention refused: remainder descent did not verify."
+                euclidean_proposal = G.Proposal(
+                    euclidean_invented, M.Char("euclidean-descent-invention"),
+                )()
+                proposal_store = G.ProposalStoreSubmit(
+                    proposal_store, euclidean_proposal,
+                )()
+                pending_rule = euclidean_proposal
+                last_euclidean_stall = M.EmptyList
+                _push_ask("rule", "Approve the Euclidean descent lemma? (yes/no)")
+                _persist_talk_state()
+                return (
+                    "Generated a remainder-witnessed Euclidean trace: every transition "
+                    "proves a=b*q+r, 0<=r<b, common-divisor invariance, and strict descent.\n"
+                    "Approve this candidate? Enter yes or no."
+                )
             if M.IdentityCompare(last_modular_stall, M.EmptyList)() is M.false_value:
                 modular_kind = M.Head(last_modular_stall)()
                 modular_invented = M.EmptyList
@@ -6784,6 +6814,48 @@ def run_talk_mode(sentence: str = None):
         if lowered.startswith("query:"):
             parity_query_text = line[6:].strip()
             folded_parity_query = parity_query_text.lower()
+            if folded_parity_query.startswith("gcd(") and folded_parity_query.endswith(")"):
+                comma = parity_query_text.find(",")
+                if comma == -1:
+                    return "I could not parse the GCD pair."
+                first_text = parity_query_text[4:comma].strip()
+                second_text = parity_query_text[comma + 1:-1].strip()
+                euclidean_lemma = Euc.FindEuclideanAlgorithmLemma(
+                    G.GraphNodes(learned_version)(),
+                )()
+                if M.IdentityCompare(euclidean_lemma, M.EmptyList)() is M.truth_value:
+                    probe = Euc.EuclideanDescentTrace(
+                        first_text, second_text, registry,
+                    )()
+                    if M.IdentityCompare(probe, M.EmptyList)() is M.truth_value:
+                        return "Euclidean descent refused: inputs must be nonnegative and not both zero."
+                    last_euclidean_stall = M.Pair(
+                        M.Char(first_text), M.Pair(M.Char(second_text), M.EmptyList),
+                    )
+                    return (
+                        "no replayable Euclidean descent is saved. Type 'suggest lemmas' "
+                        "to generate remainder witnesses and a well-ordering certificate."
+                    )
+                replay = Euc.ReplayEuclideanAlgorithmLemma(
+                    euclidean_lemma, first_text, second_text, registry,
+                )()
+                if M.IdentityCompare(replay, M.EmptyList)() is M.truth_value:
+                    return "Euclidean replay refused: a remainder, bound, or descent obligation failed."
+                gcd_text = Euc.ReplayGCDText(replay)()
+                divisibility = Euc.VerifyGCDDivisibility(
+                    first_text, second_text, gcd_text,
+                )()
+                if divisibility is M.false_value:
+                    return "Euclidean replay refused: the terminal value did not divide both inputs."
+                learned_version = G.CreditInventedLemmaReplay(
+                    learned_version, replay, euclidean_lemma, registry,
+                )()
+                _persist_talk_state()
+                return (
+                    "yes; remainder-witnessed descent terminated at gcd(" + first_text
+                    + "," + second_text + ") = " + gcd_text
+                    + "; every step verified a=b*q+r and 0<=r<b."
+                )
             if folded_parity_query.startswith("congruentmod(") and folded_parity_query.endswith(")"):
                 body_text = parity_query_text[13:-1]
                 first_comma = body_text.find(",")
@@ -11146,6 +11218,7 @@ def run_talk_mode(sentence: str = None):
     print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.")
     print("Ask taught rules: 'query: Sage(alice)'.")
     print("Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.")
+    print("Ask witnessed Euclidean descent: 'query: gcd(1071,462)'.")
     print("After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.")
     print("Inspect invented results: 'show lemmas'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")

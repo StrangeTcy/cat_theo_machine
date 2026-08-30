@@ -19,6 +19,7 @@ from . import mining as Minmod
 from . import parity as Parmod
 from . import residue as Resmod
 from . import modular as Modmod
+from . import euclid as Eucmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -5366,6 +5367,105 @@ class CubicNestedReuseTest(M.Edge):
                     M.AndAtom(
                         no_assumptions,
                         M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RemainderWitnessTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        witnessed = Eucmod.BuildRemainderWitness("1071", "462", registry)()
+        structural = M.Head(M.Tail(witnessed)())()
+        good = Eucmod.VerifyRemainderWitness(structural, registry)()
+        fabricated = Eucmod.RemainderWitness(
+            "1071", "462", "3", "147", registry,
+        )()
+        fabricated_structural = M.Head(M.Tail(fabricated)())()
+        rejected = M.NotAtom(
+            Eucmod.VerifyRemainderWitness(fabricated_structural, registry)(),
+        )()
+        self.result = M.AndAtom(good, rejected)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EuclideanDescentTraceTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        trace = Eucmod.EuclideanDescentTrace("1071", "462", registry)()
+        steps = M.Head(M.Tail(M.Tail(M.Tail(trace)())())())()
+        gcd_text = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(trace)())())())())()()
+        count = Minmod.MachineChainCardinalityText(steps)()
+        self.result = M.AndAtom(
+            M.Compare(M.Char(gcd_text), M.Char("21"))(),
+            M.AndAtom(
+                M.Compare(M.Char(count), M.Char("3"))(),
+                Eucmod.StoredEuclideanStepsVerified(steps, registry)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EuclideanReplayCheckpointTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        lemma = Eucmod.EuclideanAlgorithmLemma("21", "6", registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Eucmod.FindEuclideanAlgorithmLemma(
+            Gmod.GraphNodes(loaded)(),
+        )()
+        replay = Eucmod.ReplayEuclideanAlgorithmLemma(
+            loaded_lemma, "252", "105", registry,
+        )()
+        gcd_text = Eucmod.ReplayGCDText(replay)()
+        self.result = M.AndAtom(
+            M.Compare(M.Char(gcd_text), M.Char("21"))(),
+            Eucmod.VerifyGCDDivisibility("252", "105", gcd_text)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EuclideanDescentNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        zero_pair = Eucmod.EuclideanDescentTrace("0", "0", registry)()
+        negative = Eucmod.EuclideanDescentTrace("-7", "3", registry)()
+        zero_divisor_witness = Eucmod.BuildRemainderWitness(
+            "9", "0", registry,
+        )()
+        fabricated = Eucmod.RemainderWitness(
+            "1071", "462", "2", "148", registry,
+        )()
+        fabricated_structural = M.Head(M.Tail(fabricated)())()
+        self.result = M.AndAtom(
+            M.IdentityCompare(zero_pair, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(negative, M.EmptyList)(),
+                M.AndAtom(
+                    M.IdentityCompare(zero_divisor_witness, M.EmptyList)(),
+                    M.NotAtom(
+                        Eucmod.VerifyRemainderWitness(
+                            fabricated_structural, registry,
+                        )(),
                     )(),
                 )(),
             )(),
@@ -18247,6 +18347,38 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "remainder_witness_test",
+            empty,
+            RemainderWitnessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "euclidean_descent_trace_test",
+            empty,
+            EuclideanDescentTraceTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "euclidean_replay_checkpoint_test",
+            empty,
+            EuclideanReplayCheckpointTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "euclidean_descent_negative_control_test",
+            empty,
+            EuclideanDescentNegativeControlTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

@@ -1,0 +1,56 @@
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.
+Ask witnessed Euclidean descent: 'query: gcd(1071,462)'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> no; I could not derive a^4 + b^4 >= a^3*b + a*b^3. Search failed after 1 steps. 1 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+you> hyge> no replayable Euclidean descent is saved. Type 'suggest lemmas' to generate remainder witnesses and a well-ordering certificate.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Generated a remainder-witnessed Euclidean trace: every transition proves a=b*q+r, 0<=r<b, common-divisor invariance, and strict descent.
+Approve this candidate? Enter yes or no.
+you> DEBUG: decision 'yes' appended to /home/user/cat_theo_machine/snapshots/talk_lessons.log
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Recorded the Euclidean algorithm lemma with its witnessed remainder-descent trace.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; remainder-witnessed descent terminated at gcd(21,6) = 3; every step verified a=b*q+r and 0<=r<b.
+you> hyge> Euclidean replay refused: a remainder, bound, or descent obligation failed.
+you> hyge> InventedLemma_1: [euclidean-algorithm-terminates-with-gcd, nonnegative-integer-pair] [utility: 1, verification: proved]
+you> hyge> goodbye
+--- checkpoint reload and new-pair replay ---
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.
+Ask witnessed Euclidean descent: 'query: gcd(1071,462)'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+(replayed 1 lesson lines from /home/user/cat_theo_machine/snapshots/talk_lessons.log)
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; remainder-witnessed descent terminated at gcd(1071,462) = 21; every step verified a=b*q+r and 0<=r<b.
+you> DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; remainder-witnessed descent terminated at gcd(252,105) = 21; every step verified a=b*q+r and 0<=r<b.
+you> hyge> InventedLemma_1: [euclidean-algorithm-terminates-with-gcd, nonnegative-integer-pair] [utility: 3, verification: proved]
+you> hyge> goodbye
