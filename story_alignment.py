@@ -12,7 +12,7 @@ class IsSameEntityCandidate(M.Edge):
     def _check(self, a, b):
         name_a = EntityCanonicalName(a)()
         name_b = EntityCanonicalName(b)()
-        if M.TermEqual(name_a, name_b)() is M.truth_value:
+        if M.Compare(name_a, name_b)() is M.truth_value:
             return M.truth_value
         return M.false_value
 
@@ -142,11 +142,11 @@ class DirectRelationExists(M.Edge):
         rest = M.Tail(chain)()
         rel_src = RelationSource(rel)()
         rel_tgt = RelationTarget(rel)()
-        if M.TermEqual(rel_src, src)() is M.truth_value:
-            if M.TermEqual(rel_tgt, tgt)() is M.truth_value:
+        if M.Compare(rel_src, src)() is M.truth_value:
+            if M.Compare(rel_tgt, tgt)() is M.truth_value:
                 return M.truth_value
-        if M.TermEqual(rel_src, tgt)() is M.truth_value:
-            if M.TermEqual(rel_tgt, src)() is M.truth_value:
+        if M.Compare(rel_src, tgt)() is M.truth_value:
+            if M.Compare(rel_tgt, src)() is M.truth_value:
                 return M.truth_value
         return self._check(rest, src, tgt)
 
@@ -162,7 +162,7 @@ class EventRoleSignatureMatch(M.Edge):
     def _match(self, a, b):
         pred_a = EventPredicate(a)()
         pred_b = EventPredicate(b)()
-        if M.TermEqual(pred_a, pred_b)() is M.false_value:
+        if M.Compare(pred_a, pred_b)() is M.false_value:
             return M.false_value
         roles_a = EventRoles(a)()
         roles_b = EventRoles(b)()
@@ -179,7 +179,7 @@ class EventRoleSignatureMatch(M.Edge):
         role_b = M.Head(rb)()
         name_a = RoleName(role_a)()
         name_b = RoleName(role_b)()
-        if M.TermEqual(name_a, name_b)() is M.false_value:
+        if M.Compare(name_a, name_b)() is M.false_value:
             return M.false_value
         return self._roles_match(M.Tail(ra)(), M.Tail(rb)())
 
@@ -209,13 +209,31 @@ class FindAnalogyMapping(M.Edge):
         return self.result
 
 
+class EventParticipates(M.Edge):
+    def __init__(self, event, entity_id):
+        self.result = self._check_roles(EventRoles(event)(), entity_id)
+        super().__init__(inputs=M.Pair(event, M.Pair(entity_id, M.EmptyList)), results=self.result)
+
+    def _check_roles(self, roles_chain, entity_id):
+        if M.IdentityCompare(roles_chain, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        role = M.Head(roles_chain)()
+        eref = RoleEntityRef(role)()
+        if M.Compare(eref, entity_id)() is M.truth_value:
+            return M.truth_value
+        return self._check_roles(M.Tail(roles_chain)(), entity_id)
+
+    def __call__(self):
+        return self.result
+
+
 class FindConnectionPath(M.Edge):
     def __init__(self, graph_version, source_id, target_id):
         self.result = self._search(graph_version, source_id, target_id, M.EmptyList)
         super().__init__(inputs=M.Pair(graph_version, M.Pair(source_id, M.Pair(target_id, M.EmptyList))), results=self.result)
 
     def _search(self, gv, current, target, visited):
-        if M.TermEqual(current, target)() is M.truth_value:
+        if M.Compare(current, target)() is M.truth_value:
             return M.Pair(current, M.EmptyList)
         if self._is_visited(visited, current) is M.truth_value:
             return M.EmptyList
@@ -227,14 +245,24 @@ class FindConnectionPath(M.Edge):
         if M.IdentityCompare(visited_chain, M.EmptyList)() is M.truth_value:
             return M.false_value
         head = M.Head(visited_chain)()
-        if M.TermEqual(head, node_id)() is M.truth_value:
+        if M.Compare(head, node_id)() is M.truth_value:
             return M.truth_value
         return self._is_visited(M.Tail(visited_chain)(), node_id)
 
     def _neighbors(self, gv, node_id):
         nodes = G.GraphNodes(gv)()
         rels = ExtractRelationsFromNodes(nodes)()
-        return self._collect_neighbors(rels, node_id, M.EmptyList)
+        rel_neighbors = self._collect_neighbors(rels, node_id, M.EmptyList)
+        ev_neighbors = self._collect_event_neighbors(nodes, node_id, M.EmptyList)
+        return self._append_chain(rel_neighbors, ev_neighbors)
+
+    def _append_chain(self, a_chain, b_chain):
+        if M.IdentityCompare(a_chain, M.EmptyList)() is M.truth_value:
+            return b_chain
+        head = M.Head(a_chain)()
+        tail = M.Tail(a_chain)()
+        rest = self._append_chain(tail, b_chain)
+        return M.Pair(head, rest)
 
     def _collect_neighbors(self, rel_chain, node_id, acc):
         if M.IdentityCompare(rel_chain, M.EmptyList)() is M.truth_value:
@@ -243,11 +271,34 @@ class FindConnectionPath(M.Edge):
         rest = M.Tail(rel_chain)()
         src = RelationSource(rel)()
         tgt = RelationTarget(rel)()
-        if M.TermEqual(src, node_id)() is M.truth_value:
+        if M.Compare(src, node_id)() is M.truth_value:
             acc = M.Pair(tgt, acc)
-        if M.TermEqual(tgt, node_id)() is M.truth_value:
+        if M.Compare(tgt, node_id)() is M.truth_value:
             acc = M.Pair(src, acc)
         return self._collect_neighbors(rest, node_id, acc)
+
+    def _collect_event_neighbors(self, node_chain, node_id, acc):
+        if M.IdentityCompare(node_chain, M.EmptyList)() is M.truth_value:
+            return acc
+        term = M.Head(node_chain)()
+        rest = M.Tail(node_chain)()
+        if IsEvent(term)() is M.truth_value:
+            ev_id = EventId(term)()
+            if M.Compare(ev_id, node_id)() is M.truth_value:
+                roles = EventRoles(term)()
+                acc = self._collect_roles_neighbors(roles, acc)
+            else:
+                if EventParticipates(term, node_id)() is M.truth_value:
+                    acc = M.Pair(ev_id, acc)
+        return self._collect_event_neighbors(rest, node_id, acc)
+
+    def _collect_roles_neighbors(self, roles_chain, acc):
+        if M.IdentityCompare(roles_chain, M.EmptyList)() is M.truth_value:
+            return acc
+        role = M.Head(roles_chain)()
+        eref = RoleEntityRef(role)()
+        acc = M.Pair(eref, acc)
+        return self._collect_roles_neighbors(M.Tail(roles_chain)(), acc)
 
     def _search_neighbors(self, gv, neighbor_chain, target, visited, current):
         if M.IdentityCompare(neighbor_chain, M.EmptyList)() is M.truth_value:
