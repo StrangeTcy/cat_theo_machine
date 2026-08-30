@@ -5917,7 +5917,7 @@ def run_talk_mode(sentence: str = None):
                 + "\n1. " + M.PrettyTerm(proposition, registry)()
                 + " [Source: " + str(provenance())
                 + " | Status: " + str(status()) + "]"
-                + "\nEnter 1 to register it, or no."
+                + "\nApprove this candidate? Enter yes or no."
             )
         if lowered.startswith("suggest premises"):
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
