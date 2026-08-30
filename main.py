@@ -11677,7 +11677,7 @@ def run_live_mode(requested_workers):
     def drain():
         for line in daemon_child.stdout:
             rendered_line = line.rstrip()
-            if rendered_line.startswith("daemon: cycling shared state"):
+            if rendered_line.startswith("daemon proof coordinator "):
                 daemon_ready.set()
             sys.stdout.write("\r\033[K[machine] " + rendered_line + "\nyou> ")
             sys.stdout.flush()
@@ -11687,7 +11687,7 @@ def run_live_mode(requested_workers):
     reader.start()
     print(
         "live mode: waiting for daemon process " + str(daemon_child.pid)
-        + " to restore shared state and open its worker service.",
+        + " to open its proof worker service; autonomy restores independently.",
         flush=True,
     )
     daemon_ready.wait()
@@ -11735,7 +11735,9 @@ def run_live_mode(requested_workers):
             if M.IdentityCompare(
                 teardown_submitted, M.EmptyList,
             )() is M.false_value:
-                teardown_version = M.EmptyList
+                teardown_version = G.GraphVersion(
+                    M.EmptyList, M.EmptyList, M.EmptyList,
+                )()
                 teardown_store = G.ProposalStore(M.EmptyList)()
                 teardown_ledger = G.FiringLedger(M.AllConstructors)
                 teardown_path_state = os.path.join(SNAPSHOT_DIR, "talk_state.wire")

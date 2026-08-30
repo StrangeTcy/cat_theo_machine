@@ -681,6 +681,72 @@ def daemon_worker_count(requested):
     return Wmod.share_process_budget(DAEMON_BUDGET_CLAIMANTS)
 
 
+def run_proof_worker_service(
+    snapshot_dir, proof_worker_count, stop_signal, worker_service_lock,
+):
+    """Serve foreground graph requests while daemon autonomy restores/cycles.
+
+    Proof requests carry their own machine-native graph, goal, and
+    assumptions, so this service does not depend on the autonomy checkpoint.
+    It belongs to the daemon process tree and owns the daemon's configured
+    worker cardinality.
+    """
+    os.environ["HYGE_FOREGROUND_WORKERS"] = str(proof_worker_count)
+    proof_request_path = os.path.join(
+        snapshot_dir, ProofLookup.PROOF_LOOKUP_REQUEST_NAME,
+    )
+    proof_taken_path = os.path.join(
+        snapshot_dir, ProofLookup.PROOF_LOOKUP_TAKEN_NAME,
+    )
+    proof_response_path = os.path.join(
+        snapshot_dir, ProofLookup.PROOF_LOOKUP_RESPONSE_NAME,
+    )
+    print(
+        "daemon proof coordinator " + str(os.getpid())
+        + ": worker service ready with " + str(proof_worker_count)
+        + " worker(s)",
+        flush=True,
+    )
+    serving = M.truth_value
+    while M.IdentityCompare(serving, M.truth_value)() is M.truth_value:
+        if stop_signal.is_set():
+            serving = M.false_value
+        elif os.path.exists(proof_request_path):
+            os.replace(proof_request_path, proof_taken_path)
+            with open(proof_taken_path, "rb") as proof_stream:
+                proof_request = Wmod.deserialize_term(proof_stream.read())
+            proof_graph_version = M.Head(proof_request)()
+            proof_goal = M.Head(M.Tail(proof_request)())()
+            proof_assumptions = M.Head(M.Tail(M.Tail(proof_request)())())()
+            print(
+                "daemon: accepted foreground proof lookup; distributing the graph equally across "
+                + str(proof_worker_count) + " existing worker(s)",
+                flush=True,
+            )
+            worker_service_lock.acquire()
+            try:
+                proof_mode = ProofLookup.ParallelProofLookupMode(
+                    proof_graph_version, proof_goal, proof_assumptions,
+                )()
+            finally:
+                worker_service_lock.release()
+            proof_response_temporary = proof_response_path + ".tmp"
+            with open(
+                proof_response_temporary, "w", encoding="utf-8",
+            ) as proof_response_stream:
+                proof_response_stream.write(proof_mode)
+            os.replace(proof_response_temporary, proof_response_path)
+            if os.path.exists(proof_taken_path):
+                os.remove(proof_taken_path)
+            print(
+                "daemon: foreground proof lookup complete; selected mode="
+                + proof_mode,
+                flush=True,
+            )
+        if M.IdentityCompare(serving, M.truth_value)() is M.truth_value:
+            time.sleep(0.1)
+
+
 def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                poll_seconds=DAEMON_POLL_SECONDS, worker_count=0):
     """Cycle the shared state until the cycle cap or a safety refusal.
@@ -717,9 +783,26 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     )() is M.truth_value:
         live_daemon = M.truth_value
 
+    worker_count = daemon_worker_count(worker_count)
+    proof_worker_count = worker_count
+    if proof_worker_count < 1:
+        proof_worker_count = 1
+    proof_service_stop_signal = multiprocessing.Event()
+    worker_service_lock = multiprocessing.Lock()
+    proof_service = multiprocessing.Process(
+        target=run_proof_worker_service,
+        args=(
+            snapshot_dir, proof_worker_count, proof_service_stop_signal,
+            worker_service_lock,
+        ),
+    )
+    proof_service.start()
+    live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
+    with open(live_path, "w", encoding="utf-8") as handle:
+        handle.write(str(os.getpid()))
     print(
         "daemon: process " + str(os.getpid())
-        + " started; restoring shared state before opening the worker service",
+        + " started; proof service is opening while autonomy restores shared state",
         flush=True,
     )
     graph_version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
@@ -747,16 +830,8 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
             )()
             proposal_store = M.Head(taken_merge)()
         os.remove(inbox_taken_path)
-    worker_count = daemon_worker_count(worker_count)
-    proof_worker_count = worker_count
-    if proof_worker_count < 1:
-        proof_worker_count = 1
-    os.environ["HYGE_FOREGROUND_WORKERS"] = str(proof_worker_count)
-    live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
-    with open(live_path, "w", encoding="utf-8") as handle:
-        handle.write(str(os.getpid()))
     print(
-        "daemon: cycling shared state at "
+        "daemon: autonomy restored shared state at "
         + state_path
         + " with "
         + str(worker_count)
@@ -823,35 +898,6 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                             flush=True,
                         )
 
-            if os.path.exists(proof_request_path):
-                os.replace(proof_request_path, proof_taken_path)
-                with open(proof_taken_path, "rb") as proof_stream:
-                    proof_request = Wmod.deserialize_term(proof_stream.read())
-                proof_graph_version = M.Head(proof_request)()
-                proof_goal = M.Head(M.Tail(proof_request)())()
-                proof_assumptions = M.Head(M.Tail(M.Tail(proof_request)())())()
-                print(
-                    "daemon: accepted foreground proof lookup; distributing the graph equally across "
-                    + str(proof_worker_count) + " existing worker(s)",
-                    flush=True,
-                )
-                proof_mode = ProofLookup.ParallelProofLookupMode(
-                    proof_graph_version, proof_goal, proof_assumptions,
-                )()
-                proof_response_temporary = proof_response_path + ".tmp"
-                with open(
-                    proof_response_temporary, "w", encoding="utf-8",
-                ) as proof_response_stream:
-                    proof_response_stream.write(proof_mode)
-                os.replace(proof_response_temporary, proof_response_path)
-                if os.path.exists(proof_taken_path):
-                    os.remove(proof_taken_path)
-                print(
-                    "daemon: foreground proof lookup complete; selected mode="
-                    + proof_mode,
-                    flush=True,
-                )
-
             refusal = DaemonSafetyText(graph_version, proposal_store)()
             if refusal:
                 print("daemon: refused by the safety floor: " + refusal, flush=True)
@@ -884,14 +930,18 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                             graph_version,
                         )
                 if worker_count:
-                    outcome = Wmod.distributed_cycle(
-                        graph_version,
-                        proposal_store,
-                        ledger,
-                        daemon_budget(graph_version),
-                        generator_config,
-                        worker_count,
-                    )
+                    worker_service_lock.acquire()
+                    try:
+                        outcome = Wmod.distributed_cycle(
+                            graph_version,
+                            proposal_store,
+                            ledger,
+                            daemon_budget(graph_version),
+                            generator_config,
+                            worker_count,
+                        )
+                    finally:
+                        worker_service_lock.release()
                 else:
                     outcome = Gmod.AutonomyCycle(
                         graph_version,
@@ -944,6 +994,8 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                     time.sleep(poll_seconds)
                     cycling = M.truth_value
 
+    proof_service_stop_signal.set()
+    proof_service.join()
     if os.path.exists(live_path):
         os.remove(live_path)
     print("daemon: " + stop_reason(), flush=True)
