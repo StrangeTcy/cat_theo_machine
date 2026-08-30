@@ -11681,15 +11681,21 @@ def run_live_mode(requested_workers):
                 daemon_ready.set()
             sys.stdout.write("\r\033[K[machine] " + rendered_line + "\nyou> ")
             sys.stdout.flush()
+        daemon_ready.set()
 
     reader = threading.Thread(target=drain, daemon=True)
     reader.start()
-    print("live mode: waiting for the daemon to restore shared state and open its worker service.")
-    daemon_became_ready = daemon_ready.wait(timeout=120)
-    if not daemon_became_ready:
-        daemon_child.terminate()
+    print(
+        "live mode: waiting for daemon process " + str(daemon_child.pid)
+        + " to restore shared state and open its worker service.",
+        flush=True,
+    )
+    daemon_ready.wait()
+    daemon_exit = daemon_child.poll()
+    if daemon_exit is not None:
         raise RuntimeError(
-            "live daemon did not become ready within 120 seconds; proof requests were not accepted"
+            "live daemon exited before opening its worker service; exit code "
+            + str(daemon_exit)
         )
     print("live mode: the foreground process owns the terminal and runs each requested proof.")
     print("live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.")

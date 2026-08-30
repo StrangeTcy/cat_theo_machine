@@ -717,6 +717,11 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     )() is M.truth_value:
         live_daemon = M.truth_value
 
+    print(
+        "daemon: process " + str(os.getpid())
+        + " started; restoring shared state before opening the worker service",
+        flush=True,
+    )
     graph_version = Gmod.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     proposal_store = Gmod.ProposalStore(M.EmptyList)()
     ledger = Gmod.FiringLedger(M.AllConstructors)
