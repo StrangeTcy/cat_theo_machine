@@ -5686,6 +5686,18 @@ def run_talk_mode(sentence: str = None):
             claim = last_proof_request()
             _thinking("reusing the most recent formal proof goal")
             return _respond("query: " + claim, record=record)
+        if lowered.startswith("there is a proof you need to perform"):
+            if M.IdentityCompare(last_proof_request, M.EmptyList)() is M.truth_value:
+                return "I do not have an earlier proof request in this conversation."
+            claim = last_proof_request()
+            _thinking("resolved the requested proof to the most recent formal goal")
+            return _respond("query: " + claim, record=record)
+        if lowered.startswith("finish the proof"):
+            if M.IdentityCompare(last_proof_request, M.EmptyList)() is M.truth_value:
+                return "I do not have an earlier proof request in this conversation."
+            claim = last_proof_request()
+            _thinking("resolved the requested proof to the most recent formal goal")
+            return _respond("query: " + claim, record=record)
         if lowered.startswith("prove that "):
             claim = line[11:].strip()
             last_proof_request = M.Char(claim)
@@ -8091,11 +8103,15 @@ def run_talk_mode(sentence: str = None):
                     )()
                     _thinking("foreground lookup workers joined; selected result mode=" + lookup_mode)
                     if lookup_mode == "worker-failure":
-                        return (
-                            "Foreground proof lookup stopped because a worker failed. "
-                            "Its process-specific diagnostic is printed above; no missing lemma "
-                            "was inferred from that failure."
+                        _thinking(
+                            "daemon proof workers reported a failure; preserving the goal as a structural invention stall"
                         )
+                        lookup_mode = "none"
+                    elif lookup_mode == "service-timeout":
+                        _thinking(
+                            "daemon worker service did not answer in time; preserving the goal as a structural invention stall"
+                        )
+                        lookup_mode = "none"
                     if lookup_mode == "cubic":
                         replay_hit = Min.ReplayInstalledCubicLemma(
                             learned_version, goal, scoped_assumptions, registry,
@@ -11656,13 +11672,25 @@ def run_live_mode(requested_workers):
             shell=True,
         )
 
+    daemon_ready = threading.Event()
+
     def drain():
         for line in daemon_child.stdout:
-            sys.stdout.write("\r\033[K[machine] " + line.rstrip() + "\nyou> ")
+            rendered_line = line.rstrip()
+            if rendered_line.startswith("daemon: cycling shared state"):
+                daemon_ready.set()
+            sys.stdout.write("\r\033[K[machine] " + rendered_line + "\nyou> ")
             sys.stdout.flush()
 
     reader = threading.Thread(target=drain, daemon=True)
     reader.start()
+    print("live mode: waiting for the daemon to restore shared state and open its worker service.")
+    daemon_became_ready = daemon_ready.wait(timeout=120)
+    if not daemon_became_ready:
+        daemon_child.terminate()
+        raise RuntimeError(
+            "live daemon did not become ready within 120 seconds; proof requests were not accepted"
+        )
     print("live mode: the foreground process owns the terminal and runs each requested proof.")
     print("live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.")
     print(

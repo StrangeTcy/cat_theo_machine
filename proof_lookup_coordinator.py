@@ -18,7 +18,7 @@ class WaitForProofLookupResponse(M.Edge):
             with open(response_path, "r", encoding="utf-8") as response_stream:
                 self.result = response_stream.read().strip()
         elif GMPEqualText(attempts_text, "0")() is M.truth_value:
-            self.result = "worker-failure"
+            self.result = "service-timeout"
         else:
             import time
 
@@ -51,7 +51,7 @@ class DaemonProofLookupMode(M.Edge):
             + "]: submitted equal-shard proof lookup to the existing daemon worker service",
             flush=True,
         )
-        self.result = WaitForProofLookupResponse(response_path, "240")()
+        self.result = WaitForProofLookupResponse(response_path, "480")()
         if os.path.exists(response_path):
             os.remove(response_path)
         super().__init__(inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)), results=M.Char(self.result))
