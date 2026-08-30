@@ -17,6 +17,7 @@ from . import labels as Lmod
 from . import matching as Xmod
 from . import mining as Minmod
 from . import parity as Parmod
+from . import residue as Resmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -5366,6 +5367,288 @@ class CubicNestedReuseTest(M.Edge):
                         M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
                     )(),
                 )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CongruenceWitnessTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("3", digit_words)()
+        seven = Gmod.ParsePolynomialExpressionText("7", digit_words)()
+        one = Gmod.ParsePolynomialExpressionText("1", digit_words)()
+        two = Gmod.ParsePolynomialExpressionText("2", digit_words)()
+        three = Gmod.ParsePolynomialExpressionText("3", digit_words)()
+        valid = Resmod.WitnessedCongruence(
+            modulus, seven, one, two,
+        )()
+        fabricated = Resmod.WitnessedCongruence(
+            modulus, seven, one, three,
+        )()
+        self.result = M.AndAtom(
+            Resmod.VerifyWitnessedCongruence(
+                valid, M.EmptyList, registry,
+            )(),
+            M.NotAtom(
+                Resmod.VerifyWitnessedCongruence(
+                    fabricated, M.EmptyList, registry,
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidueCaseSplitReplayTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Resmod.FindModThreeLemma(Gmod.GraphNodes(loaded)())()
+        renamed = Gmod.ParsePolynomialExpressionText("a", digit_words)()
+        premise = Resmod.WitnessedDivides(
+            Resmod.IntegerThree()(),
+            Resmod.SquareExpression(renamed)(),
+            Resmod.SquareExpression(Resmod.ResidueWitnessVariable(renamed)())(),
+        )()
+        replay = Resmod.ReplayModThreeLemma(
+            loaded_lemma, renamed, premise, registry,
+        )()
+        replay_ok = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        structural = M.Head(
+            M.Tail(Gmod.InventedLemmaCertificate(loaded_lemma)())(),
+        )()
+        zero_branch = M.Head(M.Tail(M.Tail(structural)())())()
+        one_branch = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+        two_branch = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(structural)())())())(),
+        )()
+        all_branches = M.AndAtom(
+            M.IsPair(zero_branch)(),
+            M.AndAtom(M.IsPair(one_branch)(), M.IsPair(two_branch)())(),
+        )()
+        incomplete_structural = M.Pair(
+            M.Char("mod-three-case-split"),
+            M.Pair(
+                variable,
+                M.Pair(
+                    zero_branch,
+                    M.Pair(
+                        one_branch,
+                        M.Pair(
+                            M.Pair(
+                                M.Char("domain-axiom"),
+                                M.Pair(M.Char("mod-three-exhaustiveness"), M.EmptyList),
+                            ),
+                            M.Pair(M.Char("proved"), M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        incomplete_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                incomplete_structural,
+                M.Pair(
+                    M.Char("bounded-exhaustive-mod-three-split"),
+                    M.Pair(M.Char("proved"), M.EmptyList),
+                ),
+            ),
+        )
+        incomplete = Gmod.InventedLemma(
+            Resmod.ModThreeImplicationGoal(variable)(),
+            Resmod.ModThreeImplicationGoal(variable)(),
+            M.EmptyList,
+            M.Char("verified-residue-case-split"),
+            M.Zero,
+            incomplete_certificate,
+        )()
+        incomplete_replay = Resmod.ReplayModThreeLemma(
+            incomplete, variable, premise, registry,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.AndAtom(
+                all_branches,
+                M.IdentityCompare(incomplete_replay, M.EmptyList)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoupledResidueNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 3*y^2", digit_words,
+        )()
+        proof = Resmod.CoupledModThreeProof(
+            equation, case_lemma, registry,
+        )()
+        first_replay = M.Head(M.Tail(M.Tail(proof)())())()
+        second_replay = M.Head(M.Tail(M.Tail(M.Tail(proof)())())())()
+        two_nested = M.AndAtom(
+            M.Compare(
+                M.Head(first_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+            M.Compare(
+                M.Head(second_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(case_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first_replay, case_lemma, registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited)())(),
+            )(),
+            M.one,
+            registry,
+        )()
+        self.result = M.AndAtom(two_nested, utility_once)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ModThreeInfiniteDescentTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 3*y^2", digit_words,
+        )()
+        coupled_proof = Resmod.CoupledModThreeProof(
+            equation, case_lemma, registry,
+        )()
+        coupled_lemma = Resmod.CoupledModThreeLemma(
+            equation, case_lemma, coupled_proof,
+        )()
+        descent_map = Resmod.GenModThreeDescentMap(
+            equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Resmod.ModThreeDescentLemma(
+            equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(
+                descent_lemma,
+                M.Pair(coupled_lemma, M.Pair(case_lemma, M.EmptyList)),
+            ),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialEquationText(
+            "a^2 = 3*b^2", digit_words,
+        )()
+        replay = Resmod.ReplayModThreeDescentLemma(
+            Resmod.FindModThreeDescentLemma(Gmod.GraphNodes(loaded)())(),
+            renamed,
+            Gmod.GraphNodes(loaded)(),
+            M.truth_value,
+            registry,
+        )()
+        replay_ok = M.Compare(
+            M.Head(replay)(),
+            M.Char("invented-lemma-replay-derivation"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(loaded)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(replay_ok, no_schema)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ModThreeDescentNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 3*y^2", digit_words,
+        )()
+        coupled_proof = Resmod.CoupledModThreeProof(
+            equation, case_lemma, registry,
+        )()
+        coupled_lemma = Resmod.CoupledModThreeLemma(
+            equation, case_lemma, coupled_proof,
+        )()
+        false_equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 9*y^2", digit_words,
+        )()
+        false_map = Resmod.GenModThreeDescentMap(
+            false_equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        no_positive = Resmod.GenModThreeDescentMap(
+            equation, coupled_lemma, case_lemma,
+            M.false_value, registry,
+        )()
+        descent_map = Resmod.GenModThreeDescentMap(
+            equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Resmod.ModThreeDescentLemma(
+            equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        missing_nodes = M.Pair(
+            descent_lemma, M.Pair(coupled_lemma, M.EmptyList),
+        )
+        missing = Resmod.ReplayModThreeDescentLemma(
+            descent_lemma, equation, missing_nodes,
+            M.truth_value, registry,
+        )()
+        missing_status = M.Compare(
+            M.Head(M.Tail(missing)())(),
+            M.Char("missing-mod-three-case-dependency"),
+        )()
+        self.result = M.AndAtom(
+            M.IdentityCompare(false_map, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(no_positive, M.EmptyList)(),
+                missing_status,
             )(),
         )()
         super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
@@ -17703,6 +17986,46 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "congruence_witness_test",
+            empty,
+            CongruenceWitnessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "residue_case_split_replay_test",
+            empty,
+            ResidueCaseSplitReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "coupled_residue_nested_reuse_test",
+            empty,
+            CoupledResidueNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "mod_three_infinite_descent_test",
+            empty,
+            ModThreeInfiniteDescentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "mod_three_descent_negative_control_test",
+            empty,
+            ModThreeDescentNegativeControlTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

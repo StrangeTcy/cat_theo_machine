@@ -40,6 +40,7 @@ else:
     from . import matching as X
     from . import mining as Min
     from . import parity as Par
+    from . import residue as Res
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -1284,8 +1285,10 @@ def run_talk_mode(sentence: str = None):
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
     scoped_assumptions = M.EmptyList
     scoped_divisibility_assumptions = M.EmptyList
+    scoped_congruence_assumptions = M.EmptyList
     scoped_integer_equations = M.EmptyList
     last_parity_stall = M.EmptyList
+    last_residue_stall = M.EmptyList
     # Talk state is checkpoint-backed so that a cycling process and this
     # conversation share one version rather than two disjoint ones. The
     # daemon is the only writer of activations; talk submits and reads.
@@ -5282,6 +5285,11 @@ def run_talk_mode(sentence: str = None):
                         )() is M.truth_value:
                             return "Recorded the invented minimal-counterexample descent with nested parity dependencies."
                         if M.Compare(
+                            M.Head(approved_certificate)(),
+                            M.Char("mod-three-well-ordering-descent-certificate"),
+                        )() is M.truth_value:
+                            return "Recorded the invented mod-3 descent with nested residue dependencies."
+                        if M.Compare(
                             M.Head(approved_certificate)(), M.Char("invention-evidence"),
                         )() is M.truth_value:
                             approved_structural = M.Head(M.Tail(approved_certificate)())()
@@ -5291,6 +5299,11 @@ def run_talk_mode(sentence: str = None):
                                     M.Char("parity-case-split"),
                                 )() is M.truth_value:
                                     return "Recorded the parity lemma with both case branches in its replay certificate."
+                                if M.Compare(
+                                    M.Head(approved_structural)(),
+                                    M.Char("mod-three-case-split"),
+                                )() is M.truth_value:
+                                    return "Recorded the mod-3 lemma with all three residue branches in its replay certificate."
                         dependency_tail = M.Tail(
                             M.Tail(M.Tail(M.Tail(approved_certificate)())())(),
                         )()
@@ -5619,16 +5632,48 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_process
         nonlocal pending_unknown_words, pending_unknown_word
         nonlocal scoped_assumptions, scoped_divisibility_assumptions
-        nonlocal scoped_integer_equations, last_parity_stall
+        nonlocal scoped_congruence_assumptions
+        nonlocal scoped_integer_equations, last_parity_stall, last_residue_stall
         lowered = line.lower()
         if lowered.strip() == "clear assumptions":
             scoped_assumptions = M.EmptyList
             scoped_divisibility_assumptions = M.EmptyList
+            scoped_congruence_assumptions = M.EmptyList
             scoped_integer_equations = M.EmptyList
             return "Cleared the session-scoped assumptions."
         if lowered.startswith("assume:"):
             assumption_text = line[7:].strip()
             folded_assumption = assumption_text.lower()
+            if folded_assumption.startswith("congruentmod(") and folded_assumption.endswith(")"):
+                body_text = assumption_text[13:-1]
+                first_comma = body_text.find(",")
+                second_comma = body_text.find(",", first_comma + 1)
+                third_comma = body_text.find(",", second_comma + 1)
+                if first_comma == -1 or second_comma == -1 or third_comma == -1:
+                    return "I could not parse that witnessed congruence fact."
+                modulus = G.ParsePolynomialExpressionText(
+                    body_text[:first_comma].strip(), reading_digits,
+                )()
+                left = G.ParsePolynomialExpressionText(
+                    body_text[first_comma + 1:second_comma].strip(), reading_digits,
+                )()
+                right = G.ParsePolynomialExpressionText(
+                    body_text[second_comma + 1:third_comma].strip(), reading_digits,
+                )()
+                witness = G.ParsePolynomialExpressionText(
+                    body_text[third_comma + 1:].strip(), reading_digits,
+                )()
+                congruence = Res.WitnessedCongruence(
+                    modulus, left, right, witness,
+                )()
+                if Res.VerifyWitnessedCongruence(
+                    congruence, M.EmptyList, registry,
+                )() is M.false_value:
+                    return "Rejected the fabricated congruence witness: a-b-m*w did not normalize to zero."
+                scoped_congruence_assumptions = M.Pair(
+                    congruence, scoped_congruence_assumptions,
+                )
+                return "Scoped witnessed congruence; a-b-m*w normalized to zero."
             if folded_assumption.startswith("divides(") and folded_assumption.endswith(")"):
                 body_text = assumption_text[8:-1]
                 first_comma = body_text.find(",")
@@ -5975,6 +6020,61 @@ def run_talk_mode(sentence: str = None):
         if lowered.startswith("suggest lemmas"):
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
                 return "Please approve or reject the pending proposal first."
+            if M.IdentityCompare(last_residue_stall, M.EmptyList)() is M.false_value:
+                residue_kind = M.Head(last_residue_stall)()
+                residue_invented = M.EmptyList
+                residue_response = ""
+                if M.Compare(
+                    residue_kind, M.Char("mod-three-case-stall"),
+                )() is M.truth_value:
+                    variable = M.Head(M.Tail(last_residue_stall)())()
+                    residue_invented = Res.ModThreeCaseLemma(variable, registry)()
+                    residue_response = (
+                        "Invented exhaustive mod-3 split with explicit residue branches "
+                        "0, 1, and 2. The nonzero branches normalize their squares to "
+                        "3*q+1 and close by contradiction."
+                    )
+                elif M.Compare(
+                    residue_kind, M.Char("mod-three-descent-stall"),
+                )() is M.truth_value:
+                    equation = M.Head(M.Tail(last_residue_stall)())()
+                    positivity = M.Head(M.Tail(M.Tail(last_residue_stall)())())()
+                    case_lemma = Res.FindModThreeLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    coupled_lemma = Res.FindCoupledModThreeLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    descent_map = Res.GenModThreeDescentMap(
+                        equation, coupled_lemma, case_lemma,
+                        positivity, registry,
+                    )()
+                    if M.IdentityCompare(case_lemma, M.EmptyList)() is M.truth_value:
+                        return "Cannot invent mod-3 descent: the residue-case lemma is missing."
+                    if M.IdentityCompare(coupled_lemma, M.EmptyList)() is M.truth_value:
+                        return "Cannot invent mod-3 descent: the coupled residue lemma is missing."
+                    if M.IdentityCompare(descent_map, M.EmptyList)() is M.truth_value:
+                        return "Mod-3 descent refused: reproduction or strict decrease was not verified."
+                    residue_invented = Res.ModThreeDescentLemma(
+                        equation, descent_map, coupled_lemma, case_lemma,
+                    )()
+                    residue_response = (
+                        "Discovered mod-3 descent map (x,y)->(y,u) from x=3*u; "
+                        "normalization reproduced y^2=3*u^2 and the positive-square "
+                        "comparison rule proved both strict decreases."
+                    )
+                if M.IdentityCompare(residue_invented, M.EmptyList)() is M.false_value:
+                    residue_proposal = G.Proposal(
+                        residue_invented, M.Char("residue-domain-invention"),
+                    )()
+                    proposal_store = G.ProposalStoreSubmit(
+                        proposal_store, residue_proposal,
+                    )()
+                    pending_rule = residue_proposal
+                    last_residue_stall = M.EmptyList
+                    _push_ask("rule", "Approve the invented residue lemma? (yes/no)")
+                    _persist_talk_state()
+                    return residue_response + "\nApprove this candidate? Enter yes or no."
             if M.IdentityCompare(last_parity_stall, M.EmptyList)() is M.false_value:
                 stall_kind = M.Head(last_parity_stall)()
                 invented = M.EmptyList
@@ -6609,6 +6709,102 @@ def run_talk_mode(sentence: str = None):
         if lowered.startswith("query:"):
             parity_query_text = line[6:].strip()
             folded_parity_query = parity_query_text.lower()
+            if folded_parity_query.startswith("congruentmod(") and folded_parity_query.endswith(")"):
+                body_text = parity_query_text[13:-1]
+                first_comma = body_text.find(",")
+                second_comma = body_text.find(",", first_comma + 1)
+                third_comma = body_text.find(",", second_comma + 1)
+                if first_comma == -1 or second_comma == -1 or third_comma == -1:
+                    return "I could not parse that witnessed congruence query."
+                modulus = G.ParsePolynomialExpressionText(
+                    body_text[:first_comma].strip(), reading_digits,
+                )()
+                left = G.ParsePolynomialExpressionText(
+                    body_text[first_comma + 1:second_comma].strip(), reading_digits,
+                )()
+                right = G.ParsePolynomialExpressionText(
+                    body_text[second_comma + 1:third_comma].strip(), reading_digits,
+                )()
+                witness = G.ParsePolynomialExpressionText(
+                    body_text[third_comma + 1:].strip(), reading_digits,
+                )()
+                congruence = Res.WitnessedCongruence(
+                    modulus, left, right, witness,
+                )()
+                if Res.VerifyWitnessedCongruence(
+                    congruence, M.EmptyList, registry,
+                )() is M.truth_value:
+                    return "yes; the congruence witness normalized a-b-m*w to zero."
+                return "no; the congruence witness failed normalization."
+            if folded_parity_query.startswith("divides(3,"):
+                residue_implication = folded_parity_query.find(" implies ")
+                residue_conjunction = folded_parity_query.find(" and divides(3,")
+                if residue_implication != -1:
+                    conclusion_text = parity_query_text[residue_implication + 9:].strip()
+                    comma = conclusion_text.find(",")
+                    variable_text = conclusion_text[comma + 1:-1].strip()
+                    variable = G.ParsePolynomialExpressionText(
+                        variable_text, reading_digits,
+                    )()
+                    case_lemma = Res.FindModThreeLemma(G.GraphNodes(learned_version)())()
+                    if M.IdentityCompare(case_lemma, M.EmptyList)() is M.truth_value:
+                        last_residue_stall = M.Pair(
+                            M.Char("mod-three-case-stall"), M.Pair(variable, M.EmptyList),
+                        )
+                        return (
+                            "no; divisibility of a square by 3 needs all three residue "
+                            "classes. Type 'suggest lemmas' to invent the case split."
+                        )
+                    premise = Res.WitnessedDivides(
+                        Res.IntegerThree()(), Res.SquareExpression(variable)(),
+                        Res.SquareExpression(Res.ResidueWitnessVariable(variable)())(),
+                    )()
+                    replay = Res.ReplayModThreeLemma(
+                        case_lemma, variable, premise, registry,
+                    )()
+                    if M.IdentityCompare(replay, M.EmptyList)() is M.truth_value:
+                        return "no; the saved mod-3 case split did not revalidate."
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, replay, case_lemma, registry,
+                    )()
+                    _persist_talk_state()
+                    return (
+                        "yes; replayed residues 0, 1, and 2 modulo 3; the two "
+                        "nonzero-square branches contradict divisibility by 3."
+                    )
+                if residue_conjunction != -1:
+                    if M.IdentityCompare(scoped_integer_equations, M.EmptyList)() is M.truth_value:
+                        return "no; coupled mod-3 divisibility needs a scoped equation."
+                    equation = M.Head(scoped_integer_equations)()
+                    case_lemma = Res.FindModThreeLemma(G.GraphNodes(learned_version)())()
+                    if M.IdentityCompare(case_lemma, M.EmptyList)() is M.truth_value:
+                        return "no; the saved mod-3 square lemma is missing."
+                    coupled = Res.CoupledModThreeProof(equation, case_lemma, registry)()
+                    if M.IdentityCompare(coupled, M.EmptyList)() is M.truth_value:
+                        return "no; coupled mod-3 witness propagation did not normalize."
+                    first_nested = M.Head(M.Tail(M.Tail(coupled)())())()
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, first_nested, case_lemma, registry,
+                    )()
+                    refreshed_case = Res.FindModThreeLemma(G.GraphNodes(learned_version)())()
+                    coupled_lemma = Res.CoupledModThreeLemma(
+                        equation, refreshed_case, coupled,
+                    )()
+                    if M.IdentityCompare(
+                        Res.FindCoupledModThreeLemma(G.GraphNodes(learned_version)())(),
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        learned_version = G.GraphVersion(
+                            M.Pair(coupled_lemma, G.GraphNodes(learned_version)()),
+                            G.GraphEdges(learned_version)(),
+                            G.GraphVersionInvariants(learned_version)(),
+                        )()
+                    _persist_talk_state()
+                    return (
+                        "yes; derived 3|x^2, replayed the saved residue lemma for x, "
+                        "normalized y^2=3*u^2, replayed it for y, and credited the "
+                        "dependency once."
+                    )
             if folded_parity_query.startswith("divides(") and folded_parity_query.endswith(")"):
                 body_text = parity_query_text[8:-1]
                 first_comma = body_text.find(",")
@@ -6722,6 +6918,81 @@ def run_talk_mode(sentence: str = None):
                 positivity = M.false_value
                 if folded_parity_query.startswith("no positive integers"):
                     positivity = M.truth_value
+                residue_family = M.OrAtom(
+                    Res.IsModThreeSquareEquation(equation, registry)(),
+                    Res.IsModNineSquareEquation(equation, registry)(),
+                )()
+                if residue_family is M.truth_value:
+                    residue_descent = Res.FindModThreeDescentLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    if M.IdentityCompare(residue_descent, M.EmptyList)() is M.truth_value:
+                        last_residue_stall = M.Pair(
+                            M.Char("mod-three-descent-stall"),
+                            M.Pair(equation, M.Pair(positivity, M.EmptyList)),
+                        )
+                        return (
+                            "no; no verified mod-3 descent is saved. Type 'suggest "
+                            "lemmas' to discover it from the residue witnesses."
+                        )
+                    residue_replay = Res.ReplayModThreeDescentLemma(
+                        residue_descent, equation,
+                        G.GraphNodes(learned_version)(), positivity, registry,
+                    )()
+                    if M.Compare(
+                        M.Head(residue_replay)(),
+                        M.Char("mod-three-descent-replay-failure"),
+                    )() is M.truth_value:
+                        return "Cannot replay mod-3 descent: " + str(
+                            M.Head(M.Tail(residue_replay)())()(),
+                        ) + "."
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, residue_replay, residue_descent, registry,
+                    )()
+                    case_dependency = Res.FindModThreeLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    coupled_dependency = Res.FindCoupledModThreeLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    coupled_proof = Res.CoupledModThreeProof(
+                        equation, case_dependency, registry,
+                    )()
+                    case_replay = M.Head(M.Tail(M.Tail(coupled_proof)())())()
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, case_replay, case_dependency, registry,
+                    )()
+                    coupled_dependency = Res.FindCoupledModThreeLemma(
+                        G.GraphNodes(learned_version)(),
+                    )()
+                    coupled_credit = M.Pair(
+                        M.Char("invented-lemma-replay-derivation"),
+                        M.Pair(
+                            Res.CoupledModThreeGoal(equation)(),
+                            M.Pair(
+                                coupled_dependency,
+                                M.Pair(
+                                    coupled_proof,
+                                    M.Pair(
+                                        M.Char("nested-mod-three-replay"),
+                                        M.Pair(
+                                            M.Char("witness-normalization"),
+                                            M.Pair(M.Char("proved"), M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, coupled_credit, coupled_dependency, registry,
+                    )()
+                    _persist_talk_state()
+                    return (
+                        "yes; replayed the mod-3 residue dependencies, reconstructed "
+                        "(x,y)->(y,u), verified positivity and strict decrease, and "
+                        "applied minimal-counterexample descent."
+                    )
                 descent_lemma = Par.FindDescentLemma(G.GraphNodes(learned_version)())()
                 if M.IdentityCompare(descent_lemma, M.EmptyList)() is M.truth_value:
                     last_parity_stall = M.Pair(
