@@ -20,6 +20,7 @@ from . import parity as Parmod
 from . import residue as Resmod
 from . import modular as Modmod
 from . import euclid as Eucmod
+from . import story_talk_adapter as StoryTalkmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -5369,6 +5370,40 @@ class CubicNestedReuseTest(M.Edge):
                         M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
                     )(),
                 )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NaturalStoryNarrationTest(M.Edge):
+    def __init__(self, graph):
+        request = "tell me a story about Alice and the wolf"
+        recognized = StoryTalkmod.StoryCommandRecognized(request)()
+        narration = StoryTalkmod.StoryTalkResponse(request)()
+        self.result = M.AndAtom(
+            recognized,
+            M.NotAtom(M.Compare(M.Char(narration), M.Char(""))())(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FluentStoryPerspectiveTest(M.Edge):
+    def __init__(self, graph):
+        connection = StoryTalkmod.StoryTalkResponse(
+            "how is Alice connected to wolf?",
+        )()
+        analogy = StoryTalkmod.StoryTalkResponse("compare the stories")()
+        self.result = M.AndAtom(
+            M.NotAtom(M.Compare(M.Char(connection), M.Char(""))())(),
+            M.AndAtom(
+                M.NotAtom(M.Compare(M.Char(analogy), M.Char(""))())(),
+                M.NotAtom(M.Compare(M.Char(connection), M.Char(analogy))())(),
             )(),
         )()
         super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
@@ -18347,6 +18382,22 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "natural_story_narration_test",
+            empty,
+            NaturalStoryNarrationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "fluent_story_perspective_test",
+            empty,
+            FluentStoryPerspectiveTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

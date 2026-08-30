@@ -1955,7 +1955,11 @@ def run_talk_mode(sentence: str = None):
 
     def _debug(text):
         if debug_enabled:
-            print("DEBUG: " + text)
+            print("DEBUG: " + text, flush=True)
+
+    def _thinking(text):
+        if debug_enabled:
+            print("DEBUG: thinking: " + text, flush=True)
 
     def _count_chain(chain):
         count = 0
@@ -5241,6 +5245,7 @@ def run_talk_mode(sentence: str = None):
                 _log_lesson(line)
                 _debug("decision '" + line + "' appended to " + lesson_path)
             if line == "yes":
+                _thinking("administrator approved the candidate; installing its verified rule and replay certificate")
                 approval = G.Approved(
                     decided_proposal, M.Char("trainer"),
                 )()
@@ -6037,7 +6042,9 @@ def run_talk_mode(sentence: str = None):
                 return "No invented lemmas are recorded."
             return str(rendered())
         if lowered.startswith("suggest lemmas"):
+            _thinking("opening the preserved search stall and decomposing its unmet goal")
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
+                _thinking("an earlier proposal is still awaiting administrator review")
                 return "Please approve or reject the pending proposal first."
             if M.IdentityCompare(last_euclidean_stall, M.EmptyList)() is M.false_value:
                 first_text = M.Head(last_euclidean_stall)()()
@@ -6251,10 +6258,14 @@ def run_talk_mode(sentence: str = None):
                 return "Please approve or reject the pending proposal first."
             stall = G.InstalledStallRecord(learned_version)()
             if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
+                _thinking("there is no recorded failed search to inspect")
                 return "No stalled search to analyze. Run a 'query:' command first."
+            _thinking("examining the normalized residual and trying bounded algebraic decompositions")
             candidates = Min.InventFromStall(stall, registry)()
             if M.IdentityCompare(candidates, M.EmptyList)() is M.truth_value:
+                _thinking("no candidate survived independent validation")
                 return "The bounded invention biases found no useful candidate."
+            _thinking("found a fitting candidate; checking its identity and positivity obligations")
             candidate = M.Head(candidates)()
             proposition = M.Head(candidate)()
             provenance = M.Head(M.Tail(candidate)())()
@@ -6375,6 +6386,7 @@ def run_talk_mode(sentence: str = None):
             )()
             pending_rule = invented_proposal
             _push_ask("rule", "Approve the invented lemma? (yes/no)")
+            _thinking("candidate verified; waiting for administrator approval before installing it")
             _persist_talk_state()
             return (
                 "Analyzing stall on: "
@@ -7376,6 +7388,7 @@ def run_talk_mode(sentence: str = None):
                     "(x,y)->(y,u), verified positivity and strict decrease, and "
                     "applied minimal-counterexample descent."
                 )
+            _thinking("decomposing the query and looking for a formal goal shape")
             known_constructors = G.RuleConstructors(
                 learned_version,
                 pack_concepts,
@@ -7409,7 +7422,13 @@ def run_talk_mode(sentence: str = None):
                         + str(detail())
                         + "). Use Predicate(constant)."
                     )
+                _thinking("the utterance did not reduce to a supported formal query")
                 return "I could not parse that query. Use Predicate(constant)."
+            if M.IdentityCompare(polynomial_goal, M.EmptyList)() is M.false_value:
+                _thinking("recognized a polynomial inequality and normalized both sides")
+            else:
+                _thinking("recognized a symbolic rule query")
+            _thinking("looking up recorded conclusions and approved proof schemas")
             recorded_case_conclusions = G.InstalledCaseConclusions(
                 learned_version,
             )()
@@ -7441,6 +7460,7 @@ def run_talk_mode(sentence: str = None):
                 goal,
             )()
             if M.IdentityCompare(schema_hit, M.EmptyList)() is M.false_value:
+                _thinking("found a fitting approved schema; replaying it against the current facts")
                 schema = M.Head(M.Tail(M.Tail(schema_hit)())())()
                 consultation = G.SchemaConsultation(
                     schema,
@@ -7571,6 +7591,7 @@ def run_talk_mode(sentence: str = None):
             )() is M.false_value:
                 facts = M.Pair(M.Head(numeral_scan)(), facts)
                 numeral_scan = M.Tail(numeral_scan)()
+            _thinking("no direct schema matched; looking through known facts and approved rules")
             rules = G.InstalledTaughtRules(learned_version)()
             # The machine runs its own trial divisions: every ground
             # divisibility claim the goal or a rule's premises speak is
@@ -7998,10 +8019,12 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(
                 polynomial_goal, M.EmptyList,
             )() is M.false_value:
+                _thinking("forward rules did not close the goal; checking replayable invented lemmas")
                 replay_hit = Min.ReplaySavedInventedLemma(
                     learned_version, goal, registry, scoped_assumptions,
                 )()
                 if M.IdentityCompare(replay_hit, M.EmptyList)() is M.false_value:
+                    _thinking("found a fitting invented lemma; replaying its certificate and obligations")
                     replay = M.Head(replay_hit)()
                     replay_lemma = M.Head(M.Tail(replay_hit)())()
                     replay_status = M.Head(
@@ -8122,6 +8145,7 @@ def run_talk_mode(sentence: str = None):
                 stall_rules = P.CompileRuleChain(
                     G.InstalledTaughtRules(learned_version)(), registry,
                 )()
+                _thinking("no fitting saved proof was found; exploring a bounded search frontier")
                 searched = M.Search(
                     stall_graph,
                     start,
@@ -8137,6 +8161,8 @@ def run_talk_mode(sentence: str = None):
                 learned_version = G.InstallStallRecord(
                     learned_version, stall,
                 )()
+                _thinking("the bounded search stalled; preserving its frontier for lemma invention")
+                _thinking("waiting for the administrator to ask me to suggest lemmas")
                 frontier_count_pair = M.Count(
                     G.StallRecordFrontier(stall)(), registry,
                 )()
@@ -11218,7 +11244,7 @@ def run_talk_mode(sentence: str = None):
     print("Ask taught rules: 'query: Sage(alice)'.")
     print("Ask symbolic inequalities: 'query: x^4 + y^4 >= x^3*y + x*y^3'.")
     print("Ask witnessed Euclidean descent: 'query: gcd(1071,462)'.")
-    print("Run the pair-schema story core: 'story demo', 'how is Alice connected to wolf?', or 'analogy'.")
+    print("Narrate naturally: 'tell me a story about Alice and the wolf', 'how is Alice connected to wolf?', or 'compare the stories'.")
     print("After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.")
     print("Inspect invented results: 'show lemmas'.")
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
