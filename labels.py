@@ -2222,7 +2222,6 @@ def sync_from_namespace(namespace):
         "ConfirmedLabel",
         "RefutedLabel",
         "WitnessLabel",
-        "DividesLabel",
         "InductionLabel",
         "BaseCaseLabel",
         "StepCaseLabel",
@@ -2382,9 +2381,6 @@ def sync_from_namespace(namespace):
         "TaoProblem11BetaValueLabel",
         "TaoProblem11GammaValueLabel",
         "DistinctLabel",
-        "PerimeterLabel",
-        "ArccosLabel",
-        "TaoProblem11PerimeterValueLabel",
         "TrainingRecordLabel",
         "ProblemStatementLabel",
         "MeaningStructureLabel",
@@ -2393,8 +2389,48 @@ def sync_from_namespace(namespace):
         "TestInstanceLabel",
         "AttemptResultLabel",
         "InvarianceLabel",
+        "LessonLabel",
+        "EntryLabel",
+        "GroundedExampleLabel",
+        "SourceLabel",
+        "MathematicsLabel",
+        "HistoryLabel",
+        "ProblemLabel",
+        "HintLabel",
+        "UsesStrategyLabel",
+        "DerivationFragmentLabel",
+        "GoalLabel",
+        "ClaimsLabel",
+        "SupportsLabel",
+        "HistoricalContradictsLabel",
+        "OccursOnLabel",
+        "BeforeLabel",
+        "CausesLabel",
+        "ParticipatesInLabel",
+        "OccursAtLabel",
+        "ClaimStoreLabel",
+        "CorrespondenceLawLabel",
+        "EntityLabel",
+        "EventLabel",
+        "RelationLabel",
+        "StoryLabel",
+        "RoleLabel",
+        "SameAsLabel",
+        "BecauseLabel",
+        "AfterLabel",
+        "PredicateLabel",
+        "CanonicalNameLabel",
+        "AttributeLabel",
+        "EventChainLabel",
+        "StoryRefLabel",
+        "RolesLabel",
+        "ProvenanceLabel",
+        "ConfidenceLabel",
+        "SchemaLabel",
+        "StorySchemaLabel",
     ):
         if name in namespace:
+            globals()[name] = namespace[name]
             globals()[name] = namespace[name]
 
 
@@ -2503,6 +2539,98 @@ ParticipatesInLabel = ParticipatesInLabel()
 OccursAtLabel = OccursAtLabel()
 ClaimStoreLabel = ClaimStoreLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
+
+
+class EntityLabel(ConstructorLabel):
+    pass
+
+
+class EventLabel(ConstructorLabel):
+    pass
+
+
+class RelationLabel(ConstructorLabel):
+    pass
+
+
+class StoryLabel(ConstructorLabel):
+    pass
+
+
+class RoleLabel(ConstructorLabel):
+    pass
+
+
+class SameAsLabel(ConstructorLabel):
+    pass
+
+
+class BecauseLabel(ConstructorLabel):
+    pass
+
+
+class AfterLabel(ConstructorLabel):
+    pass
+
+
+class PredicateLabel(ConstructorLabel):
+    pass
+
+
+class CanonicalNameLabel(ConstructorLabel):
+    pass
+
+
+class AttributeLabel(ConstructorLabel):
+    pass
+
+
+class EventChainLabel(ConstructorLabel):
+    pass
+
+
+class StoryRefLabel(ConstructorLabel):
+    pass
+
+
+class RolesLabel(ConstructorLabel):
+    pass
+
+
+class ProvenanceLabel(ConstructorLabel):
+    pass
+
+
+class ConfidenceLabel(ConstructorLabel):
+    pass
+
+
+class SchemaLabel(ConstructorLabel):
+    pass
+
+
+class StorySchemaLabel(ConstructorLabel):
+    pass
+
+
+EntityLabel = EntityLabel()
+EventLabel = EventLabel()
+RelationLabel = RelationLabel()
+StoryLabel = StoryLabel()
+RoleLabel = RoleLabel()
+SameAsLabel = SameAsLabel()
+BecauseLabel = BecauseLabel()
+AfterLabel = AfterLabel()
+PredicateLabel = PredicateLabel()
+CanonicalNameLabel = CanonicalNameLabel()
+AttributeLabel = AttributeLabel()
+EventChainLabel = EventChainLabel()
+StoryRefLabel = StoryRefLabel()
+RolesLabel = RolesLabel()
+ProvenanceLabel = ProvenanceLabel()
+ConfidenceLabel = ConfidenceLabel()
+SchemaLabel = SchemaLabel()
+StorySchemaLabel = StorySchemaLabel()
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
