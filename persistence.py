@@ -496,6 +496,18 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SemanticStateLabel",
     "FocusLabel",
     "UncertainLabel",
+    "StoryModelLabel",
+    "NarrativePlanLabel",
+    "NarrativeThreadLabel",
+    "UnresolvedQuestionLabel",
+    "MotifLabel",
+    "ChronologyEntryLabel",
+    "CausalLinkLabel",
+    "PassageRefLabel",
+    "ChapterLabel",
+    "SegmentLabel",
+    "NarrativeIntentLabel",
+    "KnowledgeStatusLabel",
 ]
 
 

@@ -2445,6 +2445,18 @@ def sync_from_namespace(namespace):
         "SemanticStateLabel",
         "FocusLabel",
         "UncertainLabel",
+        "StoryModelLabel",
+        "NarrativePlanLabel",
+        "NarrativeThreadLabel",
+        "UnresolvedQuestionLabel",
+        "MotifLabel",
+        "ChronologyEntryLabel",
+        "CausalLinkLabel",
+        "PassageRefLabel",
+        "ChapterLabel",
+        "SegmentLabel",
+        "NarrativeIntentLabel",
+        "KnowledgeStatusLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
@@ -2718,6 +2730,54 @@ class UncertainLabel(ConstructorLabel):
     pass
 
 
+class StoryModelLabel(ConstructorLabel):
+    pass
+
+
+class NarrativePlanLabel(ConstructorLabel):
+    pass
+
+
+class NarrativeThreadLabel(ConstructorLabel):
+    pass
+
+
+class UnresolvedQuestionLabel(ConstructorLabel):
+    pass
+
+
+class MotifLabel(ConstructorLabel):
+    pass
+
+
+class ChronologyEntryLabel(ConstructorLabel):
+    pass
+
+
+class CausalLinkLabel(ConstructorLabel):
+    pass
+
+
+class PassageRefLabel(ConstructorLabel):
+    pass
+
+
+class ChapterLabel(ConstructorLabel):
+    pass
+
+
+class SegmentLabel(ConstructorLabel):
+    pass
+
+
+class NarrativeIntentLabel(ConstructorLabel):
+    pass
+
+
+class KnowledgeStatusLabel(ConstructorLabel):
+    pass
+
+
 SemanticGoalLabel = SemanticGoalLabel()
 TaskTypeLabel = TaskTypeLabel()
 ConceptLabel = ConceptLabel()
@@ -2735,6 +2795,18 @@ ConfidenceScoreLabel = ConfidenceScoreLabel()
 SemanticStateLabel = SemanticStateLabel()
 FocusLabel = FocusLabel()
 UncertainLabel = UncertainLabel()
+StoryModelLabel = StoryModelLabel()
+NarrativePlanLabel = NarrativePlanLabel()
+NarrativeThreadLabel = NarrativeThreadLabel()
+UnresolvedQuestionLabel = UnresolvedQuestionLabel()
+MotifLabel = MotifLabel()
+ChronologyEntryLabel = ChronologyEntryLabel()
+CausalLinkLabel = CausalLinkLabel()
+PassageRefLabel = PassageRefLabel()
+ChapterLabel = ChapterLabel()
+SegmentLabel = SegmentLabel()
+NarrativeIntentLabel = NarrativeIntentLabel()
+KnowledgeStatusLabel = KnowledgeStatusLabel()
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
