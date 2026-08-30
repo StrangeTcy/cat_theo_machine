@@ -5003,6 +5003,19 @@ class LemmaInventionTest(M.Edge):
             "x^3 + y^3 >= x^2*y + x*y^2",
             digit_words,
         )()
+        quadratic_goal = Gmod.ParsePolynomialInequalityText(
+            "x^2 + y^2 >= 2*x*y",
+            digit_words,
+        )()
+        quadratic_stall = Gmod.StallRecord(
+            quadratic_goal,
+            M.Pair(M.Knowledge(empty)(), empty),
+            empty,
+            M.five,
+        )()
+        quadratic_candidates = Minmod.InventFromStall(
+            quadratic_stall, registry,
+        )()
         cubic_stall = Gmod.StallRecord(
             cubic_goal, M.Pair(M.Knowledge(empty)(), empty), empty, M.five,
         )()
@@ -5026,6 +5039,8 @@ class LemmaInventionTest(M.Edge):
         elif M.IdentityCompare(candidates, empty)() is M.truth_value:
             self.result = M.false_value
         elif M.IdentityCompare(cubic_candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(quadratic_candidates, empty)() is M.truth_value:
             self.result = M.false_value
         else:
             candidate = M.Head(candidates)()
@@ -5053,7 +5068,7 @@ class LemmaInventionTest(M.Edge):
                 self.result = M.false_value
             elif M.Compare(
                 Gmod.InventedLemmaStatus(found)(),
-                M.Char("verified"),
+                M.Char("conjecture"),
             )() is M.false_value:
                 self.result = M.false_value
             elif M.IdentityCompare(

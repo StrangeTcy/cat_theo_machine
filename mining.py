@@ -3178,363 +3178,624 @@ META_CLASS_UNKNOWN = M.Char("unknown-class")
 
 
 
-class PolynomialIntegerValue(M.Edge):
-    def __init__(self, term):
-        self.result = M.EmptyList
-        if M.IsPair(term)() is M.truth_value:
-            if M.IdentityCompare(M.Head(term)(), M.ExprIntLabel)() is M.truth_value:
-                self.result = M.Head(M.Tail(term)())()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
 
 
-class PolynomialPowerBase(M.Edge):
-    def __init__(self, term):
-        self.result = M.EmptyList
-        if M.IsPair(term)() is M.truth_value:
-            if M.IdentityCompare(M.Head(term)(), M.ExprPowLabel)() is M.truth_value:
-                self.result = M.Head(M.Tail(term)())()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolynomialPowerExponent(M.Edge):
-    def __init__(self, term):
-        self.result = M.EmptyList
-        if M.IsPair(term)() is M.truth_value:
-            if M.IdentityCompare(M.Head(term)(), M.ExprPowLabel)() is M.truth_value:
-                self.result = PolynomialIntegerValue(
-                    M.Head(M.Tail(M.Tail(term)())())(),
-                )()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolynomialPowerOrUnit(M.Edge):
-    def __init__(self, base, exponent, registry):
-        if M.IdentityCompare(exponent, M.Zero)() is M.truth_value:
-            self.result = M.Pair(M.ExprIntLabel, M.Pair(M.one, M.EmptyList))
-        elif M.NatEq(exponent, M.one, registry)() is M.truth_value:
-            self.result = base
-        else:
-            self.result = M.Pair(
-                M.ExprPowLabel,
-                M.Pair(
-                    base,
-                    M.Pair(
-                        M.Pair(M.ExprIntLabel, M.Pair(exponent, M.EmptyList)),
-                        M.EmptyList,
-                    ),
-                ),
-            )
-        super().__init__(inputs=M.Pair(base, M.Pair(exponent, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolynomialMonomialFromPowers(M.Edge):
-    def __init__(self, first, first_exponent, second, second_exponent, registry):
-        left = PolynomialPowerOrUnit(first, first_exponent, registry)()
-        right = PolynomialPowerOrUnit(second, second_exponent, registry)()
-        if M.IdentityCompare(first_exponent, M.Zero)() is M.truth_value:
-            self.result = right
-        elif M.IdentityCompare(second_exponent, M.Zero)() is M.truth_value:
-            self.result = left
-        else:
-            self.result = M.Pair(
-                M.ExprMulLabel,
-                M.Pair(left, M.Pair(right, M.EmptyList)),
-            )
-        super().__init__(inputs=M.Pair(first, M.Pair(second, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class SymmetricDivisionCofactor(M.Edge):
-    """Exact quotient after two divisions by the symmetry root x-y."""
-
-    def __init__(self, first, second, first_exponent, second_exponent, registry):
-        monomial = PolynomialMonomialFromPowers(
-            first, first_exponent, second, second_exponent, registry,
-        )()
-        if M.IdentityCompare(first_exponent, M.Zero)() is M.truth_value:
-            self.result = monomial
-        else:
-            predecessor = M.NatPred(first_exponent, registry)()
-            successor = M.Succ(second_exponent, registry)()
-            rest = SymmetricDivisionCofactor(
-                first,
-                second,
-                M.Head(predecessor)(),
-                M.Head(successor)(),
-                M.Head(M.Tail(successor)())(),
-            )()
-            self.result = M.Pair(
-                M.ExprAddLabel,
-                M.Pair(monomial, M.Pair(rest, M.EmptyList)),
-            )
-        super().__init__(inputs=M.Pair(first, M.Pair(second, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class BoundedSOSCompletion(M.Edge):
-    """The bounded degree-two SOS bias, with coefficients no larger than two."""
-
-    def __init__(self, first, second, cofactor, degree, registry):
-        self.result = M.EmptyList
-        if M.NatEq(degree, M.two, registry)() is M.truth_value:
-            first_square = M.Pair(
-                M.ExprPowLabel,
-                M.Pair(
-                    first,
-                    M.Pair(
-                        M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
-                        M.EmptyList,
-                    ),
-                ),
-            )
-            second_square = M.Pair(
-                M.ExprPowLabel,
-                M.Pair(
-                    second,
-                    M.Pair(
-                        M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
-                        M.EmptyList,
-                    ),
-                ),
-            )
-            sum_linear = M.Pair(
-                M.ExprAddLabel,
-                M.Pair(first, M.Pair(second, M.EmptyList)),
-            )
-            sum_square = M.Pair(
-                M.ExprPowLabel,
-                M.Pair(
-                    sum_linear,
-                    M.Pair(
-                        M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
-                        M.EmptyList,
-                    ),
-                ),
-            )
-            squares = M.Pair(
-                M.ExprAddLabel,
-                M.Pair(
-                    sum_square,
-                    M.Pair(
-                        M.Pair(
-                            M.ExprAddLabel,
-                            M.Pair(first_square, M.Pair(second_square, M.EmptyList)),
-                        ),
-                        M.EmptyList,
-                    ),
-                ),
-            )
-            doubled = M.Pair(
-                M.ExprMulLabel,
-                M.Pair(
-                    M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
-                    M.Pair(cofactor, M.EmptyList),
-                ),
-            )
-            self.result = M.Pair(
-                M.Char("bounded-sos-certificate"),
-                M.Pair(
-                    doubled,
-                    M.Pair(
-                        squares,
-                        M.Pair(M.Char("coefficient-bound-two"), M.EmptyList),
-                    ),
-                ),
-            )
-        super().__init__(inputs=M.Pair(cofactor, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolynomialSubstitute(M.Edge):
-    def __init__(self, term, source, replacement):
-        same_variable = M.false_value
-        if M.AndAtom(
-            Pmod.IsVarPattern(term)(), Pmod.IsVarPattern(source)(),
+class PolynomialVariableKnown(M.Edge):
+    def __init__(self, variable, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Tail(variable)(), M.Tail(M.Head(variables)())(),
         )() is M.truth_value:
-            same_variable = M.Compare(
-                M.Tail(term)(), M.Tail(source)(),
-            )()
-        if M.IdentityCompare(same_variable, M.truth_value)() is M.truth_value:
-            self.result = replacement
-        elif M.IsPair(term)() is M.truth_value:
-            self.result = M.Pair(
-                PolynomialSubstitute(
-                    M.Head(term)(), source, replacement,
-                )(),
-                PolynomialSubstitute(
-                    M.Tail(term)(), source, replacement,
-                )(),
-            )
+            self.result = M.truth_value
         else:
-            self.result = term
-        super().__init__(inputs=M.Pair(term, M.Pair(source, M.EmptyList)), results=self.result)
+            self.result = PolynomialVariableKnown(
+                variable, M.Tail(variables)(),
+            )()
+        super().__init__(inputs=M.Pair(variable, M.Pair(variables, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class PolynomialCollapseArguments(M.Edge):
-    def __init__(self, arguments, registry):
-        if M.IdentityCompare(arguments, M.EmptyList)() is M.truth_value:
+class PolynomialVariableAppend(M.Edge):
+    def __init__(self, variables, variable):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(variable, M.EmptyList)
+        else:
+            self.result = M.Pair(
+                M.Head(variables)(),
+                PolynomialVariableAppend(
+                    M.Tail(variables)(), variable,
+                )(),
+            )
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialVariables(M.Edge):
+    def __init__(self, term, variables=M.EmptyList):
+        if Pmod.IsVarPattern(term)() is M.truth_value:
+            if PolynomialVariableKnown(term, variables)() is M.truth_value:
+                self.result = variables
+            else:
+                self.result = PolynomialVariableAppend(
+                    variables, term,
+                )()
+        elif M.IsPair(term)() is M.truth_value:
+            after_head = PolynomialVariables(M.Head(term)(), variables)()
+            self.result = PolynomialVariables(M.Tail(term)(), after_head)()
+        else:
+            self.result = variables
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialMonomial(M.Edge):
+    def __init__(self, coefficient_text, first_exponent_text, second_exponent_text):
+        self.result = M.Pair(
+            M.Char("polynomial-monomial"),
+            M.Pair(
+                M.Char(coefficient_text),
+                M.Pair(
+                    M.Char(first_exponent_text),
+                    M.Pair(M.Char(second_exponent_text), M.EmptyList),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialMonomialCoefficient(M.Edge):
+    def __init__(self, monomial):
+        self.result = M.Head(M.Tail(monomial)())()()
+        super().__init__(inputs=M.Pair(monomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialMonomialFirstExponent(M.Edge):
+    def __init__(self, monomial):
+        self.result = M.Head(M.Tail(M.Tail(monomial)())())()()
+        super().__init__(inputs=M.Pair(monomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialMonomialSecondExponent(M.Edge):
+    def __init__(self, monomial):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(monomial)())())())()()
+        super().__init__(inputs=M.Pair(monomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialInsert(M.Edge):
+    def __init__(self, polynomial, monomial):
+        coefficient = PolynomialMonomialCoefficient(monomial)()
+        if GMPEqualText(coefficient, "0")() is M.truth_value:
+            self.result = polynomial
+        elif M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(monomial, M.EmptyList)
+        else:
+            head = M.Head(polynomial)()
+            head_first = PolynomialMonomialFirstExponent(head)()
+            head_second = PolynomialMonomialSecondExponent(head)()
+            new_first = PolynomialMonomialFirstExponent(monomial)()
+            new_second = PolynomialMonomialSecondExponent(monomial)()
+            if GMPEqualText(head_first, new_first)() is M.truth_value:
+                if GMPEqualText(head_second, new_second)() is M.truth_value:
+                    combined_text = GMPAddText(
+                        PolynomialMonomialCoefficient(head)(), coefficient,
+                    )()
+                    if GMPEqualText(combined_text, "0")() is M.truth_value:
+                        self.result = M.Tail(polynomial)()
+                    else:
+                        self.result = M.Pair(
+                            PolynomialMonomial(
+                                combined_text, new_first, new_second,
+                            )(),
+                            M.Tail(polynomial)(),
+                        )
+                elif GMPLessText(head_second, new_second)() is M.truth_value:
+                    self.result = M.Pair(monomial, polynomial)
+                else:
+                    self.result = M.Pair(
+                        head,
+                        PolynomialInsert(M.Tail(polynomial)(), monomial)(),
+                    )
+            elif GMPLessText(head_first, new_first)() is M.truth_value:
+                self.result = M.Pair(monomial, polynomial)
+            else:
+                self.result = M.Pair(
+                    head,
+                    PolynomialInsert(M.Tail(polynomial)(), monomial)(),
+                )
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialMerge(M.Edge):
+    def __init__(self, source, target):
+        if M.IdentityCompare(source, M.EmptyList)() is M.truth_value:
+            self.result = target
+        else:
+            inserted = PolynomialInsert(target, M.Head(source)())()
+            self.result = PolynomialMerge(M.Tail(source)(), inserted)()
+        super().__init__(inputs=M.Pair(source, M.Pair(target, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialNegate(M.Edge):
+    def __init__(self, polynomial):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         else:
+            monomial = M.Head(polynomial)()
             self.result = M.Pair(
-                PolynomialCollapsePowerProducts(
-                    M.Head(arguments)(), registry,
+                PolynomialMonomial(
+                    GMPSubText(
+                        "0", PolynomialMonomialCoefficient(monomial)(),
+                    )(),
+                    PolynomialMonomialFirstExponent(monomial)(),
+                    PolynomialMonomialSecondExponent(monomial)(),
                 )(),
-                PolynomialCollapseArguments(
-                    M.Tail(arguments)(), registry,
-                )(),
+                PolynomialNegate(M.Tail(polynomial)())(),
             )
-        super().__init__(inputs=M.Pair(arguments, M.EmptyList), results=self.result)
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class PolynomialCollapsePowerProducts(M.Edge):
-    def __init__(self, term, registry):
-        self.result = term
-        if M.IsPair(term)() is M.truth_value:
-            head = M.Head(term)()
-            arguments = M.Tail(term)()
-            collapsed_arguments = PolynomialCollapseArguments(
-                arguments, registry,
-            )()
-            self.result = M.Pair(head, collapsed_arguments)
-            if M.IdentityCompare(head, M.ExprMulLabel)() is M.truth_value:
-                left = M.Head(collapsed_arguments)()
-                right = M.Head(M.Tail(collapsed_arguments)())()
-                left_base = PolynomialPowerBase(left)()
-                right_base = PolynomialPowerBase(right)()
-                if M.IdentityCompare(left_base, M.EmptyList)() is M.false_value:
-                    if PolynomialCommutativeEqual(left_base, right)() is M.truth_value:
-                        successor = M.Succ(
-                            PolynomialPowerExponent(left)(), registry,
-                        )()
-                        self.result = PolynomialPowerOrUnit(
-                            right, M.Head(successor)(), registry,
-                        )()
-                elif M.IdentityCompare(right_base, M.EmptyList)() is M.false_value:
-                    if PolynomialCommutativeEqual(right_base, left)() is M.truth_value:
-                        successor = M.Succ(
-                            PolynomialPowerExponent(right)(), registry,
-                        )()
-                        self.result = PolynomialPowerOrUnit(
-                            left, M.Head(successor)(), registry,
-                        )()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolynomialCommutativeEqual(M.Edge):
-    def __init__(self, left, right):
-        if M.AndAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
-            left_head = M.Head(left)()
-            right_head = M.Head(right)()
-            if M.Compare(left_head, right_head)() is M.false_value:
-                self.result = M.false_value
-            elif M.OrAtom(
-                M.IdentityCompare(left_head, M.ExprAddLabel)(),
-                M.IdentityCompare(left_head, M.ExprMulLabel)(),
-            )() is M.truth_value:
-                left_first = M.Head(M.Tail(left)())()
-                left_second = M.Head(M.Tail(M.Tail(left)())())()
-                right_first = M.Head(M.Tail(right)())()
-                right_second = M.Head(M.Tail(M.Tail(right)())())()
-                forward = M.AndAtom(
-                    PolynomialCommutativeEqual(left_first, right_first)(),
-                    PolynomialCommutativeEqual(left_second, right_second)(),
-                )()
-                backward = M.AndAtom(
-                    PolynomialCommutativeEqual(left_first, right_second)(),
-                    PolynomialCommutativeEqual(left_second, right_first)(),
-                )()
-                self.result = M.OrAtom(forward, backward)()
-            else:
-                self.result = M.AndAtom(
-                    PolynomialCommutativeEqual(
-                        M.Head(left)(), M.Head(right)(),
-                    )(),
-                    PolynomialCommutativeEqual(
-                        M.Tail(left)(), M.Tail(right)(),
-                    )(),
-                )()
-        elif M.OrAtom(M.IsPair(left)(), M.IsPair(right)())() is M.truth_value:
-            self.result = M.false_value
+class PolynomialMultiplyByMonomial(M.Edge):
+    def __init__(self, polynomial, multiplier):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
         else:
-            self.result = M.Compare(left, right)()
+            monomial = M.Head(polynomial)()
+            product = PolynomialMonomial(
+                GMPMulText(
+                    PolynomialMonomialCoefficient(monomial)(),
+                    PolynomialMonomialCoefficient(multiplier)(),
+                )(),
+                GMPAddText(
+                    PolynomialMonomialFirstExponent(monomial)(),
+                    PolynomialMonomialFirstExponent(multiplier)(),
+                )(),
+                GMPAddText(
+                    PolynomialMonomialSecondExponent(monomial)(),
+                    PolynomialMonomialSecondExponent(multiplier)(),
+                )(),
+            )()
+            rest = PolynomialMultiplyByMonomial(
+                M.Tail(polynomial)(), multiplier,
+            )()
+            self.result = PolynomialInsert(rest, product)()
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialMultiply(M.Edge):
+    def __init__(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            products = PolynomialMultiplyByMonomial(
+                right, M.Head(left)(),
+            )()
+            rest = PolynomialMultiply(M.Tail(left)(), right)()
+            self.result = PolynomialMerge(products, rest)()
         super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class SymmetryAndVanishingCheck(M.Edge):
-    def __init__(self, lesser, greater, first, second, registry):
-        marker = M.Pair(
-            M.VarTag, M.Pair(M.Atom(), M.EmptyList),
-        )
-        swapped_lesser = PolynomialSubstitute(
-            PolynomialSubstitute(
-                PolynomialSubstitute(lesser, first, marker)(),
-                second,
-                first,
-            )(),
-            marker,
-            second,
-        )()
-        swapped_greater = PolynomialSubstitute(
-            PolynomialSubstitute(
-                PolynomialSubstitute(greater, first, marker)(),
-                second,
-                first,
-            )(),
-            marker,
-            second,
-        )()
-        symmetry = M.AndAtom(
-            PolynomialCommutativeEqual(lesser, swapped_lesser)(),
-            PolynomialCommutativeEqual(greater, swapped_greater)(),
-        )()
-        equal_lesser = PolynomialCollapsePowerProducts(
-            PolynomialSubstitute(lesser, first, second)(), registry,
-        )()
-        equal_greater = PolynomialCollapsePowerProducts(
-            PolynomialSubstitute(greater, first, second)(), registry,
-        )()
-        vanishes = PolynomialCommutativeEqual(
-            equal_lesser, equal_greater,
-        )()
-        self.result = M.AndAtom(symmetry, vanishes)()
-        super().__init__(inputs=M.Pair(lesser, M.Pair(greater, M.EmptyList)), results=self.result)
+class PolynomialPower(M.Edge):
+    def __init__(self, polynomial, exponent_text):
+        if GMPEqualText(exponent_text, "0")() is M.truth_value:
+            self.result = M.Pair(
+                PolynomialMonomial("1", "0", "0")(), M.EmptyList,
+            )
+        else:
+            self.result = PolynomialMultiply(
+                polynomial,
+                PolynomialPower(
+                    polynomial, GMPPredText(exponent_text)(),
+                )(),
+            )()
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class SymmetricPowerDifferenceCandidate(M.Edge):
-    """Recognize the symmetric power difference and divide at x=y twice."""
+class NormalizePolynomial(M.Edge):
+    def __init__(self, expression, first, second, registry):
+        self.result = M.EmptyList
+        if Pmod.IsVarPattern(expression)() is M.truth_value:
+            if M.Compare(
+                M.Tail(expression)(), M.Tail(first)(),
+            )() is M.truth_value:
+                self.result = M.Pair(
+                    PolynomialMonomial("1", "1", "0")(), M.EmptyList,
+                )
+            elif M.Compare(
+                M.Tail(expression)(), M.Tail(second)(),
+            )() is M.truth_value:
+                self.result = M.Pair(
+                    PolynomialMonomial("1", "0", "1")(), M.EmptyList,
+                )
+        elif M.IsPair(expression)() is M.truth_value:
+            label = M.Head(expression)()
+            arguments = M.Tail(expression)()
+            if M.IdentityCompare(label, M.ExprIntLabel)() is M.truth_value:
+                value = M.Head(arguments)()
+                rep = M.NatRepOf(value, registry)()
+                if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+                    self.result = M.Pair(
+                        PolynomialMonomial(
+                            M.GMPRepText(rep)(), "0", "0",
+                        )(),
+                        M.EmptyList,
+                    )
+            elif M.IdentityCompare(label, M.ExprNegLabel)() is M.truth_value:
+                self.result = PolynomialNegate(
+                    NormalizePolynomial(
+                        M.Head(arguments)(), first, second, registry,
+                    )(),
+                )()
+            elif M.IdentityCompare(label, M.ExprAddLabel)() is M.truth_value:
+                left = NormalizePolynomial(
+                    M.Head(arguments)(), first, second, registry,
+                )()
+                right = NormalizePolynomial(
+                    M.Head(M.Tail(arguments)())(), first, second, registry,
+                )()
+                self.result = PolynomialMerge(left, right)()
+            elif M.IdentityCompare(label, M.ExprMulLabel)() is M.truth_value:
+                left = NormalizePolynomial(
+                    M.Head(arguments)(), first, second, registry,
+                )()
+                right = NormalizePolynomial(
+                    M.Head(M.Tail(arguments)())(), first, second, registry,
+                )()
+                self.result = PolynomialMultiply(left, right)()
+            elif M.IdentityCompare(label, M.ExprPowLabel)() is M.truth_value:
+                base = NormalizePolynomial(
+                    M.Head(arguments)(), first, second, registry,
+                )()
+                exponent_term = M.Head(M.Tail(arguments)())()
+                exponent = M.EmptyList
+                if M.IsPair(exponent_term)() is M.truth_value:
+                    if M.IdentityCompare(
+                        M.Head(exponent_term)(), M.ExprIntLabel,
+                    )() is M.truth_value:
+                        exponent = M.Head(M.Tail(exponent_term)())()
+                if M.IdentityCompare(exponent, M.EmptyList)() is M.false_value:
+                    exponent_rep = M.NatRepOf(exponent, registry)()
+                    if M.IdentityCompare(
+                        exponent_rep, M.EmptyList,
+                    )() is M.false_value:
+                        self.result = PolynomialPower(
+                            base, M.GMPRepText(exponent_rep)(),
+                        )()
+        super().__init__(inputs=M.Pair(expression, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialEqual(M.Edge):
+    def __init__(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+                self.result = M.truth_value
+            else:
+                self.result = M.false_value
+        elif M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_monomial = M.Head(left)()
+            right_monomial = M.Head(right)()
+            same_coefficient = GMPEqualText(
+                PolynomialMonomialCoefficient(left_monomial)(),
+                PolynomialMonomialCoefficient(right_monomial)(),
+            )()
+            same_first = GMPEqualText(
+                PolynomialMonomialFirstExponent(left_monomial)(),
+                PolynomialMonomialFirstExponent(right_monomial)(),
+            )()
+            same_second = GMPEqualText(
+                PolynomialMonomialSecondExponent(left_monomial)(),
+                PolynomialMonomialSecondExponent(right_monomial)(),
+            )()
+            self.result = M.AndAtom(
+                M.AndAtom(same_coefficient, same_first)(),
+                M.AndAtom(
+                    same_second,
+                    PolynomialEqual(M.Tail(left)(), M.Tail(right)())(),
+                )(),
+            )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialSwapVariables(M.Edge):
+    def __init__(self, polynomial):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            monomial = M.Head(polynomial)()
+            swapped = PolynomialMonomial(
+                PolynomialMonomialCoefficient(monomial)(),
+                PolynomialMonomialSecondExponent(monomial)(),
+                PolynomialMonomialFirstExponent(monomial)(),
+            )()
+            self.result = PolynomialInsert(
+                PolynomialSwapVariables(M.Tail(polynomial)())(), swapped,
+            )()
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialAtEqualVariables(M.Edge):
+    def __init__(self, polynomial):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            monomial = M.Head(polynomial)()
+            substituted = PolynomialMonomial(
+                PolynomialMonomialCoefficient(monomial)(),
+                "0",
+                GMPAddText(
+                    PolynomialMonomialFirstExponent(monomial)(),
+                    PolynomialMonomialSecondExponent(monomial)(),
+                )(),
+            )()
+            self.result = PolynomialInsert(
+                PolynomialAtEqualVariables(M.Tail(polynomial)())(),
+                substituted,
+            )()
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialDivisionResult(M.Edge):
+    def __init__(self, quotient):
+        self.result = M.Pair(
+            M.Char("polynomial-division-result"),
+            M.Pair(quotient, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(quotient, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialDivisionQuotient(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(result)())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialDivideDifferenceStep(M.Edge):
+    def __init__(self, remainder, quotient, remaining_text="100"):
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(remainder, M.EmptyList)() is M.truth_value:
+            self.result = PolynomialDivisionResult(quotient)()
+        else:
+            leading = M.Head(remainder)()
+            first_exponent = PolynomialMonomialFirstExponent(leading)()
+            if GMPEqualText(first_exponent, "0")() is M.truth_value:
+                self.result = M.EmptyList
+            else:
+                quotient_term = PolynomialMonomial(
+                    PolynomialMonomialCoefficient(leading)(),
+                    GMPPredText(first_exponent)(),
+                    PolynomialMonomialSecondExponent(leading)(),
+                )()
+                positive_product = PolynomialMonomial(
+                    PolynomialMonomialCoefficient(quotient_term)(),
+                    GMPAddText(
+                        PolynomialMonomialFirstExponent(quotient_term)(), "1",
+                    )(),
+                    PolynomialMonomialSecondExponent(quotient_term)(),
+                )()
+                negative_product = PolynomialMonomial(
+                    GMPSubText(
+                        "0", PolynomialMonomialCoefficient(quotient_term)(),
+                    )(),
+                    PolynomialMonomialFirstExponent(quotient_term)(),
+                    GMPAddText(
+                        PolynomialMonomialSecondExponent(quotient_term)(), "1",
+                    )(),
+                )()
+                next_remainder = PolynomialInsert(
+                    PolynomialInsert(
+                        remainder,
+                        PolynomialMonomial(
+                            GMPSubText(
+                                "0", PolynomialMonomialCoefficient(positive_product)(),
+                            )(),
+                            PolynomialMonomialFirstExponent(positive_product)(),
+                            PolynomialMonomialSecondExponent(positive_product)(),
+                        )(),
+                    )(),
+                    PolynomialMonomial(
+                        GMPSubText(
+                            "0", PolynomialMonomialCoefficient(negative_product)(),
+                        )(),
+                        PolynomialMonomialFirstExponent(negative_product)(),
+                        PolynomialMonomialSecondExponent(negative_product)(),
+                    )(),
+                )()
+                next_quotient = PolynomialInsert(quotient, quotient_term)()
+                self.result = PolynomialDivideDifferenceStep(
+                    next_remainder,
+                    next_quotient,
+                    GMPPredText(remaining_text)(),
+                )()
+        super().__init__(inputs=M.Pair(remainder, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialDifferenceFactor(M.Edge):
+    def __init__(self):
+        self.result = M.Pair(
+            PolynomialMonomial("1", "1", "0")(),
+            M.Pair(
+                PolynomialMonomial("-1", "0", "1")(),
+                M.EmptyList,
+            ),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialPowerExpression(M.Edge):
+    def __init__(self, variable, exponent_text):
+        if GMPEqualText(exponent_text, "0")() is M.truth_value:
+            self.result = M.Pair(M.ExprIntLabel, M.Pair(M.one, M.EmptyList))
+        elif GMPEqualText(exponent_text, "1")() is M.truth_value:
+            self.result = variable
+        else:
+            exponent = MineNatFromGMPRep(M.GMPRep(exponent_text))()
+            self.result = M.Pair(
+                M.ExprPowLabel,
+                M.Pair(
+                    variable,
+                    M.Pair(
+                        M.Pair(M.ExprIntLabel, M.Pair(exponent, M.EmptyList)),
+                        M.EmptyList,
+                    ),
+                ),
+            )
+        super().__init__(inputs=M.Pair(variable, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialMonomialExpression(M.Edge):
+    def __init__(self, monomial, first, second):
+        coefficient_text = PolynomialMonomialCoefficient(monomial)()
+        negative = GMPLessText(coefficient_text, "0")()
+        magnitude_text = coefficient_text
+        if M.IdentityCompare(negative, M.truth_value)() is M.truth_value:
+            magnitude_text = GMPSubText("0", coefficient_text)()
+        first_factor = PolynomialPowerExpression(
+            first, PolynomialMonomialFirstExponent(monomial)(),
+        )()
+        second_factor = PolynomialPowerExpression(
+            second, PolynomialMonomialSecondExponent(monomial)(),
+        )()
+        first_zero = GMPEqualText(
+            PolynomialMonomialFirstExponent(monomial)(), "0",
+        )()
+        second_zero = GMPEqualText(
+            PolynomialMonomialSecondExponent(monomial)(), "0",
+        )()
+        if M.AndAtom(first_zero, second_zero)() is M.truth_value:
+            magnitude = MineNatFromGMPRep(M.GMPRep(magnitude_text))()
+            expression = M.Pair(
+                M.ExprIntLabel, M.Pair(magnitude, M.EmptyList),
+            )
+        elif M.IdentityCompare(first_zero, M.truth_value)() is M.truth_value:
+            expression = second_factor
+        elif M.IdentityCompare(second_zero, M.truth_value)() is M.truth_value:
+            expression = first_factor
+        else:
+            expression = M.Pair(
+                M.ExprMulLabel,
+                M.Pair(first_factor, M.Pair(second_factor, M.EmptyList)),
+            )
+        if GMPEqualText(magnitude_text, "1")() is M.false_value:
+            magnitude = MineNatFromGMPRep(M.GMPRep(magnitude_text))()
+            expression = M.Pair(
+                M.ExprMulLabel,
+                M.Pair(
+                    M.Pair(M.ExprIntLabel, M.Pair(magnitude, M.EmptyList)),
+                    M.Pair(expression, M.EmptyList),
+                ),
+            )
+        if M.IdentityCompare(negative, M.truth_value)() is M.truth_value:
+            expression = M.Pair(
+                M.ExprNegLabel, M.Pair(expression, M.EmptyList),
+            )
+        self.result = expression
+        super().__init__(inputs=M.Pair(monomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialExpression(M.Edge):
+    def __init__(self, polynomial, first, second):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(
+                M.ExprIntLabel, M.Pair(M.Zero, M.EmptyList),
+            )
+        else:
+            first_term = PolynomialMonomialExpression(
+                M.Head(polynomial)(), first, second,
+            )()
+            if M.IdentityCompare(
+                M.Tail(polynomial)(), M.EmptyList,
+            )() is M.truth_value:
+                self.result = first_term
+            else:
+                self.result = M.Pair(
+                    M.ExprAddLabel,
+                    M.Pair(
+                        first_term,
+                        M.Pair(
+                            PolynomialExpression(
+                                M.Tail(polynomial)(), first, second,
+                            )(),
+                            M.EmptyList,
+                        ),
+                    ),
+                )
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NormalizedDifferenceCandidate(M.Edge):
+    """Invent by normalization, symmetry vanishing, and two exact divisions."""
 
     def __init__(self, goal, registry=M.EmptyList):
         if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
@@ -3542,124 +3803,140 @@ class SymmetricPowerDifferenceCandidate(M.Edge):
         self.result = M.EmptyList
         if M.IsPair(goal)() is M.truth_value:
             if M.IdentityCompare(M.Head(goal)(), M.ExprLeLabel)() is M.truth_value:
-                lesser = M.Head(M.Tail(goal)())()
-                greater = M.Head(M.Tail(M.Tail(goal)())())()
-                if M.IsPair(lesser)() is M.truth_value:
-                    if M.IsPair(greater)() is M.truth_value:
-                        if M.IdentityCompare(M.Head(lesser)(), M.ExprAddLabel)() is M.truth_value:
-                            if M.IdentityCompare(M.Head(greater)(), M.ExprAddLabel)() is M.truth_value:
-                                cross_one = M.Head(M.Tail(lesser)())()
-                                cross_two = M.Head(M.Tail(M.Tail(lesser)())())()
-                                power_one = M.Head(M.Tail(greater)())()
-                                power_two = M.Head(M.Tail(M.Tail(greater)())())()
-                                if M.IsPair(cross_one)() is M.truth_value:
-                                    if M.IsPair(cross_two)() is M.truth_value:
-                                        if M.IdentityCompare(M.Head(cross_one)(), M.ExprMulLabel)() is M.truth_value:
-                                            if M.IdentityCompare(M.Head(cross_two)(), M.ExprMulLabel)() is M.truth_value:
-                                                x_power_prior = M.Head(M.Tail(cross_one)())()
-                                                cross_one_y = M.Head(M.Tail(M.Tail(cross_one)())())()
-                                                cross_two_x = M.Head(M.Tail(cross_two)())()
-                                                y_power_prior = M.Head(M.Tail(M.Tail(cross_two)())())()
-                                                x = PolynomialPowerBase(power_one)()
-                                                y = PolynomialPowerBase(power_two)()
-                                                degree = PolynomialPowerExponent(power_one)()
-                                                second_degree = PolynomialPowerExponent(power_two)()
-                                                prior_degree = PolynomialPowerExponent(x_power_prior)()
-                                                second_prior = PolynomialPowerExponent(y_power_prior)()
-                                                if M.IdentityCompare(x, M.EmptyList)() is M.false_value:
-                                                    if M.IdentityCompare(y, M.EmptyList)() is M.false_value:
-                                                        if M.NatEq(degree, second_degree, registry)() is M.truth_value:
-                                                            predecessor = M.NatPred(degree, registry)()
-                                                            expected_prior = M.Head(predecessor)()
-                                                            if M.NatEq(prior_degree, expected_prior, registry)() is M.truth_value:
-                                                                if M.NatEq(second_prior, expected_prior, registry)() is M.truth_value:
-                                                                    if M.Compare(PolynomialPowerBase(x_power_prior)(), x)() is M.truth_value:
-                                                                        if M.Compare(PolynomialPowerBase(y_power_prior)(), y)() is M.truth_value:
-                                                                            if M.Compare(cross_one_y, y)() is M.truth_value:
-                                                                                if M.AndAtom(
-                                                                                    M.Compare(cross_two_x, x)(),
-                                                                                    SymmetryAndVanishingCheck(
-                                                                                        lesser, greater, x, y, registry,
-                                                                                    )(),
-                                                                                )() is M.truth_value:
-                                                                                    first_division = M.NatPred(expected_prior, registry)()
-                                                                                    cofactor_degree = M.Head(first_division)()
-                                                                                    cofactor = SymmetricDivisionCofactor(
-                                                                                        x, y, cofactor_degree, M.Zero, registry,
-                                                                                    )()
-                                                                                    difference = M.Pair(
-                                                                                        M.ExprAddLabel,
-                                                                                        M.Pair(
-                                                                                            greater,
-                                                                                            M.Pair(
-                                                                                                M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
-                                                                                                M.EmptyList,
-                                                                                            ),
-                                                                                        ),
-                                                                                    )
-                                                                                    root = M.Pair(
-                                                                                        M.ExprAddLabel,
-                                                                                        M.Pair(
-                                                                                            x,
-                                                                                            M.Pair(
-                                                                                                M.Pair(M.ExprNegLabel, M.Pair(y, M.EmptyList)),
-                                                                                                M.EmptyList,
-                                                                                            ),
-                                                                                        ),
-                                                                                    )
-                                                                                    square = M.Pair(
-                                                                                        M.ExprPowLabel,
-                                                                                        M.Pair(
-                                                                                            root,
-                                                                                            M.Pair(
-                                                                                                M.Pair(M.ExprIntLabel, M.Pair(M.two, M.EmptyList)),
-                                                                                                M.EmptyList,
-                                                                                            ),
-                                                                                        ),
-                                                                                    )
-                                                                                    factored = M.Pair(
-                                                                                        M.ExprMulLabel,
-                                                                                        M.Pair(square, M.Pair(cofactor, M.EmptyList)),
-                                                                                    )
-                                                                                    proposition = M.Pair(
-                                                                                        M.ExprLeLabel,
-                                                                                        M.Pair(
-                                                                                            M.Pair(M.ExprIntLabel, M.Pair(M.Zero, M.EmptyList)),
-                                                                                            M.Pair(factored, M.EmptyList),
-                                                                                        ),
-                                                                                    )
-                                                                                    sos = BoundedSOSCompletion(
-                                                                                        x,
-                                                                                        y,
-                                                                                        cofactor,
-                                                                                        cofactor_degree,
-                                                                                        registry,
-                                                                                    )()
-                                                                                    status = M.Char("conjecture")
-                                                                                    if M.IdentityCompare(
-                                                                                        sos, M.EmptyList,
-                                                                                    )() is M.false_value:
-                                                                                        status = M.Char("verified")
-                                                                                    certificate = M.Pair(
-                                                                                        M.Char("symmetry-root-division"),
-                                                                                        M.Pair(
-                                                                                            difference,
-                                                                                            M.Pair(
-                                                                                                root,
-                                                                                                M.Pair(M.two, M.Pair(sos, M.EmptyList)),
-                                                                                            ),
-                                                                                        ),
-                                                                                    )
-                                                                                    self.result = M.Pair(
-                                                                                        proposition,
-                                                                                        M.Pair(
-                                                                                            M.Char("high"),
-                                                                                            M.Pair(
-                                                                                                status,
-                                                                                                M.Pair(certificate, M.EmptyList),
-                                                                                            ),
-                                                                                        ),
-                                                                                    )
+                variables = PolynomialVariables(goal)()
+                if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(
+                        M.Tail(variables)(), M.EmptyList,
+                    )() is M.false_value:
+                        first = M.Head(variables)()
+                        second = M.Head(M.Tail(variables)())()
+                        lesser = M.Head(M.Tail(goal)())()
+                        greater = M.Head(M.Tail(M.Tail(goal)())())()
+                        difference_expression = M.Pair(
+                            M.ExprAddLabel,
+                            M.Pair(
+                                greater,
+                                M.Pair(
+                                    M.Pair(
+                                        M.ExprNegLabel,
+                                        M.Pair(lesser, M.EmptyList),
+                                    ),
+                                    M.EmptyList,
+                                ),
+                            ),
+                        )
+                        difference = NormalizePolynomial(
+                            difference_expression, first, second, registry,
+                        )()
+                        symmetric = PolynomialEqual(
+                            difference,
+                            PolynomialSwapVariables(difference)(),
+                        )()
+                        equality_case = PolynomialAtEqualVariables(difference)()
+                        if M.IdentityCompare(symmetric, M.truth_value)() is M.truth_value:
+                            if M.IdentityCompare(
+                                equality_case, M.EmptyList,
+                            )() is M.truth_value:
+                                first_division = PolynomialDivideDifferenceStep(
+                                    difference, M.EmptyList,
+                                )()
+                                if M.IdentityCompare(
+                                    first_division, M.EmptyList,
+                                )() is M.false_value:
+                                    first_quotient = PolynomialDivisionQuotient(
+                                        first_division,
+                                    )()
+                                    second_division = PolynomialDivideDifferenceStep(
+                                        first_quotient, M.EmptyList,
+                                    )()
+                                    if M.IdentityCompare(
+                                        second_division, M.EmptyList,
+                                    )() is M.false_value:
+                                        cofactor = PolynomialDivisionQuotient(
+                                            second_division,
+                                        )()
+                                        reconstructed = PolynomialMultiply(
+                                            PolynomialMultiply(
+                                                PolynomialDifferenceFactor()(),
+                                                PolynomialDifferenceFactor()(),
+                                            )(),
+                                            cofactor,
+                                        )()
+                                        if PolynomialEqual(
+                                            difference, reconstructed,
+                                        )() is M.truth_value:
+                                            root_expression = M.Pair(
+                                                M.ExprAddLabel,
+                                                M.Pair(
+                                                    first,
+                                                    M.Pair(
+                                                        M.Pair(
+                                                            M.ExprNegLabel,
+                                                            M.Pair(second, M.EmptyList),
+                                                        ),
+                                                        M.EmptyList,
+                                                    ),
+                                                ),
+                                            )
+                                            square = M.Pair(
+                                                M.ExprPowLabel,
+                                                M.Pair(
+                                                    root_expression,
+                                                    M.Pair(
+                                                        M.Pair(
+                                                            M.ExprIntLabel,
+                                                            M.Pair(M.two, M.EmptyList),
+                                                        ),
+                                                        M.EmptyList,
+                                                    ),
+                                                ),
+                                            )
+                                            cofactor_expression = PolynomialExpression(
+                                                cofactor, first, second,
+                                            )()
+                                            factored = M.Pair(
+                                                M.ExprMulLabel,
+                                                M.Pair(
+                                                    square,
+                                                    M.Pair(cofactor_expression, M.EmptyList),
+                                                ),
+                                            )
+                                            proposition = M.Pair(
+                                                M.ExprLeLabel,
+                                                M.Pair(
+                                                    M.Pair(
+                                                        M.ExprIntLabel,
+                                                        M.Pair(M.Zero, M.EmptyList),
+                                                    ),
+                                                    M.Pair(factored, M.EmptyList),
+                                                ),
+                                            )
+                                            certificate = M.Pair(
+                                                M.Char("normalized-root-division"),
+                                                M.Pair(
+                                                    difference,
+                                                    M.Pair(
+                                                        first_quotient,
+                                                        M.Pair(
+                                                            cofactor,
+                                                            M.Pair(
+                                                                reconstructed,
+                                                                M.EmptyList,
+                                                            ),
+                                                        ),
+                                                    ),
+                                                ),
+                                            )
+                                            self.result = M.Pair(
+                                                proposition,
+                                                M.Pair(
+                                                    M.Char("high"),
+                                                    M.Pair(
+                                                        M.Char("conjecture"),
+                                                        M.Pair(certificate, M.EmptyList),
+                                                    ),
+                                                ),
+                                            )
         super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -3667,15 +3944,13 @@ class SymmetricPowerDifferenceCandidate(M.Edge):
 
 
 class AlgebraCandidateUnlock(M.Edge):
-    """One-step forked unlock check through the generated identity certificate."""
-
     def __init__(self, stall, candidate):
         self.result = M.EmptyList
         proposition = M.Head(candidate)()
         certificate = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
         if M.IsPair(certificate)() is M.truth_value:
             if M.Compare(
-                M.Head(certificate)(), M.Char("symmetry-root-division"),
+                M.Head(certificate)(), M.Char("normalized-root-division"),
             )() is M.truth_value:
                 assumed_facts = M.Pair(proposition, M.EmptyList)
                 bridge = Pmod.MultiRule(
@@ -3705,11 +3980,9 @@ class AlgebraCandidateUnlock(M.Edge):
 
 
 class InventFromStall(M.Edge):
-    """Bias-limited invention from one persisted theorem-search stall."""
-
     def __init__(self, stall, registry=M.EmptyList):
         goal = M.Head(M.Tail(stall)())()
-        candidate = SymmetricPowerDifferenceCandidate(goal, registry)()
+        candidate = NormalizedDifferenceCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         else:
