@@ -697,6 +697,49 @@ class InventedLemmaDisplayRows(M.Edge):
         return self.result
 
 
+class InventedLemmaDisplayText(M.Edge):
+    def __init__(self, nodes, ordinal=M.one, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.Char("")
+        else:
+            candidate = M.Head(nodes)()
+            next_ordinal = ordinal
+            if IsInventedLemma(candidate)() is M.truth_value:
+                successor = M.Succ(ordinal, registry)()
+                next_ordinal = M.Head(successor)()
+                registry = M.Head(M.Tail(successor)())()
+            rest = InventedLemmaDisplayText(
+                M.Tail(nodes)(), next_ordinal, registry,
+            )()
+            if IsInventedLemma(candidate)() is M.truth_value:
+                separator = ""
+                if M.Compare(rest, M.Char(""))() is M.false_value:
+                    separator = "\n"
+                self.result = M.Char(
+                    "InventedLemma_"
+                    + M.PrettyTerm(ordinal, registry)()
+                    + ": "
+                    + M.PrettyTerm(
+                        InventedLemmaProposition(candidate)(), registry,
+                    )()
+                    + " [utility: "
+                    + M.PrettyTerm(
+                        InventedLemmaUtility(candidate)(), registry,
+                    )()
+                    + ", verification: "
+                    + str(InventedLemmaStatus(candidate)()())
+                    + "]" + separator + str(rest())
+                )
+            else:
+                self.result = rest
+        super().__init__(inputs=M.Pair(nodes, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class InstalledLaw(M.Edge):
     def __init__(self, law):
         self.result = M.Pair(Lmod.InstalledLawLabel, M.Pair(law, M.EmptyList))

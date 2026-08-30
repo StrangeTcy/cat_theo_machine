@@ -5836,13 +5836,12 @@ def run_talk_mode(sentence: str = None):
                 )
             return _run_invariant_sweep()
         if lowered.strip() == "show lemmas":
-            display = G.InventedLemmaDisplayRows(
+            rendered = G.InventedLemmaDisplayText(
                 G.GraphNodes(learned_version)(), M.one, registry,
             )()
-            rows = M.Head(display)()
-            if M.IdentityCompare(rows, M.EmptyList)() is M.truth_value:
+            if M.Compare(rendered, M.Char(""))() is M.truth_value:
                 return "No invented lemmas are recorded."
-            return M.PrettyTerm(rows, registry)()
+            return str(rendered())
         if lowered.startswith("suggest lemmas"):
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
                 return "Please approve or reject the pending proposal first."

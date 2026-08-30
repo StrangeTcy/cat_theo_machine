@@ -5073,6 +5073,13 @@ class LemmaInventionTest(M.Edge):
                     registry,
                 )() is M.false_value:
                     self.result = M.false_value
+                elif M.Compare(
+                    Gmod.InventedLemmaDisplayText(
+                        Gmod.GraphNodes(incremented)(), M.one, registry,
+                    )(),
+                    M.Char(""),
+                )() is M.truth_value:
+                    self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
