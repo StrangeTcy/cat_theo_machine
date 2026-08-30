@@ -5401,28 +5401,38 @@ class EqualProofLookupShardTest(M.Edge):
             ),
         )
         first = ProofLookupWorkermod.RoundRobinWorkerShard(
-            nodes, "0", "0", "3",
+            nodes, "0", "0", "4",
         )()
         second = ProofLookupWorkermod.RoundRobinWorkerShard(
-            nodes, "0", "1", "3",
+            nodes, "0", "1", "4",
         )()
         third = ProofLookupWorkermod.RoundRobinWorkerShard(
-            nodes, "0", "2", "3",
+            nodes, "0", "2", "4",
+        )()
+        fourth = ProofLookupWorkermod.RoundRobinWorkerShard(
+            nodes, "0", "3", "4",
         )()
         first_count = Minmod.MachineChainCardinalityText(first)()
         second_count = Minmod.MachineChainCardinalityText(second)()
         third_count = Minmod.MachineChainCardinalityText(third)()
+        fourth_count = Minmod.MachineChainCardinalityText(fourth)()
         self.result = M.AndAtom(
-            M.Compare(M.Char(first_count), M.Char("3"))(),
+            M.Compare(M.Char(first_count), M.Char("2"))(),
             M.AndAtom(
                 M.Compare(M.Char(second_count), M.Char("2"))(),
                 M.AndAtom(
                     M.Compare(M.Char(third_count), M.Char("2"))(),
                     M.AndAtom(
-                        M.Compare(M.Head(first)(), M.Char("n0"))(),
+                        M.Compare(M.Char(fourth_count), M.Char("1"))(),
                         M.AndAtom(
-                            M.Compare(M.Head(second)(), M.Char("n1"))(),
-                            M.Compare(M.Head(third)(), M.Char("n2"))(),
+                            M.Compare(M.Head(first)(), M.Char("n0"))(),
+                            M.AndAtom(
+                                M.Compare(M.Head(second)(), M.Char("n1"))(),
+                                M.AndAtom(
+                                    M.Compare(M.Head(third)(), M.Char("n2"))(),
+                                    M.Compare(M.Head(fourth)(), M.Char("n3"))(),
+                                )(),
+                            )(),
                         )(),
                     )(),
                 )(),

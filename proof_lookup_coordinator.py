@@ -3,6 +3,7 @@ import os
 
 from . import machine as M
 from . import wire as W
+from .gmprep import GMPEqualText, GMPLessText, GMPSuccText
 from .proof_lookup_worker import ProofLookupWorker
 
 
@@ -35,101 +36,180 @@ class ProofLookupProcess(multiprocessing.Process):
             )
 
 
+class ProofLookupWorkPacket(M.Edge):
+    def __init__(self, shard_text, worker_count_text, result_path):
+        self.result = M.Pair(
+            M.Char("proof-lookup-shard"),
+            M.Pair(
+                M.Char(shard_text),
+                M.Pair(
+                    M.Char(worker_count_text),
+                    M.Pair(M.Char(result_path), M.EmptyList),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.Pair(M.Char(shard_text), M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProofLookupWorkPlan(M.Edge):
+    def __init__(self, shard_text, worker_count_text, request_path):
+        if GMPEqualText(shard_text, worker_count_text)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            result_path = request_path + ".shard-" + shard_text
+            packet = ProofLookupWorkPacket(
+                shard_text, worker_count_text, result_path,
+            )()
+            self.result = M.Pair(
+                packet,
+                ProofLookupWorkPlan(
+                    GMPSuccText(shard_text)(), worker_count_text, request_path,
+                )(),
+            )
+        super().__init__(inputs=M.Pair(M.Char(shard_text), M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SpawnProofLookupPlan(M.Edge):
+    def __init__(self, plan, request_path, coordinator_text):
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            packet = M.Head(plan)()
+            shard_text = M.Head(M.Tail(packet)())()()
+            worker_count_text = M.Head(M.Tail(M.Tail(packet)())())()()
+            result_path = M.Head(M.Tail(M.Tail(M.Tail(packet)())())())()()
+            process = ProofLookupProcess(
+                shard_text, worker_count_text, request_path, result_path,
+            )
+            process.start()
+            print(
+                "DEBUG [foreground coordinator " + coordinator_text
+                + "]: assigned equal graph shard " + shard_text + " of "
+                + worker_count_text + " to process " + str(process.pid),
+                flush=True,
+            )
+            self.result = M.Pair(
+                process,
+                SpawnProofLookupPlan(
+                    M.Tail(plan)(), request_path, coordinator_text,
+                )(),
+            )
+        super().__init__(inputs=M.Pair(plan, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class JoinProofLookupProcesses(M.Edge):
+    def __init__(self, processes):
+        if M.IdentityCompare(processes, M.EmptyList)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            process = M.Head(processes)()
+            process.join()
+            self.result = JoinProofLookupProcesses(M.Tail(processes)())()
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ProofLookupModeMerge(M.Edge):
+    def __init__(self, left_text, right_text):
+        self.result = right_text
+        if left_text == "worker-failure":
+            self.result = left_text
+        elif right_text == "worker-failure":
+            self.result = right_text
+        elif left_text == "cubic":
+            self.result = left_text
+        elif right_text == "cubic":
+            self.result = right_text
+        elif left_text == "direct":
+            self.result = left_text
+        elif right_text == "direct":
+            self.result = right_text
+        elif left_text == "chain":
+            self.result = left_text
+        super().__init__(inputs=M.Pair(M.Char(left_text), M.Pair(M.Char(right_text), M.EmptyList)), results=M.Char(self.result))
+
+    def __call__(self):
+        return self.result
+
+
+class ProofLookupPlanResult(M.Edge):
+    def __init__(self, plan):
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = "none"
+        else:
+            packet = M.Head(plan)()
+            result_path = M.Head(M.Tail(M.Tail(M.Tail(packet)())())())()()
+            result_flag = "E"
+            if os.path.exists(result_path):
+                with open(result_path, "r", encoding="utf-8") as result_stream:
+                    result_flag = result_stream.read().strip()
+            local_mode = "none"
+            if result_flag == "E":
+                local_mode = "worker-failure"
+            elif result_flag == "C":
+                local_mode = "cubic"
+            elif result_flag == "D":
+                local_mode = "direct"
+            elif result_flag == "H":
+                local_mode = "chain"
+            tail_mode = ProofLookupPlanResult(M.Tail(plan)())()
+            self.result = ProofLookupModeMerge(local_mode, tail_mode)()
+        super().__init__(inputs=M.Pair(plan, M.EmptyList), results=M.Char(self.result))
+
+    def __call__(self):
+        return self.result
+
+
+class RemoveProofLookupPlanResults(M.Edge):
+    def __init__(self, plan):
+        if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            packet = M.Head(plan)()
+            result_path = M.Head(M.Tail(M.Tail(M.Tail(packet)())())())()()
+            if os.path.exists(result_path):
+                os.remove(result_path)
+            self.result = RemoveProofLookupPlanResults(M.Tail(plan)())()
+        super().__init__(inputs=M.Pair(plan, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ParallelProofLookupMode(M.Edge):
     def __init__(self, graph_version, goal, assumptions):
         process_text = str(os.getpid())
-        worker_count_text = "3"
+        worker_count_text = os.environ.get("HYGE_FOREGROUND_WORKERS", "1")
+        if GMPLessText(worker_count_text, "1")() is M.truth_value:
+            worker_count_text = "1"
         request_path = os.path.join(
             os.path.dirname(__file__), "snapshots",
             "foreground-proof-" + process_text + ".wire",
         )
-        first_path = request_path + ".shard-0"
-        second_path = request_path + ".shard-1"
-        third_path = request_path + ".shard-2"
         request = M.Pair(
             graph_version,
             M.Pair(goal, M.Pair(assumptions, M.EmptyList)),
         )
         with open(request_path, "wb") as request_stream:
             request_stream.write(W.serialize_term(request))
-        first_process = ProofLookupProcess(
-            "0", worker_count_text, request_path, first_path,
-        )
-        second_process = ProofLookupProcess(
-            "1", worker_count_text, request_path, second_path,
-        )
-        third_process = ProofLookupProcess(
-            "2", worker_count_text, request_path, third_path,
-        )
-        first_process.start()
-        second_process.start()
-        third_process.start()
-        print(
-            "DEBUG [foreground coordinator " + process_text
-            + "]: assigned equal graph shard 0 of 3 to process "
-            + str(first_process.pid),
-            flush=True,
-        )
-        print(
-            "DEBUG [foreground coordinator " + process_text
-            + "]: assigned equal graph shard 1 of 3 to process "
-            + str(second_process.pid),
-            flush=True,
-        )
-        print(
-            "DEBUG [foreground coordinator " + process_text
-            + "]: assigned equal graph shard 2 of 3 to process "
-            + str(third_process.pid),
-            flush=True,
-        )
-        first_process.join()
-        second_process.join()
-        third_process.join()
-        first_found = "0"
-        second_found = "0"
-        third_found = "0"
-        if os.path.exists(first_path):
-            with open(first_path, "r", encoding="utf-8") as result_stream:
-                first_found = result_stream.read().strip()
-        if os.path.exists(second_path):
-            with open(second_path, "r", encoding="utf-8") as result_stream:
-                second_found = result_stream.read().strip()
-        if os.path.exists(third_path):
-            with open(third_path, "r", encoding="utf-8") as result_stream:
-                third_found = result_stream.read().strip()
-        self.result = "none"
-        if first_found == "E":
-            self.result = "worker-failure"
-        elif second_found == "E":
-            self.result = "worker-failure"
-        elif third_found == "E":
-            self.result = "worker-failure"
-        elif first_found == "C":
-            self.result = "cubic"
-        elif second_found == "C":
-            self.result = "cubic"
-        elif third_found == "C":
-            self.result = "cubic"
-        elif first_found == "D":
-            self.result = "direct"
-        elif second_found == "D":
-            self.result = "direct"
-        elif third_found == "D":
-            self.result = "direct"
-        elif first_found == "H":
-            self.result = "chain"
-        elif second_found == "H":
-            self.result = "chain"
-        elif third_found == "H":
-            self.result = "chain"
+        plan = ProofLookupWorkPlan("0", worker_count_text, request_path)()
+        processes = SpawnProofLookupPlan(plan, request_path, process_text)()
+        JoinProofLookupProcesses(processes)()
+        self.result = ProofLookupPlanResult(plan)()
         if os.path.exists(request_path):
             os.remove(request_path)
-        if os.path.exists(first_path):
-            os.remove(first_path)
-        if os.path.exists(second_path):
-            os.remove(second_path)
-        if os.path.exists(third_path):
-            os.remove(third_path)
+        RemoveProofLookupPlanResults(plan)()
         super().__init__(
             inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)),
             results=M.Char(self.result),

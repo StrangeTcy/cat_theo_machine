@@ -8083,7 +8083,11 @@ def run_talk_mode(sentence: str = None):
             )() is M.false_value:
                 replay_hit = M.EmptyList
                 if os.environ.get("HYGE_LIVE_FOREGROUND", "") == "1":
-                    _thinking("partitioning the graph equally across three foreground proof workers")
+                    _thinking(
+                        "partitioning the graph equally across the configured "
+                        + os.environ.get("HYGE_FOREGROUND_WORKERS", "1")
+                        + " foreground proof workers"
+                    )
                     lookup_mode = ProofLookup.ParallelProofLookupMode(
                         learned_version, goal, scoped_assumptions,
                     )()
@@ -11597,7 +11601,12 @@ def run_live_mode(requested_workers):
     """
     import threading
 
+    daemon_worker_count = Dmn.daemon_worker_count(requested_workers)
+    live_worker_count = daemon_worker_count
+    if live_worker_count < 1:
+        live_worker_count = 1
     os.environ["HYGE_LIVE_FOREGROUND"] = "1"
+    os.environ["HYGE_FOREGROUND_WORKERS"] = str(live_worker_count)
 
     # PACKAGE_DIR is this package; its parent is the import root, which is
     # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
@@ -11658,7 +11667,10 @@ def run_live_mode(requested_workers):
     reader.start()
     print("live mode: the foreground process owns the terminal and runs each requested proof.")
     print("live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.")
-    print("live mode: daemon workers fan out autonomous cycles, not the foreground proof currently under the prompt.")
+    print(
+        "live mode: foreground proof lookup uses " + str(live_worker_count)
+        + " worker(s); daemon autonomy uses " + str(daemon_worker_count) + "."
+    )
     try:
         run_talk_mode()
     finally:
@@ -11752,7 +11764,7 @@ def main():
         "--workers",
         type=int,
         default=0,
-        help="daemon/live mode: worker processes per autonomous cycle (0 = autoscale its host-budget share)",
+        help="daemon/live mode: workers for both equal foreground proof shards and autonomous cycles (0 = autoscale the shared host budget)",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
