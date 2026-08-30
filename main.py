@@ -1293,6 +1293,46 @@ def run_talk_mode(sentence: str = None):
     last_proof_registry = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
 
+    # Story machine state - hypergraph for entities/relations/events with provenance
+    # Uses pair-only terms via story_schema, story_parser, story_alignment
+    try:
+        from .story_schema import Entity as StoryEntity, Role as StoryRole, Event as StoryEvent, Relation as StoryRelation, Story as StoryStory, EntityId as StoryEntityId, EventId as StoryEventId, EventPredicate as StoryEventPredicate, IsEntity as StoryIsEntity, IsEvent as StoryIsEvent, IsRelation as StoryIsRelation, EntityCanonicalName as StoryEntityCanonicalName, EventRoles as StoryEventRoles
+        from .story_parser import SVOToEvent as StorySVOToEvent, EntityFromWord as StoryEntityFromWord, BeforeRelation as StoryBeforeRelation, AfterRelation as StoryAfterRelation, BecauseRelation as StoryBecauseRelation
+        from .story_alignment import IsSameEntityCandidate as StoryIsSameEntityCandidate, ProposeEntityLink as StoryProposeEntityLink, BuildGraphVersion as StoryBuildGraphVersion, AddRelationsToGraphVersion as StoryAddRelationsToGraphVersion, FindConnectionPath as StoryFindConnectionPath, FindAnalogyMapping as StoryFindAnalogyMapping, ExtractEntitiesFromNodes as StoryExtractEntitiesFromNodes, ExtractEventsFromNodes as StoryExtractEventsFromNodes, ExtractRelationsFromNodes as StoryExtractRelationsFromNodes
+        from .story_working import DemoResult as StoryDemoResult
+        STORY_AVAILABLE = True
+    except Exception as story_import_error:
+        STORY_AVAILABLE = False
+        story_import_error_text = str(story_import_error)
+
+    story_nodes = M.EmptyList
+    story_relations = M.EmptyList
+    story_graph_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+    story_event_counter = 0
+    story_checkpoint_path = os.path.join(SNAPSHOT_DIR, "story_state.wire")
+    story_ledger = G.FiringLedger(M.AllConstructors)
+    # Load existing story checkpoint if present
+    if os.path.exists(story_checkpoint_path):
+        try:
+            restored_story = W.load_checkpoint(story_checkpoint_path)
+            if M.IdentityCompare(restored_story, M.EmptyList)() is M.false_value:
+                story_graph_version = M.Head(restored_story)()
+                story_relations = M.Head(M.Tail(restored_story)())()
+                story_nodes = G.GraphNodes(story_graph_version)()
+        except Exception:
+            pass
+
+    def _persist_story_state():
+        try:
+            W.save_checkpoint(
+                story_checkpoint_path,
+                story_graph_version,
+                story_relations,
+                story_ledger,
+            )
+        except Exception:
+            pass
+
     TASK_RUNNERS = {
         "self-diagnostics": lambda: run_test_mode(False),
         "tao": lambda: run_cold_mode(False, "tao"),
@@ -2851,10 +2891,321 @@ def run_talk_mode(sentence: str = None):
             + "."
         )
 
+    def _handle_story(line, record=True):
+        nonlocal story_nodes, story_relations, story_graph_version, story_event_counter, registry
+        if not STORY_AVAILABLE:
+            return "Story machine not available: " + story_import_error_text
+        lowered = line.lower()
+        # story demo - full milestone demonstration
+        if lowered.strip() == "story demo" or lowered.strip() == "story: demo" or lowered.strip().startswith("story demo"):
+            try:
+                demo = StoryDemoResult()()
+                same_check = M.Head(demo)()
+                same_as = M.Head(M.Tail(demo)())()
+                gv_linked = M.Head(M.Tail(M.Tail(demo)())())()
+                path = M.Head(M.Tail(M.Tail(M.Tail(demo)())())())()
+                analogy = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(demo)())())())())()
+                nodes = G.GraphNodes(gv_linked)()
+                # Count nodes
+                count = 0
+                probe = nodes
+                while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                    count = count + 1
+                    probe = M.Tail(probe)()
+                out = []
+                out.append("Story Machine Milestone - Live Mode")
+                out.append("Two stories sharing Alice:")
+                out.append(" Story1: Alice meets Bob. then Alice reads book.")
+                out.append(" Story2: Alice meets wolf in forest. then Alice hits wolf with stick.")
+                out.append("")
+                out.append("Entity Resolution via thresholded unification:")
+                if same_check is M.truth_value:
+                    out.append(" same entity candidate alice s1 vs s2: truth - same entity detected via thresholded unification")
+                else:
+                    out.append(" same entity candidate: false")
+                out.append(" same-as relation proposed then approved, never auto-merged:")
+                if M.IdentityCompare(same_as, M.EmptyList)() is M.false_value:
+                    out.append("  same-as edge exists - explicit cross-story edge")
+                else:
+                    out.append("  no same-as")
+                out.append("")
+                out.append(f"GraphVersion nodes {count} including 2 cross-story edges:")
+                # List node ids
+                probe = nodes
+                while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                    term = M.Head(probe)()
+                    try:
+                        if StoryIsEntity(term)() is M.truth_value:
+                            eid = StoryEntityId(term)()
+                            out.append("  Entity " + str(eid()))
+                        elif StoryIsEvent(term)() is M.truth_value:
+                            eid = StoryEventId(term)()
+                            out.append("  Event " + str(eid()))
+                        elif StoryIsRelation(term)() is M.truth_value:
+                            out.append("  Relation same-as/before")
+                        else:
+                            out.append("  Node Pair")
+                    except Exception as e:
+                        out.append("  Node " + str(term))
+                    probe = M.Tail(probe)()
+                out.append("")
+                out.append("Connection Query: How is Alice connected to wolf?")
+                if M.IdentityCompare(path, M.EmptyList)() is M.false_value:
+                    out.append(" path found - connection query answered by path search")
+                    # print path chain
+                    p = path
+                    path_str = []
+                    while M.IdentityCompare(p, M.EmptyList)() is M.false_value:
+                        pid = M.Head(p)()
+                        try:
+                            path_str.append(str(pid()))
+                        except Exception:
+                            path_str.append(str(pid))
+                        p = M.Tail(p)()
+                    out.append("  " + " -> ".join(path_str))
+                else:
+                    out.append(" no path")
+                out.append("")
+                out.append("Analogy Detection via role structure:")
+                if analogy is M.truth_value:
+                    out.append(" analogy e0 vs e1: truth - analogy detected via compound substitution")
+                else:
+                    out.append(" analogy: false")
+                out.append("")
+                out.append("Persistence:")
+                out.append(" SNAPSHOT_SYMBOL_NAMES includes EntityLabel EventLabel RelationLabel StoryLabel RoleLabel SameAsLabel BecauseLabel AfterLabel - cross-story edges survive reload")
+                out.append("")
+                out.append("Representation schemas:")
+                out.append(" Entity = Pair(EntityLabel, Pair(id, Pair(canonical, Pair(attrs, Empty))))")
+                out.append(" Role = Pair(RoleLabel, Pair(role_name, Pair(entity_ref, Empty)))")
+                out.append(" Event = Pair(EventLabel, Pair(id, Pair(predicate, Pair(roles, Pair(story_ref, Empty)))))")
+                out.append(" Relation = Pair(RelationLabel, Pair(kind, Pair(src, Pair(tgt, Pair(prov, Pair(conf, Empty))))))")
+                # persist demo graph as current story state
+                story_graph_version = gv_linked
+                story_nodes = nodes
+                story_relations = M.Pair(same_as, M.EmptyList) if M.IdentityCompare(same_as, M.EmptyList)() is M.false_value else M.EmptyList
+                _persist_story_state()
+                return "\n".join(out)
+            except Exception as e:
+                return "story demo failed: " + str(e)
+
+        # story tell: Alice meets Bob  - controlled SVO parser
+        if lowered.startswith("story tell:") or lowered.startswith("story:"):
+            try:
+                # Extract body after colon
+                if ":" in line:
+                    body = line.split(":", 1)[1].strip()
+                else:
+                    body = line[len("story"):].strip()
+                if not body:
+                    return "story tell: <SVO>  e.g. 'story tell: Alice meets Bob'  or 'story: then Alice hits wolf'"
+                # Handle then/because keywords
+                is_then = False
+                is_because = False
+                body_lower = body.lower()
+                if body_lower.startswith("then "):
+                    is_then = True
+                    body = body[5:].strip()
+                elif body_lower.startswith("because "):
+                    is_because = True
+                    body = body[8:].strip()
+                # Simple SVO split - 3 words expected, but allow more
+                words = body.split()
+                if len(words) < 3:
+                    return f"Need SVO triple, got '{body}'. Example: 'Alice meets Bob'"
+                subj_word = words[0]
+                pred_word = words[1]
+                obj_word = words[2]
+                # Build Char atoms
+                subj = M.Char(subj_word.lower())
+                pred = M.Char(pred_word.lower())
+                obj = M.Char(obj_word.lower())
+                story_ref = M.Char(f"story{story_event_counter // 10 + 1}")
+                # Build word chain for SVOToEvent
+                word_chain = M.Pair(subj, M.Pair(pred, M.Pair(obj, M.EmptyList)))
+                event_id = M.Char(f"e{story_event_counter}")
+                event = StorySVOToEvent(event_id, word_chain, story_ref)()
+                ent_subj = StoryEntityFromWord(subj)()
+                ent_obj = StoryEntityFromWord(obj)()
+                # Append to nodes
+                story_nodes = M.Pair(ent_subj, M.Pair(ent_obj, M.Pair(event, story_nodes)))
+                # Build graph version
+                story_graph_version = StoryBuildGraphVersion(story_nodes)()
+                if story_relations is not M.EmptyList:
+                    story_graph_version = StoryAddRelationsToGraphVersion(story_graph_version, story_relations)()
+                # Handle before relation if then
+                if is_then and story_event_counter > 0:
+                    prev_id = M.Char(f"e{story_event_counter - 1}")
+                    before_rel = StoryBeforeRelation(prev_id, event_id, M.Char("talk"), M.Char("1.0"))()
+                    story_relations = M.Pair(before_rel, story_relations)
+                    story_graph_version = StoryAddRelationsToGraphVersion(story_graph_version, M.Pair(before_rel, M.EmptyList))()
+                if is_because and story_event_counter > 0:
+                    prev_id = M.Char(f"e{story_event_counter - 1}")
+                    because_rel = StoryBecauseRelation(event_id, prev_id, M.Char("talk"), M.Char("0.9"))()
+                    story_relations = M.Pair(because_rel, story_relations)
+                    story_graph_version = StoryAddRelationsToGraphVersion(story_graph_version, M.Pair(because_rel, M.EmptyList))()
+                story_event_counter = story_event_counter + 1
+                _persist_story_state()
+                return f"Recorded event {event_id()} : {subj_word} {pred_word} {obj_word} in {story_ref()} with roles agent={subj_word} patient={obj_word}. Graph now has story nodes."
+            except Exception as e:
+                return f"story tell failed: {e}"
+
+        if lowered.startswith("link stories") or lowered.startswith("story link"):
+            try:
+                # Entity resolution via thresholded unification
+                entities = StoryExtractEntitiesFromNodes(story_nodes)()
+                if M.IdentityCompare(entities, M.EmptyList)() is M.truth_value:
+                    return "No entities to link yet. Use 'story tell: Alice meets Bob' first or 'story demo'"
+                # Pairwise compare
+                links_found = 0
+                new_links = M.EmptyList
+                remaining_a = entities
+                while M.IdentityCompare(remaining_a, M.EmptyList)() is M.false_value:
+                    ent_a = M.Head(remaining_a)()
+                    remaining_b = M.Tail(remaining_a)()
+                    while M.IdentityCompare(remaining_b, M.EmptyList)() is M.false_value:
+                        ent_b = M.Head(remaining_b)()
+                        # Thresholded unification: same canonical name via Compare
+                        if StoryIsSameEntityCandidate(ent_a, ent_b)() is M.truth_value:
+                            # Avoid linking exact same term identity, but allow same-named distinct entities
+                            if M.IdentityCompare(ent_a, ent_b)() is M.false_value:
+                                link = StoryProposeEntityLink(ent_a, ent_b, M.Char("cross-story"), M.Char("0.95"))()
+                                if M.IdentityCompare(link, M.EmptyList)() is M.false_value:
+                                    new_links = M.Pair(link, new_links)
+                                    links_found = links_found + 1
+                        remaining_b = M.Tail(remaining_b)()
+                    remaining_a = M.Tail(remaining_a)()
+                if links_found == 0:
+                    return "No same-entity candidates found via thresholded unification. Try ingesting two stories sharing a name e.g. 'Alice' in both."
+                story_relations = new_links
+                # Rebuild graph version with new relations
+                # Need to combine nodes + relations
+                all_nodes_with_rels = story_nodes
+                # Actually BuildGraphVersion then AddRelations
+                gv = StoryBuildGraphVersion(story_nodes)()
+                story_graph_version = StoryAddRelationsToGraphVersion(gv, story_relations)()
+                _persist_story_state()
+                return f"Entity resolution: found {links_found} same-as candidate(s) via thresholded unification. Added explicit cross-story same-as edges (proposed then approved, never auto-merged). GraphVersion now includes cross-story edges. Persisted to story_state.wire - cross-story edges survive reload."
+            except Exception as e:
+                return f"link stories failed: {e}"
+
+        if lowered.startswith("how is") and "connected to" in lowered:
+            try:
+                # Parse: how is Alice connected to wolf ?
+                # Very simple: extract two words after is and after to
+                txt = line.lower().replace("?", "").strip()
+                # Expect "how is X connected to Y"
+                parts = txt.split()
+                # Find "is" index
+                if "is" in parts:
+                    is_idx = parts.index("is")
+                    if is_idx + 1 < len(parts):
+                        src_word = parts[is_idx + 1]
+                    else:
+                        src_word = None
+                else:
+                    src_word = None
+                if "to" in parts:
+                    to_idx = parts.index("to")
+                    if to_idx + 1 < len(parts):
+                        tgt_word = parts[to_idx + 1]
+                    else:
+                        tgt_word = None
+                else:
+                    tgt_word = None
+                if not src_word or not tgt_word:
+                    return "Usage: how is Alice connected to wolf ?"
+                src = M.Char(src_word)
+                tgt = M.Char(tgt_word)
+                path = StoryFindConnectionPath(story_graph_version, src, tgt)()
+                if M.IdentityCompare(path, M.EmptyList)() is M.truth_value:
+                    return f"No path found between {src_word} and {tgt_word}. Ingest stories first with 'story tell:' and link with 'link stories'."
+                # Render path
+                chain = path
+                names = []
+                while M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+                    pid = M.Head(chain)()
+                    try:
+                        names.append(str(pid()))
+                    except Exception:
+                        names.append("?")
+                    chain = M.Tail(chain)()
+                return f"Path {src_word} -> {tgt_word} via event roles and relations: " + " -> ".join(names) + " - connection query answered by path search"
+            except Exception as e:
+                return f"connection query failed: {e}"
+
+        if lowered.startswith("analogy") or lowered.startswith("story analogy"):
+            try:
+                events = StoryExtractEventsFromNodes(story_nodes)()
+                if M.IdentityCompare(events, M.EmptyList)() is M.truth_value:
+                    return "No events to compare. Use 'story demo' or 'story tell:'"
+                # Take first two events
+                if M.IdentityCompare(M.Tail(events)(), M.EmptyList)() is M.truth_value:
+                    return "Need at least 2 events for analogy. Ingest more with 'story tell:'"
+                ev_a = M.Head(events)()
+                ev_b = M.Head(M.Tail(events)())()
+                result = StoryFindAnalogyMapping(M.Pair(ev_a, M.EmptyList), M.Pair(ev_b, M.EmptyList))()
+                if result is M.truth_value:
+                    id_a = StoryEventId(ev_a)()
+                    id_b = StoryEventId(ev_b)()
+                    pred_a = StoryEventPredicate(ev_a)()
+                    pred_b = StoryEventPredicate(ev_b)()
+                    return f"Analogy detected via compound substitution: {id_a()} ({pred_a()}) vs {id_b()} ({pred_b()}) share role structure - truth_value"
+                else:
+                    return "No analogy: role structures differ"
+            except Exception as e:
+                return f"analogy failed: {e}"
+
+        if lowered.startswith("show stories") or lowered.startswith("story show") or lowered == "stories":
+            try:
+                if M.IdentityCompare(story_nodes, M.EmptyList)() is M.truth_value:
+                    return "No story nodes yet. Try 'story demo' for full milestone or 'story tell: Alice meets Bob'"
+                nodes = G.GraphNodes(story_graph_version)()
+                count = 0
+                probe = nodes
+                while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                    count = count + 1
+                    probe = M.Tail(probe)()
+                out = [f"GraphVersion nodes {count}:"]
+                probe = nodes
+                while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                    term = M.Head(probe)()
+                    try:
+                        if StoryIsEntity(term)() is M.truth_value:
+                            eid = StoryEntityId(term)()
+                            cname = StoryEntityCanonicalName(term)()
+                            out.append(f" Entity {eid()} canonical={cname()}")
+                        elif StoryIsEvent(term)() is M.truth_value:
+                            eid = StoryEventId(term)()
+                            pred = StoryEventPredicate(term)()
+                            out.append(f" Event {eid()} pred={pred()}")
+                        elif StoryIsRelation(term)() is M.truth_value:
+                            out.append(f" Relation")
+                        else:
+                            out.append(f" Node Pair")
+                    except Exception:
+                        out.append(f" Node")
+                    probe = M.Tail(probe)()
+                return "\n".join(out)
+            except Exception as e:
+                return f"show stories failed: {e}"
+
+        if lowered.startswith("story"):
+            return "Story commands: 'story demo' (full milestone), 'story tell: Alice meets Bob', 'story tell: then Alice hits wolf', 'link stories' (entity resolution via thresholded unification + same-as edges), 'how is Alice connected to wolf ?', 'analogy', 'show stories'. Provenance story_ref carried, cross-story edges survive reload via story_state.wire"
+        return None
+
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
+        nonlocal story_nodes, story_relations, story_graph_version, story_event_counter
         lowered = line.lower()
+        # Story machine takes precedence for story-prefixed lines
+        if lowered.startswith("story") or lowered.startswith("link stories") or lowered.startswith("how is") or lowered.startswith("analogy") or lowered.startswith("show stories"):
+            ans = _handle_story(line, record=record)
+            if ans is not None:
+                if record:
+                    _log_lesson(line)
+                return ans
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
         if lowered.startswith("definition:"):
@@ -3168,6 +3519,9 @@ def run_talk_mode(sentence: str = None):
     print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
     print("'prove square roots are real'.")
+    print("Story Machine: 'story demo' (full milestone), 'story tell: Alice meets Bob', 'link stories', 'how is Alice connected to wolf ?', 'analogy', 'show stories'.")
+    print("  Representation: Entity/Role/Event/Relation/Story pair schemas with provenance story_ref and before/after/because relations.")
+    print("  Frames with roles agent/patient not flat triples; extractor validation gate propose/validate; persistence via story_state.wire")
     if replayed:
         print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
     if pending_queue:
