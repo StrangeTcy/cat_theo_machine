@@ -1365,6 +1365,7 @@ def run_talk_mode(sentence: str = None):
     last_outcome = M.EmptyList
     last_derivation = M.EmptyList
     last_goal = M.EmptyList
+    last_proof_request = M.EmptyList
     last_proof_registry = M.EmptyList
     lesson_path = os.path.join(SNAPSHOT_DIR, "talk_lessons.log")
 
@@ -5649,6 +5650,7 @@ def run_talk_mode(sentence: str = None):
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
+        nonlocal last_proof_request
         nonlocal pending_rule, learned_version, proposal_store, talk_ledger
         nonlocal pending_gaps
         nonlocal pending_process
@@ -5660,22 +5662,50 @@ def run_talk_mode(sentence: str = None):
         lowered = line.lower()
         if StoryTalk.StoryCommandRecognized(line)() is M.truth_value:
             return StoryTalk.StoryTalkResponse(line)()
+        if lowered.startswith("now prove what i asked"):
+            if M.IdentityCompare(last_proof_request, M.EmptyList)() is M.truth_value:
+                return "I do not have an earlier proof request in this conversation."
+            claim = last_proof_request()
+            _thinking("resolved 'what I asked' to the most recent formal proof goal")
+            return _respond("query: " + claim, record=record)
+        if lowered.startswith("prove what i asked"):
+            if M.IdentityCompare(last_proof_request, M.EmptyList)() is M.truth_value:
+                return "I do not have an earlier proof request in this conversation."
+            claim = last_proof_request()
+            _thinking("resolved 'what I asked' to the most recent formal proof goal")
+            return _respond("query: " + claim, record=record)
+        if lowered.strip() == "prove it" or lowered.strip() == "now prove it":
+            if M.IdentityCompare(last_proof_request, M.EmptyList)() is M.truth_value:
+                return "I do not have an earlier proof request in this conversation."
+            claim = last_proof_request()
+            _thinking("resolved 'it' to the most recent formal proof goal")
+            return _respond("query: " + claim, record=record)
+        if lowered.strip() == "try the proof again":
+            if M.IdentityCompare(last_proof_request, M.EmptyList)() is M.truth_value:
+                return "I do not have an earlier proof request in this conversation."
+            claim = last_proof_request()
+            _thinking("reusing the most recent formal proof goal")
+            return _respond("query: " + claim, record=record)
         if lowered.startswith("prove that "):
             claim = line[11:].strip()
+            last_proof_request = M.Char(claim)
             _thinking("understood a natural proof request; routing its claim into the prover")
             return _respond("query: " + claim, record=record)
         if lowered.startswith("prove "):
             claim = line[6:].strip()
+            last_proof_request = M.Char(claim)
             _thinking("understood a natural proof request; routing its claim into the prover")
             return _respond("query: " + claim, record=record)
         if lowered.startswith("can you prove that "):
             claim = line[19:].strip()
+            last_proof_request = M.Char(claim)
             _thinking("understood a conversational proof request; routing its claim into the prover")
             return _respond("query: " + claim, record=record)
         if lowered.startswith("is it true that "):
             claim = line[16:].strip()
             if claim.endswith("?"):
                 claim = claim[:-1].strip()
+            last_proof_request = M.Char(claim)
             _thinking("understood a truth question; asking the prover to establish its formal claim")
             return _respond("query: " + claim, record=record)
         if lowered.startswith("suggest a lemma"):
@@ -6855,6 +6885,7 @@ def run_talk_mode(sentence: str = None):
             return "\n".join(explain_lines)
         if lowered.startswith("query:"):
             parity_query_text = line[6:].strip()
+            last_proof_request = M.Char(parity_query_text)
             folded_parity_query = parity_query_text.lower()
             if folded_parity_query.startswith("gcd(") and folded_parity_query.endswith(")"):
                 comma = parity_query_text.find(",")
