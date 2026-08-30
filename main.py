@@ -1281,6 +1281,7 @@ def run_talk_mode(sentence: str = None):
     examples = M.EmptyList
     proposal_store = G.ProposalStore(M.EmptyList)()
     learned_version = G.GraphVersion(M.EmptyList, M.EmptyList, M.EmptyList)()
+    scoped_assumptions = M.EmptyList
     # Talk state is checkpoint-backed so that a cycling process and this
     # conversation share one version rather than two disjoint ones. The
     # daemon is the only writer of activations; talk submits and reads.
@@ -5587,7 +5588,23 @@ def run_talk_mode(sentence: str = None):
         nonlocal pending_gaps
         nonlocal pending_process
         nonlocal pending_unknown_words, pending_unknown_word
+        nonlocal scoped_assumptions
         lowered = line.lower()
+        if lowered.strip() == "clear assumptions":
+            scoped_assumptions = M.EmptyList
+            return "Cleared the session-scoped assumptions."
+        if lowered.startswith("assume:"):
+            assumption = G.ParsePolynomialInequalityText(
+                line[7:].strip(), reading_digits,
+            )()
+            if M.IdentityCompare(assumption, M.EmptyList)() is M.truth_value:
+                return "I could not parse that scoped assumption."
+            scoped_assumptions = M.Pair(assumption, scoped_assumptions)
+            return (
+                "Scoped assumption: "
+                + M.PrettyTerm(assumption, registry)()
+                + "."
+            )
         # A bare line at the prompt answers the problem question that
         # stands: the numbers, the pairs a move touches, or the step.
         problem_answer = _try_problem_answer(line, record=record)
@@ -6419,6 +6436,7 @@ def run_talk_mode(sentence: str = None):
                     + " is already recorded as a case-elimination conclusion."
                 )
             facts = G.InstalledTaughtFacts(learned_version)()
+            facts = P.Append(scoped_assumptions, facts)()
             schema_hit = G.LookupTaughtDerivationSchema(
                 learned_version,
                 P.Knowledge(facts)(),
