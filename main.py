@@ -1959,7 +1959,7 @@ def run_talk_mode(sentence: str = None):
 
     def _thinking(text):
         if debug_enabled:
-            print("DEBUG: thinking: " + text, flush=True)
+            print("DEBUG [foreground prover]: " + text, flush=True)
 
     def _count_chain(chain):
         count = 0
@@ -8049,10 +8049,20 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(
                 polynomial_goal, M.EmptyList,
             )() is M.false_value:
-                _thinking("forward rules did not close the goal; checking replayable invented lemmas")
-                replay_hit = Min.ReplaySavedInventedLemma(
-                    learned_version, goal, registry, scoped_assumptions,
+                _thinking("forward rules did not close the goal; checking saved cubic lemmas")
+                replay_hit = Min.ReplayInstalledCubicLemma(
+                    learned_version, goal, scoped_assumptions, registry,
                 )()
+                if M.IdentityCompare(replay_hit, M.EmptyList)() is M.truth_value:
+                    _thinking("no cubic lemma matched; checking direct invented-lemma rewrites")
+                    replay_hit = Min.ReplayInventedLemma(
+                        learned_version, goal, registry,
+                    )()
+                if M.IdentityCompare(replay_hit, M.EmptyList)() is M.truth_value:
+                    _thinking("no direct rewrite matched; checking composable lemma chains")
+                    replay_hit = Min.ReplayInventedLemmaChain(
+                        learned_version, goal, registry,
+                    )()
                 if M.IdentityCompare(replay_hit, M.EmptyList)() is M.false_value:
                     _thinking("found a fitting invented lemma; replaying its certificate and obligations")
                     replay = M.Head(replay_hit)()
@@ -11574,8 +11584,9 @@ def run_live_mode(requested_workers):
 
     reader = threading.Thread(target=drain, daemon=True)
     reader.start()
-    print("live mode: the machine is cycling while you talk. "
-          "Its work appears as [machine] lines.")
+    print("live mode: the foreground process owns the terminal and runs each requested proof.")
+    print("live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.")
+    print("live mode: daemon workers fan out autonomous cycles, not the foreground proof currently under the prompt.")
     try:
         run_talk_mode()
     finally:
@@ -11669,7 +11680,7 @@ def main():
         "--workers",
         type=int,
         default=0,
-        help="daemon mode: worker processes per cycle (0 = single process)",
+        help="daemon/live mode: worker processes per autonomous cycle (0 = autoscale its host-budget share)",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
