@@ -196,6 +196,34 @@ class GMPQuadraticPSDText(Edge, GMPHostMath):
         return self.result
 
 
+class GMPFloorQuotientText(Edge, GMPHostMath):
+    def __init__(self, dividend, divisor):
+        divisor_value = self._mpz_value(divisor)
+        dividend_value = self._mpz_value(dividend)
+        self.result = str(dividend_value // divisor_value)
+        super().__init__(
+            inputs=Pair(dividend, Pair(divisor, EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GMPModuloText(Edge, GMPHostMath):
+    def __init__(self, dividend, divisor):
+        divisor_value = self._mpz_value(divisor)
+        dividend_value = self._mpz_value(dividend)
+        self.result = str(dividend_value % divisor_value)
+        super().__init__(
+            inputs=Pair(dividend, Pair(divisor, EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class GMPExactQuotientText(Edge, GMPHostMath):
     def __init__(self, dividend, divisor):
         divisor_value = self._mpz_value(divisor)
@@ -287,6 +315,8 @@ __all__ = [
     "GMPAbsText",
     "GMPIsNegativeText",
     "GMPQuadraticPSDText",
+    "GMPFloorQuotientText",
+    "GMPModuloText",
     "GMPExactQuotientText",
     "GMPRepDigitList",
 ]

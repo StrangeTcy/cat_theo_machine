@@ -18,6 +18,7 @@ from . import matching as Xmod
 from . import mining as Minmod
 from . import parity as Parmod
 from . import residue as Resmod
+from . import modular as Modmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -5367,6 +5368,266 @@ class CubicNestedReuseTest(M.Edge):
                         M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
                     )(),
                 )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedResidueGeneratorTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus_five = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        modulus_four = Gmod.ParsePolynomialExpressionText("4", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        split_five = Modmod.BuildBoundedResidueCaseSplit(
+            modulus_five, variable, registry,
+        )()
+        split_four = Modmod.BuildBoundedResidueCaseSplit(
+            modulus_four, variable, registry,
+        )()
+        branches = M.Head(M.Tail(M.Tail(M.Tail(split_five)())())())()
+        count = Minmod.MachineChainCardinalityText(branches)()
+        self.result = M.AndAtom(
+            M.NotAtom(M.IdentityCompare(split_five, M.EmptyList)())(),
+            M.AndAtom(
+                M.Compare(M.Char(count), M.Char("5"))(),
+                M.IdentityCompare(split_four, M.EmptyList)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedResidueReplayTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Modmod.FindBoundedResidueLemma(
+            Gmod.GraphNodes(loaded)(), modulus, registry,
+        )()
+        renamed = Gmod.ParsePolynomialExpressionText("a", digit_words)()
+        premise = Modmod.WitnessedDivides(
+            modulus,
+            Modmod.SquareExpression(renamed)(),
+            Modmod.SquareExpression(
+                Modmod.ModulusWitnessVariable(modulus, renamed)(),
+            )(),
+        )()
+        replay = Modmod.ReplayBoundedResidueLemma(
+            loaded_lemma, modulus, renamed, premise, registry,
+        )()
+        replay_ok = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        structural = M.Head(
+            M.Tail(Gmod.InventedLemmaCertificate(loaded_lemma)())(),
+        )()
+        branches = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+        incomplete_structural = M.Pair(
+            M.Char("bounded-residue-case-split"),
+            M.Pair(
+                modulus,
+                M.Pair(
+                    variable,
+                    M.Pair(
+                        M.Tail(branches)(),
+                        M.Pair(
+                            M.Pair(
+                                M.Char("domain-axiom"),
+                                M.Pair(M.Char("finite-residue-exhaustiveness"), M.EmptyList),
+                            ),
+                            M.Pair(M.Char("proved"), M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        incomplete_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                incomplete_structural,
+                M.Pair(M.Char("bounded-modulus-residue-split"), M.Pair(M.Char("proved"), M.EmptyList)),
+            ),
+        )
+        incomplete = Gmod.InventedLemma(
+            Modmod.BoundedResidueImplicationGoal(modulus, variable)(),
+            Modmod.BoundedResidueImplicationGoal(modulus, variable)(),
+            M.EmptyList,
+            M.Char("verified-bounded-residue-case-split"),
+            M.Zero,
+            incomplete_certificate,
+        )()
+        incomplete_replay = Modmod.ReplayBoundedResidueLemma(
+            incomplete, modulus, variable, premise, registry,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.IdentityCompare(incomplete_replay, M.EmptyList)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoupledBoundedResidueNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 5*y^2", digit_words,
+        )()
+        proof = Modmod.CoupledBoundedResidueProof(
+            modulus, equation, case_lemma, registry,
+        )()
+        first = M.Head(M.Tail(M.Tail(proof)())())()
+        second = M.Head(M.Tail(M.Tail(M.Tail(proof)())())())()
+        nested = M.AndAtom(
+            M.Compare(M.Head(first)(), M.Char("invented-lemma-replay-derivation"))(),
+            M.Compare(M.Head(second)(), M.Char("invented-lemma-replay-derivation"))(),
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(case_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first, case_lemma, registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(M.Head(Gmod.GraphNodes(credited)())())(),
+            M.one,
+            registry,
+        )()
+        self.result = M.AndAtom(nested, utility_once)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedModulusInfiniteDescentTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText("x^2=5*y^2", digit_words)()
+        coupled_proof = Modmod.CoupledBoundedResidueProof(
+            modulus, equation, case_lemma, registry,
+        )()
+        coupled_lemma = Modmod.CoupledBoundedResidueLemma(
+            modulus, equation, case_lemma, coupled_proof,
+        )()
+        descent_map = Modmod.GenBoundedModulusDescentMap(
+            modulus, equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Modmod.BoundedModulusDescentLemma(
+            modulus, equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(
+                descent_lemma,
+                M.Pair(coupled_lemma, M.Pair(case_lemma, M.EmptyList)),
+            ),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialEquationText("a^2=5*b^2", digit_words)()
+        replay = Modmod.ReplayBoundedModulusDescentLemma(
+            Modmod.FindBoundedModulusDescentLemma(
+                Gmod.GraphNodes(loaded)(), modulus, registry,
+            )(),
+            modulus,
+            renamed,
+            Gmod.GraphNodes(loaded)(),
+            M.truth_value,
+            registry,
+        )()
+        replay_ok = M.Compare(
+            M.Head(replay)(), M.Char("invented-lemma-replay-derivation"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(loaded)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(replay_ok, no_schema)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedModulusDescentNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText("x^2=5*y^2", digit_words)()
+        coupled_proof = Modmod.CoupledBoundedResidueProof(
+            modulus, equation, case_lemma, registry,
+        )()
+        coupled_lemma = Modmod.CoupledBoundedResidueLemma(
+            modulus, equation, case_lemma, coupled_proof,
+        )()
+        false_equation = Gmod.ParsePolynomialEquationText("x^2=5*5*y^2", digit_words)()
+        false_map = Modmod.GenBoundedModulusDescentMap(
+            modulus, false_equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        no_positive = Modmod.GenBoundedModulusDescentMap(
+            modulus, equation, coupled_lemma, case_lemma,
+            M.false_value, registry,
+        )()
+        descent_map = Modmod.GenBoundedModulusDescentMap(
+            modulus, equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Modmod.BoundedModulusDescentLemma(
+            modulus, equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        missing = Modmod.ReplayBoundedModulusDescentLemma(
+            descent_lemma,
+            modulus,
+            equation,
+            M.Pair(descent_lemma, M.Pair(coupled_lemma, M.EmptyList)),
+            M.truth_value,
+            registry,
+        )()
+        missing_ok = M.Compare(
+            M.Head(M.Tail(missing)())(),
+            M.Char("missing-bounded-residue-dependency"),
+        )()
+        self.result = M.AndAtom(
+            M.IdentityCompare(false_map, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(no_positive, M.EmptyList)(),
+                missing_ok,
             )(),
         )()
         super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
@@ -17986,6 +18247,46 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_residue_generator_test",
+            empty,
+            BoundedResidueGeneratorTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_residue_replay_test",
+            empty,
+            BoundedResidueReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "coupled_bounded_residue_nested_reuse_test",
+            empty,
+            CoupledBoundedResidueNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_modulus_infinite_descent_test",
+            empty,
+            BoundedModulusInfiniteDescentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_modulus_descent_negative_control_test",
+            empty,
+            BoundedModulusDescentNegativeControlTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

@@ -41,6 +41,7 @@ else:
     from . import mining as Min
     from . import parity as Par
     from . import residue as Res
+    from . import modular as Mod
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -1289,6 +1290,7 @@ def run_talk_mode(sentence: str = None):
     scoped_integer_equations = M.EmptyList
     last_parity_stall = M.EmptyList
     last_residue_stall = M.EmptyList
+    last_modular_stall = M.EmptyList
     # Talk state is checkpoint-backed so that a cycling process and this
     # conversation share one version rather than two disjoint ones. The
     # daemon is the only writer of activations; talk submits and reads.
@@ -5290,6 +5292,11 @@ def run_talk_mode(sentence: str = None):
                         )() is M.truth_value:
                             return "Recorded the invented mod-3 descent with nested residue dependencies."
                         if M.Compare(
+                            M.Head(approved_certificate)(),
+                            M.Char("bounded-modulus-descent-certificate"),
+                        )() is M.truth_value:
+                            return "Recorded the modulus-parameterized descent with nested residue dependencies."
+                        if M.Compare(
                             M.Head(approved_certificate)(), M.Char("invention-evidence"),
                         )() is M.truth_value:
                             approved_structural = M.Head(M.Tail(approved_certificate)())()
@@ -5304,6 +5311,11 @@ def run_talk_mode(sentence: str = None):
                                     M.Char("mod-three-case-split"),
                                 )() is M.truth_value:
                                     return "Recorded the mod-3 lemma with all three residue branches in its replay certificate."
+                                if M.Compare(
+                                    M.Head(approved_structural)(),
+                                    M.Char("bounded-residue-case-split"),
+                                )() is M.truth_value:
+                                    return "Recorded the modulus-parameterized lemma with every residue branch in its replay certificate."
                         dependency_tail = M.Tail(
                             M.Tail(M.Tail(M.Tail(approved_certificate)())())(),
                         )()
@@ -5634,6 +5646,7 @@ def run_talk_mode(sentence: str = None):
         nonlocal scoped_assumptions, scoped_divisibility_assumptions
         nonlocal scoped_congruence_assumptions
         nonlocal scoped_integer_equations, last_parity_stall, last_residue_stall
+        nonlocal last_modular_stall
         lowered = line.lower()
         if lowered.strip() == "clear assumptions":
             scoped_assumptions = M.EmptyList
@@ -6020,6 +6033,68 @@ def run_talk_mode(sentence: str = None):
         if lowered.startswith("suggest lemmas"):
             if M.IdentityCompare(pending_rule, M.EmptyList)() is M.false_value:
                 return "Please approve or reject the pending proposal first."
+            if M.IdentityCompare(last_modular_stall, M.EmptyList)() is M.false_value:
+                modular_kind = M.Head(last_modular_stall)()
+                modular_invented = M.EmptyList
+                modular_response = ""
+                if M.Compare(
+                    modular_kind, M.Char("bounded-residue-case-stall"),
+                )() is M.truth_value:
+                    modulus = M.Head(M.Tail(last_modular_stall)())()
+                    variable = M.Head(M.Tail(M.Tail(last_modular_stall)())())()
+                    modular_invented = Mod.BoundedResidueCaseLemma(
+                        modulus, variable, registry,
+                    )()
+                    if M.IdentityCompare(modular_invented, M.EmptyList)() is M.truth_value:
+                        return "Residue invention refused: at least one nonzero branch has square remainder zero."
+                    modular_response = (
+                        "Generated every residue branch for modulus "
+                        + Mod.IntegerText(modulus)() + "; each nonzero branch has a "
+                        "normalization-verified nonzero square remainder."
+                    )
+                elif M.Compare(
+                    modular_kind, M.Char("bounded-modulus-descent-stall"),
+                )() is M.truth_value:
+                    modulus = M.Head(M.Tail(last_modular_stall)())()
+                    equation = M.Head(M.Tail(M.Tail(last_modular_stall)())())()
+                    positivity = M.Head(
+                        M.Tail(M.Tail(M.Tail(last_modular_stall)())())(),
+                    )()
+                    case_lemma = Mod.FindBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), modulus, registry,
+                    )()
+                    coupled_lemma = Mod.FindCoupledBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), modulus, registry,
+                    )()
+                    descent_map = Mod.GenBoundedModulusDescentMap(
+                        modulus, equation, coupled_lemma, case_lemma,
+                        positivity, registry,
+                    )()
+                    if M.IdentityCompare(case_lemma, M.EmptyList)() is M.truth_value:
+                        return "Cannot invent bounded-modulus descent: residue dependency missing."
+                    if M.IdentityCompare(coupled_lemma, M.EmptyList)() is M.truth_value:
+                        return "Cannot invent bounded-modulus descent: coupled dependency missing."
+                    if M.IdentityCompare(descent_map, M.EmptyList)() is M.truth_value:
+                        return "Bounded-modulus descent refused: reproduction or strict decrease failed."
+                    modular_invented = Mod.BoundedModulusDescentLemma(
+                        modulus, equation, descent_map, coupled_lemma, case_lemma,
+                    )()
+                    modular_response = (
+                        "Discovered a modulus-parameterized descent map from the stored "
+                        "witnesses and verified reproduction, positivity, and both strict decreases."
+                    )
+                if M.IdentityCompare(modular_invented, M.EmptyList)() is M.false_value:
+                    modular_proposal = G.Proposal(
+                        modular_invented, M.Char("bounded-modulus-invention"),
+                    )()
+                    proposal_store = G.ProposalStoreSubmit(
+                        proposal_store, modular_proposal,
+                    )()
+                    pending_rule = modular_proposal
+                    last_modular_stall = M.EmptyList
+                    _push_ask("rule", "Approve the bounded-modulus lemma? (yes/no)")
+                    _persist_talk_state()
+                    return modular_response + "\nApprove this candidate? Enter yes or no."
             if M.IdentityCompare(last_residue_stall, M.EmptyList)() is M.false_value:
                 residue_kind = M.Head(last_residue_stall)()
                 residue_invented = M.EmptyList
@@ -6736,6 +6811,90 @@ def run_talk_mode(sentence: str = None):
                 )() is M.truth_value:
                     return "yes; the congruence witness normalized a-b-m*w to zero."
                 return "no; the congruence witness failed normalization."
+            if folded_parity_query.startswith("divides(4,") or folded_parity_query.startswith("divides(5,"):
+                modular_implication = folded_parity_query.find(" implies ")
+                modular_conjunction = folded_parity_query.find(" and divides(")
+                modulus_comma = parity_query_text.find(",")
+                modulus = G.ParsePolynomialExpressionText(
+                    parity_query_text[8:modulus_comma].strip(), reading_digits,
+                )()
+                if modular_implication != -1:
+                    conclusion_text = parity_query_text[modular_implication + 9:].strip()
+                    comma = conclusion_text.find(",")
+                    variable_text = conclusion_text[comma + 1:-1].strip()
+                    variable = G.ParsePolynomialExpressionText(
+                        variable_text, reading_digits,
+                    )()
+                    case_lemma = Mod.FindBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), modulus, registry,
+                    )()
+                    if M.IdentityCompare(case_lemma, M.EmptyList)() is M.truth_value:
+                        last_modular_stall = M.Pair(
+                            M.Char("bounded-residue-case-stall"),
+                            M.Pair(modulus, M.Pair(variable, M.EmptyList)),
+                        )
+                        return (
+                            "no; this modulus needs a bounded exhaustive residue split. "
+                            "Type 'suggest lemmas' to generate all residue branches."
+                        )
+                    premise = Mod.WitnessedDivides(
+                        modulus, Mod.SquareExpression(variable)(),
+                        Mod.SquareExpression(Mod.ModulusWitnessVariable(modulus, variable)())(),
+                    )()
+                    replay = Mod.ReplayBoundedResidueLemma(
+                        case_lemma, modulus, variable, premise, registry,
+                    )()
+                    if M.IdentityCompare(replay, M.EmptyList)() is M.truth_value:
+                        return "no; the bounded residue certificate did not revalidate."
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, replay, case_lemma, registry,
+                    )()
+                    _persist_talk_state()
+                    return (
+                        "yes; replayed every residue class modulo "
+                        + Mod.IntegerText(modulus)()
+                        + " and closed each nonzero-square branch by its verified remainder."
+                    )
+                if modular_conjunction != -1:
+                    if M.IdentityCompare(scoped_integer_equations, M.EmptyList)() is M.truth_value:
+                        return "no; coupled residue propagation needs a scoped equation."
+                    equation = M.Head(scoped_integer_equations)()
+                    case_lemma = Mod.FindBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), modulus, registry,
+                    )()
+                    if M.IdentityCompare(case_lemma, M.EmptyList)() is M.truth_value:
+                        return "no; the bounded residue lemma is missing."
+                    coupled = Mod.CoupledBoundedResidueProof(
+                        modulus, equation, case_lemma, registry,
+                    )()
+                    if M.IdentityCompare(coupled, M.EmptyList)() is M.truth_value:
+                        return "no; coupled residue witness propagation did not normalize."
+                    first_nested = M.Head(M.Tail(M.Tail(coupled)())())()
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, first_nested, case_lemma, registry,
+                    )()
+                    refreshed = Mod.FindBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), modulus, registry,
+                    )()
+                    coupled_lemma = Mod.CoupledBoundedResidueLemma(
+                        modulus, equation, refreshed, coupled,
+                    )()
+                    if M.IdentityCompare(
+                        Mod.FindCoupledBoundedResidueLemma(
+                            G.GraphNodes(learned_version)(), modulus, registry,
+                        )(),
+                        M.EmptyList,
+                    )() is M.truth_value:
+                        learned_version = G.GraphVersion(
+                            M.Pair(coupled_lemma, G.GraphNodes(learned_version)()),
+                            G.GraphEdges(learned_version)(),
+                            G.GraphVersionInvariants(learned_version)(),
+                        )()
+                    _persist_talk_state()
+                    return (
+                        "yes; replayed the bounded-modulus square lemma twice, normalized "
+                        "the coupled witness equation, and credited the dependency once."
+                    )
             if folded_parity_query.startswith("divides(3,"):
                 residue_implication = folded_parity_query.find(" implies ")
                 residue_conjunction = folded_parity_query.find(" and divides(3,")
@@ -6918,6 +7077,86 @@ def run_talk_mode(sentence: str = None):
                 positivity = M.false_value
                 if folded_parity_query.startswith("no positive integers"):
                     positivity = M.truth_value
+                bounded_modulus = Mod.FindBoundedResidueModulusForEquation(
+                    G.GraphNodes(learned_version)(), equation, registry,
+                )()
+                if M.IdentityCompare(
+                    bounded_modulus, M.EmptyList,
+                )() is M.false_value:
+                    modular_descent = Mod.FindBoundedModulusDescentLemma(
+                        G.GraphNodes(learned_version)(), bounded_modulus, registry,
+                    )()
+                    if M.IdentityCompare(modular_descent, M.EmptyList)() is M.truth_value:
+                        last_modular_stall = M.Pair(
+                            M.Char("bounded-modulus-descent-stall"),
+                            M.Pair(
+                                bounded_modulus,
+                                M.Pair(equation, M.Pair(positivity, M.EmptyList)),
+                            ),
+                        )
+                        return (
+                            "no; no verified modulus-" + Mod.IntegerText(bounded_modulus)()
+                            + " descent is saved. Type 'suggest lemmas' to discover it "
+                            "from the bounded residue proof."
+                        )
+                    modular_replay = Mod.ReplayBoundedModulusDescentLemma(
+                        modular_descent, bounded_modulus, equation,
+                        G.GraphNodes(learned_version)(), positivity, registry,
+                    )()
+                    if M.Compare(
+                        M.Head(modular_replay)(),
+                        M.Char("bounded-modulus-descent-replay-failure"),
+                    )() is M.truth_value:
+                        return "Cannot replay bounded-modulus descent: " + str(
+                            M.Head(M.Tail(modular_replay)())()(),
+                        ) + "."
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, modular_replay, modular_descent, registry,
+                    )()
+                    case_dependency = Mod.FindBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), bounded_modulus, registry,
+                    )()
+                    coupled_dependency = Mod.FindCoupledBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), bounded_modulus, registry,
+                    )()
+                    coupled_proof = Mod.CoupledBoundedResidueProof(
+                        bounded_modulus, equation, case_dependency, registry,
+                    )()
+                    case_replay = M.Head(M.Tail(M.Tail(coupled_proof)())())()
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, case_replay, case_dependency, registry,
+                    )()
+                    coupled_dependency = Mod.FindCoupledBoundedResidueLemma(
+                        G.GraphNodes(learned_version)(), bounded_modulus, registry,
+                    )()
+                    coupled_credit = M.Pair(
+                        M.Char("invented-lemma-replay-derivation"),
+                        M.Pair(
+                            Mod.CoupledBoundedResidueGoal(bounded_modulus, equation)(),
+                            M.Pair(
+                                coupled_dependency,
+                                M.Pair(
+                                    coupled_proof,
+                                    M.Pair(
+                                        M.Char("nested-bounded-residue-replay"),
+                                        M.Pair(
+                                            M.Char("witness-normalization"),
+                                            M.Pair(M.Char("proved"), M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    )
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, coupled_credit, coupled_dependency, registry,
+                    )()
+                    _persist_talk_state()
+                    return (
+                        "yes; replayed the modulus-parameterized residue dependencies, "
+                        "reconstructed (x,y)->(y,u), verified strict decrease, and "
+                        "applied minimal-counterexample descent."
+                    )
                 residue_family = M.OrAtom(
                     Res.IsModThreeSquareEquation(equation, registry)(),
                     Res.IsModNineSquareEquation(equation, registry)(),
