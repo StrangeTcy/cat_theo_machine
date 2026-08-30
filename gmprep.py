@@ -148,6 +148,101 @@ class GMPMulText(Edge, GMPHostMath):
         return self.result
 
 
+class GMPAbsText(Edge, GMPHostMath):
+    def __init__(self, text):
+        value = self._mpz_value(text)
+        if value < self._zero_value():
+            value = -value
+        self.result = str(value)
+        super().__init__(inputs=Pair(text, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GMPIsNegativeText(Edge, GMPHostMath):
+    def __init__(self, text):
+        if self._mpz_value(text) < self._zero_value():
+            self.result = truth_value
+        else:
+            self.result = false_value
+        super().__init__(inputs=Pair(text, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GMPQuadraticPSDText(Edge, GMPHostMath):
+    """Decide a*x^2 + b*x*y + c*y^2 >= 0 over the reals."""
+
+    def __init__(self, a_text, b_text, c_text):
+        a = self._mpz_value(a_text)
+        b = self._mpz_value(b_text)
+        c = self._mpz_value(c_text)
+        if a < 0:
+            self.result = false_value
+        elif c < 0:
+            self.result = false_value
+        elif b * b <= 4 * a * c:
+            self.result = truth_value
+        else:
+            self.result = false_value
+        super().__init__(
+            inputs=Pair(a_text, Pair(b_text, Pair(c_text, EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GMPFloorQuotientText(Edge, GMPHostMath):
+    def __init__(self, dividend, divisor):
+        divisor_value = self._mpz_value(divisor)
+        dividend_value = self._mpz_value(dividend)
+        self.result = str(dividend_value // divisor_value)
+        super().__init__(
+            inputs=Pair(dividend, Pair(divisor, EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GMPModuloText(Edge, GMPHostMath):
+    def __init__(self, dividend, divisor):
+        divisor_value = self._mpz_value(divisor)
+        dividend_value = self._mpz_value(dividend)
+        self.result = str(dividend_value % divisor_value)
+        super().__init__(
+            inputs=Pair(dividend, Pair(divisor, EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class GMPExactQuotientText(Edge, GMPHostMath):
+    def __init__(self, dividend, divisor):
+        divisor_value = self._mpz_value(divisor)
+        dividend_value = self._mpz_value(dividend)
+        if divisor_value == self._zero_value():
+            self.result = ""
+        elif dividend_value % divisor_value != self._zero_value():
+            self.result = ""
+        else:
+            self.result = str(dividend_value // divisor_value)
+        super().__init__(
+            inputs=Pair(dividend, Pair(divisor, EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class GMPRepDigitList(Edge):
     def __init__(self, rep):
         self.result = self._digits(rep)
@@ -217,5 +312,11 @@ __all__ = [
     "GMPSubText",
     "GMPMulByDigitText",
     "GMPMulText",
+    "GMPAbsText",
+    "GMPIsNegativeText",
+    "GMPQuadraticPSDText",
+    "GMPFloorQuotientText",
+    "GMPModuloText",
+    "GMPExactQuotientText",
     "GMPRepDigitList",
 ]

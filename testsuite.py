@@ -15,6 +15,13 @@ from . import graph as Gmod
 from . import heuristics as Hmod
 from . import labels as Lmod
 from . import matching as Xmod
+from . import mining as Minmod
+from . import parity as Parmod
+from . import residue as Resmod
+from . import modular as Modmod
+from . import euclid as Eucmod
+from . import story_talk_adapter as StoryTalkmod
+from . import proof_lookup_worker as ProofLookupWorkermod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
 from . import rewrite_strategies as RSmod
@@ -2890,12 +2897,18 @@ class WitnessedCompositionProposalTest(M.Edge):
         empty = M.EmptyList
         registry = M.FromContextGetConstructors(graph)()
         witnessed_ledger = Gmod.FiringLedger(registry)
-        node_a = M.Thingy()
-        node_b = M.Thingy()
-        node_c = M.Thingy()
-        preserved = M.Thingy()
-        interface_a_node = M.Thingy()
-        interface_b_node = M.Thingy()
+        node_a = M.Pair(
+            M.Char("composition-node-a"), M.Pair(M.seven, empty),
+        )
+        node_b = M.Pair(
+            M.Char("composition-node-b"), M.Pair(M.seven, empty),
+        )
+        node_c = M.Pair(
+            M.Char("composition-node-c"), M.Pair(M.seven, empty),
+        )
+        preserved = M.Char("composition-preserved")
+        interface_a_node = M.Char("composition-interface-a")
+        interface_b_node = M.Char("composition-interface-b")
         left_a = Gmod.GraphVersion(
             M.Pair(preserved, M.Pair(node_a, empty)),
             empty,
@@ -2996,6 +3009,16 @@ class WitnessedCompositionProposalTest(M.Edge):
         )()
         sequential_result = M.Head(fired_b)()
 
+        from . import wire as Wmod
+        checkpoint_ledger = Wmod.deserialize_ledger(
+            Wmod.serialize_ledger(witnessed_ledger),
+            witnessed_ledger.registry,
+        )
+        checkpoint_generated = Gmod.GenerateCompositionProposals(
+            Gmod.ProposalStore(empty)(),
+            checkpoint_ledger,
+        )()
+        checkpoint_count = M.Head(M.Tail(checkpoint_generated)())()
         generated = Gmod.GenerateCompositionProposals(
             Gmod.ProposalStore(empty)(),
             witnessed_ledger,
@@ -3008,7 +3031,13 @@ class WitnessedCompositionProposalTest(M.Edge):
         self.result = M.truth_value
         proposal = empty
         composite = empty
-        if M.IdentityCompare(
+        if M.NatEq(
+            checkpoint_count,
+            M.one,
+            checkpoint_ledger.registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
             M.Tail(M.Tail(M.Tail(generated)())())(),
             empty,
         )() is M.false_value:
@@ -4913,6 +4942,2486 @@ class WorkerProtocolTest(M.Edge):
             inputs=M.Pair(graph, empty),
             results=self.result,
         )
+
+    def __call__(self):
+        return self.result
+
+
+class SearchStallCaptureTest(M.Edge):
+    """An exhausted search preserves its bounded pre-exhaustion frontier."""
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heuristic = Hmod.Heuristic(
+            M.DFSLabel,
+            M.InsertionOrderLabel,
+            M.three,
+            M.one,
+            M.one,
+            M.one,
+        )()
+        start = M.Knowledge(empty)()
+        goal = M.Pair(M.Char("stall-capture-goal"), empty)
+        searched = M.Search(
+            graph, start, goal, empty, heuristic, registry,
+        )()
+        stall = M.Head(M.Tail(M.Tail(searched)())())()
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(searched)(), empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsStallRecord(stall)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.StallRecordFrontier(stall)(), empty,
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.StallRecordStart(stall)(), start,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.StallRecordRules(stall)(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.StallRecordHeuristic(stall)(), heuristic,
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LemmaInventionTest(M.Edge):
+    """A symmetric power stall yields and persists a divided candidate."""
+
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        square_seed = Gmod.ParsePolynomialInequalityText(
+            "(a - b)^2 >= 0", digit_words,
+        )()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3",
+            digit_words,
+        )()
+        renamed = Gmod.ParsePolynomialInequalityText(
+            "a^4 + b^4 >= a^3*b + a*b^3",
+            digit_words,
+        )()
+        cubic_goal = Gmod.ParsePolynomialInequalityText(
+            "x^3 + y^3 >= x^2*y + x*y^2",
+            digit_words,
+        )()
+        quadratic_goal = Gmod.ParsePolynomialInequalityText(
+            "x^2 + y^2 >= 2*x*y",
+            digit_words,
+        )()
+        non_family_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + x^3*y + x*y^3 + y^4 >= 4*x^2*y^2",
+            digit_words,
+        )()
+        non_family_stall = Gmod.StallRecord(
+            non_family_goal,
+            M.Pair(M.Knowledge(empty)(), empty),
+            empty,
+            M.five,
+        )()
+        non_family_candidates = Minmod.InventFromStall(
+            non_family_stall, registry,
+        )()
+        quadratic_stall = Gmod.StallRecord(
+            quadratic_goal,
+            M.Pair(M.Knowledge(empty)(), empty),
+            empty,
+            M.five,
+        )()
+        quadratic_candidates = Minmod.InventFromStall(
+            quadratic_stall, registry,
+        )()
+        cubic_stall = Gmod.StallRecord(
+            cubic_goal, M.Pair(M.Knowledge(empty)(), empty), empty, M.five,
+        )()
+        cubic_candidates = Minmod.InventFromStall(
+            cubic_stall, registry,
+        )()
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heuristic = Hmod.Heuristic(
+            M.DFSLabel,
+            M.InsertionOrderLabel,
+            M.three,
+            M.one,
+            M.one,
+            M.one,
+        )()
+        searched = M.Search(
+            graph,
+            M.Knowledge(empty)(),
+            goal,
+            empty,
+            heuristic,
+            registry,
+        )()
+        stall = M.Head(M.Tail(M.Tail(searched)())())()
+        candidates = Minmod.InventFromStall(stall, registry)()
+        plus_divisor = M.Pair(
+            Minmod.PolynomialMonomial("1", "1", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "0", "1")(), empty,
+            ),
+        )
+        difference_quotient = Minmod.PolynomialDifferenceFactor()()
+        plus_dividend = Minmod.PolynomialMultiply(
+            plus_divisor, difference_quotient,
+        )()
+        plus_division = Minmod.PolynomialExactDivide(
+            plus_dividend, plus_divisor,
+        )()
+        first_divisor = M.Pair(
+            Minmod.PolynomialMonomial("1", "1", "0")(), empty,
+        )
+        first_dividend = M.Pair(
+            Minmod.PolynomialMonomial("1", "2", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "1", "1")(), empty,
+            ),
+        )
+        first_division = Minmod.PolynomialExactDivide(
+            first_dividend, first_divisor,
+        )()
+        linear_divisor = M.Pair(
+            Minmod.PolynomialMonomial("2", "1", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("-1", "0", "1")(), empty,
+            ),
+        )
+        linear_dividend = Minmod.PolynomialMultiply(
+            linear_divisor, plus_divisor,
+        )()
+        linear_division = Minmod.PolynomialExactDivide(
+            linear_dividend, linear_divisor,
+        )()
+        non_dividend = M.Pair(
+            Minmod.PolynomialMonomial("1", "2", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "0", "2")(), empty,
+            ),
+        )
+        non_division = Minmod.PolynomialExactDivide(
+            non_dividend, plus_divisor,
+        )()
+        self.result = M.truth_value
+        if M.IdentityCompare(square_seed, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(goal, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(renamed, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(plus_division)(),
+            M.Char("exact"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(first_division)(),
+            M.Char("exact"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(linear_division)(),
+            M.Char("exact"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(non_division)(),
+            M.Char("exact"),
+        )() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(cubic_candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(quadratic_candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(non_family_candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            candidate = M.Head(candidates)()
+            proposition = M.Head(candidate)()
+            status = M.Head(M.Tail(M.Tail(candidate)())())()
+            certificate = M.Head(
+                M.Tail(M.Tail(M.Tail(candidate)())())(),
+            )()
+            lemma = Gmod.InventedLemma(
+                proposition,
+                goal,
+                empty,
+                status,
+                M.Zero,
+                certificate,
+            )()
+            version = Gmod.GraphVersion(
+                M.Pair(lemma, M.Pair(stall, empty)), empty, empty,
+            )()
+            loaded = Wmod.deserialize_version(
+                Wmod.serialize_version(version),
+            )
+            found = Gmod.LookupInventedLemma(loaded, renamed)()
+            if M.IdentityCompare(found, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(
+                Gmod.InventedLemmaStatus(found)(),
+                M.Char("verified-identity"),
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                Gmod.InstalledStallRecord(loaded)(), empty,
+            )() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                Gmod.InventedLemmaUtility(found)(), M.Zero,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.Compare(
+                Gmod.InventedLemmaDisplayText(
+                    Gmod.GraphNodes(loaded)(), M.one, registry,
+                )(),
+                M.Char(""),
+            )() is M.truth_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableSOSFixture(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^2 + y^2 + z^2 >= x*y + y*z + z*x", digit_words,
+        )()
+        stall = Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)()
+        candidate = M.Head(Minmod.InventFromStall(stall, registry)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(structural, M.Pair(trial, M.Pair(validation, M.EmptyList))),
+        )
+        lemma = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        self.result = M.Pair(
+            goal,
+            M.Pair(candidate, M.Pair(lemma, M.Pair(version, M.EmptyList))),
+        )
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CubicNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        sos_fixture = ThreeVariableSOSFixture(graph)()
+        sos_version = M.Head(M.Tail(M.Tail(M.Tail(sos_fixture)())())())()
+        sos_lemma = M.Head(Gmod.GraphNodes(sos_version)())()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^3 + y^3 + z^3 >= 3*x*y*z", digit_words,
+        )()
+        candidate = M.Head(
+            Minmod.InventFromStall(
+                Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)(),
+                registry,
+            )(),
+        )()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                structural,
+                M.Pair(trial, M.Pair(validation, M.Pair(sos_lemma, M.EmptyList))),
+            ),
+        )
+        cubic = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(cubic, Gmod.GraphNodes(sos_version)()),
+            M.EmptyList, M.EmptyList,
+        )()
+        assumptions = M.Pair(
+            Gmod.ParsePolynomialInequalityText("x >= 0", digit_words)(),
+            M.Pair(
+                Gmod.ParsePolynomialInequalityText("y >= 0", digit_words)(),
+                M.Pair(
+                    Gmod.ParsePolynomialInequalityText("z >= 0", digit_words)(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        hit = Minmod.ReplaySavedInventedLemma(
+            version, goal, registry, assumptions,
+        )()
+        replay = M.Head(hit)()
+        proved = M.Compare(
+            Minmod.CubicReplayStatus(replay)(), M.Char("proved"),
+        )()
+        credited_outer = Gmod.CreditInventedLemmaReplay(
+            version, replay, cubic, registry,
+        )()
+        nested_evidence = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())(),
+        )()
+        dependency_hit = M.Head(nested_evidence)()
+        credited_both = Gmod.CreditInventedLemmaReplay(
+            credited_outer,
+            M.Head(dependency_hit)(),
+            M.Head(M.Tail(dependency_hit)())(),
+            registry,
+        )()
+        cubic_used = M.Head(Gmod.GraphNodes(credited_both)())()
+        sos_used = M.Head(M.Tail(Gmod.GraphNodes(credited_both)())())()
+        utilities = M.AndAtom(
+            M.NatEq(Gmod.InventedLemmaUtility(cubic_used)(), M.one, registry)(),
+            M.NatEq(Gmod.InventedLemmaUtility(sos_used)(), M.one, registry)(),
+        )()
+        missing_version = Gmod.GraphVersion(
+            M.Pair(cubic, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        missing_hit = Minmod.ReplaySavedInventedLemma(
+            missing_version, goal, registry, assumptions,
+        )()
+        missing = M.Compare(
+            Minmod.CubicReplayStatus(M.Head(missing_hit)())(),
+            M.Char("missing-invented-dependency"),
+        )()
+        no_assumptions_hit = Minmod.ReplaySavedInventedLemma(
+            version, goal, registry, M.EmptyList,
+        )()
+        no_assumptions = M.Compare(
+            Minmod.CubicReplayStatus(M.Head(no_assumptions_hit)())(),
+            M.Char("missing-scoped-assumptions"),
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "x^3 + y^3 + z^3 >= 4*x*y*z", digit_words,
+        )()
+        false_candidate = Minmod.CubicLinearFactorCandidate(false_goal, registry)()
+        false_blocked = M.IdentityCompare(false_candidate, M.EmptyList)()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed_goal = Gmod.ParsePolynomialInequalityText(
+            "a^3 + b^3 + c^3 >= 3*a*b*c", digit_words,
+        )()
+        renamed_assumptions = M.Pair(
+            Gmod.ParsePolynomialInequalityText("a >= 0", digit_words)(),
+            M.Pair(
+                Gmod.ParsePolynomialInequalityText("b >= 0", digit_words)(),
+                M.Pair(
+                    Gmod.ParsePolynomialInequalityText("c >= 0", digit_words)(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        renamed_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, renamed_goal, registry, renamed_assumptions,
+        )()
+        renamed = M.Compare(
+            Minmod.CubicReplayStatus(M.Head(renamed_hit)())(), M.Char("proved"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(version)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            proved,
+            M.AndAtom(
+                utilities,
+                M.AndAtom(
+                    missing,
+                    M.AndAtom(
+                        no_assumptions,
+                        M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EqualProofLookupShardTest(M.Edge):
+    def __init__(self, graph):
+        nodes = M.Pair(
+            M.Char("n0"),
+            M.Pair(
+                M.Char("n1"),
+                M.Pair(
+                    M.Char("n2"),
+                    M.Pair(
+                        M.Char("n3"),
+                        M.Pair(
+                            M.Char("n4"),
+                            M.Pair(
+                                M.Char("n5"),
+                                M.Pair(M.Char("n6"), M.EmptyList),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        first = ProofLookupWorkermod.RoundRobinWorkerShard(
+            nodes, "0", "0", "3",
+        )()
+        second = ProofLookupWorkermod.RoundRobinWorkerShard(
+            nodes, "0", "1", "3",
+        )()
+        third = ProofLookupWorkermod.RoundRobinWorkerShard(
+            nodes, "0", "2", "3",
+        )()
+        first_count = Minmod.MachineChainCardinalityText(first)()
+        second_count = Minmod.MachineChainCardinalityText(second)()
+        third_count = Minmod.MachineChainCardinalityText(third)()
+        self.result = M.AndAtom(
+            M.Compare(M.Char(first_count), M.Char("3"))(),
+            M.AndAtom(
+                M.Compare(M.Char(second_count), M.Char("2"))(),
+                M.AndAtom(
+                    M.Compare(M.Char(third_count), M.Char("2"))(),
+                    M.AndAtom(
+                        M.Compare(M.Head(first)(), M.Char("n0"))(),
+                        M.AndAtom(
+                            M.Compare(M.Head(second)(), M.Char("n1"))(),
+                            M.Compare(M.Head(third)(), M.Char("n2"))(),
+                        )(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NaturalStoryNarrationTest(M.Edge):
+    def __init__(self, graph):
+        request = "tell me a story about Alice and the wolf"
+        recognized = StoryTalkmod.StoryCommandRecognized(request)()
+        narration = StoryTalkmod.StoryTalkResponse(request)()
+        self.result = M.AndAtom(
+            recognized,
+            M.NotAtom(M.Compare(M.Char(narration), M.Char(""))())(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FluentStoryPerspectiveTest(M.Edge):
+    def __init__(self, graph):
+        connection = StoryTalkmod.StoryTalkResponse(
+            "how is Alice connected to wolf?",
+        )()
+        analogy = StoryTalkmod.StoryTalkResponse("compare the stories")()
+        self.result = M.AndAtom(
+            M.NotAtom(M.Compare(M.Char(connection), M.Char(""))())(),
+            M.AndAtom(
+                M.NotAtom(M.Compare(M.Char(analogy), M.Char(""))())(),
+                M.NotAtom(M.Compare(M.Char(connection), M.Char(analogy))())(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RemainderWitnessTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        witnessed = Eucmod.BuildRemainderWitness("1071", "462", registry)()
+        structural = M.Head(M.Tail(witnessed)())()
+        good = Eucmod.VerifyRemainderWitness(structural, registry)()
+        fabricated = Eucmod.RemainderWitness(
+            "1071", "462", "3", "147", registry,
+        )()
+        fabricated_structural = M.Head(M.Tail(fabricated)())()
+        rejected = M.NotAtom(
+            Eucmod.VerifyRemainderWitness(fabricated_structural, registry)(),
+        )()
+        self.result = M.AndAtom(good, rejected)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EuclideanDescentTraceTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        trace = Eucmod.EuclideanDescentTrace("1071", "462", registry)()
+        steps = M.Head(M.Tail(M.Tail(M.Tail(trace)())())())()
+        gcd_text = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(trace)())())())())()()
+        count = Minmod.MachineChainCardinalityText(steps)()
+        self.result = M.AndAtom(
+            M.Compare(M.Char(gcd_text), M.Char("21"))(),
+            M.AndAtom(
+                M.Compare(M.Char(count), M.Char("3"))(),
+                Eucmod.StoredEuclideanStepsVerified(steps, registry)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EuclideanReplayCheckpointTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        lemma = Eucmod.EuclideanAlgorithmLemma("21", "6", registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Eucmod.FindEuclideanAlgorithmLemma(
+            Gmod.GraphNodes(loaded)(),
+        )()
+        replay = Eucmod.ReplayEuclideanAlgorithmLemma(
+            loaded_lemma, "252", "105", registry,
+        )()
+        gcd_text = Eucmod.ReplayGCDText(replay)()
+        self.result = M.AndAtom(
+            M.Compare(M.Char(gcd_text), M.Char("21"))(),
+            Eucmod.VerifyGCDDivisibility("252", "105", gcd_text)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EuclideanDescentNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        zero_pair = Eucmod.EuclideanDescentTrace("0", "0", registry)()
+        negative = Eucmod.EuclideanDescentTrace("-7", "3", registry)()
+        zero_divisor_witness = Eucmod.BuildRemainderWitness(
+            "9", "0", registry,
+        )()
+        fabricated = Eucmod.RemainderWitness(
+            "1071", "462", "2", "148", registry,
+        )()
+        fabricated_structural = M.Head(M.Tail(fabricated)())()
+        self.result = M.AndAtom(
+            M.IdentityCompare(zero_pair, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(negative, M.EmptyList)(),
+                M.AndAtom(
+                    M.IdentityCompare(zero_divisor_witness, M.EmptyList)(),
+                    M.NotAtom(
+                        Eucmod.VerifyRemainderWitness(
+                            fabricated_structural, registry,
+                        )(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedResidueGeneratorTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus_five = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        modulus_four = Gmod.ParsePolynomialExpressionText("4", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        split_five = Modmod.BuildBoundedResidueCaseSplit(
+            modulus_five, variable, registry,
+        )()
+        split_four = Modmod.BuildBoundedResidueCaseSplit(
+            modulus_four, variable, registry,
+        )()
+        branches = M.Head(M.Tail(M.Tail(M.Tail(split_five)())())())()
+        count = Minmod.MachineChainCardinalityText(branches)()
+        self.result = M.AndAtom(
+            M.NotAtom(M.IdentityCompare(split_five, M.EmptyList)())(),
+            M.AndAtom(
+                M.Compare(M.Char(count), M.Char("5"))(),
+                M.IdentityCompare(split_four, M.EmptyList)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedResidueReplayTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Modmod.FindBoundedResidueLemma(
+            Gmod.GraphNodes(loaded)(), modulus, registry,
+        )()
+        renamed = Gmod.ParsePolynomialExpressionText("a", digit_words)()
+        premise = Modmod.WitnessedDivides(
+            modulus,
+            Modmod.SquareExpression(renamed)(),
+            Modmod.SquareExpression(
+                Modmod.ModulusWitnessVariable(modulus, renamed)(),
+            )(),
+        )()
+        replay = Modmod.ReplayBoundedResidueLemma(
+            loaded_lemma, modulus, renamed, premise, registry,
+        )()
+        replay_ok = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        structural = M.Head(
+            M.Tail(Gmod.InventedLemmaCertificate(loaded_lemma)())(),
+        )()
+        branches = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+        incomplete_structural = M.Pair(
+            M.Char("bounded-residue-case-split"),
+            M.Pair(
+                modulus,
+                M.Pair(
+                    variable,
+                    M.Pair(
+                        M.Tail(branches)(),
+                        M.Pair(
+                            M.Pair(
+                                M.Char("domain-axiom"),
+                                M.Pair(M.Char("finite-residue-exhaustiveness"), M.EmptyList),
+                            ),
+                            M.Pair(M.Char("proved"), M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        incomplete_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                incomplete_structural,
+                M.Pair(M.Char("bounded-modulus-residue-split"), M.Pair(M.Char("proved"), M.EmptyList)),
+            ),
+        )
+        incomplete = Gmod.InventedLemma(
+            Modmod.BoundedResidueImplicationGoal(modulus, variable)(),
+            Modmod.BoundedResidueImplicationGoal(modulus, variable)(),
+            M.EmptyList,
+            M.Char("verified-bounded-residue-case-split"),
+            M.Zero,
+            incomplete_certificate,
+        )()
+        incomplete_replay = Modmod.ReplayBoundedResidueLemma(
+            incomplete, modulus, variable, premise, registry,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.IdentityCompare(incomplete_replay, M.EmptyList)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoupledBoundedResidueNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 5*y^2", digit_words,
+        )()
+        proof = Modmod.CoupledBoundedResidueProof(
+            modulus, equation, case_lemma, registry,
+        )()
+        first = M.Head(M.Tail(M.Tail(proof)())())()
+        second = M.Head(M.Tail(M.Tail(M.Tail(proof)())())())()
+        nested = M.AndAtom(
+            M.Compare(M.Head(first)(), M.Char("invented-lemma-replay-derivation"))(),
+            M.Compare(M.Head(second)(), M.Char("invented-lemma-replay-derivation"))(),
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(case_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first, case_lemma, registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(M.Head(Gmod.GraphNodes(credited)())())(),
+            M.one,
+            registry,
+        )()
+        self.result = M.AndAtom(nested, utility_once)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedModulusInfiniteDescentTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText("x^2=5*y^2", digit_words)()
+        coupled_proof = Modmod.CoupledBoundedResidueProof(
+            modulus, equation, case_lemma, registry,
+        )()
+        coupled_lemma = Modmod.CoupledBoundedResidueLemma(
+            modulus, equation, case_lemma, coupled_proof,
+        )()
+        descent_map = Modmod.GenBoundedModulusDescentMap(
+            modulus, equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Modmod.BoundedModulusDescentLemma(
+            modulus, equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(
+                descent_lemma,
+                M.Pair(coupled_lemma, M.Pair(case_lemma, M.EmptyList)),
+            ),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialEquationText("a^2=5*b^2", digit_words)()
+        replay = Modmod.ReplayBoundedModulusDescentLemma(
+            Modmod.FindBoundedModulusDescentLemma(
+                Gmod.GraphNodes(loaded)(), modulus, registry,
+            )(),
+            modulus,
+            renamed,
+            Gmod.GraphNodes(loaded)(),
+            M.truth_value,
+            registry,
+        )()
+        replay_ok = M.Compare(
+            M.Head(replay)(), M.Char("invented-lemma-replay-derivation"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(loaded)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(replay_ok, no_schema)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedModulusDescentNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("5", digit_words)()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Modmod.BoundedResidueCaseLemma(modulus, variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText("x^2=5*y^2", digit_words)()
+        coupled_proof = Modmod.CoupledBoundedResidueProof(
+            modulus, equation, case_lemma, registry,
+        )()
+        coupled_lemma = Modmod.CoupledBoundedResidueLemma(
+            modulus, equation, case_lemma, coupled_proof,
+        )()
+        false_equation = Gmod.ParsePolynomialEquationText("x^2=5*5*y^2", digit_words)()
+        false_map = Modmod.GenBoundedModulusDescentMap(
+            modulus, false_equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        no_positive = Modmod.GenBoundedModulusDescentMap(
+            modulus, equation, coupled_lemma, case_lemma,
+            M.false_value, registry,
+        )()
+        descent_map = Modmod.GenBoundedModulusDescentMap(
+            modulus, equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Modmod.BoundedModulusDescentLemma(
+            modulus, equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        missing = Modmod.ReplayBoundedModulusDescentLemma(
+            descent_lemma,
+            modulus,
+            equation,
+            M.Pair(descent_lemma, M.Pair(coupled_lemma, M.EmptyList)),
+            M.truth_value,
+            registry,
+        )()
+        missing_ok = M.Compare(
+            M.Head(M.Tail(missing)())(),
+            M.Char("missing-bounded-residue-dependency"),
+        )()
+        self.result = M.AndAtom(
+            M.IdentityCompare(false_map, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(no_positive, M.EmptyList)(),
+                missing_ok,
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CongruenceWitnessTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        modulus = Gmod.ParsePolynomialExpressionText("3", digit_words)()
+        seven = Gmod.ParsePolynomialExpressionText("7", digit_words)()
+        one = Gmod.ParsePolynomialExpressionText("1", digit_words)()
+        two = Gmod.ParsePolynomialExpressionText("2", digit_words)()
+        three = Gmod.ParsePolynomialExpressionText("3", digit_words)()
+        valid = Resmod.WitnessedCongruence(
+            modulus, seven, one, two,
+        )()
+        fabricated = Resmod.WitnessedCongruence(
+            modulus, seven, one, three,
+        )()
+        self.result = M.AndAtom(
+            Resmod.VerifyWitnessedCongruence(
+                valid, M.EmptyList, registry,
+            )(),
+            M.NotAtom(
+                Resmod.VerifyWitnessedCongruence(
+                    fabricated, M.EmptyList, registry,
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ResidueCaseSplitReplayTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Resmod.FindModThreeLemma(Gmod.GraphNodes(loaded)())()
+        renamed = Gmod.ParsePolynomialExpressionText("a", digit_words)()
+        premise = Resmod.WitnessedDivides(
+            Resmod.IntegerThree()(),
+            Resmod.SquareExpression(renamed)(),
+            Resmod.SquareExpression(Resmod.ResidueWitnessVariable(renamed)())(),
+        )()
+        replay = Resmod.ReplayModThreeLemma(
+            loaded_lemma, renamed, premise, registry,
+        )()
+        replay_ok = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        structural = M.Head(
+            M.Tail(Gmod.InventedLemmaCertificate(loaded_lemma)())(),
+        )()
+        zero_branch = M.Head(M.Tail(M.Tail(structural)())())()
+        one_branch = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+        two_branch = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(structural)())())())(),
+        )()
+        all_branches = M.AndAtom(
+            M.IsPair(zero_branch)(),
+            M.AndAtom(M.IsPair(one_branch)(), M.IsPair(two_branch)())(),
+        )()
+        incomplete_structural = M.Pair(
+            M.Char("mod-three-case-split"),
+            M.Pair(
+                variable,
+                M.Pair(
+                    zero_branch,
+                    M.Pair(
+                        one_branch,
+                        M.Pair(
+                            M.Pair(
+                                M.Char("domain-axiom"),
+                                M.Pair(M.Char("mod-three-exhaustiveness"), M.EmptyList),
+                            ),
+                            M.Pair(M.Char("proved"), M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        incomplete_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                incomplete_structural,
+                M.Pair(
+                    M.Char("bounded-exhaustive-mod-three-split"),
+                    M.Pair(M.Char("proved"), M.EmptyList),
+                ),
+            ),
+        )
+        incomplete = Gmod.InventedLemma(
+            Resmod.ModThreeImplicationGoal(variable)(),
+            Resmod.ModThreeImplicationGoal(variable)(),
+            M.EmptyList,
+            M.Char("verified-residue-case-split"),
+            M.Zero,
+            incomplete_certificate,
+        )()
+        incomplete_replay = Resmod.ReplayModThreeLemma(
+            incomplete, variable, premise, registry,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.AndAtom(
+                all_branches,
+                M.IdentityCompare(incomplete_replay, M.EmptyList)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoupledResidueNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 3*y^2", digit_words,
+        )()
+        proof = Resmod.CoupledModThreeProof(
+            equation, case_lemma, registry,
+        )()
+        first_replay = M.Head(M.Tail(M.Tail(proof)())())()
+        second_replay = M.Head(M.Tail(M.Tail(M.Tail(proof)())())())()
+        two_nested = M.AndAtom(
+            M.Compare(
+                M.Head(first_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+            M.Compare(
+                M.Head(second_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(case_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first_replay, case_lemma, registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited)())(),
+            )(),
+            M.one,
+            registry,
+        )()
+        self.result = M.AndAtom(two_nested, utility_once)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ModThreeInfiniteDescentTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 3*y^2", digit_words,
+        )()
+        coupled_proof = Resmod.CoupledModThreeProof(
+            equation, case_lemma, registry,
+        )()
+        coupled_lemma = Resmod.CoupledModThreeLemma(
+            equation, case_lemma, coupled_proof,
+        )()
+        descent_map = Resmod.GenModThreeDescentMap(
+            equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Resmod.ModThreeDescentLemma(
+            equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(
+                descent_lemma,
+                M.Pair(coupled_lemma, M.Pair(case_lemma, M.EmptyList)),
+            ),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialEquationText(
+            "a^2 = 3*b^2", digit_words,
+        )()
+        replay = Resmod.ReplayModThreeDescentLemma(
+            Resmod.FindModThreeDescentLemma(Gmod.GraphNodes(loaded)())(),
+            renamed,
+            Gmod.GraphNodes(loaded)(),
+            M.truth_value,
+            registry,
+        )()
+        replay_ok = M.Compare(
+            M.Head(replay)(),
+            M.Char("invented-lemma-replay-derivation"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(loaded)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(replay_ok, no_schema)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ModThreeDescentNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        case_lemma = Resmod.ModThreeCaseLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 3*y^2", digit_words,
+        )()
+        coupled_proof = Resmod.CoupledModThreeProof(
+            equation, case_lemma, registry,
+        )()
+        coupled_lemma = Resmod.CoupledModThreeLemma(
+            equation, case_lemma, coupled_proof,
+        )()
+        false_equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 9*y^2", digit_words,
+        )()
+        false_map = Resmod.GenModThreeDescentMap(
+            false_equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        no_positive = Resmod.GenModThreeDescentMap(
+            equation, coupled_lemma, case_lemma,
+            M.false_value, registry,
+        )()
+        descent_map = Resmod.GenModThreeDescentMap(
+            equation, coupled_lemma, case_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Resmod.ModThreeDescentLemma(
+            equation, descent_map, coupled_lemma, case_lemma,
+        )()
+        missing_nodes = M.Pair(
+            descent_lemma, M.Pair(coupled_lemma, M.EmptyList),
+        )
+        missing = Resmod.ReplayModThreeDescentLemma(
+            descent_lemma, equation, missing_nodes,
+            M.truth_value, registry,
+        )()
+        missing_status = M.Compare(
+            M.Head(M.Tail(missing)())(),
+            M.Char("missing-mod-three-case-dependency"),
+        )()
+        self.result = M.AndAtom(
+            M.IdentityCompare(false_map, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(no_positive, M.EmptyList)(),
+                missing_status,
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ParityWitnessTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        square = Gmod.ParsePolynomialExpressionText("x^2", digit_words)()
+        assumption = Parmod.MakeEvenAssumption(variable, registry)()
+        propagated = Parmod.PropagateEvenSquare(
+            square, M.Pair(assumption, M.EmptyList), registry,
+        )()
+        propagated_ok = M.NotAtom(
+            M.IdentityCompare(propagated, M.EmptyList)(),
+        )()
+        witness = Parmod.EvenWitnessVariable(variable)()
+        fabricated = Parmod.WitnessedDivides(
+            Parmod.IntegerTwo()(), square, witness,
+        )()
+        fabricated_ok = M.NotAtom(
+            Parmod.VerifyWitnessedDivisibility(
+                fabricated,
+                Parmod.DivisibilityAssumptionSubstitution(assumption)(),
+                registry,
+            )(),
+        )()
+        self.result = M.AndAtom(propagated_ok, fabricated_ok)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CaseSplitReplayTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = Parmod.FindParityLemma(Gmod.GraphNodes(loaded)())()
+        renamed = Gmod.ParsePolynomialExpressionText("a", digit_words)()
+        premise = Parmod.WitnessedDivides(
+            Parmod.IntegerTwo()(),
+            Parmod.SquareExpression(renamed)(),
+            Parmod.SquareExpression(Parmod.EvenWitnessVariable(renamed)())(),
+        )()
+        replay = Parmod.ReplayParityLemma(
+            loaded_lemma, renamed, premise, registry,
+        )()
+        replay_ok = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        structural = M.Head(
+            M.Tail(Gmod.InventedLemmaCertificate(loaded_lemma)())(),
+        )()
+        even_branch = M.Head(M.Tail(M.Tail(structural)())())()
+        odd_branch = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+        both = M.AndAtom(M.IsPair(even_branch)(), M.IsPair(odd_branch)())()
+        split_axiom = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(structural)())())())(),
+        )()
+        axiom_marked = M.Compare(
+            M.Head(split_axiom)(), M.Char("domain-axiom"),
+        )()
+        incomplete_structural = M.Pair(
+            M.Char("parity-case-split"),
+            M.Pair(
+                variable,
+                M.Pair(even_branch, M.Pair(M.Char("proved"), M.EmptyList)),
+            ),
+        )
+        incomplete_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                incomplete_structural,
+                M.Pair(
+                    M.Char("bounded-exhaustive-parity-split"),
+                    M.Pair(M.Char("proved"), M.EmptyList),
+                ),
+            ),
+        )
+        incomplete = Gmod.InventedLemma(
+            Parmod.EvenImplicationGoal(variable)(),
+            Parmod.EvenImplicationGoal(variable)(),
+            M.EmptyList,
+            M.Char("verified-case-split"),
+            M.Zero,
+            incomplete_certificate,
+        )()
+        incomplete_replay = Parmod.ReplayParityLemma(
+            incomplete, variable, premise, registry,
+        )()
+        one_branch_blocked = M.IdentityCompare(
+            incomplete_replay, M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.AndAtom(
+                both, M.AndAtom(axiom_marked, one_branch_blocked)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoupledParityNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        parity_lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 2*y^2", digit_words,
+        )()
+        proof = Parmod.CoupledParityProof(
+            equation, parity_lemma, registry,
+        )()
+        first_replay = M.Head(M.Tail(M.Tail(proof)())())()
+        second_replay = M.Head(M.Tail(M.Tail(M.Tail(proof)())())())()
+        nested_twice = M.AndAtom(
+            M.Compare(
+                M.Head(first_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+            M.Compare(
+                M.Head(second_replay)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(parity_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first_replay, parity_lemma, registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited)())(),
+            )(),
+            M.one,
+            registry,
+        )()
+        coupled_lemma = Parmod.CoupledParityLemma(
+            equation, M.Head(Gmod.GraphNodes(credited)())(), proof,
+        )()
+        combined = Gmod.GraphVersion(
+            M.Pair(coupled_lemma, Gmod.GraphNodes(credited)()),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(combined))
+        renamed_equation = Gmod.ParsePolynomialEquationText(
+            "a^2 = 2*b^2", digit_words,
+        )()
+        renamed_proof = Parmod.CoupledParityProof(
+            renamed_equation,
+            Parmod.FindParityLemma(Gmod.GraphNodes(loaded)())(),
+            registry,
+        )()
+        renamed_ok = M.NotAtom(
+            M.IdentityCompare(renamed_proof, M.EmptyList)(),
+        )()
+        self.result = M.AndAtom(
+            nested_twice, M.AndAtom(utility_once, renamed_ok)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InfiniteDescentTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        parity_lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 2*y^2", digit_words,
+        )()
+        coupled_proof = Parmod.CoupledParityProof(
+            equation, parity_lemma, registry,
+        )()
+        coupled_lemma = Parmod.CoupledParityLemma(
+            equation, parity_lemma, coupled_proof,
+        )()
+        descent_map = Parmod.GenDescentMap(
+            equation, coupled_lemma, parity_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Parmod.DescentLemma(
+            equation, descent_map, coupled_lemma, parity_lemma,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(
+                descent_lemma,
+                M.Pair(coupled_lemma, M.Pair(parity_lemma, M.EmptyList)),
+            ),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialEquationText(
+            "a^2 = 2*b^2", digit_words,
+        )()
+        replay = Parmod.ReplayDescentLemma(
+            Parmod.FindDescentLemma(Gmod.GraphNodes(loaded)())(),
+            renamed,
+            Gmod.GraphNodes(loaded)(),
+            M.truth_value,
+            registry,
+        )()
+        replay_ok = M.Compare(
+            M.Head(replay)(),
+            M.Char("invented-lemma-replay-derivation"),
+        )()
+        descent_certificate = Gmod.InventedLemmaCertificate(
+            Parmod.FindDescentLemma(Gmod.GraphNodes(loaded)())(),
+        )()
+        descent_axiom = M.Head(
+            M.Tail(
+                M.Tail(
+                    M.Tail(M.Tail(M.Tail(descent_certificate)())())(),
+                )(),
+            )(),
+        )()
+        axiom_marked = M.Compare(
+            M.Head(descent_axiom)(), M.Char("domain-axiom"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(loaded)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            replay_ok, M.AndAtom(axiom_marked, no_schema)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DescentStrictDecreaseNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        variable = Gmod.ParsePolynomialExpressionText("x", digit_words)()
+        parity_lemma = Parmod.ParityCaseSplitLemma(variable, registry)()
+        equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 2*y^2", digit_words,
+        )()
+        coupled_proof = Parmod.CoupledParityProof(
+            equation, parity_lemma, registry,
+        )()
+        coupled_lemma = Parmod.CoupledParityLemma(
+            equation, parity_lemma, coupled_proof,
+        )()
+        false_equation = Gmod.ParsePolynomialEquationText(
+            "x^2 = 4*y^2", digit_words,
+        )()
+        false_map = Parmod.GenDescentMap(
+            false_equation, coupled_lemma, parity_lemma,
+            M.truth_value, registry,
+        )()
+        no_positive_map = Parmod.GenDescentMap(
+            equation, coupled_lemma, parity_lemma,
+            M.false_value, registry,
+        )()
+        descent_map = Parmod.GenDescentMap(
+            equation, coupled_lemma, parity_lemma,
+            M.truth_value, registry,
+        )()
+        descent_lemma = Parmod.DescentLemma(
+            equation, descent_map, coupled_lemma, parity_lemma,
+        )()
+        missing_version = Gmod.GraphVersion(
+            M.Pair(descent_lemma, M.Pair(coupled_lemma, M.EmptyList)),
+            M.EmptyList,
+            M.EmptyList,
+        )()
+        missing_replay = Parmod.ReplayDescentLemma(
+            descent_lemma,
+            equation,
+            Gmod.GraphNodes(missing_version)(),
+            M.truth_value,
+            registry,
+        )()
+        missing = M.Compare(
+            M.Head(M.Tail(missing_replay)())(),
+            M.Char("missing-parity-dependency"),
+        )()
+        self.result = M.AndAtom(
+            M.IdentityCompare(false_map, M.EmptyList)(),
+            M.AndAtom(
+                M.IdentityCompare(no_positive_map, M.EmptyList)(),
+                missing,
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialReuseCurriculumTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        fixture = ThreeVariableSOSFixture(graph)()
+        version = M.Head(M.Tail(M.Tail(M.Tail(fixture)())())())()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        powered = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x^2*y^2 + y^2*z^2 + z^2*x^2",
+            digit_words,
+        )()
+        powered_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, powered, registry,
+        )()
+        powered_ok = M.NotAtom(
+            M.IdentityCompare(powered_hit, M.EmptyList)(),
+        )()
+        credited_once = Gmod.CreditInventedLemmaReplay(
+            loaded,
+            M.Head(powered_hit)(),
+            M.Head(M.Tail(powered_hit)())(),
+            registry,
+        )()
+        chained = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y*z*(x+y+z)", digit_words,
+        )()
+        chained_hit = Minmod.ReplaySavedInventedLemma(
+            credited_once, chained, registry,
+        )()
+        chained_ok = M.NotAtom(
+            M.IdentityCompare(chained_hit, M.EmptyList)(),
+        )()
+        credited_twice = Gmod.CreditInventedLemmaReplay(
+            credited_once,
+            M.Head(chained_hit)(),
+            M.Head(M.Tail(chained_hit)())(),
+            registry,
+        )()
+        second_occurrence_lemma = Gmod.LookupInventedLemma(
+            credited_twice, Gmod.InventedLemmaGoal(M.Head(M.Tail(chained_hit)())())(),
+        )()
+        chained_replay_for_credit = M.Head(chained_hit)()
+        second_occurrence = M.Head(
+            M.Tail(
+                M.Tail(M.Tail(M.Tail(chained_replay_for_credit)())())(),
+            )(),
+        )()
+        credited_three = Gmod.CreditInventedLemmaReplay(
+            credited_twice,
+            second_occurrence,
+            second_occurrence_lemma,
+            registry,
+        )()
+        utility_three = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited_three)())(),
+            )(),
+            M.three,
+            registry,
+        )()
+        powered_replay = M.Head(powered_hit)()
+        powered_substitutions = M.Head(
+            M.Tail(M.Tail(M.Tail(powered_replay)())())(),
+        )()
+        direct_certificate = M.IsPair(powered_substitutions)()
+        chained_replay = M.Head(chained_hit)()
+        first_nested = M.Head(
+            M.Tail(M.Tail(M.Tail(chained_replay)())())(),
+        )()
+        second_nested = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(chained_replay)())())())(),
+        )()
+        two_instances = M.AndAtom(
+            M.Compare(
+                M.Head(first_nested)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+            M.Compare(
+                M.Head(second_nested)(),
+                M.Char("invented-lemma-replay-derivation"),
+            )(),
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= 2*x^2*y^2 + y^2*z^2 + z^2*x^2",
+            digit_words,
+        )()
+        false_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, false_goal, registry,
+        )()
+        false_blocked = M.IdentityCompare(false_hit, M.EmptyList)()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited_three)(),
+            M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            powered_ok,
+            M.AndAtom(
+                chained_ok,
+                M.AndAtom(
+                    utility_three,
+                    M.AndAtom(
+                        direct_certificate,
+                        M.AndAtom(
+                            two_instances,
+                            M.AndAtom(false_blocked, no_schema)(),
+                        )(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CauchySpecializationTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "(a^2+b^2)*(c^2+d^2) >= (a*c+b*d)^2", digit_words,
+        )()
+        candidate = M.Head(
+            Minmod.InventFromStall(
+                Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)(),
+                registry,
+            )(),
+        )()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(structural, M.Pair(trial, M.Pair(validation, M.EmptyList))),
+        )
+        lemma = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed = Gmod.ParsePolynomialInequalityText(
+            "(w^2+x^2)*(y^2+z^2) >= (w*y+x*z)^2", digit_words,
+        )()
+        renamed_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, renamed, registry,
+        )()
+        renamed_ok = M.NotAtom(
+            M.IdentityCompare(renamed_hit, M.EmptyList)(),
+        )()
+        credited_once = Gmod.CreditInventedLemmaReplay(
+            loaded,
+            M.Head(renamed_hit)(),
+            M.Head(M.Tail(renamed_hit)())(),
+            registry,
+        )()
+        grounded = Gmod.ParsePolynomialInequalityText(
+            "(x+y)^2 <= 2*(x^2+y^2)", digit_words,
+        )()
+        grounded_hit = Minmod.ReplaySavedInventedLemma(
+            credited_once, grounded, registry,
+        )()
+        grounded_ok = M.NotAtom(
+            M.IdentityCompare(grounded_hit, M.EmptyList)(),
+        )()
+        credited_twice = Gmod.CreditInventedLemmaReplay(
+            credited_once,
+            M.Head(grounded_hit)(),
+            M.Head(M.Tail(grounded_hit)())(),
+            registry,
+        )()
+        utility_two = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited_twice)())(),
+            )(),
+            M.two,
+            registry,
+        )()
+        source_ok = M.Compare(
+            M.Head(structural)(), M.Char("bounded-perfect-square"),
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "(a^2+b^2)*(c^2+d^2) >= 2*(a*c+b*d)^2", digit_words,
+        )()
+        false_candidate = Minmod.PerfectSquareCandidate(
+            false_goal, registry,
+        )()
+        false_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, false_goal, registry,
+        )()
+        false_blocked = M.AndAtom(
+            M.IdentityCompare(false_candidate, M.EmptyList)(),
+            M.IdentityCompare(false_hit, M.EmptyList)(),
+        )()
+        repeated_goal = Gmod.ParsePolynomialInequalityText(
+            "a^4+b^4+2*a^2*b^2 >= 2*a^3*b+2*a*b^3",
+            digit_words,
+        )()
+        repeated_candidate = M.Head(
+            Minmod.InventFromStall(
+                Gmod.StallRecord(
+                    repeated_goal, M.EmptyList, M.EmptyList, M.Zero,
+                )(),
+                registry,
+            )(),
+        )()
+        repeated_structural = M.Head(
+            M.Tail(M.Tail(M.Tail(repeated_candidate)())())(),
+        )()
+        repeated_trial = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(repeated_candidate)())())())(),
+        )()
+        repeated_validation = M.Head(
+            M.Tail(
+                M.Tail(M.Tail(M.Tail(M.Tail(repeated_candidate)())())())(),
+            )(),
+        )()
+        repeated_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                repeated_structural,
+                M.Pair(
+                    repeated_trial,
+                    M.Pair(repeated_validation, M.EmptyList),
+                ),
+            ),
+        )
+        repeated_lemma = Gmod.InventedLemma(
+            M.Head(repeated_candidate)(),
+            repeated_goal,
+            M.EmptyList,
+            M.Char("verified-identity"),
+            M.Zero,
+            repeated_certificate,
+        )()
+        repeated_replay = Minmod.ReplayInventedLemmaOnGoal(
+            repeated_goal, repeated_lemma, registry,
+        )()
+        repeated_available = M.NotAtom(
+            M.IdentityCompare(repeated_replay, M.EmptyList)(),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited_twice)(),
+            M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            source_ok,
+            M.AndAtom(
+                renamed_ok,
+                M.AndAtom(
+                    grounded_ok,
+                    M.AndAtom(
+                        utility_two,
+                        M.AndAtom(
+                            false_blocked,
+                            M.AndAtom(repeated_available, no_schema)(),
+                        )(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompoundSubstitutionChainTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        fixture = ThreeVariableSOSFixture(graph)()
+        version = M.Head(M.Tail(M.Tail(M.Tail(fixture)())())())()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        target = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y*z*(x+y+z)", digit_words,
+        )()
+        hit = Minmod.ReplaySavedInventedLemma(loaded, target, registry)()
+        replay_ok = M.NotAtom(M.IdentityCompare(hit, M.EmptyList)())()
+        credited = Gmod.CreditInventedLemmaReplay(
+            loaded, M.Head(hit)(), M.Head(M.Tail(hit)())(), registry,
+        )()
+        utility_once = M.NatEq(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(credited)())(),
+            )(),
+            M.one,
+            registry,
+        )()
+        unrelated = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y", digit_words,
+        )()
+        unrelated_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, unrelated, registry,
+        )()
+        unrelated_blocked = M.IdentityCompare(unrelated_hit, M.EmptyList)()
+        replay = M.Head(hit)()
+        first_replay = M.Head(M.Tail(M.Tail(M.Tail(replay)())())())()
+        first_substitutions = M.Head(
+            M.Tail(M.Tail(M.Tail(first_replay)())())(),
+        )()
+        wrong_instance = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 + z^4 >= x*y", digit_words,
+        )()
+        invalid_entry = M.Pair(
+            wrong_instance, M.Pair(first_substitutions, M.EmptyList),
+        )
+        lemma = M.Head(M.Tail(hit)())()
+        invalid = Minmod.ReplaySubstitutedLemmaInstance(
+            invalid_entry, lemma, registry,
+        )()
+        invalid_blocked = M.IdentityCompare(invalid, M.EmptyList)()
+        no_axiom_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited)(),
+            M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            replay_ok,
+            M.AndAtom(
+                utility_once,
+                M.AndAtom(
+                    unrelated_blocked,
+                    M.AndAtom(invalid_blocked, no_axiom_schema)(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableSOSInventionTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        candidate = M.Head(M.Tail(fixture)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        identity = M.Head(M.Tail(M.Tail(structural)())())()
+        source_ok = M.Compare(
+            M.Head(M.Tail(candidate)())(), M.Char("goal-structural-sos"),
+        )()
+        scale_ok = Gmod.GMPEqualText(
+            Minmod.AdditiveSOSScale(identity)(), "2",
+        )()
+        summands = Minmod.AdditiveSOSSummands(identity)()
+        three_squares = Gmod.GMPEqualText(
+            M.GMPRepText(M.CountRep(summands)())(), "3",
+        )()
+        verified = M.Compare(
+            Minmod.VerifyAdditiveSOSIdentity(identity)(),
+            M.Char("verified-identity"),
+        )()
+        certificates = Minmod.SquareCertificateChain(summands)()
+        independent = Minmod.SquareCertificatesProved(
+            summands, certificates,
+        )()
+        additive = Minmod.AdditiveNonnegStep(summands, certificates)()
+        additive_ok = M.IdentityCompare(additive, M.EmptyList)()
+        self.result = M.AndAtom(
+            source_ok,
+            M.AndAtom(
+                scale_ok,
+                M.AndAtom(
+                    three_squares,
+                    M.AndAtom(
+                        verified,
+                        M.AndAtom(independent, M.NotAtom(additive_ok)())(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableSOSReplayTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        goal = M.Head(fixture)()
+        lemma = M.Head(M.Tail(M.Tail(fixture)())())()
+        registry = M.FromContextGetConstructors(graph)()
+        replay = Minmod.ReplayInventedLemmaOnGoal(goal, lemma, registry)()
+        self.result = M.NotAtom(M.IdentityCompare(replay, M.EmptyList)())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableSOSCheckpointTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        fixture = ThreeVariableSOSFixture(graph)()
+        version = M.Head(M.Tail(M.Tail(M.Tail(fixture)())())())()
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        renamed = Gmod.ParsePolynomialInequalityText(
+            "a^2 + b^2 + c^2 >= a*b + b*c + c*a", digit_words,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        loaded_lemma = M.Head(Gmod.GraphNodes(loaded)())()
+        not_used = Gmod.CreditInventedLemmaReplay(
+            loaded, M.EmptyList, loaded_lemma, registry,
+        )()
+        utility_still_zero = M.IdentityCompare(
+            Gmod.InventedLemmaUtility(
+                M.Head(Gmod.GraphNodes(not_used)())(),
+            )(),
+            M.Zero,
+        )()
+        hit = Minmod.ReplayInventedLemma(not_used, renamed, registry)()
+        replay_ok = M.NotAtom(M.IdentityCompare(hit, M.EmptyList)())()
+        credited = Gmod.CreditInventedLemmaReplay(
+            not_used, M.Head(hit)(), M.Head(M.Tail(hit)())(), registry,
+        )()
+        utility = Gmod.InventedLemmaUtility(
+            M.Head(Gmod.GraphNodes(credited)())(),
+        )()
+        utility_ok = M.NatEq(utility, M.one, registry)()
+        self.result = M.AndAtom(
+            utility_still_zero, M.AndAtom(replay_ok, utility_ok)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TwoVariableRegressionTest(M.Edge):
+    def __init__(self, graph):
+        self.result = M.AndAtom(
+            LemmaInventionTest(graph)(),
+            InventedLemmaReplayCheckpointTest(graph)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FalseIdentityNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        candidate = M.Head(M.Tail(fixture)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        identity = M.Head(M.Tail(M.Tail(structural)())())()
+        false_identity = Minmod.AdditiveSOSIdentity(
+            Minmod.AdditiveSOSScale(identity)(),
+            Minmod.AdditiveSOSDifference(identity)(),
+            Minmod.AdditiveSOSSummands(identity)(),
+            Minmod.AdditiveSOSLHS(identity)(),
+            M.Tail(Minmod.AdditiveSOSRHS(identity)())(),
+        )()
+        self.result = M.Compare(
+            Minmod.VerifyAdditiveSOSIdentity(false_identity)(),
+            M.Char("identity-mismatch"),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NegativeCoefficientNegativeControlTest(M.Edge):
+    def __init__(self, graph):
+        fixture = ThreeVariableSOSFixture(graph)()
+        candidate = M.Head(M.Tail(fixture)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        identity = M.Head(M.Tail(M.Tail(structural)())())()
+        summand = M.Head(Minmod.AdditiveSOSSummands(identity)())()
+        negative = M.Pair(
+            M.ExprNegLabel, M.Pair(summand, M.EmptyList),
+        )
+        negative_summands = M.Pair(negative, M.EmptyList)
+        variables = M.Head(M.Tail(structural)())()
+        registry = M.FromContextGetConstructors(graph)()
+        negative_polynomial = Minmod.NormalizeCanonicalPolynomial(
+            negative, variables, registry,
+        )()
+        true_negative_identity = Minmod.AdditiveSOSIdentity(
+            "1",
+            negative_polynomial,
+            negative_summands,
+            negative_polynomial,
+            negative_polynomial,
+        )()
+        identity_true = M.Compare(
+            Minmod.VerifyAdditiveSOSIdentity(true_negative_identity)(),
+            M.Char("verified-identity"),
+        )()
+        certificates = Minmod.SquareCertificateChain(negative_summands)()
+        additive = Minmod.AdditiveNonnegStep(
+            negative_summands, certificates,
+        )()
+        positivity_blocked = M.IdentityCompare(additive, M.EmptyList)()
+        self.result = M.AndAtom(identity_true, positivity_blocked)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ThreeVariableCanonicalNormalizationTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^2 + y^2 + z^2 >= x*y + y*z + z*x",
+            digit_words,
+        )()
+        variables = Minmod.BoundedPolynomialVariables(goal)()
+        first = M.Head(variables)()
+        second = M.Head(M.Tail(variables)())()
+        third = M.Head(M.Tail(M.Tail(variables)())())()
+        lesser = M.Head(M.Tail(goal)())()
+        greater = M.Head(M.Tail(M.Tail(goal)())())()
+        difference = M.Pair(
+            M.ExprAddLabel,
+            M.Pair(
+                greater,
+                M.Pair(
+                    M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        normalized = Minmod.NormalizeCanonicalPolynomial(
+            difference, variables, registry,
+        )()
+        x2 = M.Pair(Minmod.CanonicalPower(first, "2")(), M.EmptyList)
+        xy = M.Pair(
+            Minmod.CanonicalPower(first, "1")(),
+            M.Pair(Minmod.CanonicalPower(second, "1")(), M.EmptyList),
+        )
+        xz = M.Pair(
+            Minmod.CanonicalPower(first, "1")(),
+            M.Pair(Minmod.CanonicalPower(third, "1")(), M.EmptyList),
+        )
+        y2 = M.Pair(Minmod.CanonicalPower(second, "2")(), M.EmptyList)
+        yz = M.Pair(
+            Minmod.CanonicalPower(second, "1")(),
+            M.Pair(Minmod.CanonicalPower(third, "1")(), M.EmptyList),
+        )
+        z2 = M.Pair(Minmod.CanonicalPower(third, "2")(), M.EmptyList)
+        expected = M.Pair(
+            Minmod.CanonicalMonomial("1", x2)(),
+            M.Pair(
+                Minmod.CanonicalMonomial("-1", xy)(),
+                M.Pair(
+                    Minmod.CanonicalMonomial("-1", xz)(),
+                    M.Pair(
+                        Minmod.CanonicalMonomial("1", y2)(),
+                        M.Pair(
+                            Minmod.CanonicalMonomial("-1", yz)(),
+                            M.Pair(
+                                Minmod.CanonicalMonomial("1", z2)(),
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        three_variables = M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(variables)())())(), M.EmptyList,
+        )()
+        six_monomials = Gmod.GMPEqualText(
+            M.GMPRepText(M.CountRep(normalized)())(), "6",
+        )()
+        canonical = Minmod.CanonicalPolynomialEqual(normalized, expected)()
+        two_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3", digit_words,
+        )()
+        two_variables = Minmod.BoundedPolynomialVariables(two_goal)()
+        two_lesser = M.Head(M.Tail(two_goal)())()
+        two_greater = M.Head(M.Tail(M.Tail(two_goal)())())()
+        two_difference = M.Pair(
+            M.ExprAddLabel,
+            M.Pair(
+                two_greater,
+                M.Pair(
+                    M.Pair(M.ExprNegLabel, M.Pair(two_lesser, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        two_normalized = Minmod.NormalizeCanonicalPolynomial(
+            two_difference, two_variables, registry,
+        )()
+        two_regression = Gmod.GMPEqualText(
+            M.GMPRepText(M.CountRep(two_normalized)())(), "4",
+        )()
+        self.result = M.AndAtom(
+            three_variables,
+            M.AndAtom(
+                six_monomials,
+                M.AndAtom(canonical, two_regression)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateValidationStatusTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3", digit_words,
+        )()
+        stall = Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)()
+        candidate = M.Head(Minmod.InventFromStall(stall, registry)())()
+        proposition = M.Head(candidate)()
+        proved = Minmod.CandidateValidation(proposition, registry)()
+        false_proposition = M.Pair(
+            M.ExprEqLabel,
+            M.Pair(
+                M.Head(M.Tail(proposition)())(),
+                M.Pair(
+                    M.Pair(M.ExprIntLabel, M.Pair(M.one, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        refuted = Minmod.CandidateValidation(false_proposition, registry)()
+        unknown = Minmod.CandidateValidation(goal, registry)()
+        proved_ok = M.Compare(
+            Minmod.CandidateValidationStatus(proved)(), M.Char("proved"),
+        )()
+        refuted_ok = M.Compare(
+            Minmod.CandidateValidationStatus(refuted)(), M.Char("refuted"),
+        )()
+        unknown_ok = M.Compare(
+            Minmod.CandidateValidationStatus(unknown)(), M.Char("unknown"),
+        )()
+        self.result = M.AndAtom(
+            proved_ok, M.AndAtom(refuted_ok, unknown_ok)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateTrialEvidenceTest(M.Edge):
+    """A candidate counts only when it activates a rule already in the stall."""
+
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + x^3*y + x*y^3 + y^4 >= 4*x^2*y^2",
+            digit_words,
+        )()
+        seed = M.Char("trial-seed")
+        start = Pmod.Knowledge(M.Pair(seed, M.EmptyList))()
+        heuristic = Hmod.Heuristic(
+            M.DFSLabel, M.InsertionOrderLabel,
+            M.three, M.one, M.one, M.one,
+        )()
+        empty_stall = Gmod.StallRecord(
+            goal, M.EmptyList, M.EmptyList, M.Zero,
+            start, M.EmptyList, heuristic,
+        )()
+        empty_candidate = M.Head(Minmod.InventFromStall(empty_stall, registry)())()
+        empty_trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(empty_candidate)())())())())()
+        false_control = M.IdentityCompare(
+            Minmod.CandidateTrialImproved(empty_trial)(), M.false_value,
+        )()
+        equality_pattern = M.Pair(
+            M.ExprEqLabel,
+            M.Pair(
+                M.Pair(M.VarTag, M.Pair(M.Atom(), M.EmptyList)),
+                M.Pair(
+                    M.Pair(M.VarTag, M.Pair(M.Atom(), M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        existing_rule = Pmod.MultiRule(
+            M.Pair(equality_pattern, M.EmptyList),
+            M.Char("trial-conclusion"),
+        )()
+        rules = M.Pair(Pmod.CompileRule(existing_rule, registry)(), M.EmptyList)
+        genuine_stall = Gmod.StallRecord(
+            goal, M.EmptyList, M.EmptyList, M.Zero,
+            start, rules, heuristic,
+        )()
+        genuine_candidate = M.Head(Minmod.InventFromStall(genuine_stall, registry)())()
+        genuine_trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(genuine_candidate)())())())())()
+        genuine_unlock = M.IdentityCompare(
+            Minmod.CandidateTrialImproved(genuine_trial)(), M.truth_value,
+        )()
+        self.result = M.AndAtom(false_control, genuine_unlock)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaReplayCheckpointTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3", digit_words,
+        )()
+        renamed_goal = Gmod.ParsePolynomialInequalityText(
+            "a^4 + b^4 >= a^3*b + a*b^3", digit_words,
+        )()
+        stall = Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)()
+        candidate = M.Head(Minmod.InventFromStall(stall, registry)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(structural, M.Pair(trial, M.Pair(validation, M.EmptyList))),
+        )
+        invented = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(invented, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        first_hit = Minmod.ReplayInventedLemma(version, goal, registry)()
+        first_replay = M.Head(first_hit)()
+        first_lemma = M.Head(M.Tail(first_hit)())()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first_replay, first_lemma, registry,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(credited))
+        second_hit = Minmod.ReplayInventedLemma(
+            loaded, renamed_goal, registry,
+        )()
+        second_replay = M.Head(second_hit)()
+        second_lemma = M.Head(M.Tail(second_hit)())()
+        credited_again = Gmod.CreditInventedLemmaReplay(
+            loaded, second_replay, second_lemma, registry,
+        )()
+        used = M.Head(Gmod.GraphNodes(credited_again)())()
+        utility_two = M.NatEq(
+            Gmod.InventedLemmaUtility(used)(), M.two, registry,
+        )()
+        no_axiom_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited_again)(),
+            M.EmptyList,
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + x^3*y + x*y^3 + y^4 >= 4*x^2*y^2",
+            digit_words,
+        )()
+        false_stall = Gmod.StallRecord(
+            false_goal, M.EmptyList, M.EmptyList, M.Zero,
+        )()
+        false_candidate = M.Head(
+            Minmod.InventFromStall(false_stall, registry)(),
+        )()
+        false_structural = M.Head(
+            M.Tail(M.Tail(M.Tail(false_candidate)())())(),
+        )()
+        false_trial = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(false_candidate)())())())(),
+        )()
+        false_validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(false_candidate)())())())())(),
+        )()
+        false_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                false_structural,
+                M.Pair(false_trial, M.Pair(false_validation, M.EmptyList)),
+            ),
+        )
+        false_lemma = Gmod.InventedLemma(
+            M.Head(false_candidate)(), false_goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, false_certificate,
+        )()
+        false_version = Gmod.GraphVersion(
+            M.Pair(false_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        false_replay = Minmod.ReplayInventedLemma(
+            false_version, false_goal, registry,
+        )()
+        false_blocked = M.IdentityCompare(false_replay, M.EmptyList)()
+        self.result = M.AndAtom(
+            utility_two,
+            M.AndAtom(no_axiom_schema, false_blocked)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaDerivationCreditRoundTripTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        left = M.Pair(M.Char("invented-left"), M.EmptyList)
+        right = M.Pair(M.Char("invented-right"), M.EmptyList)
+        proposition = M.Pair(
+            M.ExprEqLabel, M.Pair(left, M.Pair(right, M.EmptyList)),
+        )
+        invented = Gmod.InventedLemma(
+            proposition, proposition, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, M.EmptyList,
+        )()
+        rule = Pmod.Rule(left, right)()
+        built = Pmod.BuildDerivation(
+            left,
+            M.Pair(Pmod.TheoremAction(rule)(), M.EmptyList),
+            registry,
+        )()
+        derivation = M.Head(built)()
+        version = Gmod.GraphVersion(
+            M.Pair(invented, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaDerivation(
+            version, derivation, M.Head(M.Tail(built)())(),
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(credited))
+        loaded_invented = M.Head(Gmod.GraphNodes(loaded)())()
+        utility_ok = M.NatEq(
+            Gmod.InventedLemmaUtility(loaded_invented)(),
+            M.one,
+            registry,
+        )()
+        proof_ok = M.IdentityCompare(
+            Gmod.InventedLemmaProof(loaded_invented)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(utility_ok, M.NotAtom(proof_ok)())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CheckpointMeasurementRoundTripTest(M.Edge):
+    """Independent version/ledger decoding preserves law measurements."""
+
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        measured_node = M.Pair(
+            M.Char("checkpoint-measured-node"),
+            M.Pair(M.seven, empty),
+        )
+        measured_graph = Gmod.GraphVersion(
+            M.Pair(measured_node, empty), empty, empty,
+        )()
+        interface = Gmod.GraphVersion(empty, empty, empty)()
+        measured_law = Gmod.Law(
+            measured_graph,
+            interface,
+            measured_graph,
+            Gmod.Map(interface, measured_graph, empty)(),
+            Gmod.Map(interface, measured_graph, empty)(),
+            empty,
+        )()
+        version = Gmod.InstallLaw(measured_graph, measured_law)()
+        ledger = Gmod.FiringLedger(registry)
+        ledger.append(
+            Gmod.FiringRecord(
+                measured_law,
+                measured_graph,
+                measured_graph,
+                empty,
+                M.one,
+                M.one,
+                M.Zero,
+                M.Zero,
+                M.one,
+            )()
+        )
+        store = Gmod.ProposalStore(empty)()
+        before_model = Gmod.SelfModelVersion(version, store, ledger)()
+
+        loaded_version = Wmod.deserialize_version(
+            Wmod.serialize_version(version),
+        )
+        loaded_store = Wmod.deserialize_proposal_store(
+            Wmod.serialize_proposal_store(store),
+        )
+        loaded_ledger = Wmod.deserialize_ledger(
+            Wmod.serialize_ledger(ledger),
+            registry,
+        )
+        after_model = Gmod.SelfModelVersion(
+            loaded_version, loaded_store, loaded_ledger,
+        )()
+
+        report = M.Pair(
+            M.Pair(
+                M.Char("checkpoint-seed"),
+                M.Pair(M.truth_value, M.Pair(M.truth_value, empty)),
+            ),
+            empty,
+        )
+        annotation = Gmod.GenerateRobustnessAnnotation(
+            store, measured_law, report,
+        )()
+        annotation_entry = M.Head(
+            Gmod.ProposalStoreAll(M.Head(annotation)())(),
+        )()
+        carrier = Gmod.ProposalLaw(
+            Gmod.ProposalEntryProposal(annotation_entry)(),
+        )()
+        annotated_version = Gmod.InstallLaw(version, carrier)()
+        loaded_annotated = Wmod.deserialize_version(
+            Wmod.serialize_version(annotated_version),
+        )
+        loaded_law = Wmod.deserialize_term(
+            Wmod.serialize_term(measured_law),
+        )
+        found = Gmod.InstalledRobustness(
+            loaded_annotated, loaded_law,
+        )()
+
+        schema_variable = M.Pair(
+            M.VarTag,
+            M.Pair(M.Char("checkpoint-schema-variable"), empty),
+        )
+        schema_goal = M.Pair(
+            M.Char("leq"),
+            M.Pair(schema_variable, M.Pair(schema_variable, empty)),
+        )
+        schema_evidence = Wmod.deserialize_term(
+            Wmod.serialize_term(
+                Gmod.SchemaValidationEvidence(schema_goal)(),
+            ),
+        )
+
+        self.result = M.truth_value
+        if Gmod.DurableTermEqual(
+            before_model, after_model, registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(found, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.IsRobustness(schema_evidence)() is M.truth_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SchemaValidationTried(schema_evidence)(),
+            M.five,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.NatEq(
+            Gmod.SchemaValidationPassed(schema_evidence)(),
+            M.five,
+            registry,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.SchemaValidationRefuted(schema_evidence)(),
+            M.Zero,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Gmod.SchemaValidationTermination(schema_evidence)(),
+            M.Char("domain-exhausted"),
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
         return self.result
@@ -7444,24 +9953,56 @@ class ConversePropositionTest(M.Edge):
         real_outcome = M.Head(real_pair)()
         registry = M.Head(M.Tail(real_pair)())()
 
-        yes_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
-        )()
-        no_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(no_outcome)())())())(),
-        )()
+        yes_tail = yes_outcome
+        yes_depth = 0
+        while yes_depth != 4:
+            if M.IsPair(yes_tail)() is M.truth_value:
+                yes_tail = M.Tail(yes_tail)()
+                yes_depth = yes_depth + 1
+            else:
+                yes_depth = 4
+        yes_answer = M.EmptyList
+        if M.IsPair(yes_tail)() is M.truth_value:
+            yes_answer = M.Head(yes_tail)()
+        no_tail = no_outcome
+        no_depth = 0
+        while no_depth != 4:
+            if M.IsPair(no_tail)() is M.truth_value:
+                no_tail = M.Tail(no_tail)()
+                no_depth = no_depth + 1
+            else:
+                no_depth = 4
+        no_answer = M.EmptyList
+        if M.IsPair(no_tail)() is M.truth_value:
+            no_answer = M.Head(no_tail)()
         yes_words = M.EmptyList
         no_words = M.EmptyList
         if M.IdentityCompare(yes_answer, empty)() is M.false_value:
             yes_words = M.Head(M.Tail(yes_answer)())()
         if M.IdentityCompare(no_answer, empty)() is M.false_value:
             no_words = M.Head(M.Tail(no_answer)())()
-        real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
-        real_body = M.Head(M.Tail(real_meaning)())()
-        real_subject = M.Head(M.Tail(real_body)())()
-        real_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(real_outcome)())())())(),
-        )()
+        real_tail = real_outcome
+        real_depth = 0
+        while real_depth != 4:
+            if M.IsPair(real_tail)() is M.truth_value:
+                real_tail = M.Tail(real_tail)()
+                real_depth = real_depth + 1
+            else:
+                real_depth = 4
+        real_answer = M.EmptyList
+        if M.IsPair(real_tail)() is M.truth_value:
+            real_answer = M.Head(real_tail)()
+        real_meaning = M.EmptyList
+        if M.IsPair(M.Tail(M.Tail(real_outcome)())())() is M.truth_value:
+            real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
+        real_body = M.EmptyList
+        if M.IdentityCompare(real_meaning, empty)() is M.false_value:
+            if M.IsPair(M.Tail(real_meaning)())() is M.truth_value:
+                real_body = M.Head(M.Tail(real_meaning)())()
+        real_subject = M.EmptyList
+        if M.IdentityCompare(real_body, empty)() is M.false_value:
+            if M.IsPair(M.Tail(real_body)())() is M.truth_value:
+                real_subject = M.Head(M.Tail(real_body)())()
 
         self.result = M.truth_value
         if M.IdentityCompare(
@@ -13859,6 +16400,717 @@ def _register_test(graph, name, input_nodes, computation_edge, expected):
     return test
 
 
+class SieveLiveSessionTeachesBothDefinitionsTest(M.Edge):
+    """Replay of the recorded sieve session through the teaching edges.
+
+    Every lesson line of training_records/sieve_eratosthenes_live_session.txt
+    runs through the same ParseRuleText, InstallTaughtFact and
+    InstallTaughtRuleSource edges the live REPL uses -- the definitions
+    are learned, not preinstalled. The test holds no sieve verdict of
+    its own; it holds the lesson file. It asserts the learned content:
+    the definitional facts install, the strike clause speaks Divides
+    and NatLess in its premises, the refutation clause speaks Divides
+    and NatLess in its premises, each clause derives its conclusion
+    from its premise shape through JoinPremises and Instantiate, and
+    the registered equivalence statement is among the learned facts.
+    """
+
+    def __init__(self, graph):
+        from .main import PACK_PATHS, _runtime_namespace
+
+        empty = M.EmptyList
+        self.result = M.truth_value
+
+        runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        # The concept chain the parser resolves words through, built
+        # from the loader-vouched symbol maps: spoken word -> atom.
+        concepts = empty
+        for pack in runtime.loaded_packs:
+            remaining = pack.symbol_map
+            while M.IdentityCompare(remaining, empty)() is M.false_value:
+                entry = M.Head(remaining)()
+                word_chain = M.Head(entry)()
+                atom = M.Head(M.Tail(entry)())()
+                text_walker = word_chain
+                text_value = ""
+                while M.IdentityCompare(text_walker, empty)() is M.false_value:
+                    text_value = text_value + str(M.Head(text_walker)()())
+                    text_walker = M.Tail(text_walker)()
+                if text_value.endswith("Label"):
+                    concepts = M.Pair(
+                        M.Pair(
+                            M.Char(text_value[:-5].lower()),
+                            M.Pair(atom, empty),
+                        ),
+                        concepts,
+                    )
+                remaining = M.Tail(remaining)()
+
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        reading_policy = Gmod.DefaultReadingPolicy()()
+        reading_digits = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        learned_version = Gmod.GraphVersion(empty, empty, empty)()
+
+        theorem_fact = empty
+        strike_rule = empty
+        refute_rule = empty
+        begins_seen = M.false_value
+        selection_seen = M.false_value
+        scans_seen = M.false_value
+
+        lesson_path = os.path.join(
+            os.path.dirname(__file__),
+            "training_records",
+            "sieve_eratosthenes_live_session.txt",
+        )
+        with open(lesson_path, "r", encoding="utf-8") as stream:
+            for raw_line in stream:
+                line = raw_line.strip()
+                if line == "" or line == "goodbye" or line == "yes":
+                    continue
+                known = Gmod.RuleConstructors(learned_version, concepts)()
+                if line.startswith("fact: "):
+                    parsed = Gmod.ParseRuleText(
+                        line[6:], reading_policy, reading_digits,
+                        known, M.truth_value,
+                    )()
+                    fact = M.Head(parsed)()
+                    if M.IdentityCompare(fact, empty)() is M.truth_value:
+                        self.result = M.false_value
+                        break
+                    installed = Gmod.InstallTaughtFact(learned_version, fact)()
+                    learned_version = M.Head(installed)()
+                    theorem_fact = fact
+                    head_word = M.Head(fact)()
+                    if M.IsPair(head_word)() is M.false_value:
+                        spoken = str(head_word()).lower()
+                        if spoken == "stepsievebeginsat":
+                            begins_seen = M.truth_value
+                        elif spoken == "stepsieveselectsby":
+                            selection_seen = M.truth_value
+                        elif spoken == "trialsievescansto":
+                            scans_seen = M.truth_value
+                elif line.startswith("rule: "):
+                    parsed = Gmod.ParseRuleText(
+                        line[6:], reading_policy, reading_digits, known,
+                    )()
+                    rule = M.Head(parsed)()
+                    if M.IdentityCompare(rule, empty)() is M.truth_value:
+                        self.result = M.false_value
+                        break
+                    premises = Pmod.RulePremises(rule)()
+                    replacement = Pmod.RuleReplacement(rule)()
+                    learned_version = Gmod.InstallTaughtRuleSource(
+                        learned_version, premises, replacement,
+                    )()
+                    premise_count = 0
+                    divides_in_premises = M.false_value
+                    natless_in_premises = M.false_value
+                    premise_walker = premises
+                    while M.IdentityCompare(
+                        premise_walker, empty,
+                    )() is M.false_value:
+                        premise = M.Head(premise_walker)()
+                        premise_count = premise_count + 1
+                        premise_head = M.Head(premise)()
+                        if premise_head is Lmod.DividesLabel:
+                            divides_in_premises = M.truth_value
+                        if premise_head is Lmod.NatLessLabel:
+                            natless_in_premises = M.truth_value
+                        premise_walker = M.Tail(premise_walker)()
+                    if premise_count == 3:
+                        strike_rule = rule
+                        if divides_in_premises is M.false_value:
+                            self.result = M.false_value
+                        if natless_in_premises is M.false_value:
+                            self.result = M.false_value
+                    elif premise_count == 4:
+                        refute_rule = rule
+                        if divides_in_premises is M.false_value:
+                            self.result = M.false_value
+                        if natless_in_premises is M.false_value:
+                            self.result = M.false_value
+
+        # Both definitions present: the three definitional facts were
+        # read, both process clauses were approved, and the registered
+        # equivalence statement is among the learned facts.
+        if begins_seen is M.false_value:
+            self.result = M.false_value
+        if selection_seen is M.false_value:
+            self.result = M.false_value
+        if scans_seen is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(strike_rule, empty)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(refute_rule, empty)() is M.truth_value:
+            self.result = M.false_value
+        if self.result is M.truth_value:
+            installed_facts = Gmod.InstalledTaughtFacts(learned_version)()
+            theorem_found = M.false_value
+            scan = installed_facts
+            while M.IdentityCompare(scan, empty)() is M.false_value:
+                if M.Compare(
+                    M.Head(scan)(), theorem_fact,
+                )() is M.truth_value:
+                    theorem_found = M.truth_value
+                    scan = empty
+                else:
+                    scan = M.Tail(scan)()
+            if theorem_found is M.false_value:
+                self.result = M.false_value
+            registered_head = M.Head(theorem_fact)()
+            if M.IsPair(registered_head)() is M.false_value:
+                if str(registered_head()).lower() != "forall":
+                    self.result = M.false_value
+            else:
+                self.result = M.false_value
+
+        # The strike clause derives: a survivor two dividing four,
+        # with two below four, derives four struck by two.
+        if self.result is M.truth_value:
+            strike_premises = Pmod.RulePremises(strike_rule)()
+            survivor_pred = M.Head(M.Head(strike_premises)())()
+            facts = M.Pair(
+                M.Pair(survivor_pred, M.Pair(M.two, empty)),
+                M.Pair(
+                    M.Pair(
+                        Lmod.DividesLabel,
+                        M.Pair(M.two, M.Pair(M.four, empty)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.NatLessLabel,
+                            M.Pair(M.two, M.Pair(M.four, empty)),
+                        ),
+                        empty,
+                    ),
+                ),
+            )
+            matches = Pmod.JoinPremises(strike_premises, facts, empty)()
+            fired = M.false_value
+            conclusion_pred = M.Head(Pmod.RuleReplacement(strike_rule)())()
+            expected = M.Pair(
+                conclusion_pred, M.Pair(M.four, M.Pair(M.two, empty)),
+            )
+            match_walker = matches
+            while M.IdentityCompare(match_walker, empty)() is M.false_value:
+                instantiated = M.Instantiate(
+                    Pmod.RuleReplacement(strike_rule)(),
+                    M.Head(match_walker)(),
+                )()
+                derived = M.Head(instantiated)()
+                if M.Compare(derived, expected)() is M.truth_value:
+                    fired = M.truth_value
+                    match_walker = empty
+                else:
+                    match_walker = M.Tail(match_walker)()
+            if fired is M.false_value:
+                self.result = M.false_value
+
+        # The refutation clause derives: a kept four with the witness
+        # two derives four refuted by two.
+        if self.result is M.truth_value:
+            refute_premises = Pmod.RulePremises(refute_rule)()
+            kept_pred = M.Head(M.Head(refute_premises)())()
+            lower_premise = M.Head(M.Tail(M.Tail(refute_premises)())())()
+            rule_one = M.Head(M.Tail(lower_premise)())()
+            facts = M.Pair(
+                M.Pair(kept_pred, M.Pair(M.four, empty)),
+                M.Pair(
+                    M.Pair(
+                        Lmod.DividesLabel,
+                        M.Pair(M.two, M.Pair(M.four, empty)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.NatLessLabel,
+                            M.Pair(rule_one, M.Pair(M.two, empty)),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Lmod.NatLessLabel,
+                                M.Pair(M.two, M.Pair(M.four, empty)),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ),
+            )
+            matches = Pmod.JoinPremises(refute_premises, facts, empty)()
+            fired = M.false_value
+            conclusion_pred = M.Head(Pmod.RuleReplacement(refute_rule)())()
+            expected = M.Pair(
+                conclusion_pred, M.Pair(M.four, M.Pair(M.two, empty)),
+            )
+            match_walker = matches
+            while M.IdentityCompare(match_walker, empty)() is M.false_value:
+                instantiated = M.Instantiate(
+                    Pmod.RuleReplacement(refute_rule)(),
+                    M.Head(match_walker)(),
+                )()
+                derived = M.Head(instantiated)()
+                if M.Compare(derived, expected)() is M.truth_value:
+                    fired = M.truth_value
+                    match_walker = empty
+                else:
+                    match_walker = M.Tail(match_walker)()
+            if fired is M.false_value:
+                self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SieveEquivalenceInductionPathTest(M.Edge):
+    """The equivalence theorem produced through the induction path.
+
+    ForAll(n, Iff(StepSieve(n), TrialSieve(n))) is formed with the
+    existing ForAll representation and split by planner.Induction into
+    base and step obligations with a fresh k. The boundary checks run
+    the two learned membership walks at zero, one and two: both reject
+    below two, both retain two. Successor instances walk upward from
+    three and include the squares whose decisive factor sits at the
+    square-root boundary; the two walks must agree at every instance,
+    rejected instances discharge the trial-to-sieve direction by one
+    directed firing of the pack's sqrt_factor_bound over the witness
+    certificates, retained instances carry the trial scan's Confirmed
+    exhaustion, and every step witness is retrieved from the processed
+    chain ordered below n by NatLess -- the induction hypothesis. The
+    lemma's bound is asserted to speak Sqrt, Succ, NatLess and Divides
+    in divisor-then-number order, and the theorem is registered in the
+    learned graph.
+    """
+
+    def __init__(self, graph):
+        from .main import PACK_PATHS, _runtime_namespace
+        from .planner import Induction, InductionObligations
+
+        empty = M.EmptyList
+        self.result = M.truth_value
+        registry = _registry(graph)
+
+        runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        pack = packs.by_name("number-theory")
+
+        variable = M.Pair(M.VarTag, M.Pair(M.Char("?n"), empty))
+        pattern = Gmod.Iff(
+            Gmod.StepSieve(variable)(),
+            Gmod.TrialSieve(variable)(),
+        )()
+        theorem = Gmod.ForAll(variable, pattern)()
+
+        if M.IsPair(theorem)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(theorem)(), Lmod.ForAllLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            M.Head(Gmod.ForAllBody(theorem)())(), Lmod.IffLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        method = empty
+        obligations = empty
+        step_symbol = M.Char("k-sieve")
+        if self.result is M.truth_value:
+            method = Induction(variable, M.Zero, pattern)()
+            obligations = InductionObligations(method, step_symbol)()
+            base_obligation = M.Head(obligations)()
+            step_obligation = M.Head(M.Tail(obligations)())()
+            if M.IdentityCompare(
+                M.Head(base_obligation)(), Lmod.BaseCaseLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                M.Head(step_obligation)(), Lmod.StepCaseLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            # Freshness: k-sieve appears nowhere in method or pattern.
+            scan_stack = M.Pair(pattern, M.Pair(method, empty))
+            while M.IdentityCompare(scan_stack, empty)() is M.false_value:
+                current = M.Head(scan_stack)()
+                scan_stack = M.Tail(scan_stack)()
+                if current is step_symbol:
+                    self.result = M.false_value
+                    scan_stack = empty
+                elif M.IsPair(current)() is M.truth_value:
+                    scan_stack = M.Pair(
+                        M.Head(current)(),
+                        M.Pair(M.Tail(current)(), scan_stack),
+                    )
+
+        # Boundary cases: the walks decide; the theorem says zero and
+        # one are rejected and two is the first retained value.
+        processed = empty
+        boundary_walker = M.Pair(
+            M.Pair(M.Char("0"), M.Pair(M.false_value, empty)),
+            M.Pair(
+                M.Pair(M.Char("1"), M.Pair(M.false_value, empty)),
+                M.Pair(
+                    M.Pair(M.Char("2"), M.Pair(M.truth_value, empty)),
+                    empty,
+                ),
+            ),
+        )
+        while self.result is M.truth_value and M.IdentityCompare(
+            boundary_walker, empty,
+        )() is M.false_value:
+            boundary_entry = M.Head(boundary_walker)()
+            boundary_walker = M.Tail(boundary_walker)()
+            boundary_text = str(M.Head(boundary_entry)()())
+            expected_verdict = M.Head(M.Tail(boundary_entry)())()
+            built = M.NatFromRep(M.GMPRep(boundary_text), registry)()
+            boundary_nat = M.Head(built)()
+            registry = M.Head(M.Tail(built)())()
+            step_result = Gmod.StepSieveMembership(
+                Gmod.StepSieve(boundary_nat)(), boundary_nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(step_result)())())()
+            trial_result = Gmod.TrialSieveMembership(
+                Gmod.TrialSieve(boundary_nat)(), boundary_nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(trial_result)())())()
+            step_verdict = M.Head(step_result)()
+            trial_verdict = M.Head(trial_result)()
+            if step_verdict is not trial_verdict:
+                self.result = M.false_value
+            elif step_verdict is not expected_verdict:
+                self.result = M.false_value
+            processed = M.Pair(
+                M.Pair(
+                    boundary_nat,
+                    M.Pair(step_verdict, M.Pair(trial_verdict, empty)),
+                ),
+                processed,
+            )
+
+        # The lemma's bound speaks the required vocabulary, and the
+        # divisibility argument order stays divisor-then-number.
+        compiled = empty
+        lemma_rule = empty
+        if self.result is M.truth_value:
+            compiled = Pmod.CompileRuleChain(
+                M.Pair(pack.rule_map["sqrt_factor_bound"], empty), registry,
+            )()
+            lemma_rule = M.Head(compiled)()
+            sqrt_seen = M.false_value
+            succ_seen = M.false_value
+            natless_seen = M.false_value
+            divides_order_ok = M.false_value
+            replacement_walker = Pmod.RuleReplacement(lemma_rule)()
+            while M.IdentityCompare(
+                replacement_walker, empty,
+            )() is M.false_value:
+                fact = M.Head(replacement_walker)()
+                fact_stack = M.Pair(fact, empty)
+                while M.IdentityCompare(fact_stack, empty)() is M.false_value:
+                    node = M.Head(fact_stack)()
+                    fact_stack = M.Tail(fact_stack)()
+                    if M.IsPair(node)() is M.truth_value:
+                        node_head = M.Head(node)()
+                        if node_head is Lmod.SqrtLabel:
+                            sqrt_seen = M.truth_value
+                        if node_head is Lmod.SuccLabel:
+                            succ_seen = M.truth_value
+                        if node_head is Lmod.NatLessLabel:
+                            natless_seen = M.truth_value
+                        if node_head is Lmod.DividesLabel:
+                            divisor_slot = M.Head(M.Tail(node)())()
+                            if M.IsPair(divisor_slot)() is M.truth_value:
+                                if M.IdentityCompare(
+                                    M.Head(divisor_slot)(),
+                                    Lmod.SmallFactorLabel,
+                                )() is M.truth_value:
+                                    divides_order_ok = M.truth_value
+                        fact_stack = M.Pair(
+                            M.Head(node)(),
+                            M.Pair(M.Tail(node)(), fact_stack),
+                        )
+                replacement_walker = M.Tail(replacement_walker)()
+            if sqrt_seen is M.false_value:
+                self.result = M.false_value
+            if succ_seen is M.false_value:
+                self.result = M.false_value
+            if natless_seen is M.false_value:
+                self.result = M.false_value
+            if divides_order_ok is M.false_value:
+                self.result = M.false_value
+
+        # Successor instances: three through sixteen, then the squares
+        # twenty-five, thirty-six and forty-nine.
+        instances = empty
+        cursor_text = "3"
+        while M.GMPLessText(cursor_text, "17")() is M.truth_value:
+            built = M.NatFromRep(M.GMPRep(cursor_text), registry)()
+            instances = M.Pair(M.Head(built)(), instances)
+            registry = M.Head(M.Tail(built)())()
+            cursor_text = M.GMPSuccText(cursor_text)()
+        for square_text in ("25", "36", "49"):
+            built = M.NatFromRep(M.GMPRep(square_text), registry)()
+            instances = M.Pair(M.Head(built)(), instances)
+            registry = M.Head(M.Tail(built)())()
+        instances = Gmod.Reverse(instances)()
+
+        instance_walker = instances
+        while self.result is M.truth_value and M.IdentityCompare(
+            instance_walker, empty,
+        )() is M.false_value:
+            nat = M.Head(instance_walker)()
+            instance_walker = M.Tail(instance_walker)()
+            step_result = Gmod.StepSieveMembership(
+                Gmod.StepSieve(nat)(), nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(step_result)())())()
+            trial_result = Gmod.TrialSieveMembership(
+                Gmod.TrialSieve(nat)(), nat, registry,
+            )()
+            registry = M.Head(M.Tail(M.Tail(trial_result)())())()
+            step_verdict = M.Head(step_result)()
+            trial_verdict = M.Head(trial_result)()
+            if step_verdict is not trial_verdict:
+                self.result = M.false_value
+            elif step_verdict is M.truth_value:
+                # Sieve-to-trial: the trial scan exhausted every
+                # candidate below the square-root successor bound.
+                trial_evidence = M.Head(M.Tail(trial_result)())()
+                if M.IdentityCompare(
+                    M.Head(trial_evidence)(), Lmod.ConfirmedLabel,
+                )() is M.false_value:
+                    self.result = M.false_value
+            else:
+                # Trial-to-sieve: the witness certificates feed one
+                # directed firing of the square-root factor lemma.
+                trial_evidence = M.Head(M.Tail(trial_result)())()
+                step_evidence = M.Head(M.Tail(step_result)())()
+                witness_pair = M.Head(M.Tail(M.Tail(trial_evidence)())())()
+                witness_nat = M.Head(M.Tail(witness_pair)())()
+                certificates = M.Tail(M.Tail(M.Tail(trial_evidence)())())()
+                divides_fact = M.Head(certificates)()
+                lower_fact = M.Head(M.Tail(certificates)())()
+                proper_fact = M.Pair(
+                    Lmod.NatLessLabel,
+                    M.Pair(witness_nat, M.Pair(nat, empty)),
+                )
+                board = Pmod.Knowledge(M.Pair(
+                    divides_fact,
+                    M.Pair(lower_fact, M.Pair(proper_fact, empty)),
+                ))()
+                small_factor = M.Pair(
+                    Lmod.SmallFactorLabel, M.Pair(nat, empty),
+                )
+                sqrt_bound = M.Pair(
+                    Lmod.SuccLabel,
+                    M.Pair(
+                        M.Pair(Lmod.SqrtLabel, M.Pair(nat, empty)), empty,
+                    ),
+                )
+                goal_board = Pmod.Knowledge(M.Pair(
+                    M.Pair(
+                        Lmod.DividesLabel,
+                        M.Pair(small_factor, M.Pair(nat, empty)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.NatLessLabel,
+                            M.Pair(M.one, M.Pair(small_factor, empty)),
+                        ),
+                        M.Pair(
+                            M.Pair(
+                                Lmod.NatLessLabel,
+                                M.Pair(small_factor, M.Pair(sqrt_bound, empty)),
+                            ),
+                            empty,
+                        ),
+                    ),
+                ))()
+                matches = Pmod.JoinPremises(
+                    Pmod.RulePremises(lemma_rule)(),
+                    Pmod.KnowledgeFacts(board)(),
+                    empty,
+                )()
+                lemma_fired = M.false_value
+                while M.IdentityCompare(matches, empty)() is M.false_value:
+                    stepped = Pmod.ApplyKnowledgeRewrite(
+                        board, lemma_rule, M.Head(matches)(),
+                    )()
+                    covered = Pmod.FactsCover(
+                        Pmod.KnowledgeFacts(goal_board)(),
+                        Pmod.KnowledgeFacts(stepped)(),
+                    )()
+                    if covered is M.truth_value:
+                        lemma_fired = M.truth_value
+                        matches = empty
+                    else:
+                        matches = M.Tail(matches)()
+                if lemma_fired is M.false_value:
+                    self.result = M.false_value
+                # The induction hypothesis: the step witness carries
+                # NatLess certificates, sits below n, and its verdict
+                # pair was already processed.
+                step_witness_pair = M.Head(M.Tail(M.Tail(step_evidence)())())()
+                step_witness = M.Head(M.Tail(step_witness_pair)())()
+                step_certificates = M.Tail(M.Tail(M.Tail(step_evidence)())())()
+                natless_seen = M.false_value
+                cert_walker = step_certificates
+                while M.IdentityCompare(
+                    cert_walker, empty,
+                )() is M.false_value:
+                    certificate = M.Head(cert_walker)()
+                    if M.IsPair(certificate)() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(certificate)(), Lmod.NatLessLabel,
+                        )() is M.truth_value:
+                            natless_seen = M.truth_value
+                    cert_walker = M.Tail(cert_walker)()
+                if natless_seen is M.false_value:
+                    self.result = M.false_value
+                elif M.NatLess(step_witness, nat, registry)() is M.false_value:
+                    self.result = M.false_value
+                else:
+                    entry_found = M.false_value
+                    processed_walker = processed
+                    while M.IdentityCompare(
+                        processed_walker, empty,
+                    )() is M.false_value:
+                        entry = M.Head(processed_walker)()
+                        if M.NatEq(
+                            M.Head(entry)(), step_witness, registry,
+                        )() is M.truth_value:
+                            entry_found = M.truth_value
+                            processed_walker = empty
+                        else:
+                            processed_walker = M.Tail(processed_walker)()
+                    if entry_found is M.false_value:
+                        self.result = M.false_value
+            processed = M.Pair(
+                M.Pair(
+                    nat,
+                    M.Pair(step_verdict, M.Pair(trial_verdict, empty)),
+                ),
+                processed,
+            )
+
+        # Registration: the theorem enters the learned graph through
+        # the same install edge the live session uses.
+        if self.result is M.truth_value:
+            learned_version = Gmod.GraphVersion(empty, empty, empty)()
+            installed = Gmod.InstallTaughtFact(learned_version, theorem)()
+            learned_version = M.Head(installed)()
+            registered = Gmod.InstalledTaughtFacts(learned_version)()
+            found = M.false_value
+            scan = registered
+            while M.IdentityCompare(scan, empty)() is M.false_value:
+                if M.Compare(M.Head(scan)(), theorem)() is M.truth_value:
+                    found = M.truth_value
+                    scan = empty
+                else:
+                    scan = M.Tail(scan)()
+            if found is M.false_value:
+                self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SieveStartAtOneNegativeRegressionTest(M.Edge):
+    """The obsolete start-at-one formulation fails at one.
+
+    The learned step sieve teaches the boundary clause StepSieveKept(n)
+    -> NatLess(one, n). The flawed older formulation starts the
+    process at one and would retain it. This test installs only the
+    boundary clause, assumes the flawed claim StepSieveKept(one), and
+    shows the learned clause derives NatLess(one, one) from it -- and
+    the machine's own NatLess decides one is not below one, so the
+    flawed formulation contradicts the learned definitions at one. The
+    flawed claim itself is never installed among the learned facts.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        self.result = M.truth_value
+        registry = _registry(graph)
+
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        reading_policy = Gmod.DefaultReadingPolicy()()
+        reading_digits = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        learned_version = Gmod.GraphVersion(empty, empty, empty)()
+        known = Gmod.RuleConstructors(learned_version, empty)()
+
+        parsed = Gmod.ParseRuleText(
+            "StepSieveKept(n) -> NatLess(one, n)",
+            reading_policy, reading_digits, known,
+        )()
+        boundary_rule = M.Head(parsed)()
+        if M.IdentityCompare(boundary_rule, empty)() is M.truth_value:
+            self.result = M.false_value
+
+        if self.result is M.truth_value:
+            premises = Pmod.RulePremises(boundary_rule)()
+            replacement = Pmod.RuleReplacement(boundary_rule)()
+            learned_version = Gmod.InstallTaughtRuleSource(
+                learned_version, premises, replacement,
+            )()
+            kept_pred = M.Head(M.Head(premises)())()
+            rule_one = M.Head(M.Tail(Pmod.RuleReplacement(boundary_rule)())())()
+            flawed_claim = M.Pair(kept_pred, M.Pair(rule_one, empty))
+
+            # The flawed claim is not among the learned facts.
+            installed_facts = Gmod.InstalledTaughtFacts(learned_version)()
+            scan = installed_facts
+            while M.IdentityCompare(scan, empty)() is M.false_value:
+                if M.Compare(M.Head(scan)(), flawed_claim)() is M.truth_value:
+                    self.result = M.false_value
+                    scan = empty
+                else:
+                    scan = M.Tail(scan)()
+
+        if self.result is M.truth_value:
+            rule_one = M.Head(M.Tail(Pmod.RuleReplacement(boundary_rule)())())()
+            facts = M.Pair(
+                M.Pair(
+                    M.Head(M.Head(Pmod.RulePremises(boundary_rule)())())(),
+                    M.Pair(rule_one, empty),
+                ),
+                empty,
+            )
+            matches = Pmod.JoinPremises(
+                Pmod.RulePremises(boundary_rule)(), facts, empty,
+            )()
+            derived_contradiction = M.false_value
+            order_pred = M.Head(Pmod.RuleReplacement(boundary_rule)())()
+            false_order = M.Pair(
+                order_pred,
+                M.Pair(rule_one, M.Pair(rule_one, empty)),
+            )
+            match_walker = matches
+            while M.IdentityCompare(match_walker, empty)() is M.false_value:
+                instantiated = M.Instantiate(
+                    Pmod.RuleReplacement(boundary_rule)(),
+                    M.Head(match_walker)(),
+                )()
+                derived = M.Head(instantiated)()
+                if M.Compare(derived, false_order)() is M.truth_value:
+                    derived_contradiction = M.truth_value
+                    match_walker = empty
+                else:
+                    match_walker = M.Tail(match_walker)()
+            if derived_contradiction is M.false_value:
+                self.result = M.false_value
+            elif M.NatLess(M.one, M.one, registry)() is M.truth_value:
+                self.result = M.false_value
+
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+
 def install_default_tests(graph):
     if M.IdentityCompare(graph.default_tests_installed, M.truth_value)() is M.truth_value:
         return graph
@@ -15159,6 +18411,294 @@ def install_default_tests(graph):
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(
             graph,
+            "search_stall_capture_test",
+            empty,
+            SearchStallCaptureTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "lemma_invention_test",
+            empty,
+            LemmaInventionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_canonical_normalization_test",
+            empty,
+            ThreeVariableCanonicalNormalizationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "cubic_nested_reuse_test",
+            empty,
+            CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "equal_proof_lookup_shard_test",
+            empty,
+            EqualProofLookupShardTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "natural_story_narration_test",
+            empty,
+            NaturalStoryNarrationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "fluent_story_perspective_test",
+            empty,
+            FluentStoryPerspectiveTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "remainder_witness_test",
+            empty,
+            RemainderWitnessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "euclidean_descent_trace_test",
+            empty,
+            EuclideanDescentTraceTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "euclidean_replay_checkpoint_test",
+            empty,
+            EuclideanReplayCheckpointTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "euclidean_descent_negative_control_test",
+            empty,
+            EuclideanDescentNegativeControlTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_residue_generator_test",
+            empty,
+            BoundedResidueGeneratorTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_residue_replay_test",
+            empty,
+            BoundedResidueReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "coupled_bounded_residue_nested_reuse_test",
+            empty,
+            CoupledBoundedResidueNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_modulus_infinite_descent_test",
+            empty,
+            BoundedModulusInfiniteDescentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "bounded_modulus_descent_negative_control_test",
+            empty,
+            BoundedModulusDescentNegativeControlTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "congruence_witness_test",
+            empty,
+            CongruenceWitnessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "residue_case_split_replay_test",
+            empty,
+            ResidueCaseSplitReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "coupled_residue_nested_reuse_test",
+            empty,
+            CoupledResidueNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "mod_three_infinite_descent_test",
+            empty,
+            ModThreeInfiniteDescentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "mod_three_descent_negative_control_test",
+            empty,
+            ModThreeDescentNegativeControlTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "parity_witness_test",
+            empty,
+            ParityWitnessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "case_split_replay_test",
+            empty,
+            CaseSplitReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "coupled_parity_nested_reuse_test",
+            empty,
+            CoupledParityNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "infinite_descent_test",
+            empty,
+            InfiniteDescentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "descent_strict_decrease_negative_control_test",
+            empty,
+            DescentStrictDecreaseNegativeControlTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "polynomial_reuse_curriculum_test",
+            empty,
+            PolynomialReuseCurriculumTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "cauchy_specialization_test",
+            empty,
+            CauchySpecializationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compound_substitution_chain_test",
+            empty,
+            CompoundSubstitutionChainTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_sos_invention_test",
+            empty,
+            ThreeVariableSOSInventionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_sos_replay_test",
+            empty,
+            ThreeVariableSOSReplayTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "three_variable_sos_checkpoint_test",
+            empty,
+            ThreeVariableSOSCheckpointTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "two_variable_regression_test",
+            empty,
+            TwoVariableRegressionTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "false_identity_negative_control_test",
+            empty,
+            FalseIdentityNegativeControlTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "negative_coefficient_negative_control_test",
+            empty,
+            NegativeCoefficientNegativeControlTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "checkpoint_measurement_round_trip_test",
+            empty,
+            CheckpointMeasurementRoundTripTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
             "wire_round_trip_test",
             empty,
             WireRoundTripTest(graph),
@@ -15882,6 +19422,31 @@ def install_default_tests(graph):
             empty,
             MilestoneM4PolicyLoosenThenTightenTest(graph),
             MILESTONE_SKIPPED,
+        )
+
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_sieve_live_session_teaches_both_definitions",
+            empty,
+            SieveLiveSessionTeachesBothDefinitionsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_sieve_equivalence_induction_path",
+            empty,
+            SieveEquivalenceInductionPathTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_sieve_start_at_one_negative_regression",
+            empty,
+            SieveStartAtOneNegativeRegressionTest(graph),
+            M.truth_value,
         )
 
     graph.default_tests_installed = M.truth_value

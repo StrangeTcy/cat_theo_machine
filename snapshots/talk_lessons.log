@@ -1,13 +1,42 @@
-training example: double two <-> mul ( two , two )
-training example: double three <-> mul ( two , three )
-training example: triple two <-> mul ( three , two )
-training example: triple three <-> mul ( three , three )
-training example: triple zero <-> mul ( three , zero )
-training example: triple one <-> mul ( three , one )
-training example: triple six <-> mul ( three , six )
-training example: triple eight <-> mul (three, eight)
-training example: triple nine <-> mul (three, nine)
-training example: triple four <-> mul (three, four)
-training example: triple five <-> mul (three, five)
+definition: a prime is a number divisible only by one and itself
 yes
+definition: a composite is a number divisible by some number other than one and itself
+bridge yes
+no
+definition: a sieve of eratosthenes is a process for filtering primes
+bridge yes
 yes
+keep primes, strike composites
+rule: leq(a, b) -> monomul(zero, a, b)
+yes
+rule: monomul(c, a, b), leq(a, b) -> monomul(s(c), a, b)
+yes
+induction: monomul
+rule: monomul(c, a, b) -> leq(times(c, a), times(c, b))
+yes
+rule: leq(x, y), leq(y, z) -> leq(x, z)
+yes
+rule: divisible(a, b, m) -> leq(times(a, b), m)
+yes
+rule: divisible(a, b, m), leq(s(s(zero)), a), leq(s(s(zero)), b) -> composite(m)
+yes
+rule: divisible(a, b, m), leq(s(s(zero)), a), leq(times(a, a), m) -> leq(s(s(zero)), b)
+yes
+lemma: divisible(a, b, m), leq(s(s(zero)), a), leq(s(s(zero)), b), leq(a, b) -> bounded(a, m)
+lemma: divisible(a, b, m), leq(s(s(zero)), a), leq(s(s(zero)), b), leq(b, a) -> bounded(b, m)
+prove that the sieve as a process and the application of the lemma are extensionally equivalent
+fact: NatLess(one, two)
+fact: NatLess(two, four)
+fact: Divides(two, four)
+fact: StepSieveBeginsAt(two)
+fact: StepSieveSelectsBy(NatLess)
+rule: StepSieveSurvivor(s), Divides(s, n), NatLess(s, n) -> StepStruckBy(n, s)
+yes
+fact: TrialSieveScansTo(Sqrt)
+rule: TrialSieveKept(n) -> NatLess(one, n)
+yes
+rule: TrialSieveKept(n), Divides(k, n), NatLess(one, k), NatLess(k, n) -> TrialRefutedBy(n, k)
+yes
+rule: StepSieveKept(n) -> NatLess(one, n)
+yes
+fact: forall(n, iff(StepSieveKept(n), TrialSieveKept(n)))

@@ -1,0 +1,347 @@
+format: hyge-pack
+version: 1
+
+name: mystery-micro
+description: >
+  Rung 1 micro-mystery v0. Three suspects, each testifies a location alibi for
+  the crime scene; one narrator-graded (Proved) physical fact places one suspect
+  elsewhere at that scene; the contradiction refutes that alibi. No prose input,
+  no defaults, no closed-world, no probability. Testimony is a Says term and is
+  NEVER unwrapped into an AtScene fact -- only a Contradicts(observed, statement)
+  relation is ever derived.
+
+  NOTE: the Culprit conclusion is deliberately NOT derived here. It requires case
+  analysis over an "exactly one of three" axiom, which needs a disjunctive /
+  case-split primitive. The pack language has no such primitive (no Or label; the
+  planner's PlannerAlternative is proof-method alternatives, not a domain
+  disjunction). Per the "existing machinery only" constraint that step is
+  reported as a blocker, not faked. phi is therefore the Contradicts relation
+  that IS derivable before the reveal, not Culprit.
+
+requires: []
+
+phi:
+  call:
+    head: {sym: ContradictsLabel}
+    args:
+      - {var: x}
+      - {var: y}
+
+rules:
+  # If a suspect testifies he was at place p during scene s, and a
+  # narrator-observed fact shows him at a distinct place q during the same
+  # scene, then the observed fact contradicts the testimony. The testimony stays
+  # a Says term; nothing unwraps it into an AtScene fact.
+  - id: location_alibi_contradicted
+    premises:
+      - call:
+          head: {sym: SaysLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: OccursAtLabel}
+                args:
+                  - {var: a}
+                  - {var: p}
+            - {var: s}
+      - call:
+          head: {sym: AtSceneLabel}
+          args:
+            - {var: s}
+            - call:
+                head: {sym: OccursAtLabel}
+                args:
+                  - {var: a}
+                  - {var: q}
+      - call:
+          head: {sym: DistinctLabel}
+          args:
+            - {var: p}
+            - {var: q}
+    replacement:
+      list:
+        - call:
+            head: {sym: SaysLabel}
+            args:
+              - {var: a}
+              - call:
+                  head: {sym: OccursAtLabel}
+                  args:
+                    - {var: a}
+                    - {var: p}
+              - {var: s}
+        - call:
+            head: {sym: AtSceneLabel}
+            args:
+              - {var: s}
+              - call:
+                  head: {sym: OccursAtLabel}
+                  args:
+                    - {var: a}
+                    - {var: q}
+        - call:
+            head: {sym: DistinctLabel}
+            args:
+              - {var: p}
+              - {var: q}
+        - call:
+            head: {sym: ContradictsLabel}
+            args:
+              - call:
+                  head: {sym: AtSceneLabel}
+                  args:
+                    - {var: s}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {var: a}
+                          - {var: q}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {var: a}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {var: a}
+                          - {var: p}
+                    - {var: s}
+
+  # A testimony whose claim is contradicted by a narrator-observed fact is
+  # refuted. This removes the alibi cover without ever converting the testimony
+  # into a ground fact.
+  - id: contradicted_alibi_is_refuted
+    premises:
+      - call:
+          head: {sym: SaysLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: OccursAtLabel}
+                args:
+                  - {var: a}
+                  - {var: p}
+            - {var: s}
+      - call:
+          head: {sym: ContradictsLabel}
+          args:
+            - call:
+                head: {sym: AtSceneLabel}
+                args:
+                  - {var: s}
+                  - call:
+                      head: {sym: OccursAtLabel}
+                      args:
+                        - {var: a}
+                        - {var: q}
+            - call:
+                head: {sym: SaysLabel}
+                args:
+                  - {var: a}
+                  - call:
+                      head: {sym: OccursAtLabel}
+                      args:
+                        - {var: a}
+                        - {var: p}
+                  - {var: s}
+    replacement:
+      list:
+        - call:
+            head: {sym: SaysLabel}
+            args:
+              - {var: a}
+              - call:
+                  head: {sym: OccursAtLabel}
+                  args:
+                    - {var: a}
+                    - {var: p}
+              - {var: s}
+        - call:
+            head: {sym: ContradictsLabel}
+            args:
+              - call:
+                  head: {sym: AtSceneLabel}
+                  args:
+                    - {var: s}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {var: a}
+                          - {var: q}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {var: a}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {var: a}
+                          - {var: p}
+                    - {var: s}
+        - call:
+            head: {sym: RefutedLabel}
+            args:
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {var: a}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {var: a}
+                          - {var: p}
+                    - {var: s}
+
+examples:
+  - id: mystery_micro_before_reveal
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: SceneLabel}, args: [{char: s1}]}
+              - call: {head: {sym: SceneLabel}, args: [{char: s2}]}
+              - call: {head: {sym: SceneLabel}, args: [{char: s3}]}
+              - call: {head: {sym: BeforeLabel}, args: [{char: s1}, {char: s2}]}
+              - call: {head: {sym: BeforeLabel}, args: [{char: s2}, {char: s3}]}
+              - call: {head: {sym: SuspectLabel}, args: [{char: straker}]}
+              - call: {head: {sym: SuspectLabel}, args: [{char: simpson}]}
+              - call: {head: {sym: SuspectLabel}, args: [{char: colonel}]}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {char: straker}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: straker}
+                          - {char: quiet_room}
+                    - {char: s2}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {char: simpson}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: simpson}
+                          - {char: village_inn}
+                    - {char: s2}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {char: colonel}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: colonel}
+                          - {char: stables}
+                    - {char: s2}
+              - call:
+                  head: {sym: AtSceneLabel}
+                  args:
+                    - {char: s2}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: straker}
+                          - {char: paddock}
+              - call: {head: {sym: DistinctLabel}, args: [{char: quiet_room}, {char: paddock}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: quiet_room}, {char: village_inn}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: quiet_room}, {char: stables}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: paddock}, {char: village_inn}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: paddock}, {char: stables}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: village_inn}, {char: stables}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: SceneLabel}, args: [{char: s1}]}
+              - call: {head: {sym: SceneLabel}, args: [{char: s2}]}
+              - call: {head: {sym: SceneLabel}, args: [{char: s3}]}
+              - call: {head: {sym: BeforeLabel}, args: [{char: s1}, {char: s2}]}
+              - call: {head: {sym: BeforeLabel}, args: [{char: s2}, {char: s3}]}
+              - call: {head: {sym: SuspectLabel}, args: [{char: straker}]}
+              - call: {head: {sym: SuspectLabel}, args: [{char: simpson}]}
+              - call: {head: {sym: SuspectLabel}, args: [{char: colonel}]}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {char: straker}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: straker}
+                          - {char: quiet_room}
+                    - {char: s2}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {char: simpson}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: simpson}
+                          - {char: village_inn}
+                    - {char: s2}
+              - call:
+                  head: {sym: SaysLabel}
+                  args:
+                    - {char: colonel}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: colonel}
+                          - {char: stables}
+                    - {char: s2}
+              - call:
+                  head: {sym: AtSceneLabel}
+                  args:
+                    - {char: s2}
+                    - call:
+                        head: {sym: OccursAtLabel}
+                        args:
+                          - {char: straker}
+                          - {char: paddock}
+              - call: {head: {sym: DistinctLabel}, args: [{char: quiet_room}, {char: paddock}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: quiet_room}, {char: village_inn}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: quiet_room}, {char: stables}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: paddock}, {char: village_inn}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: paddock}, {char: stables}]}
+              - call: {head: {sym: DistinctLabel}, args: [{char: village_inn}, {char: stables}]}
+              - call:
+                  head: {sym: ContradictsLabel}
+                  args:
+                    - call:
+                        head: {sym: AtSceneLabel}
+                        args:
+                          - {char: s2}
+                          - call:
+                              head: {sym: OccursAtLabel}
+                              args:
+                                - {char: straker}
+                                - {char: paddock}
+                    - call:
+                        head: {sym: SaysLabel}
+                        args:
+                          - {char: straker}
+                          - call:
+                              head: {sym: OccursAtLabel}
+                              args:
+                                - {char: straker}
+                                - {char: quiet_room}
+                          - {char: s2}
+              - call:
+                  head: {sym: RefutedLabel}
+                  args:
+                    - call:
+                        head: {sym: SaysLabel}
+                        args:
+                          - {char: straker}
+                          - call:
+                              head: {sym: OccursAtLabel}
+                              args:
+                                - {char: straker}
+                                - {char: quiet_room}
+                          - {char: s2}

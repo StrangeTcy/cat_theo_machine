@@ -183,7 +183,17 @@ def deserialize_term(blob):
         elif token == "V":
             value = M.VarTag
         elif token.startswith("L:"):
-            value = getattr(Lmod, token[2:])
+            try:
+                value = getattr(Lmod, token[2:])
+            except AttributeError:
+                # A checkpoint written by a labels.py this branch does
+                # not carry. The token keeps its place as an interned,
+                # inert atom -- distinct unknown labels stay distinct,
+                # and every head comparison against known labels fails
+                # -- instead of sinking the whole boot.
+                if token not in interned:
+                    interned[token] = M.Thingy()
+                value = interned[token]
         elif token.startswith("C:"):
             if token not in interned:
                 interned[token] = M.Char(urllib.parse.unquote(token[2:]))
@@ -302,14 +312,19 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
 def _worker_entry(queue, serialized_version, serialized_store,
                   serialized_budget, serialized_config, slice_index_text,
                   slice_count_text):
-    queue.put(worker_task(
-        serialized_version,
-        serialized_store,
-        serialized_budget,
-        serialized_config,
-        slice_index_text,
-        slice_count_text,
-    ))
+    try:
+        queue.put(worker_task(
+            serialized_version,
+            serialized_store,
+            serialized_budget,
+            serialized_config,
+            slice_index_text,
+            slice_count_text,
+        ))
+    except KeyboardInterrupt:
+        # A console interrupt reaches every attached process; the
+        # worker bows out quietly instead of spewing its death stack.
+        return None
 
 
 def run_workers(graph_version, proposal_store, budget, generator_config,

@@ -1,0 +1,56 @@
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask for proofs naturally: 'prove that x^4 + y^4 >= x^3*y + x*y^3'.
+Formal query syntax also works: 'query: Sage(alice)' or 'query: gcd(1071,462)'.
+Narrate naturally: 'tell me a story about Alice and the wolf', 'how is Alice connected to wolf?', or 'compare the stories'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> DEBUG: thinking: understood a natural proof request; routing its claim into the prover
+DEBUG: thinking: decomposing the query and looking for a formal goal shape
+DEBUG: thinking: recognized a polynomial inequality and normalized both sides
+DEBUG: thinking: looking up recorded conclusions and approved proof schemas
+DEBUG: thinking: no direct schema matched; looking through known facts and approved rules
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: thinking: forward rules did not close the goal; checking replayable invented lemmas
+DEBUG: thinking: no fitting saved proof was found; exploring a bounded search frontier
+DEBUG: thinking: the bounded search stalled; preserving its frontier for lemma invention
+DEBUG: thinking: waiting for the administrator to ask me to suggest lemmas
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> no; I could not derive x^4 + y^4 >= x^3*y + x*y^3. Search failed after 1 steps. 1 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+you> DEBUG: thinking: understood a natural request to inspect the last proof stall
+DEBUG: thinking: opening the preserved search stall and decomposing its unmet goal
+DEBUG: thinking: examining the normalized residual and trying bounded algebraic decompositions
+DEBUG: thinking: found a fitting candidate; checking its identity and positivity obligations
+DEBUG: thinking: candidate verified; waiting for administrator approval before installing it
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Analyzing stall on: ((((?x^3) * ?y) + (?x * (?y^3))) <= ((?x^4) + (?y^4)))
+1. ((((?x^4) + (?y^4)) + (-(((?x^3) * ?y) + (?x * (?y^3))))) = ((?x + (-?y)) * ((?x + (-?y)) * ((?x^2) + ((?x * ?y) + (?y^2)))))) [Source: goal-structural | Status: verified-identity]
+Approve this candidate? Enter yes or no.
+you> DEBUG: decision 'yes' appended to /home/user/cat_theo_machine/snapshots/talk_lessons.log
+DEBUG: thinking: administrator approved the candidate; installing its verified rule and replay certificate
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> Recorded the invented lemma and its verified rewrite rule.
+you> DEBUG: thinking: understood a natural proof request; routing its claim into the prover
+DEBUG: thinking: decomposing the query and looking for a formal goal shape
+DEBUG: thinking: recognized a polynomial inequality and normalized both sides
+DEBUG: thinking: looking up recorded conclusions and approved proof schemas
+DEBUG: thinking: no direct schema matched; looking through known facts and approved rules
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+DEBUG: thinking: forward rules did not close the goal; checking replayable invented lemmas
+DEBUG: thinking: found a fitting invented lemma; replaying its certificate and obligations
+DEBUG: talk state written to /home/user/cat_theo_machine/snapshots/talk_state.wire
+hyge> yes; replayed the saved algebraic identity, proved its nonnegativity obligations, and derived x^4 + y^4 >= x^3*y + x*y^3.
+you> hyge> Alice's path crossed two very different worlds. In the first, she met Bob. In the second, she entered a forest, encountered a wolf, and later struck it with a stick. The accounts refer to the same Alice, though the machine keeps that identification as an explicit, reviewable link rather than silently merging the two records. Her repeated role as the person meeting someone also ties the episodes together: Bob and the wolf occupy parallel places in the two encounters.
+you> hyge> Alice is connected to the wolf through the forest episode: she is the agent in an encounter whose other participant is the wolf, and she appears again as the agent of the later action against it. The path is supported by event roles and their recorded ordering, not by a guessed association.
+you> hyge> The two meetings echo one another. Alice fills the same agent role in both; Bob fills the counterpart role in one event and the wolf fills it in the other. That shared role structure is the analogy, even though the characters and consequences differ.
+you> hyge> goodbye

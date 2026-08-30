@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+from . import labels as Lmod
+from . import machine as M
+
+class DeductionPlan(M.Edge):
+    """The execution certificate for one trigger position of a law.
+
+    Pair(DeductionPlanLabel, Pair(law, Pair(trigger, Pair(lookups,
+    Pair(conclusion, EmptyList))))). The law stays the authoritative
+    statement; the plan says which premise the delta arrives on, which
+    declared indexes the other premises are answered from, and what
+    relation the conclusion carries. One plan exists per premise
+    position the engine executes; PlansByTriggerRelation holds them by
+    trigger label.
+    """
+
+    def __init__(self, law, trigger, lookups, conclusion):
+        self.result = M.Pair(
+            Lmod.DeductionPlanLabel,
+            M.Pair(
+                law,
+                M.Pair(trigger, M.Pair(lookups, M.Pair(conclusion, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                law,
+                M.Pair(trigger, M.Pair(lookups, M.Pair(conclusion, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class DeltaAgenda(M.Edge):
+    """The pending delta facts. Empty is quiescence."""
+
+    def __init__(self, facts):
+        self.result = M.Pair(Lmod.DeltaAgendaLabel, M.Pair(facts, M.EmptyList))
+        super().__init__(inputs=M.Pair(facts, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IndexedFiring(M.Edge):
+    """One firing of a law by index: its premises and its conclusion.
+
+    Pair(IndexedFiringLabel, Pair(law, Pair(premises, Pair(bindings,
+    Pair(conclusion, EmptyList))))). The bindings slot stays empty until
+    templates carry variables; every join here is by identity, so there
+    is nothing else to record yet.
+    """
+
+    def __init__(self, law, premises, bindings, conclusion):
+        self.result = M.Pair(
+            Lmod.IndexedFiringLabel,
+            M.Pair(
+                law,
+                M.Pair(
+                    premises,
+                    M.Pair(bindings, M.Pair(conclusion, M.EmptyList)),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                law,
+                M.Pair(
+                    premises,
+                    M.Pair(bindings, M.Pair(conclusion, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+__all__ = ("DeductionPlan", "DeltaAgenda", "IndexedFiring")
