@@ -6990,12 +6990,8 @@ def run_talk_mode(sentence: str = None):
                 )()
                 stall = M.Head(M.Tail(M.Tail(searched)())())()
                 if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
-                    stall = G.StallRecord(
-                        goal,
-                        M.Pair(start, M.EmptyList),
-                        M.EmptyList,
-                        M.Zero,
-                    )()
+                    _persist_talk_state()
+                    return forward_failure + " Search returned no stall evidence."
                 learned_version = G.InstallStallRecord(
                     learned_version, stall,
                 )()
