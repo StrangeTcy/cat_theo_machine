@@ -5234,6 +5234,145 @@ class ThreeVariableSOSFixture(M.Edge):
         return self.result
 
 
+class CubicNestedReuseTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        sos_fixture = ThreeVariableSOSFixture(graph)()
+        sos_version = M.Head(M.Tail(M.Tail(M.Tail(sos_fixture)())())())()
+        sos_lemma = M.Head(Gmod.GraphNodes(sos_version)())()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^3 + y^3 + z^3 >= 3*x*y*z", digit_words,
+        )()
+        candidate = M.Head(
+            Minmod.InventFromStall(
+                Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)(),
+                registry,
+            )(),
+        )()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                structural,
+                M.Pair(trial, M.Pair(validation, M.Pair(sos_lemma, M.EmptyList))),
+            ),
+        )
+        cubic = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(cubic, Gmod.GraphNodes(sos_version)()),
+            M.EmptyList, M.EmptyList,
+        )()
+        assumptions = M.Pair(
+            Gmod.ParsePolynomialInequalityText("x >= 0", digit_words)(),
+            M.Pair(
+                Gmod.ParsePolynomialInequalityText("y >= 0", digit_words)(),
+                M.Pair(
+                    Gmod.ParsePolynomialInequalityText("z >= 0", digit_words)(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        hit = Minmod.ReplaySavedInventedLemma(
+            version, goal, registry, assumptions,
+        )()
+        replay = M.Head(hit)()
+        proved = M.Compare(
+            Minmod.CubicReplayStatus(replay)(), M.Char("proved"),
+        )()
+        credited_outer = Gmod.CreditInventedLemmaReplay(
+            version, replay, cubic, registry,
+        )()
+        nested_evidence = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())(),
+        )()
+        dependency_hit = M.Head(nested_evidence)()
+        credited_both = Gmod.CreditInventedLemmaReplay(
+            credited_outer,
+            M.Head(dependency_hit)(),
+            M.Head(M.Tail(dependency_hit)())(),
+            registry,
+        )()
+        cubic_used = M.Head(Gmod.GraphNodes(credited_both)())()
+        sos_used = M.Head(M.Tail(Gmod.GraphNodes(credited_both)())())()
+        utilities = M.AndAtom(
+            M.NatEq(Gmod.InventedLemmaUtility(cubic_used)(), M.one, registry)(),
+            M.NatEq(Gmod.InventedLemmaUtility(sos_used)(), M.one, registry)(),
+        )()
+        missing_version = Gmod.GraphVersion(
+            M.Pair(cubic, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        missing_hit = Minmod.ReplaySavedInventedLemma(
+            missing_version, goal, registry, assumptions,
+        )()
+        missing = M.Compare(
+            Minmod.CubicReplayStatus(M.Head(missing_hit)())(),
+            M.Char("missing-invented-dependency"),
+        )()
+        no_assumptions_hit = Minmod.ReplaySavedInventedLemma(
+            version, goal, registry, M.EmptyList,
+        )()
+        no_assumptions = M.Compare(
+            Minmod.CubicReplayStatus(M.Head(no_assumptions_hit)())(),
+            M.Char("missing-scoped-assumptions"),
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "x^3 + y^3 + z^3 >= 4*x*y*z", digit_words,
+        )()
+        false_candidate = Minmod.CubicLinearFactorCandidate(false_goal, registry)()
+        false_blocked = M.IdentityCompare(false_candidate, M.EmptyList)()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(version))
+        renamed_goal = Gmod.ParsePolynomialInequalityText(
+            "a^3 + b^3 + c^3 >= 3*a*b*c", digit_words,
+        )()
+        renamed_assumptions = M.Pair(
+            Gmod.ParsePolynomialInequalityText("a >= 0", digit_words)(),
+            M.Pair(
+                Gmod.ParsePolynomialInequalityText("b >= 0", digit_words)(),
+                M.Pair(
+                    Gmod.ParsePolynomialInequalityText("c >= 0", digit_words)(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        renamed_hit = Minmod.ReplaySavedInventedLemma(
+            loaded, renamed_goal, registry, renamed_assumptions,
+        )()
+        renamed = M.Compare(
+            Minmod.CubicReplayStatus(M.Head(renamed_hit)())(), M.Char("proved"),
+        )()
+        no_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(version)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(
+            proved,
+            M.AndAtom(
+                utilities,
+                M.AndAtom(
+                    missing,
+                    M.AndAtom(
+                        no_assumptions,
+                        M.AndAtom(false_blocked, M.AndAtom(renamed, no_schema)())(),
+                    )(),
+                )(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class CompoundSubstitutionChainTest(M.Edge):
     def __init__(self, graph):
         from . import wire as Wmod
@@ -16961,6 +17100,14 @@ def install_default_tests(graph):
             "three_variable_canonical_normalization_test",
             empty,
             ThreeVariableCanonicalNormalizationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "cubic_nested_reuse_test",
+            empty,
+            CubicNestedReuseTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

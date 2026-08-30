@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from . import machine as M
 from . import proof as Pmod
-from .gmprep import GMPSuccText, GMPPredText, GMPExactQuotientText, GMPQuadraticPSDText
+from .gmprep import GMPSuccText, GMPPredText, GMPExactQuotientText, GMPQuadraticPSDText, GMPAbsText, GMPIsNegativeText
 from .graph import *
 
 class MineNatFromGMPRep(M.Edge):
@@ -3680,6 +3680,249 @@ class CanonicalPolynomialScale(M.Edge):
         return self.result
 
 
+class CanonicalMonomialDivision(M.Edge):
+    def __init__(self, dividend, divisor, variables):
+        quotient_text = GMPExactQuotientText(
+            CanonicalMonomialCoefficient(dividend)(),
+            CanonicalMonomialCoefficient(divisor)(),
+        )()
+        powers_result = self._powers(
+            variables,
+            CanonicalMonomialPowers(dividend)(),
+            CanonicalMonomialPowers(divisor)(),
+        )
+        powers_status = M.Head(powers_result)()
+        powers = M.Tail(powers_result)()
+        if M.Compare(M.Char(quotient_text), M.Char(""))() is M.truth_value:
+            self.result = M.Pair(M.false_value, M.EmptyList)
+        elif powers_status is M.false_value:
+            self.result = M.Pair(M.false_value, M.EmptyList)
+        else:
+            self.result = M.Pair(
+                M.truth_value,
+                M.Pair(CanonicalMonomial(quotient_text, powers)(), M.EmptyList),
+            )
+        super().__init__(inputs=M.Pair(dividend, M.Pair(divisor, M.EmptyList)), results=self.result)
+
+    def _powers(self, variables, dividend, divisor):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.EmptyList)
+        variable = M.Head(variables)()
+        dividend_exponent = CanonicalPowerExponentFor(dividend, variable)()
+        divisor_exponent = CanonicalPowerExponentFor(divisor, variable)()
+        if GMPLessText(dividend_exponent, divisor_exponent)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
+        exponent = GMPSubText(dividend_exponent, divisor_exponent)()
+        rest = self._powers(M.Tail(variables)(), dividend, divisor)
+        if M.Head(rest)() is M.false_value:
+            return rest
+        powers = M.Tail(rest)()
+        if GMPEqualText(exponent, "0")() is M.truth_value:
+            return M.Pair(M.truth_value, powers)
+        return M.Pair(
+            M.truth_value,
+            M.Pair(CanonicalPower(variable, exponent)(), powers),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalDivisionResult(M.Edge):
+    def __init__(self, quotient, remainder, trace, status):
+        self.result = M.Pair(
+            M.Char("canonical-division-result"),
+            M.Pair(quotient, M.Pair(remainder, M.Pair(trace, M.Pair(status, M.EmptyList)))),
+        )
+        super().__init__(inputs=M.Pair(quotient, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalDivisionQuotient(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(result)())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalDivisionRemainder(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(result)())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalDivisionTrace(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(result)())())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalDivisionStatus(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(result)())())())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalExactDivide(M.Edge):
+    def __init__(self, dividend, divisor, variables, fuel_text="60"):
+        if M.IdentityCompare(divisor, M.EmptyList)() is M.truth_value:
+            self.result = CanonicalDivisionResult(
+                M.EmptyList, dividend, M.EmptyList, M.Char("zero-divisor"),
+            )()
+        else:
+            trial = self._divide(
+                dividend, divisor, variables, M.EmptyList, M.EmptyList, fuel_text,
+            )
+            if M.Compare(CanonicalDivisionStatus(trial)(), M.Char("exact"))() is M.truth_value:
+                reconstructed = CanonicalPolynomialMultiply(
+                    divisor, CanonicalDivisionQuotient(trial)(), variables,
+                )()
+                if CanonicalPolynomialEqual(reconstructed, dividend)() is M.false_value:
+                    trial = CanonicalDivisionResult(
+                        CanonicalDivisionQuotient(trial)(),
+                        dividend,
+                        CanonicalDivisionTrace(trial)(),
+                        M.Char("reconstruction-failed"),
+                    )()
+            self.result = trial
+        super().__init__(inputs=M.Pair(dividend, M.Pair(divisor, M.EmptyList)), results=self.result)
+
+    def _divide(self, remainder, divisor, variables, quotient, trace, fuel_text):
+        if M.IdentityCompare(remainder, M.EmptyList)() is M.truth_value:
+            return CanonicalDivisionResult(
+                quotient, M.EmptyList, M.Reverse(trace)(), M.Char("exact"),
+            )()
+        if GMPEqualText(fuel_text, "0")() is M.truth_value:
+            return CanonicalDivisionResult(
+                quotient, remainder, M.Reverse(trace)(), M.Char("fuel-exhausted"),
+            )()
+        monomial_division = CanonicalMonomialDivision(
+            M.Head(remainder)(), M.Head(divisor)(), variables,
+        )()
+        if M.Head(monomial_division)() is M.false_value:
+            return CanonicalDivisionResult(
+                quotient, remainder, M.Reverse(trace)(), M.Char("not-divisible"),
+            )()
+        term = M.Head(M.Tail(monomial_division)())()
+        product = CanonicalPolynomialMultiplyMonomial(divisor, term, variables)()
+        next_remainder = CanonicalPolynomialMerge(
+            remainder, CanonicalPolynomialNegate(product)(), variables,
+        )()
+        next_quotient = CanonicalPolynomialInsert(quotient, term, variables)()
+        step = M.Pair(
+            M.Char("canonical-division-step"),
+            M.Pair(term, M.Pair(product, M.Pair(next_remainder, M.EmptyList))),
+        )
+        return self._divide(
+            next_remainder,
+            divisor,
+            variables,
+            next_quotient,
+            M.Pair(step, trace),
+            GMPPredText(fuel_text)(),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPowerExpression(M.Edge):
+    def __init__(self, power):
+        variable = CanonicalPowerVariable(power)()
+        exponent_text = CanonicalPowerExponent(power)()
+        if GMPEqualText(exponent_text, "1")() is M.truth_value:
+            self.result = variable
+        else:
+            exponent = MineNatFromGMPRep(M.GMPRep(exponent_text))()
+            self.result = M.Pair(
+                M.ExprPowLabel,
+                M.Pair(variable, M.Pair(M.Pair(M.ExprIntLabel, M.Pair(exponent, M.EmptyList)), M.EmptyList)),
+            )
+        super().__init__(inputs=M.Pair(power, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPowersExpression(M.Edge):
+    def __init__(self, powers):
+        if M.IdentityCompare(powers, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.ExprIntLabel, M.Pair(M.one, M.EmptyList))
+        elif M.IdentityCompare(M.Tail(powers)(), M.EmptyList)() is M.truth_value:
+            self.result = CanonicalPowerExpression(M.Head(powers)())()
+        else:
+            self.result = M.Pair(
+                M.ExprMulLabel,
+                M.Pair(
+                    CanonicalPowerExpression(M.Head(powers)())(),
+                    M.Pair(CanonicalPowersExpression(M.Tail(powers)())(), M.EmptyList),
+                ),
+            )
+        super().__init__(inputs=M.Pair(powers, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalMonomialExpression(M.Edge):
+    def __init__(self, monomial):
+        coefficient = CanonicalMonomialCoefficient(monomial)()
+        absolute = GMPAbsText(coefficient)()
+        powers = CanonicalMonomialPowers(monomial)()
+        product = CanonicalPowersExpression(powers)()
+        if M.IdentityCompare(powers, M.EmptyList)() is M.truth_value:
+            product = M.Pair(
+                M.ExprIntLabel,
+                M.Pair(MineNatFromGMPRep(M.GMPRep(absolute))(), M.EmptyList),
+            )
+        elif GMPEqualText(absolute, "1")() is M.false_value:
+            coefficient_expression = M.Pair(
+                M.ExprIntLabel,
+                M.Pair(MineNatFromGMPRep(M.GMPRep(absolute))(), M.EmptyList),
+            )
+            product = M.Pair(M.ExprMulLabel, M.Pair(coefficient_expression, M.Pair(product, M.EmptyList)))
+        if GMPIsNegativeText(coefficient)() is M.truth_value:
+            product = M.Pair(M.ExprNegLabel, M.Pair(product, M.EmptyList))
+        self.result = product
+        super().__init__(inputs=M.Pair(monomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialExpression(M.Edge):
+    def __init__(self, polynomial):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.ExprIntLabel, M.Pair(M.Zero, M.EmptyList))
+        elif M.IdentityCompare(M.Tail(polynomial)(), M.EmptyList)() is M.truth_value:
+            self.result = CanonicalMonomialExpression(M.Head(polynomial)())()
+        else:
+            self.result = M.Pair(
+                M.ExprAddLabel,
+                M.Pair(
+                    CanonicalMonomialExpression(M.Head(polynomial)())(),
+                    M.Pair(CanonicalPolynomialExpression(M.Tail(polynomial)())(), M.EmptyList),
+                ),
+            )
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class DifferenceSquareExpression(M.Edge):
     def __init__(self, first, second):
         difference = M.Pair(
@@ -3878,6 +4121,250 @@ class FindAdditiveSOSScale(M.Edge):
                     GMPSuccText(scale_text)(),
                 )()
         super().__init__(inputs=M.Pair(difference, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LinearCoefficientChoices(M.Edge):
+    def __init__(self):
+        self.result = M.Pair(
+            M.Char("-2"),
+            M.Pair(M.Char("-1"), M.Pair(M.Char("0"), M.Pair(M.Char("1"), M.Pair(M.Char("2"), M.EmptyList)))),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PrependCoefficientAssignments(M.Edge):
+    def __init__(self, choices, assignments):
+        if M.IdentityCompare(choices, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            coefficient = M.Head(choices)()()
+            with_choice = self._prepend(coefficient, assignments)
+            self.result = AppendMachineChains(
+                with_choice,
+                PrependCoefficientAssignments(M.Tail(choices)(), assignments)(),
+            )()
+        super().__init__(inputs=M.Pair(assignments, M.EmptyList), results=self.result)
+
+    def _prepend(self, coefficient, assignments):
+        if M.IdentityCompare(assignments, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(
+            M.Pair(M.Char(coefficient), M.Head(assignments)()),
+            self._prepend(coefficient, M.Tail(assignments)()),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LinearCoefficientAssignments(M.Edge):
+    def __init__(self, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.EmptyList)
+        else:
+            tails = LinearCoefficientAssignments(M.Tail(variables)())()
+            self.result = PrependCoefficientAssignments(
+                LinearCoefficientChoices()(), tails,
+            )()
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalLinearAssignment(M.Edge):
+    def __init__(self, coefficients):
+        if M.IdentityCompare(coefficients, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            coefficient = M.Head(coefficients)()()
+            if GMPEqualText(coefficient, "0")() is M.truth_value:
+                self.result = CanonicalLinearAssignment(M.Tail(coefficients)())()
+            else:
+                self.result = GMPLessText("0", coefficient)()
+        super().__init__(inputs=M.Pair(coefficients, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalLinearPolynomial(M.Edge):
+    def __init__(self, variables, coefficients, all_variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            variable = M.Head(variables)()
+            coefficient = M.Head(coefficients)()()
+            rest = CanonicalLinearPolynomial(
+                M.Tail(variables)(), M.Tail(coefficients)(), all_variables,
+            )()
+            if GMPEqualText(coefficient, "0")() is M.truth_value:
+                self.result = rest
+            else:
+                monomial = CanonicalMonomial(
+                    coefficient,
+                    M.Pair(CanonicalPower(variable, "1")(), M.EmptyList),
+                )()
+                self.result = CanonicalPolynomialInsert(rest, monomial, all_variables)()
+        super().__init__(inputs=M.Pair(variables, M.Pair(coefficients, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LastVariable(M.Edge):
+    def __init__(self, variables):
+        if M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.truth_value:
+            self.result = M.Head(variables)()
+        else:
+            self.result = LastVariable(M.Tail(variables)())()
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LastCoefficientText(M.Edge):
+    def __init__(self, coefficients):
+        if M.IdentityCompare(M.Tail(coefficients)(), M.EmptyList)() is M.truth_value:
+            self.result = M.Head(coefficients)()()
+        else:
+            self.result = LastCoefficientText(M.Tail(coefficients)())()
+        super().__init__(inputs=M.Pair(coefficients, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DropLastChain(M.Edge):
+    def __init__(self, chain):
+        if M.IdentityCompare(M.Tail(chain)(), M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            self.result = M.Pair(M.Head(chain)(), DropLastChain(M.Tail(chain)())())
+        super().__init__(inputs=M.Pair(chain, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LinearFactorDiscovery(M.Edge):
+    def __init__(self, factor, quotient, trace, substitution):
+        self.result = M.Pair(
+            M.Char("linear-factor-discovery"),
+            M.Pair(factor, M.Pair(quotient, M.Pair(trace, M.Pair(substitution, M.EmptyList)))),
+        )
+        super().__init__(inputs=M.Pair(factor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FindLinearFactorByVanishing(M.Edge):
+    def __init__(self, residual_expression, residual, variables, assignments=M.EmptyList):
+        if M.IdentityCompare(assignments, M.EmptyList)() is M.truth_value:
+            assignments = LinearCoefficientAssignments(variables)()
+        self.residual_expression = residual_expression
+        self.residual = residual
+        self.variables = variables
+        self.result = self._find(assignments)
+        super().__init__(inputs=M.Pair(residual, M.EmptyList), results=self.result)
+
+    def _find(self, assignments):
+        if M.IdentityCompare(assignments, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        coefficients = M.Head(assignments)()
+        if CanonicalLinearAssignment(coefficients)() is M.truth_value:
+            last_coefficient = LastCoefficientText(coefficients)()
+            if GMPEqualText(last_coefficient, "1")() is M.truth_value:
+                divisor = CanonicalLinearPolynomial(
+                    self.variables, coefficients, self.variables,
+                )()
+                division = CanonicalExactDivide(
+                    self.residual, divisor, self.variables,
+                )()
+                if M.Compare(
+                    CanonicalDivisionStatus(division)(), M.Char("exact"),
+                )() is M.truth_value:
+                    reduced_variables = DropLastChain(self.variables)()
+                    reduced_coefficients = DropLastChain(coefficients)()
+                    partial = CanonicalLinearPolynomial(
+                        reduced_variables, reduced_coefficients, reduced_variables,
+                    )()
+                    replacement = M.Pair(
+                        M.ExprNegLabel,
+                        M.Pair(CanonicalPolynomialExpression(partial)(), M.EmptyList),
+                    )
+                    substitution = M.Pair(
+                        SubstitutionEntry(LastVariable(self.variables)(), replacement)(),
+                        M.EmptyList,
+                    )
+                    substituted = SubstituteExpression(
+                        self.residual_expression, substitution,
+                    )()
+                    vanished = NormalizeCanonicalPolynomial(
+                        substituted, reduced_variables, M.AllConstructors,
+                    )()
+                    if M.IdentityCompare(vanished, M.EmptyList)() is M.truth_value:
+                        return LinearFactorDiscovery(
+                            divisor,
+                            CanonicalDivisionQuotient(division)(),
+                            CanonicalDivisionTrace(division)(),
+                            substitution,
+                        )()
+        return self._find(M.Tail(assignments)())
+
+    def __call__(self):
+        return self.result
+
+
+class CubicLinearFactorCandidate(M.Edge):
+    def __init__(self, goal, registry=M.EmptyList):
+        self.result = M.EmptyList
+        variables = BoundedPolynomialVariables(goal)()
+        if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Tail(M.Tail(variables)())(), M.EmptyList)() is M.false_value:
+                lesser = M.Head(M.Tail(goal)())()
+                greater = M.Head(M.Tail(M.Tail(goal)())())()
+                residual_expression = M.Pair(
+                    M.ExprAddLabel,
+                    M.Pair(greater, M.Pair(M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)), M.EmptyList)),
+                )
+                residual = NormalizeCanonicalPolynomial(residual_expression, variables, registry)()
+                discovery = FindLinearFactorByVanishing(
+                    residual_expression, residual, variables,
+                )()
+                if M.IdentityCompare(discovery, M.EmptyList)() is M.false_value:
+                    factor = M.Head(M.Tail(discovery)())()
+                    quotient = M.Head(M.Tail(M.Tail(discovery)())())()
+                    factor_expression = CanonicalPolynomialExpression(factor)()
+                    quotient_expression = CanonicalPolynomialExpression(quotient)()
+                    product_expression = M.Pair(
+                        M.ExprMulLabel,
+                        M.Pair(factor_expression, M.Pair(quotient_expression, M.EmptyList)),
+                    )
+                    proposition = M.Pair(
+                        M.ExprEqLabel,
+                        M.Pair(residual_expression, M.Pair(product_expression, M.EmptyList)),
+                    )
+                    certificate = M.Pair(
+                        M.Char("bounded-linear-factor-vanishing"),
+                        M.Pair(variables, M.Pair(discovery, M.Pair(residual, M.EmptyList))),
+                    )
+                    self.result = M.Pair(
+                        proposition,
+                        M.Pair(
+                            M.Char("linear-factor-vanishing"),
+                            M.Pair(M.Char("verified-identity"), M.Pair(certificate, M.EmptyList)),
+                        ),
+                    )
+        super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -5360,13 +5847,13 @@ class ReplayInventedLemmaOnGoal(M.Edge):
                     structural = M.Head(M.Tail(certificate)())()
             if M.IsPair(structural)() is M.truth_value:
                 if M.Compare(
-                    M.Head(structural)(), M.Char("bounded-additive-sos"),
+                    M.Head(structural)(), M.Char("bounded-structural-exact-division"),
                 )() is M.truth_value:
-                    self.result = M.EmptyList
-                else:
                     self.result = ReplayFactorizationLemmaOnGoal(
                         goal, invented_lemma, registry,
                     )()
+                else:
+                    self.result = M.EmptyList
             else:
                 self.result = M.EmptyList
         super().__init__(inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)), results=self.result)
@@ -5798,15 +6285,261 @@ class ReplayInventedLemmaChain(M.Edge):
         return self.result
 
 
-class ReplaySavedInventedLemma(M.Edge):
-    def __init__(self, graph_version, goal, registry):
-        direct = ReplayInventedLemma(graph_version, goal, registry)()
-        if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
-            self.result = direct
+class AssumptionContainsNonnegative(M.Edge):
+    def __init__(self, variable, assumptions):
+        if M.IdentityCompare(assumptions, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
         else:
-            self.result = ReplayInventedLemmaChain(
-                graph_version, goal, registry,
+            assumption = M.Head(assumptions)()
+            found = M.false_value
+            if M.IsPair(assumption)() is M.truth_value:
+                if M.IdentityCompare(M.Head(assumption)(), M.ExprLeLabel)() is M.truth_value:
+                    lesser = M.Head(M.Tail(assumption)())()
+                    greater = M.Head(M.Tail(M.Tail(assumption)())())()
+                    if M.IsPair(lesser)() is M.truth_value:
+                        if M.IdentityCompare(M.Head(lesser)(), M.ExprIntLabel)() is M.truth_value:
+                            zero = M.Head(M.Tail(lesser)())()
+                            zero_rep = M.NatRepOf(zero, M.AllConstructors)()
+                            if M.IdentityCompare(zero_rep, M.EmptyList)() is M.false_value:
+                                if GMPEqualText(M.GMPRepText(zero_rep)(), "0")() is M.truth_value:
+                                    if Pmod.IsVarPattern(greater)() is M.truth_value:
+                                        found = M.Compare(
+                                            M.Tail(greater)(), M.Tail(variable)(),
+                                        )()
+            if found is M.truth_value:
+                self.result = M.truth_value
+            else:
+                self.result = AssumptionContainsNonnegative(
+                    variable, M.Tail(assumptions)(),
+                )()
+        super().__init__(inputs=M.Pair(variable, M.Pair(assumptions, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class VariablesHaveNonnegativeAssumptions(M.Edge):
+    def __init__(self, variables, assumptions):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.truth_value
+        else:
+            self.result = M.AndAtom(
+                AssumptionContainsNonnegative(M.Head(variables)(), assumptions)(),
+                VariablesHaveNonnegativeAssumptions(
+                    M.Tail(variables)(), assumptions,
+                )(),
             )()
+        super().__init__(inputs=M.Pair(variables, M.Pair(assumptions, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FindSOSDependency(M.Edge):
+    def __init__(self, nodes, obligation, registry):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            node = M.Head(nodes)()
+            replay = M.EmptyList
+            if M.IsPair(node)() is M.truth_value:
+                if M.Compare(M.Head(node)(), M.Char("invented-lemma"))() is M.truth_value:
+                    replay = ReplayAdditiveSOSLemmaOnGoal(obligation, node, registry)()
+            if M.IdentityCompare(replay, M.EmptyList)() is M.false_value:
+                self.result = M.Pair(replay, M.Pair(node, M.EmptyList))
+            else:
+                self.result = FindSOSDependency(
+                    M.Tail(nodes)(), obligation, registry,
+                )()
+        super().__init__(inputs=M.Pair(nodes, M.Pair(obligation, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CubicReplayTrace(M.Edge):
+    def __init__(self, goal, lemma, identity, linear_proof, dependency, product_proof, status):
+        self.result = M.Pair(
+            M.Char("invented-lemma-replay-derivation"),
+            M.Pair(
+                goal,
+                M.Pair(
+                    lemma,
+                    M.Pair(
+                        identity,
+                        M.Pair(
+                            linear_proof,
+                            M.Pair(
+                                M.Pair(dependency, M.Pair(product_proof, M.EmptyList)),
+                                M.Pair(status, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.Pair(goal, M.Pair(lemma, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayCubicLemmaOnGoal(M.Edge):
+    def __init__(self, graph_version, goal, lemma, assumptions, registry):
+        current_candidate = CubicLinearFactorCandidate(goal, registry)()
+        if M.IdentityCompare(current_candidate, M.EmptyList)() is M.truth_value:
+            self.result = CubicReplayTrace(
+                goal, lemma, M.EmptyList, M.EmptyList, M.EmptyList,
+                M.EmptyList, M.Char("blocked-normalization"),
+            )()
+        else:
+            stored_proposition = M.Head(M.Tail(lemma)())()
+            current_proposition = M.Head(current_candidate)()
+            identity_valid = CandidateValidation(current_proposition, registry)()
+            variables = BoundedPolynomialVariables(goal)()
+            assumptions_valid = VariablesHaveNonnegativeAssumptions(
+                variables, assumptions,
+            )()
+            structural = M.Head(M.Tail(M.Tail(M.Tail(current_candidate)())())())()
+            discovery = M.Head(M.Tail(M.Tail(structural)())())()
+            quotient = M.Head(M.Tail(M.Tail(discovery)())())()
+            quotient_expression = CanonicalPolynomialExpression(quotient)()
+            zero = M.Pair(M.ExprIntLabel, M.Pair(M.Zero, M.EmptyList))
+            quotient_obligation = M.Pair(
+                M.ExprLeLabel,
+                M.Pair(zero, M.Pair(quotient_expression, M.EmptyList)),
+            )
+            dependency = FindSOSDependency(
+                GraphVersionNodes(graph_version)(), quotient_obligation, registry,
+            )()
+            dependency_correct = M.false_value
+            lemma_certificate = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(lemma)())())())())())(),
+            )()
+            certificate_tail = M.Tail(M.Tail(M.Tail(M.Tail(lemma_certificate)())())())()
+            if M.IdentityCompare(certificate_tail, M.EmptyList)() is M.false_value:
+                expected_dependency = M.Head(certificate_tail)()
+                if M.IdentityCompare(dependency, M.EmptyList)() is M.false_value:
+                    expected_replay = ReplayAdditiveSOSLemmaOnGoal(
+                        quotient_obligation, expected_dependency, registry,
+                    )()
+                    if M.IdentityCompare(
+                        expected_replay, M.EmptyList,
+                    )() is M.false_value:
+                        dependency_correct = M.truth_value
+            stored_variables = BoundedPolynomialVariables(stored_proposition)()
+            current_variables = BoundedPolynomialVariables(current_proposition)()
+            stored_left = NormalizeCanonicalPolynomial(
+                M.Head(M.Tail(stored_proposition)())(), stored_variables, registry,
+            )()
+            current_left = NormalizeCanonicalPolynomial(
+                M.Head(M.Tail(current_proposition)())(), current_variables, registry,
+            )()
+            same_identity_shape = CanonicalPolynomialShapeEqual(
+                stored_left,
+                current_left,
+                stored_variables,
+                current_variables,
+            )()
+            if M.Compare(
+                CandidateValidationStatus(identity_valid)(), M.Char("proved"),
+            )() is M.false_value:
+                status = M.Char("blocked-identity-verification")
+            elif same_identity_shape is M.false_value:
+                status = M.Char("blocked-pattern-match")
+            elif assumptions_valid is M.false_value:
+                status = M.Char("missing-scoped-assumptions")
+            elif M.IdentityCompare(dependency, M.EmptyList)() is M.truth_value:
+                status = M.Char("missing-invented-dependency")
+            elif dependency_correct is M.false_value:
+                status = M.Char("missing-invented-dependency")
+            else:
+                status = M.Char("proved")
+            linear_proof = M.Pair(
+                M.Char("scoped-additive-nonnegative"),
+                M.Pair(
+                    assumptions,
+                    M.Pair(
+                        M.Char("sum-nonnegative-step"),
+                        M.Pair(M.Char("sum-nonnegative-step"), M.EmptyList),
+                    ),
+                ),
+            )
+            product_proof = M.Pair(
+                M.Char("product-nonnegative"),
+                M.Pair(linear_proof, M.Pair(dependency, M.EmptyList)),
+            )
+            self.result = CubicReplayTrace(
+                goal, lemma, current_proposition, linear_proof,
+                dependency, product_proof, status,
+            )()
+        super().__init__(inputs=M.Pair(goal, M.Pair(lemma, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CubicReplayStatus(M.Edge):
+    def __init__(self, replay):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())())(), 
+        )()
+        super().__init__(inputs=M.Pair(replay, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayInstalledCubicLemma(M.Edge):
+    def __init__(self, graph_version, goal, assumptions, registry, nodes=M.EmptyList, started=M.false_value):
+        if started is M.false_value:
+            nodes = GraphVersionNodes(graph_version)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            node = M.Head(nodes)()
+            cubic = M.false_value
+            if M.IsPair(node)() is M.truth_value:
+                if M.Compare(M.Head(node)(), M.Char("invented-lemma"))() is M.truth_value:
+                    certificate = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(node)())())())())())())()
+                    if M.IsPair(certificate)() is M.truth_value:
+                        if M.Compare(M.Head(certificate)(), M.Char("invention-evidence"))() is M.truth_value:
+                            structural = M.Head(M.Tail(certificate)())()
+                            if M.IsPair(structural)() is M.truth_value:
+                                cubic = M.Compare(
+                                    M.Head(structural)(), M.Char("bounded-linear-factor-vanishing"),
+                                )()
+            if cubic is M.truth_value:
+                replay = ReplayCubicLemmaOnGoal(
+                    graph_version, goal, node, assumptions, registry,
+                )()
+                self.result = M.Pair(replay, M.Pair(node, M.EmptyList))
+            else:
+                self.result = ReplayInstalledCubicLemma(
+                    graph_version, goal, assumptions, registry,
+                    M.Tail(nodes)(), M.truth_value,
+                )()
+        super().__init__(inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplaySavedInventedLemma(M.Edge):
+    def __init__(self, graph_version, goal, registry, assumptions=M.EmptyList):
+        cubic = ReplayInstalledCubicLemma(
+            graph_version, goal, assumptions, registry,
+        )()
+        if M.IdentityCompare(cubic, M.EmptyList)() is M.false_value:
+            self.result = cubic
+        else:
+            direct = ReplayInventedLemma(graph_version, goal, registry)()
+            if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
+                self.result = direct
+            else:
+                self.result = ReplayInventedLemmaChain(
+                    graph_version, goal, registry,
+                )()
         super().__init__(inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)), results=self.result)
 
     def __call__(self):
@@ -6046,6 +6779,8 @@ class InventFromStall(M.Edge):
         fields = M.Tail(stall)()
         goal = M.Head(fields)()
         candidate = AdditiveSOSCandidate(goal, registry)()
+        if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
+            candidate = CubicLinearFactorCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
             candidate = NormalizedDifferenceCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:

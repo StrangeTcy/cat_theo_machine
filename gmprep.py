@@ -148,6 +148,30 @@ class GMPMulText(Edge, GMPHostMath):
         return self.result
 
 
+class GMPAbsText(Edge, GMPHostMath):
+    def __init__(self, text):
+        value = self._mpz_value(text)
+        if value < self._zero_value():
+            value = -value
+        self.result = str(value)
+        super().__init__(inputs=Pair(text, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class GMPIsNegativeText(Edge, GMPHostMath):
+    def __init__(self, text):
+        if self._mpz_value(text) < self._zero_value():
+            self.result = truth_value
+        else:
+            self.result = false_value
+        super().__init__(inputs=Pair(text, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class GMPQuadraticPSDText(Edge, GMPHostMath):
     """Decide a*x^2 + b*x*y + c*y^2 >= 0 over the reals."""
 
@@ -260,6 +284,8 @@ __all__ = [
     "GMPSubText",
     "GMPMulByDigitText",
     "GMPMulText",
+    "GMPAbsText",
+    "GMPIsNegativeText",
     "GMPQuadraticPSDText",
     "GMPExactQuotientText",
     "GMPRepDigitList",

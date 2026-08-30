@@ -5268,6 +5268,17 @@ def run_talk_mode(sentence: str = None):
                                 invented_right,
                             )()
                     _persist_talk_state()
+                    approved_certificate = G.InventedLemmaCertificate(
+                        approved_payload,
+                    )()
+                    if M.IsPair(approved_certificate)() is M.truth_value:
+                        dependency_tail = M.Tail(
+                            M.Tail(M.Tail(M.Tail(approved_certificate)())())(),
+                        )()
+                        if M.IdentityCompare(
+                            dependency_tail, M.EmptyList,
+                        )() is M.false_value:
+                            return "Recorded the invented cubic lemma with its verified rewrite and nested SOS dependency."
                     return "Recorded the invented lemma and its verified rewrite rule."
                 approved_entries = G.ProposalStoreApproved(proposal_store)()
                 entry = M.EmptyList
@@ -5912,6 +5923,7 @@ def run_talk_mode(sentence: str = None):
                 ),
             )
             obligations_text = ""
+            nested_dependency = M.EmptyList
             if M.IsPair(structural_certificate)() is M.truth_value:
                 if M.Compare(
                     M.Head(structural_certificate)(),
@@ -5926,6 +5938,56 @@ def run_talk_mode(sentence: str = None):
                             Min.AdditiveSOSSummands(sos_identity)(), registry,
                         )()
                     )
+                elif M.Compare(
+                    M.Head(structural_certificate)(),
+                    M.Char("bounded-linear-factor-vanishing"),
+                )() is M.truth_value:
+                    cubic_variables = M.Head(M.Tail(structural_certificate)())()
+                    if Min.VariablesHaveNonnegativeAssumptions(
+                        cubic_variables, scoped_assumptions,
+                    )() is M.false_value:
+                        return "A cubic identity was verified, but its linear factor is not nonnegative under the scoped assumptions."
+                    discovery = M.Head(
+                        M.Tail(M.Tail(structural_certificate)())(),
+                    )()
+                    quotient = M.Head(M.Tail(M.Tail(discovery)())())()
+                    quotient_expression = Min.CanonicalPolynomialExpression(quotient)()
+                    quotient_obligation = M.Pair(
+                        M.ExprLeLabel,
+                        M.Pair(
+                            M.Pair(M.ExprIntLabel, M.Pair(M.Zero, M.EmptyList)),
+                            M.Pair(quotient_expression, M.EmptyList),
+                        ),
+                    )
+                    dependency = Min.FindSOSDependency(
+                        G.GraphNodes(learned_version)(), quotient_obligation, registry,
+                    )()
+                    if M.IdentityCompare(dependency, M.EmptyList)() is M.truth_value:
+                        return "A cubic identity was verified, but its invented SOS dependency is missing."
+                    nested_dependency = M.Head(M.Tail(dependency)())()
+                    factor = M.Head(M.Tail(discovery)())()
+                    obligations_text = (
+                        "\nFactor obligations:"
+                        "\n  1. 0 <= "
+                        + M.PrettyTerm(Min.CanonicalPolynomialExpression(factor)(), registry)()
+                        + " [scoped assumptions + additive nonnegative]"
+                        "\n  2. 0 <= " + M.PrettyTerm(quotient_expression, registry)()
+                        + " [nested invented SOS lemma]"
+                    )
+            if M.IdentityCompare(nested_dependency, M.EmptyList)() is M.false_value:
+                certificate = M.Pair(
+                    M.Char("invention-evidence"),
+                    M.Pair(
+                        structural_certificate,
+                        M.Pair(
+                            trial,
+                            M.Pair(
+                                validation,
+                                M.Pair(nested_dependency, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                )
             invented = G.InventedLemma(
                 proposition,
                 G.StallRecordGoal(stall)(),
@@ -7001,14 +7063,48 @@ def run_talk_mode(sentence: str = None):
                 polynomial_goal, M.EmptyList,
             )() is M.false_value:
                 replay_hit = Min.ReplaySavedInventedLemma(
-                    learned_version, goal, registry,
+                    learned_version, goal, registry, scoped_assumptions,
                 )()
                 if M.IdentityCompare(replay_hit, M.EmptyList)() is M.false_value:
                     replay = M.Head(replay_hit)()
                     replay_lemma = M.Head(M.Tail(replay_hit)())()
+                    replay_status = M.Head(
+                        M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())())(),
+                    )()
+                    if M.Compare(replay_status, M.Char("proved"))() is M.false_value:
+                        if M.Compare(
+                            replay_status, M.Char("missing-invented-dependency"),
+                        )() is M.truth_value:
+                            return "Cannot replay cubic lemma: missing invented SOS dependency."
+                        if M.Compare(
+                            replay_status, M.Char("missing-scoped-assumptions"),
+                        )() is M.truth_value:
+                            return "Cannot replay cubic lemma: x+y+z nonnegativity is not supported by the scoped assumptions."
+                        return "Cannot replay the saved cubic lemma: " + str(replay_status()) + "."
                     learned_version = G.CreditInventedLemmaReplay(
                         learned_version, replay, replay_lemma, registry,
                     )()
+                    used_nested_dependency = M.false_value
+                    nested_evidence = M.Head(
+                        M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())(),
+                    )()
+                    if M.IsPair(nested_evidence)() is M.truth_value:
+                        dependency_hit = M.Head(nested_evidence)()
+                        if M.IsPair(dependency_hit)() is M.truth_value:
+                            nested_replay = M.Head(dependency_hit)()
+                            if M.IsPair(nested_replay)() is M.truth_value:
+                                if M.Compare(
+                                    M.Head(nested_replay)(),
+                                    M.Char("invented-lemma-replay-derivation"),
+                                )() is M.truth_value:
+                                    used_nested_dependency = M.truth_value
+                                    nested_lemma = M.Head(M.Tail(dependency_hit)())()
+                                    learned_version = G.CreditInventedLemmaReplay(
+                                        learned_version,
+                                        nested_replay,
+                                        nested_lemma,
+                                        registry,
+                                    )()
                     last_goal = goal
                     last_derivation = replay
                     replay_explanation = (
@@ -7016,6 +7112,14 @@ def run_talk_mode(sentence: str = None):
                         "proved its nonnegativity obligations, and derived "
                         + line[6:].strip() + "."
                     )
+                    if used_nested_dependency is M.truth_value:
+                        replay_explanation = (
+                            "yes; replayed the cubic factorization, proved "
+                            "x+y+z nonnegative from the scoped assumptions, "
+                            "reused the saved SOS lemma for the quadratic "
+                            "factor, applied product nonnegativity, and derived "
+                            + line[6:].strip() + "."
+                        )
                     replay_step = M.Head(
                         M.Tail(M.Tail(M.Tail(replay)())())(),
                     )()
