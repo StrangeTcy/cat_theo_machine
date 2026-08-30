@@ -44,6 +44,7 @@ else:
     from . import modular as Mod
     from . import euclid as Euc
     from . import story_talk_adapter as StoryTalk
+    from . import proof_lookup_coordinator as ProofLookup
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -8049,20 +8050,40 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(
                 polynomial_goal, M.EmptyList,
             )() is M.false_value:
-                _thinking("forward rules did not close the goal; checking saved cubic lemmas")
-                replay_hit = Min.ReplayInstalledCubicLemma(
-                    learned_version, goal, scoped_assumptions, registry,
-                )()
-                if M.IdentityCompare(replay_hit, M.EmptyList)() is M.truth_value:
-                    _thinking("no cubic lemma matched; checking direct invented-lemma rewrites")
-                    replay_hit = Min.ReplayInventedLemma(
-                        learned_version, goal, registry,
+                replay_hit = M.EmptyList
+                if os.environ.get("HYGE_LIVE_FOREGROUND", "") == "1":
+                    _thinking("dispatching saved-lemma lookup to three foreground worker processes")
+                    lookup_mode = ProofLookup.ParallelProofLookupMode(
+                        learned_version, goal, scoped_assumptions,
                     )()
-                if M.IdentityCompare(replay_hit, M.EmptyList)() is M.truth_value:
-                    _thinking("no direct rewrite matched; checking composable lemma chains")
-                    replay_hit = Min.ReplayInventedLemmaChain(
-                        learned_version, goal, registry,
+                    _thinking("foreground lookup workers joined; selected result mode=" + lookup_mode)
+                    if lookup_mode == "cubic":
+                        replay_hit = Min.ReplayInstalledCubicLemma(
+                            learned_version, goal, scoped_assumptions, registry,
+                        )()
+                    elif lookup_mode == "direct":
+                        replay_hit = Min.ReplayInventedLemma(
+                            learned_version, goal, registry,
+                        )()
+                    elif lookup_mode == "chain":
+                        replay_hit = Min.ReplayInventedLemmaChain(
+                            learned_version, goal, registry,
+                        )()
+                else:
+                    _thinking("forward rules did not close the goal; checking saved cubic lemmas")
+                    replay_hit = Min.ReplayInstalledCubicLemma(
+                        learned_version, goal, scoped_assumptions, registry,
                     )()
+                    if M.IdentityCompare(replay_hit, M.EmptyList)() is M.truth_value:
+                        _thinking("no cubic lemma matched; checking direct invented-lemma rewrites")
+                        replay_hit = Min.ReplayInventedLemma(
+                            learned_version, goal, registry,
+                        )()
+                    if M.IdentityCompare(replay_hit, M.EmptyList)() is M.truth_value:
+                        _thinking("no direct rewrite matched; checking composable lemma chains")
+                        replay_hit = Min.ReplayInventedLemmaChain(
+                            learned_version, goal, registry,
+                        )()
                 if M.IdentityCompare(replay_hit, M.EmptyList)() is M.false_value:
                     _thinking("found a fitting invented lemma; replaying its certificate and obligations")
                     replay = M.Head(replay_hit)()
@@ -11526,6 +11547,8 @@ def run_live_mode(requested_workers):
     session does not believe a dead daemon is still cycling.
     """
     import threading
+
+    os.environ["HYGE_LIVE_FOREGROUND"] = "1"
 
     # PACKAGE_DIR is this package; its parent is the import root, which is
     # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
