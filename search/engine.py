@@ -115,14 +115,18 @@ class Search(M.Edge):
 
             outcome = SearchJobStatus(job)()
             self._active_search_job = job
+            stall = M.EmptyList
             if M.IdentityCompare(outcome, SearchFailureLabel)() is M.truth_value:
                 from .. import graph as Gmod
 
-                self.graph._last_stall = Gmod.StallRecord(
+                stall = Gmod.StallRecord(
                     self.original_goal,
                     Gmod.StallFrontierPrefix(self._stall_frontier)(),
                     M.EmptyList,
                     SearchJobExpanded(job)(),
+                    self.start,
+                    self.rules,
+                    self.heuristic,
                 )()
             self._final_status_text = self._completion_status_text(outcome)
             if M.IdentityCompare(outcome, SearchPausedLabel)() is M.false_value:
@@ -142,7 +146,10 @@ class Search(M.Edge):
             search_cost = M.Head(cost_pair)()
             self.registry = M.Head(M.Tail(cost_pair)())()
             self.graph._replace_context(constructors=self.registry)
-            self.result = M.Pair(plan, M.Pair(search_cost, M.EmptyList))
+            self.result = M.Pair(
+                plan,
+                M.Pair(search_cost, M.Pair(stall, M.EmptyList)),
+            )
             _debug(self.mode_text + ": " + self._final_status_text)
             super().__init__(inputs=M.Pair(graph, M.Pair(start, M.Pair(goal, M.Pair(ordered_rules, M.Pair(heuristic, M.Pair(registry, M.EmptyList)))))), results=self.result)
         finally:

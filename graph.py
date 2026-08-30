@@ -70,7 +70,6 @@ class Hypergraph:
         self._search_compare_live_workers = M.EmptyList
         self._search_compare_live_idle_executors = M.EmptyList
         self._last_search_comparison_outcome = M.EmptyList
-        self._last_stall = M.EmptyList
         # self.context = Ctx.Context(
         #     constructor_registry,
         #     M.EmptyList,
@@ -329,7 +328,9 @@ class Miss(M.Edge):
 class StallRecord(M.Edge):
     """Bounded substrate record of one exhausted theorem search."""
 
-    def __init__(self, goal, frontier, miss_reasons, fuel_used):
+    def __init__(self, goal, frontier, miss_reasons, fuel_used,
+                 start=M.EmptyList, rules=M.EmptyList,
+                 heuristic=M.EmptyList):
         self.result = M.Pair(
             M.Char("stall-record"),
             M.Pair(
@@ -338,24 +339,18 @@ class StallRecord(M.Edge):
                     frontier,
                     M.Pair(
                         miss_reasons,
-                        M.Pair(fuel_used, M.EmptyList),
+                        M.Pair(
+                            fuel_used,
+                            M.Pair(
+                                start,
+                                M.Pair(rules, M.Pair(heuristic, M.EmptyList)),
+                            ),
+                        ),
                     ),
                 ),
             ),
         )
-        super().__init__(
-            inputs=M.Pair(
-                goal,
-                M.Pair(
-                    frontier,
-                    M.Pair(
-                        miss_reasons,
-                        M.Pair(fuel_used, M.EmptyList),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
+        super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -393,6 +388,36 @@ class StallRecordFuelUsed(M.Edge):
         self.result = M.Head(
             M.Tail(M.Tail(M.Tail(M.Tail(record)())())())(),
         )()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecordStart(M.Edge):
+    def __init__(self, record):
+        fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(record)())())())())()
+        self.result = M.Head(fields)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecordRules(M.Edge):
+    def __init__(self, record):
+        fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(record)())())())())()
+        self.result = M.Head(M.Tail(fields)())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallRecordHeuristic(M.Edge):
+    def __init__(self, record):
+        fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(record)())())())())()
+        self.result = M.Head(M.Tail(M.Tail(fields)())())()
         super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -627,6 +652,93 @@ class ReplaceInventedLemmaNode(M.Edge):
                 )(),
             )
         super().__init__(inputs=M.Pair(nodes, M.Pair(used, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DerivationUsesInventedLemma(M.Edge):
+    """Require an executed derivation action matching the installed identity."""
+
+    def __init__(self, derivation, invented, registry):
+        proposition = InventedLemmaProposition(invented)()
+        self.result = M.false_value
+        if M.IsPair(proposition)() is M.truth_value:
+            if M.IdentityCompare(M.Head(proposition)(), M.ExprEqLabel)() is M.truth_value:
+                left = M.Head(M.Tail(proposition)())()
+                right = M.Head(M.Tail(M.Tail(proposition)())())()
+                steps = P.DerivationSteps(derivation, registry)()
+                self.result = self._scan(steps, left, right, registry)
+        super().__init__(
+            inputs=M.Pair(
+                derivation, M.Pair(invented, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _scan(self, steps, left, right, registry):
+        if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        action = P.StepAction(M.Head(steps)(), registry)()
+        if M.IdentityCompare(action, M.EmptyList)() is M.false_value:
+            rule = P.ActionRule(action)()
+            premises = P.RulePremises(rule)()
+            replacement = P.RuleReplacement(rule)()
+            if M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(M.Tail(premises)(), M.EmptyList)() is M.truth_value:
+                    if M.TermEqual(M.Head(premises)(), left)() is M.truth_value:
+                        if M.TermEqual(replacement, right)() is M.truth_value:
+                            return M.truth_value
+        return self._scan(M.Tail(steps)(), left, right, registry)
+
+    def __call__(self):
+        return self.result
+
+
+class CreditInventedLemmaDerivation(M.Edge):
+    """Persist reuse only after a completed derivation contains the firing."""
+
+    def __init__(self, graph_version, derivation, registry):
+        nodes = self._credit(
+            GraphNodes(graph_version)(), derivation, registry,
+        )
+        self.result = GraphVersion(
+            nodes,
+            GraphEdges(graph_version)(),
+            GraphVersionInvariants(graph_version)(),
+        )()
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(derivation, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _credit(self, nodes, derivation, registry):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        node = M.Head(nodes)()
+        replacement = node
+        if IsInventedLemma(node)() is M.truth_value:
+            if DerivationUsesInventedLemma(
+                derivation, node, registry,
+            )() is M.truth_value:
+                next_utility = M.Succ(
+                    InventedLemmaUtility(node)(), registry,
+                )()
+                replacement = InventedLemma(
+                    InventedLemmaProposition(node)(),
+                    InventedLemmaGoal(node)(),
+                    derivation,
+                    InventedLemmaStatus(node)(),
+                    M.Head(next_utility)(),
+                    InventedLemmaCertificate(node)(),
+                )()
+        return M.Pair(
+            replacement,
+            self._credit(M.Tail(nodes)(), derivation, registry),
+        )
 
     def __call__(self):
         return self.result

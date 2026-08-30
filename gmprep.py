@@ -148,6 +148,25 @@ class GMPMulText(Edge, GMPHostMath):
         return self.result
 
 
+class GMPExactQuotientText(Edge, GMPHostMath):
+    def __init__(self, dividend, divisor):
+        divisor_value = self._mpz_value(divisor)
+        dividend_value = self._mpz_value(dividend)
+        if divisor_value == self._zero_value():
+            self.result = ""
+        elif dividend_value % divisor_value != self._zero_value():
+            self.result = ""
+        else:
+            self.result = str(dividend_value // divisor_value)
+        super().__init__(
+            inputs=Pair(dividend, Pair(divisor, EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class GMPRepDigitList(Edge):
     def __init__(self, rep):
         self.result = self._digits(rep)

@@ -5248,8 +5248,26 @@ def run_talk_mode(sentence: str = None):
                         G.GraphEdges(learned_version)(),
                         G.GraphVersionInvariants(learned_version)(),
                     )()
+                    invented_proposition = G.InventedLemmaProposition(
+                        approved_payload,
+                    )()
+                    if M.IsPair(invented_proposition)() is M.truth_value:
+                        if M.IdentityCompare(
+                            M.Head(invented_proposition)(), M.ExprEqLabel,
+                        )() is M.truth_value:
+                            invented_left = M.Head(
+                                M.Tail(invented_proposition)(),
+                            )()
+                            invented_right = M.Head(
+                                M.Tail(M.Tail(invented_proposition)())(),
+                            )()
+                            learned_version = G.InstallTaughtRuleSource(
+                                learned_version,
+                                M.Pair(invented_left, M.EmptyList),
+                                invented_right,
+                            )()
                     _persist_talk_state()
-                    return "Recorded the invented lemma in the graph."
+                    return "Recorded the invented lemma and its verified rewrite rule."
                 approved_entries = G.ProposalStoreApproved(proposal_store)()
                 entry = M.EmptyList
                 while M.IdentityCompare(
@@ -5853,9 +5871,29 @@ def run_talk_mode(sentence: str = None):
                 return "The bounded invention biases found no useful candidate."
             candidate = M.Head(candidates)()
             proposition = M.Head(candidate)()
-            unlock = M.Head(M.Tail(candidate)())()
+            provenance = M.Head(M.Tail(candidate)())()
             status = M.Head(M.Tail(M.Tail(candidate)())())()
-            certificate = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+            structural_certificate = M.Head(
+                M.Tail(M.Tail(M.Tail(candidate)())())(),
+            )()
+            trial = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())(),
+            )()
+            validation = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+            )()
+            if M.Compare(
+                Min.CandidateValidationStatus(validation)(),
+                M.Char("refuted"),
+            )() is M.truth_value:
+                return "The generated candidate was independently refuted and discarded."
+            certificate = M.Pair(
+                M.Char("invention-evidence"),
+                M.Pair(
+                    structural_certificate,
+                    M.Pair(trial, M.Pair(validation, M.EmptyList)),
+                ),
+            )
             invented = G.InventedLemma(
                 proposition,
                 G.StallRecordGoal(stall)(),
@@ -5877,8 +5915,8 @@ def run_talk_mode(sentence: str = None):
                 "Analyzing stall on: "
                 + M.PrettyTerm(G.StallRecordGoal(stall)(), registry)()
                 + "\n1. " + M.PrettyTerm(proposition, registry)()
-                + " [Unlock: " + str(unlock())
-                + " | Verification: " + str(status()) + "]"
+                + " [Source: " + str(provenance())
+                + " | Status: " + str(status()) + "]"
                 + "\nEnter 1 to register it, or no."
             )
         if lowered.startswith("suggest premises"):
@@ -6365,40 +6403,6 @@ def run_talk_mode(sentence: str = None):
                     + " is already recorded as a case-elimination conclusion."
                 )
             facts = G.InstalledTaughtFacts(learned_version)()
-            invented_hit = G.LookupInventedLemma(
-                learned_version, goal,
-            )()
-            if M.IdentityCompare(
-                invented_hit, M.EmptyList,
-            )() is M.false_value:
-                talk_ledger.append(
-                    G.FiringRecord(
-                        invented_hit,
-                        learned_version,
-                        learned_version,
-                        M.Pair(
-                            M.Pair(
-                                M.Char("invented-lemma-consultation"),
-                                M.Pair(goal, M.EmptyList),
-                            ),
-                            M.EmptyList,
-                        ),
-                        M.Zero,
-                        M.Zero,
-                        M.Zero,
-                        M.Zero,
-                        M.one,
-                    )(),
-                )
-                learned_version = G.IncrementInventedLemmaUtility(
-                    learned_version, invented_hit,
-                )()
-                last_goal = goal
-                _persist_talk_state()
-                return (
-                    "yes; derived " + line[6:].strip()
-                    + " through an invented lemma."
-                )
             schema_hit = G.LookupTaughtDerivationSchema(
                 learned_version,
                 P.Knowledge(facts)(),
@@ -6973,15 +6977,18 @@ def run_talk_mode(sentence: str = None):
                     M.one,
                     M.one,
                 )()
-                M.Search(
+                stall_rules = P.CompileRuleChain(
+                    G.InstalledTaughtRules(learned_version)(), registry,
+                )()
+                searched = M.Search(
                     stall_graph,
                     start,
                     goal,
-                    M.EmptyList,
+                    stall_rules,
                     stall_heuristic,
                     registry,
                 )()
-                stall = stall_graph._last_stall
+                stall = M.Head(M.Tail(M.Tail(searched)())())()
                 if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
                     stall = G.StallRecord(
                         goal,
@@ -7047,14 +7054,7 @@ def run_talk_mode(sentence: str = None):
                     goal,
                     last_proof_registry,
                 )()
-            stall = proof_runtime.graph._last_stall
-            if M.IdentityCompare(stall, M.EmptyList)() is M.truth_value:
-                stall = G.StallRecord(
-                    goal,
-                    M.Pair(start, M.EmptyList),
-                    M.EmptyList,
-                    M.Zero,
-                )()
+            stall = M.EmptyList
             if M.IdentityCompare(stall, M.EmptyList)() is M.false_value:
                 learned_version = G.InstallStallRecord(
                     learned_version, stall,

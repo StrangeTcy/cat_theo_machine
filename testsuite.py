@@ -4962,7 +4962,7 @@ class SearchStallCaptureTest(M.Edge):
         searched = M.Search(
             graph, start, goal, empty, heuristic, registry,
         )()
-        stall = graph._last_stall
+        stall = M.Head(M.Tail(M.Tail(searched)())())()
         self.result = M.truth_value
         if M.IdentityCompare(M.Head(searched)(), empty)() is M.false_value:
             self.result = M.false_value
@@ -4971,6 +4971,18 @@ class SearchStallCaptureTest(M.Edge):
         elif M.IdentityCompare(
             Gmod.StallRecordFrontier(stall)(), empty,
         )() is M.truth_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.StallRecordStart(stall)(), start,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            Gmod.StallRecordRules(stall)(), empty,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(
+            Gmod.StallRecordHeuristic(stall)(), heuristic,
+        )() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
@@ -5007,6 +5019,19 @@ class LemmaInventionTest(M.Edge):
             "x^2 + y^2 >= 2*x*y",
             digit_words,
         )()
+        non_family_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + x^3*y + x*y^3 + y^4 >= 4*x^2*y^2",
+            digit_words,
+        )()
+        non_family_stall = Gmod.StallRecord(
+            non_family_goal,
+            M.Pair(M.Knowledge(empty)(), empty),
+            empty,
+            M.five,
+        )()
+        non_family_candidates = Minmod.InventFromStall(
+            non_family_stall, registry,
+        )()
         quadratic_stall = Gmod.StallRecord(
             quadratic_goal,
             M.Pair(M.Knowledge(empty)(), empty),
@@ -5022,13 +5047,72 @@ class LemmaInventionTest(M.Edge):
         cubic_candidates = Minmod.InventFromStall(
             cubic_stall, registry,
         )()
-        stall = Gmod.StallRecord(
-            goal,
-            M.Pair(M.Knowledge(empty)(), empty),
-            empty,
-            M.five,
+        graph._search_disable_console = M.truth_value
+        graph._search_disable_progress_ticker = M.truth_value
+        heuristic = Hmod.Heuristic(
+            M.DFSLabel,
+            M.InsertionOrderLabel,
+            M.three,
+            M.one,
+            M.one,
+            M.one,
         )()
+        searched = M.Search(
+            graph,
+            M.Knowledge(empty)(),
+            goal,
+            empty,
+            heuristic,
+            registry,
+        )()
+        stall = M.Head(M.Tail(M.Tail(searched)())())()
         candidates = Minmod.InventFromStall(stall, registry)()
+        plus_divisor = M.Pair(
+            Minmod.PolynomialMonomial("1", "1", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "0", "1")(), empty,
+            ),
+        )
+        difference_quotient = Minmod.PolynomialDifferenceFactor()()
+        plus_dividend = Minmod.PolynomialMultiply(
+            plus_divisor, difference_quotient,
+        )()
+        plus_division = Minmod.PolynomialExactDivide(
+            plus_dividend, plus_divisor,
+        )()
+        first_divisor = M.Pair(
+            Minmod.PolynomialMonomial("1", "1", "0")(), empty,
+        )
+        first_dividend = M.Pair(
+            Minmod.PolynomialMonomial("1", "2", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "1", "1")(), empty,
+            ),
+        )
+        first_division = Minmod.PolynomialExactDivide(
+            first_dividend, first_divisor,
+        )()
+        linear_divisor = M.Pair(
+            Minmod.PolynomialMonomial("2", "1", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("-1", "0", "1")(), empty,
+            ),
+        )
+        linear_dividend = Minmod.PolynomialMultiply(
+            linear_divisor, plus_divisor,
+        )()
+        linear_division = Minmod.PolynomialExactDivide(
+            linear_dividend, linear_divisor,
+        )()
+        non_dividend = M.Pair(
+            Minmod.PolynomialMonomial("1", "2", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "0", "2")(), empty,
+            ),
+        )
+        non_division = Minmod.PolynomialExactDivide(
+            non_dividend, plus_divisor,
+        )()
         self.result = M.truth_value
         if M.IdentityCompare(square_seed, empty)() is M.truth_value:
             self.result = M.false_value
@@ -5036,11 +5120,33 @@ class LemmaInventionTest(M.Edge):
             self.result = M.false_value
         elif M.IdentityCompare(renamed, empty)() is M.truth_value:
             self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(plus_division)(),
+            M.Char("exact"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(first_division)(),
+            M.Char("exact"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(linear_division)(),
+            M.Char("exact"),
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            Minmod.PolynomialDivisionStatus(non_division)(),
+            M.Char("exact"),
+        )() is M.truth_value:
+            self.result = M.false_value
         elif M.IdentityCompare(candidates, empty)() is M.truth_value:
             self.result = M.false_value
         elif M.IdentityCompare(cubic_candidates, empty)() is M.truth_value:
             self.result = M.false_value
         elif M.IdentityCompare(quadratic_candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(non_family_candidates, empty)() is M.truth_value:
             self.result = M.false_value
         else:
             candidate = M.Head(candidates)()
@@ -5068,34 +5174,168 @@ class LemmaInventionTest(M.Edge):
                 self.result = M.false_value
             elif M.Compare(
                 Gmod.InventedLemmaStatus(found)(),
-                M.Char("conjecture"),
+                M.Char("verified-identity"),
             )() is M.false_value:
                 self.result = M.false_value
             elif M.IdentityCompare(
                 Gmod.InstalledStallRecord(loaded)(), empty,
             )() is M.truth_value:
                 self.result = M.false_value
-            else:
-                incremented = Gmod.IncrementInventedLemmaUtility(
-                    loaded, found,
-                )()
-                incremented_lemma = Gmod.LookupInventedLemma(
-                    incremented, renamed,
-                )()
-                if M.NatEq(
-                    Gmod.InventedLemmaUtility(incremented_lemma)(),
-                    M.one,
-                    registry,
-                )() is M.false_value:
-                    self.result = M.false_value
-                elif M.Compare(
-                    Gmod.InventedLemmaDisplayText(
-                        Gmod.GraphNodes(incremented)(), M.one, registry,
-                    )(),
-                    M.Char(""),
-                )() is M.truth_value:
-                    self.result = M.false_value
+            elif M.IdentityCompare(
+                Gmod.InventedLemmaUtility(found)(), M.Zero,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.Compare(
+                Gmod.InventedLemmaDisplayText(
+                    Gmod.GraphNodes(loaded)(), M.one, registry,
+                )(),
+                M.Char(""),
+            )() is M.truth_value:
+                self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateValidationStatusTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3", digit_words,
+        )()
+        stall = Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)()
+        candidate = M.Head(Minmod.InventFromStall(stall, registry)())()
+        proposition = M.Head(candidate)()
+        proved = Minmod.CandidateValidation(proposition, registry)()
+        false_proposition = M.Pair(
+            M.ExprEqLabel,
+            M.Pair(
+                M.Head(M.Tail(proposition)())(),
+                M.Pair(
+                    M.Pair(M.ExprIntLabel, M.Pair(M.one, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        refuted = Minmod.CandidateValidation(false_proposition, registry)()
+        unknown = Minmod.CandidateValidation(goal, registry)()
+        proved_ok = M.Compare(
+            Minmod.CandidateValidationStatus(proved)(), M.Char("proved"),
+        )()
+        refuted_ok = M.Compare(
+            Minmod.CandidateValidationStatus(refuted)(), M.Char("refuted"),
+        )()
+        unknown_ok = M.Compare(
+            Minmod.CandidateValidationStatus(unknown)(), M.Char("unknown"),
+        )()
+        self.result = M.AndAtom(
+            proved_ok, M.AndAtom(refuted_ok, unknown_ok)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateTrialEvidenceTest(M.Edge):
+    """A candidate counts only when it activates a rule already in the stall."""
+
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + x^3*y + x*y^3 + y^4 >= 4*x^2*y^2",
+            digit_words,
+        )()
+        seed = M.Char("trial-seed")
+        start = Pmod.Knowledge(M.Pair(seed, M.EmptyList))()
+        heuristic = Hmod.Heuristic(
+            M.DFSLabel, M.InsertionOrderLabel,
+            M.three, M.one, M.one, M.one,
+        )()
+        empty_stall = Gmod.StallRecord(
+            goal, M.EmptyList, M.EmptyList, M.Zero,
+            start, M.EmptyList, heuristic,
+        )()
+        empty_candidate = M.Head(Minmod.InventFromStall(empty_stall, registry)())()
+        empty_trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(empty_candidate)())())())())()
+        false_control = M.IdentityCompare(
+            Minmod.CandidateTrialImproved(empty_trial)(), M.false_value,
+        )()
+        equality_pattern = M.Pair(
+            M.ExprEqLabel,
+            M.Pair(
+                M.Pair(M.VarTag, M.Pair(M.Atom(), M.EmptyList)),
+                M.Pair(
+                    M.Pair(M.VarTag, M.Pair(M.Atom(), M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        existing_rule = Pmod.MultiRule(
+            M.Pair(equality_pattern, M.EmptyList),
+            M.Char("trial-conclusion"),
+        )()
+        rules = M.Pair(Pmod.CompileRule(existing_rule, registry)(), M.EmptyList)
+        genuine_stall = Gmod.StallRecord(
+            goal, M.EmptyList, M.EmptyList, M.Zero,
+            start, rules, heuristic,
+        )()
+        genuine_candidate = M.Head(Minmod.InventFromStall(genuine_stall, registry)())()
+        genuine_trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(genuine_candidate)())())())())()
+        genuine_unlock = M.IdentityCompare(
+            Minmod.CandidateTrialImproved(genuine_trial)(), M.truth_value,
+        )()
+        self.result = M.AndAtom(false_control, genuine_unlock)()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InventedLemmaDerivationCreditRoundTripTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        left = M.Pair(M.Char("invented-left"), M.EmptyList)
+        right = M.Pair(M.Char("invented-right"), M.EmptyList)
+        proposition = M.Pair(
+            M.ExprEqLabel, M.Pair(left, M.Pair(right, M.EmptyList)),
+        )
+        invented = Gmod.InventedLemma(
+            proposition, proposition, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, M.EmptyList,
+        )()
+        rule = Pmod.Rule(left, right)()
+        built = Pmod.BuildDerivation(
+            left,
+            M.Pair(Pmod.TheoremAction(rule)(), M.EmptyList),
+            registry,
+        )()
+        derivation = M.Head(built)()
+        version = Gmod.GraphVersion(
+            M.Pair(invented, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        credited = Gmod.CreditInventedLemmaDerivation(
+            version, derivation, M.Head(M.Tail(built)())(),
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(credited))
+        loaded_invented = M.Head(Gmod.GraphNodes(loaded)())()
+        utility_ok = M.NatEq(
+            Gmod.InventedLemmaUtility(loaded_invented)(),
+            M.one,
+            registry,
+        )()
+        proof_ok = M.IdentityCompare(
+            Gmod.InventedLemmaProof(loaded_invented)(), M.EmptyList,
+        )()
+        self.result = M.AndAtom(utility_ok, M.NotAtom(proof_ok)())()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result

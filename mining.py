@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from . import machine as M
 from . import proof as Pmod
-from .gmprep import GMPSuccText
+from .gmprep import GMPSuccText, GMPPredText, GMPExactQuotientText
 from .graph import *
 
 class MineNatFromGMPRep(M.Edge):
@@ -3585,10 +3585,16 @@ class PolynomialAtEqualVariables(M.Edge):
 
 
 class PolynomialDivisionResult(M.Edge):
-    def __init__(self, quotient):
+    def __init__(self, quotient, remainder, trace, status):
         self.result = M.Pair(
             M.Char("polynomial-division-result"),
-            M.Pair(quotient, M.EmptyList),
+            M.Pair(
+                quotient,
+                M.Pair(
+                    remainder,
+                    M.Pair(trace, M.Pair(status, M.EmptyList)),
+                ),
+            ),
         )
         super().__init__(inputs=M.Pair(quotient, M.EmptyList), results=self.result)
 
@@ -3605,65 +3611,135 @@ class PolynomialDivisionQuotient(M.Edge):
         return self.result
 
 
-class PolynomialDivideDifferenceStep(M.Edge):
-    def __init__(self, remainder, quotient, remaining_text="100"):
+class PolynomialDivisionRemainder(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(result)())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialDivisionTrace(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(result)())())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialDivisionStatus(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(result)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialExactDivideStep(M.Edge):
+    def __init__(self, dividend, divisor, quotient, trace,
+                 remaining_text="100"):
         if GMPEqualText(remaining_text, "0")() is M.truth_value:
-            self.result = M.EmptyList
-        elif M.IdentityCompare(remainder, M.EmptyList)() is M.truth_value:
-            self.result = PolynomialDivisionResult(quotient)()
+            self.result = PolynomialDivisionResult(
+                quotient, dividend, M.Reverse(trace)(), M.Char("fuel-stopped"),
+            )()
+        elif M.IdentityCompare(dividend, M.EmptyList)() is M.truth_value:
+            self.result = PolynomialDivisionResult(
+                quotient, M.EmptyList, M.Reverse(trace)(), M.Char("exact"),
+            )()
+        elif M.IdentityCompare(divisor, M.EmptyList)() is M.truth_value:
+            self.result = PolynomialDivisionResult(
+                quotient, dividend, M.Reverse(trace)(), M.Char("zero-divisor"),
+            )()
         else:
-            leading = M.Head(remainder)()
-            first_exponent = PolynomialMonomialFirstExponent(leading)()
-            if GMPEqualText(first_exponent, "0")() is M.truth_value:
-                self.result = M.EmptyList
+            dividend_lead = M.Head(dividend)()
+            divisor_lead = M.Head(divisor)()
+            dividend_first = PolynomialMonomialFirstExponent(dividend_lead)()
+            dividend_second = PolynomialMonomialSecondExponent(dividend_lead)()
+            divisor_first = PolynomialMonomialFirstExponent(divisor_lead)()
+            divisor_second = PolynomialMonomialSecondExponent(divisor_lead)()
+            first_too_small = GMPLessText(dividend_first, divisor_first)()
+            second_too_small = GMPLessText(dividend_second, divisor_second)()
+            coefficient = GMPExactQuotientText(
+                PolynomialMonomialCoefficient(dividend_lead)(),
+                PolynomialMonomialCoefficient(divisor_lead)(),
+            )()
+            if M.OrAtom(first_too_small, second_too_small)() is M.truth_value:
+                self.result = PolynomialDivisionResult(
+                    quotient, dividend, M.Reverse(trace)(), M.Char("non-exact"),
+                )()
+            elif M.Compare(
+                M.Char(coefficient), M.Char(""),
+            )() is M.truth_value:
+                self.result = PolynomialDivisionResult(
+                    quotient, dividend, M.Reverse(trace)(), M.Char("non-exact"),
+                )()
             else:
                 quotient_term = PolynomialMonomial(
-                    PolynomialMonomialCoefficient(leading)(),
-                    GMPPredText(first_exponent)(),
-                    PolynomialMonomialSecondExponent(leading)(),
+                    coefficient,
+                    GMPSubText(dividend_first, divisor_first)(),
+                    GMPSubText(dividend_second, divisor_second)(),
                 )()
-                positive_product = PolynomialMonomial(
-                    PolynomialMonomialCoefficient(quotient_term)(),
-                    GMPAddText(
-                        PolynomialMonomialFirstExponent(quotient_term)(), "1",
-                    )(),
-                    PolynomialMonomialSecondExponent(quotient_term)(),
+                subtracted = PolynomialMultiplyByMonomial(
+                    divisor, quotient_term,
                 )()
-                negative_product = PolynomialMonomial(
-                    GMPSubText(
-                        "0", PolynomialMonomialCoefficient(quotient_term)(),
-                    )(),
-                    PolynomialMonomialFirstExponent(quotient_term)(),
-                    GMPAddText(
-                        PolynomialMonomialSecondExponent(quotient_term)(), "1",
-                    )(),
-                )()
-                next_remainder = PolynomialInsert(
-                    PolynomialInsert(
-                        remainder,
-                        PolynomialMonomial(
-                            GMPSubText(
-                                "0", PolynomialMonomialCoefficient(positive_product)(),
-                            )(),
-                            PolynomialMonomialFirstExponent(positive_product)(),
-                            PolynomialMonomialSecondExponent(positive_product)(),
-                        )(),
-                    )(),
-                    PolynomialMonomial(
-                        GMPSubText(
-                            "0", PolynomialMonomialCoefficient(negative_product)(),
-                        )(),
-                        PolynomialMonomialFirstExponent(negative_product)(),
-                        PolynomialMonomialSecondExponent(negative_product)(),
-                    )(),
+                next_dividend = PolynomialMerge(
+                    dividend, PolynomialNegate(subtracted)(),
                 )()
                 next_quotient = PolynomialInsert(quotient, quotient_term)()
-                self.result = PolynomialDivideDifferenceStep(
-                    next_remainder,
+                step = M.Pair(
+                    M.Char("polynomial-division-step"),
+                    M.Pair(
+                        quotient_term,
+                        M.Pair(subtracted, M.Pair(next_dividend, M.EmptyList)),
+                    ),
+                )
+                self.result = PolynomialExactDivideStep(
+                    next_dividend,
+                    divisor,
                     next_quotient,
+                    M.Pair(step, trace),
                     GMPPredText(remaining_text)(),
                 )()
-        super().__init__(inputs=M.Pair(remainder, M.EmptyList), results=self.result)
+        super().__init__(
+            inputs=M.Pair(dividend, M.Pair(divisor, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialExactDivide(M.Edge):
+    def __init__(self, dividend, divisor, remaining_text="100"):
+        trial = PolynomialExactDivideStep(
+            dividend, divisor, M.EmptyList, M.EmptyList, remaining_text,
+        )()
+        if M.Compare(
+            PolynomialDivisionStatus(trial)(), M.Char("exact"),
+        )() is M.truth_value:
+            reconstructed = PolynomialMultiply(
+                divisor, PolynomialDivisionQuotient(trial)(),
+            )()
+            if PolynomialEqual(reconstructed, dividend)() is M.truth_value:
+                self.result = trial
+            else:
+                self.result = PolynomialDivisionResult(
+                    PolynomialDivisionQuotient(trial)(),
+                    dividend,
+                    PolynomialDivisionTrace(trial)(),
+                    M.Char("reconstruction-failed"),
+                )()
+        else:
+            self.result = trial
+        super().__init__(
+            inputs=M.Pair(dividend, M.Pair(divisor, M.EmptyList)),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result
@@ -3794,8 +3870,198 @@ class PolynomialExpression(M.Edge):
         return self.result
 
 
+class PolynomialLinearFactor(M.Edge):
+    def __init__(self, first_coefficient, second_coefficient):
+        polynomial = M.EmptyList
+        if GMPEqualText(second_coefficient, "0")() is M.false_value:
+            polynomial = PolynomialInsert(
+                polynomial,
+                PolynomialMonomial(second_coefficient, "0", "1")(),
+            )()
+        if GMPEqualText(first_coefficient, "0")() is M.false_value:
+            polynomial = PolynomialInsert(
+                polynomial,
+                PolynomialMonomial(first_coefficient, "1", "0")(),
+            )()
+        self.result = polynomial
+        super().__init__(
+            inputs=M.Pair(first_coefficient, M.Pair(second_coefficient, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialFactorHypotheses(M.Edge):
+    """Bounded structural factors, ordered with symmetry as a bias."""
+
+    def __init__(self):
+        self.result = M.Pair(
+            PolynomialLinearFactor("1", "-1")(),
+            M.Pair(
+                PolynomialLinearFactor("1", "1")(),
+                M.Pair(
+                    PolynomialLinearFactor("1", "0")(),
+                    M.Pair(
+                        PolynomialLinearFactor("0", "1")(),
+                        M.Pair(
+                            PolynomialLinearFactor("2", "-1")(),
+                            M.Pair(
+                                PolynomialLinearFactor("2", "1")(),
+                                M.Pair(
+                                    PolynomialLinearFactor("1", "-2")(),
+                                    M.Pair(
+                                        PolynomialLinearFactor("1", "2")(),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialFactorizationResult(M.Edge):
+    def __init__(self, factors, cofactor, traces):
+        self.result = M.Pair(
+            M.Char("polynomial-factorization"),
+            M.Pair(factors, M.Pair(cofactor, M.Pair(traces, M.EmptyList))),
+        )
+        super().__init__(
+            inputs=M.Pair(factors, M.Pair(cofactor, M.Pair(traces, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialFactorizationFactors(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(result)())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialFactorizationCofactor(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(result)())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialFactorizationTraces(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(result)())())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialExtractStructuralFactors(M.Edge):
+    """Retry exact division on each quotient, then advance hypotheses."""
+
+    def __init__(self, polynomial, hypotheses=None, fuel_text="12"):
+        if hypotheses is None:
+            hypotheses = PolynomialFactorHypotheses()()
+        self.result = self._extract(
+            polynomial, hypotheses, fuel_text, M.EmptyList, M.EmptyList,
+        )
+        super().__init__(
+            inputs=M.Pair(polynomial, M.Pair(hypotheses, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _extract(self, polynomial, hypotheses, fuel_text, factors, traces):
+        if GMPEqualText(fuel_text, "0")() is M.truth_value:
+            return PolynomialFactorizationResult(
+                M.Reverse(factors)(), polynomial, M.Reverse(traces)(),
+            )()
+        if M.IdentityCompare(hypotheses, M.EmptyList)() is M.truth_value:
+            return PolynomialFactorizationResult(
+                M.Reverse(factors)(), polynomial, M.Reverse(traces)(),
+            )()
+        divisor = M.Head(hypotheses)()
+        division = PolynomialExactDivide(polynomial, divisor)()
+        if M.Compare(
+            PolynomialDivisionStatus(division)(), M.Char("exact"),
+        )() is M.truth_value:
+            quotient = PolynomialDivisionQuotient(division)()
+            if M.IdentityCompare(quotient, M.EmptyList)() is M.false_value:
+                return self._extract(
+                    quotient,
+                    hypotheses,
+                    GMPPredText(fuel_text)(),
+                    M.Pair(divisor, factors),
+                    M.Pair(PolynomialDivisionTrace(division)(), traces),
+                )
+        return self._extract(
+            polynomial, M.Tail(hypotheses)(), fuel_text, factors, traces,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialFactorProduct(M.Edge):
+    def __init__(self, factors, cofactor):
+        if M.IdentityCompare(factors, M.EmptyList)() is M.truth_value:
+            self.result = cofactor
+        else:
+            self.result = PolynomialMultiply(
+                M.Head(factors)(),
+                PolynomialFactorProduct(M.Tail(factors)(), cofactor)(),
+            )()
+        super().__init__(
+            inputs=M.Pair(factors, M.Pair(cofactor, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialFactoredExpression(M.Edge):
+    def __init__(self, factors, cofactor, first, second):
+        if M.IdentityCompare(factors, M.EmptyList)() is M.truth_value:
+            self.result = PolynomialExpression(cofactor, first, second)()
+        else:
+            factor_expression = PolynomialExpression(
+                M.Head(factors)(), first, second,
+            )()
+            rest_expression = PolynomialFactoredExpression(
+                M.Tail(factors)(), cofactor, first, second,
+            )()
+            self.result = M.Pair(
+                M.ExprMulLabel,
+                M.Pair(factor_expression, M.Pair(rest_expression, M.EmptyList)),
+            )
+        super().__init__(
+            inputs=M.Pair(
+                factors,
+                M.Pair(cofactor, M.Pair(first, M.Pair(second, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class NormalizedDifferenceCandidate(M.Edge):
-    """Invent by normalization, symmetry vanishing, and two exact divisions."""
+    """Discover a bounded exact factorization of a polynomial residual."""
 
     def __init__(self, goal, registry=M.EmptyList):
         if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
@@ -3805,9 +4071,7 @@ class NormalizedDifferenceCandidate(M.Edge):
             if M.IdentityCompare(M.Head(goal)(), M.ExprLeLabel)() is M.truth_value:
                 variables = PolynomialVariables(goal)()
                 if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
-                    if M.IdentityCompare(
-                        M.Tail(variables)(), M.EmptyList,
-                    )() is M.false_value:
+                    if M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.false_value:
                         first = M.Head(variables)()
                         second = M.Head(M.Tail(variables)())()
                         lesser = M.Head(M.Tail(goal)())()
@@ -3828,152 +4092,237 @@ class NormalizedDifferenceCandidate(M.Edge):
                         difference = NormalizePolynomial(
                             difference_expression, first, second, registry,
                         )()
-                        symmetric = PolynomialEqual(
+                        factorization = PolynomialExtractStructuralFactors(
                             difference,
-                            PolynomialSwapVariables(difference)(),
                         )()
-                        equality_case = PolynomialAtEqualVariables(difference)()
-                        if M.IdentityCompare(symmetric, M.truth_value)() is M.truth_value:
-                            if M.IdentityCompare(
-                                equality_case, M.EmptyList,
-                            )() is M.truth_value:
-                                first_division = PolynomialDivideDifferenceStep(
-                                    difference, M.EmptyList,
+                        factors = PolynomialFactorizationFactors(factorization)()
+                        if M.IdentityCompare(factors, M.EmptyList)() is M.false_value:
+                            cofactor = PolynomialFactorizationCofactor(factorization)()
+                            reconstructed = PolynomialFactorProduct(
+                                factors, cofactor,
+                            )()
+                            if PolynomialEqual(difference, reconstructed)() is M.truth_value:
+                                factored = PolynomialFactoredExpression(
+                                    factors, cofactor, first, second,
                                 )()
-                                if M.IdentityCompare(
-                                    first_division, M.EmptyList,
-                                )() is M.false_value:
-                                    first_quotient = PolynomialDivisionQuotient(
-                                        first_division,
-                                    )()
-                                    second_division = PolynomialDivideDifferenceStep(
-                                        first_quotient, M.EmptyList,
-                                    )()
-                                    if M.IdentityCompare(
-                                        second_division, M.EmptyList,
-                                    )() is M.false_value:
-                                        cofactor = PolynomialDivisionQuotient(
-                                            second_division,
-                                        )()
-                                        reconstructed = PolynomialMultiply(
-                                            PolynomialMultiply(
-                                                PolynomialDifferenceFactor()(),
-                                                PolynomialDifferenceFactor()(),
-                                            )(),
-                                            cofactor,
-                                        )()
-                                        if PolynomialEqual(
-                                            difference, reconstructed,
-                                        )() is M.truth_value:
-                                            root_expression = M.Pair(
-                                                M.ExprAddLabel,
+                                proposition = M.Pair(
+                                    M.ExprEqLabel,
+                                    M.Pair(
+                                        difference_expression,
+                                        M.Pair(factored, M.EmptyList),
+                                    ),
+                                )
+                                certificate = M.Pair(
+                                    M.Char("bounded-structural-exact-division"),
+                                    M.Pair(
+                                        difference,
+                                        M.Pair(
+                                            factors,
+                                            M.Pair(
+                                                cofactor,
                                                 M.Pair(
-                                                    first,
-                                                    M.Pair(
-                                                        M.Pair(
-                                                            M.ExprNegLabel,
-                                                            M.Pair(second, M.EmptyList),
-                                                        ),
-                                                        M.EmptyList,
-                                                    ),
+                                                    PolynomialFactorizationTraces(factorization)(),
+                                                    M.Pair(reconstructed, M.EmptyList),
                                                 ),
-                                            )
-                                            square = M.Pair(
-                                                M.ExprPowLabel,
-                                                M.Pair(
-                                                    root_expression,
-                                                    M.Pair(
-                                                        M.Pair(
-                                                            M.ExprIntLabel,
-                                                            M.Pair(M.two, M.EmptyList),
-                                                        ),
-                                                        M.EmptyList,
-                                                    ),
-                                                ),
-                                            )
-                                            cofactor_expression = PolynomialExpression(
-                                                cofactor, first, second,
-                                            )()
-                                            factored = M.Pair(
-                                                M.ExprMulLabel,
-                                                M.Pair(
-                                                    square,
-                                                    M.Pair(cofactor_expression, M.EmptyList),
-                                                ),
-                                            )
-                                            proposition = M.Pair(
-                                                M.ExprLeLabel,
-                                                M.Pair(
-                                                    M.Pair(
-                                                        M.ExprIntLabel,
-                                                        M.Pair(M.Zero, M.EmptyList),
-                                                    ),
-                                                    M.Pair(factored, M.EmptyList),
-                                                ),
-                                            )
-                                            certificate = M.Pair(
-                                                M.Char("normalized-root-division"),
-                                                M.Pair(
-                                                    difference,
-                                                    M.Pair(
-                                                        first_quotient,
-                                                        M.Pair(
-                                                            cofactor,
-                                                            M.Pair(
-                                                                reconstructed,
-                                                                M.EmptyList,
-                                                            ),
-                                                        ),
-                                                    ),
-                                                ),
-                                            )
-                                            self.result = M.Pair(
-                                                proposition,
-                                                M.Pair(
-                                                    M.Char("high"),
-                                                    M.Pair(
-                                                        M.Char("conjecture"),
-                                                        M.Pair(certificate, M.EmptyList),
-                                                    ),
-                                                ),
-                                            )
+                                            ),
+                                        ),
+                                    ),
+                                )
+                                self.result = M.Pair(
+                                    proposition,
+                                    M.Pair(
+                                        M.Char("goal-structural"),
+                                        M.Pair(
+                                            M.Char("verified-identity"),
+                                            M.Pair(certificate, M.EmptyList),
+                                        ),
+                                    ),
+                                )
         super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class AlgebraCandidateUnlock(M.Edge):
-    def __init__(self, stall, candidate):
-        self.result = M.EmptyList
+class CandidateValidation(M.Edge):
+    """Validate a candidate without using the stalled start or rule chain."""
+
+    def __init__(self, proposition, registry=M.EmptyList):
+        status = M.Char("unknown")
+        if M.IsPair(proposition)() is M.truth_value:
+            if M.IdentityCompare(M.Head(proposition)(), M.ExprEqLabel)() is M.truth_value:
+                variables = PolynomialVariables(proposition)()
+                if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+                    if M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.false_value:
+                        first = M.Head(variables)()
+                        second = M.Head(M.Tail(variables)())()
+                        left = M.Head(M.Tail(proposition)())()
+                        right = M.Head(M.Tail(M.Tail(proposition)())())()
+                        left_polynomial = NormalizePolynomial(
+                            left, first, second, registry,
+                        )()
+                        right_polynomial = NormalizePolynomial(
+                            right, first, second, registry,
+                        )()
+                        if PolynomialEqual(left_polynomial, right_polynomial)() is M.truth_value:
+                            status = M.Char("proved")
+                        else:
+                            status = M.Char("refuted")
+        self.result = M.Pair(
+            M.Char("candidate-validation"),
+            M.Pair(status, M.Pair(proposition, M.EmptyList)),
+        )
+        super().__init__(inputs=M.Pair(proposition, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateValidationStatus(M.Edge):
+    def __init__(self, validation):
+        self.result = M.Head(M.Tail(validation)())()
+        super().__init__(inputs=M.Pair(validation, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateTrial(M.Edge):
+    """Pair-only evidence for the effect of adding one candidate fact.
+
+    Both arms use the exact start and existing compiled rule chain captured by
+    the failed search.  A candidate is an improvement here only when an
+    existing rule becomes applicable; no candidate-to-goal rule is created.
+    """
+
+    def __init__(self, candidate, start, rules, registry):
         proposition = M.Head(candidate)()
-        certificate = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
-        if M.IsPair(certificate)() is M.truth_value:
-            if M.Compare(
-                M.Head(certificate)(), M.Char("normalized-root-division"),
-            )() is M.truth_value:
-                assumed_facts = M.Pair(proposition, M.EmptyList)
-                bridge = Pmod.MultiRule(
-                    M.Pair(proposition, M.EmptyList),
-                    M.Head(M.Tail(stall)())(),
+        baseline = Pmod.FilterApplicableRules(rules, start, registry)()
+        augmented = baseline
+        if Pmod.IsKnowledge(start)() is M.truth_value:
+            augmented_start = Pmod.Knowledge(
+                M.Pair(proposition, Pmod.KnowledgeFacts(start)()),
+            )()
+            augmented = Pmod.FilterApplicableRules(
+                rules, augmented_start, registry,
+            )()
+        baseline_count = M.GMPRepText(M.CountRep(baseline)())()
+        augmented_count = M.GMPRepText(M.CountRep(augmented)())()
+        improvement = GMPLessText(baseline_count, augmented_count)()
+        self.result = M.Pair(
+            M.Char("candidate-trial"),
+            M.Pair(
+                candidate,
+                M.Pair(
+                    baseline,
+                    M.Pair(
+                        augmented,
+                        M.Pair(
+                            improvement,
+                            M.Pair(
+                                M.Char("newly-applicable-existing-rule"),
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                candidate,
+                M.Pair(start, M.Pair(rules, M.Pair(registry, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateTrialImproved(M.Edge):
+    def __init__(self, trial):
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(trial)())())())(),
+        )()
+        super().__init__(inputs=M.Pair(trial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateWithSource(M.Edge):
+    def __init__(self, candidate, source):
+        self.result = M.Pair(
+            M.Head(candidate)(),
+            M.Pair(
+                source,
+                M.Pair(
+                    M.Head(M.Tail(M.Tail(candidate)())())(),
+                    M.Pair(
+                        M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())(),
+                        M.EmptyList,
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(candidate, M.Pair(source, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateFromResidualFacts(M.Edge):
+    def __init__(self, facts, registry):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            candidate = NormalizedDifferenceCandidate(
+                M.Head(facts)(), registry,
+            )()
+            if M.IdentityCompare(candidate, M.EmptyList)() is M.false_value:
+                self.result = CandidateWithSource(
+                    candidate, M.Char("frontier-residual"),
                 )()
-                bindings = Pmod.JoinPremises(
-                    Pmod.RulePremises(bridge)(),
-                    assumed_facts,
-                    M.EmptyList,
+            else:
+                self.result = CandidateFromResidualFacts(
+                    M.Tail(facts)(), registry,
                 )()
-                if M.IdentityCompare(
-                    bindings, M.EmptyList,
-                )() is M.false_value:
-                    reached = M.Instantiate(
-                        Pmod.RuleReplacement(bridge)(),
-                        M.Head(bindings)(),
+        super().__init__(inputs=M.Pair(facts, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CandidateFromFrontier(M.Edge):
+    def __init__(self, frontier, registry):
+        if M.IdentityCompare(frontier, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            state = M.Head(frontier)()
+            current = M.Head(M.Tail(state)())()
+            if Pmod.IsKnowledge(current)() is M.truth_value:
+                candidate = CandidateFromResidualFacts(
+                    Pmod.KnowledgeFacts(current)(), registry,
+                )()
+            else:
+                candidate = NormalizedDifferenceCandidate(
+                    current, registry,
+                )()
+                if M.IdentityCompare(candidate, M.EmptyList)() is M.false_value:
+                    candidate = CandidateWithSource(
+                        candidate, M.Char("frontier-residual"),
                     )()
-                    if M.Compare(
-                        M.Head(reached)(), M.Head(M.Tail(stall)())(),
-                    )() is M.truth_value:
-                        self.result = candidate
-        super().__init__(inputs=M.Pair(stall, M.Pair(candidate, M.EmptyList)), results=self.result)
+            if M.IdentityCompare(candidate, M.EmptyList)() is M.false_value:
+                self.result = candidate
+            else:
+                self.result = CandidateFromFrontier(
+                    M.Tail(frontier)(), registry,
+                )()
+        super().__init__(inputs=M.Pair(frontier, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -3981,16 +4330,43 @@ class AlgebraCandidateUnlock(M.Edge):
 
 class InventFromStall(M.Edge):
     def __init__(self, stall, registry=M.EmptyList):
-        goal = M.Head(M.Tail(stall)())()
+        fields = M.Tail(stall)()
+        goal = M.Head(fields)()
         candidate = NormalizedDifferenceCandidate(goal, registry)()
+        if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
+            candidate = CandidateFromFrontier(
+                M.Head(M.Tail(fields)())(), registry,
+            )()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         else:
-            unlocked = AlgebraCandidateUnlock(stall, candidate)()
-            if M.IdentityCompare(unlocked, M.EmptyList)() is M.truth_value:
-                self.result = M.EmptyList
-            else:
-                self.result = M.Pair(unlocked, M.EmptyList)
+            stall_start = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())(),
+            )()
+            stall_rules = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())(),
+            )()
+            trial = CandidateTrial(
+                candidate,
+                stall_start,
+                stall_rules,
+                registry,
+            )()
+            validation = CandidateValidation(M.Head(candidate)(), registry)()
+            candidate_with_trial = M.Pair(
+                M.Head(candidate)(),
+                M.Pair(
+                    M.Head(M.Tail(candidate)())(),
+                    M.Pair(
+                        M.Head(M.Tail(M.Tail(candidate)())())(),
+                        M.Pair(
+                            M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())(),
+                            M.Pair(trial, M.Pair(validation, M.EmptyList)),
+                        ),
+                    ),
+                ),
+            )
+            self.result = M.Pair(candidate_with_trial, M.EmptyList)
         super().__init__(inputs=M.Pair(stall, M.EmptyList), results=self.result)
 
     def __call__(self):
