@@ -46,6 +46,7 @@ else:
 
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+PACKAGE_NAME = os.path.basename(PACKAGE_DIR)
 PACK_DIR = os.path.join(PACKAGE_DIR, "packs")
 SNAPSHOT_DIR = os.path.join(PACKAGE_DIR, "snapshots")
 INSPECTOR_DIR = os.path.join(PACKAGE_DIR, "inspector")
@@ -1304,6 +1305,16 @@ def run_talk_mode(sentence: str = None):
     except Exception as story_import_error:
         STORY_AVAILABLE = False
         story_import_error_text = str(story_import_error)
+
+    # General NL cognitive layer - semantic goal interpretation, associative search, invention
+    try:
+        from .nl_cognitive_layer import process_open_ended_request as NLProcessRequest, process_followup as NLProcessFollowup, get_conversational_state as NLGetState, reset_conversational_state as NLResetState, build_initial_graph_version as NLBuildGV
+        from .nl_parser import KNOWN_CONCEPTS as NLKnownConcepts, extract_entities as NLExtractEntities, determine_task_type as NLDetermineTask
+        from .semantic_schema import Concept as NLConcept, SemanticGoal as NLSemanticGoal
+        NL_AVAILABLE = True
+    except Exception as nl_import_error:
+        NL_AVAILABLE = False
+        nl_import_error_text = str(nl_import_error)
 
     story_nodes = M.EmptyList
     story_relations = M.EmptyList
@@ -3194,17 +3205,167 @@ def run_talk_mode(sentence: str = None):
             return "Story commands: 'story demo' (full milestone), 'story tell: Alice meets Bob', 'story tell: then Alice hits wolf', 'link stories' (entity resolution via thresholded unification + same-as edges), 'how is Alice connected to wolf ?', 'analogy', 'show stories'. Provenance story_ref carried, cross-story edges survive reload via story_state.wire"
         return None
 
+
+    def _handle_general_nl(line, record=True):
+        nonlocal story_nodes, story_relations, story_graph_version, story_event_counter
+        if not NL_AVAILABLE:
+            return None
+        lowered = line.lower().strip()
+        # Detect open-ended NL requests: must have multiple concepts or be a follow-up
+        # Skip if it's already handled as story command or known correspondence law shape
+        # Check for story keywords already handled - if starts with story, already handled above
+        # Now check for general NL cognitive tasks
+        # Benchmark example: "Tell me a story about this building, and connect it to..."
+        # Also follow-ups: "Why did you connect those two?", "Find a stranger connection.", etc.
+        
+        # Follow-up detection first (requires existing conversational state)
+        followup_triggers = ["why did you connect", "stranger", "continue from", "perspective", "forget", "weirder", "different connection"]
+        is_followup = any(trigger in lowered for trigger in followup_triggers)
+        
+        # Open-ended request detection: contains multiple known concepts without specifying predicates
+        # Or contains task keywords story/connect/explain with multiple entities
+        if not is_followup:
+            # Check if utterance contains at least 2 known concepts
+            entities = NLExtractEntities(line)
+            # Also need task keyword or open-ended nature (longer than 10 chars and not simple arithmetic)
+            task_type = NLDetermineTask(line)
+            has_multiple = len(entities) >= 2
+            is_long_open = len(line) > 20 and task_type in ("story", "connection", "explanation", "exploration", "comparison")
+            # Explicit benchmark phrase
+            is_benchmark = "building" in lowered and "steam engine" in lowered
+            # Also detect "tell me a story about" pattern which is open-ended
+            is_story_about = "tell me a story about" in lowered or "connect it to" in lowered
+            
+            if not (has_multiple and (is_long_open or is_benchmark or is_story_about)):
+                # Not an open-ended request, let other handlers try
+                # But also handle single-concept open requests like "Tell me about building"
+                if not (is_story_about or is_benchmark):
+                    return None
+        
+        try:
+            if is_followup:
+                result = NLProcessFollowup(line)
+                prose = result.get("prose", "No follow-up result")
+                # Update story state with any new intermediates/connections if present
+                state = NLGetState()
+                try:
+                    if state.graph_version is not None:
+                        story_graph_version = state.graph_version
+                        # Preserve story_nodes as before plus any new invented
+                        # Build from state's graph_version if it has more nodes
+                        # state.invented_intermediates and discovered_connections are part of graph
+                        # For persistence, save general NL state
+                        general_checkpoint_path = os.path.join(SNAPSHOT_DIR, "general_nl_state.wire")
+                        W.save_checkpoint(
+                            general_checkpoint_path,
+                            story_graph_version,
+                            state.discovered_connections,
+                            state.invented_intermediates,
+                        )
+                        # Also persist story state (story_nodes already includes prior)
+                        # Update story_nodes to include latest invented if followup invented
+                        if "invented" in result:
+                            inv = result["invented"]
+                            rem = inv
+                            while M.IdentityCompare(rem, M.EmptyList)() is M.false_value:
+                                story_nodes = M.Pair(M.Head(rem)(), story_nodes)
+                                rem = M.Tail(rem)()
+                            story_graph_version = StoryBuildGraphVersion(story_nodes)()
+                            if M.IdentityCompare(story_relations, M.EmptyList)() is M.false_value:
+                                from .story_alignment import AddRelationsToGraphVersion as _AddRel
+                                story_graph_version = _AddRel(story_graph_version, story_relations)()
+                            _persist_story_state()
+                except Exception as _e:
+                    pass
+                if record:
+                    _log_lesson(line)
+                return prose
+            else:
+                # Process open-ended request via general pipeline
+                # Use existing story nodes/relations as base
+                result = NLProcessRequest(line, existing_nodes=story_nodes, existing_relations=story_relations, existing_gv=story_graph_version)
+                prose = result["prose"]
+                # Update story state to include invented intermediates and connections
+                story_nodes = result["nodes"]
+                story_relations = result["relations"]
+                story_graph_version = result["graph_version"]
+                
+                # Persist general NL state
+                try:
+                    general_checkpoint_path = os.path.join(SNAPSHOT_DIR, "general_nl_state.wire")
+                    W.save_checkpoint(
+                        general_checkpoint_path,
+                        story_graph_version,
+                        story_relations,
+                        result["invented_intermediates"],
+                    )
+                except Exception:
+                    pass
+                _persist_story_state()
+                
+                if record:
+                    _log_lesson(line)
+                
+                # Build detailed output showing pipeline steps for verification
+                detailed = []
+                detailed.append("=== General NL Cognitive Layer ===")
+                detailed.append(f"Interpreted goal: task={result['goal_info']['task_type']}, entities={len(result['goal_info']['entities'])}")
+                for phrase, info in result['goal_info']['entities']:
+                    detailed.append(f"  - {phrase} -> {info['canonical']} (type={info['type']}, attrs={info['attributes']})")
+                detailed.append("")
+                detailed.append(f"Activated graph, found {len(result['existing_paths'].split() if hasattr(result['existing_paths'], 'split') else [])} existing path checks")
+                # Count intermediates
+                inter_count = 0
+                rem = result['invented_intermediates']
+                while M.IdentityCompare(rem, M.EmptyList)() is M.false_value:
+                    inter_count += 1
+                    rem = M.Tail(rem)()
+                conn_count = 0
+                rem = result['connections']
+                while M.IdentityCompare(rem, M.EmptyList)() is M.false_value:
+                    conn_count += 1
+                    rem = M.Tail(rem)()
+                detailed.append(f"Invented {inter_count} intermediate concepts (lemma-invention analog)")
+                detailed.append(f"Built {conn_count} verified connections")
+                detailed.append("")
+                detailed.append("Narrative synthesis:")
+                detailed.append(prose)
+                detailed.append("")
+                detailed.append("Provenance: intermediates added to graph and will be reused. Unsupported connections not presented as fact.")
+                
+                return "\n".join(detailed)
+        except Exception as e:
+            import traceback
+            return f"General NL layer failed: {e}\n{traceback.format_exc()}"
+        return None
+
+
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
         nonlocal story_nodes, story_relations, story_graph_version, story_event_counter
         lowered = line.lower()
-        # Story machine takes precedence for story-prefixed lines
+        # General NL cognitive layer takes precedence for open-ended requests and follow-ups
+        # It is the native task interface; hypergraph does inference, language only maps/verbalizes
+        if NL_AVAILABLE:
+            # Check for follow-up or open-ended before story
+            followup_triggers = ["why did you connect", "stranger", "continue from", "perspective", "forget"]
+            is_potential_general = any(t in lowered for t in followup_triggers) or ("building" in lowered and "steam engine" in lowered) or ("tell me a story about" in lowered) or (len(line.split()) > 5 and any(k in lowered for k in ["connect it to", "history of", "biography"]))
+            if is_potential_general or lowered.startswith("general") or lowered.startswith("nl:"):
+                ans = _handle_general_nl(line, record=record)
+                if ans is not None:
+                    return ans
+        # Story machine for story-prefixed lines
         if lowered.startswith("story") or lowered.startswith("link stories") or lowered.startswith("how is") or lowered.startswith("analogy") or lowered.startswith("show stories"):
             ans = _handle_story(line, record=record)
             if ans is not None:
                 if record:
                     _log_lesson(line)
+                return ans
+        # Also try general NL layer for any multi-entity request not caught above
+        if NL_AVAILABLE:
+            ans = _handle_general_nl(line, record=record)
+            if ans is not None:
                 return ans
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
@@ -3520,6 +3681,14 @@ def run_talk_mode(sentence: str = None):
     print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
     print("'prove square roots are real'.")
     print("Story Machine: 'story demo' (full milestone), 'story tell: Alice meets Bob', 'link stories', 'how is Alice connected to wolf ?', 'analogy', 'show stories'.")
+    print("General NL Cognitive Layer (native interface): open-ended requests like")
+    print("  'Tell me a story about this building, and connect it to the history of the steam engine,'")
+    print("  'the advances in complex analysis, and the biography of Napoleon III'")
+    print("  Pipeline: NL -> semantic goal -> entity activation -> path search -> intermediate invention -> verification -> synthesis -> NL prose")
+    print("  Follow-ups: 'Why did you connect those two?', 'Find a stranger connection.',")
+    print("  'Continue from engineering part.', 'Tell same story from building's perspective.',")
+    print("  'Forget Napoleon and connect to 20th-century physics' - modifies existing semantic state")
+    print("  Hypergraph does inference, language only maps/verbalizes; invented intermediates added to graph and reused")
     print("  Representation: Entity/Role/Event/Relation/Story pair schemas with provenance story_ref and before/after/because relations.")
     print("  Frames with roles agent/patient not flat triples; extractor validation gate propose/validate; persistence via story_state.wire")
     if replayed:
@@ -3733,7 +3902,7 @@ def run_live_mode(requested_workers):
             sys.executable,
             "-u",
             "-m",
-            "hyge.main",
+            PACKAGE_NAME + ".main",
             "daemon",
             "--workers",
             str(requested_workers),

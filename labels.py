@@ -2428,6 +2428,23 @@ def sync_from_namespace(namespace):
         "ConfidenceLabel",
         "SchemaLabel",
         "StorySchemaLabel",
+        "SemanticGoalLabel",
+        "TaskTypeLabel",
+        "ConceptLabel",
+        "IntermediateLabel",
+        "ConceptTypeLabel",
+        "TimeLabel",
+        "LocationLabel",
+        "DomainLabel",
+        "AttributeValueLabel",
+        "ConnectionLabel",
+        "ExplanationLabel",
+        "NarrativeLabel",
+        "VerificationLabel",
+        "ConfidenceScoreLabel",
+        "SemanticStateLabel",
+        "FocusLabel",
+        "UncertainLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
@@ -2631,6 +2648,93 @@ ProvenanceLabel = ProvenanceLabel()
 ConfidenceLabel = ConfidenceLabel()
 SchemaLabel = SchemaLabel()
 StorySchemaLabel = StorySchemaLabel()
+
+
+class SemanticGoalLabel(ConstructorLabel):
+    pass
+
+
+class TaskTypeLabel(ConstructorLabel):
+    pass
+
+
+class ConceptLabel(ConstructorLabel):
+    pass
+
+
+class IntermediateLabel(ConstructorLabel):
+    pass
+
+
+class ConceptTypeLabel(ConstructorLabel):
+    pass
+
+
+class TimeLabel(ConstructorLabel):
+    pass
+
+
+class LocationLabel(ConstructorLabel):
+    pass
+
+
+class DomainLabel(ConstructorLabel):
+    pass
+
+
+class AttributeValueLabel(ConstructorLabel):
+    pass
+
+
+class ConnectionLabel(ConstructorLabel):
+    pass
+
+
+class ExplanationLabel(ConstructorLabel):
+    pass
+
+
+class NarrativeLabel(ConstructorLabel):
+    pass
+
+
+class VerificationLabel(ConstructorLabel):
+    pass
+
+
+class ConfidenceScoreLabel(ConstructorLabel):
+    pass
+
+
+class SemanticStateLabel(ConstructorLabel):
+    pass
+
+
+class FocusLabel(ConstructorLabel):
+    pass
+
+
+class UncertainLabel(ConstructorLabel):
+    pass
+
+
+SemanticGoalLabel = SemanticGoalLabel()
+TaskTypeLabel = TaskTypeLabel()
+ConceptLabel = ConceptLabel()
+IntermediateLabel = IntermediateLabel()
+ConceptTypeLabel = ConceptTypeLabel()
+TimeLabel = TimeLabel()
+LocationLabel = LocationLabel()
+DomainLabel = DomainLabel()
+AttributeValueLabel = AttributeValueLabel()
+ConnectionLabel = ConnectionLabel()
+ExplanationLabel = ExplanationLabel()
+NarrativeLabel = NarrativeLabel()
+VerificationLabel = VerificationLabel()
+ConfidenceScoreLabel = ConfidenceScoreLabel()
+SemanticStateLabel = SemanticStateLabel()
+FocusLabel = FocusLabel()
+UncertainLabel = UncertainLabel()
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
