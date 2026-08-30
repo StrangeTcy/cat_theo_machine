@@ -6966,6 +6966,23 @@ def run_talk_mode(sentence: str = None):
             if M.IdentityCompare(
                 polynomial_goal, M.EmptyList,
             )() is M.false_value:
+                replay_hit = Min.ReplayInventedLemma(
+                    learned_version, goal, registry,
+                )()
+                if M.IdentityCompare(replay_hit, M.EmptyList)() is M.false_value:
+                    replay = M.Head(replay_hit)()
+                    replay_lemma = M.Head(M.Tail(replay_hit)())()
+                    learned_version = G.CreditInventedLemmaReplay(
+                        learned_version, replay, replay_lemma, registry,
+                    )()
+                    last_goal = goal
+                    last_derivation = replay
+                    _persist_talk_state()
+                    return (
+                        "yes; replayed the saved factorization identity, "
+                        "proved its factor nonnegativity obligations, and "
+                        "derived " + line[6:].strip() + "."
+                    )
                 stall_graph = G.Hypergraph(registry)
                 stall_graph._search_disable_console = M.truth_value
                 stall_graph._search_disable_progress_ticker = M.truth_value

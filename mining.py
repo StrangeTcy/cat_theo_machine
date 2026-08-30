@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from . import machine as M
 from . import proof as Pmod
-from .gmprep import GMPSuccText, GMPPredText, GMPExactQuotientText
+from .gmprep import GMPSuccText, GMPPredText, GMPExactQuotientText, GMPQuadraticPSDText
 from .graph import *
 
 class MineNatFromGMPRep(M.Edge):
@@ -4139,6 +4139,246 @@ class NormalizedDifferenceCandidate(M.Edge):
                                     ),
                                 )
         super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class QuadraticCoefficientResult(M.Edge):
+    def __init__(self, a_text, b_text, c_text, status):
+        self.result = M.Pair(
+            M.Char("quadratic-coefficients"),
+            M.Pair(
+                M.Char(a_text),
+                M.Pair(M.Char(b_text), M.Pair(M.Char(c_text), M.Pair(status, M.EmptyList))),
+            ),
+        )
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HomogeneousQuadraticCoefficients(M.Edge):
+    def __init__(self, polynomial, a_text="0", b_text="0", c_text="0"):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = QuadraticCoefficientResult(
+                a_text, b_text, c_text, M.truth_value,
+            )()
+        else:
+            monomial = M.Head(polynomial)()
+            coefficient = PolynomialMonomialCoefficient(monomial)()
+            first = PolynomialMonomialFirstExponent(monomial)()
+            second = PolynomialMonomialSecondExponent(monomial)()
+            if GMPEqualText(first, "2")() is M.truth_value:
+                if GMPEqualText(second, "0")() is M.truth_value:
+                    self.result = HomogeneousQuadraticCoefficients(
+                        M.Tail(polynomial)(), coefficient, b_text, c_text,
+                    )()
+                else:
+                    self.result = QuadraticCoefficientResult(a_text, b_text, c_text, M.false_value)()
+            elif GMPEqualText(first, "1")() is M.truth_value:
+                if GMPEqualText(second, "1")() is M.truth_value:
+                    self.result = HomogeneousQuadraticCoefficients(
+                        M.Tail(polynomial)(), a_text, coefficient, c_text,
+                    )()
+                else:
+                    self.result = QuadraticCoefficientResult(a_text, b_text, c_text, M.false_value)()
+            elif GMPEqualText(first, "0")() is M.truth_value:
+                if GMPEqualText(second, "2")() is M.truth_value:
+                    self.result = HomogeneousQuadraticCoefficients(
+                        M.Tail(polynomial)(), a_text, b_text, coefficient,
+                    )()
+                else:
+                    self.result = QuadraticCoefficientResult(a_text, b_text, c_text, M.false_value)()
+            else:
+                self.result = QuadraticCoefficientResult(a_text, b_text, c_text, M.false_value)()
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class QuadraticCoefficientA(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(result)())()()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class QuadraticCoefficientB(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(result)())())()()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class QuadraticCoefficientC(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(result)())())())()()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class QuadraticCoefficientStatus(M.Edge):
+    def __init__(self, result):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(result)())())())())()
+        super().__init__(inputs=M.Pair(result, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PairedFactorsNonnegative(M.Edge):
+    def __init__(self, factors):
+        if M.IdentityCompare(factors, M.EmptyList)() is M.truth_value:
+            self.result = M.truth_value
+        elif M.IdentityCompare(M.Tail(factors)(), M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        elif PolynomialEqual(
+            M.Head(factors)(), M.Head(M.Tail(factors)())(),
+        )() is M.false_value:
+            self.result = M.false_value
+        else:
+            self.result = PairedFactorsNonnegative(
+                M.Tail(M.Tail(factors)())(),
+            )()
+        super().__init__(inputs=M.Pair(factors, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InequalityDifferenceStep(M.Edge):
+    def __init__(self, goal, difference_expression, difference):
+        zero = M.Pair(M.ExprIntLabel, M.Pair(M.Zero, M.EmptyList))
+        difference_goal = M.Pair(
+            M.ExprLeLabel, M.Pair(zero, M.Pair(difference_expression, M.EmptyList)),
+        )
+        self.result = M.Pair(
+            M.Char("inequality-difference-step"),
+            M.Pair(goal, M.Pair(difference_goal, M.Pair(difference, M.EmptyList))),
+        )
+        super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayInventedLemmaOnGoal(M.Edge):
+    """Revalidate identity, paired factors, and a positive semidefinite cofactor."""
+
+    def __init__(self, goal, invented_lemma, registry=M.EmptyList):
+        self.result = M.EmptyList
+        if M.IsPair(goal)() is M.truth_value:
+            if M.IdentityCompare(M.Head(goal)(), M.ExprLeLabel)() is M.truth_value:
+                proposition = M.Head(M.Tail(invented_lemma)())()
+                certificate = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(invented_lemma)())())())())())(),
+                )()
+                if M.Compare(M.Head(certificate)(), M.Char("invention-evidence"))() is M.truth_value:
+                    structural = M.Head(M.Tail(certificate)())()
+                    validation = M.Head(M.Tail(M.Tail(M.Tail(certificate)())())())()
+                    validation_status = CandidateValidationStatus(validation)()
+                    if M.Compare(validation_status, M.Char("proved"))() is M.truth_value:
+                        stored_difference = M.Head(M.Tail(structural)())()
+                        factors = M.Head(M.Tail(M.Tail(structural)())())()
+                        cofactor = M.Head(M.Tail(M.Tail(M.Tail(structural)())())())()
+                        variables = PolynomialVariables(goal)()
+                        if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+                            if M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.false_value:
+                                first = M.Head(variables)()
+                                second = M.Head(M.Tail(variables)())()
+                                lesser = M.Head(M.Tail(goal)())()
+                                greater = M.Head(M.Tail(M.Tail(goal)())())()
+                                difference_expression = M.Pair(
+                                    M.ExprAddLabel,
+                                    M.Pair(
+                                        greater,
+                                        M.Pair(
+                                            M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
+                                            M.EmptyList,
+                                        ),
+                                    ),
+                                )
+                                difference = NormalizePolynomial(
+                                    difference_expression, first, second, registry,
+                                )()
+                                same_residual = PolynomialEqual(difference, stored_difference)()
+                                paired = PairedFactorsNonnegative(factors)()
+                                coefficients = HomogeneousQuadraticCoefficients(cofactor)()
+                                quadratic = M.false_value
+                                if QuadraticCoefficientStatus(coefficients)() is M.truth_value:
+                                    quadratic = GMPQuadraticPSDText(
+                                        QuadraticCoefficientA(coefficients)(),
+                                        QuadraticCoefficientB(coefficients)(),
+                                        QuadraticCoefficientC(coefficients)(),
+                                    )()
+                                if M.AndAtom(same_residual, M.AndAtom(paired, quadratic)())() is M.truth_value:
+                                    identity_step = M.Pair(
+                                        M.Char("verified-identity-rewrite"),
+                                        M.Pair(proposition, M.EmptyList),
+                                    )
+                                    positivity = M.Pair(
+                                        M.Char("proved-positive"),
+                                        M.Pair(factors, M.Pair(cofactor, M.Pair(coefficients, M.EmptyList))),
+                                    )
+                                    self.result = M.Pair(
+                                        M.Char("invented-lemma-replay-derivation"),
+                                        M.Pair(
+                                            goal,
+                                            M.Pair(
+                                                invented_lemma,
+                                                M.Pair(
+                                                    InequalityDifferenceStep(goal, difference_expression, difference)(),
+                                                    M.Pair(
+                                                        identity_step,
+                                                        M.Pair(
+                                                            positivity,
+                                                            M.Pair(M.Char("proved"), M.EmptyList),
+                                                        ),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                    )
+        super().__init__(
+            inputs=M.Pair(goal, M.Pair(invented_lemma, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ReplayInventedLemma(M.Edge):
+    def __init__(self, graph_version, goal, registry, nodes=M.EmptyList, started=M.false_value):
+        if M.IdentityCompare(started, M.false_value)() is M.truth_value:
+            nodes = GraphVersionNodes(graph_version)()
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            node = M.Head(nodes)()
+            replay = M.EmptyList
+            if M.IsPair(node)() is M.truth_value:
+                if M.Compare(M.Head(node)(), M.Char("invented-lemma"))() is M.truth_value:
+                    replay = ReplayInventedLemmaOnGoal(goal, node, registry)()
+            if M.IdentityCompare(replay, M.EmptyList)() is M.false_value:
+                self.result = M.Pair(replay, M.Pair(node, M.EmptyList))
+            else:
+                self.result = ReplayInventedLemma(
+                    graph_version, goal, registry, M.Tail(nodes)(), M.truth_value,
+                )()
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(goal, M.EmptyList)),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result

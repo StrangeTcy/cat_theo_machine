@@ -744,6 +744,63 @@ class CreditInventedLemmaDerivation(M.Edge):
         return self.result
 
 
+class CreditInventedLemmaReplay(M.Edge):
+    """Credit the lemma named by a completed, independently verified replay."""
+
+    def __init__(self, graph_version, replay, invented, registry):
+        proved = M.false_value
+        if M.IsPair(replay)() is M.truth_value:
+            if M.Compare(
+                M.Head(replay)(), M.Char("invented-lemma-replay-derivation"),
+            )() is M.truth_value:
+                replay_lemma = M.Head(M.Tail(M.Tail(replay)())())()
+                replay_status = M.Head(
+                    M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())())(),
+                )()
+                if M.IdentityCompare(replay_lemma, invented)() is M.truth_value:
+                    if M.Compare(replay_status, M.Char("proved"))() is M.truth_value:
+                        proved = M.truth_value
+        if proved is M.truth_value:
+            nodes = self._credit(GraphNodes(graph_version)(), invented, replay, registry)
+            self.result = GraphVersion(
+                nodes,
+                GraphEdges(graph_version)(),
+                GraphVersionInvariants(graph_version)(),
+            )()
+        else:
+            self.result = graph_version
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(replay, M.Pair(invented, M.Pair(registry, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def _credit(self, nodes, invented, replay, registry):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        node = M.Head(nodes)()
+        replacement = node
+        if M.IdentityCompare(node, invented)() is M.truth_value:
+            successor = M.Succ(InventedLemmaUtility(node)(), registry)()
+            replacement = InventedLemma(
+                InventedLemmaProposition(node)(),
+                InventedLemmaGoal(node)(),
+                replay,
+                M.Char("proved"),
+                M.Head(successor)(),
+                InventedLemmaCertificate(node)(),
+            )()
+        return M.Pair(
+            replacement,
+            self._credit(M.Tail(nodes)(), invented, replay, registry),
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class IncrementInventedLemmaUtility(M.Edge):
     def __init__(self, graph_version, used):
         next_utility = M.Succ(

@@ -5297,6 +5297,107 @@ class CandidateTrialEvidenceTest(M.Edge):
         return self.result
 
 
+class InventedLemmaReplayCheckpointTest(M.Edge):
+    def __init__(self, graph):
+        from . import wire as Wmod
+
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3", digit_words,
+        )()
+        renamed_goal = Gmod.ParsePolynomialInequalityText(
+            "a^4 + b^4 >= a^3*b + a*b^3", digit_words,
+        )()
+        stall = Gmod.StallRecord(goal, M.EmptyList, M.EmptyList, M.Zero)()
+        candidate = M.Head(Minmod.InventFromStall(stall, registry)())()
+        structural = M.Head(M.Tail(M.Tail(M.Tail(candidate)())())())()
+        trial = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())()
+        validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(candidate)())())())())(),
+        )()
+        certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(structural, M.Pair(trial, M.Pair(validation, M.EmptyList))),
+        )
+        invented = Gmod.InventedLemma(
+            M.Head(candidate)(), goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, certificate,
+        )()
+        version = Gmod.GraphVersion(
+            M.Pair(invented, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        first_hit = Minmod.ReplayInventedLemma(version, goal, registry)()
+        first_replay = M.Head(first_hit)()
+        first_lemma = M.Head(M.Tail(first_hit)())()
+        credited = Gmod.CreditInventedLemmaReplay(
+            version, first_replay, first_lemma, registry,
+        )()
+        loaded = Wmod.deserialize_version(Wmod.serialize_version(credited))
+        second_hit = Minmod.ReplayInventedLemma(
+            loaded, renamed_goal, registry,
+        )()
+        second_replay = M.Head(second_hit)()
+        second_lemma = M.Head(M.Tail(second_hit)())()
+        credited_again = Gmod.CreditInventedLemmaReplay(
+            loaded, second_replay, second_lemma, registry,
+        )()
+        used = M.Head(Gmod.GraphNodes(credited_again)())()
+        utility_two = M.NatEq(
+            Gmod.InventedLemmaUtility(used)(), M.two, registry,
+        )()
+        no_axiom_schema = M.IdentityCompare(
+            Gmod.InstalledTaughtDerivationSchemata(credited_again)(),
+            M.EmptyList,
+        )()
+        false_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + x^3*y + x*y^3 + y^4 >= 4*x^2*y^2",
+            digit_words,
+        )()
+        false_stall = Gmod.StallRecord(
+            false_goal, M.EmptyList, M.EmptyList, M.Zero,
+        )()
+        false_candidate = M.Head(
+            Minmod.InventFromStall(false_stall, registry)(),
+        )()
+        false_structural = M.Head(
+            M.Tail(M.Tail(M.Tail(false_candidate)())())(),
+        )()
+        false_trial = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(false_candidate)())())())(),
+        )()
+        false_validation = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(false_candidate)())())())())(),
+        )()
+        false_certificate = M.Pair(
+            M.Char("invention-evidence"),
+            M.Pair(
+                false_structural,
+                M.Pair(false_trial, M.Pair(false_validation, M.EmptyList)),
+            ),
+        )
+        false_lemma = Gmod.InventedLemma(
+            M.Head(false_candidate)(), false_goal, M.EmptyList,
+            M.Char("verified-identity"), M.Zero, false_certificate,
+        )()
+        false_version = Gmod.GraphVersion(
+            M.Pair(false_lemma, M.EmptyList), M.EmptyList, M.EmptyList,
+        )()
+        false_replay = Minmod.ReplayInventedLemma(
+            false_version, false_goal, registry,
+        )()
+        false_blocked = M.IdentityCompare(false_replay, M.EmptyList)()
+        self.result = M.AndAtom(
+            utility_two,
+            M.AndAtom(no_axiom_schema, false_blocked)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class InventedLemmaDerivationCreditRoundTripTest(M.Edge):
     def __init__(self, graph):
         from . import wire as Wmod
