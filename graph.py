@@ -432,13 +432,17 @@ class IsStallRecord(M.Edge):
 
 
 class FindStallRecord(M.Edge):
-    def __init__(self, nodes):
-        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+    def __init__(self, nodes, remaining_text="100"):
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         elif IsStallRecord(M.Head(nodes)())() is M.truth_value:
             self.result = M.Head(nodes)()
         else:
-            self.result = FindStallRecord(M.Tail(nodes)())()
+            self.result = FindStallRecord(
+                M.Tail(nodes)(), GMPPredText(remaining_text)(),
+            )()
         super().__init__(inputs=M.Pair(nodes, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -572,8 +576,10 @@ class InventedLemmaCertificate(M.Edge):
 
 
 class LookupInventedLemmaNodes(M.Edge):
-    def __init__(self, nodes, goal):
-        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+    def __init__(self, nodes, goal, remaining_text="100"):
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            self.result = M.EmptyList
+        elif M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
             self.result = M.EmptyList
         else:
             candidate = M.Head(nodes)()
@@ -584,11 +590,11 @@ class LookupInventedLemmaNodes(M.Edge):
                     self.result = candidate
                 else:
                     self.result = LookupInventedLemmaNodes(
-                        M.Tail(nodes)(), goal,
+                        M.Tail(nodes)(), goal, GMPPredText(remaining_text)(),
                     )()
             else:
                 self.result = LookupInventedLemmaNodes(
-                    M.Tail(nodes)(), goal,
+                    M.Tail(nodes)(), goal, GMPPredText(remaining_text)(),
                 )()
         super().__init__(inputs=M.Pair(nodes, M.Pair(goal, M.EmptyList)), results=self.result)
 
@@ -653,10 +659,13 @@ class IncrementInventedLemmaUtility(M.Edge):
 
 
 class InventedLemmaDisplayRows(M.Edge):
-    def __init__(self, nodes, ordinal=M.one, registry=M.EmptyList):
+    def __init__(self, nodes, ordinal=M.one, registry=M.EmptyList,
+                 remaining_text="100"):
         if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
             registry = M.AllConstructors
-        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.Pair(ordinal, M.EmptyList))
+        elif M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
             self.result = M.Pair(M.EmptyList, M.Pair(ordinal, M.EmptyList))
         else:
             candidate = M.Head(nodes)()
@@ -683,7 +692,10 @@ class InventedLemmaDisplayRows(M.Edge):
                 next_ordinal = M.Head(successor)()
                 registry = M.Head(M.Tail(successor)())()
             rest = InventedLemmaDisplayRows(
-                M.Tail(nodes)(), next_ordinal, registry,
+                M.Tail(nodes)(),
+                next_ordinal,
+                registry,
+                GMPPredText(remaining_text)(),
             )()
             rows = M.Head(rest)()
             if M.IdentityCompare(row, M.EmptyList)() is M.false_value:
@@ -698,10 +710,13 @@ class InventedLemmaDisplayRows(M.Edge):
 
 
 class InventedLemmaDisplayText(M.Edge):
-    def __init__(self, nodes, ordinal=M.one, registry=M.EmptyList):
+    def __init__(self, nodes, ordinal=M.one, registry=M.EmptyList,
+                 remaining_text="100"):
         if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
             registry = M.AllConstructors
-        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            self.result = M.Char("")
+        elif M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
             self.result = M.Char("")
         else:
             candidate = M.Head(nodes)()
@@ -711,7 +726,10 @@ class InventedLemmaDisplayText(M.Edge):
                 next_ordinal = M.Head(successor)()
                 registry = M.Head(M.Tail(successor)())()
             rest = InventedLemmaDisplayText(
-                M.Tail(nodes)(), next_ordinal, registry,
+                M.Tail(nodes)(),
+                next_ordinal,
+                registry,
+                GMPPredText(remaining_text)(),
             )()
             if IsInventedLemma(candidate)() is M.truth_value:
                 separator = ""
