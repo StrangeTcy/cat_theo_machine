@@ -5659,6 +5659,7 @@ def run_talk_mode(sentence: str = None):
         nonlocal scoped_congruence_assumptions
         nonlocal scoped_integer_equations, last_parity_stall, last_residue_stall
         nonlocal last_modular_stall, last_euclidean_stall
+        line = line.replace("≥", ">=").replace("≤", "<=")
         lowered = line.lower()
         if StoryTalk.StoryCommandRecognized(line)() is M.truth_value:
             return StoryTalk.StoryTalkResponse(line)()
@@ -8173,9 +8174,23 @@ def run_talk_mode(sentence: str = None):
                             return "Cannot replay cubic lemma: x+y+z nonnegativity is not supported by the scoped assumptions."
                         return "Cannot replay the saved cubic lemma: " + str(replay_status()) + "."
                     if lookup_mode == "direct":
-                        _thinking(
-                            "direct certificate proved: the normalized goal residual equals the stored factorization residual; the repeated linear factors form a square; the quadratic cofactor is positive semidefinite"
-                        )
+                        direct_positivity = M.Head(
+                            M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(replay)())())())())(),
+                        )()
+                        direct_cofactor_certificate = M.Head(
+                            M.Tail(M.Tail(M.Tail(direct_positivity)())())(),
+                        )()
+                        if M.Compare(
+                            M.Head(direct_cofactor_certificate)(),
+                            M.Char("odd-geometric-sum-nonnegative"),
+                        )() is M.truth_value:
+                            _thinking(
+                                "direct certificate proved: the normalized goal residual equals the stored factorization residual; the repeated linear factors form a square; the even-degree cofactor is an odd geometric sum, nonnegative in its explicit equal-sign and opposite-sign branches"
+                            )
+                        else:
+                            _thinking(
+                                "direct certificate proved: the normalized goal residual equals the stored factorization residual; the repeated linear factors form a square; the quadratic cofactor is positive semidefinite"
+                            )
                     elif lookup_mode == "cubic":
                         _thinking(
                             "cubic certificate proved: the normalized identity, scoped nonnegativity assumptions, saved SOS dependency, and product-nonnegativity step all replayed"
@@ -11711,11 +11726,19 @@ def run_live_mode(requested_workers):
         )
 
     daemon_ready = threading.Event()
+    proof_service_pid = 0
 
     def drain():
+        nonlocal proof_service_pid
         for line in daemon_child.stdout:
             rendered_line = line.rstrip()
             if rendered_line.startswith("daemon proof coordinator "):
+                coordinator_prefix = "daemon proof coordinator "
+                coordinator_end = rendered_line.find(":", len(coordinator_prefix))
+                if coordinator_end != -1:
+                    proof_service_pid = int(
+                        rendered_line[len(coordinator_prefix):coordinator_end],
+                    )
                 daemon_ready.set()
             sys.stdout.write("\r\033[K[machine] " + rendered_line + "\nyou> ")
             sys.stdout.flush()
@@ -11744,6 +11767,21 @@ def run_live_mode(requested_workers):
     try:
         run_talk_mode()
     finally:
+        if proof_service_pid > 0:
+            if os.name == "nt":
+                subprocess.run(
+                    (
+                        "taskkill", "/PID", str(proof_service_pid),
+                        "/T", "/F",
+                    ),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                try:
+                    os.kill(proof_service_pid, 15)
+                except ProcessLookupError:
+                    pass
         daemon_child.terminate()
         try:
             daemon_child.wait(timeout=5)

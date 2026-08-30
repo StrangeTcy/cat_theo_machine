@@ -5379,6 +5379,46 @@ class CubicNestedReuseTest(M.Edge):
         return self.result
 
 
+class OddGeometricCofactorCertificateTest(M.Edge):
+    def __init__(self, graph):
+        cofactor = M.Pair(
+            Minmod.PolynomialMonomial("1", "4", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "3", "1")(),
+                M.Pair(
+                    Minmod.PolynomialMonomial("1", "2", "2")(),
+                    M.Pair(
+                        Minmod.PolynomialMonomial("1", "1", "3")(),
+                        M.Pair(
+                            Minmod.PolynomialMonomial("1", "0", "4")(),
+                            M.EmptyList,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        malformed = M.Pair(
+            Minmod.PolynomialMonomial("1", "4", "0")(),
+            M.Pair(
+                Minmod.PolynomialMonomial("1", "2", "2")(),
+                M.Pair(
+                    Minmod.PolynomialMonomial("1", "0", "4")(),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        accepted = Minmod.OddGeometricCofactorCertificate(cofactor)()
+        refused = Minmod.OddGeometricCofactorCertificate(malformed)()
+        self.result = M.AndAtom(
+            M.NotAtom(M.IdentityCompare(accepted, M.EmptyList)())(),
+            M.IdentityCompare(refused, M.EmptyList)(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class EqualProofLookupShardTest(M.Edge):
     def __init__(self, graph):
         nodes = M.Pair(
@@ -18448,6 +18488,14 @@ def install_default_tests(graph):
             "cubic_nested_reuse_test",
             empty,
             CubicNestedReuseTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "odd_geometric_cofactor_certificate_test",
+            empty,
+            OddGeometricCofactorCertificateTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

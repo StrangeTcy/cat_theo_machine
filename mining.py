@@ -5553,42 +5553,61 @@ class NormalizedDifferenceCandidate(M.Edge):
                                 factors, cofactor,
                             )()
                             if PolynomialEqual(difference, reconstructed)() is M.truth_value:
-                                factored = PolynomialFactoredExpression(
-                                    factors, cofactor, first, second,
-                                )()
-                                proposition = M.Pair(
-                                    M.ExprEqLabel,
-                                    M.Pair(
-                                        difference_expression,
-                                        M.Pair(factored, M.EmptyList),
-                                    ),
-                                )
-                                certificate = M.Pair(
-                                    M.Char("bounded-structural-exact-division"),
-                                    M.Pair(
-                                        difference,
+                                cofactor_certificate = M.EmptyList
+                                if PairedFactorsNonnegative(factors)() is M.truth_value:
+                                    coefficients = HomogeneousQuadraticCoefficients(cofactor)()
+                                    if QuadraticCoefficientStatus(coefficients)() is M.truth_value:
+                                        if GMPQuadraticPSDText(
+                                            QuadraticCoefficientA(coefficients)(),
+                                            QuadraticCoefficientB(coefficients)(),
+                                            QuadraticCoefficientC(coefficients)(),
+                                        )() is M.truth_value:
+                                            cofactor_certificate = coefficients
+                                    if M.IdentityCompare(
+                                        cofactor_certificate, M.EmptyList,
+                                    )() is M.truth_value:
+                                        cofactor_certificate = OddGeometricCofactorCertificate(
+                                            cofactor,
+                                        )()
+                                if M.IdentityCompare(
+                                    cofactor_certificate, M.EmptyList,
+                                )() is M.false_value:
+                                    factored = PolynomialFactoredExpression(
+                                        factors, cofactor, first, second,
+                                    )()
+                                    proposition = M.Pair(
+                                        M.ExprEqLabel,
                                         M.Pair(
-                                            factors,
+                                            difference_expression,
+                                            M.Pair(factored, M.EmptyList),
+                                        ),
+                                    )
+                                    certificate = M.Pair(
+                                        M.Char("bounded-structural-exact-division"),
+                                        M.Pair(
+                                            difference,
                                             M.Pair(
-                                                cofactor,
+                                                factors,
                                                 M.Pair(
-                                                    PolynomialFactorizationTraces(factorization)(),
-                                                    M.Pair(reconstructed, M.EmptyList),
+                                                    cofactor,
+                                                    M.Pair(
+                                                        PolynomialFactorizationTraces(factorization)(),
+                                                        M.Pair(reconstructed, M.EmptyList),
+                                                    ),
                                                 ),
                                             ),
                                         ),
-                                    ),
-                                )
-                                self.result = M.Pair(
-                                    proposition,
-                                    M.Pair(
-                                        M.Char("goal-structural"),
+                                    )
+                                    self.result = M.Pair(
+                                        proposition,
                                         M.Pair(
-                                            M.Char("verified-identity"),
-                                            M.Pair(certificate, M.EmptyList),
+                                            M.Char("goal-structural"),
+                                            M.Pair(
+                                                M.Char("verified-identity-and-positivity"),
+                                                M.Pair(certificate, M.EmptyList),
+                                            ),
                                         ),
-                                    ),
-                                )
+                                    )
         super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -5686,6 +5705,95 @@ class QuadraticCoefficientStatus(M.Edge):
         return self.result
 
 
+class EvenGMPText(M.Edge):
+    def __init__(self, value_text):
+        if GMPEqualText(value_text, "0")() is M.truth_value:
+            self.result = M.truth_value
+        elif GMPEqualText(value_text, "1")() is M.truth_value:
+            self.result = M.false_value
+        else:
+            self.result = EvenGMPText(
+                GMPPredText(GMPPredText(value_text)())(),
+            )()
+        super().__init__(inputs=M.Pair(M.Char(value_text), M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class OddGeometricCofactorWalk(M.Edge):
+    def __init__(self, polynomial, degree_text, second_text="0"):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = GMPEqualText(
+                second_text, GMPSuccText(degree_text)(),
+            )()
+        else:
+            monomial = M.Head(polynomial)()
+            coefficient = PolynomialMonomialCoefficient(monomial)()
+            first = PolynomialMonomialFirstExponent(monomial)()
+            second = PolynomialMonomialSecondExponent(monomial)()
+            expected_first = GMPSubText(degree_text, second_text)()
+            fits = M.AndAtom(
+                GMPEqualText(coefficient, "1")(),
+                M.AndAtom(
+                    GMPEqualText(first, expected_first)(),
+                    GMPEqualText(second, second_text)(),
+                )(),
+            )()
+            if fits is M.truth_value:
+                self.result = OddGeometricCofactorWalk(
+                    M.Tail(polynomial)(), degree_text,
+                    GMPSuccText(second_text)(),
+                )()
+            else:
+                self.result = M.false_value
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class OddGeometricCofactorCertificate(M.Edge):
+    """Recognise the nonnegative odd geometric sum of even total degree.
+
+    For equal-sign inputs every homogeneous term has even aggregate sign.
+    For opposite-sign inputs, writing their magnitudes a,b turns the sum
+    into the alternating quotient (a^(d+1)+b^(d+1))/(a+b), nonnegative
+    because d is even.  The certificate records both sign branches.
+    """
+
+    def __init__(self, polynomial):
+        self.result = M.EmptyList
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.false_value:
+            first_monomial = M.Head(polynomial)()
+            degree_text = PolynomialMonomialFirstExponent(first_monomial)()
+            starts_at_zero = GMPEqualText(
+                PolynomialMonomialSecondExponent(first_monomial)(), "0",
+            )()
+            if starts_at_zero is M.truth_value:
+                if EvenGMPText(degree_text)() is M.truth_value:
+                    if OddGeometricCofactorWalk(
+                        polynomial, degree_text,
+                    )() is M.truth_value:
+                        self.result = M.Pair(
+                            M.Char("odd-geometric-sum-nonnegative"),
+                            M.Pair(
+                                M.Char(degree_text),
+                                M.Pair(
+                                    M.Char("equal-sign-termwise"),
+                                    M.Pair(
+                                        M.Char("opposite-sign-positive-quotient"),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                            ),
+                        )
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class PairedFactorsNonnegative(M.Edge):
     def __init__(self, factors):
         if M.IdentityCompare(factors, M.EmptyList)() is M.truth_value:
@@ -5764,21 +5872,34 @@ class ReplayFactorizationLemmaOnGoal(M.Edge):
                                 same_residual = PolynomialEqual(difference, stored_difference)()
                                 paired = PairedFactorsNonnegative(factors)()
                                 coefficients = HomogeneousQuadraticCoefficients(cofactor)()
-                                quadratic = M.false_value
+                                cofactor_certificate = M.EmptyList
                                 if QuadraticCoefficientStatus(coefficients)() is M.truth_value:
                                     quadratic = GMPQuadraticPSDText(
                                         QuadraticCoefficientA(coefficients)(),
                                         QuadraticCoefficientB(coefficients)(),
                                         QuadraticCoefficientC(coefficients)(),
                                     )()
-                                if M.AndAtom(same_residual, M.AndAtom(paired, quadratic)())() is M.truth_value:
+                                    if quadratic is M.truth_value:
+                                        cofactor_certificate = coefficients
+                                if M.IdentityCompare(
+                                    cofactor_certificate, M.EmptyList,
+                                )() is M.truth_value:
+                                    cofactor_certificate = OddGeometricCofactorCertificate(
+                                        cofactor,
+                                    )()
+                                cofactor_positive = M.false_value
+                                if M.IdentityCompare(
+                                    cofactor_certificate, M.EmptyList,
+                                )() is M.false_value:
+                                    cofactor_positive = M.truth_value
+                                if M.AndAtom(same_residual, M.AndAtom(paired, cofactor_positive)())() is M.truth_value:
                                     identity_step = M.Pair(
                                         M.Char("verified-identity-rewrite"),
                                         M.Pair(proposition, M.EmptyList),
                                     )
                                     positivity = M.Pair(
                                         M.Char("proved-positive"),
-                                        M.Pair(factors, M.Pair(cofactor, M.Pair(coefficients, M.EmptyList))),
+                                        M.Pair(factors, M.Pair(cofactor, M.Pair(cofactor_certificate, M.EmptyList))),
                                     )
                                     self.result = M.Pair(
                                         M.Char("invented-lemma-replay-derivation"),

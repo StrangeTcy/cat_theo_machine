@@ -682,7 +682,7 @@ def daemon_worker_count(requested):
 
 
 def run_proof_worker_service(
-    snapshot_dir, proof_worker_count, stop_signal, worker_service_lock,
+    snapshot_dir, proof_worker_count, worker_service_lock,
 ):
     """Serve foreground graph requests while daemon autonomy restores/cycles.
 
@@ -707,7 +707,7 @@ def run_proof_worker_service(
         + " worker(s)",
         flush=True,
     )
-    while not stop_signal.is_set():
+    while True:
         if os.path.exists(proof_request_path):
             os.replace(proof_request_path, proof_taken_path)
             with open(proof_taken_path, "rb") as proof_stream:
@@ -783,14 +783,10 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     proof_worker_count = worker_count
     if proof_worker_count < 1:
         proof_worker_count = 1
-    proof_service_stop_signal = multiprocessing.Event()
     worker_service_lock = multiprocessing.Lock()
     proof_service = multiprocessing.Process(
         target=run_proof_worker_service,
-        args=(
-            snapshot_dir, proof_worker_count, proof_service_stop_signal,
-            worker_service_lock,
-        ),
+        args=(snapshot_dir, proof_worker_count, worker_service_lock),
     )
     proof_service.start()
     live_path = os.path.join(snapshot_dir, DAEMON_LIVE_NAME)
@@ -990,7 +986,7 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                     time.sleep(poll_seconds)
                     cycling = M.truth_value
 
-    proof_service_stop_signal.set()
+    proof_service.terminate()
     proof_service.join()
     if os.path.exists(live_path):
         os.remove(live_path)
