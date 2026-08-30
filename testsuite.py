@@ -5198,6 +5198,110 @@ class LemmaInventionTest(M.Edge):
         return self.result
 
 
+class ThreeVariableCanonicalNormalizationTest(M.Edge):
+    def __init__(self, graph):
+        registry = M.FromContextGetConstructors(graph)()
+        vocabulary = Gmod.DefaultCorrespondenceVocabulary()()
+        digit_words = M.Head(M.Tail(M.Tail(vocabulary)())())()
+        goal = Gmod.ParsePolynomialInequalityText(
+            "x^2 + y^2 + z^2 >= x*y + y*z + z*x",
+            digit_words,
+        )()
+        variables = Minmod.BoundedPolynomialVariables(goal)()
+        first = M.Head(variables)()
+        second = M.Head(M.Tail(variables)())()
+        third = M.Head(M.Tail(M.Tail(variables)())())()
+        lesser = M.Head(M.Tail(goal)())()
+        greater = M.Head(M.Tail(M.Tail(goal)())())()
+        difference = M.Pair(
+            M.ExprAddLabel,
+            M.Pair(
+                greater,
+                M.Pair(
+                    M.Pair(M.ExprNegLabel, M.Pair(lesser, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        normalized = Minmod.NormalizeCanonicalPolynomial(
+            difference, variables, registry,
+        )()
+        x2 = M.Pair(Minmod.CanonicalPower(first, "2")(), M.EmptyList)
+        xy = M.Pair(
+            Minmod.CanonicalPower(first, "1")(),
+            M.Pair(Minmod.CanonicalPower(second, "1")(), M.EmptyList),
+        )
+        xz = M.Pair(
+            Minmod.CanonicalPower(first, "1")(),
+            M.Pair(Minmod.CanonicalPower(third, "1")(), M.EmptyList),
+        )
+        y2 = M.Pair(Minmod.CanonicalPower(second, "2")(), M.EmptyList)
+        yz = M.Pair(
+            Minmod.CanonicalPower(second, "1")(),
+            M.Pair(Minmod.CanonicalPower(third, "1")(), M.EmptyList),
+        )
+        z2 = M.Pair(Minmod.CanonicalPower(third, "2")(), M.EmptyList)
+        expected = M.Pair(
+            Minmod.CanonicalMonomial("1", x2)(),
+            M.Pair(
+                Minmod.CanonicalMonomial("-1", xy)(),
+                M.Pair(
+                    Minmod.CanonicalMonomial("-1", xz)(),
+                    M.Pair(
+                        Minmod.CanonicalMonomial("1", y2)(),
+                        M.Pair(
+                            Minmod.CanonicalMonomial("-1", yz)(),
+                            M.Pair(
+                                Minmod.CanonicalMonomial("1", z2)(),
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        three_variables = M.IdentityCompare(
+            M.Tail(M.Tail(M.Tail(variables)())())(), M.EmptyList,
+        )()
+        six_monomials = Gmod.GMPEqualText(
+            M.GMPRepText(M.CountRep(normalized)())(), "6",
+        )()
+        canonical = Minmod.CanonicalPolynomialEqual(normalized, expected)()
+        two_goal = Gmod.ParsePolynomialInequalityText(
+            "x^4 + y^4 >= x^3*y + x*y^3", digit_words,
+        )()
+        two_variables = Minmod.BoundedPolynomialVariables(two_goal)()
+        two_lesser = M.Head(M.Tail(two_goal)())()
+        two_greater = M.Head(M.Tail(M.Tail(two_goal)())())()
+        two_difference = M.Pair(
+            M.ExprAddLabel,
+            M.Pair(
+                two_greater,
+                M.Pair(
+                    M.Pair(M.ExprNegLabel, M.Pair(two_lesser, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            ),
+        )
+        two_normalized = Minmod.NormalizeCanonicalPolynomial(
+            two_difference, two_variables, registry,
+        )()
+        two_regression = Gmod.GMPEqualText(
+            M.GMPRepText(M.CountRep(two_normalized)())(), "4",
+        )()
+        self.result = M.AndAtom(
+            three_variables,
+            M.AndAtom(
+                six_monomials,
+                M.AndAtom(canonical, two_regression)(),
+            )(),
+        )()
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class CandidateValidationStatusTest(M.Edge):
     def __init__(self, graph):
         registry = M.FromContextGetConstructors(graph)()

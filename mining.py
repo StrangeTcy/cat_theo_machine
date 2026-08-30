@@ -3235,6 +3235,438 @@ class PolynomialVariables(M.Edge):
         return self.result
 
 
+class CanonicalPower(M.Edge):
+    def __init__(self, variable, exponent_text):
+        self.result = M.Pair(
+            variable, M.Pair(M.Char(exponent_text), M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(variable, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPowerVariable(M.Edge):
+    def __init__(self, power):
+        self.result = M.Head(power)()
+        super().__init__(inputs=M.Pair(power, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPowerExponent(M.Edge):
+    def __init__(self, power):
+        self.result = M.Head(M.Tail(power)())()()
+        super().__init__(inputs=M.Pair(power, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalMonomial(M.Edge):
+    """Signed coefficient and a sparse variable/exponent chain."""
+
+    def __init__(self, coefficient_text, powers):
+        self.result = M.Pair(
+            M.Char("canonical-monomial"),
+            M.Pair(M.Char(coefficient_text), M.Pair(powers, M.EmptyList)),
+        )
+        super().__init__(inputs=M.Pair(powers, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalMonomialCoefficient(M.Edge):
+    def __init__(self, monomial):
+        self.result = M.Head(M.Tail(monomial)())()()
+        super().__init__(inputs=M.Pair(monomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalMonomialPowers(M.Edge):
+    def __init__(self, monomial):
+        self.result = M.Head(M.Tail(M.Tail(monomial)())())()
+        super().__init__(inputs=M.Pair(monomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class BoundedPolynomialVariables(M.Edge):
+    def __init__(self, expression, bound_text="6"):
+        self.result = self._take(PolynomialVariables(expression)(), bound_text)
+        super().__init__(inputs=M.Pair(expression, M.EmptyList), results=self.result)
+
+    def _take(self, variables, remaining_text):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if GMPEqualText(remaining_text, "0")() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(
+            M.Head(variables)(),
+            self._take(M.Tail(variables)(), GMPPredText(remaining_text)()),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPowerExponentFor(M.Edge):
+    def __init__(self, powers, variable):
+        if M.IdentityCompare(powers, M.EmptyList)() is M.truth_value:
+            self.result = "0"
+        elif M.Compare(
+            M.Tail(CanonicalPowerVariable(M.Head(powers)())())(),
+            M.Tail(variable)(),
+        )() is M.truth_value:
+            self.result = CanonicalPowerExponent(M.Head(powers)())()
+        else:
+            self.result = CanonicalPowerExponentFor(
+                M.Tail(powers)(), variable,
+            )()
+        super().__init__(inputs=M.Pair(powers, M.Pair(variable, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalVariablePowers(M.Edge):
+    def __init__(self, variables, selected):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            variable = M.Head(variables)()
+            rest = CanonicalVariablePowers(M.Tail(variables)(), selected)()
+            if M.Compare(M.Tail(variable)(), M.Tail(selected)())() is M.truth_value:
+                self.result = M.Pair(CanonicalPower(variable, "1")(), rest)
+            else:
+                self.result = rest
+        super().__init__(inputs=M.Pair(variables, M.Pair(selected, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalMergePowers(M.Edge):
+    def __init__(self, variables, left, right):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            variable = M.Head(variables)()
+            exponent = GMPAddText(
+                CanonicalPowerExponentFor(left, variable)(),
+                CanonicalPowerExponentFor(right, variable)(),
+            )()
+            rest = CanonicalMergePowers(
+                M.Tail(variables)(), left, right,
+            )()
+            if GMPEqualText(exponent, "0")() is M.truth_value:
+                self.result = rest
+            else:
+                self.result = M.Pair(
+                    CanonicalPower(variable, exponent)(), rest,
+                )
+        super().__init__(inputs=M.Pair(variables, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPowersEqual(M.Edge):
+    def __init__(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            self.result = M.IdentityCompare(right, M.EmptyList)()
+        elif M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_power = M.Head(left)()
+            right_power = M.Head(right)()
+            same_variable = M.Compare(
+                M.Tail(CanonicalPowerVariable(left_power)())(),
+                M.Tail(CanonicalPowerVariable(right_power)())(),
+            )()
+            same_exponent = GMPEqualText(
+                CanonicalPowerExponent(left_power)(),
+                CanonicalPowerExponent(right_power)(),
+            )()
+            self.result = M.AndAtom(
+                M.AndAtom(same_variable, same_exponent)(),
+                CanonicalPowersEqual(M.Tail(left)(), M.Tail(right)())(),
+            )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPowersPrefer(M.Edge):
+    """Lexicographic descending exponent-vector order."""
+
+    def __init__(self, left, right, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            variable = M.Head(variables)()
+            left_exponent = CanonicalPowerExponentFor(left, variable)()
+            right_exponent = CanonicalPowerExponentFor(right, variable)()
+            if GMPEqualText(left_exponent, right_exponent)() is M.truth_value:
+                self.result = CanonicalPowersPrefer(
+                    left, right, M.Tail(variables)(),
+                )()
+            else:
+                self.result = GMPLessText(right_exponent, left_exponent)()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialInsert(M.Edge):
+    def __init__(self, polynomial, monomial, variables):
+        coefficient = CanonicalMonomialCoefficient(monomial)()
+        if GMPEqualText(coefficient, "0")() is M.truth_value:
+            self.result = polynomial
+        elif M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(monomial, M.EmptyList)
+        else:
+            head = M.Head(polynomial)()
+            same = CanonicalPowersEqual(
+                CanonicalMonomialPowers(head)(),
+                CanonicalMonomialPowers(monomial)(),
+            )()
+            if same is M.truth_value:
+                combined = GMPAddText(
+                    CanonicalMonomialCoefficient(head)(), coefficient,
+                )()
+                if GMPEqualText(combined, "0")() is M.truth_value:
+                    self.result = M.Tail(polynomial)()
+                else:
+                    self.result = M.Pair(
+                        CanonicalMonomial(
+                            combined, CanonicalMonomialPowers(head)(),
+                        )(),
+                        M.Tail(polynomial)(),
+                    )
+            elif CanonicalPowersPrefer(
+                CanonicalMonomialPowers(monomial)(),
+                CanonicalMonomialPowers(head)(),
+                variables,
+            )() is M.truth_value:
+                self.result = M.Pair(monomial, polynomial)
+            else:
+                self.result = M.Pair(
+                    head,
+                    CanonicalPolynomialInsert(
+                        M.Tail(polynomial)(), monomial, variables,
+                    )(),
+                )
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialMerge(M.Edge):
+    def __init__(self, left, right, variables):
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            self.result = left
+        else:
+            self.result = CanonicalPolynomialMerge(
+                CanonicalPolynomialInsert(left, M.Head(right)(), variables)(),
+                M.Tail(right)(),
+                variables,
+            )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialNegate(M.Edge):
+    def __init__(self, polynomial):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            head = M.Head(polynomial)()
+            self.result = M.Pair(
+                CanonicalMonomial(
+                    GMPSubText("0", CanonicalMonomialCoefficient(head)())(),
+                    CanonicalMonomialPowers(head)(),
+                )(),
+                CanonicalPolynomialNegate(M.Tail(polynomial)())(),
+            )
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialMultiplyMonomial(M.Edge):
+    def __init__(self, polynomial, monomial, variables):
+        if M.IdentityCompare(polynomial, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            head = M.Head(polynomial)()
+            product = CanonicalMonomial(
+                GMPMulText(
+                    CanonicalMonomialCoefficient(head)(),
+                    CanonicalMonomialCoefficient(monomial)(),
+                )(),
+                CanonicalMergePowers(
+                    variables,
+                    CanonicalMonomialPowers(head)(),
+                    CanonicalMonomialPowers(monomial)(),
+                )(),
+            )()
+            rest = CanonicalPolynomialMultiplyMonomial(
+                M.Tail(polynomial)(), monomial, variables,
+            )()
+            self.result = CanonicalPolynomialInsert(rest, product, variables)()
+        super().__init__(inputs=M.Pair(polynomial, M.Pair(monomial, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialMultiply(M.Edge):
+    def __init__(self, left, right, variables):
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            self.result = M.EmptyList
+        else:
+            products = CanonicalPolynomialMultiplyMonomial(
+                left, M.Head(right)(), variables,
+            )()
+            self.result = CanonicalPolynomialMerge(
+                products,
+                CanonicalPolynomialMultiply(
+                    left, M.Tail(right)(), variables,
+                )(),
+                variables,
+            )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialPower(M.Edge):
+    def __init__(self, polynomial, exponent_text, variables):
+        if GMPEqualText(exponent_text, "0")() is M.truth_value:
+            self.result = M.Pair(CanonicalMonomial("1", M.EmptyList)(), M.EmptyList)
+        else:
+            self.result = CanonicalPolynomialMultiply(
+                polynomial,
+                CanonicalPolynomialPower(
+                    polynomial, GMPPredText(exponent_text)(), variables,
+                )(),
+                variables,
+            )()
+        super().__init__(inputs=M.Pair(polynomial, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NormalizeCanonicalPolynomial(M.Edge):
+    """Normalize a bounded expression over an arbitrary variable chain."""
+
+    def __init__(self, expression, variables, registry):
+        self.result = M.EmptyList
+        if Pmod.IsVarPattern(expression)() is M.truth_value:
+            self.result = M.Pair(
+                CanonicalMonomial(
+                    "1", CanonicalVariablePowers(variables, expression)(),
+                )(),
+                M.EmptyList,
+            )
+        elif M.IsPair(expression)() is M.truth_value:
+            label = M.Head(expression)()
+            arguments = M.Tail(expression)()
+            if M.IdentityCompare(label, M.ExprIntLabel)() is M.truth_value:
+                rep = M.NatRepOf(M.Head(arguments)(), registry)()
+                if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+                    self.result = M.Pair(
+                        CanonicalMonomial(M.GMPRepText(rep)(), M.EmptyList)(),
+                        M.EmptyList,
+                    )
+            elif M.IdentityCompare(label, M.ExprNegLabel)() is M.truth_value:
+                self.result = CanonicalPolynomialNegate(
+                    NormalizeCanonicalPolynomial(
+                        M.Head(arguments)(), variables, registry,
+                    )(),
+                )()
+            elif M.IdentityCompare(label, M.ExprAddLabel)() is M.truth_value:
+                self.result = CanonicalPolynomialMerge(
+                    NormalizeCanonicalPolynomial(
+                        M.Head(arguments)(), variables, registry,
+                    )(),
+                    NormalizeCanonicalPolynomial(
+                        M.Head(M.Tail(arguments)())(), variables, registry,
+                    )(),
+                    variables,
+                )()
+            elif M.IdentityCompare(label, M.ExprMulLabel)() is M.truth_value:
+                self.result = CanonicalPolynomialMultiply(
+                    NormalizeCanonicalPolynomial(
+                        M.Head(arguments)(), variables, registry,
+                    )(),
+                    NormalizeCanonicalPolynomial(
+                        M.Head(M.Tail(arguments)())(), variables, registry,
+                    )(),
+                    variables,
+                )()
+            elif M.IdentityCompare(label, M.ExprPowLabel)() is M.truth_value:
+                exponent_term = M.Head(M.Tail(arguments)())()
+                if M.IsPair(exponent_term)() is M.truth_value:
+                    if M.IdentityCompare(M.Head(exponent_term)(), M.ExprIntLabel)() is M.truth_value:
+                        exponent_rep = M.NatRepOf(
+                            M.Head(M.Tail(exponent_term)())(), registry,
+                        )()
+                        if M.IdentityCompare(exponent_rep, M.EmptyList)() is M.false_value:
+                            self.result = CanonicalPolynomialPower(
+                                NormalizeCanonicalPolynomial(
+                                    M.Head(arguments)(), variables, registry,
+                                )(),
+                                M.GMPRepText(exponent_rep)(),
+                                variables,
+                            )()
+        super().__init__(inputs=M.Pair(expression, M.Pair(variables, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CanonicalPolynomialEqual(M.Edge):
+    def __init__(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            self.result = M.IdentityCompare(right, M.EmptyList)()
+        elif M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_head = M.Head(left)()
+            right_head = M.Head(right)()
+            coefficients = GMPEqualText(
+                CanonicalMonomialCoefficient(left_head)(),
+                CanonicalMonomialCoefficient(right_head)(),
+            )()
+            powers = CanonicalPowersEqual(
+                CanonicalMonomialPowers(left_head)(),
+                CanonicalMonomialPowers(right_head)(),
+            )()
+            self.result = M.AndAtom(
+                M.AndAtom(coefficients, powers)(),
+                CanonicalPolynomialEqual(M.Tail(left)(), M.Tail(right)())(),
+            )()
+        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class PolynomialMonomial(M.Edge):
     def __init__(self, coefficient_text, first_exponent_text, second_exponent_text):
         self.result = M.Pair(
