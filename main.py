@@ -4513,11 +4513,7 @@ def run_talk_mode(sentence: str = None):
                 proposal_store,
                 learned_version,
             )
-            _debug(
-                "submitted taught graph data to the daemon inbox ("
-                + _store_origins_text(proposal_store)
-                + ")",
-            )
+            _debug("submitted taught graph data to the daemon inbox")
             return
         W.save_checkpoint(
             talk_checkpoint_path,
