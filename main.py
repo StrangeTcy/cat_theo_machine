@@ -7510,38 +7510,6 @@ def run_talk_mode(sentence: str = None):
                 return "I could not parse that query. Use Predicate(constant)."
             if M.IdentityCompare(polynomial_goal, M.EmptyList)() is M.false_value:
                 _thinking("recognized a polynomial inequality and normalized both sides")
-                _thinking("testing a bounded integer grid for a concrete refutation before proof lookup")
-                counterexample = Min.BoundedPolynomialCounterexample(
-                    polynomial_goal, registry,
-                )()
-                if M.IdentityCompare(
-                    counterexample, M.EmptyList,
-                )() is M.false_value:
-                    counterexample_variables = Min.PolynomialVariables(
-                        polynomial_goal,
-                    )()
-                    counterexample_first = M.Head(M.Tail(counterexample)())()()
-                    counterexample_second = M.Head(
-                        M.Tail(M.Tail(counterexample)())(),
-                    )()()
-                    counterexample_right = M.Head(
-                        M.Tail(M.Tail(M.Tail(counterexample)())())(),
-                    )()()
-                    counterexample_left = M.Head(
-                        M.Tail(M.Tail(M.Tail(M.Tail(counterexample)())())())(),
-                    )()()
-                    _thinking("found a concrete counterexample; refusing to open a lemma-invention stall")
-                    return (
-                        "no; the claim is refuted at "
-                        + M.PrettyTerm(M.Head(counterexample_variables)(), registry)()
-                        + "=" + counterexample_first + ", "
-                        + M.PrettyTerm(
-                            M.Head(M.Tail(counterexample_variables)())(), registry,
-                        )()
-                        + "=" + counterexample_second
-                        + ": the claimed left side is " + counterexample_left
-                        + " and the claimed right side is " + counterexample_right + "."
-                    )
             else:
                 _thinking("recognized a symbolic rule query")
             _thinking("looking up recorded conclusions and approved proof schemas")
