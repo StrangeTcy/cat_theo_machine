@@ -2851,10 +2851,458 @@ def run_talk_mode(sentence: str = None):
             + "."
         )
 
+    # --- research live protocol state ---
+    research_parent_goal = M.EmptyList
+    research_last_blocking = M.EmptyList
+    research_dep_index = []  # list of (idx, dep_id atom, req)
+
+    def _ensure_proof_runtime_for_research():
+        nonlocal proof_runtime, registry
+        if proof_runtime is M.EmptyList:
+            print("hyge> booting theorem packs for research mode...", flush=True)
+            quiet_boot = io.StringIO()
+            with redirect_stdout(quiet_boot):
+                pr, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+            _adopt_pack_concepts(pr.loaded_packs, M.FromContextGetAllRules(pr.graph)(),)
+            _teach_runtime_taught_rules(pr, learned_version,)
+            pr.graph._search_disable_console = M.truth_value
+            pr.graph._search_disable_progress_ticker = M.truth_value
+            proof_runtime = pr
+            registry = M.FromContextGetConstructors(proof_runtime.graph)()
+        return proof_runtime
+
+    def _handle_research_command(line):
+        nonlocal research_parent_goal, research_last_blocking, research_dep_index, proof_runtime, registry, last_derivation, last_goal, last_proof_registry
+        lowered = line.strip().lower()
+        # research mode on/off
+        if lowered == "research mode on":
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                Rmod.EnableResearchMode(rt.graph)
+                rt.graph.set_research_mode(True)
+            except Exception as e:
+                return f"failed to enable research mode: {e}"
+            return "research mode ON: derivation-cache exact, search-comparison shortcuts, prewritten ladders, target-specific schema disabled; residuals preserved; DOMAIN_AXIOM and live-learned facts allowed"
+        if lowered == "research mode off":
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                Rmod.DisableResearchMode(rt.graph)
+                rt.graph.set_research_mode(False)
+            except Exception as e:
+                return f"failed to disable research mode: {e}"
+            return "research mode OFF"
+        if lowered.startswith("suggest dependencies"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                # get last residuals
+                residuals = rt.graph.last_residuals
+                if M.IdentityCompare(residuals, M.EmptyList)() is M.truth_value:
+                    residuals = rt.graph.research_residuals
+                parent = research_parent_goal
+                if M.IdentityCompare(parent, M.EmptyList)() is M.truth_value:
+                    parent = last_goal if last_goal is not M.EmptyList else rt.graph.last_proof
+                blocking = research_last_blocking
+                if M.IdentityCompare(blocking, M.EmptyList)() is M.truth_value:
+                    blocking = M.Pair(Lmod.FailureLabel, M.EmptyList)
+                suggestions = Rmod.suggest_dependencies(parent, residuals, blocking, rt.graph)
+                research_dep_index = []
+                out_lines = [f"suggested {len(suggestions)} dependencies:"]
+                for idx, (gen, req) in enumerate(suggestions):
+                    try:
+                        dep_id = Rmod.DependencyRequestId(req)()
+                        kind = Rmod.DependencyRequestKind(req)()
+                        status = Rmod.DependencyRequestStatus(req)()
+                        # pretty
+                        kind_text = M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()
+                        status_text = M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()
+                        out_lines.append(f"  [{idx}] id={str(dep_id())[:12]} kind={kind_text} status={status_text} gen={M.PrettyTerm(gen.gen_label, M.FromContextGetConstructors(rt.graph)())()}")
+                        research_dep_index.append((idx, dep_id, req))
+                    except Exception as e:
+                        out_lines.append(f"  [{idx}] error: {e}")
+                return "\n".join(out_lines)
+            except Exception as e:
+                return f"suggest dependencies failed: {e}"
+        if lowered.startswith("show dependency"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                # parse index
+                parts = line.strip().split()
+                if len(parts) < 3:
+                    # show all
+                    cur = rt.graph.dependency_requests
+                    out = ["dependency requests:"]
+                    idx = 0
+                    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                        req = M.Head(cur)()
+                        try:
+                            dep_id = Rmod.DependencyRequestId(req)()
+                            parent = Rmod.DependencyRequestParentGoal(req)()
+                            kind = Rmod.DependencyRequestKind(req)()
+                            formal = Rmod.DependencyRequestFormalStatement(req)()
+                            status = Rmod.DependencyRequestStatus(req)()
+                            prov = Rmod.DependencyRequestProvenance(req)()
+                            out.append(f"  [{idx}] id={str(dep_id())[:12]} parent={M.PrettyTerm(parent, M.FromContextGetConstructors(rt.graph)())()[:80]} kind={M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()} status={M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()} prov={M.PrettyTerm(prov, M.FromContextGetConstructors(rt.graph)())()} formal={M.PrettyTerm(formal, M.FromContextGetConstructors(rt.graph)())()[:120]}")
+                        except Exception as ee:
+                            out.append(f"  [{idx}] parse error {ee}")
+                        cur = M.Tail(cur)()
+                        idx += 1
+                    return "\n".join(out)
+                else:
+                    # show specific
+                    try:
+                        target_idx = int(parts[2])
+                    except:
+                        target_idx = -1
+                    # find by index in research_dep_index or by id
+                    for idx, dep_id, req in research_dep_index:
+                        if idx == target_idx:
+                            try:
+                                parent = Rmod.DependencyRequestParentGoal(req)()
+                                residuals = Rmod.DependencyRequestResiduals(req)()
+                                blocking = Rmod.DependencyRequestBlockingCondition(req)()
+                                kind = Rmod.DependencyRequestKind(req)()
+                                formal = Rmod.DependencyRequestFormalStatement(req)()
+                                bridge = Rmod.DependencyRequestBridgePlan(req)()
+                                counter = Rmod.DependencyRequestCounterfactual(req)()
+                                assumptions = Rmod.DependencyRequestAssumptions(req)()
+                                status = Rmod.DependencyRequestStatus(req)()
+                                prov = Rmod.DependencyRequestProvenance(req)()
+                                return f"Dependency [{idx}]:\n id={dep_id()}\n parent={M.PrettyTerm(parent, M.FromContextGetConstructors(rt.graph)())()}\n residuals={M.PrettyTerm(residuals, M.FromContextGetConstructors(rt.graph)())()[:200]}\n blocking={M.PrettyTerm(blocking, M.FromContextGetConstructors(rt.graph)())()}\n kind={M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()}\n formal={M.PrettyTerm(formal, M.FromContextGetConstructors(rt.graph)())()}\n bridge={M.PrettyTerm(bridge, M.FromContextGetConstructors(rt.graph)())()}\n counterfactual={M.PrettyTerm(counter, M.FromContextGetConstructors(rt.graph)())()}\n assumptions={M.PrettyTerm(assumptions, M.FromContextGetConstructors(rt.graph)())()}\n status={M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()}\n provenance={M.PrettyTerm(prov, M.FromContextGetConstructors(rt.graph)())()}"
+                            except Exception as e:
+                                return f"show error {e}"
+                    return f"no dependency with index {target_idx} in current session index; use 'show dependencies' to list all"
+            except Exception as e:
+                return f"show dependency failed: {e}"
+        if lowered == "show dependencies":
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                cur = rt.graph.dependency_requests
+                out = ["dependency requests (all):"]
+                idx = 0
+                while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                    req = M.Head(cur)()
+                    try:
+                        dep_id = Rmod.DependencyRequestId(req)()
+                        kind = Rmod.DependencyRequestKind(req)()
+                        status = Rmod.DependencyRequestStatus(req)()
+                        out.append(f"  [{idx}] id={str(dep_id())[:12]} kind={M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()} status={M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()}")
+                    except Exception:
+                        out.append(f"  [{idx}] parse error")
+                    cur = M.Tail(cur)()
+                    idx += 1
+                return "\n".join(out)
+            except Exception as e:
+                return f"show dependencies failed: {e}"
+        if lowered.startswith("approve dependency"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                parts = line.strip().split()
+                if len(parts) < 3:
+                    return "usage: approve dependency <index>"
+                target_idx = int(parts[2])
+                dep_id = None
+                for idx, did, req in research_dep_index:
+                    if idx == target_idx:
+                        dep_id = did
+                        break
+                if dep_id is None:
+                    # try to find by scanning graph by index
+                    cur = rt.graph.dependency_requests
+                    cur_idx = 0
+                    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                        if cur_idx == target_idx:
+                            req = M.Head(cur)()
+                            dep_id = Rmod.DependencyRequestId(req)()
+                            break
+                        cur = M.Tail(cur)()
+                        cur_idx += 1
+                if dep_id is None:
+                    return f"no dependency index {target_idx}"
+                approved = Rmod.approve_dependency(rt.graph, dep_id)
+                # update metrics: times proposed etc handled in suggest; here mark approved
+                # counterfactual test
+                try:
+                    parent = Rmod.DependencyRequestParentGoal(approved)()
+                    residuals = Rmod.DependencyRequestResiduals(approved)()
+                    formal = Rmod.DependencyRequestFormalStatement(approved)()
+                    ev, closed = Rmod.counterfactual_evaluation(rt.graph, parent, residuals, formal)
+                    # store counterfactual result
+                    rt.graph.add_counterfactual_result(ev)
+                except Exception:
+                    pass
+                _persist_talk_state()
+                return f"approved dependency [{target_idx}] id={str(dep_id())[:12]}"
+            except Exception as e:
+                return f"approve failed: {e}"
+        if lowered.startswith("reject dependency"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                parts = line.strip().split()
+                if len(parts) < 3:
+                    return "usage: reject dependency <index>"
+                target_idx = int(parts[2])
+                dep_id = None
+                for idx, did, req in research_dep_index:
+                    if idx == target_idx:
+                        dep_id = did
+                        break
+                if dep_id is None:
+                    cur = rt.graph.dependency_requests
+                    cur_idx = 0
+                    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                        if cur_idx == target_idx:
+                            req = M.Head(cur)()
+                            dep_id = Rmod.DependencyRequestId(req)()
+                            break
+                        cur = M.Tail(cur)()
+                        cur_idx += 1
+                if dep_id is None:
+                    return f"no dependency index {target_idx}"
+                Rmod.reject_dependency(rt.graph, dep_id)
+                _persist_talk_state()
+                return f"rejected dependency [{target_idx}]"
+            except Exception as e:
+                return f"reject failed: {e}"
+        if lowered.startswith("refine dependency"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                # format: refine dependency <idx> <new formal text>
+                parts = line.strip().split(None, 3)
+                if len(parts) < 4:
+                    return "usage: refine dependency <index> <new formal statement text>"
+                target_idx = int(parts[2])
+                new_formal_text = parts[3]
+                new_formal = M.Atom()
+                new_formal.value = new_formal_text
+                new_formal_term = M.Pair(Lmod.FormalStatementLabel, M.Pair(new_formal, M.EmptyList))
+                dep_id = None
+                for idx, did, req in research_dep_index:
+                    if idx == target_idx:
+                        dep_id = did
+                        break
+                if dep_id is None:
+                    cur = rt.graph.dependency_requests
+                    cur_idx = 0
+                    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                        if cur_idx == target_idx:
+                            req = M.Head(cur)()
+                            dep_id = Rmod.DependencyRequestId(req)()
+                            break
+                        cur = M.Tail(cur)()
+                        cur_idx += 1
+                if dep_id is None:
+                    return f"no dependency index {target_idx}"
+                refined = Rmod.refine_dependency(rt.graph, dep_id, new_formal_term)
+                _persist_talk_state()
+                return f"refined dependency [{target_idx}] to {new_formal_text}"
+            except Exception as e:
+                return f"refine failed: {e}"
+        if lowered.startswith("teach trusted theorem"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                # after colon or space
+                if ":" in line:
+                    theorem_text = line.split(":",1)[1].strip()
+                else:
+                    theorem_text = line[len("teach trusted theorem"):].strip()
+                if not theorem_text:
+                    return "usage: teach trusted theorem: <term>"
+                th_atom = M.Atom()
+                th_atom.value = theorem_text
+                th_term = M.Pair(Lmod.HumanSuppliedTrustedTheoremLabel, M.Pair(th_atom, M.EmptyList))
+                Rmod.teach_trusted_theorem(rt.graph, th_term)
+                _persist_talk_state()
+                return f"taught trusted theorem: {theorem_text} provenance HUMAN_SUPPLIED_TRUSTED_THEOREM"
+            except Exception as e:
+                return f"teach trusted theorem failed: {e}"
+        if lowered.startswith("define symbolic object"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                if ":" in line:
+                    obj_text = line.split(":",1)[1].strip()
+                else:
+                    obj_text = line[len("define symbolic object"):].strip()
+                if not obj_text:
+                    return "usage: define symbolic object: <name>"
+                obj_atom = M.Atom()
+                obj_atom.value = obj_text
+                obj_term = M.Pair(Lmod.SymbolicObjectLabel, M.Pair(obj_atom, M.EmptyList))
+                Rmod.define_symbolic_object(rt.graph, obj_term)
+                _persist_talk_state()
+                return f"defined symbolic object: {obj_text} provenance INVENTED_OBJECT"
+            except Exception as e:
+                return f"define symbolic object failed: {e}"
+        if lowered.startswith("teach law"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                if ":" in line:
+                    law_text = line.split(":",1)[1].strip()
+                else:
+                    law_text = line[len("teach law"):].strip()
+                if not law_text:
+                    return "usage: teach law: <law>"
+                law_atom = M.Atom()
+                law_atom.value = law_text
+                law_term = M.Pair(Lmod.InstalledLawLabel, M.Pair(law_atom, M.EmptyList))
+                Rmod.teach_law(rt.graph, law_term)
+                _persist_talk_state()
+                return f"taught law: {law_text}"
+            except Exception as e:
+                return f"teach law failed: {e}"
+        if lowered == "retry parent goal":
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                if M.IdentityCompare(research_parent_goal, M.EmptyList)() is M.truth_value:
+                    # try last_goal
+                    if last_goal is M.EmptyList:
+                        return "no parent goal stored; prove something first"
+                    research_parent_goal = last_goal
+                # attempt proof again
+                start = proof_runtime.graph.nodes  # simplified start?
+                # Use last start? We'll use previous start if stored, else use Knowledge empty
+                # For demo, use last_outcome? We'll just try to prove research_parent_goal from current nodes
+                # Build start as Knowledge of current nodes
+                # Simplified: start = M.Pair(M.KnowledgeLabel, M.Pair(rt.graph.nodes, M.EmptyList))? Use existing start if available
+                # We'll use rt.graph.nodes as knowledge
+                # For generic, we attempt proof of parent goal
+                # The runtime.prove expects start, goal
+                # We'll use Empty knowledge as start for simplicity, or last start if we have
+                # We'll store last start in proof_runtime? Use last_proof's start? Let's use M.EmptyList as start placeholder and rely on graph nodes
+                # Actually runtime.prove will use graph's rules
+                from . import research as Rmod
+                # Use last start if we can get from last_proof term: Pair(LastProofLabel, Pair(goal, Pair(prov, Pair(deriv, ...))))
+                # We'll attempt to extract start from last_outcome? For simplicity use Knowledge of nodes
+                start_term = M.Pair(Lmod.KnowledgeLabel, M.Pair(rt.graph.nodes, M.EmptyList))
+                goal_term = research_parent_goal
+                print(f"hyge> retrying parent goal: {M.PrettyTerm(goal_term, M.FromContextGetConstructors(rt.graph)())()}", flush=True)
+                deriv = rt.prove(start_term, goal_term)
+                if M.IdentityCompare(deriv, M.EmptyList)() is M.false_value:
+                    return f"retry succeeded: parent goal proved, derivation stored"
+                else:
+                    return f"retry failed: parent goal still not proved, residuals preserved"
+            except Exception as e:
+                return f"retry failed: {e}"
+        if lowered == "show discovered dependency graph":
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                entries = Rmod.show_dependency_graph(rt.graph)
+                if not entries:
+                    return "discovered dependency graph is empty (no machine actual requests and accepted knowledge)"
+                out = ["discovered dependency graph (machine actual requests and accepted knowledge only):"]
+                for goal, dep_id, status in entries:
+                    try:
+                        goal_text = M.PrettyTerm(goal, M.FromContextGetConstructors(rt.graph)())()
+                        status_text = M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()
+                        out.append(f"  goal={goal_text[:80]} dependsOn dep_id={str(dep_id())[:12]} status={status_text}")
+                    except Exception:
+                        out.append(f"  goal=? dep_id={str(dep_id())[:12]}")
+                return "\n".join(out)
+            except Exception as e:
+                return f"show discovered dependency graph failed: {e}"
+        if lowered in ("explain last proof", "explain last proof detailed"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                lp = rt.graph.last_proof
+                if M.IdentityCompare(lp, M.EmptyList)() is M.truth_value:
+                    # fallback to old explain
+                    return _explain_last()
+                # Parse last_proof term
+                # Pair(LastProofLabel, Pair(goal, Pair(prov, Pair(deriv, Pair(cost, EmptyList)))))
+                try:
+                    goal = M.Head(M.Tail(lp)())()
+                    prov = M.Head(M.Tail(M.Tail(lp)())())()
+                    deriv = M.Head(M.Tail(M.Tail(M.Tail(lp)())())())()
+                    cost = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(lp)())())())())()
+                    goal_text = M.PrettyTerm(goal, M.FromContextGetConstructors(rt.graph)())()
+                    prov_text = M.PrettyTerm(prov, M.FromContextGetConstructors(rt.graph)())()
+                    deriv_text = M.PrettyTerm(deriv, M.FromContextGetConstructors(rt.graph)())()[:500]
+                    cost_text = M.PrettyTerm(cost, M.FromContextGetConstructors(rt.graph)())() if M.IdentityCompare(cost, M.EmptyList)() is M.false_value else "no cost"
+                    # expanded states, successors, cache/replay status, axioms, human-supplied, invented, nested deps, assumptions, utility credits
+                    residuals = rt.graph.last_residuals
+                    residuals_text = M.PrettyTerm(residuals, M.FromContextGetConstructors(rt.graph)())()[:500] if M.IdentityCompare(residuals, M.EmptyList)() is M.false_value else "no residuals (success)"
+                    prov_map = Rmod.audit_knowledge(rt.graph)
+                    axioms = []
+                    human = []
+                    invented = []
+                    for term, p in prov_map:
+                        try:
+                            pt = M.PrettyTerm(p, M.FromContextGetConstructors(rt.graph)())()
+                            tt = M.PrettyTerm(term, M.FromContextGetConstructors(rt.graph)())()[:80]
+                            if "DomainAxiom" in pt:
+                                axioms.append(tt)
+                            elif "HumanSupplied" in pt:
+                                human.append(tt)
+                            elif "Invented" in pt:
+                                invented.append(tt)
+                        except Exception:
+                            pass
+                    out = [
+                        f"explain last proof:",
+                        f" goal={goal_text}",
+                        f" provenance={prov_text}",
+                        f" derivation={deriv_text}",
+                        f" cost={cost_text}",
+                        f" residuals={residuals_text}",
+                        f" cache/replay status: {'cache hit' if 'CacheHit' in prov_text else 'search derived' if 'SearchDerived' in prov_text else prov_text}",
+                        f" axioms (DOMAIN_AXIOM): {axioms}",
+                        f" human-supplied theorems (HUMAN_SUPPLIED_TRUSTED_THEOREM): {human}",
+                        f" invented lemmas/objects/transformations: {invented}",
+                        f" nested dependencies: see 'show discovered dependency graph'",
+                        f" assumptions: from dependency requests if any",
+                        f" utility credits: generator metrics stored in dependency graph",
+                    ]
+                    # failure reason
+                    if M.IdentityCompare(deriv, M.EmptyList)() is M.truth_value:
+                        out.append(" failure reason: no applicable rule, or missing domain operation, or candidate generation exhausted; root remains in residual even with zero successors")
+                    return "\n".join(out)
+                except Exception as ee:
+                    return f"explain last proof parse error {ee}, raw={M.PrettyTerm(lp, M.FromContextGetConstructors(rt.graph)())()[:500]}"
+            except Exception as e:
+                return f"explain last proof failed: {e}"
+        if lowered == "audit knowledge":
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                from . import research as Rmod
+                entries = Rmod.audit_knowledge(rt.graph)
+                if not entries:
+                    return "audit knowledge: no provenance entries; only DOMAIN_AXIOM from packs allowed plus live-taught facts"
+                out = ["audit knowledge (provenance):"]
+                for term, prov in entries:
+                    try:
+                        term_text = M.PrettyTerm(term, M.FromContextGetConstructors(rt.graph)())()[:120]
+                        prov_text = M.PrettyTerm(prov, M.FromContextGetConstructors(rt.graph)())()
+                        out.append(f"  term={term_text} provenance={prov_text}")
+                    except Exception:
+                        out.append("  term=? provenance=?")
+                # also list domain axioms allowed from audit knowledge
+                out.append("DOMAIN_AXIOM allowed from packs; HUMAN_SUPPLIED_TRUSTED_THEOREM from live teaching; others labeled accordingly")
+                return "\n".join(out)
+            except Exception as e:
+                return f"audit knowledge failed: {e}"
+        return None
+
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
+        nonlocal research_parent_goal, research_last_blocking
         lowered = line.lower()
+        # research live protocol commands take precedence
+        rc = _handle_research_command(line)
+        if rc is not None:
+            return rc
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
         if lowered.startswith("definition:"):
@@ -3015,6 +3463,9 @@ def run_talk_mode(sentence: str = None):
                                     M.IsRealLabel,
                                     M.Pair(start, M.EmptyList),
                                 )
+                                # capture parent goal for research mode
+                                research_parent_goal = goal
+                                research_last_blocking = M.Pair(Lmod.FailureLabel, M.Pair(goal, M.EmptyList))
                                 derivation = proof_runtime.prove(start, goal)
                                 print(
                                     "hyge> search finished in "

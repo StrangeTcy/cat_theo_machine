@@ -110,16 +110,22 @@ class Hypergraph:
         self.rule_order = Ctx.ContextRuleOrder(self.context)()
         self.derivations = Ctx.ContextDerivations(self.context)()
         self.derivation_schemata = Ctx.ContextDerivationSchemata(self.context)()
-        # self.search_history = Ctx.ContextSearchHistory(self.context)()
-        # self.search_comparisons = Ctx.ContextSearchComparisons(self.context)()
-        # self.search_jobs = Ctx.ContextSearchJobs(self.context)()
-        # self.search_memo = Ctx.ContextSearchMemo(self.context)()
         self.search_history = Ctx.ContextSearchHistory(self.context)()
         self.search_comparisons = Ctx.ContextSearchComparisons(self.context)()
         self.search_comparison_jobs = Ctx.ContextSearchComparisonJobs(self.context)()
         self.search_jobs = Ctx.ContextSearchJobs(self.context)()
         self.search_memo = Ctx.ContextSearchMemo(self.context)()
         self.nat_value_index = Ctx.ContextNatValueIndex(self.context)()
+        self.dependency_requests = Ctx.ContextDependencyRequests(self.context)()
+        self.dependency_graph = Ctx.ContextDependencyGraph(self.context)()
+        self.generator_metrics = Ctx.ContextGeneratorMetrics(self.context)()
+        self.last_proof = Ctx.ContextLastProof(self.context)()
+        self.research_residuals = Ctx.ContextResearchResiduals(self.context)()
+        self.provenance_map = Ctx.ContextProvenanceMap(self.context)()
+        self.generator_policy = Ctx.ContextGeneratorPolicy(self.context)()
+        self.last_residuals = Ctx.ContextLastResiduals(self.context)()
+        self.counterfactual_results = Ctx.ContextCounterfactualResults(self.context)()
+        self.research_mode = Ctx.ContextResearchMode(self.context)()
         M.AllConstructors = M.set_all_constructors(self.constructor_registry)
         M.NatValueIndex = self.nat_value_index
         return self.context
@@ -269,6 +275,71 @@ class Hypergraph:
         updated = RemoveSearchJob(start, goal, heuristic, Ctx.ContextSearchJobs(self.context)())()
         self._replace_context(search_jobs=updated)
         return updated
+
+    def add_dependency_request(self, req):
+        self._replace_context(dependency_requests=M.Pair(req, Ctx.ContextDependencyRequests(self.context)()))
+        return req
+
+    def lookup_dependency_request(self, dep_id):
+        cur = Ctx.ContextDependencyRequests(self.context)()
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            req = M.Head(cur)()
+            try:
+                # extract id via Tail chain 11
+                chain = M.Tail(req)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                rid = M.Head(chain)()
+                if M.TermEqual(rid, dep_id)() is M.truth_value:
+                    return req
+            except Exception:
+                pass
+            cur = M.Tail(cur)()
+        return M.EmptyList
+
+    def add_dependency_graph_entry(self, entry):
+        self._replace_context(dependency_graph=M.Pair(entry, Ctx.ContextDependencyGraph(self.context)()))
+        return entry
+
+    def add_generator_metric(self, metric):
+        self._replace_context(generator_metrics=M.Pair(metric, Ctx.ContextGeneratorMetrics(self.context)()))
+        return metric
+
+    def set_last_proof(self, proof_term):
+        self._replace_context(last_proof=proof_term)
+        return proof_term
+
+    def set_last_residuals(self, residuals):
+        self._replace_context(last_residuals=residuals, research_residuals=residuals)
+        return residuals
+
+    def add_provenance(self, term, prov_label):
+        entry = M.Pair(term, M.Pair(prov_label, M.EmptyList))
+        self._replace_context(provenance_map=M.Pair(entry, Ctx.ContextProvenanceMap(self.context)()))
+        return entry
+
+    def add_counterfactual_result(self, result):
+        self._replace_context(counterfactual_results=M.Pair(result, Ctx.ContextCounterfactualResults(self.context)()))
+        return result
+
+    def set_research_mode(self, enabled):
+        if enabled:
+            marker = M.Pair(Lmod.ResearchModeLabel, M.EmptyList)
+            self._replace_context(research_mode=M.Pair(marker, Ctx.ContextResearchMode(self.context)()))
+        else:
+            self._replace_context(research_mode=M.EmptyList)
+
+    def is_research_mode(self):
+        rm = Ctx.ContextResearchMode(self.context)()
+        return M.IdentityCompare(rm, M.EmptyList)() is M.false_value
 
     def _prepend_node_unchecked(self, x):
         self._replace_context(nodes=M.Pair(x, Ctx.ContextNodes(self.context)()))

@@ -1595,6 +1595,323 @@ class LexicalNpLabel(ConstructorLabel):
     pass
 
 
+# --- Research protocol labels ---
+class DependencyRequestLabel(ConstructorLabel):
+    pass
+
+
+class GoalDependsOnDependencyLabel(ConstructorLabel):
+    pass
+
+
+class DependencyDependsOnDependencyLabel(ConstructorLabel):
+    pass
+
+
+class GoalResidualLabel(ConstructorLabel):
+    pass
+
+
+class BlockingConditionLabel(ConstructorLabel):
+    pass
+
+
+class BridgePlanLabel(ConstructorLabel):
+    pass
+
+
+class CounterfactualEvidenceLabel(ConstructorLabel):
+    pass
+
+
+class DependencyStatusLabel(ConstructorLabel):
+    pass
+
+
+class ProvenanceMapLabel(ConstructorLabel):
+    pass
+
+
+class GeneratorMetricsLabel(ConstructorLabel):
+    pass
+
+
+class GeneratorPolicyLabel(ConstructorLabel):
+    pass
+
+
+class ResearchModeLabel(ConstructorLabel):
+    pass
+
+
+class DependencyGraphLabel(ConstructorLabel):
+    pass
+
+
+class ResidualStateLabel(ConstructorLabel):
+    pass
+
+
+class SearchCostBeforeLabel(ConstructorLabel):
+    pass
+
+
+class SearchCostAfterLabel(ConstructorLabel):
+    pass
+
+
+class NewlyEnabledFiringsLabel(ConstructorLabel):
+    pass
+
+
+class RemovedObligationsLabel(ConstructorLabel):
+    pass
+
+
+class NewObligationsLabel(ConstructorLabel):
+    pass
+
+
+class GoalClosedLabel(ConstructorLabel):
+    pass
+
+
+class ProvenanceLabel(ConstructorLabel):
+    pass
+
+
+class DomainAxiomLabel(ConstructorLabel):
+    pass
+
+
+class LibraryTheoremLabel(ConstructorLabel):
+    pass
+
+
+class HumanSuppliedTrustedTheoremLabel(ConstructorLabel):
+    pass
+
+
+class PrewrittenProofLadderLabel(ConstructorLabel):
+    pass
+
+
+class DerivationCacheHitLabel(ConstructorLabel):
+    pass
+
+
+class SchemaReplayLabel(ConstructorLabel):
+    pass
+
+
+class SearchDerivedLabel(ConstructorLabel):
+    pass
+
+
+class InventedLemmaLabel(ConstructorLabel):
+    pass
+
+
+class InventedObjectLabel(ConstructorLabel):
+    pass
+
+
+class InventedTransformationLabel(ConstructorLabel):
+    pass
+
+
+class CounterexampleLabel(ConstructorLabel):
+    pass
+
+
+class FailureLabel(ConstructorLabel):
+    pass
+
+
+class DependencyRequestProvenanceLabel(ConstructorLabel):
+    pass
+
+
+class PendingStatusLabel(ConstructorLabel):
+    pass
+
+
+class ApprovedStatusLabel(ConstructorLabel):
+    pass
+
+
+class RejectedStatusLabel(ConstructorLabel):
+    pass
+
+
+class RefinedStatusLabel(ConstructorLabel):
+    pass
+
+
+class TheoremKindLabel(ConstructorLabel):
+    pass
+
+
+class ObjectKindLabel(ConstructorLabel):
+    pass
+
+
+class RepresentationKindLabel(ConstructorLabel):
+    pass
+
+
+class TransformationKindLabel(ConstructorLabel):
+    pass
+
+
+class TacticKindLabel(ConstructorLabel):
+    pass
+
+
+class DomainPropertyKindLabel(ConstructorLabel):
+    pass
+
+
+class GenMissingOperationLabel(ConstructorLabel):
+    pass
+
+
+class GenProperExponentReductionLabel(ConstructorLabel):
+    pass
+
+
+class GenRepresentationShiftLabel(ConstructorLabel):
+    pass
+
+
+class GenAuxiliaryObjectLabel(ConstructorLabel):
+    pass
+
+
+class GenLemmaIntroductionLabel(ConstructorLabel):
+    pass
+
+
+class GenTransformationSearchLabel(ConstructorLabel):
+    pass
+
+
+class GenTacticEnhancementLabel(ConstructorLabel):
+    pass
+
+
+class ContextDependencyRequestsLabel(ConstructorLabel):
+    pass
+
+
+class ContextDependencyGraphLabel(ConstructorLabel):
+    pass
+
+
+class ContextGeneratorMetricsLabel(ConstructorLabel):
+    pass
+
+
+class ContextLastProofLabel(ConstructorLabel):
+    pass
+
+
+class ContextResearchResidualsLabel(ConstructorLabel):
+    pass
+
+
+class ContextProvenanceMapLabel(ConstructorLabel):
+    pass
+
+
+class ContextGeneratorPolicyLabel(ConstructorLabel):
+    pass
+
+
+class ContextLastResidualsLabel(ConstructorLabel):
+    pass
+
+
+class ContextCounterfactualResultsLabel(ConstructorLabel):
+    pass
+
+
+class ContextResearchModeLabel(ConstructorLabel):
+    pass
+
+
+class ZeroSuccessorResidualLabel(ConstructorLabel):
+    pass
+
+
+class ParentGoalLabel(ConstructorLabel):
+    pass
+
+
+class ResidualsLabel(ConstructorLabel):
+    pass
+
+
+class FormalStatementLabel(ConstructorLabel):
+    pass
+
+
+class AssumptionsLabel(ConstructorLabel):
+    pass
+
+
+class DependencyIdLabel(ConstructorLabel):
+    pass
+
+
+class GeneratorIdLabel(ConstructorLabel):
+    pass
+
+
+class GeneratorStatsLabel(ConstructorLabel):
+    pass
+
+
+class ProposedCountLabel(ConstructorLabel):
+    pass
+
+
+class ApprovedCountLabel(ConstructorLabel):
+    pass
+
+
+class RejectedCountLabel(ConstructorLabel):
+    pass
+
+
+class UsefulCountLabel(ConstructorLabel):
+    pass
+
+
+class UsedCountLabel(ConstructorLabel):
+    pass
+
+
+class MeanCostReductionLabel(ConstructorLabel):
+    pass
+
+
+class ReuseCountLabel(ConstructorLabel):
+    pass
+
+
+class LastProofLabel(ConstructorLabel):
+    pass
+
+
+class LastResidualsLabel(ConstructorLabel):
+    pass
+
+
+class CounterfactualResultLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1992,6 +2309,85 @@ ProjectRightLabel = ProjectRightLabel()
 ReflexiveLabel = ReflexiveLabel()
 RestrictionLabel = RestrictionLabel()
 LexicalNpLabel = LexicalNpLabel()
+DependencyRequestLabel = DependencyRequestLabel()
+GoalDependsOnDependencyLabel = GoalDependsOnDependencyLabel()
+DependencyDependsOnDependencyLabel = DependencyDependsOnDependencyLabel()
+GoalResidualLabel = GoalResidualLabel()
+BlockingConditionLabel = BlockingConditionLabel()
+BridgePlanLabel = BridgePlanLabel()
+CounterfactualEvidenceLabel = CounterfactualEvidenceLabel()
+DependencyStatusLabel = DependencyStatusLabel()
+ProvenanceMapLabel = ProvenanceMapLabel()
+GeneratorMetricsLabel = GeneratorMetricsLabel()
+GeneratorPolicyLabel = GeneratorPolicyLabel()
+ResearchModeLabel = ResearchModeLabel()
+DependencyGraphLabel = DependencyGraphLabel()
+ResidualStateLabel = ResidualStateLabel()
+SearchCostBeforeLabel = SearchCostBeforeLabel()
+SearchCostAfterLabel = SearchCostAfterLabel()
+NewlyEnabledFiringsLabel = NewlyEnabledFiringsLabel()
+RemovedObligationsLabel = RemovedObligationsLabel()
+NewObligationsLabel = NewObligationsLabel()
+GoalClosedLabel = GoalClosedLabel()
+ProvenanceLabel = ProvenanceLabel()
+DomainAxiomLabel = DomainAxiomLabel()
+LibraryTheoremLabel = LibraryTheoremLabel()
+HumanSuppliedTrustedTheoremLabel = HumanSuppliedTrustedTheoremLabel()
+PrewrittenProofLadderLabel = PrewrittenProofLadderLabel()
+DerivationCacheHitLabel = DerivationCacheHitLabel()
+SchemaReplayLabel = SchemaReplayLabel()
+SearchDerivedLabel = SearchDerivedLabel()
+InventedLemmaLabel = InventedLemmaLabel()
+InventedObjectLabel = InventedObjectLabel()
+InventedTransformationLabel = InventedTransformationLabel()
+CounterexampleLabel = CounterexampleLabel()
+FailureLabel = FailureLabel()
+DependencyRequestProvenanceLabel = DependencyRequestProvenanceLabel()
+PendingStatusLabel = PendingStatusLabel()
+ApprovedStatusLabel = ApprovedStatusLabel()
+RejectedStatusLabel = RejectedStatusLabel()
+RefinedStatusLabel = RefinedStatusLabel()
+TheoremKindLabel = TheoremKindLabel()
+ObjectKindLabel = ObjectKindLabel()
+RepresentationKindLabel = RepresentationKindLabel()
+TransformationKindLabel = TransformationKindLabel()
+TacticKindLabel = TacticKindLabel()
+DomainPropertyKindLabel = DomainPropertyKindLabel()
+GenMissingOperationLabel = GenMissingOperationLabel()
+GenProperExponentReductionLabel = GenProperExponentReductionLabel()
+GenRepresentationShiftLabel = GenRepresentationShiftLabel()
+GenAuxiliaryObjectLabel = GenAuxiliaryObjectLabel()
+GenLemmaIntroductionLabel = GenLemmaIntroductionLabel()
+GenTransformationSearchLabel = GenTransformationSearchLabel()
+GenTacticEnhancementLabel = GenTacticEnhancementLabel()
+ContextDependencyRequestsLabel = ContextDependencyRequestsLabel()
+ContextDependencyGraphLabel = ContextDependencyGraphLabel()
+ContextGeneratorMetricsLabel = ContextGeneratorMetricsLabel()
+ContextLastProofLabel = ContextLastProofLabel()
+ContextResearchResidualsLabel = ContextResearchResidualsLabel()
+ContextProvenanceMapLabel = ContextProvenanceMapLabel()
+ContextGeneratorPolicyLabel = ContextGeneratorPolicyLabel()
+ContextLastResidualsLabel = ContextLastResidualsLabel()
+ContextCounterfactualResultsLabel = ContextCounterfactualResultsLabel()
+ContextResearchModeLabel = ContextResearchModeLabel()
+ZeroSuccessorResidualLabel = ZeroSuccessorResidualLabel()
+ParentGoalLabel = ParentGoalLabel()
+ResidualsLabel = ResidualsLabel()
+FormalStatementLabel = FormalStatementLabel()
+AssumptionsLabel = AssumptionsLabel()
+DependencyIdLabel = DependencyIdLabel()
+GeneratorIdLabel = GeneratorIdLabel()
+GeneratorStatsLabel = GeneratorStatsLabel()
+ProposedCountLabel = ProposedCountLabel()
+ApprovedCountLabel = ApprovedCountLabel()
+RejectedCountLabel = RejectedCountLabel()
+UsefulCountLabel = UsefulCountLabel()
+UsedCountLabel = UsedCountLabel()
+MeanCostReductionLabel = MeanCostReductionLabel()
+ReuseCountLabel = ReuseCountLabel()
+LastProofLabel = LastProofLabel()
+LastResidualsLabel = LastResidualsLabel()
+CounterfactualResultLabel = CounterfactualResultLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2031,6 +2427,85 @@ def sync_from_namespace(namespace):
         "ReflexiveLabel",
         "RestrictionLabel",
         "LexicalNpLabel",
+        "DependencyRequestLabel",
+        "GoalDependsOnDependencyLabel",
+        "DependencyDependsOnDependencyLabel",
+        "GoalResidualLabel",
+        "BlockingConditionLabel",
+        "BridgePlanLabel",
+        "CounterfactualEvidenceLabel",
+        "DependencyStatusLabel",
+        "ProvenanceMapLabel",
+        "GeneratorMetricsLabel",
+        "GeneratorPolicyLabel",
+        "ResearchModeLabel",
+        "DependencyGraphLabel",
+        "ResidualStateLabel",
+        "SearchCostBeforeLabel",
+        "SearchCostAfterLabel",
+        "NewlyEnabledFiringsLabel",
+        "RemovedObligationsLabel",
+        "NewObligationsLabel",
+        "GoalClosedLabel",
+        "ProvenanceLabel",
+        "DomainAxiomLabel",
+        "LibraryTheoremLabel",
+        "HumanSuppliedTrustedTheoremLabel",
+        "PrewrittenProofLadderLabel",
+        "DerivationCacheHitLabel",
+        "SchemaReplayLabel",
+        "SearchDerivedLabel",
+        "InventedLemmaLabel",
+        "InventedObjectLabel",
+        "InventedTransformationLabel",
+        "CounterexampleLabel",
+        "FailureLabel",
+        "DependencyRequestProvenanceLabel",
+        "PendingStatusLabel",
+        "ApprovedStatusLabel",
+        "RejectedStatusLabel",
+        "RefinedStatusLabel",
+        "TheoremKindLabel",
+        "ObjectKindLabel",
+        "RepresentationKindLabel",
+        "TransformationKindLabel",
+        "TacticKindLabel",
+        "DomainPropertyKindLabel",
+        "GenMissingOperationLabel",
+        "GenProperExponentReductionLabel",
+        "GenRepresentationShiftLabel",
+        "GenAuxiliaryObjectLabel",
+        "GenLemmaIntroductionLabel",
+        "GenTransformationSearchLabel",
+        "GenTacticEnhancementLabel",
+        "ContextDependencyRequestsLabel",
+        "ContextDependencyGraphLabel",
+        "ContextGeneratorMetricsLabel",
+        "ContextLastProofLabel",
+        "ContextResearchResidualsLabel",
+        "ContextProvenanceMapLabel",
+        "ContextGeneratorPolicyLabel",
+        "ContextLastResidualsLabel",
+        "ContextCounterfactualResultsLabel",
+        "ContextResearchModeLabel",
+        "ZeroSuccessorResidualLabel",
+        "ParentGoalLabel",
+        "ResidualsLabel",
+        "FormalStatementLabel",
+        "AssumptionsLabel",
+        "DependencyIdLabel",
+        "GeneratorIdLabel",
+        "GeneratorStatsLabel",
+        "ProposedCountLabel",
+        "ApprovedCountLabel",
+        "RejectedCountLabel",
+        "UsefulCountLabel",
+        "UsedCountLabel",
+        "MeanCostReductionLabel",
+        "ReuseCountLabel",
+        "LastProofLabel",
+        "LastResidualsLabel",
+        "CounterfactualResultLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",
