@@ -331,7 +331,7 @@ class Hypergraph:
         return result
 
     def set_research_mode(self, enabled):
-        if enabled:
+        if M.IdentityCompare(enabled, M.truth_value)() is M.truth_value:
             marker = M.Pair(Lmod.ResearchModeLabel, M.EmptyList)
             self._replace_context(research_mode=M.Pair(marker, Ctx.ContextResearchMode(self.context)()))
         else:

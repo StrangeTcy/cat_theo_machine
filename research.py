@@ -4,31 +4,31 @@ from . import machine as M
 from . import labels as Lmod
 from .core import Edge, EmptyList, Pair, Head, Tail, IdentityCompare
 
-_research_enabled = False
+_research_enabled = M.false_value
 
 def EnableResearchMode(graph=None):
     global _research_enabled
-    _research_enabled = True
+    _research_enabled = M.truth_value
     return M.truth_value
 
 def DisableResearchMode(graph=None):
     global _research_enabled
-    _research_enabled = False
+    _research_enabled = M.false_value
     if graph is not None:
         graph._replace_context(research_mode=M.EmptyList)
     return M.false_value
 
 def IsResearchMode(graph=None):
-    if _research_enabled:
-        return True
+    if IdentityCompare(_research_enabled, M.truth_value)() is M.truth_value:
+        return M.truth_value is M.truth_value
     if graph is not None:
         try:
             rm = graph.research_mode
             if IdentityCompare(rm, M.EmptyList)() is M.false_value:
-                return True
+                return M.truth_value is M.truth_value
         except Exception:
             pass
-    return False
+    return M.truth_value is M.false_value
 
 def IsResearchModeEdgeValue(graph=None):
     if IsResearchMode(graph):
@@ -404,18 +404,18 @@ def suggest_dependencies(parent_goal, residuals, blocking_condition, graph):
             props = gen.propose(parent_goal, residuals, blocking_condition, graph)
             p_idx = 0
             p_len = 0
-            counting = True
-            while counting is True:
+            counting = 1
+            while counting == 1:
                 try:
                     _ = props[p_len]
                     p_len = p_len + 1
                     if p_len > 100:
-                        counting = False
+                        counting = 0
                 except Exception:
-                    counting = False
+                    counting = 0
             while p_idx != p_len:
                 r = props[p_idx]
-                if validate_dependency_request(r, parent_goal) is False:
+                if validate_dependency_request(r, parent_goal) is (M.truth_value is M.false_value):
                     gen.rejected = gen.rejected + 1
                 else:
                     results_chain = M.Pair(M.Pair(gen, M.Pair(r, M.EmptyList)), results_chain)
@@ -445,31 +445,31 @@ def validate_dependency_request(req, parent_goal):
     try:
         formal = DependencyRequestFormalStatement(req)()
         if M.TermEqual(formal, parent_goal)() is M.truth_value:
-            return False
+            return M.truth_value is M.false_value
         cur = formal
         while IdentityCompare(cur, M.EmptyList)() is M.false_value:
             h = Head(cur)()
             if M.TermEqual(h, parent_goal)() is M.truth_value:
-                return False
+                return M.truth_value is M.false_value
             if M.IsPair(h)() is M.truth_value:
                 try:
                     inner = Head(h)()
                     if M.TermEqual(inner, parent_goal)() is M.truth_value:
-                        return False
+                        return M.truth_value is M.false_value
                 except Exception:
                     pass
             cur = Tail(cur)()
         bridge = DependencyRequestBridgePlan(req)()
         if IdentityCompare(bridge, M.EmptyList)() is M.truth_value:
-            return False
+            return M.truth_value is M.false_value
         blocking = DependencyRequestBlockingCondition(req)()
         if M.IsPair(blocking)() is M.truth_value:
             if M.TermEqual(M.Head(blocking)(), Lmod.ContradictionLabel)() is M.truth_value:
                 if M.TermEqual(formal, blocking)() is M.truth_value:
-                    return False
-        return True
+                    return M.truth_value is M.false_value
+        return M.truth_value is M.truth_value
     except Exception:
-        return True
+        return M.truth_value is M.truth_value
 
 def counterfactual_evaluation(graph, parent_goal, residuals, dependency_term, bounded_search_steps=50):
     try:
@@ -498,8 +498,8 @@ def counterfactual_evaluation(graph, parent_goal, residuals, dependency_term, bo
 
 def evaluate_unlock(useful_condition, goal_closed, cost_before, cost_after):
     if goal_closed is M.truth_value:
-        return True
-    return False
+        return M.truth_value is M.truth_value
+    return M.truth_value is M.false_value
 
 def store_dependency_request(graph, req):
     graph._replace_context(dependency_requests=M.Pair(req, graph.dependency_requests))
@@ -663,28 +663,28 @@ class ZeroSuccessorResidual(Edge):
     def __call__(self):
         return self.result
 
-def update_generator_metrics(graph, gen_label, approved=False, useful=False, used=False, cost_reduction=0):
+def update_generator_metrics(graph, gen_label, approved=0, useful=0, used=0, cost_reduction=0):
     new_chain = M.EmptyList
-    found = False
+    found = 0
     cur = graph.generator_metrics
     while IdentityCompare(cur, M.EmptyList)() is M.false_value:
         stats = Head(cur)()
         try:
             gid = Head(Tail(stats)())()
             if IdentityCompare(gid, gen_label)() is M.truth_value:
-                found = True
+                found = 1
                 new_chain = M.Pair(stats, new_chain)
             else:
                 new_chain = M.Pair(stats, new_chain)
         except Exception:
             new_chain = M.Pair(stats, new_chain)
         cur = Tail(cur)()
-    if found is False:
+    if found == 0:
         gen = get_generator_by_label(gen_label)
-        is_empty = False
+        is_empty = 0
         if gen is M.EmptyList:
-            is_empty = True
-        if is_empty is False:
+            is_empty = 1
+        if is_empty == 0:
             try:
                 proposed = M.GMPRep(str(gen.proposed))
                 approved_v = M.GMPRep(str(gen.approved))

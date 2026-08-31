@@ -2880,7 +2880,7 @@ def run_talk_mode(sentence: str = None):
             try:
                 from . import research as Rmod
                 Rmod.EnableResearchMode(rt.graph)
-                rt.graph.set_research_mode(True)
+                rt.graph.set_research_mode(M.truth_value)
             except Exception as e:
                 return f"failed to enable research mode: {e}"
             return "research mode ON: derivation-cache exact, search-comparison shortcuts, prewritten ladders, target-specific schema disabled; residuals preserved; DOMAIN_AXIOM and live-learned facts allowed"
@@ -2889,7 +2889,7 @@ def run_talk_mode(sentence: str = None):
             try:
                 from . import research as Rmod
                 Rmod.DisableResearchMode(rt.graph)
-                rt.graph.set_research_mode(False)
+                rt.graph.set_research_mode(M.false_value)
             except Exception as e:
                 return f"failed to disable research mode: {e}"
             return "research mode OFF"
