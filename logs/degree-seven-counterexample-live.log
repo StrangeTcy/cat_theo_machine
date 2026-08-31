@@ -1,0 +1,32 @@
+live mode: waiting for daemon process 2399 to open its proof worker service; autonomy restores independently.
+[machine] daemon: process 2399 started; proof service is opening while autonomy restores shared state
+you> [machine] daemon: autonomy restored shared state at /home/user/cat_theo_machine/snapshots/talk_state.wire with 2 worker(s)
+you> [machine] daemon proof coordinator 2401: worker service ready with 2 worker(s)
+you> live mode: the foreground process owns the terminal and runs each requested proof.
+live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.
+live mode: foreground proof lookup uses 2 worker(s); daemon autonomy uses 2.
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask for proofs naturally: 'prove that x^4 + y^4 >= x^3*y + x*y^3'.
+Formal query syntax also works: 'query: Sage(alice)' or 'query: gcd(1071,462)'.
+Narrate naturally: 'tell me a story about Alice and the wolf', 'how is Alice connected to wolf?', or 'compare the stories'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> DEBUG [foreground prover]: understood a natural proof request; routing its claim into the prover
+DEBUG [foreground prover]: decomposing the query and looking for a formal goal shape
+DEBUG [foreground prover]: recognized a polynomial inequality and normalized both sides
+DEBUG [foreground prover]: testing a bounded integer grid for a concrete refutation before proof lookup
+DEBUG [foreground prover]: found a concrete counterexample; refusing to open a lemma-invention stall
+hyge> no; the claim is refuted at ?a=-2, ?b=-2: the claimed left side is -256 and the claimed right side is -64.
+you> hyge> goodbye
+live mode: daemon stopped.
