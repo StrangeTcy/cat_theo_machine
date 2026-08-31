@@ -6,6 +6,7 @@ import io
 import json
 import multiprocessing
 import os
+import re
 import subprocess
 import sys
 import time
@@ -6898,6 +6899,14 @@ def run_talk_mode(sentence: str = None):
             return "\n".join(explain_lines)
         if lowered.startswith("query:"):
             parity_query_text = line[6:].strip()
+            if parity_query_text.find("^") != -1:
+                parity_query_text = re.sub(
+                    r"(?<=[A-Za-z0-9])(?=[A-Za-z])",
+                    "*",
+                    parity_query_text,
+                )
+                line = "query: " + parity_query_text
+                lowered = line.lower()
             last_proof_request = M.Char(parity_query_text)
             folded_parity_query = parity_query_text.lower()
             if folded_parity_query.startswith("gcd(") and folded_parity_query.endswith(")"):

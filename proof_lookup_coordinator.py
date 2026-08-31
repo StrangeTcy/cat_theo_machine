@@ -13,7 +13,7 @@ PROOF_LOOKUP_RESPONSE_NAME = "proof_lookup_response.txt"
 
 
 class WaitForProofLookupResponse(M.Edge):
-    def __init__(self, response_path, attempts_text):
+    def __init__(self, response_path, attempts_text, record=M.truth_value):
         if os.path.exists(response_path):
             with open(response_path, "r", encoding="utf-8") as response_stream:
                 self.result = response_stream.read().strip()
@@ -24,9 +24,13 @@ class WaitForProofLookupResponse(M.Edge):
 
             time.sleep(0.25)
             self.result = WaitForProofLookupResponse(
-                response_path, GMPPredText(attempts_text)(),
+                response_path, GMPPredText(attempts_text)(), M.false_value,
             )()
-        super().__init__(inputs=M.Pair(M.Char(response_path), M.EmptyList), results=M.Char(self.result))
+        if record is M.truth_value:
+            super().__init__(
+                inputs=M.Pair(M.Char(response_path), M.EmptyList),
+                results=M.Char(self.result),
+            )
 
     def __call__(self):
         return self.result

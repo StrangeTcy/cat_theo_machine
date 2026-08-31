@@ -1,0 +1,102 @@
+live mode: waiting for daemon process 2134 to open its proof worker service; autonomy restores independently.
+[machine] daemon: process 2134 started; proof service is opening while autonomy restores shared state
+you> [machine] daemon: autonomy restored shared state at /home/user/cat_theo_machine/snapshots/talk_state.wire with 2 worker(s)
+you> [machine] daemon proof coordinator 2136: worker service ready with 2 worker(s)
+you> live mode: the foreground process owns the terminal and runs each requested proof.
+live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.
+live mode: foreground proof lookup uses 2 worker(s); daemon autonomy uses 2.
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Teach facts: 'fact: Human(alice)'.
+Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.
+Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.
+Ask taught rules: 'query: Sage(alice)'.
+Ask for proofs naturally: 'prove that x^4 + y^4 >= x^3*y + x*y^3'.
+Formal query syntax also works: 'query: Sage(alice)' or 'query: gcd(1071,462)'.
+Narrate naturally: 'tell me a story about Alice and the wolf', 'how is Alice connected to wolf?', or 'compare the stories'.
+After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.
+Inspect invented results: 'show lemmas'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> DEBUG [foreground prover]: understood a natural proof request; routing its claim into the prover
+DEBUG [foreground prover]: decomposing the query and looking for a formal goal shape
+DEBUG [foreground prover]: recognized a polynomial inequality and normalized both sides
+DEBUG [foreground prover]: looking up recorded conclusions and approved proof schemas
+DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
+DEBUG: submitted taught graph data to the daemon inbox
+DEBUG [foreground prover]: submitting the graph for equal partition across the daemon's active worker service
+DEBUG [foreground coordinator 2133]: submitted equal-shard proof lookup to the existing daemon worker service
+[machine] daemon: accepted foreground proof lookup; distributing the graph equally across 2 existing worker(s)
+you> [machine] DEBUG [daemon worker coordinator 2136]: assigned equal graph shard 0 of 2 to process 2141
+you> [machine] daemon cycle 1: fired 0, activated 0, proposed 0 handle(s) and 0 composition(s), found 0 correspondence(s); stopped: exhausted
+you> [machine] DEBUG [daemon worker coordinator 2136]: assigned equal graph shard 1 of 2 to process 2142
+you> [machine] [daemon proof worker 2142] starting equal graph shard 1 of 2
+you> [machine] [daemon proof worker 2141] starting equal graph shard 0 of 2
+you> [machine] [daemon proof worker 2141] finished equal graph shard 0 of 2: none[daemon proof worker 2142] finished equal graph shard 1 of 2: none
+you> [machine] 
+you> [machine] daemon: foreground proof lookup complete; selected mode=none
+you> DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=none
+DEBUG [foreground prover]: equal worker lookup finished with no match; recording the exhausted structural goal for lemma invention
+DEBUG [foreground prover]: the bounded search stalled; preserving its frontier for lemma invention
+DEBUG [foreground prover]: waiting for the administrator to ask me to suggest lemmas
+DEBUG: submitted taught graph data to the daemon inbox
+hyge> no; I could not derive p^6+q^6 >= p^5*q+p*q^5. Search failed after 1 steps. 0 frontier states preserved. Type 'suggest lemmas' to analyze the stall.
+DEBUG: read the daemon's state back
+you> DEBUG [foreground prover]: opening the preserved search stall and decomposing its unmet goal
+DEBUG [foreground prover]: examining the normalized residual and trying bounded algebraic decompositions
+DEBUG [lemma inventor]: testing additive SOS structure
+DEBUG [lemma inventor]: testing perfect-square structure
+DEBUG [lemma inventor]: testing cubic linear-factor structure
+DEBUG [lemma inventor]: running bounded structural exact division
+DEBUG [lemma inventor]: bounded structural exact division returned
+DEBUG [lemma inventor]: constructing bounded candidate evidence
+DEBUG [lemma inventor]: exact-division reconstruction is the independent identity validation
+DEBUG [foreground prover]: found a fitting candidate; checking its identity and positivity obligations
+DEBUG [foreground prover]: candidate verified; waiting for administrator approval before installing it
+DEBUG: submitted taught graph data to the daemon inbox
+hyge> Analyzing stall on: ((((?p^5) * ?q) + (?p * (?q^5))) <= ((?p^6) + (?q^6)))
+1. ((((?p^6) + (?q^6)) + (-(((?p^5) * ?q) + (?p * (?q^5))))) = ((?p + (-?q)) * ((?p + (-?q)) * ((?p^4) + (((?p^3) * ?q) + (((?p^2) * (?q^2)) + ((?p * (?q^3)) + (?q^4)))))))) [Source: goal-structural | Status: verified-identity; positivity-required-on-replay]
+Approve this candidate? Enter yes or no.
+you> [machine] daemon cycle 2: fired 0, activated 0, proposed 0 handle(s) and 0 composition(s), found 0 correspondence(s); stopped: exhausted
+you> DEBUG: read the daemon's state back
+DEBUG: decision 'yes' appended to /home/user/cat_theo_machine/snapshots/talk_lessons.log
+DEBUG [foreground prover]: administrator approved the candidate; installing its verified rule and replay certificate
+DEBUG: submitted taught graph data to the daemon inbox
+hyge> Recorded the invented lemma and its verified rewrite rule.
+you> [machine] daemon: took 1 submission(s) from the conversation
+you> DEBUG [foreground prover]: resolved 'what I asked' to the most recent formal proof goal
+DEBUG [foreground prover]: decomposing the query and looking for a formal goal shape
+DEBUG [foreground prover]: recognized a polynomial inequality and normalized both sides
+DEBUG [foreground prover]: looking up recorded conclusions and approved proof schemas
+DEBUG [foreground prover]: no direct schema matched; looking through known facts and approved rules
+DEBUG: submitted taught graph data to the daemon inbox
+DEBUG [foreground prover]: submitting the graph for equal partition across the daemon's active worker service
+DEBUG [foreground coordinator 2133]: submitted equal-shard proof lookup to the existing daemon worker service
+[machine] daemon: accepted foreground proof lookup; distributing the graph equally across 2 existing worker(s)
+you> [machine] DEBUG [daemon worker coordinator 2136]: assigned equal graph shard 0 of 2 to process 2151
+you> [machine] daemon cycle 3: fired 0, activated 0, proposed 0 handle(s) and 0 composition(s), found 0 correspondence(s); stopped: exhausted
+you> [machine] DEBUG [daemon worker coordinator 2136]: assigned equal graph shard 1 of 2 to process 2152
+you> [machine] [daemon proof worker 2152] starting equal graph shard 1 of 2
+you> [machine] [daemon proof worker 2151] starting equal graph shard 0 of 2
+you> [machine] [daemon proof worker 2151] finished equal graph shard 0 of 2: none
+you> [machine] [daemon proof worker 2152] finished equal graph shard 1 of 2: direct
+you> [machine] daemon: foreground proof lookup complete; selected mode=direct
+you> DEBUG [foreground prover]: foreground lookup workers joined; selected result mode=direct
+DEBUG [foreground prover]: foreground process 2133 is independently rebuilding the direct replay proof term selected by the daemon
+DEBUG [foreground prover]: foreground process 2133 finished rebuilding the replay proof term; reading its recorded status
+DEBUG [foreground prover]: direct certificate proved: the normalized goal residual equals the stored factorization residual; the repeated linear factors form a square; the even-degree cofactor is an odd geometric sum, nonnegative in its explicit equal-sign and opposite-sign branches
+DEBUG [foreground prover]: foreground process 2133 is recording one completed-proof utility credit on the matched lemma
+DEBUG [foreground prover]: utility credit recorded; preparing the replay explanation
+DEBUG [foreground prover]: foreground process 2133 is persisting the credited replay before returning the proof
+DEBUG: submitted taught graph data to the daemon inbox
+DEBUG [foreground prover]: credited replay persisted; returning the completed proof
+hyge> yes; replayed the saved algebraic identity, proved its nonnegativity obligations, and derived p^6+q^6 >= p^5*q+p*q^5.
+DEBUG: read the daemon's state back
+you> hyge> goodbye
+live mode: drained the inbox into the talk state.
+live mode: drained the inbox into the talk state.
+live mode: daemon stopped.

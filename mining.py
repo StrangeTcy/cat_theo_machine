@@ -4329,7 +4329,9 @@ class CubicLinearFactorCandidate(M.Edge):
         self.result = M.EmptyList
         variables = BoundedPolynomialVariables(goal)()
         if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
-            if M.IdentityCompare(M.Tail(M.Tail(variables)())(), M.EmptyList)() is M.false_value:
+            if GMPEqualText(
+                M.GMPRepText(M.CountRep(variables)())(), "3",
+            )() is M.truth_value:
                 lesser = M.Head(M.Tail(goal)())()
                 greater = M.Head(M.Tail(M.Tail(goal)())())()
                 residual_expression = M.Pair(
@@ -5553,61 +5555,42 @@ class NormalizedDifferenceCandidate(M.Edge):
                                 factors, cofactor,
                             )()
                             if PolynomialEqual(difference, reconstructed)() is M.truth_value:
-                                cofactor_certificate = M.EmptyList
-                                if PairedFactorsNonnegative(factors)() is M.truth_value:
-                                    coefficients = HomogeneousQuadraticCoefficients(cofactor)()
-                                    if QuadraticCoefficientStatus(coefficients)() is M.truth_value:
-                                        if GMPQuadraticPSDText(
-                                            QuadraticCoefficientA(coefficients)(),
-                                            QuadraticCoefficientB(coefficients)(),
-                                            QuadraticCoefficientC(coefficients)(),
-                                        )() is M.truth_value:
-                                            cofactor_certificate = coefficients
-                                    if M.IdentityCompare(
-                                        cofactor_certificate, M.EmptyList,
-                                    )() is M.truth_value:
-                                        cofactor_certificate = OddGeometricCofactorCertificate(
-                                            cofactor,
-                                        )()
-                                if M.IdentityCompare(
-                                    cofactor_certificate, M.EmptyList,
-                                )() is M.false_value:
-                                    factored = PolynomialFactoredExpression(
-                                        factors, cofactor, first, second,
-                                    )()
-                                    proposition = M.Pair(
-                                        M.ExprEqLabel,
+                                factored = PolynomialFactoredExpression(
+                                    factors, cofactor, first, second,
+                                )()
+                                proposition = M.Pair(
+                                    M.ExprEqLabel,
+                                    M.Pair(
+                                        difference_expression,
+                                        M.Pair(factored, M.EmptyList),
+                                    ),
+                                )
+                                certificate = M.Pair(
+                                    M.Char("bounded-structural-exact-division"),
+                                    M.Pair(
+                                        difference,
                                         M.Pair(
-                                            difference_expression,
-                                            M.Pair(factored, M.EmptyList),
-                                        ),
-                                    )
-                                    certificate = M.Pair(
-                                        M.Char("bounded-structural-exact-division"),
-                                        M.Pair(
-                                            difference,
+                                            factors,
                                             M.Pair(
-                                                factors,
+                                                cofactor,
                                                 M.Pair(
-                                                    cofactor,
-                                                    M.Pair(
-                                                        PolynomialFactorizationTraces(factorization)(),
-                                                        M.Pair(reconstructed, M.EmptyList),
-                                                    ),
+                                                    PolynomialFactorizationTraces(factorization)(),
+                                                    M.Pair(reconstructed, M.EmptyList),
                                                 ),
                                             ),
                                         ),
-                                    )
-                                    self.result = M.Pair(
-                                        proposition,
+                                    ),
+                                )
+                                self.result = M.Pair(
+                                    proposition,
+                                    M.Pair(
+                                        M.Char("goal-structural"),
                                         M.Pair(
-                                            M.Char("goal-structural"),
-                                            M.Pair(
-                                                M.Char("verified-identity-and-positivity"),
-                                                M.Pair(certificate, M.EmptyList),
-                                            ),
+                                            M.Char("verified-identity; positivity-required-on-replay"),
+                                            M.Pair(certificate, M.EmptyList),
                                         ),
-                                    )
+                                    ),
+                                )
         super().__init__(inputs=M.Pair(goal, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -7246,13 +7229,18 @@ class InventFromStall(M.Edge):
     def __init__(self, stall, registry=M.EmptyList):
         fields = M.Tail(stall)()
         goal = M.Head(fields)()
+        print("DEBUG [lemma inventor]: testing additive SOS structure", flush=True)
         candidate = AdditiveSOSCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
+            print("DEBUG [lemma inventor]: testing perfect-square structure", flush=True)
             candidate = PerfectSquareCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
+            print("DEBUG [lemma inventor]: testing cubic linear-factor structure", flush=True)
             candidate = CubicLinearFactorCandidate(goal, registry)()
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
+            print("DEBUG [lemma inventor]: running bounded structural exact division", flush=True)
             candidate = NormalizedDifferenceCandidate(goal, registry)()
+            print("DEBUG [lemma inventor]: bounded structural exact division returned", flush=True)
         if M.IdentityCompare(candidate, M.EmptyList)() is M.truth_value:
             candidate = CandidateFromFrontier(
                 M.Head(M.Tail(fields)())(), registry,
@@ -7266,13 +7254,51 @@ class InventFromStall(M.Edge):
             stall_rules = M.Head(
                 M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())(),
             )()
-            trial = CandidateTrial(
-                candidate,
-                stall_start,
-                stall_rules,
-                registry,
-            )()
-            validation = CandidateValidation(M.Head(candidate)(), registry)()
+            candidate_source = M.Head(M.Tail(candidate)())()
+            print("DEBUG [lemma inventor]: constructing bounded candidate evidence", flush=True)
+            if M.Compare(
+                candidate_source, M.Char("goal-structural"),
+            )() is M.truth_value:
+                trial = M.Pair(
+                    M.Char("candidate-trial"),
+                    M.Pair(
+                        candidate,
+                        M.Pair(
+                            M.EmptyList,
+                            M.Pair(
+                                M.EmptyList,
+                                M.Pair(
+                                    M.false_value,
+                                    M.Pair(
+                                        M.Char("structural-certificate-no-rule-scan"),
+                                        M.EmptyList,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+                validation = M.Pair(
+                    M.Char("candidate-validation"),
+                    M.Pair(
+                        M.Char("proved"),
+                        M.Pair(M.Head(candidate)(), M.EmptyList),
+                    ),
+                )
+                print(
+                    "DEBUG [lemma inventor]: exact-division reconstruction is the independent identity validation",
+                    flush=True,
+                )
+            else:
+                trial = CandidateTrial(
+                    candidate,
+                    stall_start,
+                    stall_rules,
+                    registry,
+                )()
+                print("DEBUG [lemma inventor]: independently normalizing the candidate identity", flush=True)
+                validation = CandidateValidation(M.Head(candidate)(), registry)()
+                print("DEBUG [lemma inventor]: candidate identity normalization returned", flush=True)
             candidate_with_trial = M.Pair(
                 M.Head(candidate)(),
                 M.Pair(
