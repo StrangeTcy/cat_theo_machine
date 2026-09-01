@@ -14624,6 +14624,51 @@ class LearnedMemoryCheckpointTest(M.Edge):
         return self.result
 
 
+class PremiseOrderIndependenceTest(M.Edge):
+    """A partial match may skip a failing premise and match later ones.
+
+    The rule Coprime(a,b) & SquareSum(a,b,c) -> PrimitiveTriple(a,b,c)
+    with the fact SquareSum(3,4,5) is blocked on its FIRST premise; the
+    record must still show the second premise matched and name the
+    concrete Coprime(3,4) as the missing one, grounded by the bindings
+    the later match produced.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb, vc = T.var("a"), T.var("b"), T.var("c")
+        premises = T.chain(
+            T.term(T.sym("coprime"), va, vb),
+            T.term(T.sym("squaresum"), va, vb, vc),
+        )
+        rule = MultiRule(premises, T.term(T.sym("primitivetriple"), va, vb, vc))()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        facts = T.chain(T.term(T.sym("squaresum"), T.sym("3"), T.sym("4"), T.sym("5")))
+        goal = T.chain(T.term(T.sym("primitivetriple"), T.sym("3"), T.sym("4"), T.sym("5")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            attempt = M.Head(attempts)()
+            unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
+            expected = T.term(T.sym("coprime"), T.sym("3"), T.sym("4"))
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+            matched = Rmod.AttemptedRuleMatched(attempt)()
+            if M.IdentityCompare(matched, empty)() is M.truth_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class SentenceGrammarGenericTest(M.Edge):
     """The quantified-goal grammar is compositional, not a target template.
 
@@ -16597,6 +16642,8 @@ def install_default_tests(graph):
         _register_test(graph, "engine_attempt_recording_test", empty, EngineAttemptRecordingTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "premise_order_independence_test", empty, PremiseOrderIndependenceTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:

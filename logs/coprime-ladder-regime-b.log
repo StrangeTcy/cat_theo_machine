@@ -1,0 +1,61 @@
+Coprimality ladder -- Regime A to B to C in one live session
+============================================================
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> teach law: (rule (premises (coprime ?a ?b) (squaresum ?a ?b ?c)) (conclusion (primitivetriple ?a ?b ?c)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((coprime ?a ?b) (squaresum ?a ?b ?c)) (primitivetriple ?a ?b ?c))
+you> assume axiom: (squaresum 3 4 5)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (squaresum 3 4 5)
+you> attempt goal: (primitivetriple 3 4 5)
+hyge> FAILED. cost=1; rules with a genuine partial match: 1
+residual: missing (coprime 3 4) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (coprime 3 4))
+you> approve dependency 0
+hyge> approved dependency [0] status=SpeculativeDependency
+you> teach dependency 0: (rule (premises) (conclusion (coprime 3 4)))
+hyge> counterfactual: cost 1 -> 2; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 1
+you> retry parent goal
+hyge> retry: goal closed
+you> assume axiom: (squaresum 5 12 13)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (squaresum 5 12 13)
+you> attempt goal: (primitivetriple 5 12 13)
+hyge> FAILED. cost=4; rules with a genuine partial match: 1
+residual: missing (coprime 5 12) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [1] status=ObservedMissingPremise kind=THEOREM need=(Need (coprime 5 12))
+you> approve dependency 1
+hyge> approved dependency [1] status=SpeculativeDependency
+you> teach dependency 1: (rule (premises) (conclusion (coprime 5 12)))
+hyge> counterfactual: cost 4 -> 3; newly enabled existing firings: 0; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 2
+you> show learned policies
+hyge> learned dependency policies:
+residual pattern: (coprime _0 _1)
+helpful rule shape: (rule () (coprime _0 _1))
+supporting episodes: 2
+you> assume axiom: (squaresum 8 15 17)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (squaresum 8 15 17)
+you> attempt goal: (primitivetriple 8 15 17)
+hyge> FAILED. cost=6; rules with a genuine partial match: 1
+residual: missing (coprime 8 15) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (coprime 8 15))
+[learned policy, support 2 episodes] predicts helpful rule shape: (rule () (coprime 8 15))
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(coprime 5 12) outcome=DemonstratedUsefulDependency
+[1] residual=(coprime 3 4) outcome=DemonstratedUsefulDependency
+you> goodbye
+hyge> goodbye

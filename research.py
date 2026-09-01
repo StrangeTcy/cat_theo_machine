@@ -1425,7 +1425,7 @@ class PartialPremiseMatch(Edge):
 
     def __init__(self, premises, facts):
         self.facts = facts
-        best = self._best(premises, EmptyList, EmptyList, M.Zero)
+        best = self._best(premises, EmptyList, EmptyList, M.Zero, EmptyList)
         depth = Head(best)()
         payload = Tail(best)()
         zero_matched = M.NatEq(depth, M.Zero, M.AllConstructors)()
@@ -1438,7 +1438,36 @@ class PartialPremiseMatch(Edge):
             self.result = payload
         super().__init__(inputs=M.Pair(premises, M.Pair(facts, EmptyList)), results=self.result)
 
-    def _candidate(self, depth, bindings, matched_rev, unmatched):
+    def _satisfiable(self, term):
+        """True when some fact still matches this concrete premise."""
+        remaining = self.facts
+        found = M.false_value
+        while IdentityCompare(remaining, EmptyList)() is M.false_value:
+            match = M.Match(term, Head(remaining)())()
+            if IdentityCompare(Head(match)(), M.truth_value)() is M.truth_value:
+                found = M.truth_value
+                remaining = EmptyList
+            else:
+                remaining = Tail(remaining)()
+        return found
+
+    def _sentinel(self):
+        # A complete instantiation already fired -- its conclusion is in
+        # the facts -- and a skipped premise the facts still satisfy is
+        # not missing. Neither is a residual; both rank below any
+        # genuine candidate and are rejected at the top level.
+        return M.Pair(M.Zero, M.Pair(EmptyList, M.Pair(EmptyList, M.Pair(EmptyList, EmptyList))))
+
+    def _candidate(self, depth, bindings, matched_rev, skipped):
+        # The skipped premise is instantiated under the FINAL bindings of
+        # this assignment, so matches made after the skip still ground it:
+        # Coprime(?a,?b) skipped before a matched SquareSum(?a,?b,?c)
+        # reports as the concrete Coprime(3,4), never a schematic hole.
+        if IdentityCompare(skipped, EmptyList)() is M.truth_value:
+            return self._sentinel()
+        unmatched = ApplyBindings(skipped, bindings)()
+        if self._satisfiable(unmatched) is M.truth_value:
+            return self._sentinel()
         return M.Pair(
             depth,
             M.Pair(bindings, M.Pair(M.Reverse(matched_rev)(), M.Pair(unmatched, EmptyList))),
@@ -1451,16 +1480,22 @@ class PartialPremiseMatch(Edge):
             return right
         return left
 
-    def _best(self, premises, bindings, matched_rev, depth):
+    def _best(self, premises, bindings, matched_rev, depth, skipped):
         if IdentityCompare(premises, EmptyList)() is M.truth_value:
-            return self._candidate(depth, bindings, matched_rev, EmptyList)
+            return self._candidate(depth, bindings, matched_rev, skipped)
         premise = Head(premises)()
         rest = Tail(premises)()
-        concrete = ApplyBindings(premise, bindings)()
-        best = self._candidate(depth, bindings, matched_rev, concrete)
-        return self._try_facts(self.facts, premise, rest, bindings, matched_rev, depth, best)
+        # Skip branch: a premise may fail while later premises still match
+        # facts. The first skipped premise is the one the record names.
+        next_skipped = skipped
+        if IdentityCompare(next_skipped, EmptyList)() is M.truth_value:
+            next_skipped = premise
+        best = self._best(rest, bindings, matched_rev, depth, next_skipped)
+        return self._try_facts(
+            self.facts, premise, rest, bindings, matched_rev, depth, skipped, best
+        )
 
-    def _try_facts(self, remaining, premise, rest, bindings, matched_rev, depth, best):
+    def _try_facts(self, remaining, premise, rest, bindings, matched_rev, depth, skipped, best):
         if IdentityCompare(remaining, EmptyList)() is M.truth_value:
             return best
         fact = Head(remaining)()
@@ -1473,9 +1508,11 @@ class PartialPremiseMatch(Edge):
                 new_bindings = Tail(merged)()
                 entry = M.Pair(ApplyBindings(premise, new_bindings)(), M.Pair(fact, EmptyList))
                 next_depth = Head(M.Succ(depth, M.AllConstructors)())()
-                sub = self._best(rest, new_bindings, M.Pair(entry, matched_rev), next_depth)
+                sub = self._best(rest, new_bindings, M.Pair(entry, matched_rev), next_depth, skipped)
                 best = self._deeper(best, sub)
-        return self._try_facts(Tail(remaining)(), premise, rest, bindings, matched_rev, depth, best)
+        return self._try_facts(
+            Tail(remaining)(), premise, rest, bindings, matched_rev, depth, skipped, best
+        )
 
     def __call__(self):
         return self.result
