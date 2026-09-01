@@ -1776,34 +1776,6 @@ class DomainPropertyKindLabel(ConstructorLabel):
     pass
 
 
-class GenMissingOperationLabel(ConstructorLabel):
-    pass
-
-
-class GenProperExponentReductionLabel(ConstructorLabel):
-    pass
-
-
-class GenRepresentationShiftLabel(ConstructorLabel):
-    pass
-
-
-class GenAuxiliaryObjectLabel(ConstructorLabel):
-    pass
-
-
-class GenLemmaIntroductionLabel(ConstructorLabel):
-    pass
-
-
-class GenTransformationSearchLabel(ConstructorLabel):
-    pass
-
-
-class GenTacticEnhancementLabel(ConstructorLabel):
-    pass
-
-
 class GenDependencyRequestFromResidualLabel(ConstructorLabel):
     pass
 
@@ -1832,10 +1804,6 @@ class UncharacterizedStallLabel(ConstructorLabel):
     pass
 
 
-class NeedLabel(ConstructorLabel):
-    pass
-
-
 class ObservedMissingPremiseLabel(ConstructorLabel):
     pass
 
@@ -1853,6 +1821,38 @@ class DemonstratedUsefulDependencyLabel(ConstructorLabel):
 
 
 class LearnedDependencyPolicyLabel(ConstructorLabel):
+    pass
+
+
+class MissingPremiseFailureLabel(ConstructorLabel):
+    pass
+
+
+class InterventionEpisodeLabel(ConstructorLabel):
+    pass
+
+
+class FormalRuleLabel(ConstructorLabel):
+    pass
+
+
+class PolicyPredictionLabel(ConstructorLabel):
+    pass
+
+
+class DependencySuppliedByTheoremLabel(ConstructorLabel):
+    pass
+
+
+class DependencyUnlockedResidualLabel(ConstructorLabel):
+    pass
+
+
+class ContextInterventionEpisodesLabel(ConstructorLabel):
+    pass
+
+
+class ContextDependencyPoliciesLabel(ConstructorLabel):
     pass
 
 
@@ -2418,13 +2418,6 @@ RepresentationKindLabel = RepresentationKindLabel()
 TransformationKindLabel = TransformationKindLabel()
 TacticKindLabel = TacticKindLabel()
 DomainPropertyKindLabel = DomainPropertyKindLabel()
-GenMissingOperationLabel = GenMissingOperationLabel()
-GenProperExponentReductionLabel = GenProperExponentReductionLabel()
-GenRepresentationShiftLabel = GenRepresentationShiftLabel()
-GenAuxiliaryObjectLabel = GenAuxiliaryObjectLabel()
-GenLemmaIntroductionLabel = GenLemmaIntroductionLabel()
-GenTransformationSearchLabel = GenTransformationSearchLabel()
-GenTacticEnhancementLabel = GenTacticEnhancementLabel()
 GenDependencyRequestFromResidualLabel = GenDependencyRequestFromResidualLabel()
 AttemptedRuleLabel = AttemptedRuleLabel()
 AlphaPlaceholderLabel = AlphaPlaceholderLabel()
@@ -2432,12 +2425,19 @@ NoApplicableRuleLabel = NoApplicableRuleLabel()
 PatternMatchFailureLabel = PatternMatchFailureLabel()
 ObligationFailureLabel = ObligationFailureLabel()
 UncharacterizedStallLabel = UncharacterizedStallLabel()
-NeedLabel = NeedLabel()
 ObservedMissingPremiseLabel = ObservedMissingPremiseLabel()
 SpeculativeDependencyLabel = SpeculativeDependencyLabel()
 HumanSuppliedStrategyPriorLabel = HumanSuppliedStrategyPriorLabel()
 DemonstratedUsefulDependencyLabel = DemonstratedUsefulDependencyLabel()
 LearnedDependencyPolicyLabel = LearnedDependencyPolicyLabel()
+MissingPremiseFailureLabel = MissingPremiseFailureLabel()
+InterventionEpisodeLabel = InterventionEpisodeLabel()
+FormalRuleLabel = FormalRuleLabel()
+PolicyPredictionLabel = PolicyPredictionLabel()
+DependencySuppliedByTheoremLabel = DependencySuppliedByTheoremLabel()
+DependencyUnlockedResidualLabel = DependencyUnlockedResidualLabel()
+ContextInterventionEpisodesLabel = ContextInterventionEpisodesLabel()
+ContextDependencyPoliciesLabel = ContextDependencyPoliciesLabel()
 HumanSuppliedTrustedTheoremWithoutUnlockLabel = HumanSuppliedTrustedTheoremWithoutUnlockLabel()
 ContextDependencyRequestsLabel = ContextDependencyRequestsLabel()
 ContextDependencyGraphLabel = ContextDependencyGraphLabel()
@@ -2551,13 +2551,6 @@ def sync_from_namespace(namespace):
         "TransformationKindLabel",
         "TacticKindLabel",
         "DomainPropertyKindLabel",
-        "GenMissingOperationLabel",
-        "GenProperExponentReductionLabel",
-        "GenRepresentationShiftLabel",
-        "GenAuxiliaryObjectLabel",
-        "GenLemmaIntroductionLabel",
-        "GenTransformationSearchLabel",
-        "GenTacticEnhancementLabel",
         "ContextDependencyRequestsLabel",
         "ContextDependencyGraphLabel",
         "ContextGeneratorMetricsLabel",
@@ -2569,6 +2562,27 @@ def sync_from_namespace(namespace):
         "ContextCounterfactualResultsLabel",
         "ContextResearchModeLabel",
         "ZeroSuccessorResidualLabel",
+        "AttemptedRuleLabel",
+        "AlphaPlaceholderLabel",
+        "NoApplicableRuleLabel",
+        "PatternMatchFailureLabel",
+        "ObligationFailureLabel",
+        "UncharacterizedStallLabel",
+        "NeedLabel",
+        "ObservedMissingPremiseLabel",
+        "SpeculativeDependencyLabel",
+        "HumanSuppliedStrategyPriorLabel",
+        "DemonstratedUsefulDependencyLabel",
+        "LearnedDependencyPolicyLabel",
+        "HumanSuppliedTrustedTheoremWithoutUnlockLabel",
+        "MissingPremiseFailureLabel",
+        "InterventionEpisodeLabel",
+        "FormalRuleLabel",
+        "PolicyPredictionLabel",
+        "DependencySuppliedByTheoremLabel",
+        "DependencyUnlockedResidualLabel",
+        "ContextInterventionEpisodesLabel",
+        "ContextDependencyPoliciesLabel",
         "ParentGoalLabel",
         "ResidualsLabel",
         "FormalStatementLabel",

@@ -1,0 +1,45 @@
+Blind C -- a narrative-shaped toy goal on a cold research runtime
+=================================================================
+
+cold start: research_snapshot.json removed before this session.
+
+you> research mode on
+hyge> research mode ON. Derivation-cache answers, comparison shortcuts, prewritten ladders and target-specific schemata are not available here: this runtime holds only live-taught knowledge. Residual states are preserved. `audit knowledge` now prints the cold-start manifest.
+
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+
+you> assume axiom: (account first)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (account first)
+
+you> assume axiom: (account second)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (account second)
+
+you> attempt goal: (connected first second)
+hyge> FAILED. cost=0; attempted operational rules with a genuine partial match: 0
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (connected first second)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+
+you> teach law: (rule (premises (account ?a) (account ?b) (sharedfigure ?a ?b ?m)) (conclusion (connected ?a ?b)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((account ?a) (account ?b) (sharedfigure ?a ?b ?m)) (connected ?a ?b))
+note: teaching stores knowledge; it demonstrates nothing until a retry or counterfactual measures progress.
+
+you> attempt goal: (connected first second)
+hyge> FAILED. cost=1; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (sharedfigure second second _0))
+
+you> goodbye
+hyge> goodbye

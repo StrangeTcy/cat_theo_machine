@@ -284,14 +284,25 @@ SNAPSHOT_SYMBOL_NAMES = [
     "TransformationKindLabel",
     "TacticKindLabel",
     "DomainPropertyKindLabel",
-    "GenMissingOperationLabel",
-    "GenProperExponentReductionLabel",
-    "GenRepresentationShiftLabel",
-    "GenAuxiliaryObjectLabel",
-    "GenLemmaIntroductionLabel",
-    "GenTransformationSearchLabel",
-    "GenTacticEnhancementLabel",
     "ZeroSuccessorResidualLabel",
+    "MissingPremiseFailureLabel",
+    "InterventionEpisodeLabel",
+    "FormalRuleLabel",
+    "PolicyPredictionLabel",
+    "DependencySuppliedByTheoremLabel",
+    "DependencyUnlockedResidualLabel",
+    "ObservedMissingPremiseLabel",
+    "SpeculativeDependencyLabel",
+    "HumanSuppliedStrategyPriorLabel",
+    "DemonstratedUsefulDependencyLabel",
+    "LearnedDependencyPolicyLabel",
+    "HumanSuppliedTrustedTheoremWithoutUnlockLabel",
+    "AttemptedRuleLabel",
+    "AlphaPlaceholderLabel",
+    "NoApplicableRuleLabel",
+    "PatternMatchFailureLabel",
+    "ObligationFailureLabel",
+    "UncharacterizedStallLabel",
     "ParentGoalLabel",
     "ResidualsLabel",
     "FormalStatementLabel",
@@ -717,6 +728,9 @@ class SnapshotCodec:
         "last_residuals",
         "counterfactual_results",
         "research_mode",
+        "research_attempts",
+        "intervention_episodes",
+        "dependency_policies",
     ]
 
     def __init__(self, namespace, symbol_names=None):
@@ -1700,6 +1714,9 @@ class SnapshotCodec:
             "last_residuals": getattr(graph, "last_residuals", M.EmptyList),
             "counterfactual_results": getattr(graph, "counterfactual_results", M.EmptyList),
             "research_mode": getattr(graph, "research_mode", M.EmptyList),
+            "research_attempts": getattr(graph, "research_attempts", M.EmptyList),
+            "intervention_episodes": getattr(graph, "intervention_episodes", M.EmptyList),
+            "dependency_policies": getattr(graph, "dependency_policies", M.EmptyList),
         }
         if extra_roots is not None:
             for name in extra_roots:
@@ -1970,6 +1987,9 @@ class SnapshotCodec:
             last_residuals=state.roots.get("last_residuals", self._ns_get("EmptyList")),
             counterfactual_results=state.roots.get("counterfactual_results", self._ns_get("EmptyList")),
             research_mode=state.roots.get("research_mode", self._ns_get("EmptyList")),
+            research_attempts=state.roots.get("research_attempts", self._ns_get("EmptyList")),
+            intervention_episodes=state.roots.get("intervention_episodes", self._ns_get("EmptyList")),
+            dependency_policies=state.roots.get("dependency_policies", self._ns_get("EmptyList")),
         )
         self.namespace["AllConstructors"] = graph.constructor_registry
 

@@ -619,6 +619,25 @@ class Search(M.Edge):
             return M.EmptyList
         return TermHead(pattern, self.registry)()
 
+    def _record_partial_premise_attempt(self, rule, current):
+        """Record a genuine partial premise match that produced no successor.
+
+        The rule was really tried against this knowledge state; some of its
+        premises matched facts, one concrete premise failed after the
+        substitution those matches built. That premise -- and only that
+        premise -- may later be compiled into a dependency request. A rule
+        none of whose premises matched records nothing, so a bare stall
+        stays uncharacterized. Only collected in research mode.
+        """
+        from .. import research as Rmod
+        from ..proof import IsKnowledge, KnowledgeFacts
+
+        if Rmod.IsResearchMode(self.graph)() is M.false_value:
+            return M.EmptyList
+        if IsKnowledge(current)() is M.false_value:
+            return M.EmptyList
+        return Rmod.RecordPremisePartialMatch(self.graph, rule, KnowledgeFacts(current)())()
+
     def _record_failed_attempt(self, rule, subterm):
         """Record a rule that reached application and did not apply.
 
@@ -627,7 +646,7 @@ class Search(M.Edge):
         that failed, and it is stored as a term, never as advice. Only
         collected in research mode, where residuals are preserved.
         """
-        from . import research as Rmod
+        from .. import research as Rmod
 
         if Rmod.IsResearchMode(self.graph)() is M.false_value:
             return M.EmptyList
@@ -636,7 +655,7 @@ class Search(M.Edge):
             return M.EmptyList
         origin = M.EmptyList
         try:
-            from . import provenance as Provmod
+            from .. import provenance as Provmod
 
             origin = Provmod.LookupRuleOrigin(self.graph._rule_origins, rule)()
         except Exception:
@@ -1820,6 +1839,8 @@ class SearchBFS(Search):
                     rule = M.Head(rules)()
                     rest_rules = M.Tail(rules)()
                     successors = KnowledgeRewriteSuccessors(current, rule)()
+                    if M.IdentityCompare(successors, M.EmptyList)() is M.truth_value:
+                        self._record_partial_premise_attempt(rule, current)
                     while M.IdentityCompare(successors, M.EmptyList)() is M.false_value:
                         pair = M.Head(successors)()
                         action = M.Head(pair)()

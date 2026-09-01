@@ -139,6 +139,8 @@ class Hypergraph:
         self.counterfactual_results = Ctx.ContextCounterfactualResults(self.context)()
         self.research_mode = Ctx.ContextResearchMode(self.context)()
         self.research_attempts = Ctx.ContextResearchAttempts(self.context)()
+        self.intervention_episodes = Ctx.ContextInterventionEpisodes(self.context)()
+        self.dependency_policies = Ctx.ContextDependencyPolicies(self.context)()
         M.AllConstructors = M.set_all_constructors(self.constructor_registry)
         M.NatValueIndex = self.nat_value_index
         return self.context
@@ -421,6 +423,23 @@ class Hypergraph:
         )
         self.research_attempts = Ctx.ContextResearchAttempts(self.context)()
         return attempt
+
+    def record_intervention_episode(self, episode):
+        """Append one measured live-teaching episode, newest first."""
+        self._replace_context(
+            intervention_episodes=M.Pair(episode, Ctx.ContextInterventionEpisodes(self.context)())
+        )
+        return episode
+
+    def set_dependency_policies(self, policies):
+        """Replace the learned-policy chain wholesale."""
+        self._replace_context(dependency_policies=policies)
+        return policies
+
+    def reset_learned_memory(self):
+        """Forget episodes and policies. A cold checkpoint has neither."""
+        self._replace_context(intervention_episodes=M.EmptyList, dependency_policies=M.EmptyList)
+        return M.EmptyList
 
     def clear_research_attempts(self):
         """Drop the attempt chain. Used when a run restarts."""

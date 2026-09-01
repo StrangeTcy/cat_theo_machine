@@ -11,6 +11,8 @@ from .labels import (
     ContextDerivationSchemataLabel,
     ContextEdgesLabel,
     ContextGeneratorMetricsLabel,
+    ContextInterventionEpisodesLabel,
+    ContextDependencyPoliciesLabel,
     ContextGeneratorPolicyLabel,
     ContextLastProofLabel,
     ContextLastResidualsLabel,
@@ -62,6 +64,8 @@ def Context(
     counterfactual_results=None,
     research_mode=None,
     research_attempts=None,
+    intervention_episodes=None,
+    dependency_policies=None,
 ):
     if dependency_requests is None:
         dependency_requests = EmptyList
@@ -85,6 +89,10 @@ def Context(
         research_mode = EmptyList
     if research_attempts is None:
         research_attempts = EmptyList
+    if intervention_episodes is None:
+        intervention_episodes = EmptyList
+    if dependency_policies is None:
+        dependency_policies = EmptyList
     tree = Tree(EmptyList)
     tree = TreeInsert(tree, ContextConstructorsLabel, constructors, constructors)()
     tree = TreeInsert(tree, ContextNodesLabel, nodes, constructors)()
@@ -113,6 +121,8 @@ def Context(
     tree = TreeInsert(tree, ContextCounterfactualResultsLabel, counterfactual_results, constructors)()
     tree = TreeInsert(tree, ContextResearchModeLabel, research_mode, constructors)()
     tree = TreeInsert(tree, ContextResearchAttemptsLabel, research_attempts, constructors)()
+    tree = TreeInsert(tree, ContextInterventionEpisodesLabel, intervention_episodes, constructors)()
+    tree = TreeInsert(tree, ContextDependencyPoliciesLabel, dependency_policies, constructors)()
     return Pair(MachineContextLabel, Pair(tree, EmptyList))
 
 
@@ -911,6 +921,47 @@ class ContextResearchAttempts(Edge):
         return self.result
 
 
+class ContextInterventionEpisodes(Edge):
+    """Intervention episodes: measured live-teaching outcomes, newest first.
+
+    Each entry records residual features, the human-supplied formal rule,
+    the newly enabled firings, cost before, cost after and the outcome.
+    EmptyList when no live teaching has been measured, including for
+    checkpoints written before this field existed.
+    """
+
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextInterventionEpisodesLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextDependencyPolicies(Edge):
+    """Learned dependency policies, generalized from intervention episodes.
+
+    EmptyList on a cold checkpoint: a policy exists only after at least two
+    independent useful episodes were anti-unified, and resetting learned
+    memory returns this field to EmptyList.
+    """
+
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextDependencyPoliciesLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ReplaceContext(Edge):
     KEEP = object()
 
@@ -944,6 +995,8 @@ class ReplaceContext(Edge):
         counterfactual_results=KEEP,
         research_mode=KEEP,
         research_attempts=KEEP,
+        intervention_episodes=KEEP,
+        dependency_policies=KEEP,
     ):
         current_constructors = ContextConstructors(ctx)()
         current_nodes = ContextNodes(ctx)()
@@ -972,6 +1025,8 @@ class ReplaceContext(Edge):
         current_counterfactual_results = ContextCounterfactualResults(ctx)()
         current_research_mode = ContextResearchMode(ctx)()
         current_research_attempts = ContextResearchAttempts(ctx)()
+        current_intervention_episodes = ContextInterventionEpisodes(ctx)()
+        current_dependency_policies = ContextDependencyPolicies(ctx)()
         self.result = Context(
             current_constructors if constructors is self.KEEP else constructors,
             current_nodes if nodes is self.KEEP else nodes,
@@ -1000,6 +1055,8 @@ class ReplaceContext(Edge):
             current_counterfactual_results if counterfactual_results is self.KEEP else counterfactual_results,
             current_research_mode if research_mode is self.KEEP else research_mode,
             current_research_attempts if research_attempts is self.KEEP else research_attempts,
+            current_intervention_episodes if intervention_episodes is self.KEEP else intervention_episodes,
+            current_dependency_policies if dependency_policies is self.KEEP else dependency_policies,
         )
         super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
 
@@ -1367,6 +1424,24 @@ class FromContextGetCounterfactualResults(Edge):
         return self.result
 
 
+class FromContextGetInterventionEpisodes(Edge):
+    def __init__(self, graph):
+        self.result = ContextInterventionEpisodes(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetDependencyPolicies(Edge):
+    def __init__(self, graph):
+        self.result = ContextDependencyPolicies(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class FromContextGetResearchMode(Edge):
     def __init__(self, graph):
         self.result = ContextResearchMode(HypergraphContext(graph)())()
@@ -1408,6 +1483,8 @@ def sync_from_namespace(namespace):
         "ContextLastResidualsLabel",
         "ContextCounterfactualResultsLabel",
         "ContextResearchModeLabel",
+        "ContextInterventionEpisodesLabel",
+        "ContextDependencyPoliciesLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

@@ -1,0 +1,152 @@
+Toy live protocol -- stall, request, approval, teaching, measured unlock, policy learning, reset
+================================================================================================
+
+cold start: research_snapshot.json removed before this session.
+
+you> research mode on
+hyge> research mode ON. Derivation-cache answers, comparison shortcuts, prewritten ladders and target-specific schemata are not available here: this runtime holds only live-taught knowledge. Residual states are preserved. `audit knowledge` now prints the cold-start manifest.
+
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+
+you> assume axiom: (rel a b)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (rel a b)
+
+you> teach law: (rule (premises (rel ?x ?y) (mark ?y)) (conclusion (tag ?x)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((rel ?x ?y) (mark ?y)) (tag ?x))
+note: teaching stores knowledge; it demonstrates nothing until a retry or counterfactual measures progress.
+
+you> attempt goal: (tag a)
+hyge> FAILED. cost=1; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (mark b))
+
+you> show dependency 0
+hyge> dependency request:
+  id: <?>
+  status: ObservedMissingPremise
+  kind: THEOREM
+  formal: (Need (mark b))
+  matched premises (bridge evidence): (((rel a b) (rel a b)))
+  bridge: ()
+  counterfactual: (counterfactual 0 0 () () () false)
+  provenance: DEPENDENCY_REQUEST
+
+you> approve dependency 0
+hyge> approved dependency [0] status=SpeculativeDependency
+note: approval is a hypothesis, not evidence. Usefulness is demonstrated only by measured counterfactual unlock.
+
+you> teach dependency 0: (rule (premises (rel ?u ?v)) (conclusion (mark ?v)))
+hyge> counterfactual fork measured a real unlock: cost 1 -> 2; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episode recorded; `retry parent goal` to apply it for real.
+
+you> retry parent goal
+hyge> retry: goal closed
+
+you> explain last proof
+hyge> explain last proof:
+ goal=((tag a))
+ provenance=SEARCH_DERIVED
+ status=closed
+ firings=2
+ cost=2
+ cache/replay: none -- first attempts run cold in research mode
+ axioms (DOMAIN_AXIOM):
+   (rel a b)
+ human-supplied theorems:
+   (rule ((rel ?u ?v)) (mark ?v))
+   (rule ((rel ?x ?y) (mark ?y)) (tag ?x))
+ nested dependencies: see `show discovered dependency graph`
+ utility credits: see generator metrics in the dependency graph
+
+you> show discovered dependency graph
+hyge> discovered dependency graph (actual requests and accepted knowledge only):
+  goal=(tag a) dependsOn dep_id=<?> status=DemonstratedUsefulDependency
+DependencyUnlockedResidual: measured unlock on record
+DependencySuppliedByTheorem: (rule ((rel ?u ?v)) (mark ?v))
+
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(mark b) outcome=DemonstratedUsefulDependency
+
+you> assume axiom: (link c d)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (link c d)
+
+you> teach law: (rule (premises (link ?x ?y) (mark ?y)) (conclusion (badge ?x)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((link ?x ?y) (mark ?y)) (badge ?x))
+note: teaching stores knowledge; it demonstrates nothing until a retry or counterfactual measures progress.
+
+you> attempt goal: (badge c)
+hyge> FAILED. cost=6; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [1] status=ObservedMissingPremise kind=THEOREM need=(Need (mark d))
+
+you> approve dependency 1
+hyge> approved dependency [1] status=SpeculativeDependency
+note: approval is a hypothesis, not evidence. Usefulness is demonstrated only by measured counterfactual unlock.
+
+you> teach dependency 1: (rule (premises (link ?u ?v)) (conclusion (mark ?v)))
+hyge> counterfactual fork measured a real unlock: cost 6 -> 4; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episode recorded; `retry parent goal` to apply it for real.
+
+you> show learned policies
+hyge> learned dependency policies:
+residual pattern: (mark _2)
+helpful rule shape: (rule ((_3 _0 _1)) (mark _1))
+supporting episodes: 2
+
+you> assume axiom: (ring e f)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (ring e f)
+
+you> teach law: (rule (premises (ring ?x ?y) (mark ?y)) (conclusion (crown ?x)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((ring ?x ?y) (mark ?y)) (crown ?x))
+note: teaching stores knowledge; it demonstrates nothing until a retry or counterfactual measures progress.
+
+you> attempt goal: (crown e)
+hyge> FAILED. cost=10; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (mark f))
+[learned policy, support 2 episodes] predicts helpful rule shape: (rule ((?_ ?_ ?_)) (mark ?_))
+
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(mark d) outcome=DemonstratedUsefulDependency
+[1] residual=(mark b) outcome=DemonstratedUsefulDependency
+
+you> reset learned memory
+hyge> learned memory reset: intervention episodes and dependency policies removed. Policy predictions disappear with them.
+
+you> show learned policies
+hyge> no learned policies: a policy needs at least two independent useful episodes whose anti-unification still shares structure.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (mark f))
+
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  [0] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((ring ?x ?y) (mark ?y)) (crown ?x))
+  [1] DOMAIN_AXIOM: (ring e f)
+  [2] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((link ?u ?v)) (mark ?v))
+  [3] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((link ?x ?y) (mark ?y)) (badge ?x))
+  [4] DOMAIN_AXIOM: (link c d)
+  [5] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((rel ?u ?v)) (mark ?v))
+  [6] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((rel ?x ?y) (mark ?y)) (tag ?x))
+  [7] DOMAIN_AXIOM: (rel a b)
+  intervention episodes: 0
+  learned policies: none
+
+you> goodbye
+hyge> goodbye
