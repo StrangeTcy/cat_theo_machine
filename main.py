@@ -4311,7 +4311,10 @@ def _research_parse_sentence(text):
     def is_ident(token):
         return token.isalnum()
 
+    seen_idents = ()
+
     def parse_atom(i):
+        nonlocal seen_idents
         if i >= len(tokens):
             raise ValueError("expression ended early")
         token = tokens[i]
@@ -4321,6 +4324,8 @@ def _research_parse_sentence(text):
                 raise ValueError("missing ')'")
             return inner, i + 1
         if is_ident(token):
+            if not token.isdigit() and token not in seen_idents:
+                seen_idents = seen_idents + (token,)
             return sym(token), i + 1
         raise ValueError("expected an identifier, number or '(' at '" + token + "'")
 
@@ -4370,7 +4375,20 @@ def _research_parse_sentence(text):
             raise ValueError("expected a domain after the solution predicate")
         return "-".join(parts), i
 
-    def parse_statement(i):
+    def free_since(mark, bound):
+        names = ()
+        for name in seen_idents[mark:]:
+            if name not in bound:
+                names = names + (name,)
+        return names
+
+    def name_chain(head, names):
+        chain = M.EmptyList
+        for name in reversed(names):
+            chain = M.Pair(sym(name), chain)
+        return M.Pair(sym(head), chain)
+
+    def parse_statement(i, bound):
         # no <domain words> <var list> satisfy <equation>
         if i < len(tokens) and tokens[i] == "no":
             j = i + 1
@@ -4399,24 +4417,31 @@ def _research_parse_sentence(text):
                     unknowns = M.Pair(sym(name), unknowns)
                 return app("nosolutions", sym(domain),
                            M.Pair(sym("unknowns"), unknowns), body), i
+        mark = len(seen_idents)
         expression, i = parse_eq(i)
         stop = take_phrase(i, ("has", "no", "solutions", "in"))
         if stop is None:
             stop = take_phrase(i, ("is", "not", "solvable", "in"))
         if stop is not None:
             domain, i = domain_words(stop)
-            return app("nosolutions", sym(domain), expression), i
+            unknowns = free_since(mark, bound)
+            if unknowns == ():
+                raise ValueError("a no-solutions claim needs at least one unknown")
+            return app("nosolutions", sym(domain),
+                       name_chain("unknowns", unknowns), expression), i
         if i < len(tokens) and tokens[i] == "implies":
             consequent, i = parse_eq(i + 1)
             statement = app("implies", expression, consequent)
             over_at = take_phrase(i, ("over",))
             if over_at is not None:
                 domain, i = domain_words(over_at)
-                statement = app("over", sym(domain), statement)
+                variables = free_since(mark, bound)
+                statement = app("over", sym(domain),
+                                name_chain("vars", variables), statement)
             return statement, i
         return expression, i
 
-    def parse_sentence(i):
+    def parse_sentence(i, bound):
         quantifier = take_phrase(i, ("for", "all"))
         if quantifier is None:
             quantifier = take_phrase(i, ("for", "every"))
@@ -4434,14 +4459,14 @@ def _research_parse_sentence(text):
                     constraint = app(name, sym(variable), sym(tokens[i + 1]))
                     i += 2
                     break
-            body, i = parse_sentence(i)
+            body, i = parse_sentence(i, bound + (variable,))
             if constraint is not None:
                 body = app("implies", constraint, body)
             return app("forall", sym(variable), body), i
-        return parse_statement(i)
+        return parse_statement(i, bound)
 
     try:
-        term, position = parse_sentence(0)
+        term, position = parse_sentence(0, ())
     except ValueError as parse_error:
         return None, str(parse_error)
     if position != len(tokens):

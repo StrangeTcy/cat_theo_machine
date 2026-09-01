@@ -14643,6 +14643,7 @@ class SentenceGrammarGenericTest(M.Edge):
         )
         expected1, expected_err1 = _research_parse(
             "(forall k (implies (geq k 2) (nosolutions positive-integers"
+            " (unknowns u v w)"
             " (eq (plus (pow u k) (pow v k)) (pow w (plus k 1))))))"
         )
         if term1 is None or expected1 is None:
@@ -14654,7 +14655,7 @@ class SentenceGrammarGenericTest(M.Edge):
             "for all m x^m = y^m implies x = y over positive integers"
         )
         expected2, expected_err2 = _research_parse(
-            "(forall m (over positive-integers"
+            "(forall m (over positive-integers (vars x y)"
             " (implies (eq (pow x m) (pow y m)) (eq x y))))"
         )
         if term2 is None or expected2 is None:
