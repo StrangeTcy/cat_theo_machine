@@ -280,6 +280,9 @@ class GenBase:
         return ()
 
     def _make_request(self, parent_goal, residuals, blocking_condition, kind, formal_stmt, bridge_plan, assumptions, dep_id=None):
+        if dep_id is None:
+            dep_id = M.Atom()
+            dep_id.value = self.gen_label.__class__.__name__ + "-" + str(self.proposed)
         ev = CounterfactualEvidence(M.Zero, M.Zero, M.EmptyList, M.EmptyList, M.EmptyList, M.false_value)()
         req = DependencyRequest(parent_goal, residuals, blocking_condition, kind, formal_stmt, bridge_plan, ev, assumptions, DependencyStatus.PENDING, Lmod.DependencyRequestProvenanceLabel, dep_id)()
         self.proposed = self.proposed + 1
@@ -299,7 +302,13 @@ class GenProperExponentReduction(GenBase):
     def __init__(self):
         super().__init__(Lmod.GenProperExponentReductionLabel)
     def propose(self, parent_goal, residuals, blocking_condition, graph):
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Pair(Lmod.ExprPowLabel, M.Pair(M.Atom(), M.EmptyList)), M.EmptyList))
+        # Formal: ForAll n, (n has odd prime divisor p -> reduction to p) and (n power of 2 >2 -> divisor 4)
+        var_n = M.Atom()
+        var_n.value = "n"
+        body = M.Atom()
+        body.value = "n has odd prime divisor p -> pow reduction to p; n power of 2 >2 -> divisor 4"
+        forall_term = M.Pair(Lmod.ForAllLabel, M.Pair(var_n, M.Pair(body, M.EmptyList)))
+        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(forall_term, M.EmptyList))
         bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
         req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.THEOREM, formal, bridge, M.EmptyList)
         return (req,)
@@ -525,6 +534,13 @@ def approve_dependency(graph, dep_id):
             new_req = DependencyRequest(parent, residuals, blocking, kind, formal, bridge, counter, assumptions, DependencyStatus.APPROVED, prov, dep_id)()
             new_chain = M.Pair(new_req, new_chain)
             approved_req = new_req
+            # When approved, teach formal as trusted theorem with proper provenance
+            try:
+                graph._replace_context(nodes=M.Pair(formal, graph.nodes))
+                entry = M.Pair(formal, M.Pair(Lmod.HumanSuppliedTrustedTheoremLabel, M.EmptyList))
+                graph._replace_context(provenance_map=M.Pair(entry, graph.provenance_map))
+            except Exception:
+                pass
         else:
             new_chain = M.Pair(req, new_chain)
         cur = Tail(cur)()

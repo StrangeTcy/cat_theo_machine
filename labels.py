@@ -1323,6 +1323,10 @@ class ExistsLabel(ConstructorLabel):
     pass
 
 
+class ForAllLabel(ConstructorLabel):
+    pass
+
+
 class NotLabel(ConstructorLabel):
     pass
 
@@ -2042,6 +2046,7 @@ ExtremalAtLabel = ExtremalAtLabel()
 VariationLabel = VariationLabel()
 BetterLabel = BetterLabel()
 ExistsLabel = ExistsLabel()
+ForAllLabel = ForAllLabel()
 NotLabel = NotLabel()
 ContradictionLabel = ContradictionLabel()
 CollisionLabel = CollisionLabel()
@@ -2734,6 +2739,7 @@ def sync_from_namespace(namespace):
         "VariationLabel",
         "BetterLabel",
         "ExistsLabel",
+        "ForAllLabel",
         "NotLabel",
         "ContradictionLabel",
         "CollisionLabel",

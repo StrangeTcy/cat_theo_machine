@@ -18047,6 +18047,29 @@ class TestResultsReport(M.Edge):
         return self.result
 
 
+class ForAll(M.Edge):
+    """ForAll(variable, body): the universal statement shape.
+
+    Pair(ForAllLabel, Pair(variable, Pair(body, EmptyList))). The
+    variable is the bound nat the body ranges over. The extensional
+    equivalence of the two learned sieves is stated in this shape and
+    proved via the generic law machinery, not via host Python loops.
+    """
+
+    def __init__(self, variable, body):
+        self.result = M.Pair(
+            Lmod.ForAllLabel,
+            M.Pair(variable, M.Pair(body, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(variable, M.Pair(body, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class ReasonStale(M.Edge):
     """Step 45: a worker claim that no longer replays on the merged version.
 

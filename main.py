@@ -2915,10 +2915,29 @@ def run_talk_mode(sentence: str = None):
                         dep_id = Rmod.DependencyRequestId(req)()
                         kind = Rmod.DependencyRequestKind(req)()
                         status = Rmod.DependencyRequestStatus(req)()
-                        # pretty
-                        kind_text = M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()
-                        status_text = M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()
-                        out_lines.append(f"  [{idx}] id={str(dep_id())[:12]} kind={kind_text} status={status_text} gen={M.PrettyTerm(gen.gen_label, M.FromContextGetConstructors(rt.graph)())()}")
+                        try:
+                            kind_text = M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()
+                            if not kind_text or '?' in kind_text:
+                                kind_text = kind.__class__.__name__ if hasattr(kind, '__class__') else str(kind)
+                        except Exception:
+                            kind_text = kind.__class__.__name__ if hasattr(kind, '__class__') else str(kind)
+                        try:
+                            status_text = M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()
+                            if not status_text or '?' in status_text:
+                                status_text = status.__class__.__name__ if hasattr(status, '__class__') else str(status)
+                        except Exception:
+                            status_text = status.__class__.__name__ if hasattr(status, '__class__') else str(status)
+                        try:
+                            gen_text = M.PrettyTerm(gen.gen_label, M.FromContextGetConstructors(rt.graph)())()
+                            if not gen_text or '?' in gen_text:
+                                gen_text = gen.gen_label.__class__.__name__
+                        except Exception:
+                            gen_text = gen.gen_label.__class__.__name__
+                        dep_id_val = dep_id()
+                        if dep_id_val is None:
+                            dep_id_val = dep_id.value if hasattr(dep_id, 'value') and dep_id.value else 'dep-'+str(idx)
+                        dep_id_str = str(dep_id_val)
+                        out_lines.append(f"  [{idx}] id={dep_id_str} kind={kind_text} status={status_text} gen={gen_text}")
                         research_dep_index.append((idx, dep_id, req))
                     except Exception as e:
                         out_lines.append(f"  [{idx}] error: {e}")
@@ -2990,7 +3009,23 @@ def run_talk_mode(sentence: str = None):
                         dep_id = Rmod.DependencyRequestId(req)()
                         kind = Rmod.DependencyRequestKind(req)()
                         status = Rmod.DependencyRequestStatus(req)()
-                        out.append(f"  [{idx}] id={str(dep_id())[:12]} kind={M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()} status={M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()}")
+                        try:
+                            kind_text = M.PrettyTerm(kind, M.FromContextGetConstructors(rt.graph)())()
+                            if not kind_text or '?' in kind_text:
+                                kind_text = kind.__class__.__name__
+                        except Exception:
+                            kind_text = kind.__class__.__name__ if hasattr(kind, '__class__') else str(kind)
+                        try:
+                            status_text = M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()
+                            if not status_text or '?' in status_text:
+                                status_text = status.__class__.__name__
+                        except Exception:
+                            status_text = status.__class__.__name__ if hasattr(status, '__class__') else str(status)
+                        dep_id_val = dep_id()
+                        if dep_id_val is None:
+                            dep_id_val = dep_id.value if hasattr(dep_id, 'value') and dep_id.value else 'dep-'+str(idx)
+                        dep_id_str = str(dep_id_val)
+                        out.append(f"  [{idx}] id={dep_id_str} kind={kind_text} status={status_text}")
                     except Exception:
                         out.append(f"  [{idx}] parse error")
                     cur = M.Tail(cur)()
@@ -3037,7 +3072,10 @@ def run_talk_mode(sentence: str = None):
                 except Exception:
                     pass
                 _persist_talk_state()
-                return f"approved dependency [{target_idx}] id={str(dep_id())[:12]}"
+                dep_id_val = dep_id()
+                if dep_id_val is None:
+                    dep_id_val = dep_id.value if hasattr(dep_id, 'value') and dep_id.value else 'dep-'+str(target_idx)
+                return f"approved dependency [{target_idx}] id={str(dep_id_val)[:24]}"
             except Exception as e:
                 return f"approve failed: {e}"
         if lowered.startswith("reject dependency"):
@@ -3124,24 +3162,6 @@ def run_talk_mode(sentence: str = None):
                 return f"taught trusted theorem: {theorem_text} provenance HUMAN_SUPPLIED_TRUSTED_THEOREM"
             except Exception as e:
                 return f"teach trusted theorem failed: {e}"
-        if lowered.startswith("define symbolic object"):
-            rt = _ensure_proof_runtime_for_research()
-            try:
-                from . import research as Rmod
-                if ":" in line:
-                    obj_text = line.split(":",1)[1].strip()
-                else:
-                    obj_text = line[len("define symbolic object"):].strip()
-                if not obj_text:
-                    return "usage: define symbolic object: <name>"
-                obj_atom = M.Atom()
-                obj_atom.value = obj_text
-                obj_term = M.Pair(Lmod.SymbolicObjectLabel, M.Pair(obj_atom, M.EmptyList))
-                Rmod.define_symbolic_object(rt.graph, obj_term)
-                _persist_talk_state()
-                return f"defined symbolic object: {obj_text} provenance INVENTED_OBJECT"
-            except Exception as e:
-                return f"define symbolic object failed: {e}"
         if lowered.startswith("teach law"):
             rt = _ensure_proof_runtime_for_research()
             try:
@@ -3203,11 +3223,31 @@ def run_talk_mode(sentence: str = None):
                 out = ["discovered dependency graph (machine actual requests and accepted knowledge only):"]
                 for goal, dep_id, status in entries:
                     try:
-                        goal_text = M.PrettyTerm(goal, M.FromContextGetConstructors(rt.graph)())()
-                        status_text = M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()
-                        out.append(f"  goal={goal_text[:80]} dependsOn dep_id={str(dep_id())[:12]} status={status_text}")
+                        try:
+                            goal_text = M.PrettyTerm(goal, M.FromContextGetConstructors(rt.graph)())()
+                            if not goal_text or '?' in goal_text:
+                                goal_text = str(goal)[:80] if goal else "Empty"
+                        except Exception:
+                            goal_text = "goal"
+                        try:
+                            status_text = M.PrettyTerm(status, M.FromContextGetConstructors(rt.graph)())()
+                            if not status_text or '?' in status_text:
+                                status_text = status.__class__.__name__ if hasattr(status, '__class__') else str(status)
+                        except Exception:
+                            status_text = status.__class__.__name__ if hasattr(status, '__class__') else str(status)
+                        dep_id_val = dep_id()
+                        if dep_id_val is None:
+                            dep_id_val = dep_id.value if hasattr(dep_id, 'value') and dep_id.value else 'dep'
+                        dep_id_str = str(dep_id_val)[:24]
+                        out.append(f"  goal={goal_text[:80]} dependsOn dep_id={dep_id_str} status={status_text}")
                     except Exception:
-                        out.append(f"  goal=? dep_id={str(dep_id())[:12]}")
+                        try:
+                            dep_id_val = dep_id()
+                            if dep_id_val is None:
+                                dep_id_val = dep_id.value if hasattr(dep_id, 'value') and dep_id.value else 'dep'
+                            out.append(f"  goal=? dep_id={str(dep_id_val)[:24]}")
+                        except Exception:
+                            out.append(f"  goal=? dep_id=?")
                 return "\n".join(out)
             except Exception as e:
                 return f"show discovered dependency graph failed: {e}"
@@ -3282,8 +3322,24 @@ def run_talk_mode(sentence: str = None):
                 out = ["audit knowledge (provenance):"]
                 for term, prov in entries:
                     try:
-                        term_text = M.PrettyTerm(term, M.FromContextGetConstructors(rt.graph)())()[:120]
-                        prov_text = M.PrettyTerm(prov, M.FromContextGetConstructors(rt.graph)())()
+                        try:
+                            term_text = M.PrettyTerm(term, M.FromContextGetConstructors(rt.graph)())()[:120]
+                            if not term_text or '?' in term_text:
+                                # fallback to atom value if available
+                                try:
+                                    # term may be Pair(label, Pair(atom, ...))
+                                    inner = M.Head(M.Tail(term)())()
+                                    term_text = str(inner())[:120] if hasattr(inner, '__call__') else str(inner)[:120]
+                                except Exception:
+                                    term_text = term.__class__.__name__
+                        except Exception:
+                            term_text = "term"
+                        try:
+                            prov_text = M.PrettyTerm(prov, M.FromContextGetConstructors(rt.graph)())()
+                            if not prov_text or '?' in prov_text:
+                                prov_text = prov.__class__.__name__ if hasattr(prov, '__class__') else str(prov)
+                        except Exception:
+                            prov_text = prov.__class__.__name__ if hasattr(prov, '__class__') else str(prov)
                         out.append(f"  term={term_text} provenance={prov_text}")
                     except Exception:
                         out.append("  term=? provenance=?")
@@ -3830,7 +3886,7 @@ def run_live_mode(requested_workers):
             sys.executable,
             "-u",
             "-m",
-            "hyge.main",
+            "cat_theo_machine.main",
             "daemon",
             "--workers",
             str(requested_workers),
