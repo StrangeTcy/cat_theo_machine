@@ -14712,6 +14712,256 @@ class GoalSeededPartialMatchTest(M.Edge):
         return self.result
 
 
+class GenerativeRuleBudgetTest(M.Edge):
+    """A rule that could generate forever spends exactly the budget.
+
+    (grow ?x) -> (grow (wrap ?x)) feeds its own conclusion back with a
+    fresh term every time; nothing but the firing budget stops it. The
+    search must terminate, stay open, and fire exactly
+    DEFAULT_SEARCH_FUEL times -- verified generically, not against the
+    one divisibility law that exposed the round-budget defect.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        vx = T.var("x")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("grow"), vx)),
+            T.term(T.sym("grow"), T.term(T.sym("wrap"), vx)),
+        )()
+        facts = T.chain(T.term(T.sym("grow"), T.sym("seed")))
+        goal = T.chain(T.term(T.sym("elsewhere"), T.sym("z")))
+        outcome = Rmod.BoundedForwardSearch(
+            facts, goal, T.chain(rule), Rmod.DEFAULT_SEARCH_FUEL
+        )()
+        self.result = M.truth_value
+        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
+            self.result = M.false_value
+        fired = Rmod.ForwardSearchFired(outcome)()
+        count = self._count(fired, M.Zero)
+        if M.IdentityCompare(
+            M.NatEq(count, Rmod.DEFAULT_SEARCH_FUEL, M.AllConstructors)(), M.truth_value
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _count(self, chain, acc):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return acc
+        return self._count(M.Tail(chain)(), M.Head(M.Succ(acc, M.AllConstructors)())())
+
+    def __call__(self):
+        return self.result
+
+
+class MultiRuleResidualSelectionTest(M.Edge):
+    """With several laws partially matchable, only the goal's blocker reports.
+
+    Sum, difference and product closure laws all sit over the same
+    divisibility facts. For the goal (divides 3 (plus 6 14)) the sum law
+    is goal-seeded and blocked on the concrete (divides 3 14); the
+    difference law matches its premises completely -- a fired
+    instantiation, sentinel, not a residual; the product law's
+    conclusion carries a free variable and never fires. Exactly one
+    attempt must be recorded, naming (divides 3 14).
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vk, vq, vn = T.var("k"), T.var("q"), T.var("n")
+        witness = MultiRule(
+            T.chain(T.term(T.sym("eq"), T.term(T.sym("times"), vk, vq), vn)),
+            T.term(T.sym("divides"), vk, vn),
+        )()
+        k2, a2, b2 = T.var("k"), T.var("a"), T.var("b")
+        sum_law = MultiRule(
+            T.chain(T.term(T.sym("divides"), k2, a2), T.term(T.sym("divides"), k2, b2)),
+            T.term(T.sym("divides"), k2, T.term(T.sym("plus"), a2, b2)),
+        )()
+        k3, a3, b3 = T.var("k"), T.var("a"), T.var("b")
+        diff_law = MultiRule(
+            T.chain(T.term(T.sym("divides"), k3, a3), T.term(T.sym("divides"), k3, b3)),
+            T.term(T.sym("divides"), k3, T.term(T.sym("minus"), a3, b3)),
+        )()
+        k4, a4, b4 = T.var("k"), T.var("a"), T.var("b")
+        product_law = MultiRule(
+            T.chain(T.term(T.sym("divides"), k4, a4)),
+            T.term(T.sym("divides"), k4, T.term(T.sym("times"), a4, b4)),
+        )()
+        rules = T.chain(witness, sum_law, diff_law, product_law)
+        facts = T.chain(
+            T.term(T.sym("eq"), T.term(T.sym("times"), T.sym("3"), T.sym("2")), T.sym("6")),
+            T.term(T.sym("eq"), T.term(T.sym("times"), T.sym("3"), T.sym("5")), T.sym("15")),
+        )
+        goal = T.chain(
+            T.term(T.sym("divides"), T.sym("3"),
+                   T.term(T.sym("plus"), T.sym("6"), T.sym("14")))
+        )
+        Rmod.attempt_goal(graph, facts, goal, rules)
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        count = self._count(attempts, 0)
+        if count != 2:
+            # exactly two rules hold a genuine foothold on this goal: the
+            # goal-seeded sum law and the goal-seeded witness law. A third
+            # entry means a fired instantiation or a free-variable law
+            # leaked into the residual pool; fewer means a foothold was
+            # dropped.
+            self.result = M.false_value
+        else:
+            expected_sum = T.term(T.sym("divides"), T.sym("3"), T.sym("14"))
+            fresh_q = T.var("q")
+            witness_shape = Rmod.AlphaNormalized(
+                T.term(T.sym("eq"), T.term(T.sym("times"), T.sym("3"), fresh_q),
+                       T.term(T.sym("plus"), T.sym("6"), T.sym("14"))),
+                empty,
+            )()
+            found_sum = M.false_value
+            found_witness = M.false_value
+            cur = attempts
+            while M.IdentityCompare(cur, empty)() is M.false_value:
+                unmatched = Rmod.AttemptedRuleUnmatched(M.Head(cur)())()
+                if M.Compare(unmatched, expected_sum)() is M.truth_value:
+                    found_sum = M.truth_value
+                alpha = Rmod.AlphaNormalized(unmatched, empty)()
+                if M.Compare(alpha, witness_shape)() is M.truth_value:
+                    found_witness = M.truth_value
+                cur = M.Tail(cur)()
+            if found_sum is M.false_value:
+                self.result = M.false_value
+            if found_witness is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _count(self, chain, acc):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return acc
+        return self._count(M.Tail(chain)(), acc + 1)
+
+    def __call__(self):
+        return self.result
+
+
+class SinglePremiseGoalSeededTest(M.Edge):
+    """A one-premise rule blocked on its only premise still has a foothold.
+
+    Congruent(a,b,m) <- Divides(m, Sub(a,b)) found this: with the goal
+    (congruent 9 2 5), the conclusion unifies with the goal, grounding
+    the single premise to (divides 5 (minus 9 2)) -- but the matched-
+    premise gate rejected it, because there is no second premise to
+    match. The conclusion-to-goal unification is the evidence; the
+    record must exist and name the grounded premise. Unseeded rules
+    keep the strict gate: with no goal match and no matched premise,
+    nothing is recorded.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb, vm = T.var("a"), T.var("b"), T.var("m")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("divides"), vm, T.term(T.sym("minus"), va, vb))),
+            T.term(T.sym("congruent"), va, vb, vm),
+        )()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        goal = T.chain(T.term(T.sym("congruent"), T.sym("9"), T.sym("2"), T.sym("5")))
+        Rmod.attempt_goal(graph, empty, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
+            expected = T.term(
+                T.sym("divides"), T.sym("5"),
+                T.term(T.sym("minus"), T.sym("9"), T.sym("2")),
+            )
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        graph.clear_research_attempts()
+        unrelated_goal = T.chain(T.term(T.sym("elsewhere"), T.sym("z")))
+        Rmod.attempt_goal(graph, empty, unrelated_goal, T.chain(rule))
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            # no goal match, no matched premise: the strict gate must hold
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GoalDirectedFiringTest(M.Edge):
+    """A rule with conclusion-only variables fires toward the goal.
+
+    (eq ?n (times ?k ?d)) -> (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)) can
+    never fire forward: ?t is free in the conclusion. With the
+    factorization fact supplied, the goal instance must close, and the
+    counterfactual must measure that unlock -- the exponent-family
+    episode flow depends on it.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vn, vk, vd, vt = T.var("n"), T.var("k"), T.var("d"), T.var("t")
+        law = MultiRule(
+            T.chain(T.term(T.sym("eq"), vn, T.term(T.sym("times"), vk, vd))),
+            T.term(T.sym("eq"),
+                   T.term(T.sym("pow"), vt, vn),
+                   T.term(T.sym("pow"), T.term(T.sym("pow"), vt, vk), vd)),
+        )()
+        graph.tag_rule_origin(law, Lmod.HumanSuppliedTrustedTheoremLabel)
+        goal = T.chain(
+            T.term(T.sym("eq"),
+                   T.term(T.sym("pow"), T.sym("t"), T.sym("6")),
+                   T.term(T.sym("pow"),
+                          T.term(T.sym("pow"), T.sym("t"), T.sym("2")), T.sym("3")))
+        )
+        self.result = M.truth_value
+        # blocked without the factorization: the request names it
+        Rmod.attempt_goal(graph, empty, goal, T.chain(law))
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
+            expected = T.term(T.sym("eq"), T.sym("6"),
+                              T.term(T.sym("times"), T.sym("2"), T.sym("3")))
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        # the taught factorization closes the goal through the backward pass
+        supplied = Rmod.compile_formal_rule(
+            Rmod.FormalRule(
+                empty,
+                T.term(T.sym("eq"), T.sym("6"),
+                       T.term(T.sym("times"), T.sym("2"), T.sym("3"))),
+            )()
+        )
+        ev, unlock = Rmod.counterfactual_evaluation(graph, empty, goal, T.chain(law), supplied)
+        if unlock is M.false_value:
+            self.result = M.false_value
+        goal_closed = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(ev)())())())())())())()
+        if goal_closed is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class SentenceGrammarGenericTest(M.Edge):
     """The quantified-goal grammar is compositional, not a target template.
 
@@ -16689,6 +16939,14 @@ def install_default_tests(graph):
         _register_test(graph, "premise_order_independence_test", empty, PremiseOrderIndependenceTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "goal_seeded_partial_match_test", empty, GoalSeededPartialMatchTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "generative_rule_budget_test", empty, GenerativeRuleBudgetTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "multi_rule_residual_selection_test", empty, MultiRuleResidualSelectionTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "single_premise_goal_seeded_test", empty, SinglePremiseGoalSeededTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "goal_directed_firing_test", empty, GoalDirectedFiringTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:

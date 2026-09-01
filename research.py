@@ -1426,16 +1426,28 @@ class PartialPremiseMatch(Edge):
     blocked elsewhere), which also never becomes a request.
     """
 
-    def __init__(self, premises, facts, seed=None):
+    def __init__(self, premises, facts, seed=None, seeded=None):
         if seed is None:
             seed = EmptyList
+        if seeded is None:
+            seeded = M.false_value
         self.facts = facts
         best = self._best(premises, seed, EmptyList, M.Zero, EmptyList)
         depth = Head(best)()
         payload = Tail(best)()
         zero_matched = M.NatEq(depth, M.Zero, M.AllConstructors)()
         unmatched = Head(Tail(Tail(payload)())())()
-        if IdentityCompare(zero_matched, M.truth_value)() is M.truth_value:
+        # The evidence gate. Unseeded, at least one premise must have
+        # matched a fact -- otherwise nothing distinguishes this rule
+        # from any other and recording it would manufacture a request.
+        # Goal-seeded, the conclusion unified with the goal: that
+        # unification is the foothold, and a single-premise rule blocked
+        # on its only premise still names a concrete goal-grounded
+        # obligation.
+        no_foothold = zero_matched
+        if IdentityCompare(seeded, M.truth_value)() is M.truth_value:
+            no_foothold = M.false_value
+        if IdentityCompare(no_foothold, M.truth_value)() is M.truth_value:
             self.result = EmptyList
         elif IdentityCompare(unmatched, EmptyList)() is M.truth_value:
             self.result = EmptyList
@@ -1551,7 +1563,9 @@ class RecordPremisePartialMatch(Edge):
         while IdentityCompare(remaining_goals, EmptyList)() is M.false_value:
             goal_match = M.Match(conclusion, Head(remaining_goals)())()
             if IdentityCompare(Head(goal_match)(), M.truth_value)() is M.truth_value:
-                seeded = PartialPremiseMatch(premises, facts, Tail(goal_match)())()
+                seeded = PartialPremiseMatch(
+                    premises, facts, Tail(goal_match)(), M.truth_value
+                )()
                 if IdentityCompare(seeded, EmptyList)() is M.false_value:
                     partial = seeded
                     remaining_goals = EmptyList
@@ -1625,7 +1639,15 @@ class BoundedForwardSearch(Edge):
             return self._finish(M.truth_value, cost, fired_rev, facts)
         if M.NatEq(fuel, M.Zero, M.AllConstructors)() is M.truth_value:
             return self._finish(M.false_value, cost, fired_rev, facts)
-        round_result = self._round(self.rules, facts, fired_rev, cost, M.false_value, fuel)
+        goal_result = self._goal_pass(self.rules, facts, fired_rev, cost, M.false_value, fuel)
+        facts = Head(goal_result)()
+        fired_rev = Head(Tail(goal_result)())()
+        cost = Head(Tail(Tail(goal_result)())())()
+        goal_progressed = Head(Tail(Tail(Tail(goal_result)())())())()
+        fuel = Head(Tail(Tail(Tail(Tail(goal_result)())())())())()
+        if self._closed(facts) is M.truth_value:
+            return self._finish(M.truth_value, cost, fired_rev, facts)
+        round_result = self._round(self.rules, facts, fired_rev, cost, goal_progressed, fuel)
         new_facts = Head(round_result)()
         new_fired = Head(Tail(round_result)())()
         new_cost = Head(Tail(Tail(round_result)())())()
@@ -1636,6 +1658,49 @@ class BoundedForwardSearch(Edge):
         if IdentityCompare(progressed, M.false_value)() is M.truth_value:
             return self._finish(M.false_value, new_cost, new_fired, new_facts)
         return self._run(new_facts, new_fired, new_cost, new_fuel)
+
+    def _goal_pass(self, rules, facts, fired_rev, cost, progressed, fuel):
+        """Goal-directed firing: the backward half of the bounded search.
+
+        A rule whose conclusion introduces variables its premises never
+        bind -- (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)) with ?t free --
+        can never fire forward: asserting a schematic fact is refused.
+        It fires toward a goal instead: when the conclusion unifies with
+        a goal fact and the premises are jointly satisfiable under that
+        seed, the goal instance itself is derived. The exponent session
+        that could not close (eq (pow t 6) (pow (pow t 2) 3)) after
+        being taught (eq 6 (times 2 3)) forced this pass.
+        """
+        from .proof import FactsCover, JoinPremises, RulePremises, RuleReplacement
+
+        if IdentityCompare(rules, EmptyList)() is M.truth_value:
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(cost, M.Pair(progressed, M.Pair(fuel, EmptyList)))))
+        if M.NatEq(fuel, M.Zero, M.AllConstructors)() is M.truth_value:
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(cost, M.Pair(progressed, M.Pair(fuel, EmptyList)))))
+        rule = Head(rules)()
+        cost = Head(M.Succ(cost, M.AllConstructors)())()
+        conclusion = RuleReplacement(rule)()
+        premises = RulePremises(rule)()
+        remaining_goals = self.goal_facts
+        while IdentityCompare(remaining_goals, EmptyList)() is M.false_value:
+            goal_fact = Head(remaining_goals)()
+            remaining_goals = Tail(remaining_goals)()
+            already = FactsCover(M.Pair(goal_fact, EmptyList), facts)()
+            if IdentityCompare(already, M.truth_value)() is M.truth_value:
+                continue
+            goal_match = M.Match(conclusion, goal_fact)()
+            if IdentityCompare(Head(goal_match)(), M.truth_value)() is M.false_value:
+                continue
+            bindings_list = JoinPremises(premises, facts, Tail(goal_match)())()
+            if IdentityCompare(bindings_list, EmptyList)() is M.truth_value:
+                continue
+            facts = M.Pair(goal_fact, facts)
+            fired_rev = M.Pair(M.Pair(rule, M.Pair(Head(bindings_list)(), EmptyList)), fired_rev)
+            fuel = Head(M.NatPred(fuel, M.AllConstructors)())()
+            progressed = M.truth_value
+            if M.NatEq(fuel, M.Zero, M.AllConstructors)() is M.truth_value:
+                remaining_goals = EmptyList
+        return self._goal_pass(Tail(rules)(), facts, fired_rev, cost, progressed, fuel)
 
     def _round(self, rules, facts, fired_rev, cost, progressed, fuel):
         from .proof import JoinPremises, RulePremises
