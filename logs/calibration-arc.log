@@ -21,12 +21,21 @@ post-evaluator: computable premises close cold (DOMAIN_AXIOM) or
                 runs out of theorems.
 
 consequence:    a computable request is a defect signal, not an
-                operator chore. Any residual that survives to
-                `suggest dependencies` on the frozen build is, by the
-                instrument's own filter, something computation could
-                not have closed. On this substrate, evaluation and
-                theorem-need are cleanly separable, and the separation
-                is mechanical.
+                operator chore. A residual that survives to
+                `suggest dependencies` on the frozen build is
+                theorem-shaped OR an evaluator-coverage gap: the
+                filter guarantees only that nothing the wired
+                evaluations (eq over times/plus/minus/pow, divides,
+                coprime, odd/even, comparisons) could decide gets
+                through. A ground decidable predicate OUTSIDE that
+                coverage -- say (prime 91) with no primality edge --
+                would surface looking theorem-shaped while being
+                computation. The operator distinguishes the two by
+                asking whether the premise is ground and decidable;
+                a covered-but-surfaced request is defect eight. On
+                this substrate, evaluation and theorem-need are
+                separable exactly as far as the evaluator's coverage,
+                and the separation is mechanical within it.
 
 Incident, kept verbatim
 -----------------------

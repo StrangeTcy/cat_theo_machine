@@ -31,9 +31,15 @@ provenance-tagged. Purity was never the goal; attribution is.
   DERIVATION_CACHE_HIT — retrieved, never counted as SEARCH_DERIVED.
 - Decidable ground arithmetic never becomes a request. A fully ground
   evaluable obligation is discharged by evaluation (recorded DOMAIN_AXIOM)
-  or refuted (recorded COUNTEREXAMPLE). If a computable request reaches the
-  operator, the evaluator failed and the instrument is broken — that is a
-  defect report, not a teaching opportunity.
+  or refuted (recorded COUNTEREXAMPLE). If a computable request within the
+  evaluator's coverage reaches the operator, the evaluator failed and the
+  instrument is broken — that is a defect report, not a teaching
+  opportunity. Residuals are therefore theorem-shaped or
+  evaluator-coverage gaps; the operator distinguishes them by asking
+  whether the premise is ground and decidable. A ground decidable
+  predicate outside the wired coverage (e.g. primality, absent an edge)
+  surfaces as a request and must be treated as a coverage gap, not
+  taught as a theorem.
 
 ## Where requests come from
 
