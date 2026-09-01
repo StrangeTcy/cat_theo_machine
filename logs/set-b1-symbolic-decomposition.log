@@ -1,0 +1,57 @@
+Set B1 -- symbolic power decomposition
+======================================
+freeze tag: experiment-4-frozen (76f4389); operator: agent (contaminated),
+session script by fable 5.1; nothing taught -- no residual named anything.
+
+Outcome: class A on both goals, cost 334 each (the full library walked
+twice per attempt). Fable's expectation that the ground instance closes
+cold was wrong on this substrate: the evaluator cannot decide
+(eq (pow v 12) ...) because v is symbolic, and no pack rule ever gains a
+foothold -- see the vocabulary finding below. The policy-transfer
+question is moot one level deeper than expected: post-evaluator, the
+ground-factorization policy can no longer even FORM, because its
+training residuals are discharged before they become requests. Regime C
+on this substrate can only be built from non-ground episodes.
+
+FINDING (vocabulary disjointness): the 167 library rules are active,
+tagged, and demonstrably tried -- cost 334 counts them -- but they speak
+the packs' label vocabulary while the research grammar speaks numeral
+and word symbols. No pack conclusion can unify with any sentence-grammar
+term. The library is loaded but mute for research goals until laws are
+taught in the research vocabulary or a bridge is taught between the
+two. 'load theorem packs' therefore contributes nothing to Experiment 4
+beyond declaring itself in the manifest -- which is exactly what the
+manifest is for.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> attempt goal: (eq (pow v 12) (pow (pow v 4) 3))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((eq (pow v 12) (pow (pow v 4) 3))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (eq (pow v 12) (pow (pow v 4) 3))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> attempt goal: (eq (pow v (times k m)) (pow (pow v k) m))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((eq (pow v (times k m)) (pow (pow v k) m))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (eq (pow v (times k m)) (pow (pow v k) m))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye
