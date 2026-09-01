@@ -25,21 +25,53 @@ from .core import (
     IdentityCompare,
     Pair,
     Tail,
+    truth_value,
 )
 from . import machine as M
+from .labels import ExprAddLabel, ExprEqLabel, ExprMulLabel
+
+
+def _is_arithmetic_head(head):
+    is_mul = IdentityCompare(head, ExprMulLabel)()
+    if is_mul is truth_value:
+        return truth_value
+    is_add = IdentityCompare(head, ExprAddLabel)()
+    if is_add is truth_value:
+        return truth_value
+    return IdentityCompare(head, ExprEqLabel)()
 
 
 class CanonicalTerm(Edge):
     """A term with commutative-operator arguments put in machine order.
 
-    Delegates to the machine's CanonicalArithmeticTerm over the full
-    constructor registry; non-commutative compounds keep their head and
-    canonicalize their arguments in place.
+    Only the commutative arithmetic operators (Mul/Add/Eq) are reordered, by
+    delegating that subterm to the machine's CanonicalArithmeticTerm edge,
+    which orders nats by NatLess and atoms by machine order. Every other
+    compound (predicates such as NonNegative/IsReal/Sqrt, surface chains) is
+    preserved structurally -- its head kept and its arguments canonicalized
+    in place -- so non-arithmetic facts are never interned or reshaped.
     """
 
     def __init__(self, term):
-        self.result = M.CanonicalArithmeticTerm(term, M.AllConstructors)()
+        self.result = self._canonical(term)
         super().__init__(inputs=Pair(term, EmptyList), results=self.result)
+
+    def _canonical(self, term):
+        is_pair = M.IsPair(term)()
+        if is_pair is truth_value:
+            head = Head(term)()
+            is_ac = _is_arithmetic_head(head)
+            if is_ac is truth_value:
+                return M.CanonicalArithmeticTerm(term, M.AllConstructors)()
+            return Pair(head, self._canonical_args(Tail(term)()))
+        return term
+
+    def _canonical_args(self, args):
+        empty = IdentityCompare(args, EmptyList)()
+        if empty is truth_value:
+            return EmptyList
+        first = self._canonical(Head(args)())
+        return Pair(first, self._canonical_args(Tail(args)()))
 
     def __call__(self):
         return self.result
