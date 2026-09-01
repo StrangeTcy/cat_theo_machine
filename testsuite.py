@@ -13681,6 +13681,291 @@ class InvarianceFlipOneRefutesParityTest(M.Edge):
         return self.result
 
 
+class ResearchModeTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        self.result = M.truth_value
+        Rmod.EnableResearchMode(graph)
+        if Rmod.IsResearchMode(graph) is not True:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_mode, empty)() is not M.false_value:
+            pass
+        else:
+            self.result = M.false_value
+        Rmod.DisableResearchMode(graph)
+        if Rmod.IsResearchMode(graph) is not False:
+            self.result = M.false_value
+        Rmod.EnableResearchMode(graph)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class DependencyRequestFromResidualTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        parent_goal = M.Pair(Lmod.ExprPowLabel, M.Pair(M.Char("g"), empty))
+        residuals = M.Pair(M.Char("r"), empty)
+        blocking = M.Pair(Lmod.FailureLabel, M.Pair(parent_goal, empty))
+        graph._replace_context(dependency_requests=empty, dependency_graph=empty)
+        suggested = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        self.result = M.truth_value
+        if M.IdentityCompare(graph.dependency_requests, empty)() is not M.false_value:
+            self.result = M.false_value
+        else:
+            req = M.Head(graph.dependency_requests)()
+            chain = M.Tail(req)()
+            depth = 0
+            while M.IdentityCompare(chain, empty)() is M.false_value:
+                depth = depth + 1
+                chain = M.Tail(chain)()
+                if depth > 20:
+                    break
+            if depth != 11:
+                self.result = M.false_value
+            pg = Rmod.DependencyRequestParentGoal(req)()
+            if M.TermEqual(pg, parent_goal)() is M.false_value:
+                self.result = M.false_value
+            res = Rmod.DependencyRequestResiduals(req)()
+            if M.TermEqual(res, residuals)() is M.false_value:
+                self.result = M.false_value
+            kind = Rmod.DependencyRequestKind(req)()
+            formal = Rmod.DependencyRequestFormalStatement(req)()
+            bridge = Rmod.DependencyRequestBridgePlan(req)()
+            if M.IdentityCompare(formal, empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(bridge, empty)() is M.truth_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class CounterfactualUnlockTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        parent_goal = M.Pair(Lmod.GoalLabel, M.Pair(M.Char("pg"), empty))
+        residuals = M.Pair(M.Char("res"), empty)
+        dep_term = M.Pair(Lmod.TheoremKindLabel, M.Pair(M.Char("dep"), empty))
+        ev, goal_closed = Rmod.counterfactual_evaluation(graph, parent_goal, residuals, dep_term)
+        self.result = M.truth_value
+        if ev is None:
+            self.result = M.false_value
+        else:
+            if Rmod.evaluate_unlock(True, M.truth_value, M.Zero, M.Zero) is not True:
+                self.result = M.false_value
+            if M.IsPair(ev)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Head(ev)(), Lmod.CounterfactualEvidenceLabel)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class CircularDependencyRejectionTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        parent_goal = M.Pair(M.Char("goal"), empty)
+        formal_same = parent_goal
+        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Char("b"), empty))
+        ev = Rmod.CounterfactualEvidence(M.Zero, M.Zero, empty, empty, empty, M.false_value)()
+        req1 = Rmod.DependencyRequest(parent_goal, empty, M.Pair(Lmod.FailureLabel, empty), Lmod.TheoremKindLabel, formal_same, bridge, ev, empty, Lmod.PendingStatusLabel, Lmod.DependencyRequestProvenanceLabel)()
+        if Rmod.validate_dependency_request(req1, parent_goal) is not False:
+            self.result = M.false_value
+        else:
+            self.result = M.truth_value
+        formal2 = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Char("f"), empty))
+        req2 = Rmod.DependencyRequest(parent_goal, empty, M.Pair(Lmod.FailureLabel, empty), Lmod.TheoremKindLabel, formal2, empty, ev, empty, Lmod.PendingStatusLabel, Lmod.DependencyRequestProvenanceLabel)()
+        if Rmod.validate_dependency_request(req2, parent_goal) is not False:
+            self.result = M.false_value
+        req3 = Rmod.DependencyRequest(parent_goal, empty, M.Pair(Lmod.FailureLabel, empty), Lmod.TheoremKindLabel, formal2, bridge, ev, empty, Lmod.PendingStatusLabel, Lmod.DependencyRequestProvenanceLabel)()
+        if Rmod.validate_dependency_request(req3, parent_goal) is not True:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class HumanSuppliedProvenanceTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        graph._replace_context(provenance_map=empty, nodes=graph.nodes)
+        theorem_term = M.Pair(Lmod.TheoremKindLabel, M.Pair(M.Char("human-thm"), empty))
+        Rmod.teach_trusted_theorem(graph, theorem_term)
+        self.result = M.truth_value
+        if M.IdentityCompare(graph.provenance_map, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            entry = M.Head(graph.provenance_map)()
+            prov = M.Head(M.Tail(entry)())()
+            if M.IdentityCompare(prov, Lmod.HumanSuppliedTrustedTheoremLabel)() is M.false_value:
+                self.result = M.false_value
+            term = M.Head(entry)()
+            if M.TermEqual(term, theorem_term)() is M.false_value:
+                self.result = M.false_value
+        if M.IsPair(theorem_term)() is M.false_value:
+            if M.IsAtom(theorem_term, _registry(graph))() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class DependencyGraphCheckpointTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .runtime import boot_from_snapshot
+        from .main import _runtime_namespace
+        empty = M.EmptyList
+        graph._replace_context(dependency_requests=empty, dependency_graph=empty, generator_metrics=empty, last_proof=empty, research_residuals=empty, provenance_map=empty, generator_policy=empty, last_residuals=empty, counterfactual_results=empty, research_mode=empty)
+        parent_goal = M.Pair(M.Char("pg"), empty)
+        residuals = M.Pair(M.Char("res"), empty)
+        blocking = M.Pair(Lmod.FailureLabel, empty)
+        Rmod.EnableResearchMode(graph)
+        Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        tmpdir = tempfile.mkdtemp()
+        snap_path = os.path.join(tmpdir, "snapshot.json")
+        try:
+            codec = SnapshotCodec(_runtime_namespace())
+            codec.save(graph, snap_path, progress=M.false_value)
+            runtime2 = boot_from_snapshot(snap_path, _runtime_namespace())
+            g2 = runtime2.graph
+            if M.IdentityCompare(g2.dependency_requests, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(g2.dependency_graph, empty)() is M.truth_value:
+                self.result = M.false_value
+            else:
+                req = M.Head(g2.dependency_requests)()
+                pg = Rmod.DependencyRequestParentGoal(req)()
+                if M.Compare(pg, parent_goal)() is M.false_value:
+                    self.result = M.false_value
+                else:
+                    self.result = M.truth_value
+        except Exception as e:
+            self.result = M.false_value
+        finally:
+            try:
+                shutil.rmtree(tmpdir)
+            except Exception:
+                pass
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class GeneratorPolicyLearningTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        graph._replace_context(generator_metrics=empty, dependency_requests=empty)
+        gen_label = Lmod.GenMissingOperationLabel
+        gen = Rmod.get_generator_by_label(gen_label)
+        if gen is None:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        gen.proposed = 1
+        gen.approved = 1
+        gen.useful = 1
+        gen.used = 1
+        Rmod.update_generator_metrics(graph, gen_label, approved=True, useful=True, used=True, cost_reduction=1.0)
+        if M.IdentityCompare(graph.generator_metrics, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            stats = M.Head(graph.generator_metrics)()
+            if M.IsPair(stats)() is M.false_value:
+                self.result = M.false_value
+            else:
+                self.result = M.truth_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class GeneratorAblationTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        parent_goal = M.Pair(Lmod.ExprPowLabel, M.Pair(M.Char("ablation-goal"), empty))
+        residuals = M.Pair(M.Char("ablation-res"), empty)
+        blocking = M.Pair(Lmod.FailureLabel, empty)
+        graph._replace_context(dependency_requests=empty, dependency_graph=empty)
+        all_results = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        count_all = 0
+        cur = graph.dependency_requests
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            count_all = count_all + 1
+            cur = M.Tail(cur)()
+        original = list(Rmod.ALL_GENERATORS)
+        Rmod.ALL_GENERATORS = [g for g in original if M.IdentityCompare(g.gen_label, Lmod.GenMissingOperationLabel)() is M.false_value]
+        graph._replace_context(dependency_requests=empty, dependency_graph=empty)
+        ablated_results = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        count_ablated = 0
+        cur = graph.dependency_requests
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            count_ablated = count_ablated + 1
+            cur = M.Tail(cur)()
+        Rmod.ALL_GENERATORS = original
+        self.result = M.truth_value
+        if count_all <= count_ablated:
+            if count_all == count_ablated:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class ZeroSuccessorResidualTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        goal = M.Pair(M.Char("zero-goal"), empty)
+        Rmod.set_last_residuals(graph, empty)
+        self.result = M.truth_value
+        residuals = graph.last_residuals
+        if M.IsPair(residuals)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(residuals)(), Lmod.ZeroSuccessorResidualLabel)() is M.false_value:
+            self.result = M.false_value
+        else:
+            inner_goal = M.Head(M.Tail(residuals)())()
+            if M.IdentityCompare(inner_goal, empty)() is M.truth_value:
+                self.result = M.false_value
+        zr = Rmod.ZeroSuccessorResidual(goal)()
+        if M.IdentityCompare(M.Head(zr)(), Lmod.ZeroSuccessorResidualLabel)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
+class ToyDemoGenericTest(M.Edge):
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        parent_goal = M.Pair(Lmod.ParityLabel, M.Pair(M.Pair(M.ExprAddLabel, M.Pair(M.Char("a"), M.Pair(M.Char("b"), empty))), M.Pair(Lmod.EvenLabel, empty)))
+        residuals = M.Pair(M.Char("missing-add-parity"), empty)
+        blocking = M.Pair(Lmod.FailureLabel, M.Pair(M.Char("no-applicable-rule"), empty))
+        graph._replace_context(dependency_requests=empty, dependency_graph=empty)
+        suggested = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        self.result = M.truth_value
+        if M.IdentityCompare(graph.dependency_requests, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            req = M.Head(graph.dependency_requests)()
+            kind = Rmod.DependencyRequestKind(req)()
+            allowed = [Lmod.TheoremKindLabel, Lmod.ObjectKindLabel, Lmod.RepresentationKindLabel, Lmod.TransformationKindLabel, Lmod.TacticKindLabel, Lmod.DomainPropertyKindLabel]
+            found_allowed = False
+            for ak in allowed:
+                if M.IdentityCompare(kind, ak)() is M.truth_value:
+                    found_allowed = True
+            if not found_allowed:
+                self.result = M.false_value
+            dep_term = M.Pair(Lmod.ParityLabel, M.Pair(M.Char("add-parity-thm"), empty))
+            ev, closed = Rmod.counterfactual_evaluation(graph, parent_goal, residuals, dep_term)
+            if ev is None:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+    def __call__(self):
+        return self.result
+
 def _set_registry(graph, registry):
     graph._replace_context(constructors=registry)
     return registry
@@ -15438,6 +15723,26 @@ def install_default_tests(graph):
             M.truth_value,
         )
 
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "research_mode_test", empty, ResearchModeTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "dependency_request_from_residual_test", empty, DependencyRequestFromResidualTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "counterfactual_unlock_test", empty, CounterfactualUnlockTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "circular_dependency_rejection_test", empty, CircularDependencyRejectionTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "human_supplied_provenance_test", empty, HumanSuppliedProvenanceTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "dependency_graph_checkpoint_test", empty, DependencyGraphCheckpointTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "generator_policy_learning_test", empty, GeneratorPolicyLearningTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "generator_ablation_test", empty, GeneratorAblationTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "zero_successor_residual_test", empty, ZeroSuccessorResidualTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "toy_demo_generic_test", empty, ToyDemoGenericTest(graph), M.truth_value)
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()
