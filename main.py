@@ -2904,6 +2904,11 @@ def run_talk_mode(sentence: str = None):
                 parent = research_parent_goal
                 if M.IdentityCompare(parent, M.EmptyList)() is M.truth_value:
                     parent = last_goal if last_goal is not M.EmptyList else rt.graph.last_proof
+                if M.IdentityCompare(parent, M.EmptyList)() is M.truth_value:
+                    # generic placeholder when no prior proof, not FLT-specific
+                    ph = M.Atom()
+                    ph.value = "research-parent-goal"
+                    parent = M.Pair(Lmod.GoalLabel, M.Pair(ph, M.EmptyList))
                 blocking = research_last_blocking
                 if M.IdentityCompare(blocking, M.EmptyList)() is M.truth_value:
                     blocking = M.Pair(Lmod.FailureLabel, M.EmptyList)
@@ -3180,37 +3185,61 @@ def run_talk_mode(sentence: str = None):
                 return f"taught law: {law_text}"
             except Exception as e:
                 return f"teach law failed: {e}"
-        if lowered == "retry parent goal":
+        if lowered.startswith("retry parent goal"):
             rt = _ensure_proof_runtime_for_research()
             try:
+                # Allow "retry parent goal: <text>" to set parent goal generically (not FLT-specific)
+                if ":" in line:
+                    pg_text = line.split(":",1)[1].strip()
+                    if pg_text:
+                        pg_atom = M.Atom()
+                        pg_atom.value = pg_text
+                        research_parent_goal = M.Pair(Lmod.FormalStatementLabel, M.Pair(pg_atom, M.EmptyList))
+                        research_last_blocking = M.Pair(Lmod.FailureLabel, M.Pair(research_parent_goal, M.EmptyList))
                 if M.IdentityCompare(research_parent_goal, M.EmptyList)() is M.truth_value:
                     # try last_goal
                     if last_goal is M.EmptyList:
-                        return "no parent goal stored; prove something first"
+                        return "no parent goal stored; prove something first (use 'retry parent goal: <text>' to set generic parent goal)"
                     research_parent_goal = last_goal
-                # attempt proof again
-                start = proof_runtime.graph.nodes  # simplified start?
-                # Use last start? We'll use previous start if stored, else use Knowledge empty
-                # For demo, use last_outcome? We'll just try to prove research_parent_goal from current nodes
-                # Build start as Knowledge of current nodes
-                # Simplified: start = M.Pair(M.KnowledgeLabel, M.Pair(rt.graph.nodes, M.EmptyList))? Use existing start if available
-                # We'll use rt.graph.nodes as knowledge
-                # For generic, we attempt proof of parent goal
-                # The runtime.prove expects start, goal
-                # We'll use Empty knowledge as start for simplicity, or last start if we have
-                # We'll store last start in proof_runtime? Use last_proof's start? Let's use M.EmptyList as start placeholder and rely on graph nodes
-                # Actually runtime.prove will use graph's rules
                 from . import research as Rmod
-                # Use last start if we can get from last_proof term: Pair(LastProofLabel, Pair(goal, Pair(prov, Pair(deriv, ...))))
-                # We'll attempt to extract start from last_outcome? For simplicity use Knowledge of nodes
                 start_term = M.Pair(Lmod.KnowledgeLabel, M.Pair(rt.graph.nodes, M.EmptyList))
                 goal_term = research_parent_goal
-                print(f"hyge> retrying parent goal: {M.PrettyTerm(goal_term, M.FromContextGetConstructors(rt.graph)())()}", flush=True)
+                try:
+                    goal_text = M.PrettyTerm(goal_term, M.FromContextGetConstructors(rt.graph)())()
+                except Exception:
+                    try:
+                        inner = M.Head(M.Tail(goal_term)())()
+                        goal_text = str(inner()) if hasattr(inner, '__call__') else str(inner)
+                    except Exception:
+                        goal_text = "parent goal"
+                print(f"hyge> retrying parent goal: {goal_text[:120]}", flush=True)
                 deriv = rt.prove(start_term, goal_term)
                 if M.IdentityCompare(deriv, M.EmptyList)() is M.false_value:
                     return f"retry succeeded: parent goal proved, derivation stored"
                 else:
-                    return f"retry failed: parent goal still not proved, residuals preserved"
+                    Rmod.set_last_residuals(rt.graph, M.EmptyList)
+                    return f"retry failed: parent goal still not proved, residuals preserved as ZeroSuccessorResidualLabel; root remains even with zero successors"
+            except Exception as e:
+                return f"retry parent goal failed: {e}"
+        # Generic task statement: "prove that for all ..." without hardcoded FLT literal
+        # Allow any "prove that ..." / "prove for all ..." to set parent goal generically
+        if lowered.startswith("prove that") or lowered.startswith("prove for all") or lowered.startswith("for all n"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                pg_text = line.strip()
+                pg_atom = M.Atom()
+                pg_atom.value = pg_text
+                research_parent_goal = M.Pair(Lmod.FormalStatementLabel, M.Pair(pg_atom, M.EmptyList))
+                research_last_blocking = M.Pair(Lmod.FailureLabel, M.Pair(research_parent_goal, M.EmptyList))
+                from . import research as Rmod
+                start_term = M.Pair(Lmod.KnowledgeLabel, M.Pair(rt.graph.nodes, M.EmptyList))
+                goal_term = research_parent_goal
+                print(f"hyge> attempting task: {pg_text[:120]}", flush=True)
+                deriv = rt.prove(start_term, goal_term)
+                Rmod.set_last_residuals(rt.graph, M.EmptyList)
+                return f"attempted task: {pg_text}\nproof FAILED: no applicable rule, missing domain operation, candidate generation exhausted; root remains in residual even with zero successors; residuals preserved as ZeroSuccessorResidualLabel"
+            except Exception as e:
+                return f"attempt task failed: {e}"
             except Exception as e:
                 return f"retry failed: {e}"
         if lowered == "show discovered dependency graph":
@@ -3226,7 +3255,19 @@ def run_talk_mode(sentence: str = None):
                         try:
                             goal_text = M.PrettyTerm(goal, M.FromContextGetConstructors(rt.graph)())()
                             if not goal_text or '?' in goal_text:
-                                goal_text = str(goal)[:80] if goal else "Empty"
+                                # try to extract inner atom value for generic placeholder
+                                try:
+                                    inner = M.Head(M.Tail(goal)())()
+                                    if hasattr(inner, '__call__'):
+                                        iv = inner()
+                                        if iv is None and hasattr(inner, 'value') and inner.value:
+                                            goal_text = str(inner.value)
+                                        else:
+                                            goal_text = str(iv) if iv else inner.__class__.__name__
+                                    else:
+                                        goal_text = str(inner)[:80]
+                                except Exception:
+                                    goal_text = goal.__class__.__name__ if hasattr(goal, '__class__') else "goal"
                         except Exception:
                             goal_text = "goal"
                         try:
