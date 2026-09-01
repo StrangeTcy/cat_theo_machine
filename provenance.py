@@ -402,10 +402,12 @@ class GridEvalTerm(Edge):
         super().__init__(inputs=Pair(term, Pair(bindings, EmptyList)), results=self.result)
 
     def _eval(self, term, bindings):
-        if IsPair(term)() is not truth_value:
-            leaf_value = self._leaf(term, bindings)
-            return leaf_value
+        is_pair = IsPair(term)()
+        if is_pair is truth_value:
+            return self._eval_compound(term, bindings)
+        return self._leaf(term, bindings)
 
+    def _eval_compound(self, term, bindings):
         head = Head(term)()
         args = Tail(term)()
         left_term = Head(args)()
@@ -485,23 +487,26 @@ class GridGoalPolynomial(Edge):
     """
 
     def __init__(self, goal):
-        if IsPair(goal)() is not truth_value:
-            self.result = EmptyList
-        else:
+        is_pair = IsPair(goal)()
+        if is_pair is truth_value:
             head = Head(goal)()
             args = Tail(goal)()
             if IdentityCompare(head, NonNegativeLabel)() is truth_value:
                 self.result = Head(args)()
             else:
-                if IdentityCompare(head, ExprLtLabel)() is truth_value:
+                is_less = IdentityCompare(head, ExprLtLabel)()
+                if is_less is truth_value:
                     left = Head(args)()
                     right = Head(Tail(args)())()
-                    if IdentityCompare(left, Zero)() is truth_value:
+                    left_is_zero = IdentityCompare(left, Zero)()
+                    if left_is_zero is truth_value:
                         self.result = right
                     else:
                         self.result = EmptyList
                 else:
                     self.result = EmptyList
+        else:
+            self.result = EmptyList
         super().__init__(inputs=Pair(goal, EmptyList), results=self.result)
 
     def __call__(self):
