@@ -2478,6 +2478,142 @@ class ClaimStoreLabel(ConstructorLabel):
     pass
 
 
+class WordLabel(ConstructorLabel):
+    pass
+
+
+class ConceptLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceWordLabel(ConstructorLabel):
+    pass
+
+
+class IsALabel(ConstructorLabel):
+    pass
+
+
+class PartOfLabel(ConstructorLabel):
+    pass
+
+
+class WornByLabel(ConstructorLabel):
+    pass
+
+
+class LocatedAtLabel(ConstructorLabel):
+    pass
+
+
+class EvidenceForLabel(ConstructorLabel):
+    pass
+
+
+class SupportedLabel(ConstructorLabel):
+    pass
+
+
+class RoleOfLabel(ConstructorLabel):
+    pass
+
+
+class CanAccessLabel(ConstructorLabel):
+    pass
+
+
+class ResponsibleForLabel(ConstructorLabel):
+    pass
+
+
+class OpportunityLabel(ConstructorLabel):
+    pass
+
+
+class ModifierOfLabel(ConstructorLabel):
+    pass
+
+
+class HasPropertyLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceNumberLabel(ConstructorLabel):
+    pass
+
+
+class PluralLabel(ConstructorLabel):
+    pass
+
+
+class UndefinedConceptLabel(ConstructorLabel):
+    pass
+
+
+class UngroundedModifierLabel(ConstructorLabel):
+    pass
+
+
+class NoUsageExampleLabel(ConstructorLabel):
+    pass
+
+
+class NoParentLabel(ConstructorLabel):
+    pass
+
+
+class DanglingReferenceLabel(ConstructorLabel):
+    pass
+
+
+class MissingRenderLawLabel(ConstructorLabel):
+    pass
+
+
+class ConceptCausesLabel(ConstructorLabel):
+    pass
+
+
+class ResponsibilityRoleLabel(ConstructorLabel):
+    pass
+
+
+class WearableObjectLabel(ConstructorLabel):
+    pass
+
+
+class HouseholdRoleLabel(ConstructorLabel):
+    pass
+
+
+class WeatherEventLabel(ConstructorLabel):
+    pass
+
+
+class WetDirtLabel(ConstructorLabel):
+    pass
+
+
+class DirtLabel(ConstructorLabel):
+    pass
+
+
+class PlaceLabel(ConstructorLabel):
+    pass
+
+
+class PersonLabel(ConstructorLabel):
+    pass
+
+
+class ConceptEventLabel(ConstructorLabel):
+    pass
+
+
+class GapRecordLabel(ConstructorLabel):
+    pass
+
+
 class CorrespondenceLawLabel(ConstructorLabel):
     pass
 
@@ -2502,6 +2638,40 @@ CausesLabel = CausesLabel()
 ParticipatesInLabel = ParticipatesInLabel()
 OccursAtLabel = OccursAtLabel()
 ClaimStoreLabel = ClaimStoreLabel()
+WordLabel = WordLabel()
+ConceptLabel = ConceptLabel()
+SurfaceWordLabel = SurfaceWordLabel()
+IsALabel = IsALabel()
+PartOfLabel = PartOfLabel()
+WornByLabel = WornByLabel()
+LocatedAtLabel = LocatedAtLabel()
+EvidenceForLabel = EvidenceForLabel()
+SupportedLabel = SupportedLabel()
+RoleOfLabel = RoleOfLabel()
+CanAccessLabel = CanAccessLabel()
+ResponsibleForLabel = ResponsibleForLabel()
+OpportunityLabel = OpportunityLabel()
+ModifierOfLabel = ModifierOfLabel()
+HasPropertyLabel = HasPropertyLabel()
+SurfaceNumberLabel = SurfaceNumberLabel()
+PluralLabel = PluralLabel()
+UndefinedConceptLabel = UndefinedConceptLabel()
+UngroundedModifierLabel = UngroundedModifierLabel()
+NoUsageExampleLabel = NoUsageExampleLabel()
+NoParentLabel = NoParentLabel()
+DanglingReferenceLabel = DanglingReferenceLabel()
+MissingRenderLawLabel = MissingRenderLawLabel()
+ConceptCausesLabel = ConceptCausesLabel()
+ResponsibilityRoleLabel = ResponsibilityRoleLabel()
+WearableObjectLabel = WearableObjectLabel()
+HouseholdRoleLabel = HouseholdRoleLabel()
+WeatherEventLabel = WeatherEventLabel()
+WetDirtLabel = WetDirtLabel()
+DirtLabel = DirtLabel()
+PlaceLabel = PlaceLabel()
+PersonLabel = PersonLabel()
+ConceptEventLabel = ConceptEventLabel()
+GapRecordLabel = GapRecordLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
 
 

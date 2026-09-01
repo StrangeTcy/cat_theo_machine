@@ -120,6 +120,30 @@ from .labels import (
     EvaluateProblemLabel,
     VerticesLabel,
     WholeLabel,
+    WordLabel,
+    IsALabel,
+    PartOfLabel,
+    WornByLabel,
+    LocatedAtLabel,
+    EvidenceForLabel,
+    SupportedLabel,
+    RoleOfLabel,
+    CanAccessLabel,
+    ResponsibleForLabel,
+    OpportunityLabel,
+    NotLabel,
+    ConceptLabel,
+    SurfaceWordLabel,
+    ModifierOfLabel,
+    HasPropertyLabel,
+    SurfaceNumberLabel,
+    PluralLabel,
+    UndefinedConceptLabel,
+    UngroundedModifierLabel,
+    NoUsageExampleLabel,
+    NoParentLabel,
+    DanglingReferenceLabel,
+    MissingRenderLawLabel,
 )
 from .logic import false_value, truth_value
 from .math.peano import NatEq, NatRepOf
@@ -860,6 +884,54 @@ class PrettyTerm(Edge):
             problem = Head(tail)()
             tag = Head(Tail(tail)())()
             return self._geometry_fact_text(problem, tag)
+        if IdentityCompare(head, WordLabel)() is truth_value:
+            return "Word(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ConceptLabel)() is truth_value:
+            return "Concept(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, SurfaceWordLabel)() is truth_value:
+            return "SurfaceWord(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, IsALabel)() is truth_value:
+            return "IsA(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, PartOfLabel)() is truth_value:
+            return "PartOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, WornByLabel)() is truth_value:
+            return "WornBy(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, LocatedAtLabel)() is truth_value:
+            return "LocatedAt(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, EvidenceForLabel)() is truth_value:
+            return "EvidenceFor(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, SupportedLabel)() is truth_value:
+            return "Supported(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, RoleOfLabel)() is truth_value:
+            return "RoleOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, CanAccessLabel)() is truth_value:
+            return "CanAccess(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ResponsibleForLabel)() is truth_value:
+            return "ResponsibleFor(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, OpportunityLabel)() is truth_value:
+            return "Opportunity(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NotLabel)() is truth_value:
+            return "Not(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ModifierOfLabel)() is truth_value:
+            return "ModifierOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, HasPropertyLabel)() is truth_value:
+            return "HasProperty(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, SurfaceNumberLabel)() is truth_value:
+            return "SurfaceNumber(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, PluralLabel)() is truth_value:
+            return "Plural"
+        if IdentityCompare(head, UndefinedConceptLabel)() is truth_value:
+            return "UndefinedConcept(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, UngroundedModifierLabel)() is truth_value:
+            return "UngroundedModifier(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoUsageExampleLabel)() is truth_value:
+            return "NoUsageExample(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoParentLabel)() is truth_value:
+            return "NoParent(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, DanglingReferenceLabel)() is truth_value:
+            return "DanglingReference(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, MissingRenderLawLabel)() is truth_value:
+            return "MissingRenderLaw(" + self._show_args(tail) + ")"
         if IdentityCompare(head, MachineContextLabel)() is truth_value:
             return "Context(...)"
         return None
