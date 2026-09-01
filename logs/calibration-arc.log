@@ -1,0 +1,73 @@
+Calibration arc -- the scientific product of the experiment ladder
+===================================================================
+freeze tag: experiment-4-frozen (fe26dc8)
+
+This record stands independent of whatever Experiment 4 produces.
+
+The arc
+-------
+
+pre-evaluator:  computable premises surfaced as requests
+                (instrument incomplete). Every request the ladder
+                produced -- (coprime 8 15), (eq 21 (times 3 7)),
+                (odd 4), (divides 3 14) -- was a decidable evaluation,
+                not a theorem. Headline then: the first thing this
+                machine runs out of is arithmetic, not number theory.
+
+post-evaluator: computable premises close cold (DOMAIN_AXIOM) or
+                refute (COUNTEREXAMPLE); only genuine theorem-shaped
+                gaps reach the request compiler. Headline now: the
+                machine does not run out of arithmetic at all -- it
+                runs out of theorems.
+
+consequence:    a computable request is a defect signal, not an
+                operator chore. Any residual that survives to
+                `suggest dependencies` on the frozen build is, by the
+                instrument's own filter, something computation could
+                not have closed. On this substrate, evaluation and
+                theorem-need are cleanly separable, and the separation
+                is mechanical.
+
+Incident, kept verbatim
+-----------------------
+
+SinglePremiseGoalSeededTest was authored on the goal (congruent 9 2 5)
+with the law (divides ?m (minus ?a ?b)) -> (congruent ?a ?b ?m). The
+goal is false: 9 - 2 = 7 and 5 does not divide 7. When the ground
+evaluator landed, the test failed -- not by crash but by refutation:
+the machine evaluated (divides 5 (minus 9 2)) to false, recorded it
+COUNTEREXAMPLE, and declined to request it. The test's author had
+asserted a falsehood; the instrument contradicted its own test suite
+on a matter of arithmetic fact. The test now runs on symbolic
+constants and the incident stays here: the evaluator is a decision
+procedure, not a lookup dressed up.
+
+Defect ledger, one line each, all found by running
+--------------------------------------------------
+
+1. prefix-only premise matching -- a rule with its failing premise
+   first produced no foothold (found by the coprime ladder)
+2. fired instantiations shadowed genuine partial matches for other
+   instantiations (found by the second ladder problem)
+3. attempt records lacked the goal-to-rule substitution -- schematic
+   holes instead of concrete premises (found by the Step 5 probe)
+4. fuel bounded rounds, not work -- one generative law exhausted the
+   host stack inside a round (found by teaching Divides)
+5. one-premise rules blocked on their only premise had no foothold --
+   conclusion-to-goal unification now is the foothold (found by
+   teaching Congruent)
+6. conclusions with free variables could never fire forward -- the
+   bounded search gained goal-directed firing (found by exponent
+   algebra)
+7. host runtime handle guarded with IdentityCompare -- crashed on the
+   first real `load theorem packs` (found by the freeze manifest run;
+   tag removed before first use and re-cut on the fix)
+
+Standing state at the freeze
+----------------------------
+
+31 research tests passing; both learned policies through their
+three-state ablation cycles; blank controls current with the final
+matcher semantics; cold-start manifest with 167 library rules saved
+at freeze time (logs/experiment-4-manifest.log) and confirmed to
+reproduce byte-for-byte from a cold interpreter on the frozen tag.
