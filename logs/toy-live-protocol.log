@@ -73,7 +73,7 @@ DependencySuppliedByTheorem: (rule ((rel ?u ?v)) (mark ?v))
 
 you> show intervention episodes
 hyge> intervention episodes (newest first):
-[0] residual=(mark b) outcome=DemonstratedUsefulDependency
+[0] residual=(mark _0) outcome=DemonstratedUsefulDependency
 
 you> assume axiom: (link c d)
 hyge> axiom recorded with provenance DOMAIN_AXIOM: (link c d)
@@ -100,8 +100,8 @@ status=DemonstratedUsefulDependency; intervention episode recorded; `retry paren
 
 you> show learned policies
 hyge> learned dependency policies:
-residual pattern: (mark _2)
-helpful rule shape: (rule ((_3 _0 _1)) (mark _1))
+residual pattern: (mark _0)
+helpful rule shape: (rule ((_2 _1 _0)) (mark _0))
 supporting episodes: 2
 
 you> assume axiom: (ring e f)
@@ -118,12 +118,12 @@ the root remains in the residual record even with zero successors; `suggest depe
 you> suggest dependencies
 hyge> dependency requests from attempted rules:
   [2] status=ObservedMissingPremise kind=THEOREM need=(Need (mark f))
-[learned policy, support 2 episodes] predicts helpful rule shape: (rule ((?_ ?_ ?_)) (mark ?_))
+[learned policy, support 2 episodes] predicts helpful rule shape: (rule ((?_ ?_ f)) (mark f))
 
 you> show intervention episodes
 hyge> intervention episodes (newest first):
-[0] residual=(mark d) outcome=DemonstratedUsefulDependency
-[1] residual=(mark b) outcome=DemonstratedUsefulDependency
+[0] residual=(mark _0) outcome=DemonstratedUsefulDependency
+[1] residual=(mark _0) outcome=DemonstratedUsefulDependency
 
 you> reset learned memory
 hyge> learned memory reset: intervention episodes and dependency policies removed. Policy predictions disappear with them.

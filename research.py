@@ -500,33 +500,8 @@ class AlphaNormalizeTerm(Edge):
         self.result = self._walk(term, substitution, EmptyList, M.Zero)
         super().__init__(inputs=M.Pair(term, M.Pair(substitution, EmptyList)), results=self.result)
 
-    def _walk(self, term, substitution, env, next_index):
-        if IdentityCompare(term, EmptyList)() is M.truth_value:
-            return M.Pair(EmptyList, M.Pair(env, M.Pair(next_index, EmptyList)))
-        if IsVarPatternTerm(term)() is M.truth_value:
-            seen = SubstLookup(term, env)()
-            if IdentityCompare(seen, EmptyList)() is M.false_value:
-                return M.Pair(seen, M.Pair(env, M.Pair(next_index, EmptyList)))
-            placeholder = M.Pair(Lmod.AlphaPlaceholderLabel, next_index)
-            new_env = M.Pair(M.Pair(term, M.Pair(placeholder, EmptyList)), env)
-            next_pair = M.Succ(next_index, M.AllConstructors)()
-            return M.Pair(
-                placeholder,
-                M.Pair(new_env, M.Pair(Head(next_pair)(), EmptyList)),
-            )
-        if M.IsPair(term)() is M.truth_value:
-            head_result = self._walk(Head(term)(), substitution, env, next_index)
-            norm_head = Head(head_result)()
-            env1 = Head(Tail(head_result)())()
-            index1 = Head(Tail(Tail(head_result)())())()
-            tail_result = self._walk(Tail(term)(), substitution, env1, index1)
-            norm_tail = Head(tail_result)()
-            env2 = Head(Tail(tail_result)())()
-            index2 = Head(Tail(Tail(tail_result)())())()
-            return M.Pair(M.Pair(norm_head, norm_tail), M.Pair(env2, M.Pair(index2, EmptyList)))
-        bound = SubstLookup(term, substitution)()
-        if IdentityCompare(bound, EmptyList)() is M.truth_value:
-            return M.Pair(term, M.Pair(env, M.Pair(next_index, EmptyList)))
+    def _rename(self, term, env, next_index):
+        """One renameable occurrence: reuse its placeholder or mint one."""
         seen = SubstLookup(term, env)()
         if IdentityCompare(seen, EmptyList)() is M.false_value:
             return M.Pair(seen, M.Pair(env, M.Pair(next_index, EmptyList)))
@@ -537,6 +512,28 @@ class AlphaNormalizeTerm(Edge):
             placeholder,
             M.Pair(new_env, M.Pair(Head(next_pair)(), EmptyList)),
         )
+
+    def _walk(self, term, substitution, env, next_index):
+        if IdentityCompare(term, EmptyList)() is M.truth_value:
+            return M.Pair(EmptyList, M.Pair(env, M.Pair(next_index, EmptyList)))
+        if IsVarPatternTerm(term)() is M.truth_value:
+            return self._rename(term, env, next_index)
+        bound = SubstLookup(term, substitution)()
+        if IdentityCompare(bound, EmptyList)() is M.false_value:
+            # A subterm the substitution marks is renamed as one unit,
+            # whether it is an atom or a compound value.
+            return self._rename(term, env, next_index)
+        if M.IsPair(term)() is M.truth_value:
+            head_result = self._walk(Head(term)(), substitution, env, next_index)
+            norm_head = Head(head_result)()
+            env1 = Head(Tail(head_result)())()
+            index1 = Head(Tail(Tail(head_result)())())()
+            tail_result = self._walk(Tail(term)(), substitution, env1, index1)
+            norm_tail = Head(tail_result)()
+            env2 = Head(Tail(tail_result)())()
+            index2 = Head(Tail(Tail(tail_result)())())()
+            return M.Pair(M.Pair(norm_head, norm_tail), M.Pair(env2, M.Pair(index2, EmptyList)))
+        return M.Pair(term, M.Pair(env, M.Pair(next_index, EmptyList)))
 
     def __call__(self):
         return self.result
@@ -1845,6 +1842,63 @@ class FormalRuleAlpha(Edge):
         return self.result
 
 
+class BindingValueMarks(Edge):
+    """Self-keyed marks for every value a binding chain carries.
+
+    AlphaNormalizeTerm renames any subterm its substitution marks; keying
+    each bound value by itself marks exactly the objects the match was
+    about, atoms and compounds alike.
+    """
+
+    def __init__(self, bindings):
+        self.result = self._walk(bindings)
+        super().__init__(inputs=M.Pair(bindings, EmptyList), results=self.result)
+
+    def _walk(self, bindings):
+        if IdentityCompare(bindings, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(bindings)()
+        value = BindingValue(entry)()
+        return M.Pair(M.Pair(value, M.Pair(value, EmptyList)), self._walk(Tail(bindings)()))
+
+    def __call__(self):
+        return self.result
+
+
+class EpisodeFeatures(Edge):
+    """Residual and rule shape normalized together, so they co-refer.
+
+    The taught rule's conclusion is matched against the residual it
+    discharged; the rule is instantiated under that match; residual and
+    instance are alpha-normalized in one pass with the matched objects
+    marked. The object the missing premise was about becomes one shared
+    placeholder in both -- which is what lets a learned policy later
+    instantiate a held-out constant into its predicted rule.
+
+    Result: Pair(residual features, Pair(rule shape, EmptyList)). When
+    the conclusion does not match the residual, the features fall back
+    to the unlinked forms.
+    """
+
+    def __init__(self, formal_term, residual):
+        match = M.Match(FormalRuleConclusion(formal_term)(), residual)()
+        if IdentityCompare(Head(match)(), M.truth_value)() is M.truth_value:
+            bindings = Tail(match)()
+            instance = ApplyBindings(formal_term, bindings)()
+            marks = BindingValueMarks(bindings)()
+            combined = AlphaNormalized(M.Pair(residual, instance), marks)()
+            self.result = M.Pair(Head(combined)(), M.Pair(Tail(combined)(), EmptyList))
+        else:
+            self.result = M.Pair(
+                AlphaNormalized(residual, EmptyList)(),
+                M.Pair(FormalRuleAlpha(formal_term)(), EmptyList),
+            )
+        super().__init__(inputs=M.Pair(formal_term, M.Pair(residual, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class PremiseRestatesGoal(Edge):
     """True when any premise contains the parent goal: the proof would be circular."""
 
@@ -2588,12 +2642,13 @@ def teach_dependency(graph, dep_id, formal_term, start_facts, goal_facts, rules,
             bump_generator_metric(graph, Lmod.UsedCountLabel)
         formal = DependencyRequestFormalStatement(req)()
         residual = Head(Tail(formal)())()
+        features = EpisodeFeatures(formal_term, residual)()
         cost_before = Head(Tail(ev)())()
         cost_after = Head(Tail(Tail(ev)())())()
         newly_enabled = Head(Tail(Tail(Tail(ev)())())())()
         episode = InterventionEpisode(
-            residual,
-            FormalRuleAlpha(formal_term)(),
+            Head(features)(),
+            Head(Tail(features)())(),
             newly_enabled,
             cost_before,
             cost_after,

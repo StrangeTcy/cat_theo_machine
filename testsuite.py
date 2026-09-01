@@ -14141,6 +14141,14 @@ class LearningAfterInterventionTest(M.Edge):
             shape = M.Head(M.Tail(M.Tail(prediction)())())()
             if Rmod.IsFormalRule(shape)() is M.false_value:
                 self.result = M.false_value
+            else:
+                # Transfer, not just recall: the held-out constant is
+                # instantiated into the predicted conclusion, because the
+                # episode features kept residual and rule shape coreferent.
+                predicted_conclusion = Rmod.FormalRuleConclusion(shape)()
+                expected = T.term(T.sym("mark"), T.sym("f"))
+                if M.Compare(predicted_conclusion, expected)() is M.false_value:
+                    self.result = M.false_value
         Rmod.reset_learned_memory(graph)
         if M.IdentityCompare(graph.dependency_policies, empty)() is M.false_value:
             self.result = M.false_value
