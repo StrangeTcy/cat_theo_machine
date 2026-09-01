@@ -2530,6 +2530,18 @@ class ModifierOfLabel(ConstructorLabel):
     pass
 
 
+class HasPropertyLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceNumberLabel(ConstructorLabel):
+    pass
+
+
+class PluralLabel(ConstructorLabel):
+    pass
+
+
 class UndefinedConceptLabel(ConstructorLabel):
     pass
 
@@ -2635,6 +2647,9 @@ CanAccessLabel = CanAccessLabel()
 ResponsibleForLabel = ResponsibleForLabel()
 OpportunityLabel = OpportunityLabel()
 ModifierOfLabel = ModifierOfLabel()
+HasPropertyLabel = HasPropertyLabel()
+SurfaceNumberLabel = SurfaceNumberLabel()
+PluralLabel = PluralLabel()
 UndefinedConceptLabel = UndefinedConceptLabel()
 UngroundedModifierLabel = UngroundedModifierLabel()
 NoUsageExampleLabel = NoUsageExampleLabel()

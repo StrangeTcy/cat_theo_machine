@@ -16940,28 +16940,43 @@ class RuleConstructors(M.Edge):
         )
         known = M.Pair(
             M.Pair(M.Char("modifierof"), M.Pair(Lmod.ModifierOfLabel, M.EmptyList)),
-            M.Pair(
-                M.Pair(M.Char("undefinedconcept"), M.Pair(Lmod.UndefinedConceptLabel, M.EmptyList)),
-                M.Pair(
-                    M.Pair(M.Char("ungroundedmodifier"), M.Pair(Lmod.UngroundedModifierLabel, M.EmptyList)),
-                    M.Pair(
-                        M.Pair(M.Char("nousageexample"), M.Pair(Lmod.NoUsageExampleLabel, M.EmptyList)),
-                        M.Pair(
-                            M.Pair(M.Char("noparent"), M.Pair(Lmod.NoParentLabel, M.EmptyList)),
-                            M.Pair(
-                                M.Pair(M.Char("danglingreference"), M.Pair(Lmod.DanglingReferenceLabel, M.EmptyList)),
-                                M.Pair(
-                                    M.Pair(
-                                        M.Char("missingrenderlaw"),
-                                        M.Pair(Lmod.MissingRenderLawLabel, M.EmptyList),
-                                    ),
-                                    known,
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("hasproperty"), M.Pair(Lmod.HasPropertyLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("surfacenumber"), M.Pair(Lmod.SurfaceNumberLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("plural"), M.Pair(Lmod.PluralLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("undefinedconcept"), M.Pair(Lmod.UndefinedConceptLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("ungroundedmodifier"), M.Pair(Lmod.UngroundedModifierLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("nousageexample"), M.Pair(Lmod.NoUsageExampleLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("noparent"), M.Pair(Lmod.NoParentLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("danglingreference"), M.Pair(Lmod.DanglingReferenceLabel, M.EmptyList)),
+            known,
+        )
+        known = M.Pair(
+            M.Pair(M.Char("missingrenderlaw"), M.Pair(Lmod.MissingRenderLawLabel, M.EmptyList)),
+            known,
         )
         term_agenda = M.EmptyList
         agenda = GraphNodes(graph_version)()
@@ -17063,6 +17078,43 @@ class RuleConstructors(M.Edge):
                 term_agenda = M.Tail(term_agenda)()
                 if M.IsPair(term)() is M.truth_value:
                     term_head = M.Head(term)()
+                    if M.Compare(
+                        term_head, Lmod.WordLabel,
+                    )() is M.truth_value:
+                        word_args = M.Tail(term)()
+                        if M.IdentityCompare(
+                            word_args, M.EmptyList,
+                        )() is M.false_value:
+                            if M.IdentityCompare(
+                                M.Tail(word_args)(), M.EmptyList,
+                            )() is M.false_value:
+                                word_surface = M.Head(word_args)()
+                                word_concept = M.Head(
+                                    M.Tail(word_args)(),
+                                )()
+                                word_found = M.false_value
+                                word_map_scan = known
+                                while M.IdentityCompare(
+                                    word_map_scan, M.EmptyList,
+                                )() is M.false_value:
+                                    if M.Compare(
+                                        M.Head(M.Head(word_map_scan)())(),
+                                        word_surface,
+                                    )() is M.truth_value:
+                                        word_found = M.truth_value
+                                        word_map_scan = M.EmptyList
+                                    else:
+                                        word_map_scan = M.Tail(word_map_scan)()
+                                if M.IdentityCompare(
+                                    word_found, M.false_value,
+                                )() is M.truth_value:
+                                    known = M.Pair(
+                                        M.Pair(
+                                            word_surface,
+                                            M.Pair(word_concept, M.EmptyList),
+                                        ),
+                                        known,
+                                    )
                     if M.IsPair(term_head)() is M.false_value:
                         if M.IdentityCompare(
                             term_head, M.VarTag,
@@ -17502,6 +17554,20 @@ class ParseRuleText(M.Edge):
                                     ground_arguments, M.truth_value,
                                 )() is M.truth_value:
                                     argument_value = M.Char(token())
+                                    constructor_scan = constructors
+                                    while M.IdentityCompare(
+                                        constructor_scan, empty,
+                                    )() is M.false_value:
+                                        constructor_entry = M.Head(constructor_scan)()
+                                        if M.Compare(
+                                            M.Head(constructor_entry)(), token,
+                                        )() is M.truth_value:
+                                            argument_value = M.Head(
+                                                M.Tail(constructor_entry)(),
+                                            )()
+                                            constructor_scan = empty
+                                        else:
+                                            constructor_scan = M.Tail(constructor_scan)()
                                 else:
                                     is_variable = M.false_value
                                     variable_name_scan = variable_names
@@ -17551,6 +17617,20 @@ class ParseRuleText(M.Edge):
                                             )
                                     else:
                                         argument_value = M.Char(token())
+                                        constructor_scan = constructors
+                                        while M.IdentityCompare(
+                                            constructor_scan, empty,
+                                        )() is M.false_value:
+                                            constructor_entry = M.Head(constructor_scan)()
+                                            if M.Compare(
+                                                M.Head(constructor_entry)(), token,
+                                            )() is M.truth_value:
+                                                argument_value = M.Head(
+                                                    M.Tail(constructor_entry)(),
+                                                )()
+                                                constructor_scan = empty
+                                            else:
+                                                constructor_scan = M.Tail(constructor_scan)()
                                 updated_frame = M.Pair(
                                     predicate,
                                     M.Pair(
@@ -17848,16 +17928,28 @@ class ParseWordText(M.Edge):
                         M.Char(concept_text), M.Char(""),
                     )() is M.false_value:
                         accepted = M.truth_value
+                        surface_concept = surface
+                        if M.Compare(surface, M.Char("shoes"))() is M.truth_value:
+                            surface_concept = M.Char("shoe")
+                        concept = M.Pair(
+                            Lmod.ConceptLabel,
+                            M.Pair(surface_concept, empty),
+                        )
+                        parent = M.Pair(
+                            Lmod.ConceptLabel,
+                            M.Pair(concept_last, empty),
+                        )
+                        property_concept = M.Pair(
+                            Lmod.ConceptLabel,
+                            M.Pair(concept_modifier, empty),
+                        )
                         word_fact = M.Pair(
                             Lmod.WordLabel,
-                            M.Pair(surface, M.Pair(surface, empty)),
+                            M.Pair(surface, M.Pair(concept, empty)),
                         )
                         isa_fact = M.Pair(
                             Lmod.IsALabel,
-                            M.Pair(
-                                surface,
-                                M.Pair(M.Char(concept_text), empty),
-                            ),
+                            M.Pair(concept, M.Pair(parent, empty)),
                         )
                         relation_facts = M.Pair(isa_fact, empty)
                         if M.IdentityCompare(
@@ -17866,6 +17958,10 @@ class ParseWordText(M.Edge):
                             if M.Compare(
                                 concept_modifier, concept_last,
                             )() is M.false_value:
+                                property_fact = M.Pair(
+                                    Lmod.HasPropertyLabel,
+                                    M.Pair(concept, M.Pair(property_concept, empty)),
+                                )
                                 modifier_fact = M.Pair(
                                     Lmod.ModifierOfLabel,
                                     M.Pair(
@@ -17875,7 +17971,10 @@ class ParseWordText(M.Edge):
                                 )
                                 relation_facts = M.Pair(
                                     isa_fact,
-                                    M.Pair(modifier_fact, empty),
+                                    M.Pair(
+                                        property_fact,
+                                        M.Pair(modifier_fact, empty),
+                                    ),
                                 )
                         self.result = M.Pair(
                             M.Pair(word_fact, relation_facts),
@@ -18088,6 +18187,7 @@ class GapOpen(M.Edge):
         target = M.EmptyList
         if M.IsPair(gap)() is M.truth_value:
             target = M.Head(M.Tail(gap)())()
+        usage_target = target
         known_word = M.false_value
         known_concept = M.false_value
         usage = M.false_value
@@ -18101,6 +18201,10 @@ class GapOpen(M.Edge):
                     if M.IdentityCompare(args, M.EmptyList)() is M.false_value:
                         if M.Compare(M.Head(args)(), target)() is M.truth_value:
                             known_word = M.truth_value
+                            if M.IdentityCompare(
+                                M.Tail(args)(), M.EmptyList,
+                            )() is M.false_value:
+                                usage_target = M.Head(M.Tail(args)())()
                         if M.IdentityCompare(
                             M.Tail(args)(), M.EmptyList,
                         )() is M.false_value:
@@ -18120,7 +18224,7 @@ class GapOpen(M.Edge):
                             )() is M.truth_value:
                                 known_concept = M.truth_value
                 elif M.Compare(head, Lmod.ModifierOfLabel)() is M.false_value:
-                    if TermContains(fact, target)() is M.truth_value:
+                    if TermContains(fact, usage_target)() is M.truth_value:
                         usage = M.truth_value
             scan = M.Tail(scan)()
         if M.Compare(gap_head, Lmod.UngroundedModifierLabel)() is M.truth_value:
@@ -18240,6 +18344,9 @@ class DetectVocabularyGaps(M.Edge):
                 elif M.Compare(head, Lmod.WordLabel)() is M.truth_value:
                     if M.IdentityCompare(args, M.EmptyList)() is M.false_value:
                         word = M.Head(args)()
+                        usage_target = word
+                        if M.IdentityCompare(M.Tail(args)(), M.EmptyList)() is M.false_value:
+                            usage_target = M.Head(M.Tail(args)())()
                         used = M.false_value
                         usage_scan = facts
                         while M.IdentityCompare(
@@ -18264,7 +18371,7 @@ class DetectVocabularyGaps(M.Edge):
                                 if M.IdentityCompare(
                                     ontology_fact, M.false_value,
                                 )() is M.truth_value:
-                                    if TermContains(usage_fact, word)() is M.truth_value:
+                                    if TermContains(usage_fact, usage_target)() is M.truth_value:
                                         used = M.truth_value
                             usage_scan = M.Tail(usage_scan)()
                         if M.IdentityCompare(used, M.false_value)() is M.truth_value:
