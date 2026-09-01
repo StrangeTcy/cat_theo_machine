@@ -14741,17 +14741,18 @@ class GenerativeRuleBudgetTest(M.Edge):
         if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
             self.result = M.false_value
         fired = Rmod.ForwardSearchFired(outcome)()
-        count = self._count(fired, M.Zero)
-        if M.IdentityCompare(
-            M.NatEq(count, Rmod.DEFAULT_SEARCH_FUEL, M.AllConstructors)(), M.truth_value
-        )() is M.false_value:
+        if self._same_length(fired, Rmod.DEFAULT_SEARCH_FUEL) is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
-    def _count(self, chain, acc):
-        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
-            return acc
-        return self._count(M.Tail(chain)(), M.Head(M.Succ(acc, M.AllConstructors)())())
+    def _same_length(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+                return M.truth_value
+            return M.false_value
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        return self._same_length(M.Tail(left)(), M.Tail(right)())
 
     def __call__(self):
         return self.result

@@ -4577,9 +4577,20 @@ def _research_parse_rule(text):
 
 
 def _research_nat_text(nat):
-    """Decimal text for a small machine nat; presentation only."""
+    """Decimal text for a count; presentation only.
+
+    Counts are mark chains (head truth_value) since the registry-free
+    counter change; machine nats are still accepted for older terms.
+    """
     count = 0
     cur = nat
+    if M.IsPair(nat)() is M.truth_value and M.Head(nat)() is M.truth_value:
+        while count < 100000:
+            if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+                break
+            cur = M.Tail(cur)()
+            count += 1
+        return str(count)
     while count < 1000:
         if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
             break
