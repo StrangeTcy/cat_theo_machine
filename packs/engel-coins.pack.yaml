@@ -5,6 +5,7 @@ name: engel-coins
 description: Engel adjacent-flip coin row. Flip both coins of an adjacent pair. Heads-count parity is the Phi pattern.
 
 requires: []
+origin: demo-specialized
 
 phi:
   call: {head: {char: HeadsCountParity}, args: [{var: p}]}

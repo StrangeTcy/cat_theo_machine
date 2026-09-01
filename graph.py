@@ -56,6 +56,18 @@ class Hypergraph:
         self._search_compare_live_workers = M.EmptyList
         self._search_compare_live_idle_executors = M.EmptyList
         self._last_search_comparison_outcome = M.EmptyList
+        # Provenance session memory: the chain of ProvenanceRecord terms
+        # appended by proofs, and the evaluation-mode flag that forbids
+        # cache/comparison/schema/ladder shortcuts. Both are host session
+        # state like the search console flags, not context content.
+        self._proof_provenance = M.EmptyList
+        self._proof_evaluation_mode = M.false_value
+        # Rule-origin association chain (learning instrument): Pair(rule,
+        # Pair(origin-tag, EmptyList)) consed per rule, plus the active
+        # pair-native ProofPolicy. Defaults: empty index, permissive
+        # policy. Both are host session state like the provenance chain.
+        self._rule_origins = M.EmptyList
+        self._proof_policy = M.EmptyList
         # self.context = Ctx.Context(
         #     constructor_registry,
         #     M.EmptyList,
@@ -171,7 +183,71 @@ class Hypergraph:
         self._replace_context(all_rules=updated_rules, rule_order=updated_order, next_rule_index=next_index, constructors=registry)
         return rule
 
+    def record_provenance(self, tag, subject, witness=None):
+        """Append one ProvenanceRecord to this graph's session chain."""
+        from . import provenance as Prov
+
+        witness_term = witness if witness is not None else M.EmptyList
+        pair = Prov.RecordProvenance(self, tag, subject, witness_term)()
+        # RecordProvenance returns Pair(record, new_chain); the chain is
+        # the whole pair so the newest record is its head.
+        self._proof_provenance = pair
+        return self._proof_provenance
+
+    def provenance_chain(self):
+        from . import provenance as Prov
+
+        return Prov.ProvenanceChain(self)()
+
+    def proof_evaluation_mode(self):
+        from . import provenance as Prov
+
+        return Prov.EvaluationMode(self)()
+
+    def set_proof_evaluation_mode(self, flag):
+        from . import provenance as Prov
+
+        return Prov.SetEvaluationMode(self, flag)()
+
+    # --- Learning instrument: rule origins and proof policy ---------------
+
+    def tag_rule_origin(self, rule, origin_tag):
+        from . import provenance as Prov
+
+        updated = Prov.TagRuleOrigin(self._rule_origins, rule, origin_tag)()
+        self._rule_origins = updated
+        return updated
+
+    def rule_origin(self, rule):
+        from . import provenance as Prov
+
+        registry = Ctx.ContextConstructors(self.context)()
+        return Prov.LookupRuleOrigin(self._rule_origins, rule, registry)()
+
+    def proof_policy(self):
+        from . import provenance as Prov
+
+        if M.IdentityCompare(self._proof_policy, M.EmptyList)() is M.truth_value:
+            return Prov.DefaultProofPolicy()()
+        return self._proof_policy
+
+    def set_proof_policy(self, policy):
+        self._proof_policy = policy
+        return policy
+
+    def admissible_rules(self, rules):
+        """A rule chain filtered by the active proof policy's origins."""
+        from . import provenance as Prov
+
+        registry = Ctx.ContextConstructors(self.context)()
+        policy = self.proof_policy()
+        return Prov.FilterRulesByPolicy(rules, self._rule_origins, policy, registry)()
+
     def lookup_derivation(self, start, goal):
+        from . import provenance as Prov
+
+        if M.IdentityCompare(Prov.EvaluationMode(self)(), M.truth_value)() is M.truth_value:
+            return M.EmptyList
         return P.LookupDerivation(start, goal, Ctx.ContextDerivations(self.context)())()
 
     def add_derivation(self, start, goal, derivation):

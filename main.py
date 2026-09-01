@@ -36,12 +36,14 @@ else:
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
     from .persistence import SnapshotCodec, SnapshotSaveDeadline, SnapshotSaveTimeout
+    from . import gmprep as Gmp
     from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
     from . import wire as W
     from . import session as Sess
     from . import daemon as Dmn
+    from . import provenance as Provmod
     from .testsuite import install_default_tests
 
 
@@ -1224,6 +1226,51 @@ def run_warm_mode(debug: bool = False):
     print(f"proved {proved_count} / {len(theorem_results)} theorem cases during warm boot")
 
 
+class PendingCountSucc(M.Edge):
+    """The pending-queue count advanced by one.
+
+    The queue itself is a host boundary list, but how many proposals it
+    holds is machine bookkeeping kept as the machine's flat integer
+    atom -- a GMPRep -- which NatFromRep caches precisely to avoid
+    per-unit Peano-chain cost for counters that are only ever read out
+    as decimal text.
+    """
+
+    def __init__(self, count):
+        self.result = M.GMPRep(Gmp.GMPSuccText(M.GMPRepText(count)())())
+        super().__init__(inputs=M.Pair(count, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PendingCountPred(M.Edge):
+    """The pending-queue count reduced by one; zero stays zero."""
+
+    def __init__(self, count):
+        self.result = M.GMPRep(Gmp.GMPPredText(M.GMPRepText(count)())())
+        super().__init__(inputs=M.Pair(count, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PendingCountText(M.Edge):
+    """The pending-queue count read out as decimal machine text."""
+
+    def __init__(self, count):
+        self.result = M.GMPRepText(count)()
+        super().__init__(inputs=M.Pair(count, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+_PendingCountSucc = PendingCountSucc
+_PendingCountPred = PendingCountPred
+_PendingCountText = PendingCountText
+
+
 def run_talk_mode(sentence: str = None):
     """Natural-language interaction through Surface/Meaning correspondence laws.
 
@@ -1284,6 +1331,14 @@ def run_talk_mode(sentence: str = None):
                 except (OSError, ValueError):
                     replay_mark_text = "0"
     pending_queue = []
+    # A machine integer shadows the host pending list; every site that
+    # once asked len(pending_queue) advances and reads this flat GMPRep
+    # instead, so the machine counts its own queue.
+    pending_count = M.GMPRep("0")
+    # Evaluation mode: when on, a proof boot drops every proof-ladder
+    # pack and the prover forbids cache/comparison/schema/failure-memo
+    # shortcuts. Off by default; toggled by 'evaluation mode on/off'.
+    evaluation_mode = M.false_value
     pending_bridge = M.EmptyList
     decided_laws = M.EmptyList
     proof_runtime = M.EmptyList
@@ -2495,7 +2550,7 @@ def run_talk_mode(sentence: str = None):
         return answer
 
     def _handle_training(line, record=True):
-        nonlocal examples, proposal_store, registry
+        nonlocal examples, proposal_store, registry, pending_count
         body = line.split(":", 1)[1].strip()
         if "<->" not in body:
             return "A training example is 'training example: WORDS <-> MEANING'."
@@ -2626,13 +2681,14 @@ def run_talk_mode(sentence: str = None):
                     )
                     pending_queue.append((proposal, prompt))
                     queued_count = queued_count + 1
+                    pending_count = _PendingCountSucc(pending_count)()
                     _debug("rule submitted as a pending proposal; "
                            "queued for decision")
             entries = M.Tail(entries)()
         if pending_queue:
             if queued_count > 1:
                 return (
-                    "(" + str(len(pending_queue))
+                    "(" + _PendingCountText(pending_count)()
                     + " proposals await decisions; here is the first)\n"
                     + "hyge> " + pending_queue[0][1]
                 )
@@ -2682,13 +2738,14 @@ def run_talk_mode(sentence: str = None):
         _debug("talk state written to " + talk_checkpoint_path)
 
     def _handle_decision(line, record=True):
-        nonlocal proposal_store, learned_version, decided_laws
+        nonlocal proposal_store, learned_version, decided_laws, pending_count
         if not pending_queue:
             return "There is no proposal awaiting a decision."
         if record:
             _log_lesson(line)
             _debug("decision '" + line + "' appended to " + lesson_path)
         decided_proposal, _decided_prompt = pending_queue.pop(0)
+        pending_count = _PendingCountPred(pending_count)()
         decided_laws = M.Pair(
             G.ProposalLaw(decided_proposal)(), decided_laws,
         )
@@ -2851,6 +2908,46 @@ def run_talk_mode(sentence: str = None):
             + "."
         )
 
+    def _set_evaluation_mode(turn_on):
+        nonlocal evaluation_mode
+        if turn_on:
+            evaluation_mode = M.truth_value
+            return (
+                "evaluation mode on: proof boots load no proof-ladder packs "
+                "(sqrt-real, engel-coins, engel-means, engel-blackboard), and "
+                "the derivation cache, stored search comparisons, schema "
+                "replay, and the failure memo are forbidden. Only axioms, "
+                "library rules, and fresh search expansion can answer."
+            )
+        evaluation_mode = M.false_value
+        return "evaluation mode off: caches, comparisons, schemata, and ladder packs are in use again."
+
+    def _explain_provenance():
+        nonlocal proof_runtime
+        if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.truth_value:
+            return "No proof runtime has run this session."
+        chain = proof_runtime.graph.provenance_chain()
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return "No proof has been attempted this session."
+        return Provmod.ProvenanceSummaryText(proof_runtime.graph)()
+
+    def _audit_knowledge():
+        nonlocal proof_runtime
+        rules_graph = None
+        if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.false_value:
+            rules_graph = proof_runtime.graph
+        lines = ["audit knowledge:"]
+        ladder_text = Provmod.LadderPackNameChainText(Provmod.LadderPackNames()())()
+        lines.append("  proof-ladder packs (excluded in evaluation mode): "
+                     + ladder_text)
+        if rules_graph is not None:
+            chain = rules_graph.provenance_chain()
+            summary = Provmod.ProvenanceSummaryText(rules_graph)()
+            lines.append(summary)
+        else:
+            lines.append("  (no proof runtime booted yet this session)")
+        return "\n".join(lines)
+
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
@@ -2874,6 +2971,12 @@ def run_talk_mode(sentence: str = None):
             return _handle_bridge_decision(lowered.strip(), record=record)
         if lowered.strip() in ("why", "why?", "explain", "explain?"):
             return _explain_last()
+        if lowered.strip() in ("explain last proof", "explain proof", "explain last"):
+            return _explain_provenance()
+        if lowered.strip() == "audit knowledge":
+            return _audit_knowledge()
+        if lowered.strip() in ("evaluation mode on", "evaluation mode off"):
+            return _set_evaluation_mode(lowered.strip().endswith(" on"))
         words = _words(line)
         if M.IdentityCompare(words, M.EmptyList)() is M.truth_value:
             return None
@@ -2967,10 +3070,15 @@ def run_talk_mode(sentence: str = None):
                                     boot_started_at = time.time()
                                     quiet_boot = io.StringIO()
                                     with redirect_stdout(quiet_boot):
+                                        boot_paths = PACK_PATHS
+                                        if evaluation_mode is M.truth_value:
+                                            boot_paths = Provmod.EvaluationPackPaths(PACK_PATHS)()
                                         proof_runtime, _proof_packs = boot_from_packs(
-                                            PACK_PATHS,
+                                            boot_paths,
                                             _runtime_namespace(),
                                         )
+                                    if evaluation_mode is M.truth_value:
+                                        proof_runtime.graph.set_proof_evaluation_mode(M.truth_value)
                                     # The loader emitted each pack's
                                     # symbol_map during this boot; adopt
                                     # them so bridge noticing and label
@@ -3171,7 +3279,7 @@ def run_talk_mode(sentence: str = None):
     if replayed:
         print("(replayed " + str(replayed) + " lesson lines from " + lesson_path + ")")
     if pending_queue:
-        print("hyge> (" + str(len(pending_queue)) + " proposal(s) from the "
+        print("hyge> (" + _PendingCountText(pending_count)() + " proposal(s) from the "
               "replayed lessons still await your decision)")
         print("hyge> " + pending_queue[0][1])
     while True:
@@ -3200,7 +3308,24 @@ def run_test_mode(debug: bool = False):
     start_time = time.time()
     report = runtime.run_tests_report()
     elapsed = time.time() - start_time
-    if report == "All the tests have passed.":
+
+    # Learning-instrument self-tests (origins, cold policy, audit, and the
+    # source-freeze check) run alongside the machine's registered graph
+    # tests. They assert over machine terms; a failure here is a regression
+    # of the provenance/policy machinery.
+    learning_report = ""
+    learning_failed = False
+    try:
+        from . import provenance_selftest as PST
+
+        PST.main()
+        learning_report += PST.source_freeze_test() + "\n"
+    except AssertionError as exc:
+        learning_failed = True
+        learning_report += "LEARNING INSTRUMENT TEST FAILED: " + str(exc) + "\n"
+    print(learning_report, end="")
+
+    if report == "All the tests have passed." and not learning_failed:
         print(f"All tests passed in {elapsed} seconds.")
     else:
         print(f"Some tests failed after {elapsed} seconds.")
