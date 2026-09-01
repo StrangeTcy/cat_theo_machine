@@ -73,10 +73,13 @@ class PackTreeMap:
 
 class LoadedPack:
 
-    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi):
+    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi, origin=None):
         self.name = name
         self.description = description
         self.requires = requires
+        # Declared origin tag (a machine Char from learning.origin_tag_for_text);
+        # defaults to primitive. Read from the pack header 'origin:' field.
+        self.origin = origin
         self.rule_map = rule_map
         self.rule_chain = rule_chain
         self.schema_map = schema_map
@@ -244,6 +247,7 @@ class PackLoader:
         name = data.get("name", "unnamed-pack")
         description = data.get("description", "")
         requires = data.get("requires", ())
+        origin_text = data.get("origin", "primitive")
         if requires is None:
             requires = ()
         else:
@@ -347,6 +351,14 @@ class PackLoader:
         )
         loaded_pack_names.store(name, M.truth_value)
 
+        from .provenance import origin_tag_for_text
+
+        origin_tag = origin_tag_for_text(origin_text)
+        origin_scan = rule_chain
+        while M.IdentityCompare(origin_scan, M.EmptyList)() is M.false_value:
+            graph.tag_rule_origin(M.Head(origin_scan)(), origin_tag)
+            origin_scan = M.Tail(origin_scan)()
+
         loaded = LoadedPack(
             name=name,
             description=description,
@@ -356,6 +368,7 @@ class PackLoader:
             schema_map=schema_map,
             examples=examples,
             phi=phi,
+            origin=origin_tag,
         )
         loaded.symbol_map = self.symbol_map
         return loaded

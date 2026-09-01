@@ -4,6 +4,7 @@ version: 1
 name: sqrt-real
 description: Newton-style theorem pack for proving IsReal(sqrt(a))
 requires: []
+origin: demo-specialized
 
 phi:
   list: []
