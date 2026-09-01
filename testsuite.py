@@ -14669,6 +14669,49 @@ class PremiseOrderIndependenceTest(M.Edge):
         return self.result
 
 
+class GoalSeededPartialMatchTest(M.Edge):
+    """The attempt record carries the goal-to-rule substitution.
+
+    A rule whose premises share no variables with any fact still grounds
+    its record through the conclusion-to-goal match: with the goal
+    (wrap g inner) and the rule (domain ?d) & (marker ?v ?b) ->
+    (wrap ?v ?b), the missing premise must be the concrete
+    (marker g inner), not the schematic (marker ?v ?b).
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vd, vv, vb = T.var("d"), T.var("v"), T.var("b")
+        premises = T.chain(
+            T.term(T.sym("domain"), vd),
+            T.term(T.sym("marker"), vv, vb),
+        )
+        rule = MultiRule(premises, T.term(T.sym("wrap"), vv, vb))()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        facts = T.chain(T.term(T.sym("domain"), T.sym("someplace")))
+        inner = T.term(T.sym("inner"), T.sym("g"))
+        goal = T.chain(T.term(T.sym("wrap"), T.sym("g"), inner))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            attempt = M.Head(attempts)()
+            unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
+            expected = T.term(T.sym("marker"), T.sym("g"), inner)
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class SentenceGrammarGenericTest(M.Edge):
     """The quantified-goal grammar is compositional, not a target template.
 
@@ -16644,6 +16687,8 @@ def install_default_tests(graph):
         _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "premise_order_independence_test", empty, PremiseOrderIndependenceTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "goal_seeded_partial_match_test", empty, GoalSeededPartialMatchTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:

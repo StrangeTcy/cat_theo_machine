@@ -1423,9 +1423,11 @@ class PartialPremiseMatch(Edge):
     blocked elsewhere), which also never becomes a request.
     """
 
-    def __init__(self, premises, facts):
+    def __init__(self, premises, facts, seed=None):
+        if seed is None:
+            seed = EmptyList
         self.facts = facts
-        best = self._best(premises, EmptyList, EmptyList, M.Zero, EmptyList)
+        best = self._best(premises, seed, EmptyList, M.Zero, EmptyList)
         depth = Head(best)()
         payload = Tail(best)()
         zero_matched = M.NatEq(depth, M.Zero, M.AllConstructors)()
@@ -1528,12 +1530,32 @@ class RecordPremisePartialMatch(Edge):
     that failed. The failure kind is MissingPremiseFailure.
     """
 
-    def __init__(self, graph, rule, facts):
-        from .proof import RulePremises
+    def __init__(self, graph, rule, facts, goal_facts=None):
+        from .proof import RulePremises, RuleReplacement
 
+        if goal_facts is None:
+            goal_facts = EmptyList
         self.result = EmptyList
         premises = RulePremises(rule)()
-        partial = PartialPremiseMatch(premises, facts)()
+        conclusion = RuleReplacement(rule)()
+        # The goal-to-rule substitution: matching the rule's conclusion
+        # against a goal fact grounds the record's variables the way the
+        # rule would have to fire to serve this goal. Without it a rule
+        # whose premises share no variables with the facts reports a
+        # schematic hole instead of the concrete missing premise.
+        partial = EmptyList
+        remaining_goals = goal_facts
+        while IdentityCompare(remaining_goals, EmptyList)() is M.false_value:
+            goal_match = M.Match(conclusion, Head(remaining_goals)())()
+            if IdentityCompare(Head(goal_match)(), M.truth_value)() is M.truth_value:
+                seeded = PartialPremiseMatch(premises, facts, Tail(goal_match)())()
+                if IdentityCompare(seeded, EmptyList)() is M.false_value:
+                    partial = seeded
+                    remaining_goals = EmptyList
+                    continue
+            remaining_goals = Tail(remaining_goals)()
+        if IdentityCompare(partial, EmptyList)() is M.truth_value:
+            partial = PartialPremiseMatch(premises, facts)()
         if IdentityCompare(partial, EmptyList)() is M.false_value:
             bindings = Head(partial)()
             matched = Head(Tail(partial)())()
@@ -2802,16 +2824,21 @@ def measure_retry(graph, start_facts, goal_facts, rules, baseline_outcome, fuel=
 class RecordAllPartialMatches(Edge):
     """Record the genuine partial match of every rule over a fact state."""
 
-    def __init__(self, graph, rules, facts):
+    def __init__(self, graph, rules, facts, goal_facts=None):
+        if goal_facts is None:
+            goal_facts = EmptyList
         self.graph = graph
         self.facts = facts
+        self.goal_facts = goal_facts
         self.result = self._walk(rules)
         super().__init__(inputs=M.Pair(rules, EmptyList), results=self.result)
 
     def _walk(self, rules):
         if IdentityCompare(rules, EmptyList)() is M.truth_value:
             return EmptyList
-        recorded = RecordPremisePartialMatch(self.graph, Head(rules)(), self.facts)()
+        recorded = RecordPremisePartialMatch(
+            self.graph, Head(rules)(), self.facts, self.goal_facts
+        )()
         rest = self._walk(Tail(rules)())
         if IdentityCompare(recorded, EmptyList)() is M.truth_value:
             return rest
@@ -2848,7 +2875,7 @@ def attempt_goal(graph, start_facts, goal_facts, rules, fuel=None):
         set_last_proof(graph, proof_term)
         graph._replace_context(last_residuals=EmptyList, research_residuals=EmptyList)
         return outcome
-    RecordAllPartialMatches(graph, rules, ForwardSearchFacts(outcome)())()
+    RecordAllPartialMatches(graph, rules, ForwardSearchFacts(outcome)(), goal_facts)()
     attempts = graph.research_attempts
     if IdentityCompare(attempts, EmptyList)() is M.truth_value:
         root = M.Pair(Lmod.ZeroSuccessorResidualLabel, M.Pair(goal_facts, EmptyList))

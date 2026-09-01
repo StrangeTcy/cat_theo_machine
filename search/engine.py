@@ -619,7 +619,7 @@ class Search(M.Edge):
             return M.EmptyList
         return TermHead(pattern, self.registry)()
 
-    def _record_partial_premise_attempt(self, rule, current):
+    def _record_partial_premise_attempt(self, rule, current, goal=None):
         """Record a genuine partial premise match that produced no successor.
 
         The rule was really tried against this knowledge state; some of its
@@ -636,7 +636,13 @@ class Search(M.Edge):
             return M.EmptyList
         if IsKnowledge(current)() is M.false_value:
             return M.EmptyList
-        return Rmod.RecordPremisePartialMatch(self.graph, rule, KnowledgeFacts(current)())()
+        goal_facts = M.EmptyList
+        if goal is not None:
+            if IsKnowledge(goal)() is M.truth_value:
+                goal_facts = KnowledgeFacts(goal)()
+        return Rmod.RecordPremisePartialMatch(
+            self.graph, rule, KnowledgeFacts(current)(), goal_facts
+        )()
 
     def _record_failed_attempt(self, rule, subterm):
         """Record a rule that reached application and did not apply.
@@ -1840,7 +1846,7 @@ class SearchBFS(Search):
                     rest_rules = M.Tail(rules)()
                     successors = KnowledgeRewriteSuccessors(current, rule)()
                     if M.IdentityCompare(successors, M.EmptyList)() is M.truth_value:
-                        self._record_partial_premise_attempt(rule, current)
+                        self._record_partial_premise_attempt(rule, current, goal)
                     while M.IdentityCompare(successors, M.EmptyList)() is M.false_value:
                         pair = M.Head(successors)()
                         action = M.Head(pair)()
