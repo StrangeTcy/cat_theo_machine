@@ -14484,6 +14484,138 @@ class CrossDomainBlankTest(M.Edge):
         return self.result
 
 
+class EngineAttemptRecordingTest(M.Edge):
+    """The search engine itself records the genuine partial match.
+
+    A knowledge stall run through the real prover -- not the bounded
+    fork -- leaves an AttemptedRule with the concrete unmatched premise
+    and the missing-premise failure kind; the same problem closes once
+    the taught rule is compiled into the rule chain.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .runtime import make_fresh_runtime
+        from .proof import KnowledgeLabel, MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        fresh = runtime.graph
+        fresh._search_disable_console = M.truth_value
+        Rmod.EnableResearchMode(fresh)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        fresh.tag_rule_origin(rule, Lmod.DomainAxiomLabel)
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        start = M.Pair(KnowledgeLabel, M.Pair(facts, empty))
+        goal = M.Pair(
+            KnowledgeLabel,
+            M.Pair(T.chain(T.term(T.sym("tag"), T.sym("a"))), empty),
+        )
+        fresh.clear_research_attempts()
+        derivation = runtime.prove(start, goal, rules=T.chain(rule))
+        self.result = M.truth_value
+        if M.IdentityCompare(derivation, empty)() is M.false_value:
+            self.result = M.false_value
+        attempts = fresh.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            attempt = M.Head(attempts)()
+            expected = T.term(T.sym("mark"), T.sym("b"))
+            if M.Compare(Rmod.AttemptedRuleUnmatched(attempt)(), expected)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                Rmod.AttemptedRuleFailure(attempt)(), Lmod.MissingPremiseFailureLabel
+            )() is M.false_value:
+                self.result = M.false_value
+        shared_u = T.var("u")
+        shared_v = T.var("v")
+        taught = Rmod.compile_formal_rule(
+            Rmod.FormalRule(
+                T.chain(T.term(T.sym("rel"), shared_u, shared_v)),
+                T.term(T.sym("mark"), shared_v),
+            )()
+        )
+        closing = runtime.prove(start, goal, rules=T.chain(rule, taught))
+        if M.IdentityCompare(closing, empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LearnedMemoryCheckpointTest(M.Edge):
+    """Episodes and policies survive a checkpoint and die with a reset.
+
+    After two useful episodes the policy chain is on record; a snapshot
+    round trip restores both fields; resetting learned memory on the
+    restored graph empties them again.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .runtime import boot_from_snapshot
+        from .main import _runtime_namespace
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        T.run_episode(graph, "rel", "mark", "tag", "a", "b")
+        graph.clear_research_attempts()
+        second_rule = T.two_premise_rule("link", "mark", "badge")
+        graph.tag_rule_origin(second_rule, Lmod.DomainAxiomLabel)
+        second_facts = T.chain(T.term(T.sym("link"), T.sym("c"), T.sym("d")))
+        second_goal = T.chain(T.term(T.sym("badge"), T.sym("c")))
+        Rmod.attempt_goal(graph, second_facts, second_goal, T.chain(second_rule))
+        parent = M.Head(second_goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        self.result = M.truth_value
+        if M.IdentityCompare(records, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        dep_id = Rmod.DependencyRequestId(M.Head(records)())()
+        Rmod.approve_dependency(graph, dep_id)
+        shared_u = T.var("u")
+        shared_v = T.var("v")
+        formal = Rmod.FormalRule(
+            T.chain(T.term(T.sym("link"), shared_u, shared_v)),
+            T.term(T.sym("mark"), shared_v),
+        )()
+        Rmod.teach_dependency(graph, dep_id, formal, second_facts, second_goal, T.chain(second_rule))
+        if M.IdentityCompare(graph.dependency_policies, empty)() is M.truth_value:
+            self.result = M.false_value
+        tmpdir = tempfile.mkdtemp()
+        snap_path = os.path.join(tmpdir, "snapshot.json")
+        try:
+            codec = SnapshotCodec(_runtime_namespace())
+            codec.save(graph, snap_path, progress=M.false_value)
+            runtime2 = boot_from_snapshot(snap_path, _runtime_namespace())
+            g2 = runtime2.graph
+            if M.IdentityCompare(g2.intervention_episodes, empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(g2.dependency_policies, empty)() is M.truth_value:
+                self.result = M.false_value
+            g2.reset_learned_memory()
+            if M.IdentityCompare(g2.intervention_episodes, empty)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(g2.dependency_policies, empty)() is M.false_value:
+                self.result = M.false_value
+        except Exception:
+            self.result = M.false_value
+        finally:
+            try:
+                shutil.rmtree(tmpdir)
+            except Exception:
+                pass
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ToyDemoGenericTest(M.Edge):
     """The unnamed toy demonstration, end to end.
 
@@ -16317,6 +16449,10 @@ def install_default_tests(graph):
         _register_test(graph, "negative_control_unused_dependency_test", empty, NegativeControlUnusedDependencyTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "cross_domain_blank_test", empty, CrossDomainBlankTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "engine_attempt_recording_test", empty, EngineAttemptRecordingTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest(graph), M.truth_value)
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()

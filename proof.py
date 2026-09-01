@@ -16,7 +16,12 @@ from .heuristics import (
 )
 from .labels import (
     CompiledRuleLabel,
+    DerivationCacheHitLabel,
     DerivationLabel,
+    FailureLabel,
+    PrewrittenProofLadderLabel,
+    SchemaReplayLabel,
+    SearchDerivedLabel,
     GoalHeadOrderLabel,
     KnowledgeLabel,
     InvariantLabel,
@@ -3218,6 +3223,8 @@ class Prove(M.Edge):
         return self.graph.record_provenance(tag, self.goal, witness)
 
     def _store_success(self, derivation, new_registry, search_cost, heuristic=None):
+        from .search import SearchCostExpanded
+
         self.graph._replace_context(constructors=new_registry)
         _debug("prove-stage: storing derivation in context.derivations (snapshot will persist current context when saved)")
         tag = self._provenance_tag_for_cost(search_cost)
@@ -3729,7 +3736,7 @@ class Prove(M.Edge):
                 deriv_pair = Derivation(M.Pair(step_node, M.EmptyList), cost, cost_registry)()
                 derivation = M.Head(deriv_pair)()
                 new_registry = M.Head(M.Tail(deriv_pair)())()
-                self._store_last_proof_with_provenance(derivation, zero_search_cost, M.SearchDerivedLabel if not research_mode else M.SearchDerivedLabel, self.goal)
+                self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel if not research_mode else SearchDerivedLabel, self.goal)
                 return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
 
         if IsKnowledge(self.goal)() is M.truth_value:
@@ -3748,7 +3755,7 @@ class Prove(M.Edge):
                     deriv_pair = Derivation(M.Pair(step_node, M.EmptyList), cost, cost_registry)()
                     derivation = M.Head(deriv_pair)()
                     new_registry = M.Head(M.Tail(deriv_pair)())()
-                    self._store_last_proof_with_provenance(derivation, zero_search_cost, M.SearchDerivedLabel, self.goal)
+                    self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel, self.goal)
                     return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
 
         start_has_var = ContainsVar(self.start)()
@@ -3772,7 +3779,7 @@ class Prove(M.Edge):
                                 zero_search_pair = self._zero_search_cost(new_registry)
                                 zero_search_cost = M.Head(zero_search_pair)()
                                 zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                                self._store_last_proof_with_provenance(derivation, zero_search_cost, M.SearchDerivedLabel, self.goal)
+                                self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel, self.goal)
                                 return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
                 else:
                     _debug("prove-stage: research mode - skip goal-instantiating shortcut")
@@ -3788,7 +3795,7 @@ class Prove(M.Edge):
                             zero_search_pair = self._zero_search_cost(new_registry)
                             zero_search_cost = M.Head(zero_search_pair)()
                             zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                            self._store_last_proof_with_provenance(derivation, zero_search_cost, M.SearchDerivedLabel, self.goal)
+                            self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel, self.goal)
                             return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
             else:
                 _debug("prove-stage: research mode - skip immediate shortcut")
@@ -3836,12 +3843,12 @@ class Prove(M.Edge):
                     _debug("prove-stage: knowledge search returned empty plan")
                     self._store_search_attempt(M.EmptyList, search_cost, self.heuristic)
                     self._store_residuals(M.EmptyList)
-                    self._store_last_proof_with_provenance(M.EmptyList, search_cost, M.FailureLabel, self.goal)
+                    self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
                     return M.EmptyList
                 derivation_pair = BuildDerivation(self.start, search_result, M.FromContextGetConstructors(self.graph)())()
                 derivation = M.Head(derivation_pair)()
                 new_registry = M.Head(M.Tail(derivation_pair)())()
-                self._store_last_proof_with_provenance(derivation, search_cost, M.SearchDerivedLabel, self.goal)
+                self._store_last_proof_with_provenance(derivation, search_cost, SearchDerivedLabel, self.goal)
                 return self._store_success(derivation, new_registry, search_cost, self.heuristic)
 
                 cached = M.EmptyList
@@ -3855,7 +3862,7 @@ class Prove(M.Edge):
                     self._store_search_attempt(cached, zero_search_cost)
                     self._maybe_seed_search_comparison()
                     self._record_proof_tag(Provmod.DerivationCacheHitTag)
-                    self._store_last_proof_with_provenance(cached, zero_search_cost, M.DerivationCacheHitLabel, self.goal)
+                    self._store_last_proof_with_provenance(cached, zero_search_cost, DerivationCacheHitLabel, self.goal)
                     return cached
                 if research_mode:
                     _debug("prove-stage: research mode - skip derivation cache")
@@ -3899,13 +3906,13 @@ class Prove(M.Edge):
                             _debug("prove-stage: storing search attempt in context.search_history")
                             self.graph.add_search_attempt(best_attempt)
                             self._record_proof_tag(Provmod.DerivationCacheHitTag)
-                            self._store_last_proof_with_provenance(comparison_derivation, M.EmptyList, M.SchemaReplayLabel, self.goal)
+                            self._store_last_proof_with_provenance(comparison_derivation, M.EmptyList, SchemaReplayLabel, self.goal)
                             return comparison_derivation
                     else:
                         _debug("prove-stage: comparison found no successful mode; not rerunning the same search immediately")
                         self._record_proof_tag(Provmod.FailureTag)
                         self._store_residuals(M.EmptyList)
-                        self._store_last_proof_with_provenance(M.EmptyList, M.EmptyList, M.FailureLabel, self.goal)
+                        self._store_last_proof_with_provenance(M.EmptyList, M.EmptyList, FailureLabel, self.goal)
                         return M.EmptyList
 
 
@@ -3930,7 +3937,7 @@ class Prove(M.Edge):
                     derivation = M.Head(derivation_pair)()
                     new_registry = M.Head(M.Tail(derivation_pair)())()
                     if M.Compare(derivation, M.EmptyList)() is M.false_value:
-                        self._store_last_proof_with_provenance(derivation, search_cost, M.SearchDerivedLabel, self.goal)
+                        self._store_last_proof_with_provenance(derivation, search_cost, SearchDerivedLabel, self.goal)
                         return self._store_success(
                             derivation,
                             new_registry,
@@ -3960,7 +3967,7 @@ class Prove(M.Edge):
                         zero_search_pair = self._zero_search_cost(new_registry)
                         zero_search_cost = M.Head(zero_search_pair)()
                         zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                        self._store_last_proof_with_provenance(derivation, zero_search_cost, M.SchemaReplayLabel, self.goal)
+                        self._store_last_proof_with_provenance(derivation, zero_search_cost, SchemaReplayLabel, self.goal)
                         return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
 
             goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
@@ -3979,7 +3986,7 @@ class Prove(M.Edge):
                         zero_search_pair = self._zero_search_cost(new_registry)
                         zero_search_cost = M.Head(zero_search_pair)()
                         zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                        self._store_last_proof_with_provenance(derivation, zero_search_cost, M.PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else M.SearchDerivedLabel, self.goal)
+                        self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else SearchDerivedLabel, self.goal)
                         return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
 
             immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
@@ -3993,7 +4000,7 @@ class Prove(M.Edge):
                     zero_search_pair = self._zero_search_cost(new_registry)
                     zero_search_cost = M.Head(zero_search_pair)()
                     zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                    self._store_last_proof_with_provenance(derivation, zero_search_cost, M.PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else M.SearchDerivedLabel, self.goal)
+                    self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else SearchDerivedLabel, self.goal)
                     return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
         else:
             _debug("prove-stage: research mode - skip schema/goal-instantiating/immediate prewritten ladders")
@@ -4012,7 +4019,7 @@ class Prove(M.Edge):
         if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
             _debug("prove-stage: mixed search paused")
             self._store_residuals(M.EmptyList)
-            self._store_last_proof_with_provenance(M.EmptyList, search_cost, M.FailureLabel, self.goal)
+            self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
             return M.EmptyList
 
         if M.Compare(search_result, M.EmptyList)() is M.truth_value:
@@ -4020,7 +4027,7 @@ class Prove(M.Edge):
             self._store_search_attempt(M.EmptyList, search_cost, self.heuristic)
 
             self._store_residuals(M.EmptyList)
-            self._store_last_proof_with_provenance(M.EmptyList, search_cost, M.FailureLabel, self.goal)
+            self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
             failure_witness = M.EmptyList
             if M.Compare(search_cost, M.EmptyList)() is not M.truth_value:
                 from .search import SearchCostExpanded as _SearchCostExpanded
@@ -4039,10 +4046,10 @@ class Prove(M.Edge):
         # Preserve residuals even on success? Store empty residuals on success, else store frontier
         if M.Compare(derivation, M.EmptyList)() is M.truth_value:
             self._store_residuals(M.EmptyList)
-            self._store_last_proof_with_provenance(M.EmptyList, search_cost, M.FailureLabel, self.goal)
+            self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
         else:
             self._store_residuals(M.EmptyList)
-            self._store_last_proof_with_provenance(derivation, search_cost, M.SearchDerivedLabel, self.goal)
+            self._store_last_proof_with_provenance(derivation, search_cost, SearchDerivedLabel, self.goal)
         return self._store_success(derivation, new_registry, search_cost, self.heuristic)
 
     def __call__(self):
