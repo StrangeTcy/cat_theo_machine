@@ -1,34 +1,0 @@
-live mode: the machine is cycling while you talk. Its work appears as [machine] lines.
-[K[machine] daemon: cycling shared state at /home/user/cat_theo_machine/snapshots/talk_state.wire with 0 worker(s)
-you> [K[machine] daemon cycle 1: fired 0, activated 0, proposed 0 handle(s) and 0 composition(s); stopped: exhausted
-you> [K[machine] daemon: daemon-stop-quiescent
-you> HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
-Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
-'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
-Parentheses group subexpressions: 'two times (two plus two)'.
-Teach me: 'training example: double two <-> mul ( two , two )'.
-Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
-'solve engel e1', 'solve engel e2', 'solve the coin problem',
-'prove square roots are real'.
-you> hyge> booting theorem packs for research mode...
-hyge> research mode ON: derivation-cache exact, search-comparison shortcuts, prewritten ladders, target-specific schema disabled; residuals preserved; DOMAIN_AXIOM and live-learned facts allowed
-you> hyge> attempting task: no group of order 15 is non-abelian
-hyge> attempted task: no group of order 15 is non-abelian
-proof FAILED: no applicable rule, missing domain operation, candidate generation exhausted; root remains in residual even with zero successors; residuals preserved as ZeroSuccessorResidualLabel
-you> hyge> suggested 2 dependencies:
-  [0] id=GenDependencyRequestFromResidualLabel-0 kind=TheoremKindLabel status=PendingStatusLabel gen=GenDependencyRequestFromResidualLabel
-  [1] id=GenDependencyRequestFromResidualLabel-1 kind=RepresentationKindLabel status=PendingStatusLabel gen=GenDependencyRequestFromResidualLabel
-you> hyge> Dependency [0]:
- id=GenDependencyRequestFromResidualLabel-0
- parent=[<?>, no group of order 15 is non-abelian]
- residuals=[<?>, [root]]
- blocking=[<?>, [<?>, no group of order 15 is non-abelian]]
- kind=<?>
- formal=[<?>, need a theorem about group structure with order constraints]
- bridge=[<?>, <?>]
- counterfactual=[<?>, 0, 0, [], [], [], <?>]
- assumptions=[]
- status=<?>
- provenance=<?>
-you> hyge> goodbye
-live mode: daemon stopped.

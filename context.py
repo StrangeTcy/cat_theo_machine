@@ -18,6 +18,7 @@ from .labels import (
     ContextNodesLabel,
     ContextProvenanceMapLabel,
     ContextResearchModeLabel,
+    ContextResearchAttemptsLabel,
     ContextResearchResidualsLabel,
     ContextRuleOrderLabel,
     ContextSearchComparisonsLabel,
@@ -60,6 +61,7 @@ def Context(
     last_residuals=None,
     counterfactual_results=None,
     research_mode=None,
+    research_attempts=None,
 ):
     if dependency_requests is None:
         dependency_requests = EmptyList
@@ -81,6 +83,8 @@ def Context(
         counterfactual_results = EmptyList
     if research_mode is None:
         research_mode = EmptyList
+    if research_attempts is None:
+        research_attempts = EmptyList
     tree = Tree(EmptyList)
     tree = TreeInsert(tree, ContextConstructorsLabel, constructors, constructors)()
     tree = TreeInsert(tree, ContextNodesLabel, nodes, constructors)()
@@ -108,6 +112,7 @@ def Context(
     tree = TreeInsert(tree, ContextLastResidualsLabel, last_residuals, constructors)()
     tree = TreeInsert(tree, ContextCounterfactualResultsLabel, counterfactual_results, constructors)()
     tree = TreeInsert(tree, ContextResearchModeLabel, research_mode, constructors)()
+    tree = TreeInsert(tree, ContextResearchAttemptsLabel, research_attempts, constructors)()
     return Pair(MachineContextLabel, Pair(tree, EmptyList))
 
 
@@ -887,6 +892,25 @@ class ContextResearchMode(Edge):
         return self.result
 
 
+class ContextResearchAttempts(Edge):
+    """Attempted-rule records collected during search, newest first.
+
+    EmptyList when nothing has been recorded, including for checkpoints
+    written before this field existed.
+    """
+
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextResearchAttemptsLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ReplaceContext(Edge):
     KEEP = object()
 
@@ -919,6 +943,7 @@ class ReplaceContext(Edge):
         last_residuals=KEEP,
         counterfactual_results=KEEP,
         research_mode=KEEP,
+        research_attempts=KEEP,
     ):
         current_constructors = ContextConstructors(ctx)()
         current_nodes = ContextNodes(ctx)()
@@ -946,6 +971,7 @@ class ReplaceContext(Edge):
         current_last_residuals = ContextLastResiduals(ctx)()
         current_counterfactual_results = ContextCounterfactualResults(ctx)()
         current_research_mode = ContextResearchMode(ctx)()
+        current_research_attempts = ContextResearchAttempts(ctx)()
         self.result = Context(
             current_constructors if constructors is self.KEEP else constructors,
             current_nodes if nodes is self.KEEP else nodes,
@@ -973,6 +999,7 @@ class ReplaceContext(Edge):
             current_last_residuals if last_residuals is self.KEEP else last_residuals,
             current_counterfactual_results if counterfactual_results is self.KEEP else counterfactual_results,
             current_research_mode if research_mode is self.KEEP else research_mode,
+            current_research_attempts if research_attempts is self.KEEP else research_attempts,
         )
         super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
 

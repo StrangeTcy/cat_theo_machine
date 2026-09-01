@@ -13687,14 +13687,14 @@ class ResearchModeTest(M.Edge):
         empty = M.EmptyList
         self.result = M.truth_value
         Rmod.EnableResearchMode(graph)
-        if Rmod.IsResearchMode(graph) is not True:
+        if M.IdentityCompare(Rmod.IsResearchMode(graph), M.truth_value)() is M.false_value:
             self.result = M.false_value
         if M.IdentityCompare(graph.research_mode, empty)() is not M.false_value:
             pass
         else:
             self.result = M.false_value
         Rmod.DisableResearchMode(graph)
-        if Rmod.IsResearchMode(graph) is not False:
+        if M.IdentityCompare(Rmod.IsResearchMode(graph), M.false_value)() is M.false_value:
             self.result = M.false_value
         Rmod.EnableResearchMode(graph)
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
@@ -13702,44 +13702,57 @@ class ResearchModeTest(M.Edge):
         return self.result
 
 class DependencyRequestFromResidualTest(M.Edge):
+    """One real attempt with an unmatched premise compiles into one request.
+
+    The request's entire content is Need(alpha-normalized unmatched
+    premise): a formal term, not a strategy sentence. The bound variable is
+    gone, so nothing here is tied to the goal's own names.
+    """
+
     def __init__(self, graph):
         from . import research as Rmod
         empty = M.EmptyList
-        parent_goal = M.Pair(Lmod.ExprPowLabel, M.Pair(M.Char("g"), empty))
-        residuals = M.Pair(M.Char("r"), empty)
+        parent_goal = M.Pair(Lmod.GoalLabel, M.Pair(M.Char("g"), empty))
         blocking = M.Pair(Lmod.FailureLabel, M.Pair(parent_goal, empty))
+        rule = M.Pair(M.Char("rule"), M.Char("r17"))
+        variable = M.Char("n")
+        substitution = M.Pair(M.Pair(variable, M.Char("four")), empty)
+        pattern = M.Pair(M.Char("pow"), M.Pair(M.Char("t"), M.Pair(variable, empty)))
+        matched = M.Pair(M.Char("pow"), empty)
+        attempt = Rmod.AttemptedRule(
+            rule, empty, substitution, matched, pattern, Lmod.PatternMatchFailureLabel
+        )()
+        attempts = M.Pair(attempt, empty)
         graph._replace_context(dependency_requests=empty, dependency_graph=empty)
-        suggested = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        records = Rmod.suggest_dependencies(parent_goal, attempts, blocking, graph)
         self.result = M.truth_value
-        if M.IdentityCompare(graph.dependency_requests, empty)() is not M.false_value:
+        if M.IdentityCompare(records, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif Rmod.IsUncharacterizedStall(M.Head(records)())() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(graph.dependency_requests, empty)() is M.truth_value:
             self.result = M.false_value
         else:
             req = M.Head(graph.dependency_requests)()
-            chain = M.Tail(req)()
-            depth = 0
-            while M.IdentityCompare(chain, empty)() is M.false_value:
-                depth = depth + 1
-                chain = M.Tail(chain)()
-                if depth > 20:
-                    break
-            if depth != 11:
-                self.result = M.false_value
-            pg = Rmod.DependencyRequestParentGoal(req)()
-            if M.TermEqual(pg, parent_goal)() is M.false_value:
-                self.result = M.false_value
-            res = Rmod.DependencyRequestResiduals(req)()
-            if M.TermEqual(res, residuals)() is M.false_value:
-                self.result = M.false_value
-            kind = Rmod.DependencyRequestKind(req)()
             formal = Rmod.DependencyRequestFormalStatement(req)()
-            bridge = Rmod.DependencyRequestBridgePlan(req)()
-            if M.IdentityCompare(formal, empty)() is M.truth_value:
+            status = Rmod.DependencyRequestStatus(req)()
+            if M.IsPair(formal)() is M.false_value:
                 self.result = M.false_value
-            if M.IdentityCompare(bridge, empty)() is M.truth_value:
+            if M.TermEqual(M.Head(formal)(), Lmod.NeedLabel)() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(
+                formal, Rmod.NeedStatement(Rmod.AlphaNormalized(pattern, substitution)())()
+            )() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(status, Lmod.ObservedMissingPremiseLabel)() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(Rmod.DependencyRequestParentGoal(req)(), parent_goal)() is M.false_value:
                 self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
     def __call__(self):
         return self.result
+
 
 class CounterfactualUnlockTest(M.Edge):
     def __init__(self, graph):
@@ -13753,7 +13766,13 @@ class CounterfactualUnlockTest(M.Edge):
         if ev is None:
             self.result = M.false_value
         else:
-            if Rmod.evaluate_unlock(True, M.truth_value, M.Zero, M.Zero) is not True:
+            if M.IdentityCompare(
+                Rmod.evaluate_unlock(M.truth_value, M.truth_value, M.Zero, M.Zero), M.truth_value
+            )() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                Rmod.evaluate_unlock(M.false_value, M.false_value, M.Zero, M.Zero), M.truth_value
+            )() is M.truth_value:
                 self.result = M.false_value
             if M.IsPair(ev)() is M.false_value:
                 self.result = M.false_value
@@ -13772,16 +13791,22 @@ class CircularDependencyRejectionTest(M.Edge):
         bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Char("b"), empty))
         ev = Rmod.CounterfactualEvidence(M.Zero, M.Zero, empty, empty, empty, M.false_value)()
         req1 = Rmod.DependencyRequest(parent_goal, empty, M.Pair(Lmod.FailureLabel, empty), Lmod.TheoremKindLabel, formal_same, bridge, ev, empty, Lmod.PendingStatusLabel, Lmod.DependencyRequestProvenanceLabel)()
-        if Rmod.validate_dependency_request(req1, parent_goal) is not False:
+        if M.IdentityCompare(
+            Rmod.validate_dependency_request(req1, parent_goal), M.truth_value
+        )() is M.truth_value:
             self.result = M.false_value
         else:
             self.result = M.truth_value
         formal2 = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Char("f"), empty))
         req2 = Rmod.DependencyRequest(parent_goal, empty, M.Pair(Lmod.FailureLabel, empty), Lmod.TheoremKindLabel, formal2, empty, ev, empty, Lmod.PendingStatusLabel, Lmod.DependencyRequestProvenanceLabel)()
-        if Rmod.validate_dependency_request(req2, parent_goal) is not False:
+        if M.IdentityCompare(
+            Rmod.validate_dependency_request(req2, parent_goal), M.truth_value
+        )() is M.truth_value:
             self.result = M.false_value
         req3 = Rmod.DependencyRequest(parent_goal, empty, M.Pair(Lmod.FailureLabel, empty), Lmod.TheoremKindLabel, formal2, bridge, ev, empty, Lmod.PendingStatusLabel, Lmod.DependencyRequestProvenanceLabel)()
-        if Rmod.validate_dependency_request(req3, parent_goal) is not True:
+        if M.IdentityCompare(
+            Rmod.validate_dependency_request(req3, parent_goal), M.truth_value
+        )() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
     def __call__(self):
@@ -13813,17 +13838,44 @@ class HumanSuppliedProvenanceTest(M.Edge):
         return self.result
 
 class DependencyGraphCheckpointTest(M.Edge):
+    """Requests survive a checkpoint, and status updates one node in place.
+
+    Approving must not create a second copy of the request, so the graph
+    can never show the same request as both pending and approved.
+    """
+
     def __init__(self, graph):
         from . import research as Rmod
         from .runtime import boot_from_snapshot
         from .main import _runtime_namespace
         empty = M.EmptyList
         graph._replace_context(dependency_requests=empty, dependency_graph=empty, generator_metrics=empty, last_proof=empty, research_residuals=empty, provenance_map=empty, generator_policy=empty, last_residuals=empty, counterfactual_results=empty, research_mode=empty)
-        parent_goal = M.Pair(M.Char("pg"), empty)
-        residuals = M.Pair(M.Char("res"), empty)
+        parent_goal = M.Pair(Lmod.GoalLabel, M.Pair(M.Char("pg"), empty))
         blocking = M.Pair(Lmod.FailureLabel, empty)
+        rule = M.Pair(M.Char("rule"), M.Char("r3"))
+        pattern = M.Pair(M.Char("coprime"), M.Pair(M.Char("x"), M.Pair(M.Char("y"), empty)))
+        attempt = Rmod.AttemptedRule(
+            rule, empty, empty, empty, pattern, Lmod.PatternMatchFailureLabel
+        )()
         Rmod.EnableResearchMode(graph)
-        Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        Rmod.suggest_dependencies(parent_goal, M.Pair(attempt, empty), blocking, graph)
+        self.result = M.truth_value
+        if M.IdentityCompare(graph.dependency_requests, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            req = M.Head(graph.dependency_requests)()
+            dep_id = Rmod.DependencyRequestId(req)()
+            Rmod.approve_dependency(graph, dep_id)
+            rows = Rmod.show_dependency_graph(graph)
+            count = self._count(rows, M.Zero)
+            one = M.NatEq(count, M.one, Rmod.M.AllConstructors)()
+            if M.IdentityCompare(one, M.truth_value)() is M.false_value:
+                self.result = M.false_value
+            status = Rmod.RequestStatusById(graph.dependency_requests, dep_id)()
+            if M.TermEqual(status, Lmod.ApprovedStatusLabel)() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(status, Lmod.PendingStatusLabel)() is M.truth_value:
+                self.result = M.false_value
         tmpdir = tempfile.mkdtemp()
         snap_path = os.path.join(tmpdir, "snapshot.json")
         try:
@@ -13836,13 +13888,14 @@ class DependencyGraphCheckpointTest(M.Edge):
             elif M.IdentityCompare(g2.dependency_graph, empty)() is M.truth_value:
                 self.result = M.false_value
             else:
-                req = M.Head(g2.dependency_requests)()
-                pg = Rmod.DependencyRequestParentGoal(req)()
-                if M.Compare(pg, parent_goal)() is M.false_value:
+                req2 = M.Head(g2.dependency_requests)()
+                if M.Compare(Rmod.DependencyRequestParentGoal(req2)(), parent_goal)() is M.false_value:
                     self.result = M.false_value
-                else:
-                    self.result = M.truth_value
-        except Exception as e:
+                if M.TermEqual(
+                    Rmod.DependencyRequestStatus(req2)(), Lmod.ApprovedStatusLabel
+                )() is M.false_value:
+                    self.result = M.false_value
+        except Exception:
             self.result = M.false_value
         finally:
             try:
@@ -13850,17 +13903,24 @@ class DependencyGraphCheckpointTest(M.Edge):
             except Exception:
                 pass
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _count(self, chain, acc):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return acc
+        return self._count(M.Tail(chain)(), M.Head(M.Succ(acc, M.AllConstructors)())())
+
     def __call__(self):
         return self.result
+
 
 class GeneratorPolicyLearningTest(M.Edge):
     def __init__(self, graph):
         from . import research as Rmod
         empty = M.EmptyList
         graph._replace_context(generator_metrics=empty, dependency_requests=empty)
-        gen_label = Lmod.GenMissingOperationLabel
+        gen_label = Lmod.GenDependencyRequestFromResidualLabel
         gen = Rmod.get_generator_by_label(gen_label)
-        if gen is None:
+        if M.IdentityCompare(gen, empty)() is M.truth_value:
             self.result = M.false_value
             super().__init__(inputs=empty, results=M.Pair(self.result, empty))
             return
@@ -13868,7 +13928,7 @@ class GeneratorPolicyLearningTest(M.Edge):
         gen.approved = 1
         gen.useful = 1
         gen.used = 1
-        Rmod.update_generator_metrics(graph, gen_label, approved=True, useful=True, used=True, cost_reduction=1.0)
+        Rmod.update_generator_metrics(graph, gen_label)
         if M.IdentityCompare(graph.generator_metrics, empty)() is M.truth_value:
             self.result = M.false_value
         else:
@@ -13882,36 +13942,39 @@ class GeneratorPolicyLearningTest(M.Edge):
         return self.result
 
 class GeneratorAblationTest(M.Edge):
+    """With attempt evidence removed, nothing is proposed at all.
+
+    The generator is a single object and is not monkeypatched away, so
+    ablation runs the other way round: a stall carrying no nameable
+    unmatched premise yields zero requests. If anything were proposed
+    here, some other ladder or lookup would be manufacturing requests.
+    """
+
     def __init__(self, graph):
         from . import research as Rmod
         empty = M.EmptyList
-        parent_goal = M.Pair(Lmod.ExprPowLabel, M.Pair(M.Char("ablation-goal"), empty))
-        residuals = M.Pair(M.Char("ablation-res"), empty)
+        parent_goal = M.Pair(Lmod.ParityLabel, M.Pair(M.Char("ablation-goal"), empty))
         blocking = M.Pair(Lmod.FailureLabel, empty)
         graph._replace_context(dependency_requests=empty, dependency_graph=empty)
-        all_results = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
-        count_all = 0
-        cur = graph.dependency_requests
-        while M.IdentityCompare(cur, empty)() is M.false_value:
-            count_all = count_all + 1
-            cur = M.Tail(cur)()
-        original = list(Rmod.ALL_GENERATORS)
-        Rmod.ALL_GENERATORS = [g for g in original if M.IdentityCompare(g.gen_label, Lmod.GenMissingOperationLabel)() is M.false_value]
+        Rmod.suggest_dependencies(parent_goal, empty, blocking, graph)
+        no_attempts = graph.dependency_requests
         graph._replace_context(dependency_requests=empty, dependency_graph=empty)
-        ablated_results = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
-        count_ablated = 0
-        cur = graph.dependency_requests
-        while M.IdentityCompare(cur, empty)() is M.false_value:
-            count_ablated = count_ablated + 1
-            cur = M.Tail(cur)()
-        Rmod.ALL_GENERATORS = original
+        rule = M.Pair(M.Char("rule"), M.Char("r9"))
+        blind = Rmod.AttemptedRule(
+            rule, empty, empty, empty, empty, Lmod.NoApplicableRuleLabel
+        )()
+        Rmod.suggest_dependencies(parent_goal, M.Pair(blind, empty), blocking, graph)
+        no_premise = graph.dependency_requests
         self.result = M.truth_value
-        if count_all <= count_ablated:
-            if count_all == count_ablated:
-                self.result = M.false_value
+        if M.IdentityCompare(no_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(no_premise, empty)() is M.false_value:
+            self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
     def __call__(self):
         return self.result
+
 
 class ZeroSuccessorResidualTest(M.Edge):
     def __init__(self, graph):
@@ -13937,34 +14000,101 @@ class ZeroSuccessorResidualTest(M.Edge):
         return self.result
 
 class ToyDemoGenericTest(M.Edge):
+    """The unnamed toy demonstration: a parity goal, driven by one attempt.
+
+    Nothing here names a famous theorem. The request comes from a rule
+    that was tried and left a parity premise unmatched.
+    """
+
     def __init__(self, graph):
         from . import research as Rmod
         empty = M.EmptyList
         parent_goal = M.Pair(Lmod.ParityLabel, M.Pair(M.Pair(M.ExprAddLabel, M.Pair(M.Char("a"), M.Pair(M.Char("b"), empty))), M.Pair(Lmod.EvenLabel, empty)))
-        residuals = M.Pair(M.Char("missing-add-parity"), empty)
         blocking = M.Pair(Lmod.FailureLabel, M.Pair(M.Char("no-applicable-rule"), empty))
+        rule = M.Pair(M.Char("rule"), M.Char("parity-add"))
+        pattern = M.Pair(Lmod.ParityLabel, M.Pair(M.Char("u"), M.Pair(M.Char("v"), empty)))
+        attempt = Rmod.AttemptedRule(
+            rule, empty, empty, empty, pattern, Lmod.PatternMatchFailureLabel
+        )()
         graph._replace_context(dependency_requests=empty, dependency_graph=empty)
-        suggested = Rmod.suggest_dependencies(parent_goal, residuals, blocking, graph)
+        Rmod.suggest_dependencies(parent_goal, M.Pair(attempt, empty), blocking, graph)
         self.result = M.truth_value
         if M.IdentityCompare(graph.dependency_requests, empty)() is M.truth_value:
             self.result = M.false_value
         else:
             req = M.Head(graph.dependency_requests)()
             kind = Rmod.DependencyRequestKind(req)()
-            allowed = [Lmod.TheoremKindLabel, Lmod.ObjectKindLabel, Lmod.RepresentationKindLabel, Lmod.TransformationKindLabel, Lmod.TacticKindLabel, Lmod.DomainPropertyKindLabel]
-            found_allowed = False
-            for ak in allowed:
-                if M.IdentityCompare(kind, ak)() is M.truth_value:
-                    found_allowed = True
-            if not found_allowed:
+            allowed = M.Pair(
+                Lmod.TheoremKindLabel,
+                M.Pair(
+                    Lmod.ObjectKindLabel,
+                    M.Pair(
+                        Lmod.RepresentationKindLabel,
+                        M.Pair(
+                            Lmod.TransformationKindLabel,
+                            M.Pair(Lmod.TacticKindLabel, M.Pair(Lmod.DomainPropertyKindLabel, empty)),
+                        ),
+                    ),
+                ),
+            )
+            found = self._kind_allowed(kind, allowed)()
+            if M.IdentityCompare(found, M.truth_value)() is M.false_value:
                 self.result = M.false_value
-            dep_term = M.Pair(Lmod.ParityLabel, M.Pair(M.Char("add-parity-thm"), empty))
-            ev, closed = Rmod.counterfactual_evaluation(graph, parent_goal, residuals, dep_term)
-            if ev is None:
+            formal = Rmod.DependencyRequestFormalStatement(req)()
+            if M.IsPair(formal)() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(M.Head(formal)(), Lmod.NeedLabel)() is M.false_value:
                 self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _kind_allowed(self, kind, allowed):
+        if M.IdentityCompare(allowed, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(kind, M.Head(allowed)())() is M.truth_value:
+            return M.truth_value
+        return self._kind_allowed(kind, M.Tail(allowed)())
+
     def __call__(self):
         return self.result
+
+
+class UncharacterizedStallTest(M.Edge):
+    """A stall with no nameable unmatched premise is reported, not guessed.
+
+    The record keeps the goal and the chain of rules that were tried, and
+    says plainly that the missing theorem could not be characterized.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        parent_goal = M.Pair(Lmod.GoalLabel, M.Pair(M.Char("stall-goal"), empty))
+        blocking = M.Pair(Lmod.FailureLabel, empty)
+        rule = M.Pair(M.Char("rule"), M.Char("r0"))
+        attempt = Rmod.AttemptedRule(
+            rule, empty, empty, empty, empty, Lmod.NoApplicableRuleLabel
+        )()
+        attempts = M.Pair(attempt, empty)
+        graph._replace_context(dependency_requests=empty, dependency_graph=empty)
+        records = Rmod.suggest_dependencies(parent_goal, attempts, blocking, graph)
+        self.result = M.truth_value
+        if M.IdentityCompare(records, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            record = M.Head(records)()
+            if Rmod.IsUncharacterizedStall(record)() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(Rmod.StallGoal(record)(), parent_goal)() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(Rmod.StallAttempts(record)(), attempts)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(graph.dependency_requests, empty)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
 
 def _set_registry(graph, registry):
     graph._replace_context(constructors=registry)
@@ -15741,6 +15871,8 @@ def install_default_tests(graph):
         _register_test(graph, "generator_ablation_test", empty, GeneratorAblationTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "zero_successor_residual_test", empty, ZeroSuccessorResidualTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "uncharacterized_stall_test", empty, UncharacterizedStallTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "toy_demo_generic_test", empty, ToyDemoGenericTest(graph), M.truth_value)
 

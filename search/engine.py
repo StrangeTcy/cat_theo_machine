@@ -619,6 +619,39 @@ class Search(M.Edge):
             return M.EmptyList
         return TermHead(pattern, self.registry)()
 
+    def _record_failed_attempt(self, rule, subterm):
+        """Record a rule that reached application and did not apply.
+
+        The rule's head was compatible with the subterm, so this is a real
+        partial match: the rule's pattern is the concrete formal premise
+        that failed, and it is stored as a term, never as advice. Only
+        collected in research mode, where residuals are preserved.
+        """
+        from . import research as Rmod
+
+        if Rmod.IsResearchMode(self.graph)() is M.false_value:
+            return M.EmptyList
+        pattern = RulePattern(rule)()
+        if M.IdentityCompare(pattern, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        origin = M.EmptyList
+        try:
+            from . import provenance as Provmod
+
+            origin = Provmod.LookupRuleOrigin(self.graph._rule_origins, rule)()
+        except Exception:
+            origin = M.EmptyList
+        attempt = Rmod.AttemptedRule(
+            rule,
+            origin,
+            M.EmptyList,
+            M.EmptyList,
+            pattern,
+            Lmod.PatternMatchFailureLabel,
+        )()
+        self.graph.record_research_attempt(attempt)
+        return attempt
+
     def _rewrite_rule_may_match_subterm(self, rule, subterm):
         pattern = RulePattern(rule)()
         if IsVarPattern(pattern)() is M.truth_value:
@@ -2092,6 +2125,7 @@ class SearchBFS(Search):
         next_term = RewriteAtPath(active_rule, current, path, self.registry)()
         next_term = self._canonical_term(next_term)
         if M.TermEqual(next_term, current)() is M.truth_value:
+            self._record_failed_attempt(active_rule, subterm)
             return self._advance_rewrite_cursor(state, next_cursor, goal)
         if self._tree_contains(generated, next_term) is M.truth_value:
             return self._advance_rewrite_cursor(state, next_cursor, goal)

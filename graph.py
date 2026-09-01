@@ -138,6 +138,7 @@ class Hypergraph:
         self.last_residuals = Ctx.ContextLastResiduals(self.context)()
         self.counterfactual_results = Ctx.ContextCounterfactualResults(self.context)()
         self.research_mode = Ctx.ContextResearchMode(self.context)()
+        self.research_attempts = Ctx.ContextResearchAttempts(self.context)()
         M.AllConstructors = M.set_all_constructors(self.constructor_registry)
         M.NatValueIndex = self.nat_value_index
         return self.context
@@ -412,6 +413,20 @@ class Hypergraph:
             self._replace_context(research_mode=M.Pair(marker, Ctx.ContextResearchMode(self.context)()))
         else:
             self._replace_context(research_mode=M.EmptyList)
+
+    def record_research_attempt(self, attempt):
+        """Append one AttemptedRule record to this session's attempt chain."""
+        self._replace_context(
+            research_attempts=M.Pair(attempt, Ctx.ContextResearchAttempts(self.context)())
+        )
+        self.research_attempts = Ctx.ContextResearchAttempts(self.context)()
+        return attempt
+
+    def clear_research_attempts(self):
+        """Drop the attempt chain. Used when a run restarts."""
+        self._replace_context(research_attempts=M.EmptyList)
+        self.research_attempts = M.EmptyList
+        return M.EmptyList
 
     def is_research_mode(self):
         rm = Ctx.ContextResearchMode(self.context)()

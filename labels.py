@@ -1808,6 +1808,58 @@ class GenDependencyRequestFromResidualLabel(ConstructorLabel):
     pass
 
 
+class AttemptedRuleLabel(ConstructorLabel):
+    pass
+
+
+class AlphaPlaceholderLabel(ConstructorLabel):
+    pass
+
+
+class NoApplicableRuleLabel(ConstructorLabel):
+    pass
+
+
+class PatternMatchFailureLabel(ConstructorLabel):
+    pass
+
+
+class ObligationFailureLabel(ConstructorLabel):
+    pass
+
+
+class UncharacterizedStallLabel(ConstructorLabel):
+    pass
+
+
+class NeedLabel(ConstructorLabel):
+    pass
+
+
+class ObservedMissingPremiseLabel(ConstructorLabel):
+    pass
+
+
+class SpeculativeDependencyLabel(ConstructorLabel):
+    pass
+
+
+class HumanSuppliedStrategyPriorLabel(ConstructorLabel):
+    pass
+
+
+class DemonstratedUsefulDependencyLabel(ConstructorLabel):
+    pass
+
+
+class LearnedDependencyPolicyLabel(ConstructorLabel):
+    pass
+
+
+class HumanSuppliedTrustedTheoremWithoutUnlockLabel(ConstructorLabel):
+    pass
+
+
 class ContextDependencyRequestsLabel(ConstructorLabel):
     pass
 
@@ -1845,6 +1897,10 @@ class ContextCounterfactualResultsLabel(ConstructorLabel):
 
 
 class ContextResearchModeLabel(ConstructorLabel):
+    pass
+
+
+class ContextResearchAttemptsLabel(ConstructorLabel):
     pass
 
 
@@ -2370,6 +2426,19 @@ GenLemmaIntroductionLabel = GenLemmaIntroductionLabel()
 GenTransformationSearchLabel = GenTransformationSearchLabel()
 GenTacticEnhancementLabel = GenTacticEnhancementLabel()
 GenDependencyRequestFromResidualLabel = GenDependencyRequestFromResidualLabel()
+AttemptedRuleLabel = AttemptedRuleLabel()
+AlphaPlaceholderLabel = AlphaPlaceholderLabel()
+NoApplicableRuleLabel = NoApplicableRuleLabel()
+PatternMatchFailureLabel = PatternMatchFailureLabel()
+ObligationFailureLabel = ObligationFailureLabel()
+UncharacterizedStallLabel = UncharacterizedStallLabel()
+NeedLabel = NeedLabel()
+ObservedMissingPremiseLabel = ObservedMissingPremiseLabel()
+SpeculativeDependencyLabel = SpeculativeDependencyLabel()
+HumanSuppliedStrategyPriorLabel = HumanSuppliedStrategyPriorLabel()
+DemonstratedUsefulDependencyLabel = DemonstratedUsefulDependencyLabel()
+LearnedDependencyPolicyLabel = LearnedDependencyPolicyLabel()
+HumanSuppliedTrustedTheoremWithoutUnlockLabel = HumanSuppliedTrustedTheoremWithoutUnlockLabel()
 ContextDependencyRequestsLabel = ContextDependencyRequestsLabel()
 ContextDependencyGraphLabel = ContextDependencyGraphLabel()
 ContextGeneratorMetricsLabel = ContextGeneratorMetricsLabel()
@@ -2380,6 +2449,7 @@ ContextGeneratorPolicyLabel = ContextGeneratorPolicyLabel()
 ContextLastResidualsLabel = ContextLastResidualsLabel()
 ContextCounterfactualResultsLabel = ContextCounterfactualResultsLabel()
 ContextResearchModeLabel = ContextResearchModeLabel()
+ContextResearchAttemptsLabel = ContextResearchAttemptsLabel()
 ZeroSuccessorResidualLabel = ZeroSuccessorResidualLabel()
 ParentGoalLabel = ParentGoalLabel()
 ResidualsLabel = ResidualsLabel()

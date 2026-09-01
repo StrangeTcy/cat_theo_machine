@@ -3667,9 +3667,14 @@ class Prove(M.Edge):
     #     return self._store_success(derivation, new_registry, search_cost, self.heuristic)
 
     def _is_research_mode(self):
+        """Python boolean for search control flow, read from the machine value.
+
+        The rest of this method branches on it, so the machine's truth atom
+        is collapsed to a host boolean exactly here and nowhere else.
+        """
         try:
             from . import research as Rmod
-            return Rmod.IsResearchMode(self.graph)
+            return M.IdentityCompare(Rmod.IsResearchMode(self.graph), M.truth_value)() is M.truth_value
         except Exception:
             return False
 
@@ -3692,6 +3697,10 @@ class Prove(M.Edge):
             # Store residuals for later dependency suggestion
             # If zero successors, wrap as ZeroSuccessorResidual
             if M.IdentityCompare(residuals, M.EmptyList)() is M.truth_value:
+                attempts = Rmod.get_research_attempts(self.graph)
+                if M.IdentityCompare(attempts, M.EmptyList)() is M.false_value:
+                    Rmod.set_last_attempts(self.graph, attempts)
+                    return
                 from .labels import ZeroSuccessorResidualLabel
                 residuals_wrapped = M.Pair(ZeroSuccessorResidualLabel, M.Pair(self.goal, M.EmptyList))
             else:

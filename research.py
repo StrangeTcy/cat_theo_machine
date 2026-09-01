@@ -2,38 +2,39 @@ from __future__ import annotations
 
 from . import machine as M
 from . import labels as Lmod
+from . import context as Ctx
 from .core import Edge, EmptyList, Pair, Head, Tail, IdentityCompare
 
-_research_enabled = M.false_value
-
 def EnableResearchMode(graph=None):
-    global _research_enabled
-    _research_enabled = M.truth_value
+    """Turn research mode on for one graph.
+
+    Mode lives in the graph context, never in module state: a fresh process
+    reading a cold checkpoint must not inherit a switch.
+    """
+    if graph is not None:
+        graph.set_research_mode(M.truth_value)
     return M.truth_value
 
 def DisableResearchMode(graph=None):
-    global _research_enabled
-    _research_enabled = M.false_value
     if graph is not None:
-        graph._replace_context(research_mode=M.EmptyList)
+        graph.set_research_mode(M.false_value)
     return M.false_value
 
 def IsResearchMode(graph=None):
-    if IdentityCompare(_research_enabled, M.truth_value)() is M.truth_value:
-        return M.truth_value is M.truth_value
+    """Machine truth value answering whether research mode is on.
+
+    A graph with no research-mode marker answers false_value.
+    """
     if graph is not None:
-        try:
-            rm = graph.research_mode
-            if IdentityCompare(rm, M.EmptyList)() is M.false_value:
-                return M.truth_value is M.truth_value
-        except Exception:
-            pass
-    return M.truth_value is M.false_value
+        marker = Ctx.ContextResearchMode(graph.context)()
+        return M.IdentityCompare(
+            M.IdentityCompare(marker, M.EmptyList)(),
+            M.false_value,
+        )()
+    return M.false_value
 
 def IsResearchModeEdgeValue(graph=None):
-    if IsResearchMode(graph):
-        return M.truth_value
-    return M.false_value
+    return IsResearchMode(graph)
 
 class Provenance:
     DOMAIN_AXIOM = Lmod.DomainAxiomLabel
@@ -63,6 +64,14 @@ class DependencyStatus:
     APPROVED = Lmod.ApprovedStatusLabel
     REJECTED = Lmod.RejectedStatusLabel
     REFINED = Lmod.RefinedStatusLabel
+    # Spec section 5: observation, hypothesis and demonstration are distinct.
+    OBSERVED_MISSING_PREMISE = Lmod.ObservedMissingPremiseLabel
+    SPECULATIVE = Lmod.SpeculativeDependencyLabel
+    HUMAN_SUPPLIED_STRATEGY_PRIOR = Lmod.HumanSuppliedStrategyPriorLabel
+    HUMAN_SUPPLIED_TRUSTED_THEOREM = Lmod.HumanSuppliedTrustedTheoremLabel
+    HUMAN_SUPPLIED_WITHOUT_UNLOCK = Lmod.HumanSuppliedTrustedTheoremWithoutUnlockLabel
+    DEMONSTRATED_USEFUL = Lmod.DemonstratedUsefulDependencyLabel
+    LEARNED_POLICY = Lmod.LearnedDependencyPolicyLabel
 
 class DependencyRequest(Edge):
     def __init__(self, parent_goal, residuals, blocking_condition, kind, formal_statement, bridge_plan, counterfactual_evidence, assumptions, status, provenance, dep_id=None):
@@ -265,6 +274,314 @@ class GeneratorStats(Edge):
     def __call__(self):
         return self.result
 
+class IsAttemptedRule(Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.AttemptedRuleLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRule(Edge):
+    """One operational rule that was tried against a stall state and failed.
+
+    Fields in order: rule id, rule origin, substitution, matched premises,
+    unmatched premise, failure kind. Only the unmatched premise may become
+    the content of a dependency request, and it is a formal term: there is
+    no field here that can carry a strategy sentence.
+    """
+
+    def __init__(self, rule_id, origin, substitution, matched_premises, unmatched_premise, failure):
+        body = M.Pair(
+            rule_id,
+            M.Pair(
+                origin,
+                M.Pair(
+                    substitution,
+                    M.Pair(matched_premises, M.Pair(unmatched_premise, M.Pair(failure, EmptyList))),
+                ),
+            ),
+        )
+        self.result = M.Pair(Lmod.AttemptedRuleLabel, body)
+        super().__init__(inputs=body, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleId(Edge):
+    def __init__(self, attempt):
+        self.result = Head(Tail(attempt)())()
+        super().__init__(inputs=M.Pair(attempt, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleOrigin(Edge):
+    def __init__(self, attempt):
+        self.result = Head(Tail(Tail(attempt)())())()
+        super().__init__(inputs=M.Pair(attempt, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleSubstitution(Edge):
+    def __init__(self, attempt):
+        self.result = Head(Tail(Tail(Tail(attempt)())())())()
+        super().__init__(inputs=M.Pair(attempt, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleMatched(Edge):
+    def __init__(self, attempt):
+        self.result = Head(Tail(Tail(Tail(Tail(attempt)())())())())()
+        super().__init__(inputs=M.Pair(attempt, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleUnmatched(Edge):
+    def __init__(self, attempt):
+        self.result = Head(Tail(Tail(Tail(Tail(Tail(attempt)())())())())())()
+        super().__init__(inputs=M.Pair(attempt, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleFailure(Edge):
+    def __init__(self, attempt):
+        self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(attempt)())())())())())())()
+        super().__init__(inputs=M.Pair(attempt, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class HasNameableUnmatchedPremise(Edge):
+    """True only when the attempt left a concrete formal premise unmatched."""
+
+    def __init__(self, attempt):
+        self.result = M.false_value
+        if IsAttemptedRule(attempt)() is M.truth_value:
+            if IdentityCompare(AttemptedRuleUnmatched(attempt)(), EmptyList)() is M.false_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(attempt, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CharacterizedAttempts(Edge):
+    """The subchain of attempts that can actually support a request."""
+
+    def __init__(self, attempts):
+        self.result = M.Reverse(self._walk(attempts, EmptyList))()
+        super().__init__(inputs=M.Pair(attempts, EmptyList), results=self.result)
+
+    def _walk(self, attempts, acc):
+        if IdentityCompare(attempts, EmptyList)() is M.truth_value:
+            return acc
+        attempt = Head(attempts)()
+        rest = Tail(attempts)()
+        if HasNameableUnmatchedPremise(attempt)() is M.truth_value:
+            return self._walk(rest, M.Pair(attempt, acc))
+        return self._walk(rest, acc)
+
+    def __call__(self):
+        return self.result
+
+
+class SubstLookup(Edge):
+    """Look one variable up in a Pair(variable, value) chain."""
+
+    def __init__(self, variable, chain):
+        self.result = self._walk(variable, chain)
+        super().__init__(inputs=M.Pair(variable, M.Pair(chain, EmptyList)), results=self.result)
+
+    def _walk(self, variable, chain):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(chain)()
+        if M.TermEqual(Head(entry)(), variable)() is M.truth_value:
+            return Head(Tail(entry)())()
+        return self._walk(variable, Tail(chain)())
+
+    def __call__(self):
+        return self.result
+
+
+class AlphaNormalizeTerm(Edge):
+    """Rename substitution-bound atoms to positional placeholders.
+
+    Returns Pair(normalized, Pair(environment, Pair(next_index, EmptyList))).
+    An atom is treated as a variable only when the substitution binds it, so
+    constants and constructors are left alone and no atom needs a name field.
+    """
+
+    def __init__(self, term, substitution):
+        self.result = self._walk(term, substitution, EmptyList, M.Zero)
+        super().__init__(inputs=M.Pair(term, M.Pair(substitution, EmptyList)), results=self.result)
+
+    def _walk(self, term, substitution, env, next_index):
+        if IdentityCompare(term, EmptyList)() is M.truth_value:
+            return M.Pair(EmptyList, M.Pair(env, M.Pair(next_index, EmptyList)))
+        if M.IsPair(term)() is M.truth_value:
+            head_result = self._walk(Head(term)(), substitution, env, next_index)
+            norm_head = Head(head_result)()
+            env1 = Head(Tail(head_result)())()
+            index1 = Head(Tail(Tail(head_result)())())()
+            tail_result = self._walk(Tail(term)(), substitution, env1, index1)
+            norm_tail = Head(tail_result)()
+            env2 = Head(Tail(tail_result)())()
+            index2 = Head(Tail(Tail(tail_result)())())()
+            return M.Pair(M.Pair(norm_head, norm_tail), M.Pair(env2, M.Pair(index2, EmptyList)))
+        bound = SubstLookup(term, substitution)()
+        if IdentityCompare(bound, EmptyList)() is M.truth_value:
+            return M.Pair(term, M.Pair(env, M.Pair(next_index, EmptyList)))
+        seen = SubstLookup(term, env)()
+        if IdentityCompare(seen, EmptyList)() is M.false_value:
+            return M.Pair(seen, M.Pair(env, M.Pair(next_index, EmptyList)))
+        placeholder = M.Pair(Lmod.AlphaPlaceholderLabel, next_index)
+        new_env = M.Pair(M.Pair(term, placeholder), env)
+        next_pair = M.Succ(next_index, M.AllConstructors)()
+        return M.Pair(
+            placeholder,
+            M.Pair(new_env, M.Pair(Head(next_pair)(), EmptyList)),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class AlphaNormalized(Edge):
+    """Just the normalized term, environment discarded."""
+
+    def __init__(self, term, substitution):
+        self.result = Head(AlphaNormalizeTerm(term, substitution)())()
+        super().__init__(inputs=M.Pair(term, M.Pair(substitution, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class NeedStatement(Edge):
+    """The formal content of a request: Need(unmatched_premise)."""
+
+    def __init__(self, premise):
+        self.result = M.Pair(Lmod.NeedLabel, M.Pair(premise, EmptyList))
+        super().__init__(inputs=M.Pair(premise, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsUncharacterizedStall(Edge):
+    def __init__(self, term):
+        self.result = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.UncharacterizedStallLabel)() is M.truth_value:
+                self.result = M.truth_value
+        super().__init__(inputs=M.Pair(term, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class UncharacterizedStall(Edge):
+    """What the machine reports when it cannot name a missing premise.
+
+    Fields: goal, applicable rules, attempted operational rules, unmatched
+    formal premises, dependency-characterized.
+    """
+
+    def __init__(self, goal, attempts, applicable_rules):
+        body = M.Pair(
+            goal,
+            M.Pair(
+                applicable_rules,
+                M.Pair(attempts, M.Pair(EmptyList, M.Pair(M.false_value, EmptyList))),
+            ),
+        )
+        self.result = M.Pair(Lmod.UncharacterizedStallLabel, body)
+        super().__init__(inputs=body, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallGoal(Edge):
+    def __init__(self, stall):
+        self.result = Head(Tail(stall)())()
+        super().__init__(inputs=M.Pair(stall, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallApplicableRules(Edge):
+    def __init__(self, stall):
+        self.result = Head(Tail(Tail(stall)())())()
+        super().__init__(inputs=M.Pair(stall, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StallAttempts(Edge):
+    def __init__(self, stall):
+        self.result = Head(Tail(Tail(Tail(stall)())())())()
+        super().__init__(inputs=M.Pair(stall, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class DependencyRequestFromAttempt(Edge):
+    """Compile one attempt into a request.
+
+    The whole content of the request is the alpha-normalized unmatched
+    premise of a rule that really was tried. Nothing here inspects the
+    surface shape of the goal, and there is no table mapping failure kinds
+    or domains to prose.
+    """
+
+    def __init__(self, attempt, parent_goal, blocking_condition, dep_id=None):
+        if dep_id is None:
+            dep_id = M.Atom()
+        substitution = AttemptedRuleSubstitution(attempt)()
+        unmatched = AttemptedRuleUnmatched(attempt)()
+        formal = NeedStatement(AlphaNormalized(unmatched, substitution)())()
+        matched = AttemptedRuleMatched(attempt)()
+        evidence = CounterfactualEvidence(M.Zero, M.Zero, EmptyList, EmptyList, EmptyList, M.false_value)()
+        self.result = DependencyRequest(
+            parent_goal,
+            M.Pair(attempt, EmptyList),
+            blocking_condition,
+            DependencyKind.THEOREM,
+            formal,
+            EmptyList,
+            evidence,
+            matched,
+            DependencyStatus.OBSERVED_MISSING_PREMISE,
+            Lmod.DependencyRequestProvenanceLabel,
+            dep_id,
+        )()
+        super().__init__(inputs=M.Pair(attempt, M.Pair(parent_goal, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class GenBase:
     def __init__(self, gen_label):
         self.gen_label = gen_label
@@ -277,284 +594,192 @@ class GenBase:
         self.reuse = 0
 
     def propose(self, parent_goal, residuals, blocking_condition, graph):
-        return ()
+        return EmptyList
 
     def _make_request(self, parent_goal, residuals, blocking_condition, kind, formal_stmt, bridge_plan, assumptions, dep_id=None):
         if dep_id is None:
+            # Identity, not a name: two requests are the same node only when
+            # they are the same atom. No target-derived text lives here.
             dep_id = M.Atom()
-            dep_id.value = self.gen_label.__class__.__name__ + "-" + str(self.proposed)
         ev = CounterfactualEvidence(M.Zero, M.Zero, M.EmptyList, M.EmptyList, M.EmptyList, M.false_value)()
         req = DependencyRequest(parent_goal, residuals, blocking_condition, kind, formal_stmt, bridge_plan, ev, assumptions, DependencyStatus.PENDING, Lmod.DependencyRequestProvenanceLabel, dep_id)()
         self.proposed = self.proposed + 1
         return req
 
-class GenDependencyRequestFromResidual(GenBase):
-    """
-    Single residual-driven generator. Proposes ONLY from concrete residual features:
-    - unsupported constructor
-    - unsupported quantifier
-    - no successor rules for current goal form
-    - missing witness/operation mentioned by Miss reasons
-    - free variable with no bounding measure
-    - equation form with no matching rewrite family currently installed
+class ChainLength(Edge):
+    """Length of a pair chain as a machine Nat."""
 
-    Forbidden content: odd prime divisor, power of 2, reduce to 4, FLT/Fermat,
-    Pythagorean/Eisenstein/Frey/Ribet/modularity
+    def __init__(self, chain):
+        self.result = self._walk(chain, M.Zero)
+        super().__init__(inputs=M.Pair(chain, EmptyList), results=self.result)
+
+    def _walk(self, chain, acc):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return acc
+        return self._walk(Tail(chain)(), Head(M.Succ(acc, M.AllConstructors)())())
+
+    def __call__(self):
+        return self.result
+
+
+class GenDependencyRequestFromResidual(GenBase):
+    """The only generator.
+
+    It proposes exclusively from AttemptedRule records: a rule that was
+    really tried against the stalled state and left one concrete formal
+    premise unmatched. It never inspects the surface shape of the goal, and
+    it holds no table from failure kind or domain to prose.
+
+    When no attempt carries a nameable unmatched premise it returns an
+    UncharacterizedStall record rather than a request. Saying that the gap
+    cannot be characterized is the correct output; a guess dressed up as a
+    discovery is not.
     """
+
     def __init__(self):
         super().__init__(Lmod.GenDependencyRequestFromResidualLabel)
 
-    def _extract_parent_text(self, parent_goal):
-        text = ""
-        try:
-            inner = M.Head(M.Tail(parent_goal)())()
-            if hasattr(inner, '__call__'):
-                v = inner()
-                if isinstance(v, str):
-                    text = v
-                elif hasattr(inner, 'value') and inner.value:
-                    text = str(inner.value)
-                else:
-                    text = str(v) if v is not None else ""
-            else:
-                text = str(inner)
-        except Exception:
-            text = ""
-        return text
+    def propose(self, parent_goal, attempts, blocking_condition, graph):
+        characterized = CharacterizedAttempts(attempts)()
+        if IdentityCompare(characterized, EmptyList)() is M.truth_value:
+            applicable = ChainLength(attempts)()
+            return M.Pair(UncharacterizedStall(parent_goal, attempts, applicable)(), EmptyList)
+        return self._compile(characterized, parent_goal, blocking_condition, EmptyList)
 
-    def propose(self, parent_goal, residuals, blocking_condition, graph):
-        parent_text = self._extract_parent_text(parent_goal)
-        low = parent_text.lower()
+    def _compile(self, attempts, parent_goal, blocking_condition, acc):
+        if IdentityCompare(attempts, EmptyList)() is M.truth_value:
+            return M.Reverse(acc)()
+        attempt = Head(attempts)()
+        rest = Tail(attempts)()
+        request = DependencyRequestFromAttempt(attempt, parent_goal, blocking_condition)()
+        self.proposed = self.proposed + 1
+        return self._compile(rest, parent_goal, blocking_condition, M.Pair(request, acc))
 
-        requests = []
 
-        # Feature detection from residual vocabulary (generic, no FLT strings)
-        has_pow = ("pow" in low) or ("^" in parent_text) or ("a^n" in low) or ("exponent" in low)
-        has_quantifier = ("for all" in low) or ("forall" in low) or ("exists" in low) or ("for every" in low)
-        has_equation = ("=" in parent_text) or ("solvable" in low) or ("equation" in low)
-        has_angle = ("angle" in low) or ("triangle" in low and "180" in low) or ("euclidean" in low)
-        has_group = ("group" in low) and ("order" in low)
-        has_story = ("story" in low) or ("narrative" in low) or ("motif" in low) or ("connect" in low and "story" in low)
+THE_GENERATOR = GenDependencyRequestFromResidual()
 
-        # Generic residual reasons (always applicable as fallback)
-        # These are assembled from residual vocabulary, not prewritten lemmas
-        def make_formal(desc):
-            atom = M.Atom()
-            atom.value = desc
-            return M.Pair(Lmod.FormalStatementLabel, M.Pair(atom, M.EmptyList))
-
-        def make_bridge():
-            return M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-
-        # 1. Unsupported constructor / no successor rules
-        if has_pow:
-            formal = make_formal("need an operation that eliminates or reduces the variable exponent in pow(_, n)")
-            bridge = make_bridge()
-            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.DOMAIN_PROPERTY, formal, bridge, M.EmptyList)
-            requests.append(req)
-            # second proposal for pow case: decreasing measure
-            formal2 = make_formal("need a strictly decreasing measure on positive-integer solutions")
-            bridge2 = make_bridge()
-            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TACTIC, formal2, bridge2, M.EmptyList)
-            requests.append(req2)
-
-        if has_angle:
-            formal = make_formal("need a representation under which existing angle measure laws apply for Euclidean triangle")
-            bridge = make_bridge()
-            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal, bridge, M.EmptyList)
-            requests.append(req)
-            formal2 = make_formal("need an operation that relates interior angles to straight line")
-            bridge2 = make_bridge()
-            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.DOMAIN_PROPERTY, formal2, bridge2, M.EmptyList)
-            requests.append(req2)
-
-        if has_group:
-            formal = make_formal("need a theorem about group structure with order constraints")
-            bridge = make_bridge()
-            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.THEOREM, formal, bridge, M.EmptyList)
-            requests.append(req)
-            formal2 = make_formal("need a representation under which existing divisibility laws apply for group order")
-            bridge2 = make_bridge()
-            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal2, bridge2, M.EmptyList)
-            requests.append(req2)
-
-        if has_story:
-            formal = make_formal("need a motif that bridges storyA and storyB")
-            bridge = make_bridge()
-            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.OBJECT, formal, bridge, M.EmptyList)
-            requests.append(req)
-            formal2 = make_formal("need a representation that aligns narrative roles across stories")
-            bridge2 = make_bridge()
-            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal2, bridge2, M.EmptyList)
-            requests.append(req2)
-
-        # Generic fallback if no specific feature matched, or to ensure at least one proposal
-        # Must be based on residual features: no successor rules, missing witness, free variable no bounding measure
-        if not requests:
-            # Check for unsupported quantifier
-            if has_quantifier:
-                formal = make_formal("need an operation that handles quantifier in current goal form")
-                bridge = make_bridge()
-                req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TACTIC, formal, bridge, M.EmptyList)
-                requests.append(req)
-            # Equation form with no matching rewrite family
-            if has_equation:
-                formal = make_formal("need a representation under which existing equation laws apply")
-                bridge = make_bridge()
-                req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal, bridge, M.EmptyList)
-                requests.append(req)
-            # Free variable with no bounding measure
-            formal = make_formal("need a strictly decreasing measure on free variable")
-            bridge = make_bridge()
-            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TACTIC, formal, bridge, M.EmptyList)
-            requests.append(req)
-            # No successor rules
-            formal2 = make_formal("need an operation that provides successor rules for current goal form")
-            bridge2 = make_bridge()
-            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.DOMAIN_PROPERTY, formal2, bridge2, M.EmptyList)
-            requests.append(req2)
-
-        # Ensure no forbidden content sneaked in (defensive)
-        forbidden = ["odd prime divisor", "power of 2", "reduce to 4", "flt", "fermat", "pythagorean", "eisenstein", "frey", "ribet", "modularity"]
-        filtered = []
-        for r in requests:
-            try:
-                formal_term = DependencyRequestFormalStatement(r)()
-                # extract formal text
-                ft = ""
-                try:
-                    inner = M.Head(M.Tail(formal_term)())()
-                    if hasattr(inner, '__call__'):
-                        v = inner()
-                        ft = str(v).lower() if isinstance(v, str) else str(inner.value).lower() if hasattr(inner, 'value') and inner.value else ""
-                    else:
-                        ft = str(inner).lower()
-                except Exception:
-                    ft = ""
-                if any(f in ft for f in forbidden):
-                    continue
-                filtered.append(r)
-            except Exception:
-                filtered.append(r)
-
-        # Limit to 3 proposals to keep logs readable
-        return tuple(filtered[:3])
-
-ALL_GENERATORS = (
-    GenDependencyRequestFromResidual(),
-)
 
 def get_generator_by_label(label):
-    idx = 0
-    while idx != 100:
-        try:
-            g = ALL_GENERATORS[idx]
-        except Exception:
-            break
-        if IdentityCompare(g.gen_label, label)() is M.truth_value:
-            return g
-        idx = idx + 1
+    if IdentityCompare(THE_GENERATOR.gen_label, label)() is M.truth_value:
+        return THE_GENERATOR
     return M.EmptyList
 
-def _append_pair_to_chain(chain, elem):
-    return M.Pair(elem, chain)
 
-def _reverse_chain(chain):
-    acc = M.EmptyList
-    cur = chain
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        acc = M.Pair(M.Head(cur)(), acc)
-        cur = M.Tail(cur)()
-    return acc
+class RegisterProposals(Edge):
+    """Store admissible requests and grow the dependency graph.
 
-def _count_chain(chain):
-    cnt = 0
-    cur = chain
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        cnt = cnt + 1
-        cur = M.Tail(cur)()
-        if cnt > 10000:
-            break
-    return cnt
+    A stall record is passed straight through: it is a report, not a
+    proposal, and it is never stored as a dependency.
+    """
 
-def suggest_dependencies(parent_goal, residuals, blocking_condition, graph):
-    results_chain = M.EmptyList
-    idx = 0
-    while idx != 100:
-        try:
-            gen = ALL_GENERATORS[idx]
-        except Exception:
-            break
-        try:
-            props = gen.propose(parent_goal, residuals, blocking_condition, graph)
-            p_idx = 0
-            p_len = 0
-            counting = 1
-            while counting == 1:
-                try:
-                    _ = props[p_len]
-                    p_len = p_len + 1
-                    if p_len > 100:
-                        counting = 0
-                except Exception:
-                    counting = 0
-            while p_idx != p_len:
-                r = props[p_idx]
-                if validate_dependency_request(r, parent_goal) is (M.truth_value is M.false_value):
-                    gen.rejected = gen.rejected + 1
-                else:
-                    results_chain = M.Pair(M.Pair(gen, M.Pair(r, M.EmptyList)), results_chain)
-                p_idx = p_idx + 1
-        except Exception:
-            pass
-        idx = idx + 1
-    results_chain = _reverse_chain(results_chain)
-    py_results = []
-    cur = results_chain
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        pair = M.Head(cur)()
-        gen = M.Head(pair)()
-        req = M.Head(M.Tail(pair)())()
-        py_results.append((gen, req))
-        try:
-            graph._replace_context(dependency_requests=M.Pair(req, graph.dependency_requests))
-            dep_id = DependencyRequestId(req)()
-            gdd = GoalDependsOnDependency(parent_goal, dep_id)()
-            graph._replace_context(dependency_graph=M.Pair(gdd, graph.dependency_graph))
-        except Exception:
-            pass
-        cur = M.Tail(cur)()
-    return py_results
+    def __init__(self, proposals, parent_goal, graph):
+        self.result = self._walk(proposals, parent_goal, graph)
+        super().__init__(inputs=M.Pair(proposals, M.Pair(parent_goal, EmptyList)), results=self.result)
 
-def validate_dependency_request(req, parent_goal):
-    try:
-        formal = DependencyRequestFormalStatement(req)()
-        if M.TermEqual(formal, parent_goal)() is M.truth_value:
-            return M.truth_value is M.false_value
-        cur = formal
-        while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            h = Head(cur)()
-            if M.TermEqual(h, parent_goal)() is M.truth_value:
-                return M.truth_value is M.false_value
-            if M.IsPair(h)() is M.truth_value:
-                try:
-                    inner = Head(h)()
-                    if M.TermEqual(inner, parent_goal)() is M.truth_value:
-                        return M.truth_value is M.false_value
-                except Exception:
-                    pass
-            cur = Tail(cur)()
-        bridge = DependencyRequestBridgePlan(req)()
-        if IdentityCompare(bridge, M.EmptyList)() is M.truth_value:
-            return M.truth_value is M.false_value
-        blocking = DependencyRequestBlockingCondition(req)()
+    def _walk(self, proposals, parent_goal, graph):
+        if IdentityCompare(proposals, EmptyList)() is M.truth_value:
+            return EmptyList
+        record = Head(proposals)()
+        rest = Tail(proposals)()
+        if IsUncharacterizedStall(record)() is M.truth_value:
+            return M.Pair(record, self._walk(rest, parent_goal, graph))
+        verdict = ValidateDependencyRequest(record, parent_goal)()
+        if IdentityCompare(verdict, M.truth_value)() is M.false_value:
+            THE_GENERATOR.rejected = THE_GENERATOR.rejected + 1
+            return self._walk(rest, parent_goal, graph)
+        store_dependency_request(graph, record)
+        dep_id = DependencyRequestId(record)()
+        graph._replace_context(
+            dependency_graph=M.Pair(
+                GoalDependsOnDependency(parent_goal, dep_id)(),
+                graph.dependency_graph,
+            )
+        )
+        return M.Pair(record, self._walk(rest, parent_goal, graph))
+
+    def __call__(self):
+        return self.result
+
+
+def suggest_dependencies(parent_goal, attempts, blocking_condition, graph):
+    """Propose from attempted-rule evidence, or report an honest stall.
+
+    Returns a pair chain whose elements are either DependencyRequest terms
+    or a single UncharacterizedStall term.
+    """
+    proposals = THE_GENERATOR.propose(parent_goal, attempts, blocking_condition, graph)
+    return RegisterProposals(proposals, parent_goal, graph)()
+
+
+class RestatesGoal(Edge):
+    """True when the parent goal occurs anywhere inside the term."""
+
+    def __init__(self, term, parent_goal):
+        self.result = self._walk(term, parent_goal)
+        super().__init__(inputs=M.Pair(term, M.Pair(parent_goal, EmptyList)), results=self.result)
+
+    def _walk(self, term, parent_goal):
+        if M.TermEqual(term, parent_goal)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(term)() is M.truth_value:
+            if self._walk(Head(term)(), parent_goal) is M.truth_value:
+                return M.truth_value
+            return self._walk(Tail(term)(), parent_goal)
+        return M.false_value
+
+    def __call__(self):
+        return self.result
+
+
+class AssertsBlockingContradiction(Edge):
+    """True when the request simply asserts the contradiction it must bridge."""
+
+    def __init__(self, formal, blocking):
+        self.result = M.false_value
         if M.IsPair(blocking)() is M.truth_value:
             if M.TermEqual(M.Head(blocking)(), Lmod.ContradictionLabel)() is M.truth_value:
                 if M.TermEqual(formal, blocking)() is M.truth_value:
-                    return M.truth_value is M.false_value
-        return M.truth_value is M.truth_value
-    except Exception:
-        return M.truth_value is M.truth_value
+                    self.result = M.truth_value
+        super().__init__(inputs=M.Pair(formal, M.Pair(blocking, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ValidateDependencyRequest(Edge):
+    """Reject circular and vacuous requests.
+
+    Rejects a request that restates the parent goal, asserts the blocking
+    contradiction, or claims a speculative dependency without a replayable
+    bridge. An observed missing premise carries no bridge by construction
+    and makes no discovery claim, so the bridge rule does not apply to it.
+    """
+
+    def __init__(self, req, parent_goal):
+        formal = DependencyRequestFormalStatement(req)()
+        status = DependencyRequestStatus(req)()
+        bridge = DependencyRequestBridgePlan(req)()
+        blocking = DependencyRequestBlockingCondition(req)()
+        self.result = M.truth_value
+        if RestatesGoal(formal, parent_goal)() is M.truth_value:
+            self.result = M.false_value
+        if AssertsBlockingContradiction(formal, blocking)() is M.truth_value:
+            self.result = M.false_value
+        not_observed = M.NotAtom(
+            IdentityCompare(status, DependencyStatus.OBSERVED_MISSING_PREMISE)()
+        )()
+        claims_bridge = M.AndAtom(IdentityCompare(bridge, EmptyList)(), not_observed)()
+        if IdentityCompare(claims_bridge, M.truth_value)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.Pair(req, M.Pair(parent_goal, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+def validate_dependency_request(req, parent_goal):
+    return ValidateDependencyRequest(req, parent_goal)()
+
 
 def counterfactual_evaluation(graph, parent_goal, residuals, dependency_term, bounded_search_steps=50):
     try:
@@ -581,150 +806,276 @@ def counterfactual_evaluation(graph, parent_goal, residuals, dependency_term, bo
         ev = CounterfactualEvidence(M.Zero, M.Zero, M.EmptyList, M.EmptyList, M.EmptyList, M.false_value)()
         return ev, M.false_value
 
+class EvaluateUnlock(Edge):
+    """Useful only on measured evidence.
+
+    A dependency is demonstrated useful when the goal closed, when an
+    existing rule was newly enabled, or when residual cost fell. Approval
+    by a human is not evidence, and neither is the request existing.
+    """
+
+    def __init__(self, useful_condition, goal_closed, cost_before, cost_after):
+        self.result = M.false_value
+        if IdentityCompare(goal_closed, M.truth_value)() is M.truth_value:
+            self.result = M.truth_value
+        if IdentityCompare(useful_condition, M.truth_value)() is M.truth_value:
+            self.result = M.truth_value
+        cheaper = M.NatLess(cost_after, cost_before, M.AllConstructors)()
+        if IdentityCompare(cheaper, M.truth_value)() is M.truth_value:
+            self.result = M.truth_value
+        super().__init__(
+            inputs=M.Pair(useful_condition, M.Pair(goal_closed, M.Pair(cost_before, M.Pair(cost_after, EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 def evaluate_unlock(useful_condition, goal_closed, cost_before, cost_after):
-    if goal_closed is M.truth_value:
-        return M.truth_value is M.truth_value
-    return M.truth_value is M.false_value
+    return EvaluateUnlock(useful_condition, goal_closed, cost_before, cost_after)()
 
 def store_dependency_request(graph, req):
     graph._replace_context(dependency_requests=M.Pair(req, graph.dependency_requests))
     return req
 
+class FindRequest(Edge):
+    """The request carrying this id, or EmptyList."""
+
+    def __init__(self, chain, dep_id):
+        self.result = self._walk(chain, dep_id)
+        super().__init__(inputs=M.Pair(chain, M.Pair(dep_id, EmptyList)), results=self.result)
+
+    def _walk(self, chain, dep_id):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        req = Head(chain)()
+        if M.TermEqual(DependencyRequestId(req)(), dep_id)() is M.truth_value:
+            return req
+        return self._walk(Tail(chain)(), dep_id)
+
+    def __call__(self):
+        return self.result
+
+
+class RebuildRequest(Edge):
+    """One request rebuilt with a new status, same identity."""
+
+    def __init__(self, req, status):
+        self.result = DependencyRequest(
+            DependencyRequestParentGoal(req)(),
+            DependencyRequestResiduals(req)(),
+            DependencyRequestBlockingCondition(req)(),
+            DependencyRequestKind(req)(),
+            DependencyRequestFormalStatement(req)(),
+            DependencyRequestBridgePlan(req)(),
+            DependencyRequestCounterfactual(req)(),
+            DependencyRequestAssumptions(req)(),
+            status,
+            DependencyRequestProvenance(req)(),
+            DependencyRequestId(req)(),
+        )()
+        super().__init__(inputs=M.Pair(req, M.Pair(status, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SetRequestStatus(Edge):
+    """Replace the status of one request in place. The node keeps its id.
+
+    Status is a field of a single node that changes: Pending -> Approved ->
+    Taught -> Useful, or Pending -> Rejected. No second copy is created, so
+    the graph can never show one request as both pending and approved.
+    """
+
+    def __init__(self, chain, dep_id, status):
+        self.result = self._walk(chain, dep_id, status, EmptyList)
+        super().__init__(inputs=M.Pair(chain, M.Pair(dep_id, M.Pair(status, EmptyList))), results=self.result)
+
+    def _walk(self, chain, dep_id, status, acc):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return M.Reverse(acc)()
+        req = Head(chain)()
+        rest = Tail(chain)()
+        if M.TermEqual(DependencyRequestId(req)(), dep_id)() is M.truth_value:
+            return self._walk(rest, dep_id, status, M.Pair(RebuildRequest(req, status)(), acc))
+        return self._walk(rest, dep_id, status, M.Pair(req, acc))
+
+    def __call__(self):
+        return self.result
+
+
+class SetRequestFormal(Edge):
+    """Replace the formal statement of one request in place."""
+
+    def __init__(self, chain, dep_id, formal):
+        self.result = self._walk(chain, dep_id, formal, EmptyList)
+        super().__init__(inputs=M.Pair(chain, M.Pair(dep_id, M.Pair(formal, EmptyList))), results=self.result)
+
+    def _walk(self, chain, dep_id, formal, acc):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return M.Reverse(acc)()
+        req = Head(chain)()
+        rest = Tail(chain)()
+        if M.TermEqual(DependencyRequestId(req)(), dep_id)() is M.truth_value:
+            rebuilt = DependencyRequest(
+                DependencyRequestParentGoal(req)(),
+                DependencyRequestResiduals(req)(),
+                DependencyRequestBlockingCondition(req)(),
+                DependencyRequestKind(req)(),
+                formal,
+                DependencyRequestBridgePlan(req)(),
+                DependencyRequestCounterfactual(req)(),
+                DependencyRequestAssumptions(req)(),
+                DependencyStatus.REFINED,
+                DependencyRequestProvenance(req)(),
+                DependencyRequestId(req)(),
+            )()
+            return self._walk(rest, dep_id, formal, M.Pair(rebuilt, acc))
+        return self._walk(rest, dep_id, formal, M.Pair(req, acc))
+
+    def __call__(self):
+        return self.result
+
+
 def approve_dependency(graph, dep_id):
-    new_chain = M.EmptyList
-    cur = graph.dependency_requests
-    approved_req = M.EmptyList
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        req = Head(cur)()
-        rid = DependencyRequestId(req)()
-        if M.TermEqual(rid, dep_id)() is M.truth_value:
-            parent = DependencyRequestParentGoal(req)()
-            residuals = DependencyRequestResiduals(req)()
-            blocking = DependencyRequestBlockingCondition(req)()
-            kind = DependencyRequestKind(req)()
-            formal = DependencyRequestFormalStatement(req)()
-            bridge = DependencyRequestBridgePlan(req)()
-            counter = DependencyRequestCounterfactual(req)()
-            assumptions = DependencyRequestAssumptions(req)()
-            prov = DependencyRequestProvenance(req)()
-            new_req = DependencyRequest(parent, residuals, blocking, kind, formal, bridge, counter, assumptions, DependencyStatus.APPROVED, prov, dep_id)()
-            new_chain = M.Pair(new_req, new_chain)
-            approved_req = new_req
-            # When approved, teach formal as trusted theorem with proper provenance
-            try:
-                graph._replace_context(nodes=M.Pair(formal, graph.nodes))
-                entry = M.Pair(formal, M.Pair(Lmod.HumanSuppliedTrustedTheoremLabel, M.EmptyList))
-                graph._replace_context(provenance_map=M.Pair(entry, graph.provenance_map))
-            except Exception:
-                pass
-        else:
-            new_chain = M.Pair(req, new_chain)
-        cur = Tail(cur)()
-    graph._replace_context(dependency_requests=_reverse_chain(new_chain))
-    return approved_req
+    """Mark one request approved.
+
+    Approval is a status change and nothing else. It does not teach the
+    formal statement, and it does not make the request useful: usefulness
+    is demonstrated by counterfactual evidence, not by approval.
+    """
+    graph._replace_context(
+        dependency_requests=SetRequestStatus(
+            graph.dependency_requests, dep_id, DependencyStatus.APPROVED
+        )()
+    )
+    return FindRequest(graph.dependency_requests, dep_id)()
+
 
 def reject_dependency(graph, dep_id):
-    new_chain = M.EmptyList
-    cur = graph.dependency_requests
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        req = Head(cur)()
-        rid = DependencyRequestId(req)()
-        if M.TermEqual(rid, dep_id)() is M.truth_value:
-            parent = DependencyRequestParentGoal(req)()
-            residuals = DependencyRequestResiduals(req)()
-            blocking = DependencyRequestBlockingCondition(req)()
-            kind = DependencyRequestKind(req)()
-            formal = DependencyRequestFormalStatement(req)()
-            bridge = DependencyRequestBridgePlan(req)()
-            counter = DependencyRequestCounterfactual(req)()
-            assumptions = DependencyRequestAssumptions(req)()
-            prov = DependencyRequestProvenance(req)()
-            new_req = DependencyRequest(parent, residuals, blocking, kind, formal, bridge, counter, assumptions, DependencyStatus.REJECTED, prov, dep_id)()
-            new_chain = M.Pair(new_req, new_chain)
-        else:
-            new_chain = M.Pair(req, new_chain)
-        cur = Tail(cur)()
-    graph._replace_context(dependency_requests=_reverse_chain(new_chain))
+    graph._replace_context(
+        dependency_requests=SetRequestStatus(
+            graph.dependency_requests, dep_id, DependencyStatus.REJECTED
+        )()
+    )
+    return FindRequest(graph.dependency_requests, dep_id)()
+
 
 def refine_dependency(graph, dep_id, new_formal):
-    new_chain = M.EmptyList
-    cur = graph.dependency_requests
-    refined_req = M.EmptyList
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        req = Head(cur)()
-        rid = DependencyRequestId(req)()
-        if M.TermEqual(rid, dep_id)() is M.truth_value:
-            parent = DependencyRequestParentGoal(req)()
-            residuals = DependencyRequestResiduals(req)()
-            blocking = DependencyRequestBlockingCondition(req)()
-            kind = DependencyRequestKind(req)()
-            bridge = DependencyRequestBridgePlan(req)()
-            counter = DependencyRequestCounterfactual(req)()
-            assumptions = DependencyRequestAssumptions(req)()
-            prov = DependencyRequestProvenance(req)()
-            new_req = DependencyRequest(parent, residuals, blocking, kind, new_formal, bridge, counter, assumptions, DependencyStatus.REFINED, prov, dep_id)()
-            new_chain = M.Pair(new_req, new_chain)
-            refined_req = new_req
-        else:
-            new_chain = M.Pair(req, new_chain)
-        cur = Tail(cur)()
-    graph._replace_context(dependency_requests=_reverse_chain(new_chain))
-    return refined_req
+    graph._replace_context(
+        dependency_requests=SetRequestFormal(graph.dependency_requests, dep_id, new_formal)()
+    )
+    return FindRequest(graph.dependency_requests, dep_id)()
 
-def teach_trusted_theorem(graph, theorem_term):
-    graph._replace_context(nodes=M.Pair(theorem_term, graph.nodes))
-    entry = M.Pair(theorem_term, M.Pair(Lmod.HumanSuppliedTrustedTheoremLabel, M.EmptyList))
-    graph._replace_context(provenance_map=M.Pair(entry, graph.provenance_map))
-    return theorem_term
 
-def define_symbolic_object(graph, object_term):
-    graph._replace_context(nodes=M.Pair(object_term, graph.nodes))
-    entry = M.Pair(object_term, M.Pair(Lmod.InventedObjectLabel, M.EmptyList))
-    graph._replace_context(provenance_map=M.Pair(entry, graph.provenance_map))
-    return object_term
+class ChainHasId(Edge):
+    """True when a dep id already occurs in a chain of ids."""
 
-def teach_law(graph, law_term):
-    graph._replace_context(edges=M.Pair(law_term, graph.edges))
-    entry = M.Pair(law_term, M.Pair(Lmod.HumanSuppliedTrustedTheoremLabel, M.EmptyList))
-    graph._replace_context(provenance_map=M.Pair(entry, graph.provenance_map))
-    return law_term
+    def __init__(self, ids, dep_id):
+        self.result = self._walk(ids, dep_id)
+        super().__init__(inputs=M.Pair(ids, M.Pair(dep_id, EmptyList)), results=self.result)
+
+    def _walk(self, ids, dep_id):
+        if IdentityCompare(ids, EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.TermEqual(Head(ids)(), dep_id)() is M.truth_value:
+            return M.truth_value
+        return self._walk(Tail(ids)(), dep_id)
+
+    def __call__(self):
+        return self.result
+
+
+class RequestStatusById(Edge):
+    """Current status of a request, or EmptyList when it is unknown."""
+
+    def __init__(self, requests, dep_id):
+        self.result = self._walk(requests, dep_id)
+        super().__init__(inputs=M.Pair(requests, M.Pair(dep_id, EmptyList)), results=self.result)
+
+    def _walk(self, requests, dep_id):
+        if IdentityCompare(requests, EmptyList)() is M.truth_value:
+            return EmptyList
+        req = Head(requests)()
+        if M.TermEqual(DependencyRequestId(req)(), dep_id)() is M.truth_value:
+            return DependencyRequestStatus(req)()
+        return self._walk(Tail(requests)(), dep_id)
+
+    def __call__(self):
+        return self.result
+
+
+class DependencyGraphView(Edge):
+    """One entry per request, showing the status the node currently holds.
+
+    Entries are deduplicated by request id, so a request that has moved
+    from pending to approved appears once, as approved.
+    """
+
+    def __init__(self, graph):
+        self.result = self._walk(graph.dependency_graph, graph.dependency_requests, EmptyList, EmptyList)
+        super().__init__(inputs=M.Pair(graph.dependency_graph, EmptyList), results=self.result)
+
+    def _walk(self, edges, requests, seen_ids, acc):
+        if IdentityCompare(edges, EmptyList)() is M.truth_value:
+            return M.Reverse(acc)()
+        entry = Head(edges)()
+        rest = Tail(edges)()
+        dep_id = Head(Tail(Tail(entry)())())()
+        goal = Head(Tail(entry)())()
+        if ChainHasId(seen_ids, dep_id)() is M.truth_value:
+            return self._walk(rest, requests, seen_ids, acc)
+        status = RequestStatusById(requests, dep_id)()
+        row = M.Pair(goal, M.Pair(dep_id, M.Pair(status, EmptyList)))
+        return self._walk(rest, requests, M.Pair(dep_id, seen_ids), M.Pair(row, acc))
+
+    def __call__(self):
+        return self.result
+
 
 def show_dependency_graph(graph):
-    result = []
-    cur = graph.dependency_graph
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        entry = Head(cur)()
-        try:
-            goal = Head(Tail(entry)())()
-            dep_id = Head(Tail(Tail(entry)())())()
-            status = Lmod.PendingStatusLabel
-            req_cur = graph.dependency_requests
-            while IdentityCompare(req_cur, M.EmptyList)() is M.false_value:
-                req = Head(req_cur)()
-                rid = DependencyRequestId(req)()
-                if M.TermEqual(rid, dep_id)() is M.truth_value:
-                    status = DependencyRequestStatus(req)()
-                    break
-                req_cur = Tail(req_cur)()
-            result.append((goal, dep_id, status))
-        except Exception:
-            pass
-        cur = Tail(cur)()
-    return result
+    """Pair chain of Pair(goal, Pair(dep id, Pair(status, EmptyList))).
+
+    Shows only requests the machine actually produced and the knowledge it
+    actually accepted. No reference graph is stored anywhere.
+    """
+    return DependencyGraphView(graph)()
+
+
+class AuditEntries(Edge):
+    """Pair chain of Pair(term, Pair(provenance, EmptyList)) over provenance_map.
+
+    Malformed rows are skipped rather than raising, so an audit never fails
+    halfway through.
+    """
+
+    def __init__(self, provenance_map):
+        self.result = self._walk(provenance_map, EmptyList)
+        super().__init__(inputs=M.Pair(provenance_map, EmptyList), results=self.result)
+
+    def _walk(self, chain, acc):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return M.Reverse(acc)()
+        entry = Head(chain)()
+        rest = Tail(chain)()
+        if M.IsPair(entry)() is M.false_value:
+            return self._walk(rest, acc)
+        tail = Tail(entry)()
+        if M.IsPair(tail)() is M.false_value:
+            return self._walk(rest, acc)
+        row = M.Pair(Head(entry)(), M.Pair(Head(tail)(), EmptyList))
+        return self._walk(rest, M.Pair(row, acc))
+
+    def __call__(self):
+        return self.result
+
 
 def audit_knowledge(graph):
-    result = []
-    cur = graph.provenance_map
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        entry = Head(cur)()
-        try:
-            term = Head(entry)()
-            prov = Head(Tail(entry)())()
-            result.append((term, prov))
-        except Exception:
-            pass
-        cur = Tail(cur)()
-    return result
+    """Everything the machine currently holds, with its provenance class."""
+    return AuditEntries(graph.provenance_map)()
+
 
 def explain_last_proof(graph):
     return graph.last_proof
@@ -755,38 +1106,82 @@ class ZeroSuccessorResidual(Edge):
     def __call__(self):
         return self.result
 
-def update_generator_metrics(graph, gen_label, approved=0, useful=0, used=0, cost_reduction=0):
-    new_chain = M.EmptyList
-    found = 0
-    cur = graph.generator_metrics
-    while IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        stats = Head(cur)()
-        try:
-            gid = Head(Tail(stats)())()
-            if IdentityCompare(gid, gen_label)() is M.truth_value:
-                found = 1
-                new_chain = M.Pair(stats, new_chain)
-            else:
-                new_chain = M.Pair(stats, new_chain)
-        except Exception:
-            new_chain = M.Pair(stats, new_chain)
-        cur = Tail(cur)()
-    if found == 0:
+class HasStatsLabel(Edge):
+    """True when a metrics row already exists for this generator label."""
+
+    def __init__(self, chain, gen_label):
+        self.result = self._walk(chain, gen_label)
+        super().__init__(inputs=M.Pair(chain, M.Pair(gen_label, EmptyList)), results=self.result)
+
+    def _walk(self, chain, gen_label):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return M.false_value
+        stats = Head(chain)()
+        label = Head(Tail(stats)())()
+        if M.TermEqual(label, gen_label)() is M.truth_value:
+            return M.truth_value
+        return self._walk(Tail(chain)(), gen_label)
+
+    def __call__(self):
+        return self.result
+
+
+class StatsForLabel(Edge):
+    """A metrics row for one generator, or EmptyList if it is unknown."""
+
+    def __init__(self, gen_label):
         gen = get_generator_by_label(gen_label)
-        is_empty = 0
-        if gen is M.EmptyList:
-            is_empty = 1
-        if is_empty == 0:
-            try:
-                proposed = M.GMPRep(str(gen.proposed))
-                approved_v = M.GMPRep(str(gen.approved))
-                rejected_v = M.GMPRep(str(gen.rejected))
-                useful_v = M.GMPRep(str(gen.useful))
-                used_v = M.GMPRep(str(gen.used))
-                mean_v = M.GMPRep(str(int(gen.mean_cost_reduction)))
-                reuse_v = M.GMPRep(str(gen.reuse))
-                stats = GeneratorStats(gen_label, proposed, approved_v, rejected_v, useful_v, used_v, mean_v, reuse_v)()
-                new_chain = M.Pair(stats, new_chain)
-            except Exception:
-                pass
-    graph._replace_context(generator_metrics=_reverse_chain(new_chain))
+        self.result = EmptyList
+        if IdentityCompare(gen, M.EmptyList)() is M.false_value:
+            self.result = GeneratorStats(
+                gen_label,
+                M.GMPRep(str(gen.proposed)),
+                M.GMPRep(str(gen.approved)),
+                M.GMPRep(str(gen.rejected)),
+                M.GMPRep(str(gen.useful)),
+                M.GMPRep(str(gen.used)),
+                M.GMPRep(str(gen.mean_cost_reduction)),
+                M.GMPRep(str(gen.reuse)),
+            )()
+        super().__init__(inputs=M.Pair(gen_label, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EnsureGeneratorStats(Edge):
+    """Make sure one metrics row exists for this generator label.
+
+    Counters are structural only: proposed, approved, rejected, useful,
+    used, mean residual-cost reduction, reuse. Nothing here keys on a
+    theorem name, constant, variable name or target identifier.
+    """
+
+    def __init__(self, chain, gen_label):
+        self.result = chain
+        if HasStatsLabel(chain, gen_label)() is M.false_value:
+            row = StatsForLabel(gen_label)()
+            if IdentityCompare(row, EmptyList)() is M.false_value:
+                self.result = M.Pair(row, chain)
+        super().__init__(inputs=M.Pair(chain, M.Pair(gen_label, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+def update_generator_metrics(graph, gen_label):
+    graph._replace_context(
+        generator_metrics=EnsureGeneratorStats(graph.generator_metrics, gen_label)()
+    )
+    return graph.generator_metrics
+
+
+def get_research_attempts(graph):
+    """The attempted-rule chain recorded by search for this session."""
+    return Ctx.ContextResearchAttempts(graph.context)()
+
+
+def set_last_attempts(graph, attempts):
+    """Publish the attempt chain as the current residuals."""
+    graph._replace_context(last_residuals=attempts, research_residuals=attempts)
+    return attempts
