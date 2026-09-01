@@ -14962,6 +14962,149 @@ class GoalDirectedFiringTest(M.Edge):
         return self.result
 
 
+class GoalDirectedNoFabricationTest(M.Edge):
+    """Goal-directed firing cannot close a goal over an open premise.
+
+    The conclusion unifies with the goal, one premise matches a fact,
+    the other matches nothing: the goal must stay open and the residual
+    must name the unmatched premise. Closure happens only when every
+    premise is discharged against existing facts under the seed.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb = T.var("a"), T.var("b")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("left"), va), T.term(T.sym("right"), vb)),
+            T.term(T.sym("joined"), va, vb),
+        )()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        facts = T.chain(T.term(T.sym("left"), T.sym("p")))
+        goal = T.chain(T.term(T.sym("joined"), T.sym("p"), T.sym("q")))
+        outcome = Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
+            self.result = M.false_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
+            expected = T.term(T.sym("right"), T.sym("q"))
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class OrderedFootholdsTest(M.Edge):
+    """Deeper evidence leads the request list.
+
+    Two rules hold footholds on the goal: one matched a premise against
+    a fact, the other has only the conclusion unification. The stored
+    request order must put the matched-premise obligation first, and a
+    bare-variable-conclusion rule must earn no foothold at all.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb = T.var("a"), T.var("b")
+        strong = MultiRule(
+            T.chain(T.term(T.sym("base"), va), T.term(T.sym("cap"), vb)),
+            T.term(T.sym("goalp"), va, vb),
+        )()
+        vc, vd = T.var("c"), T.var("d")
+        weak = MultiRule(
+            T.chain(T.term(T.sym("other"), vc, vd)),
+            T.term(T.sym("goalp"), vc, vd),
+        )()
+        ve = T.var("e")
+        bare = MultiRule(
+            T.chain(T.term(T.sym("anything"), ve)),
+            ve,
+        )()
+        rules = T.chain(bare, weak, strong)
+        facts = T.chain(T.term(T.sym("base"), T.sym("x")))
+        goal = T.chain(T.term(T.sym("goalp"), T.sym("x"), T.sym("y")))
+        Rmod.attempt_goal(graph, facts, goal, rules)
+        parent = M.Head(goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        self.result = M.truth_value
+        stored = M.Reverse(graph.dependency_requests)()
+        if M.IdentityCompare(stored, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            first = M.Head(stored)()
+            first_need = M.Head(M.Tail(Rmod.DependencyRequestFormalStatement(first)())())()
+            expected_first = T.term(T.sym("cap"), T.sym("y"))
+            if M.Compare(first_need, expected_first)() is M.false_value:
+                self.result = M.false_value
+            count = self._count(stored, 0)
+            if count != 2:
+                # strong + weak; the bare-variable conclusion earns nothing
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _count(self, chain, acc):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return acc
+        return self._count(M.Tail(chain)(), acc + 1)
+
+    def __call__(self):
+        return self.result
+
+
+class CacheHitProvenanceTest(M.Edge):
+    """A remembered goal reports DERIVATION_CACHE_HIT, never SEARCH_DERIVED.
+
+    First attempt derives and stores; second attempt of the same goal
+    revalidates by fresh bounded search and reports the cache hit. The
+    provenance distinction is the whole point: retrieved and derived
+    are different classes and must never blur.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx = T.var("x")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("seed"), vx)),
+            T.term(T.sym("bloom"), vx),
+        )()
+        facts = T.chain(T.term(T.sym("seed"), T.sym("s")))
+        goal = T.chain(T.term(T.sym("bloom"), T.sym("s")))
+        self.result = M.truth_value
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        first_prov = M.Head(M.Tail(M.Tail(graph.last_proof)())())()
+        if M.IdentityCompare(first_prov, Lmod.SearchDerivedLabel)() is M.false_value:
+            self.result = M.false_value
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        second_prov = M.Head(M.Tail(M.Tail(graph.last_proof)())())()
+        if M.IdentityCompare(second_prov, Lmod.DerivationCacheHitLabel)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(second_prov, Lmod.SearchDerivedLabel)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class SentenceGrammarGenericTest(M.Edge):
     """The quantified-goal grammar is compositional, not a target template.
 
@@ -16947,6 +17090,12 @@ def install_default_tests(graph):
         _register_test(graph, "single_premise_goal_seeded_test", empty, SinglePremiseGoalSeededTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "goal_directed_firing_test", empty, GoalDirectedFiringTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "goal_directed_no_fabrication_test", empty, GoalDirectedNoFabricationTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "ordered_footholds_test", empty, OrderedFootholdsTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "cache_hit_provenance_test", empty, CacheHitProvenanceTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:

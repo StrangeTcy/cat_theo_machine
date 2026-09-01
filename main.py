@@ -3019,23 +3019,49 @@ def run_talk_mode(sentence: str = None):
         generator = "enabled"
         if Rmod.generator_enabled(graph) is M.false_value:
             generator = "disabled"
+        library = _library_rule_count()
+        library_text = str(library)
+        if library == 0:
+            library_text = "0 (packs load on demand: `load theorem packs`)"
         return ("state: taught rules " + str(rules)
                 + "; axioms " + str(axioms)
+                + "; library rules " + library_text
                 + "; dependency requests " + str(requests)
                 + "; intervention episodes " + str(episodes)
                 + "; learned policies " + str(policies)
                 + "; residual generator " + generator)
 
     def _research_rules(graph):
-        """Executable rules recompiled from checkpointed formal terms."""
+        """Every rule the machine holds: taught, and the loaded library.
+
+        Nothing is disabled in research mode. Taught rules are recompiled
+        from their checkpointed formal terms; when the theorem packs are
+        loaded, their compiled rules join the chain with library
+        provenance. Taught rules come first so a session's own knowledge
+        is tried before the library's.
+        """
         from . import research as Rmod
         entries = Rmod.rebuild_taught_rules(graph)
         rules = M.EmptyList
+        if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.false_value:
+            from .proof import CollectRules
+            rules = CollectRules(M.FromContextGetAllRules(proof_runtime.graph)())()
         cur = entries
         while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
             rules = M.Pair(M.Head(M.Head(cur)())(), rules)
             cur = M.Tail(cur)()
         return rules
+
+    def _library_rule_count():
+        if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.truth_value:
+            return 0
+        from .proof import CollectRules
+        chain = CollectRules(M.FromContextGetAllRules(proof_runtime.graph)())()
+        count = 0
+        while M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+            count += 1
+            chain = M.Tail(chain)()
+        return count
 
     def _research_attempt(graph, term):
         nonlocal research_parent_goal, research_goal_facts, research_baseline, research_last_blocking
@@ -3428,6 +3454,21 @@ def run_talk_mode(sentence: str = None):
             _persist_research_state()
             return ("learned memory reset: intervention episodes and dependency "
                     "policies removed. Policy predictions disappear with them.")
+
+        if lowered == "load theorem packs":
+            nonlocal proof_runtime, registry
+            if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.false_value:
+                return ("theorem packs already loaded: library rules "
+                        + str(_library_rule_count()))
+            print("hyge> loading the theorem packs", flush=True)
+            quiet_boot = io.StringIO()
+            with redirect_stdout(quiet_boot):
+                proof_runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+            proof_runtime.graph._search_disable_console = M.truth_value
+            registry = M.FromContextGetConstructors(proof_runtime.graph)()
+            return ("theorem packs loaded: library rules "
+                    + str(_library_rule_count())
+                    + "; provenance LIBRARY_THEOREM; they join every attempt from now on.")
 
         if lowered == "disable learned memory":
             graph = _research_graph()
