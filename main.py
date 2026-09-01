@@ -2999,6 +2999,33 @@ def run_talk_mode(sentence: str = None):
         except Exception as save_error:
             print("hyge> research checkpoint save failed: " + str(save_error), flush=True)
 
+    def _research_state_line(graph):
+        """One line of measured state, so the mode reply claims nothing."""
+        from . import research as Rmod
+
+        def count(chain):
+            n = 0
+            cur = chain
+            while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                n += 1
+                cur = M.Tail(cur)()
+            return n
+
+        rules = count(Rmod.TaughtFormalRules(graph.provenance_map)())
+        axioms = count(Rmod.axiom_facts(graph))
+        requests = count(graph.dependency_requests)
+        episodes = count(graph.intervention_episodes)
+        policies = count(graph.dependency_policies)
+        generator = "enabled"
+        if Rmod.generator_enabled(graph) is M.false_value:
+            generator = "disabled"
+        return ("state: taught rules " + str(rules)
+                + "; axioms " + str(axioms)
+                + "; dependency requests " + str(requests)
+                + "; intervention episodes " + str(episodes)
+                + "; learned policies " + str(policies)
+                + "; residual generator " + generator)
+
     def _research_rules(graph):
         """Executable rules recompiled from checkpointed formal terms."""
         from . import research as Rmod
@@ -3028,11 +3055,9 @@ def run_talk_mode(sentence: str = None):
             graph = _research_graph()
             Rmod.EnableResearchMode(graph)
             _persist_research_state()
-            return ("research mode ON. Derivation-cache answers, comparison shortcuts, "
-                    "prewritten ladders and target-specific schemata are not available "
-                    "here: this runtime holds only live-taught knowledge. Residual "
-                    "states are preserved. `audit knowledge` now prints the cold-start "
-                    "manifest.")
+            return ("research mode ON. Effect of this switch: search records "
+                    "attempted-rule evidence and preserves residual states. "
+                    "Nothing else changes.\n" + _research_state_line(graph))
         if lowered == "research mode off":
             graph = _research_graph()
             Rmod.DisableResearchMode(graph)
