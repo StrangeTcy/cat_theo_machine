@@ -3043,7 +3043,7 @@ def run_talk_mode(sentence: str = None):
         from . import research as Rmod
         entries = Rmod.rebuild_taught_rules(graph)
         rules = M.EmptyList
-        if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.false_value:
+        if proof_runtime is not M.EmptyList:
             from .proof import CollectRules
             rules = CollectRules(M.FromContextGetAllRules(proof_runtime.graph)())()
         cur = entries
@@ -3053,7 +3053,9 @@ def run_talk_mode(sentence: str = None):
         return rules
 
     def _library_rule_count():
-        if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.truth_value:
+        # proof_runtime is a host runtime object or EmptyList; the guard is
+        # host identity, never IdentityCompare, which reads atom ids.
+        if proof_runtime is M.EmptyList:
             return 0
         from .proof import CollectRules
         chain = CollectRules(M.FromContextGetAllRules(proof_runtime.graph)())()
@@ -3457,7 +3459,7 @@ def run_talk_mode(sentence: str = None):
 
         if lowered == "load theorem packs":
             nonlocal proof_runtime, registry
-            if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.false_value:
+            if proof_runtime is not M.EmptyList:
                 return ("theorem packs already loaded: library rules "
                         + str(_library_rule_count()))
             print("hyge> loading the theorem packs", flush=True)
@@ -3561,7 +3563,7 @@ def run_talk_mode(sentence: str = None):
             graph = _research_graph()
             entries = Rmod.audit_knowledge(graph)
             lines = ["audit knowledge (research runtime):"]
-            if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.truth_value:
+            if proof_runtime is M.EmptyList:
                 lines.append("  theorem packs: not loaded (`load theorem packs`); this manifest"
                              " covers live-taught knowledge only")
             else:
