@@ -394,7 +394,9 @@ class CharacterizedAttempts(Edge):
         attempt = Head(attempts)()
         rest = Tail(attempts)()
         if HasNameableUnmatchedPremise(attempt)() is M.truth_value:
-            return self._walk(rest, M.Pair(attempt, acc))
+            unmatched = AttemptedRuleUnmatched(attempt)()
+            if IdentityCompare(EvaluateGround(unmatched)(), EmptyList)() is M.truth_value:
+                return self._walk(rest, M.Pair(attempt, acc))
         return self._walk(rest, acc)
 
     def __call__(self):
@@ -981,8 +983,8 @@ def counterfactual_evaluation(graph, start_facts, goal_facts, rules, taught_rule
     """
     if fuel is None:
         fuel = DEFAULT_SEARCH_FUEL
-    baseline = BoundedForwardSearch(start_facts, goal_facts, rules, fuel)()
-    augmented = BoundedForwardSearch(start_facts, goal_facts, M.Pair(taught_rule, rules), fuel)()
+    baseline = Head(evaluated_search(start_facts, goal_facts, rules, fuel))()
+    augmented = Head(evaluated_search(start_facts, goal_facts, M.Pair(taught_rule, rules), fuel))()
     cost_before = ForwardSearchCost(baseline)()
     cost_after = ForwardSearchCost(augmented)()
     fired_before = ForwardSearchFired(baseline)()
@@ -1574,6 +1576,247 @@ class PartialPremiseMatch(Edge):
         return self.result
 
 
+EVAL_EQ = M.Char("eq")
+EVAL_TIMES = M.Char("times")
+EVAL_PLUS = M.Char("plus")
+EVAL_MINUS = M.Char("minus")
+EVAL_POW = M.Char("pow")
+EVAL_DIVIDES = M.Char("divides")
+EVAL_COPRIME = M.Char("coprime")
+EVAL_ODD = M.Char("odd")
+EVAL_EVEN = M.Char("even")
+EVAL_GREATER = M.Char("greater")
+EVAL_GEQ = M.Char("geq")
+EVAL_LESS = M.Char("less")
+EVAL_LEQ = M.Char("leq")
+
+
+class EvaluateGround(Edge):
+    """Decide a fully ground arithmetic predicate, or decline.
+
+    truth_value when the predicate holds, false_value when it is
+    refuted, EmptyList when the term is not ground arithmetic this
+    evaluator understands. The arithmetic itself is host-boundary
+    computation over numeral symbols -- the same boundary the numeral
+    parser already crosses -- and every discharge is provenance-tagged
+    by the caller. Nothing here inspects goal shape: a predicate is
+    evaluable or it is not, uniformly.
+    """
+
+    def __init__(self, term):
+        self.result = self._decide(term)
+        super().__init__(inputs=M.Pair(term, EmptyList), results=self.result)
+
+    def _symbol(self, atom):
+        try:
+            value = atom()
+        except Exception:
+            return None
+        if value is None:
+            return None
+        return str(value)
+
+    def _number(self, term):
+        if M.IsPair(term)() is M.truth_value:
+            head = Head(term)()
+            args = Tail(term)()
+            if M.IsPair(args)() is M.false_value:
+                return None
+            left = self._number(Head(args)())
+            rest = Tail(args)()
+            if M.IsPair(rest)() is M.false_value:
+                return None
+            right = self._number(Head(rest)())
+            if left is None or right is None:
+                return None
+            if M.Compare(head, EVAL_TIMES)() is M.truth_value:
+                return left * right
+            if M.Compare(head, EVAL_PLUS)() is M.truth_value:
+                return left + right
+            if M.Compare(head, EVAL_MINUS)() is M.truth_value:
+                return left - right
+            if M.Compare(head, EVAL_POW)() is M.truth_value:
+                if right < 0 or right > 64:
+                    return None
+                return left ** right
+            return None
+        text = self._symbol(term)
+        if text is None or not text.isdigit():
+            return None
+        return int(text)
+
+    def _gcd(self, left, right):
+        while right != 0:
+            left, right = right, left % right
+        return left
+
+    def _decide(self, term):
+        if M.IsPair(term)() is M.false_value:
+            return EmptyList
+        head = Head(term)()
+        args = Tail(term)()
+        if M.IsPair(args)() is M.false_value:
+            return EmptyList
+        first = Head(args)()
+        rest = Tail(args)()
+        second = None
+        if M.IsPair(rest)() is M.truth_value:
+            second = Head(rest)()
+        if M.Compare(head, EVAL_EQ)() is M.truth_value and second is not None:
+            left = self._number(first)
+            right = self._number(second)
+            if left is None or right is None:
+                return EmptyList
+            return M.truth_value if left == right else M.false_value
+        if M.Compare(head, EVAL_DIVIDES)() is M.truth_value and second is not None:
+            k = self._number(first)
+            n = self._number(second)
+            if k is None or n is None or k == 0:
+                return EmptyList
+            return M.truth_value if n % k == 0 else M.false_value
+        if M.Compare(head, EVAL_COPRIME)() is M.truth_value and second is not None:
+            a = self._number(first)
+            b = self._number(second)
+            if a is None or b is None:
+                return EmptyList
+            return M.truth_value if self._gcd(a, b) == 1 else M.false_value
+        if M.Compare(head, EVAL_ODD)() is M.truth_value:
+            n = self._number(first)
+            if n is None:
+                return EmptyList
+            return M.truth_value if n % 2 == 1 else M.false_value
+        if M.Compare(head, EVAL_EVEN)() is M.truth_value:
+            n = self._number(first)
+            if n is None:
+                return EmptyList
+            return M.truth_value if n % 2 == 0 else M.false_value
+        comparisons = (
+            (EVAL_GREATER, "gt"), (EVAL_GEQ, "ge"), (EVAL_LESS, "lt"), (EVAL_LEQ, "le"),
+        )
+        for label, mode in comparisons:
+            if M.Compare(head, label)() is M.truth_value and second is not None:
+                a = self._number(first)
+                b = self._number(second)
+                if a is None or b is None:
+                    return EmptyList
+                if mode == "gt":
+                    return M.truth_value if a > b else M.false_value
+                if mode == "ge":
+                    return M.truth_value if a >= b else M.false_value
+                if mode == "lt":
+                    return M.truth_value if a < b else M.false_value
+                return M.truth_value if a <= b else M.false_value
+        return EmptyList
+
+    def __call__(self):
+        return self.result
+
+
+class RulePartialMatch(Edge):
+    """The genuine partial match of one rule, goal-seeded when possible.
+
+    Pure: no recording. Returns the partial record or EmptyList, exactly
+    as RecordPremisePartialMatch computes it.
+    """
+
+    def __init__(self, rule, facts, goal_facts):
+        from .proof import RulePremises, RuleReplacement
+
+        premises = RulePremises(rule)()
+        conclusion = RuleReplacement(rule)()
+        partial = EmptyList
+        remaining_goals = goal_facts
+        if IsVarPatternTerm(conclusion)() is M.truth_value:
+            remaining_goals = EmptyList
+        while IdentityCompare(remaining_goals, EmptyList)() is M.false_value:
+            goal_match = M.Match(conclusion, Head(remaining_goals)())()
+            if IdentityCompare(Head(goal_match)(), M.truth_value)() is M.truth_value:
+                seeded = PartialPremiseMatch(
+                    premises, facts, Tail(goal_match)(), M.truth_value
+                )()
+                if IdentityCompare(seeded, EmptyList)() is M.false_value:
+                    partial = seeded
+                    remaining_goals = EmptyList
+                    continue
+            remaining_goals = Tail(remaining_goals)()
+        if IdentityCompare(partial, EmptyList)() is M.truth_value:
+            partial = PartialPremiseMatch(premises, facts)()
+        self.result = partial
+        super().__init__(inputs=M.Pair(rule, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+def evaluated_search(start_facts, goal_facts, rules, fuel):
+    """Bounded search interleaved with ground evaluation of residuals.
+
+    Loop: search; if open, evaluate the ground evaluable obligations --
+    goal facts and unmatched premises. True ones become facts and the
+    search reruns; false ones are collected as refutations and never
+    requested. Ends at closure, refuted goal, or evaluation fixpoint.
+
+    Returns Pair(outcome,
+                 Pair(facts-with-evaluated,
+                      Pair(evaluated-true chain,
+                           Pair(refuted chain, Pair(goal-refuted flag, EmptyList)))))
+    """
+    facts = start_facts
+    evaluated = EmptyList
+    refuted = EmptyList
+    goal_refuted = M.false_value
+    rounds = 0
+    outcome = BoundedForwardSearch(facts, goal_facts, rules, fuel)()
+    while rounds < 8:
+        rounds += 1
+        if ForwardSearchClosed(outcome)() is M.truth_value:
+            break
+        progressed = False
+        remaining_goals = goal_facts
+        while IdentityCompare(remaining_goals, EmptyList)() is M.false_value:
+            goal_fact = Head(remaining_goals)()
+            remaining_goals = Tail(remaining_goals)()
+            verdict = EvaluateGround(goal_fact)()
+            if verdict is M.truth_value:
+                from .proof import FactsCover
+                if FactsCover(M.Pair(goal_fact, EmptyList), facts)() is M.false_value:
+                    facts = M.Pair(goal_fact, facts)
+                    evaluated = M.Pair(goal_fact, evaluated)
+                    progressed = True
+            elif verdict is M.false_value:
+                refuted = M.Pair(goal_fact, refuted)
+                goal_refuted = M.truth_value
+        if goal_refuted is M.truth_value:
+            break
+        final_facts = ForwardSearchFacts(outcome)()
+        remaining_rules = rules
+        while IdentityCompare(remaining_rules, EmptyList)() is M.false_value:
+            rule = Head(remaining_rules)()
+            remaining_rules = Tail(remaining_rules)()
+            partial = RulePartialMatch(rule, final_facts, goal_facts)()
+            if IdentityCompare(partial, EmptyList)() is M.truth_value:
+                continue
+            unmatched = Head(Tail(Tail(partial)())())()
+            verdict = EvaluateGround(unmatched)()
+            if verdict is M.truth_value:
+                from .proof import FactsCover
+                if FactsCover(M.Pair(unmatched, EmptyList), facts)() is M.false_value:
+                    facts = M.Pair(unmatched, facts)
+                    evaluated = M.Pair(unmatched, evaluated)
+                    progressed = True
+            elif verdict is M.false_value:
+                already = ObligationDifference(M.Pair(unmatched, EmptyList), refuted)()
+                if IdentityCompare(already, EmptyList)() is M.false_value:
+                    refuted = M.Pair(unmatched, refuted)
+        if not progressed:
+            break
+        outcome = BoundedForwardSearch(facts, goal_facts, rules, fuel)()
+    return M.Pair(
+        outcome,
+        M.Pair(facts, M.Pair(evaluated, M.Pair(refuted, M.Pair(goal_refuted, EmptyList)))),
+    )
+
+
 class RecordPremisePartialMatch(Edge):
     """Record one genuine partial match as an AttemptedRule, or nothing.
 
@@ -1622,6 +1865,14 @@ class RecordPremisePartialMatch(Edge):
             bindings = Head(partial)()
             matched = Head(Tail(partial)())()
             unmatched = Head(Tail(Tail(partial)())())()
+            if IdentityCompare(EvaluateGround(unmatched)(), EmptyList)() is M.false_value:
+                # A decidable ground premise is never a request: true ones
+                # were discharged by evaluation, false ones refuted. If one
+                # reaches this point undischarged, the evaluator loop and
+                # the recorder disagree -- suppressing it here keeps the
+                # request channel clean either way.
+                super().__init__(inputs=M.Pair(rule, EmptyList), results=self.result)
+                return
             origin = graph.rule_origin(rule)
             attempt = AttemptedRule(
                 rule, origin, bindings, matched, unmatched, Lmod.MissingPremiseFailureLabel
@@ -2925,7 +3176,7 @@ def measure_retry(graph, start_facts, goal_facts, rules, baseline_outcome, fuel=
     """
     if fuel is None:
         fuel = DEFAULT_SEARCH_FUEL
-    outcome = BoundedForwardSearch(start_facts, goal_facts, rules, fuel)()
+    outcome = Head(evaluated_search(start_facts, goal_facts, rules, fuel))()
     if IdentityCompare(ForwardSearchClosed(outcome)(), M.truth_value)() is M.truth_value:
         return M.Pair(RETRY_GOAL_CLOSED, M.Pair(outcome, EmptyList))
     if IdentityCompare(baseline_outcome, EmptyList)() is M.false_value:
@@ -2991,7 +3242,25 @@ def attempt_goal(graph, start_facts, goal_facts, rules, fuel=None):
         fuel = DEFAULT_SEARCH_FUEL
     graph.clear_research_attempts()
     cached = graph.lookup_derivation(start_facts, goal_facts)
-    outcome = BoundedForwardSearch(start_facts, goal_facts, rules, fuel)()
+    searched = evaluated_search(start_facts, goal_facts, rules, fuel)
+    outcome = Head(searched)()
+    start_facts = Head(Tail(searched)())()
+    evaluated = Head(Tail(Tail(searched)())())()
+    refuted = Head(Tail(Tail(Tail(searched)())())())()
+    cur = evaluated
+    while IdentityCompare(cur, EmptyList)() is M.false_value:
+        known = ProvenanceEntriesFor(graph.provenance_map, Lmod.DomainAxiomLabel)()
+        seen = ObligationDifference(M.Pair(Head(cur)(), EmptyList), known)()
+        if IdentityCompare(seen, EmptyList)() is M.false_value:
+            graph.add_provenance(Head(cur)(), Lmod.DomainAxiomLabel)
+        cur = Tail(cur)()
+    cur = refuted
+    while IdentityCompare(cur, EmptyList)() is M.false_value:
+        known = ProvenanceEntriesFor(graph.provenance_map, Lmod.CounterexampleLabel)()
+        seen = ObligationDifference(M.Pair(Head(cur)(), EmptyList), known)()
+        if IdentityCompare(seen, EmptyList)() is M.false_value:
+            graph.add_provenance(Head(cur)(), Lmod.CounterexampleLabel)
+        cur = Tail(cur)()
     closed = ForwardSearchClosed(outcome)()
     fired = ForwardSearchFired(outcome)()
     cost = ForwardSearchCost(outcome)()

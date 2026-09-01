@@ -3560,7 +3560,13 @@ def run_talk_mode(sentence: str = None):
                 return None
             graph = _research_graph()
             entries = Rmod.audit_knowledge(graph)
-            lines = ["audit knowledge (research runtime -- live-taught knowledge only):"]
+            lines = ["audit knowledge (research runtime):"]
+            if M.IdentityCompare(proof_runtime, M.EmptyList)() is M.truth_value:
+                lines.append("  theorem packs: not loaded (`load theorem packs`); this manifest"
+                             " covers live-taught knowledge only")
+            else:
+                lines.append("  theorem packs: loaded; library rules "
+                             + str(_library_rule_count()) + " (LIBRARY_THEOREM)")
             if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
                 lines.append("  (cold start: the manifest is empty)")
             else:

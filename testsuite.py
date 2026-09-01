@@ -14647,8 +14647,8 @@ class PremiseOrderIndependenceTest(M.Edge):
         )
         rule = MultiRule(premises, T.term(T.sym("primitivetriple"), va, vb, vc))()
         graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
-        facts = T.chain(T.term(T.sym("squaresum"), T.sym("3"), T.sym("4"), T.sym("5")))
-        goal = T.chain(T.term(T.sym("primitivetriple"), T.sym("3"), T.sym("4"), T.sym("5")))
+        facts = T.chain(T.term(T.sym("squaresum"), T.sym("m"), T.sym("n"), T.sym("p")))
+        goal = T.chain(T.term(T.sym("primitivetriple"), T.sym("m"), T.sym("n"), T.sym("p")))
         Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
         self.result = M.truth_value
         attempts = graph.research_attempts
@@ -14657,7 +14657,7 @@ class PremiseOrderIndependenceTest(M.Edge):
         else:
             attempt = M.Head(attempts)()
             unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
-            expected = T.term(T.sym("coprime"), T.sym("3"), T.sym("4"))
+            expected = T.term(T.sym("coprime"), T.sym("m"), T.sym("n"))
             if M.Compare(unmatched, expected)() is M.false_value:
                 self.result = M.false_value
             matched = Rmod.AttemptedRuleMatched(attempt)()
@@ -14802,7 +14802,7 @@ class MultiRuleResidualSelectionTest(M.Edge):
         )
         goal = T.chain(
             T.term(T.sym("divides"), T.sym("3"),
-                   T.term(T.sym("plus"), T.sym("6"), T.sym("14")))
+                   T.term(T.sym("plus"), T.sym("6"), T.sym("w")))
         )
         Rmod.attempt_goal(graph, facts, goal, rules)
         self.result = M.truth_value
@@ -14816,11 +14816,11 @@ class MultiRuleResidualSelectionTest(M.Edge):
             # dropped.
             self.result = M.false_value
         else:
-            expected_sum = T.term(T.sym("divides"), T.sym("3"), T.sym("14"))
+            expected_sum = T.term(T.sym("divides"), T.sym("3"), T.sym("w"))
             fresh_q = T.var("q")
             witness_shape = Rmod.AlphaNormalized(
                 T.term(T.sym("eq"), T.term(T.sym("times"), T.sym("3"), fresh_q),
-                       T.term(T.sym("plus"), T.sym("6"), T.sym("14"))),
+                       T.term(T.sym("plus"), T.sym("6"), T.sym("w"))),
                 empty,
             )()
             found_sum = M.false_value
@@ -14874,7 +14874,7 @@ class SinglePremiseGoalSeededTest(M.Edge):
             T.term(T.sym("congruent"), va, vb, vm),
         )()
         graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
-        goal = T.chain(T.term(T.sym("congruent"), T.sym("9"), T.sym("2"), T.sym("5")))
+        goal = T.chain(T.term(T.sym("congruent"), T.sym("x"), T.sym("y"), T.sym("m")))
         Rmod.attempt_goal(graph, empty, goal, T.chain(rule))
         self.result = M.truth_value
         attempts = graph.research_attempts
@@ -14883,8 +14883,8 @@ class SinglePremiseGoalSeededTest(M.Edge):
         else:
             unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
             expected = T.term(
-                T.sym("divides"), T.sym("5"),
-                T.term(T.sym("minus"), T.sym("9"), T.sym("2")),
+                T.sym("divides"), T.sym("m"),
+                T.term(T.sym("minus"), T.sym("x"), T.sym("y")),
             )
             if M.Compare(unmatched, expected)() is M.false_value:
                 self.result = M.false_value
@@ -14931,26 +14931,43 @@ class GoalDirectedFiringTest(M.Edge):
                           T.term(T.sym("pow"), T.sym("t"), T.sym("2")), T.sym("3")))
         )
         self.result = M.truth_value
-        # blocked without the factorization: the request names it
-        Rmod.attempt_goal(graph, empty, goal, T.chain(law))
+        # the numeric factorization is decidable: the evaluator discharges
+        # (eq 6 (times 2 3)) and goal-directed firing closes with nothing
+        # taught at all
+        outcome = Rmod.attempt_goal(graph, empty, goal, T.chain(law))
+        if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        # the symbolic variant is not decidable: the request path stands
+        graph.clear_research_attempts()
+        symbolic_goal = T.chain(
+            T.term(T.sym("eq"),
+                   T.term(T.sym("pow"), T.sym("t"), T.sym("s")),
+                   T.term(T.sym("pow"),
+                          T.term(T.sym("pow"), T.sym("t"), T.sym("k")), T.sym("d")))
+        )
+        Rmod.attempt_goal(graph, empty, symbolic_goal, T.chain(law))
         attempts = graph.research_attempts
         if M.IdentityCompare(attempts, empty)() is M.truth_value:
             self.result = M.false_value
         else:
             unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
-            expected = T.term(T.sym("eq"), T.sym("6"),
-                              T.term(T.sym("times"), T.sym("2"), T.sym("3")))
+            expected = T.term(T.sym("eq"), T.sym("s"),
+                              T.term(T.sym("times"), T.sym("k"), T.sym("d")))
             if M.Compare(unmatched, expected)() is M.false_value:
                 self.result = M.false_value
-        # the taught factorization closes the goal through the backward pass
+        # a taught symbolic factorization still measures its unlock
         supplied = Rmod.compile_formal_rule(
             Rmod.FormalRule(
                 empty,
-                T.term(T.sym("eq"), T.sym("6"),
-                       T.term(T.sym("times"), T.sym("2"), T.sym("3"))),
+                T.term(T.sym("eq"), T.sym("s"),
+                       T.term(T.sym("times"), T.sym("k"), T.sym("d"))),
             )()
         )
-        ev, unlock = Rmod.counterfactual_evaluation(graph, empty, goal, T.chain(law), supplied)
+        ev, unlock = Rmod.counterfactual_evaluation(
+            graph, empty, symbolic_goal, T.chain(law), supplied
+        )
         if unlock is M.false_value:
             self.result = M.false_value
         goal_closed = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(ev)())())())())())())()
@@ -15098,6 +15115,64 @@ class CacheHitProvenanceTest(M.Edge):
         if M.IdentityCompare(second_prov, Lmod.DerivationCacheHitLabel)() is M.false_value:
             self.result = M.false_value
         if M.IdentityCompare(second_prov, Lmod.SearchDerivedLabel)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GroundEvaluationTest(M.Edge):
+    """Decidable ground arithmetic never becomes a request.
+
+    (eq 21 (times 3 7)) closes by evaluation with zero rules and zero
+    requests; (odd 4) refutes -- the goal stays open, no request is
+    compiled, and the refuted premise is recorded COUNTEREXAMPLE;
+    a premise over symbolic constants still requests.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        self.result = M.truth_value
+        T.reset(graph)
+        closing_goal = T.chain(
+            T.term(T.sym("eq"), T.sym("21"),
+                   T.term(T.sym("times"), T.sym("3"), T.sym("7")))
+        )
+        outcome = Rmod.attempt_goal(graph, empty, closing_goal, empty)
+        if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        T.reset(graph)
+        vn = T.var("n")
+        law = MultiRule(
+            T.chain(T.term(T.sym("even"), vn), T.term(T.sym("odd"), vn)),
+            T.term(T.sym("impossible"), vn),
+        )()
+        facts = T.chain(T.term(T.sym("even"), T.sym("4")))
+        goal = T.chain(T.term(T.sym("impossible"), T.sym("4")))
+        outcome = Rmod.attempt_goal(graph, facts, goal, T.chain(law))
+        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        refuted = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.CounterexampleLabel)()
+        if M.IdentityCompare(refuted, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            expected = T.term(T.sym("odd"), T.sym("4"))
+            if M.Compare(M.Head(refuted)(), expected)() is M.false_value:
+                self.result = M.false_value
+        T.reset(graph)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        symbolic_facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        symbolic_goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        Rmod.attempt_goal(graph, symbolic_facts, symbolic_goal, T.chain(rule))
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.truth_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
@@ -17096,6 +17171,8 @@ def install_default_tests(graph):
         _register_test(graph, "ordered_footholds_test", empty, OrderedFootholdsTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "cache_hit_provenance_test", empty, CacheHitProvenanceTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "ground_evaluation_test", empty, GroundEvaluationTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
