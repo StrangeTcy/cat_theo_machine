@@ -3564,11 +3564,23 @@ def run_talk_mode(sentence: str = None):
                     Lmod.NoUsageExampleLabel,
                 )() is M.truth_value:
                     render_name = "the usage-example render law"
+                witness = G.GapWitness(
+                    asked_gap,
+                    learned_version,
+                )()
+                witness_line = ""
+                if M.IdentityCompare(witness, M.EmptyList)() is M.false_value:
+                    witness_line = " after inspecting " + M.PrettyTerm(
+                        witness,
+                        M.AllConstructors,
+                    )()
                 return (
                     "asked because " + M.PrettyTerm(
                         asked_gap, M.AllConstructors,
                     )()
-                    + " was detected; rendered via " + render_name
+                    + " was detected"
+                    + witness_line
+                    + "; rendered via " + render_name
                 )
             known_constructors = G.RuleConstructors(
                 learned_version,

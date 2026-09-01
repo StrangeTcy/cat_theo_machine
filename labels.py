@@ -2486,6 +2486,10 @@ class ConceptLabel(ConstructorLabel):
     pass
 
 
+class SurfaceWordLabel(ConstructorLabel):
+    pass
+
+
 class IsALabel(ConstructorLabel):
     pass
 
@@ -2636,6 +2640,7 @@ OccursAtLabel = OccursAtLabel()
 ClaimStoreLabel = ClaimStoreLabel()
 WordLabel = WordLabel()
 ConceptLabel = ConceptLabel()
+SurfaceWordLabel = SurfaceWordLabel()
 IsALabel = IsALabel()
 PartOfLabel = PartOfLabel()
 WornByLabel = WornByLabel()

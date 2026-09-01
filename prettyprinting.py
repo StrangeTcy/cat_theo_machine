@@ -131,7 +131,12 @@ from .labels import (
     CanAccessLabel,
     ResponsibleForLabel,
     OpportunityLabel,
+    ConceptLabel,
+    SurfaceWordLabel,
     ModifierOfLabel,
+    HasPropertyLabel,
+    SurfaceNumberLabel,
+    PluralLabel,
     UndefinedConceptLabel,
     UngroundedModifierLabel,
     NoUsageExampleLabel,
@@ -880,6 +885,10 @@ class PrettyTerm(Edge):
             return self._geometry_fact_text(problem, tag)
         if IdentityCompare(head, WordLabel)() is truth_value:
             return "Word(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ConceptLabel)() is truth_value:
+            return "Concept(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, SurfaceWordLabel)() is truth_value:
+            return "SurfaceWord(" + self._show_args(tail) + ")"
         if IdentityCompare(head, IsALabel)() is truth_value:
             return "IsA(" + self._show_args(tail) + ")"
         if IdentityCompare(head, PartOfLabel)() is truth_value:
@@ -902,6 +911,12 @@ class PrettyTerm(Edge):
             return "Opportunity(" + self._show_args(tail) + ")"
         if IdentityCompare(head, ModifierOfLabel)() is truth_value:
             return "ModifierOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, HasPropertyLabel)() is truth_value:
+            return "HasProperty(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, SurfaceNumberLabel)() is truth_value:
+            return "SurfaceNumber(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, PluralLabel)() is truth_value:
+            return "Plural"
         if IdentityCompare(head, UndefinedConceptLabel)() is truth_value:
             return "UndefinedConcept(" + self._show_args(tail) + ")"
         if IdentityCompare(head, UngroundedModifierLabel)() is truth_value:
