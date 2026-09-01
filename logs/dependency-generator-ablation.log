@@ -1,0 +1,8 @@
+=== With GenDependencyRequestFromResidual enabled ===
+suggested 2 dependencies
+  gen=GenDependencyRequestFromResidualLabel formal=need an operation that eliminates or reduces the variable exponent in pow(_, n)
+  gen=GenDependencyRequestFromResidualLabel formal=need a strictly decreasing measure on positive-integer solutions
+
+=== Ablation: Disable GenDependencyRequestFromResidual, reset checkpoint ===
+suggested 0 dependencies (should be 0)
+ablation PASS: same requests disappeared when generator disabled

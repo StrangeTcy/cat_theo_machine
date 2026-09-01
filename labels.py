@@ -1804,6 +1804,10 @@ class GenTacticEnhancementLabel(ConstructorLabel):
     pass
 
 
+class GenDependencyRequestFromResidualLabel(ConstructorLabel):
+    pass
+
+
 class ContextDependencyRequestsLabel(ConstructorLabel):
     pass
 
@@ -2365,6 +2369,7 @@ GenAuxiliaryObjectLabel = GenAuxiliaryObjectLabel()
 GenLemmaIntroductionLabel = GenLemmaIntroductionLabel()
 GenTransformationSearchLabel = GenTransformationSearchLabel()
 GenTacticEnhancementLabel = GenTacticEnhancementLabel()
+GenDependencyRequestFromResidualLabel = GenDependencyRequestFromResidualLabel()
 ContextDependencyRequestsLabel = ContextDependencyRequestsLabel()
 ContextDependencyGraphLabel = ContextDependencyGraphLabel()
 ContextGeneratorMetricsLabel = ContextGeneratorMetricsLabel()

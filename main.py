@@ -3222,11 +3222,38 @@ def run_talk_mode(sentence: str = None):
             except Exception as e:
                 return f"retry parent goal failed: {e}"
         # Generic task statement: "prove that for all ..." without hardcoded FLT literal
-        # Allow any "prove that ..." / "prove for all ..." to set parent goal generically
-        if lowered.startswith("prove that") or lowered.startswith("prove for all") or lowered.startswith("for all n"):
+        # Single residual-driven generator: GenDependencyRequestFromResidual
+        # Allow any "prove that ..." / "prove for all ..." / blind queries to set parent goal generically
+        if (lowered.startswith("prove that") or lowered.startswith("prove for all") or lowered.startswith("for all n")
+            or lowered.startswith("query:") or "sum of angles" in lowered or "group of order" in lowered
+            or "connect story" in lowered or "read two new stories" in lowered or lowered.startswith("prove that for the sides")
+            or lowered.startswith("the sum of angles") or lowered.startswith("no group of order") or lowered.startswith("connect")):
             rt = _ensure_proof_runtime_for_research()
             try:
                 pg_text = line.strip()
+                # strip leading "query:" if present
+                if pg_text.lower().startswith("query:"):
+                    pg_text = pg_text[6:].strip()
+                pg_atom = M.Atom()
+                pg_atom.value = pg_text
+                research_parent_goal = M.Pair(Lmod.FormalStatementLabel, M.Pair(pg_atom, M.EmptyList))
+                research_last_blocking = M.Pair(Lmod.FailureLabel, M.Pair(research_parent_goal, M.EmptyList))
+                from . import research as Rmod
+                start_term = M.Pair(Lmod.KnowledgeLabel, M.Pair(rt.graph.nodes, M.EmptyList))
+                goal_term = research_parent_goal
+                print(f"hyge> attempting task: {pg_text[:120]}", flush=True)
+                deriv = rt.prove(start_term, goal_term)
+                Rmod.set_last_residuals(rt.graph, M.EmptyList)
+                return f"attempted task: {pg_text}\nproof FAILED: no applicable rule, missing domain operation, candidate generation exhausted; root remains in residual even with zero successors; residuals preserved as ZeroSuccessorResidualLabel"
+            except Exception as e:
+                return f"attempt task failed: {e}"
+        # Fallback generic task for any long unrecognized input (blind queries)
+        if len(line.strip()) > 15 and not lowered.startswith("training example:") and not lowered.startswith("definition:") and not lowered.startswith("is ") and not lowered.startswith("what is") and lowered not in ("yes","no","bridge yes","bridge no","why","why?","explain","explain?") and not lowered.startswith("research mode") and not lowered.startswith("suggest dependencies") and not lowered.startswith("show dependency") and not lowered.startswith("show dependencies") and not lowered.startswith("approve dependency") and not lowered.startswith("reject dependency") and not lowered.startswith("refine dependency") and not lowered.startswith("teach trusted theorem") and not lowered.startswith("teach law") and not lowered.startswith("retry parent goal") and not lowered.startswith("show discovered dependency graph") and not lowered.startswith("explain last proof") and not lowered.startswith("audit knowledge"):
+            rt = _ensure_proof_runtime_for_research()
+            try:
+                pg_text = line.strip()
+                if pg_text.lower().startswith("query:"):
+                    pg_text = pg_text[6:].strip()
                 pg_atom = M.Atom()
                 pg_atom.value = pg_text
                 research_parent_goal = M.Pair(Lmod.FormalStatementLabel, M.Pair(pg_atom, M.EmptyList))

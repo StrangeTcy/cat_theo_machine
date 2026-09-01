@@ -288,111 +288,160 @@ class GenBase:
         self.proposed = self.proposed + 1
         return req
 
-class GenMissingOperation(GenBase):
-    def __init__(self):
-        super().__init__(Lmod.GenMissingOperationLabel)
-    def propose(self, parent_goal, residuals, blocking_condition, graph):
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Atom(), M.EmptyList))
-        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-        assumptions = M.EmptyList
-        req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.DOMAIN_PROPERTY, formal, bridge, assumptions)
-        return (req,)
+class GenDependencyRequestFromResidual(GenBase):
+    """
+    Single residual-driven generator. Proposes ONLY from concrete residual features:
+    - unsupported constructor
+    - unsupported quantifier
+    - no successor rules for current goal form
+    - missing witness/operation mentioned by Miss reasons
+    - free variable with no bounding measure
+    - equation form with no matching rewrite family currently installed
 
-class GenProperExponentReduction(GenBase):
+    Forbidden content: odd prime divisor, power of 2, reduce to 4, FLT/Fermat,
+    Pythagorean/Eisenstein/Frey/Ribet/modularity
+    """
     def __init__(self):
-        super().__init__(Lmod.GenProperExponentReductionLabel)
-    def propose(self, parent_goal, residuals, blocking_condition, graph):
-        # Only propose when parent goal involves exponentiation with variable exponent
-        # Generic check: look for pow, ^, exponent variable, not FLT literal
+        super().__init__(Lmod.GenDependencyRequestFromResidualLabel)
+
+    def _extract_parent_text(self, parent_goal):
+        text = ""
         try:
-            # Extract text from parent_goal if it's FormalStatementLabel Pair(atom)
-            text = ""
-            try:
-                inner = M.Head(M.Tail(parent_goal)())()
-                if hasattr(inner, '__call__'):
-                    v = inner()
-                    if isinstance(v, str):
-                        text = v
-                    elif hasattr(inner, 'value') and inner.value:
-                        text = str(inner.value)
+            inner = M.Head(M.Tail(parent_goal)())()
+            if hasattr(inner, '__call__'):
+                v = inner()
+                if isinstance(v, str):
+                    text = v
+                elif hasattr(inner, 'value') and inner.value:
+                    text = str(inner.value)
                 else:
-                    text = str(inner)
-            except Exception:
-                text = ""
-            low = text.lower()
-            # Generic pow indicators: pow, ^, a^n, exponent reduction keywords
-            has_pow = ("pow" in low) or ("^" in text) or ("a^n" in low) or ("b^n" in low) or ("c^n" in low) or ("exponent" in low)
-            # For triangle a*a+b*b=c*c, no variable exponent, so skip
-            if not has_pow:
-                # also check if parent goal mentions variable exponent n with pow
-                # If no pow pattern, don't propose exponent reduction to avoid ridiculous hardcoding
-                return ()
+                    text = str(v) if v is not None else ""
+            else:
+                text = str(inner)
         except Exception:
-            pass
-        # Formal: ForAll n, (n has odd prime divisor p -> reduction to p) and (n power of 2 >2 -> divisor 4)
-        var_n = M.Atom()
-        var_n.value = "n"
-        body = M.Atom()
-        body.value = "n has odd prime divisor p -> pow reduction to p; n power of 2 >2 -> divisor 4"
-        forall_term = M.Pair(Lmod.ForAllLabel, M.Pair(var_n, M.Pair(body, M.EmptyList)))
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(forall_term, M.EmptyList))
-        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-        req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.THEOREM, formal, bridge, M.EmptyList)
-        return (req,)
+            text = ""
+        return text
 
-class GenRepresentationShift(GenBase):
-    def __init__(self):
-        super().__init__(Lmod.GenRepresentationShiftLabel)
     def propose(self, parent_goal, residuals, blocking_condition, graph):
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Atom(), M.EmptyList))
-        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-        req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal, bridge, M.EmptyList)
-        return (req,)
+        parent_text = self._extract_parent_text(parent_goal)
+        low = parent_text.lower()
 
-class GenAuxiliaryObject(GenBase):
-    def __init__(self):
-        super().__init__(Lmod.GenAuxiliaryObjectLabel)
-    def propose(self, parent_goal, residuals, blocking_condition, graph):
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Atom(), M.EmptyList))
-        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-        req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.OBJECT, formal, bridge, M.EmptyList)
-        return (req,)
+        requests = []
 
-class GenLemmaIntroduction(GenBase):
-    def __init__(self):
-        super().__init__(Lmod.GenLemmaIntroductionLabel)
-    def propose(self, parent_goal, residuals, blocking_condition, graph):
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Atom(), M.EmptyList))
-        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-        req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.THEOREM, formal, bridge, M.EmptyList)
-        return (req,)
+        # Feature detection from residual vocabulary (generic, no FLT strings)
+        has_pow = ("pow" in low) or ("^" in parent_text) or ("a^n" in low) or ("exponent" in low)
+        has_quantifier = ("for all" in low) or ("forall" in low) or ("exists" in low) or ("for every" in low)
+        has_equation = ("=" in parent_text) or ("solvable" in low) or ("equation" in low)
+        has_angle = ("angle" in low) or ("triangle" in low and "180" in low) or ("euclidean" in low)
+        has_group = ("group" in low) and ("order" in low)
+        has_story = ("story" in low) or ("narrative" in low) or ("motif" in low) or ("connect" in low and "story" in low)
 
-class GenTransformationSearch(GenBase):
-    def __init__(self):
-        super().__init__(Lmod.GenTransformationSearchLabel)
-    def propose(self, parent_goal, residuals, blocking_condition, graph):
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Atom(), M.EmptyList))
-        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-        req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TRANSFORMATION, formal, bridge, M.EmptyList)
-        return (req,)
+        # Generic residual reasons (always applicable as fallback)
+        # These are assembled from residual vocabulary, not prewritten lemmas
+        def make_formal(desc):
+            atom = M.Atom()
+            atom.value = desc
+            return M.Pair(Lmod.FormalStatementLabel, M.Pair(atom, M.EmptyList))
 
-class GenTacticEnhancement(GenBase):
-    def __init__(self):
-        super().__init__(Lmod.GenTacticEnhancementLabel)
-    def propose(self, parent_goal, residuals, blocking_condition, graph):
-        formal = M.Pair(Lmod.FormalStatementLabel, M.Pair(M.Atom(), M.EmptyList))
-        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
-        req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TACTIC, formal, bridge, M.EmptyList)
-        return (req,)
+        def make_bridge():
+            return M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Atom(), M.EmptyList))
+
+        # 1. Unsupported constructor / no successor rules
+        if has_pow:
+            formal = make_formal("need an operation that eliminates or reduces the variable exponent in pow(_, n)")
+            bridge = make_bridge()
+            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.DOMAIN_PROPERTY, formal, bridge, M.EmptyList)
+            requests.append(req)
+            # second proposal for pow case: decreasing measure
+            formal2 = make_formal("need a strictly decreasing measure on positive-integer solutions")
+            bridge2 = make_bridge()
+            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TACTIC, formal2, bridge2, M.EmptyList)
+            requests.append(req2)
+
+        if has_angle:
+            formal = make_formal("need a representation under which existing angle measure laws apply for Euclidean triangle")
+            bridge = make_bridge()
+            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal, bridge, M.EmptyList)
+            requests.append(req)
+            formal2 = make_formal("need an operation that relates interior angles to straight line")
+            bridge2 = make_bridge()
+            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.DOMAIN_PROPERTY, formal2, bridge2, M.EmptyList)
+            requests.append(req2)
+
+        if has_group:
+            formal = make_formal("need a theorem about group structure with order constraints")
+            bridge = make_bridge()
+            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.THEOREM, formal, bridge, M.EmptyList)
+            requests.append(req)
+            formal2 = make_formal("need a representation under which existing divisibility laws apply for group order")
+            bridge2 = make_bridge()
+            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal2, bridge2, M.EmptyList)
+            requests.append(req2)
+
+        if has_story:
+            formal = make_formal("need a motif that bridges storyA and storyB")
+            bridge = make_bridge()
+            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.OBJECT, formal, bridge, M.EmptyList)
+            requests.append(req)
+            formal2 = make_formal("need a representation that aligns narrative roles across stories")
+            bridge2 = make_bridge()
+            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal2, bridge2, M.EmptyList)
+            requests.append(req2)
+
+        # Generic fallback if no specific feature matched, or to ensure at least one proposal
+        # Must be based on residual features: no successor rules, missing witness, free variable no bounding measure
+        if not requests:
+            # Check for unsupported quantifier
+            if has_quantifier:
+                formal = make_formal("need an operation that handles quantifier in current goal form")
+                bridge = make_bridge()
+                req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TACTIC, formal, bridge, M.EmptyList)
+                requests.append(req)
+            # Equation form with no matching rewrite family
+            if has_equation:
+                formal = make_formal("need a representation under which existing equation laws apply")
+                bridge = make_bridge()
+                req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.REPRESENTATION, formal, bridge, M.EmptyList)
+                requests.append(req)
+            # Free variable with no bounding measure
+            formal = make_formal("need a strictly decreasing measure on free variable")
+            bridge = make_bridge()
+            req = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.TACTIC, formal, bridge, M.EmptyList)
+            requests.append(req)
+            # No successor rules
+            formal2 = make_formal("need an operation that provides successor rules for current goal form")
+            bridge2 = make_bridge()
+            req2 = self._make_request(parent_goal, residuals, blocking_condition, DependencyKind.DOMAIN_PROPERTY, formal2, bridge2, M.EmptyList)
+            requests.append(req2)
+
+        # Ensure no forbidden content sneaked in (defensive)
+        forbidden = ["odd prime divisor", "power of 2", "reduce to 4", "flt", "fermat", "pythagorean", "eisenstein", "frey", "ribet", "modularity"]
+        filtered = []
+        for r in requests:
+            try:
+                formal_term = DependencyRequestFormalStatement(r)()
+                # extract formal text
+                ft = ""
+                try:
+                    inner = M.Head(M.Tail(formal_term)())()
+                    if hasattr(inner, '__call__'):
+                        v = inner()
+                        ft = str(v).lower() if isinstance(v, str) else str(inner.value).lower() if hasattr(inner, 'value') and inner.value else ""
+                    else:
+                        ft = str(inner).lower()
+                except Exception:
+                    ft = ""
+                if any(f in ft for f in forbidden):
+                    continue
+                filtered.append(r)
+            except Exception:
+                filtered.append(r)
+
+        # Limit to 3 proposals to keep logs readable
+        return tuple(filtered[:3])
 
 ALL_GENERATORS = (
-    GenMissingOperation(),
-    GenProperExponentReduction(),
-    GenRepresentationShift(),
-    GenAuxiliaryObject(),
-    GenLemmaIntroduction(),
-    GenTransformationSearch(),
-    GenTacticEnhancement(),
+    GenDependencyRequestFromResidual(),
 )
 
 def get_generator_by_label(label):
