@@ -2498,8 +2498,59 @@ class PolicyPredictionsFor(Edge):
         return self.result
 
 
+class LearnedMemoryEnabledFlag(Edge):
+    """The reversible learned-memory mask, read from the graph context.
+
+    generator_policy entries Pair(LearnedDependencyPolicyLabel, Pair(flag,
+    EmptyList)) mask the policy store without erasing it. Absent an entry
+    the store is enabled. Disabling must silence every policy prediction;
+    re-enabling must bring the same predictions back -- the appear,
+    disappear, reappear cycle a hardcoded suggestion cannot survive.
+    """
+
+    def __init__(self, graph):
+        self.result = self._walk(graph.generator_policy)
+        super().__init__(inputs=EmptyList, results=self.result)
+
+    def _walk(self, chain):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return M.truth_value
+        entry = Head(chain)()
+        if M.IsPair(entry)() is M.truth_value:
+            if IdentityCompare(Head(entry)(), Lmod.LearnedDependencyPolicyLabel)() is M.truth_value:
+                payload = Tail(entry)()
+                if M.IsPair(payload)() is M.truth_value:
+                    return Head(payload)()
+        return self._walk(Tail(chain)())
+
+    def __call__(self):
+        return self.result
+
+
+def learned_memory_enabled(graph):
+    return LearnedMemoryEnabledFlag(graph)()
+
+
+def disable_learned_memory(graph):
+    entry = M.Pair(Lmod.LearnedDependencyPolicyLabel, M.Pair(M.false_value, EmptyList))
+    graph._replace_context(generator_policy=M.Pair(entry, graph.generator_policy))
+    return M.false_value
+
+
+def enable_learned_memory(graph):
+    entry = M.Pair(Lmod.LearnedDependencyPolicyLabel, M.Pair(M.truth_value, EmptyList))
+    graph._replace_context(generator_policy=M.Pair(entry, graph.generator_policy))
+    return M.truth_value
+
+
 def policy_predictions(graph, records):
-    """Predictions for each stored request record, flattened."""
+    """Predictions for each stored request record, flattened.
+
+    Empty when the learned-memory mask is off: a masked policy predicts
+    nothing, and nothing else in the machine may produce a prediction.
+    """
+    if learned_memory_enabled(graph) is M.false_value:
+        return EmptyList
     return RequestsPredictions(records, graph.dependency_policies)()
 
 

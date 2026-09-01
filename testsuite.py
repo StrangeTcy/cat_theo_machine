@@ -14624,6 +14624,141 @@ class LearnedMemoryCheckpointTest(M.Edge):
         return self.result
 
 
+class SentenceGrammarGenericTest(M.Edge):
+    """The quantified-goal grammar is compositional, not a target template.
+
+    Structurally different sentences parse through the same productions
+    into structurally different terms; the same sentence parses
+    deterministically; a non-equational sentence is refused rather than
+    guessed at. Nothing here recognizes any particular equation.
+    """
+
+    def __init__(self, graph):
+        from .main import _research_parse_sentence, _research_parse
+        empty = M.EmptyList
+        self.result = M.truth_value
+
+        term1, err1 = _research_parse_sentence(
+            "for all k >= 2 u^k + v^k = w^(k+1) is not solvable in positive integers"
+        )
+        expected1, expected_err1 = _research_parse(
+            "(forall k (implies (geq k 2) (nosolutions positive-integers"
+            " (eq (plus (pow u k) (pow v k)) (pow w (plus k 1))))))"
+        )
+        if term1 is None or expected1 is None:
+            self.result = M.false_value
+        elif M.Compare(term1, expected1)() is M.false_value:
+            self.result = M.false_value
+
+        term2, err2 = _research_parse_sentence(
+            "for all m x^m = y^m implies x = y over positive integers"
+        )
+        expected2, expected_err2 = _research_parse(
+            "(forall m (over positive-integers"
+            " (implies (eq (pow x m) (pow y m)) (eq x y))))"
+        )
+        if term2 is None or expected2 is None:
+            self.result = M.false_value
+        elif M.Compare(term2, expected2)() is M.false_value:
+            self.result = M.false_value
+
+        term3, err3 = _research_parse_sentence(
+            "no positive integers p, q satisfy p^2 = 2*q^2"
+        )
+        expected3, expected_err3 = _research_parse(
+            "(nosolutions positive-integers (unknowns p q)"
+            " (eq (pow p 2) (times 2 (pow q 2))))"
+        )
+        if term3 is None or expected3 is None:
+            self.result = M.false_value
+        elif M.Compare(term3, expected3)() is M.false_value:
+            self.result = M.false_value
+
+        renamed, renamed_err = _research_parse_sentence(
+            "for all k >= 2 g^k + h^k = j^(k+1) is not solvable in positive integers"
+        )
+        if renamed is None:
+            self.result = M.false_value
+        elif M.Compare(renamed, term1)() is M.truth_value:
+            self.result = M.false_value
+
+        again, again_err = _research_parse_sentence(
+            "for all k >= 2 u^k + v^k = w^(k+1) is not solvable in positive integers"
+        )
+        if again is None:
+            self.result = M.false_value
+        elif M.Compare(again, term1)() is M.false_value:
+            self.result = M.false_value
+
+        refused, refused_err = _research_parse_sentence(
+            "the largest room in the house is painted blue"
+        )
+        if refused is not None:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LearnedMemoryToggleTest(M.Edge):
+    """Policy predictions appear, disappear, and reappear with the mask.
+
+    A suggestion that survives disabling the policy store is hardcoded; a
+    suggestion that cannot return when the store is re-enabled was never
+    stored knowledge. The reversible mask separates both failures from
+    the erase operation, which must silence predictions permanently.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        self.result = M.truth_value
+        T.run_episode(graph, "rel", "mark", "tag", "a", "b")
+        T.run_episode(graph, "rel", "mark", "tag", "c", "d")
+        if M.IdentityCompare(graph.dependency_policies, empty)() is M.truth_value:
+            self.result = M.false_value
+        graph.clear_research_attempts()
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        facts = T.chain(T.term(T.sym("rel"), T.sym("e"), T.sym("f")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("e")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        parent = M.Head(goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        before = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(before, empty)() is M.truth_value:
+            self.result = M.false_value
+        Rmod.disable_learned_memory(graph)
+        masked = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(masked, empty)() is M.false_value:
+            self.result = M.false_value
+        Rmod.enable_learned_memory(graph)
+        restored = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(restored, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            shape_before = Rmod.AlphaNormalized(
+                M.Head(M.Tail(M.Tail(M.Head(before)())())())(), empty
+            )()
+            shape_after = Rmod.AlphaNormalized(
+                M.Head(M.Tail(M.Tail(M.Head(restored)())())())(), empty
+            )()
+            if M.Compare(shape_before, shape_after)() is M.false_value:
+                self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        erased = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(erased, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ToyDemoGenericTest(M.Edge):
     """The unnamed toy demonstration, end to end.
 
@@ -16461,6 +16596,10 @@ def install_default_tests(graph):
         _register_test(graph, "engine_attempt_recording_test", empty, EngineAttemptRecordingTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "learned_memory_toggle_test", empty, LearnedMemoryToggleTest(graph), M.truth_value)
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()

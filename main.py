@@ -3037,6 +3037,45 @@ def run_talk_mode(sentence: str = None):
             cur = M.Tail(cur)()
         return rules
 
+    def _research_attempt(graph, term):
+        nonlocal research_parent_goal, research_goal_facts, research_baseline, research_last_blocking
+        from . import research as Rmod
+        research_parent_goal = term
+        research_goal_facts = M.Pair(term, M.EmptyList)
+        research_last_blocking = M.Pair(Lmod.FailureLabel, M.Pair(term, M.EmptyList))
+        rules = _research_rules(graph)
+        axioms = Rmod.axiom_facts(graph)
+        outcome = Rmod.attempt_goal(graph, axioms, research_goal_facts, rules)
+        research_baseline = outcome
+        _persist_research_state()
+        closed = Rmod.ForwardSearchClosed(outcome)()
+        cost_text = _research_nat_text(Rmod.ForwardSearchCost(outcome)())
+        if M.IdentityCompare(closed, M.truth_value)() is M.truth_value:
+            stored_provenance = M.Head(M.Tail(M.Tail(graph.last_proof)())())()
+            return ("goal closed. cost=" + cost_text
+                    + "; provenance " + _term_text(stored_provenance, graph))
+        attempts = graph.research_attempts
+        count = 0
+        cur = attempts
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            count += 1
+            cur = M.Tail(cur)()
+        reply = ("FAILED. cost=" + cost_text
+                 + "; rules with a genuine partial match: " + str(count))
+        if count == 0:
+            reply += ("\nresidual record: "
+                      + _research_term_text(graph.last_residuals, graph))
+        else:
+            cur = attempts
+            while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                attempt = M.Head(cur)()
+                reply += ("\nresidual: missing "
+                          + _research_term_text(Rmod.AttemptedRuleUnmatched(attempt)(), graph)
+                          + " (rule origin "
+                          + _term_text(Rmod.AttemptedRuleOrigin(attempt)(), graph) + ")")
+                cur = M.Tail(cur)()
+        return reply
+
     def _research_position(line, word_index):
         words = line.strip().split(":", 1)[0].split()
         try:
@@ -3055,9 +3094,7 @@ def run_talk_mode(sentence: str = None):
             graph = _research_graph()
             Rmod.EnableResearchMode(graph)
             _persist_research_state()
-            return ("research mode ON. Effect of this switch: search records "
-                    "attempted-rule evidence and preserves residual states. "
-                    "Nothing else changes.\n" + _research_state_line(graph))
+            return "research mode ON\n" + _research_state_line(graph)
         if lowered == "research mode off":
             graph = _research_graph()
             Rmod.DisableResearchMode(graph)
@@ -3099,9 +3136,7 @@ def run_talk_mode(sentence: str = None):
             Rmod.teach_trusted_theorem(graph, formal)
             _persist_research_state()
             return ("taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: "
-                    + _research_term_text(formal, graph)
-                    + "\nnote: teaching stores knowledge; it demonstrates nothing until "
-                    "a retry or counterfactual measures progress.")
+                    + _research_term_text(formal, graph))
 
         if lowered.startswith("teach strategy prior"):
             graph = _research_graph()
@@ -3112,41 +3147,29 @@ def run_talk_mode(sentence: str = None):
                 return "a strategy prior must be a formal rule, not prose: " + err
             Rmod.teach_strategy_prior(graph, formal)
             _persist_research_state()
-            return ("stored with provenance HUMAN_SUPPLIED_STRATEGY_PRIOR. Requests "
-                    "compiled from this rule's partial matches will be displayed as "
-                    "suggestions from a preinstalled strategy prior, never as "
-                    "machine-discovered dependencies.")
+            return ("stored with provenance HUMAN_SUPPLIED_STRATEGY_PRIOR: "
+                    + _research_term_text(formal, graph))
+
+        if lowered.startswith("prove that ") or lowered.startswith("prove "):
+            graph = _research_graph()
+            sentence = line.strip()
+            if lowered.startswith("prove that "):
+                sentence = sentence[len("prove that "):]
+            else:
+                sentence = sentence[len("prove "):]
+            term, err = _research_parse_sentence(sentence)
+            if term is None:
+                return ("I cannot compile this sentence into a formal goal ("
+                        + err + "). No attempt was made.")
+            return ("parsed goal: " + _research_term_text(term, graph)
+                    + "\n" + _research_attempt(graph, term))
 
         if lowered.startswith("attempt goal:"):
             graph = _research_graph()
             term, err = _research_parse(line.split(":", 1)[1])
             if term is None:
                 return "cannot parse the goal as a formal term: " + err
-            research_parent_goal = term
-            research_goal_facts = M.Pair(term, M.EmptyList)
-            research_last_blocking = M.Pair(Lmod.FailureLabel, M.Pair(term, M.EmptyList))
-            rules = _research_rules(graph)
-            axioms = Rmod.axiom_facts(graph)
-            outcome = Rmod.attempt_goal(graph, axioms, research_goal_facts, rules)
-            research_baseline = outcome
-            _persist_research_state()
-            closed = Rmod.ForwardSearchClosed(outcome)()
-            cost_text = _research_nat_text(Rmod.ForwardSearchCost(outcome)())
-            if M.IdentityCompare(closed, M.truth_value)() is M.truth_value:
-                return ("goal closed. cost=" + cost_text
-                        + "; provenance SEARCH_DERIVED; see `explain last proof`.")
-            attempts = graph.research_attempts
-            count = 0
-            cur = attempts
-            while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-                count += 1
-                cur = M.Tail(cur)()
-            return ("FAILED. cost=" + cost_text
-                    + "; attempted operational rules with a genuine partial match: "
-                    + str(count)
-                    + "\nthe root remains in the residual record even with zero "
-                    "successors; `suggest dependencies` compiles requests only from "
-                    "concrete unmatched premises.")
+            return _research_attempt(graph, term)
 
         if lowered.startswith("suggest dependencies"):
             graph = _research_graph()
@@ -3228,9 +3251,7 @@ def run_talk_mode(sentence: str = None):
             updated = Rmod.approve_dependency(graph, dep_id)
             _persist_research_state()
             return ("approved dependency [" + str(position) + "] status="
-                    + _term_text(Rmod.DependencyRequestStatus(updated)(), graph)
-                    + "\nnote: approval is a hypothesis, not evidence. Usefulness is "
-                    "demonstrated only by measured counterfactual unlock.")
+                    + _term_text(Rmod.DependencyRequestStatus(updated)(), graph))
 
         if lowered.startswith("reject dependency"):
             graph = _research_graph()
@@ -3281,12 +3302,18 @@ def run_talk_mode(sentence: str = None):
                             "`approve dependency " + str(position) + "` first.")
             rules = _research_rules(graph)
             axioms = Rmod.axiom_facts(graph)
+            parent_fact = M.EmptyList
+            if M.IdentityCompare(research_goal_facts, M.EmptyList)() is M.false_value:
+                parent_fact = M.Head(research_goal_facts)()
+            if Rmod.validate_taught_rule(formal, parent_fact) is M.false_value:
+                return ("rejected by the circularity gate: the rule assumes or "
+                        "restates the parent goal "
+                        + _research_term_text(parent_fact, graph))
             result = Rmod.teach_dependency(
                 graph, dep_id, formal, axioms, research_goal_facts, rules
             )
             if M.IdentityCompare(result, M.EmptyList)() is M.truth_value:
-                return ("rejected: the rule is circular against the parent goal, or "
-                        "the request is unknown.")
+                return "no request with this id is on record."
             _persist_research_state()
             status = M.Head(result)()
             ev = M.Head(M.Tail(result)())()
@@ -3299,19 +3326,22 @@ def run_talk_mode(sentence: str = None):
                 newly_count += 1
                 cur = M.Tail(cur)()
             closed = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(ev)())())())())())())()
-            if M.IdentityCompare(status, Lmod.DemonstratedUsefulDependencyLabel)() is M.truth_value:
-                return ("counterfactual fork measured a real unlock: cost "
-                        + cost_before + " -> " + cost_after
+            episode_count = 0
+            cur = graph.intervention_episodes
+            while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                episode_count += 1
+                cur = M.Tail(cur)()
+            closed_text = "yes" if M.IdentityCompare(closed, M.truth_value)() is M.truth_value else "no"
+            measured = ("counterfactual: cost " + cost_before + " -> " + cost_after
                         + "; newly enabled existing firings: " + str(newly_count)
-                        + "; goal closed: "
-                        + ("yes" if M.IdentityCompare(closed, M.truth_value)() is M.truth_value else "no")
-                        + "\nstatus=DemonstratedUsefulDependency; intervention episode "
-                        "recorded; `retry parent goal` to apply it for real.")
+                        + "; goal closed: " + closed_text)
+            if M.IdentityCompare(status, Lmod.DemonstratedUsefulDependencyLabel)() is M.truth_value:
+                return (measured
+                        + "\nstatus=" + _term_text(status, graph)
+                        + "; intervention episodes: " + str(episode_count))
             return ("the taught theorem was stored but did not unlock the parent goal."
-                    + "\ncounterfactual: cost " + cost_before + " -> " + cost_after
-                    + "; newly enabled existing firings: 0; goal closed: no"
-                    + "\nstatus stays " + _term_text(status, graph)
-                    + "; provenance HUMAN_SUPPLIED_TRUSTED_THEOREM_WITHOUT_UNLOCK_EVIDENCE.")
+                    + "\n" + measured
+                    + "\nstatus stays " + _term_text(status, graph))
 
         if lowered.startswith("retry parent goal"):
             graph = _research_graph()
@@ -3330,9 +3360,8 @@ def run_talk_mode(sentence: str = None):
             _persist_research_state()
             grade_text = str(grade())
             if grade_text == "no measurable progress":
-                return ("retry: no measurable progress. The taught knowledge was "
-                        "stored but did not unlock the parent goal; the residual "
-                        "record is unchanged.")
+                return ("retry: no measurable progress. The taught theorem was "
+                        "stored but did not unlock the parent goal.")
             return "retry: " + grade_text
 
         if lowered == "show discovered dependency graph":
@@ -3400,6 +3429,18 @@ def run_talk_mode(sentence: str = None):
             return ("learned memory reset: intervention episodes and dependency "
                     "policies removed. Policy predictions disappear with them.")
 
+        if lowered == "disable learned memory":
+            graph = _research_graph()
+            Rmod.disable_learned_memory(graph)
+            _persist_research_state()
+            return "learned memory disabled: the policy store is masked, not erased."
+
+        if lowered == "enable learned memory":
+            graph = _research_graph()
+            Rmod.enable_learned_memory(graph)
+            _persist_research_state()
+            return "learned memory enabled."
+
         if lowered == "disable residual generator":
             graph = _research_graph()
             Rmod.disable_generator(graph)
@@ -3447,8 +3488,9 @@ def run_talk_mode(sentence: str = None):
                 attempts = graph.research_attempts
                 if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
                     residual_note = ("\n failure: no operational rule partially matched; "
-                                     "dependency characterized: no; the root remains in "
-                                     "the residual record with zero successors")
+                                     "dependency characterized: no"
+                                     + "\n residual record: "
+                                     + _research_term_text(graph.last_residuals, graph))
                 else:
                     residual_note = "\n residual attempted rules:"
                     cur = attempts
@@ -4202,6 +4244,208 @@ def _research_parse(text):
         return None, str(parse_error)
     if next_i != len(tokens):
         return None, "trailing tokens after the term"
+    return term, None
+
+
+def _research_sentence_tokens(text):
+    """Math-aware tokens: words, numbers, and the operator alphabet."""
+    tokens = ()
+    current = ""
+    two_char = (">=", "<=")
+    single = "^+*=(),<>-"
+    i = 0
+    while i < len(text):
+        pair = text[i:i + 2]
+        ch = text[i]
+        if pair in two_char:
+            if current != "":
+                tokens = tokens + (current,)
+                current = ""
+            tokens = tokens + (pair,)
+            i += 2
+            continue
+        if ch in single:
+            if current != "":
+                tokens = tokens + (current,)
+                current = ""
+            tokens = tokens + (ch,)
+        elif ch in " \t\r\n":
+            if current != "":
+                tokens = tokens + (current,)
+                current = ""
+        else:
+            current = current + ch
+        i += 1
+    if current != "":
+        tokens = tokens + (current,)
+    return tokens
+
+
+_SENTENCE_COMPARISONS = ((">", "greater"), (">=", "geq"), ("<", "less"), ("<=", "leq"))
+
+
+def _research_parse_sentence(text):
+    """A quantified equational sentence as one ground formal term.
+
+    Compositional recursive descent: quantifier prefixes, comparison
+    constraints, +, *, ^, =, parenthesised subexpressions, implication,
+    and no-solution predicates, over arbitrary identifiers. No production
+    here recognizes any particular equation; a structurally different
+    equation takes exactly the same path through the same rules.
+
+    Returns (term, None) or (None, error).
+    """
+    tokens = _research_sentence_tokens(text.strip().lower())
+    if tokens == ():
+        return None, "empty sentence"
+
+    def sym(name):
+        return _RESEARCH_SYMBOLS.atom(name)
+
+    def app(head, *args):
+        chain = M.EmptyList
+        for arg in reversed(args):
+            chain = M.Pair(arg, chain)
+        return M.Pair(sym(head), chain)
+
+    def is_ident(token):
+        return token.isalnum()
+
+    def parse_atom(i):
+        if i >= len(tokens):
+            raise ValueError("expression ended early")
+        token = tokens[i]
+        if token == "(":
+            inner, i = parse_add(i + 1)
+            if i >= len(tokens) or tokens[i] != ")":
+                raise ValueError("missing ')'")
+            return inner, i + 1
+        if is_ident(token):
+            return sym(token), i + 1
+        raise ValueError("expected an identifier, number or '(' at '" + token + "'")
+
+    def parse_pow(i):
+        base, i = parse_atom(i)
+        if i < len(tokens) and tokens[i] == "^":
+            exponent, i = parse_pow(i + 1)
+            return app("pow", base, exponent), i
+        return base, i
+
+    def parse_mul(i):
+        left, i = parse_pow(i)
+        while i < len(tokens) and tokens[i] == "*":
+            right, i = parse_pow(i + 1)
+            left = app("times", left, right)
+        return left, i
+
+    def parse_add(i):
+        left, i = parse_mul(i)
+        while i < len(tokens) and tokens[i] in ("+", "-"):
+            operator = "plus" if tokens[i] == "+" else "minus"
+            right, i = parse_mul(i + 1)
+            left = app(operator, left, right)
+        return left, i
+
+    def parse_eq(i):
+        left, i = parse_add(i)
+        if i < len(tokens) and tokens[i] == "=":
+            right, i = parse_add(i + 1)
+            return app("eq", left, right), i
+        return left, i
+
+    def take_phrase(i, words):
+        j = i
+        for word in words:
+            if j >= len(tokens) or tokens[j] != word:
+                return None
+            j += 1
+        return j
+
+    def domain_words(i):
+        parts = ()
+        while i < len(tokens) and tokens[i].isalpha():
+            parts = parts + (tokens[i],)
+            i += 1
+        if parts == ():
+            raise ValueError("expected a domain after the solution predicate")
+        return "-".join(parts), i
+
+    def parse_statement(i):
+        # no <domain words> <var list> satisfy <equation>
+        if i < len(tokens) and tokens[i] == "no":
+            j = i + 1
+            scan = j
+            satisfy_at = None
+            while scan < len(tokens):
+                if tokens[scan] == "satisfy":
+                    satisfy_at = scan
+                    break
+                scan += 1
+            if satisfy_at is not None:
+                names = ()
+                k = satisfy_at - 1
+                if k >= j and is_ident(tokens[k]):
+                    names = (tokens[k],)
+                    while k - 2 >= j and tokens[k - 1] == "," and is_ident(tokens[k - 2]):
+                        k -= 2
+                        names = (tokens[k],) + names
+                    k -= 1
+                domain = "-".join(tokens[j:k + 1])
+                if domain == "" or names == ():
+                    raise ValueError("expected 'no <domain> <variables> satisfy <equation>'")
+                body, i = parse_eq(satisfy_at + 1)
+                unknowns = M.EmptyList
+                for name in reversed(names):
+                    unknowns = M.Pair(sym(name), unknowns)
+                return app("nosolutions", sym(domain),
+                           M.Pair(sym("unknowns"), unknowns), body), i
+        expression, i = parse_eq(i)
+        stop = take_phrase(i, ("has", "no", "solutions", "in"))
+        if stop is None:
+            stop = take_phrase(i, ("is", "not", "solvable", "in"))
+        if stop is not None:
+            domain, i = domain_words(stop)
+            return app("nosolutions", sym(domain), expression), i
+        if i < len(tokens) and tokens[i] == "implies":
+            consequent, i = parse_eq(i + 1)
+            statement = app("implies", expression, consequent)
+            over_at = take_phrase(i, ("over",))
+            if over_at is not None:
+                domain, i = domain_words(over_at)
+                statement = app("over", sym(domain), statement)
+            return statement, i
+        return expression, i
+
+    def parse_sentence(i):
+        quantifier = take_phrase(i, ("for", "all"))
+        if quantifier is None:
+            quantifier = take_phrase(i, ("for", "every"))
+        if quantifier is not None:
+            i = quantifier
+            if i >= len(tokens) or not is_ident(tokens[i]):
+                raise ValueError("expected a variable after the quantifier")
+            variable = tokens[i]
+            i += 1
+            constraint = None
+            for operator, name in _SENTENCE_COMPARISONS:
+                if i < len(tokens) and tokens[i] == operator:
+                    if i + 1 >= len(tokens) or not is_ident(tokens[i + 1]):
+                        raise ValueError("expected a bound after '" + operator + "'")
+                    constraint = app(name, sym(variable), sym(tokens[i + 1]))
+                    i += 2
+                    break
+            body, i = parse_sentence(i)
+            if constraint is not None:
+                body = app("implies", constraint, body)
+            return app("forall", sym(variable), body), i
+        return parse_statement(i)
+
+    try:
+        term, position = parse_sentence(0)
+    except ValueError as parse_error:
+        return None, str(parse_error)
+    if position != len(tokens):
+        return None, "cannot read the sentence past '" + tokens[position] + "'"
     return term, None
 
 
