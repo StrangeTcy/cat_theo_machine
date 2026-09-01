@@ -926,6 +926,9 @@ def validate_dependency_request(req, parent_goal):
     return ValidateDependencyRequest(req, parent_goal)()
 
 
+DEFAULT_SEARCH_FUEL = Head(M.Succ(Head(M.Succ(Head(M.Succ(M.nine, M.AllConstructors)())(), M.AllConstructors)())(), M.AllConstructors)())()
+
+
 def counterfactual_evaluation(graph, start_facts, goal_facts, rules, taught_rule, fuel=None):
     """Fork, rerun bounded search, and measure -- never fabricate.
 
@@ -938,7 +941,7 @@ def counterfactual_evaluation(graph, start_facts, goal_facts, rules, taught_rule
     forward search below touches no graph context.
     """
     if fuel is None:
-        fuel = M.six
+        fuel = DEFAULT_SEARCH_FUEL
     baseline = BoundedForwardSearch(start_facts, goal_facts, rules, fuel)()
     augmented = BoundedForwardSearch(start_facts, goal_facts, M.Pair(taught_rule, rules), fuel)()
     cost_before = ForwardSearchCost(baseline)()
@@ -1586,13 +1589,18 @@ class RecordPremisePartialMatch(Edge):
 
 
 class BoundedForwardSearch(Edge):
-    """Saturate facts under rules for a bounded number of rounds.
+    """Saturate facts under rules within a firing budget.
 
     Result:
         Pair(closed, Pair(cost, Pair(fired, Pair(final facts, EmptyList))))
 
     `fired` entries are Pair(rule, Pair(bindings, EmptyList)), newest first.
-    `cost` counts rule application attempts across all rounds.
+    `cost` counts rule application attempts. `fuel` bounds FIRINGS, not
+    rounds: a generative rule that feeds its own conclusions back would
+    otherwise blow up inside a single round, as the divisibility session
+    that forced this rewrite demonstrated. The goal is checked after
+    every firing, so a budget large enough to reach the goal closes even
+    when junk derivations compete for it.
     """
 
     def __init__(self, facts, goal_facts, rules, fuel):
@@ -1607,57 +1615,69 @@ class BoundedForwardSearch(Edge):
     def _finish(self, closed, cost, fired_rev, facts):
         return M.Pair(closed, M.Pair(cost, M.Pair(M.Reverse(fired_rev)(), M.Pair(facts, EmptyList))))
 
-    def _run(self, facts, fired_rev, cost, fuel):
+    def _closed(self, facts):
         from .proof import FactsCover
 
-        if FactsCover(self.goal_facts, facts)() is M.truth_value:
+        return FactsCover(self.goal_facts, facts)()
+
+    def _run(self, facts, fired_rev, cost, fuel):
+        if self._closed(facts) is M.truth_value:
             return self._finish(M.truth_value, cost, fired_rev, facts)
         if M.NatEq(fuel, M.Zero, M.AllConstructors)() is M.truth_value:
             return self._finish(M.false_value, cost, fired_rev, facts)
-        round_result = self._round(self.rules, facts, fired_rev, cost, M.false_value)
+        round_result = self._round(self.rules, facts, fired_rev, cost, M.false_value, fuel)
         new_facts = Head(round_result)()
         new_fired = Head(Tail(round_result)())()
         new_cost = Head(Tail(Tail(round_result)())())()
         progressed = Head(Tail(Tail(Tail(round_result)())())())()
+        new_fuel = Head(Tail(Tail(Tail(Tail(round_result)())())())())()
+        if self._closed(new_facts) is M.truth_value:
+            return self._finish(M.truth_value, new_cost, new_fired, new_facts)
         if IdentityCompare(progressed, M.false_value)() is M.truth_value:
             return self._finish(M.false_value, new_cost, new_fired, new_facts)
-        next_fuel = Head(M.NatPred(fuel, M.AllConstructors)())()
-        return self._run(new_facts, new_fired, new_cost, next_fuel)
+        return self._run(new_facts, new_fired, new_cost, new_fuel)
 
-    def _round(self, rules, facts, fired_rev, cost, progressed):
+    def _round(self, rules, facts, fired_rev, cost, progressed, fuel):
         from .proof import JoinPremises, RulePremises
 
         if IdentityCompare(rules, EmptyList)() is M.truth_value:
-            return M.Pair(facts, M.Pair(fired_rev, M.Pair(cost, M.Pair(progressed, EmptyList))))
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(cost, M.Pair(progressed, M.Pair(fuel, EmptyList)))))
+        if M.NatEq(fuel, M.Zero, M.AllConstructors)() is M.truth_value:
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(cost, M.Pair(progressed, M.Pair(fuel, EmptyList)))))
+        if self._closed(facts) is M.truth_value:
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(cost, M.Pair(progressed, M.Pair(fuel, EmptyList)))))
         rule = Head(rules)()
         cost = Head(M.Succ(cost, M.AllConstructors)())()
         premises = RulePremises(rule)()
         bindings_list = JoinPremises(premises, facts, EmptyList)()
-        applied = self._apply_all(rule, bindings_list, facts, fired_rev, progressed)
+        applied = self._apply_all(rule, bindings_list, facts, fired_rev, progressed, fuel)
         facts = Head(applied)()
         fired_rev = Head(Tail(applied)())()
         progressed = Head(Tail(Tail(applied)())())()
-        return self._round(Tail(rules)(), facts, fired_rev, cost, progressed)
+        fuel = Head(Tail(Tail(Tail(applied)())())())()
+        return self._round(Tail(rules)(), facts, fired_rev, cost, progressed, fuel)
 
-    def _apply_all(self, rule, bindings_list, facts, fired_rev, progressed):
+    def _apply_all(self, rule, bindings_list, facts, fired_rev, progressed, fuel):
         from .proof import FactsCover, RuleReplacement
 
         if IdentityCompare(bindings_list, EmptyList)() is M.truth_value:
-            return M.Pair(facts, M.Pair(fired_rev, M.Pair(progressed, EmptyList)))
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(progressed, M.Pair(fuel, EmptyList))))
+        if M.NatEq(fuel, M.Zero, M.AllConstructors)() is M.truth_value:
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(progressed, M.Pair(fuel, EmptyList))))
+        if self._closed(facts) is M.truth_value:
+            return M.Pair(facts, M.Pair(fired_rev, M.Pair(progressed, M.Pair(fuel, EmptyList))))
         bindings = Head(bindings_list)()
         rest = Tail(bindings_list)()
         conclusion = ApplyBindings(RuleReplacement(rule)(), bindings)()
         if ContainsVarPattern(conclusion)() is M.truth_value:
-            return self._apply_all(rule, rest, facts, fired_rev, progressed)
+            return self._apply_all(rule, rest, facts, fired_rev, progressed, fuel)
         already = FactsCover(M.Pair(conclusion, EmptyList), facts)()
         if IdentityCompare(already, M.truth_value)() is M.truth_value:
-            return self._apply_all(rule, rest, facts, fired_rev, progressed)
+            return self._apply_all(rule, rest, facts, fired_rev, progressed, fuel)
         facts = M.Pair(conclusion, facts)
         fired_rev = M.Pair(M.Pair(rule, M.Pair(bindings, EmptyList)), fired_rev)
-        return self._apply_all(rule, rest, facts, fired_rev, M.truth_value)
-
-    def __call__(self):
-        return self.result
+        fuel = Head(M.NatPred(fuel, M.AllConstructors)())()
+        return self._apply_all(rule, rest, facts, fired_rev, M.truth_value, fuel)
 
 
 class ContainsVarPattern(Edge):
@@ -2794,7 +2814,7 @@ def measure_retry(graph, start_facts, goal_facts, rules, baseline_outcome, fuel=
     taught theorem was stored but did not unlock the parent goal.
     """
     if fuel is None:
-        fuel = M.six
+        fuel = DEFAULT_SEARCH_FUEL
     outcome = BoundedForwardSearch(start_facts, goal_facts, rules, fuel)()
     if IdentityCompare(ForwardSearchClosed(outcome)(), M.truth_value)() is M.truth_value:
         return M.Pair(RETRY_GOAL_CLOSED, M.Pair(outcome, EmptyList))
@@ -2858,7 +2878,7 @@ def attempt_goal(graph, start_facts, goal_facts, rules, fuel=None):
     SEARCH_DERIVED provenance and the firing chain as its derivation.
     """
     if fuel is None:
-        fuel = M.six
+        fuel = DEFAULT_SEARCH_FUEL
     graph.clear_research_attempts()
     outcome = BoundedForwardSearch(start_facts, goal_facts, rules, fuel)()
     closed = ForwardSearchClosed(outcome)()
