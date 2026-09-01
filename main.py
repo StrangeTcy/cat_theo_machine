@@ -3893,6 +3893,11 @@ def run_talk_mode(sentence: str = None):
         except EOFError:
             print()
             break
+        if not sys.stdin.isatty():
+            # A piped session gets no terminal echo, so the transcript
+            # would show answers with no questions. Echo the received
+            # line exactly, after the prompt, as a terminal would.
+            print(line)
         stripped = line.strip()
         if stripped == "" or stripped == "goodbye":
             print("hyge> goodbye")
