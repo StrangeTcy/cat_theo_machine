@@ -302,6 +302,33 @@ class GenProperExponentReduction(GenBase):
     def __init__(self):
         super().__init__(Lmod.GenProperExponentReductionLabel)
     def propose(self, parent_goal, residuals, blocking_condition, graph):
+        # Only propose when parent goal involves exponentiation with variable exponent
+        # Generic check: look for pow, ^, exponent variable, not FLT literal
+        try:
+            # Extract text from parent_goal if it's FormalStatementLabel Pair(atom)
+            text = ""
+            try:
+                inner = M.Head(M.Tail(parent_goal)())()
+                if hasattr(inner, '__call__'):
+                    v = inner()
+                    if isinstance(v, str):
+                        text = v
+                    elif hasattr(inner, 'value') and inner.value:
+                        text = str(inner.value)
+                else:
+                    text = str(inner)
+            except Exception:
+                text = ""
+            low = text.lower()
+            # Generic pow indicators: pow, ^, a^n, exponent reduction keywords
+            has_pow = ("pow" in low) or ("^" in text) or ("a^n" in low) or ("b^n" in low) or ("c^n" in low) or ("exponent" in low)
+            # For triangle a*a+b*b=c*c, no variable exponent, so skip
+            if not has_pow:
+                # also check if parent goal mentions variable exponent n with pow
+                # If no pow pattern, don't propose exponent reduction to avoid ridiculous hardcoding
+                return ()
+        except Exception:
+            pass
         # Formal: ForAll n, (n has odd prime divisor p -> reduction to p) and (n power of 2 >2 -> divisor 4)
         var_n = M.Atom()
         var_n.value = "n"
