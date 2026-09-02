@@ -13769,6 +13769,316 @@ class _ResearchToy:
         return Rmod.teach_dependency(graph, dep_id, formal, facts, goal, rules)
 
 
+class _ExplanationToy:
+    """Shared builders for the explanation-substrate tests.
+
+    Terms are built the same way the research toy builds them, so these
+    tests exercise the live rule/search path rather than a simplified
+    analogue.
+    """
+
+    @staticmethod
+    def linked_rules():
+        """Two redundant routes to `mark`, then `tag` which needs it.
+
+        MEASURED, NOT ASSUMED: the first draft of this fixture used an
+        unrelated `noise` rule as the thing the spine should exclude. That
+        made the test vacuous -- the noise rule never fired, so it was
+        excluded by the fired-set filter before the ablation ran, and
+        mutating the ablation to "every fired rule is load-bearing" still
+        passed. A rule must FIRE and still be routed-around for the
+        ablation to be under test, so `alt_mark` derives the same `mark`
+        fact from a second premise. Whichever of the two the search fires,
+        withholding it leaves the goal closed through the other, and only
+        `tag` survives ablation.
+        """
+        from .proof import MultiRule
+        T = _ResearchToy
+        x, y = T.var("x"), T.var("y")
+        mark = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y)),
+            T.term(T.sym("mark"), y),
+        )()
+        alt_mark = MultiRule(
+            T.chain(T.term(T.sym("alt"), x, y)),
+            T.term(T.sym("mark"), y),
+        )()
+        tag = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y), T.term(T.sym("mark"), y)),
+            T.term(T.sym("tag"), x),
+        )()
+        return mark, alt_mark, tag
+
+    @staticmethod
+    def problem():
+        T = _ResearchToy
+        facts = T.chain(
+            T.term(T.sym("rel"), T.sym("a"), T.sym("b")),
+            T.term(T.sym("alt"), T.sym("a"), T.sym("b")),
+        )
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        return facts, goal
+
+    @staticmethod
+    def producer_rules():
+        """A single-route chain: `mark` genuinely produces what `tag` eats."""
+        from .proof import MultiRule
+        T = _ResearchToy
+        x, y = T.var("x"), T.var("y")
+        mark = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y)),
+            T.term(T.sym("mark"), y),
+        )()
+        tag = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y), T.term(T.sym("mark"), y)),
+            T.term(T.sym("tag"), x),
+        )()
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        return mark, tag, facts, goal
+
+    @staticmethod
+    def blackboard_preserves(graph):
+        """The real blackboard-parity obligation, through the live path."""
+        from . import invariance as Imod
+        registry = _registry(graph)
+        rule = EraseAndReplaceRule()()
+        p = BlackboardTerms("p")()
+        phi = Imod.Phi(BlackboardPhiPattern(p)())()
+        return Imod.Preserves(rule, phi, registry)()
+
+
+class SpineExcludesRoutedAroundRuleTest(M.Edge):
+    """The spine is measured by ablation, not read off the fired set.
+
+    `mark` and `alt_mark` each derive the same fact; the search fires one
+    of them. Withholding whichever fired leaves the goal closed through the
+    other, so it is NOT load-bearing and must not reach the spine. Only
+    `tag`, whose removal breaks closure, survives.
+
+    Falsifiability: mutating the ablation verdict to "every fired rule is
+    load-bearing" fails this test, because the fired mark-rule then appears
+    on the spine.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        mark, alt_mark, tag = T.linked_rules()
+        facts, goal = T.problem()
+        rules = _ResearchToy.chain(mark, alt_mark, tag)
+        pair = Emod.ExtractSpine(facts, goal, rules)()
+        spine = M.Head(pair)()
+        self.result = M.truth_value
+        if M.Head(M.Tail(pair)())() is M.false_value:
+            self.result = M.false_value
+        steps = Emod.SpineSteps(spine)()
+        found_tag = M.false_value
+        found_either_mark = M.false_value
+        cursor = steps
+        while M.IdentityCompare(cursor, empty)() is M.false_value:
+            rule = Emod.SpineStepRule(M.Head(cursor)())()
+            if M.IdentityCompare(rule, tag)() is M.truth_value:
+                found_tag = M.truth_value
+            if M.IdentityCompare(rule, mark)() is M.truth_value:
+                found_either_mark = M.truth_value
+            if M.IdentityCompare(rule, alt_mark)() is M.truth_value:
+                found_either_mark = M.truth_value
+            cursor = M.Tail(cursor)()
+        if found_tag is M.false_value:
+            self.result = M.false_value
+        if found_either_mark is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SpineFanoutRanksProducerAboveConsumerTest(M.Edge):
+    """Dataflow linkage, not firing order, picks the 'aha'.
+
+    `mark` produces the fact `tag` consumes, so `mark` outranks it. This
+    pins the two shape traps that silently emptied the fanout: a rule's
+    conclusion is RuleReplacement (RuleIsUnary counts PREMISES), and
+    consumption compares instantiated premises against produced facts,
+    never binding values against facts.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        mark, tag, facts, goal = T.producer_rules()
+        rules = _ResearchToy.chain(mark, tag)
+        pair = Emod.ExtractSpine(facts, goal, rules)()
+        spine = M.Head(pair)()
+        self.result = M.truth_value
+        if M.Head(M.Tail(pair)())() is M.false_value:
+            self.result = M.false_value
+        top = Emod.HighestFanoutStep(spine)()
+        if M.IdentityCompare(top, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            if M.IdentityCompare(Emod.SpineStepRule(top)(), mark)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(Emod.SpineStepFanout(top)(), empty)() is M.truth_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SpineEmptyWhenGoalNeverClosedTest(M.Edge):
+    """No closure, no spine. A spine over an open goal would be noise.
+
+    The flag must say the baseline did not close rather than reporting
+    every rule as load-bearing, which is what a naive ablation returns when
+    nothing closes either way.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        mark, alt_mark, tag = T.linked_rules()
+        facts, _goal = T.problem()
+        unreachable = _ResearchToy.chain(
+            _ResearchToy.term(_ResearchToy.sym("absent"), _ResearchToy.sym("a"))
+        )
+        rules = _ResearchToy.chain(mark, alt_mark, tag)
+        pair = Emod.ExtractSpine(facts, unreachable, rules)()
+        spine = M.Head(pair)()
+        self.result = M.truth_value
+        if M.Head(M.Tail(pair)())() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(Emod.SpineSteps(spine)(), empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class IdeaClassifierRefusesUnknownShapeTest(M.Edge):
+    """The fixed library declines rather than guessing.
+
+    A Preserves-shaped term classifies as Invariant; an ordinary rule
+    classifies as nothing at all. A classifier that returned a plausible
+    label for an unrecognised proof would manufacture agreement in the
+    transfer test, which is the one measurement it must not corrupt.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        preserves = T.blackboard_preserves(graph)
+        self.result = M.truth_value
+        if M.IdentityCompare(
+            Emod.ClassifyIdeaShape(preserves)(), Emod.IDEA_INVARIANT
+        )() is M.false_value:
+            self.result = M.false_value
+        mark, _alt, _tag = T.linked_rules()
+        if M.IdentityCompare(
+            Emod.ClassifyIdeaShape(mark)(), Emod.IDEA_UNCLASSIFIED
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class RenderedSentenceCitesItsLawTest(M.Edge):
+    """Every sentence names the law and the term that produced it.
+
+    This is the whole discipline in one check: an explanation sentence that
+    cannot cite its law is indistinguishable from generated prose, and the
+    substrate exists to make that distinction mechanical. The invariant's
+    name must also come from the real term -- the sentence has to EMBED the
+    observable that the Preserves obligation is about, not a placeholder.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        preserves = T.blackboard_preserves(graph)
+        observable = Emod.PreservesObservable(preserves)()
+        marks = M.Pair(empty, M.Pair(empty, empty))
+        step = Emod.SpineStep(preserves, M.truth_value, marks)()
+        spine = Emod.ExplanationSpine(empty, M.Pair(step, empty), empty)()
+        core = Emod.CoreIdea(empty, Emod.IDEA_INVARIANT)()
+        plan = Emod.ExplanationPlan(
+            Emod.AudienceLevel(M.Char("student"))(), empty, spine, core, empty
+        )()
+        sentences = Emod.RenderPlan(plan)()
+        self.result = M.truth_value
+        if M.IdentityCompare(sentences, empty)() is M.truth_value:
+            self.result = M.false_value
+        saw_preserves = M.false_value
+        cursor = sentences
+        while M.IdentityCompare(cursor, empty)() is M.false_value:
+            sentence = M.Head(cursor)()
+            if M.IdentityCompare(Emod.SentenceLaw(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(Emod.SentencePieces(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(Emod.SentenceSource(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                Emod.SentenceLaw(sentence)(), Emod.PreservesStepLawName
+            )() is M.truth_value:
+                saw_preserves = M.truth_value
+                if Emod.SentenceMentions(sentence, observable)() is M.false_value:
+                    self.result = M.false_value
+            cursor = M.Tail(cursor)()
+        if saw_preserves is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ExplanationIsNotAProofTest(M.Edge):
+    """The plan is a rendering choice and carries no authority.
+
+    Building a plan must not register a derivation, close a goal, or alter
+    the graph's proof state. If an explanation could ever become the stored
+    proof, soundness would have been weakened to satisfy a presentation
+    preference.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        from . import proof as Pmod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        _ResearchToy.reset(graph)
+        mark, alt_mark, tag = T.linked_rules()
+        facts, goal = T.problem()
+        rules = _ResearchToy.chain(mark, alt_mark, tag)
+        before = graph.last_proof
+        plan = Emod.BuildPlan(
+            facts, goal, rules, Emod.AudienceLevel(M.Char("student"))()
+        )()
+        self.result = M.truth_value
+        if M.IdentityCompare(plan, empty)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.last_proof, before)() is M.false_value:
+            self.result = M.false_value
+        if Pmod.IsDerivation(plan, _registry(graph))() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ResearchModeTest(M.Edge):
     """Research mode is a graph-context marker, not module state."""
 
@@ -17548,6 +17858,18 @@ def install_default_tests(graph):
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "learned_memory_toggle_test", empty, LearnedMemoryToggleTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "spine_excludes_routed_around_rule_test", empty, SpineExcludesRoutedAroundRuleTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "spine_fanout_ranks_producer_above_consumer_test", empty, SpineFanoutRanksProducerAboveConsumerTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "spine_empty_when_goal_never_closed_test", empty, SpineEmptyWhenGoalNeverClosedTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "idea_classifier_refuses_unknown_shape_test", empty, IdeaClassifierRefusesUnknownShapeTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "rendered_sentence_cites_its_law_test", empty, RenderedSentenceCitesItsLawTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "explanation_is_not_a_proof_test", empty, ExplanationIsNotAProofTest(graph), M.truth_value)
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()

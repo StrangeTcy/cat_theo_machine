@@ -3052,6 +3052,59 @@ class CorrespondenceLawLabel(ConstructorLabel):
     pass
 
 
+class ExplanationPlanLabel(ConstructorLabel):
+    pass
+
+
+class CoreIdeaLabel(ConstructorLabel):
+    pass
+
+
+class RepresentationShiftLabel(ConstructorLabel):
+    pass
+
+
+class KeyInvariantLabel(ConstructorLabel):
+    pass
+
+
+class NaiveFailureLabel(ConstructorLabel):
+    pass
+
+
+class BridgeLemmaLabel(ConstructorLabel):
+    pass
+
+
+class NeededForLabel(ConstructorLabel):
+    pass
+
+
+class ImportedBecauseLabel(ConstructorLabel):
+    pass
+
+
+class OmittedDetailLabel(ConstructorLabel):
+    pass
+
+
+class AudienceLevelLabel(ConstructorLabel):
+    pass
+
+
+class ExplanationSpineLabel(ConstructorLabel):
+    pass
+
+
+class SpineStepLabel(ConstructorLabel):
+    pass
+
+
+class RenderLawLabel(ConstructorLabel):
+    pass
+
+
+
 LessonLabel = LessonLabel()
 EntryLabel = EntryLabel()
 GroundedExampleLabel = GroundedExampleLabel()
@@ -3073,6 +3126,20 @@ ParticipatesInLabel = ParticipatesInLabel()
 OccursAtLabel = OccursAtLabel()
 ClaimStoreLabel = ClaimStoreLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
+ExplanationPlanLabel = ExplanationPlanLabel()
+CoreIdeaLabel = CoreIdeaLabel()
+RepresentationShiftLabel = RepresentationShiftLabel()
+KeyInvariantLabel = KeyInvariantLabel()
+NaiveFailureLabel = NaiveFailureLabel()
+BridgeLemmaLabel = BridgeLemmaLabel()
+NeededForLabel = NeededForLabel()
+ImportedBecauseLabel = ImportedBecauseLabel()
+OmittedDetailLabel = OmittedDetailLabel()
+AudienceLevelLabel = AudienceLevelLabel()
+ExplanationSpineLabel = ExplanationSpineLabel()
+SpineStepLabel = SpineStepLabel()
+RenderLawLabel = RenderLawLabel()
+
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
