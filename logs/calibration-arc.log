@@ -80,3 +80,48 @@ three-state ablation cycles; blank controls current with the final
 matcher semantics; cold-start manifest with 167 library rules saved
 at freeze time (logs/experiment-4-manifest.log) and confirmed to
 reproduce byte-for-byte from a cold interpreter on the frozen tag.
+
+Retro-audit of defect eight (sonnet's demand), done mechanically
+----------------------------------------------------------------
+
+Per committed build, fuel representation vs guard family, from
+git show <commit>:research.py --
+
+  460431a  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  c2d890c  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  28e43f7  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  0770b9d  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  fe26dc8  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  76f4389  chain fuel zero NatEq(fuel        Tail(fuel): guarded
+
+The broken hybrid -- chain fuel behind a NatEq guard -- existed only
+in the uncommitted working tree during the defect-eight turn and was
+caught by the test battery before any commit and before any session.
+Every logged session ran on an internally consistent engine; the
+walk-off-the-chain failure was never reachable in any evidence build.
+Consistency of the fuel machinery is what this audit certifies --
+nothing more; other defects remain findable only by running.
+
+Set B, restated per sonnet's correction
+---------------------------------------
+
+Three class-A outcomes were not three calibration successes; they were
+two findings wearing one label:
+
+1. The ground factorization policy cannot transfer to symbolic
+   exponents -- and one level deeper, post-evaluator it cannot even
+   form, since its training residuals are discharged before becoming
+   requests. Regime C on this substrate builds from non-ground
+   episodes only.
+2. The pack library holds no rule whose conclusion or premise shape
+   can foothold on research-grammar goals at all: a coverage gap
+   (vocabulary disjointness), not a search-depth gap.
+
+B1 diagnosis, sonnet's three-way question answered: option (3), with a
+correction to its premise. The exponent-algebra law of Experiment 1
+was never in a pack -- it was live-taught in a session whose state was
+deliberately not carried (session hygiene). The library genuinely
+lacks the rule, and additionally cannot express it toward research
+goals across the vocabulary boundary. Prescription applied: teach that
+specific rule live, rerun B1 alone, confirm Regime B before B2/B3 are
+reconsidered. Experiment 4 stays unrun.

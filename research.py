@@ -2567,7 +2567,10 @@ class TaughtFormalRules(Edge):
     def __init__(self, provenance_map):
         trusted = ProvenanceEntriesFor(provenance_map, Lmod.HumanSuppliedTrustedTheoremLabel)()
         priors = ProvenanceEntriesFor(provenance_map, Lmod.HumanSuppliedStrategyPriorLabel)()
-        self.result = self._rules(trusted, self._rules(priors, EmptyList))
+        invented = ProvenanceEntriesFor(provenance_map, Lmod.InventedLemmaLabel)()
+        self.result = self._rules(
+            trusted, self._rules(priors, self._rules(invented, EmptyList))
+        )
         super().__init__(inputs=M.Pair(provenance_map, EmptyList), results=self.result)
 
     def _rules(self, entries, acc):
@@ -2601,6 +2604,9 @@ class RecompiledRules(Edge):
         priors = ProvenanceEntriesFor(self.graph.provenance_map, Lmod.HumanSuppliedStrategyPriorLabel)()
         if self._member(priors, formal_term) is M.truth_value:
             return Lmod.HumanSuppliedStrategyPriorLabel
+        invented = ProvenanceEntriesFor(self.graph.provenance_map, Lmod.InventedLemmaLabel)()
+        if self._member(invented, formal_term) is M.truth_value:
+            return Lmod.InventedLemmaLabel
         return Lmod.HumanSuppliedTrustedTheoremLabel
 
     def _member(self, chain, term):
@@ -2898,6 +2904,31 @@ class GeneralizeEpisodes(Edge):
         return self.result
 
 
+class NonPolicyEntries(Edge):
+    """Learned-memory entries that are not anti-unified policies.
+
+    Adopted invariants share the learned-memory chain so the mask and
+    the reset govern them; policy relearning must not erase them.
+    """
+
+    def __init__(self, chain):
+        self.result = self._walk(chain)
+        super().__init__(inputs=M.Pair(chain, EmptyList), results=self.result)
+
+    def _walk(self, chain):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(chain)()
+        rest = Tail(chain)()
+        if M.IsPair(entry)() is M.truth_value:
+            if IdentityCompare(Head(entry)(), Lmod.LearnedDependencyPolicyLabel)() is M.truth_value:
+                return self._walk(rest)
+        return M.Pair(entry, self._walk(rest))
+
+    def __call__(self):
+        return self.result
+
+
 def learn_policies(graph):
     """Regenerate the policy chain from the useful episodes on record.
 
@@ -2907,10 +2938,11 @@ def learn_policies(graph):
     """
     useful = UsefulEpisodes(graph.intervention_episodes)()
     policy = GeneralizeEpisodes(useful)()
+    kept = NonPolicyEntries(graph.dependency_policies)()
     if IdentityCompare(policy, EmptyList)() is M.truth_value:
-        graph.set_dependency_policies(EmptyList)
+        graph.set_dependency_policies(kept)
         return EmptyList
-    chain = M.Pair(policy, EmptyList)
+    chain = M.Pair(policy, kept)
     graph.set_dependency_policies(chain)
     return chain
 
@@ -2999,6 +3031,11 @@ class PolicyPredictionsFor(Edge):
             return EmptyList
         policy = Head(policies)()
         rest = Tail(policies)()
+        if M.IsPair(policy)() is M.false_value:
+            return self._walk(rest)
+        if IdentityCompare(Head(policy)(), Lmod.LearnedDependencyPolicyLabel)() is M.false_value:
+            # invariants and other learned-memory entries are not predictors
+            return self._walk(rest)
         converted = PlaceholdersToVars(
             M.Pair(PolicyResidual(policy)(), PolicyRuleShape(policy)())
         )()
@@ -3318,6 +3355,23 @@ def attempt_goal(graph, start_facts, goal_facts, rules, fuel=None):
     if fuel is None:
         fuel = DEFAULT_SEARCH_FUEL
     graph.clear_research_attempts()
+    violated = invariant_prune(graph, goal_facts)
+    if IdentityCompare(violated, EmptyList)() is M.false_value:
+        # Conjectured unreachable: an adopted invariant disagrees with the
+        # goal's observable. No search runs; the violated record is the
+        # residual, and the learned-memory mask governs this path.
+        pruned_root = M.Pair(
+            Lmod.InvariantLabel, M.Pair(goal_facts, M.Pair(violated, EmptyList))
+        )
+        graph._replace_context(last_residuals=pruned_root, research_residuals=pruned_root)
+        set_last_proof(
+            graph,
+            M.Pair(
+                Lmod.LastProofLabel,
+                M.Pair(goal_facts, M.Pair(Lmod.FailureLabel, M.Pair(EmptyList, M.Pair(EmptyList, EmptyList)))),
+            ),
+        )
+        return M.Pair(M.false_value, M.Pair(EmptyList, M.Pair(EmptyList, M.Pair(start_facts, EmptyList))))
     cached = graph.lookup_derivation(start_facts, goal_facts)
     searched = evaluated_search(start_facts, goal_facts, rules, fuel)
     outcome = Head(searched)()
@@ -3349,6 +3403,7 @@ def attempt_goal(graph, start_facts, goal_facts, rules, fuel=None):
         if IdentityCompare(cached, EmptyList)() is M.false_value:
             provenance = Lmod.DerivationCacheHitLabel
         graph.add_derivation(start_facts, goal_facts, fired)
+        record_trace(graph, start_facts, goal_facts, fired)
         proof_term = M.Pair(
             Lmod.LastProofLabel,
             M.Pair(
@@ -3375,3 +3430,510 @@ def attempt_goal(graph, start_facts, goal_facts, rules, fuel=None):
     )
     set_last_proof(graph, failure_term)
     return outcome
+
+
+# ---------------------------------------------------------------------------
+# The self-improvement loop.
+#
+# Closing one arrow: activated structure feeds back into a miner that
+# reads derivation traces. Phase 1 compresses repeated rule compositions
+# into candidate laws, gated on measured rent. Phase 2 conjectures
+# invariants of derived facts from a fixed, inspectable observable
+# library -- no oracle proposes candidates. Phase 3 turns adopted
+# invariants into unreachability prunes that ride the learned-memory
+# mask, so the appear/disappear/reappear discipline covers them too.
+# ---------------------------------------------------------------------------
+
+
+def record_trace(graph, start_facts, goal_facts, fired):
+    """One closed derivation, kept for the miner. Not learned memory."""
+    trace = M.Pair(
+        Lmod.DerivationLabel,
+        M.Pair(start_facts, M.Pair(goal_facts, M.Pair(fired, EmptyList))),
+    )
+    graph._replace_context(generator_policy=M.Pair(trace, graph.generator_policy))
+    return trace
+
+
+class TracesOnRecord(Edge):
+    """Every stored derivation trace, newest first."""
+
+    def __init__(self, graph):
+        self.result = self._walk(graph.generator_policy)
+        super().__init__(inputs=EmptyList, results=self.result)
+
+    def _walk(self, chain):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(chain)()
+        rest = Tail(chain)()
+        if M.IsPair(entry)() is M.truth_value:
+            if IdentityCompare(Head(entry)(), Lmod.DerivationLabel)() is M.truth_value:
+                return M.Pair(entry, self._walk(rest))
+        return self._walk(rest)
+
+    def __call__(self):
+        return self.result
+
+
+class StepInstances(Edge):
+    """Fired steps as concrete instances: rule, premises, conclusion."""
+
+    def __init__(self, fired):
+        self.result = self._walk(fired)
+        super().__init__(inputs=M.Pair(fired, EmptyList), results=self.result)
+
+    def _walk(self, fired):
+        from .proof import RulePremises, RuleReplacement
+
+        if IdentityCompare(fired, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(fired)()
+        rule = Head(entry)()
+        bindings = Head(Tail(entry)())()
+        premises = self._instantiate(RulePremises(rule)(), bindings)
+        conclusion = ApplyBindings(RuleReplacement(rule)(), bindings)()
+        record = M.Pair(rule, M.Pair(premises, M.Pair(conclusion, EmptyList)))
+        return M.Pair(record, self._walk(Tail(fired)()))
+
+    def _instantiate(self, premises, bindings):
+        if IdentityCompare(premises, EmptyList)() is M.truth_value:
+            return EmptyList
+        return M.Pair(
+            ApplyBindings(Head(premises)(), bindings)(),
+            self._instantiate(Tail(premises)(), bindings),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ComposedInstances(Edge):
+    """Dataflow-linked step pairs of one trace, as composed law instances.
+
+    When a later step consumed an earlier step's conclusion, the pair
+    composes: premises are the earlier step's premises plus the later
+    step's other premises; the conclusion is the later step's. Each
+    record: Pair(Pair(ruleA, ruleB), Pair(premises, Pair(conclusion, EmptyList))).
+    """
+
+    def __init__(self, fired):
+        steps = StepInstances(fired)()
+        self.result = self._pairs(steps)
+        super().__init__(inputs=M.Pair(fired, EmptyList), results=self.result)
+
+    def _pairs(self, steps):
+        if IdentityCompare(steps, EmptyList)() is M.truth_value:
+            return EmptyList
+        first = Head(steps)()
+        rest = Tail(steps)()
+        return self._concat(self._with_later(first, rest), self._pairs(rest))
+
+    def _with_later(self, first, laters):
+        if IdentityCompare(laters, EmptyList)() is M.truth_value:
+            return EmptyList
+        later = Head(laters)()
+        rest = Tail(laters)()
+        conclusion_a = Head(Tail(Tail(first)())())()
+        premises_b = Head(Tail(later)())()
+        linked = self._drop_linked(premises_b, conclusion_a)
+        if IdentityCompare(Head(linked)(), M.truth_value)() is M.truth_value:
+            other_premises = Tail(linked)()
+            premises_a = Head(Tail(first)())()
+            combined = self._concat(premises_a, other_premises)
+            key = M.Pair(Head(first)(), Head(later)())
+            record = M.Pair(
+                key,
+                M.Pair(combined, M.Pair(Head(Tail(Tail(later)())())(), EmptyList)),
+            )
+            return M.Pair(record, self._with_later(first, rest))
+        return self._with_later(first, rest)
+
+    def _drop_linked(self, premises, conclusion):
+        if IdentityCompare(premises, EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, EmptyList)
+        premise = Head(premises)()
+        rest = Tail(premises)()
+        if M.Compare(premise, conclusion)() is M.truth_value:
+            return M.Pair(M.truth_value, rest)
+        deeper = self._drop_linked(rest, conclusion)
+        return M.Pair(Head(deeper)(), M.Pair(premise, Tail(deeper)()))
+
+    def _concat(self, left, right):
+        if IdentityCompare(left, EmptyList)() is M.truth_value:
+            return right
+        return M.Pair(Head(left)(), self._concat(Tail(left)(), right))
+
+    def __call__(self):
+        return self.result
+
+
+def mine_compressed_laws(graph):
+    """Candidate laws from motifs repeated across distinct traces.
+
+    A rule-pair key occurring in two different traces yields the
+    anti-unification of its two composed instances as a FormalRule
+    candidate. The generalized conclusion must retain structure; a
+    candidate alpha-equal to an already-adopted law is not re-proposed.
+    Nothing here activates anything: adoption is a separate, human-gated,
+    rent-measured step.
+    """
+    traces = TracesOnRecord(graph)()
+    candidates = EmptyList
+    outer = traces
+    while IdentityCompare(outer, EmptyList)() is M.false_value:
+        first_trace = Head(outer)()
+        rest_traces = Tail(outer)()
+        first_composed = ComposedInstances(Head(Tail(Tail(Tail(first_trace)())())())())()
+        inner = rest_traces
+        while IdentityCompare(inner, EmptyList)() is M.false_value:
+            second_composed = ComposedInstances(
+                Head(Tail(Tail(Tail(Head(inner)())())())())()
+            )()
+            walk_a = first_composed
+            while IdentityCompare(walk_a, EmptyList)() is M.false_value:
+                record_a = Head(walk_a)()
+                walk_a = Tail(walk_a)()
+                walk_b = second_composed
+                while IdentityCompare(walk_b, EmptyList)() is M.false_value:
+                    record_b = Head(walk_b)()
+                    walk_b = Tail(walk_b)()
+                    key_a = Head(record_a)()
+                    key_b = Head(record_b)()
+                    same_pair = M.AndAtom(
+                        IdentityCompare(Head(key_a)(), Head(key_b)())(),
+                        IdentityCompare(Tail(key_a)(), Tail(key_b)())(),
+                    )()
+                    if IdentityCompare(same_pair, M.truth_value)() is M.false_value:
+                        continue
+                    generalized = Head(AntiUnify(Tail(record_a)(), Tail(record_b)())())()
+                    converted = Head(PlaceholdersToVars(generalized)())()
+                    premises = Head(converted)()
+                    conclusion = Head(Tail(converted)())()
+                    if SharesStructure(conclusion)() is M.false_value:
+                        continue
+                    if M.IsPair(conclusion)() is M.false_value:
+                        continue
+                    candidate = FormalRule(premises, conclusion)()
+                    already = ProvenanceEntriesFor(
+                        graph.provenance_map, Lmod.InventedLemmaLabel
+                    )()
+                    duplicate = M.false_value
+                    walk_known = already
+                    while IdentityCompare(walk_known, EmptyList)() is M.false_value:
+                        known = Head(walk_known)()
+                        walk_known = Tail(walk_known)()
+                        if M.Compare(
+                            AlphaNormalized(known, EmptyList)(),
+                            AlphaNormalized(candidate, EmptyList)(),
+                        )() is M.truth_value:
+                            duplicate = M.truth_value
+                            walk_known = EmptyList
+                    walk_seen = candidates
+                    while IdentityCompare(walk_seen, EmptyList)() is M.false_value:
+                        seen = Head(walk_seen)()
+                        walk_seen = Tail(walk_seen)()
+                        if M.Compare(
+                            AlphaNormalized(seen, EmptyList)(),
+                            AlphaNormalized(candidate, EmptyList)(),
+                        )() is M.truth_value:
+                            duplicate = M.truth_value
+                            walk_seen = EmptyList
+                    if IdentityCompare(duplicate, M.false_value)() is M.truth_value:
+                        candidates = M.Pair(candidate, candidates)
+            inner = Tail(inner)()
+        outer = rest_traces
+    return M.Reverse(candidates)()
+
+
+def adopt_compressed_law(graph, candidate, start_facts, goal_facts, rules, fuel=None):
+    """Rent gate: activate the candidate only if it pays.
+
+    Rent is measured in the compression's own currency -- the fired
+    chain of a held-out attempt must shorten, or an open attempt must
+    close. On pass the candidate is stored INVENTED_LEMMA and compiles
+    into the rule set like any taught law. On fail nothing activates
+    and the measured lengths are returned either way:
+    Pair(adopted flag, Pair(fired-before, Pair(fired-after, EmptyList))).
+    """
+    if fuel is None:
+        fuel = DEFAULT_SEARCH_FUEL
+    baseline = Head(evaluated_search(start_facts, goal_facts, rules, fuel))()
+    compiled = compile_formal_rule(candidate)
+    augmented = Head(
+        evaluated_search(start_facts, goal_facts, M.Pair(compiled, rules), fuel)
+    )()
+    fired_before = ForwardSearchFired(baseline)()
+    fired_after = ForwardSearchFired(augmented)()
+    closed_now = M.AndAtom(
+        M.NotAtom(ForwardSearchClosed(baseline)())(),
+        ForwardSearchClosed(augmented)(),
+    )()
+    both_closed_shorter = M.AndAtom(
+        ForwardSearchClosed(augmented)(),
+        ChainShorter(fired_after, fired_before)(),
+    )()
+    pays = M.OrAtom(closed_now, both_closed_shorter)()
+    if IdentityCompare(pays, M.truth_value)() is M.truth_value:
+        graph.add_provenance(candidate, Lmod.InventedLemmaLabel)
+        graph.tag_rule_origin(compiled, Lmod.InventedLemmaLabel)
+        return M.Pair(M.truth_value, M.Pair(fired_before, M.Pair(fired_after, EmptyList)))
+    return M.Pair(M.false_value, M.Pair(fired_before, M.Pair(fired_after, EmptyList)))
+
+
+# --- Phase 2: invariant conjecture from a fixed observable library --------
+
+OBSERVABLE_PARITY = M.Char("parity")
+OBSERVABLE_RESIDUE = M.Char("residue")
+
+
+class ObservableOnFact(Edge):
+    """The value of one library observable on one fact, or EmptyList.
+
+    Shapes: (parity <argindex>) and (residue <argindex> <k>). The
+    argument must be a ground numeral; the value returns as a numeral
+    Char. The library is finite and inspectable; nothing proposes
+    shapes from outside it.
+    """
+
+    def __init__(self, shape, fact):
+        self.result = self._value(shape, fact)
+        super().__init__(inputs=M.Pair(shape, M.Pair(fact, EmptyList)), results=self.result)
+
+    def _arg(self, fact, index):
+        if M.IsPair(fact)() is M.false_value:
+            return None
+        walk = Tail(fact)()
+        position = 1
+        while M.IsPair(walk)() is M.truth_value:
+            if position == index:
+                atom = Head(walk)()
+                try:
+                    text = atom()
+                except Exception:
+                    return None
+                if text is None or not str(text).isdigit():
+                    return None
+                return int(str(text))
+            walk = Tail(walk)()
+            position += 1
+        return None
+
+    def _shape_number(self, term):
+        try:
+            text = term()
+        except Exception:
+            return None
+        if text is None or not str(text).isdigit():
+            return None
+        return int(str(text))
+
+    def _value(self, shape, fact):
+        if M.IsPair(shape)() is M.false_value:
+            return EmptyList
+        head = Head(shape)()
+        args = Tail(shape)()
+        if M.IsPair(args)() is M.false_value:
+            return EmptyList
+        index = self._shape_number(Head(args)())
+        if index is None:
+            return EmptyList
+        value = self._arg(fact, index)
+        if value is None:
+            return EmptyList
+        if M.Compare(head, OBSERVABLE_PARITY)() is M.truth_value:
+            return M.Char(str(value % 2))
+        if M.Compare(head, OBSERVABLE_RESIDUE)() is M.truth_value:
+            rest = Tail(args)()
+            if M.IsPair(rest)() is M.false_value:
+                return EmptyList
+            k = self._shape_number(Head(rest)())
+            if k is None or k < 2:
+                return EmptyList
+            return M.Char(str(value % k))
+        return EmptyList
+
+    def __call__(self):
+        return self.result
+
+
+def _observable_library():
+    shapes = EmptyList
+    for k in (3, 2):
+        for index in (2, 1):
+            shapes = M.Pair(
+                M.Pair(OBSERVABLE_RESIDUE, M.Pair(M.Char(str(index)), M.Pair(M.Char(str(k)), EmptyList))),
+                shapes,
+            )
+    for index in (2, 1):
+        shapes = M.Pair(
+            M.Pair(OBSERVABLE_PARITY, M.Pair(M.Char(str(index)), EmptyList)),
+            shapes,
+        )
+    return shapes
+
+
+OBSERVABLE_LIBRARY = _observable_library()
+
+
+def conjecture_invariants(graph):
+    """Survivors of the library against every fact of every trace.
+
+    For each fact head appearing across at least two traces, an
+    observable that takes one identical value on every fact with that
+    head, in every trace state -- start facts and derived conclusions
+    alike -- is a conjectured invariant:
+    Pair(InvariantLabel, Pair(head, Pair(shape, Pair(value, EmptyList)))).
+    Conjecture only; adoption is human-gated.
+    """
+    traces = TracesOnRecord(graph)()
+    heads = EmptyList
+    walk = traces
+    while IdentityCompare(walk, EmptyList)() is M.false_value:
+        trace = Head(walk)()
+        walk = Tail(walk)()
+        facts = _trace_facts(trace)
+        inner = facts
+        while IdentityCompare(inner, EmptyList)() is M.false_value:
+            fact = Head(inner)()
+            inner = Tail(inner)()
+            if M.IsPair(fact)() is M.false_value:
+                continue
+            head = Head(fact)()
+            if M.IsPair(head)() is M.truth_value:
+                continue
+            present = M.false_value
+            seen = heads
+            while IdentityCompare(seen, EmptyList)() is M.false_value:
+                if M.Compare(Head(seen)(), head)() is M.truth_value:
+                    present = M.truth_value
+                    seen = EmptyList
+                else:
+                    seen = Tail(seen)()
+            if IdentityCompare(present, M.false_value)() is M.truth_value:
+                heads = M.Pair(head, heads)
+    conjectures = EmptyList
+    walk_heads = heads
+    while IdentityCompare(walk_heads, EmptyList)() is M.false_value:
+        head = Head(walk_heads)()
+        walk_heads = Tail(walk_heads)()
+        shapes = OBSERVABLE_LIBRARY
+        while IdentityCompare(shapes, EmptyList)() is M.false_value:
+            shape = Head(shapes)()
+            shapes = Tail(shapes)()
+            verdict = _shape_survives(traces, head, shape)
+            if verdict is not None:
+                record = M.Pair(
+                    Lmod.InvariantLabel,
+                    M.Pair(head, M.Pair(shape, M.Pair(verdict, EmptyList))),
+                )
+                conjectures = M.Pair(record, conjectures)
+    return M.Reverse(conjectures)()
+
+
+def _trace_facts(trace):
+    start = Head(Tail(trace)())()
+    fired = Head(Tail(Tail(Tail(trace)())())())()
+    facts = start
+    steps = StepInstances(fired)()
+    while IdentityCompare(steps, EmptyList)() is M.false_value:
+        facts = M.Pair(Head(Tail(Tail(Head(steps)())())())(), facts)
+        steps = Tail(steps)()
+    return facts
+
+
+def _shape_survives(traces, head, shape):
+    """One identical value across every matching fact of >= 2 traces."""
+    value = None
+    supporting_traces = 0
+    total_facts = 0
+    walk = traces
+    while IdentityCompare(walk, EmptyList)() is M.false_value:
+        trace = Head(walk)()
+        walk = Tail(walk)()
+        facts = _trace_facts(trace)
+        seen_here = 0
+        while IdentityCompare(facts, EmptyList)() is M.false_value:
+            fact = Head(facts)()
+            facts = Tail(facts)()
+            if M.IsPair(fact)() is M.false_value:
+                continue
+            if M.Compare(Head(fact)(), head)() is M.false_value:
+                continue
+            observed = ObservableOnFact(shape, fact)()
+            if IdentityCompare(observed, EmptyList)() is M.truth_value:
+                return None
+            if value is None:
+                value = observed
+            elif M.Compare(value, observed)() is M.false_value:
+                return None
+            seen_here += 1
+            total_facts += 1
+        if seen_here:
+            supporting_traces += 1
+    if value is None or supporting_traces < 2 or total_facts < 3:
+        return None
+    return value
+
+
+def adopt_invariant(graph, record):
+    """Human-gated adoption into learned memory.
+
+    Invariant records live in the dependency_policies chain, so the
+    learned-memory mask silences their prunes, and reset erases them --
+    the same appear/disappear/reappear cycle as policy predictions.
+    """
+    graph.set_dependency_policies(M.Pair(record, graph.dependency_policies))
+    graph.add_provenance(record, Lmod.InventedLemmaLabel)
+    return record
+
+
+class InvariantsOnRecord(Edge):
+    def __init__(self, graph):
+        self.result = self._walk(graph.dependency_policies)
+        super().__init__(inputs=EmptyList, results=self.result)
+
+    def _walk(self, chain):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(chain)()
+        rest = Tail(chain)()
+        if M.IsPair(entry)() is M.truth_value:
+            if IdentityCompare(Head(entry)(), Lmod.InvariantLabel)() is M.truth_value:
+                return M.Pair(entry, self._walk(rest))
+        return self._walk(rest)
+
+    def __call__(self):
+        return self.result
+
+
+def invariant_prune(graph, goal_facts):
+    """The adopted invariant a goal fact violates, or EmptyList.
+
+    A goal whose observable disagrees with an adopted invariant is
+    conjectured unreachable: search is skipped and the violated record
+    is reported. Masked learned memory disables the prune entirely.
+    """
+    if learned_memory_enabled(graph) is M.false_value:
+        return EmptyList
+    invariants = InvariantsOnRecord(graph)()
+    while IdentityCompare(invariants, EmptyList)() is M.false_value:
+        record = Head(invariants)()
+        invariants = Tail(invariants)()
+        head = Head(Tail(record)())()
+        shape = Head(Tail(Tail(record)())())()
+        value = Head(Tail(Tail(Tail(record)())())())()
+        goals = goal_facts
+        while IdentityCompare(goals, EmptyList)() is M.false_value:
+            goal_fact = Head(goals)()
+            goals = Tail(goals)()
+            if M.IsPair(goal_fact)() is M.false_value:
+                continue
+            if M.Compare(Head(goal_fact)(), head)() is M.false_value:
+                continue
+            observed = ObservableOnFact(shape, goal_fact)()
+            if IdentityCompare(observed, EmptyList)() is M.truth_value:
+                continue
+            if M.Compare(observed, value)() is M.false_value:
+                return record
+    return EmptyList

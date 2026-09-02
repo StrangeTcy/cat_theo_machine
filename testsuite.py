@@ -15181,6 +15181,162 @@ class GroundEvaluationTest(M.Edge):
         return self.result
 
 
+class SelfImprovementLoopTest(M.Edge):
+    """Phase 1: mine, rent-gate, adopt, and the recursive turn.
+
+    Two traces sharing the p->q->r motif yield one candidate; the rent
+    gate adopts it because the held-out proof's fired chain shortens;
+    the adopted law recompiles like any taught law; and traces produced
+    WITH it expose the deeper (p -> s) motif that was invisible before.
+    Candidate generation is anti-unification over the machine's own
+    traces -- no oracle proposes anything.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy, vz = T.var("x"), T.var("y"), T.var("z")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        r3 = MultiRule(T.chain(T.term(T.sym("r"), vz)), T.term(T.sym("s"), vz))()
+        rules = T.chain(r1, r2)
+        self.result = M.truth_value
+        Rmod.attempt_goal(graph, T.chain(T.term(T.sym("p"), T.sym("a"))),
+                          T.chain(T.term(T.sym("r"), T.sym("a"))), rules)
+        Rmod.attempt_goal(graph, T.chain(T.term(T.sym("p"), T.sym("b"))),
+                          T.chain(T.term(T.sym("r"), T.sym("b"))), rules)
+        candidates = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        outcome = Rmod.adopt_compressed_law(
+            graph, M.Head(candidates)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
+        )
+        if M.IdentityCompare(M.Head(outcome)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        entries = Rmod.rebuild_taught_rules(graph)
+        rules2 = T.chain(r3)
+        cur = entries
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            rules2 = M.Pair(M.Head(M.Head(cur)())(), rules2)
+            cur = M.Tail(cur)()
+        closed = Rmod.attempt_goal(
+            graph, T.chain(T.term(T.sym("p"), T.sym("d"))),
+            T.chain(T.term(T.sym("s"), T.sym("d"))), rules2,
+        )
+        if Rmod.ForwardSearchClosed(closed)() is M.false_value:
+            self.result = M.false_value
+        closed = Rmod.attempt_goal(
+            graph, T.chain(T.term(T.sym("p"), T.sym("e"))),
+            T.chain(T.term(T.sym("s"), T.sym("e"))), rules2,
+        )
+        if Rmod.ForwardSearchClosed(closed)() is M.false_value:
+            self.result = M.false_value
+        deeper = Rmod.mine_compressed_laws(graph)
+        found = M.false_value
+        cur = deeper
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            candidate = M.Head(cur)()
+            cur = M.Tail(cur)()
+            conclusion = Rmod.FormalRuleConclusion(candidate)()
+            premises = Rmod.FormalRulePremises(candidate)()
+            if M.IsPair(conclusion)() is M.false_value:
+                continue
+            if M.IsPair(premises)() is M.false_value:
+                continue
+            if M.Compare(M.Head(conclusion)(), T.sym("s"))() is M.truth_value:
+                first_premise = M.Head(premises)()
+                if M.IsPair(first_premise)() is M.truth_value:
+                    if M.Compare(M.Head(first_premise)(), T.sym("p"))() is M.truth_value:
+                        found = M.truth_value
+        if found is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class InvariantLoopTest(M.Edge):
+    """Phases 2 and 3: conjecture from the fixed library, prune on the mask.
+
+    Traces whose facts all carry even arguments yield the parity
+    conjecture from the finite observable library; adopted, it prunes a
+    violating goal, leaves a conforming goal untouched, disappears under
+    the learned-memory mask, returns when unmasked, and dies with reset.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va = T.var("a")
+        step = MultiRule(T.chain(T.term(T.sym("even"), va)), T.term(T.sym("halved"), va))()
+        for numeral in ("4", "8", "6"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("even"), T.sym(numeral))),
+                T.chain(T.term(T.sym("halved"), T.sym(numeral))), T.chain(step),
+            )
+        conjectures = Rmod.conjecture_invariants(graph)
+        pick = empty
+        cur = conjectures
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            record = M.Head(cur)()
+            cur = M.Tail(cur)()
+            head = M.Head(M.Tail(record)())()
+            shape = M.Head(M.Tail(M.Tail(record)())())()
+            if M.Compare(head, T.sym("halved"))() is M.truth_value:
+                if M.Compare(M.Head(shape)(), Rmod.OBSERVABLE_PARITY)() is M.truth_value:
+                    pick = record
+        self.result = M.truth_value
+        if M.IdentityCompare(pick, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        Rmod.adopt_invariant(graph, pick)
+        bad_goal = T.chain(T.term(T.sym("halved"), T.sym("5")))
+
+        def pruned():
+            residuals = graph.last_residuals
+            if M.IsPair(residuals)() is M.false_value:
+                return M.false_value
+            return M.IdentityCompare(M.Head(residuals)(), Lmod.InvariantLabel)()
+
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.false_value:
+            self.result = M.false_value
+        ok = Rmod.attempt_goal(
+            graph, T.chain(T.term(T.sym("even"), T.sym("10"))),
+            T.chain(T.term(T.sym("halved"), T.sym("10"))), T.chain(step),
+        )
+        if Rmod.ForwardSearchClosed(ok)() is M.false_value:
+            self.result = M.false_value
+        Rmod.disable_learned_memory(graph)
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.truth_value:
+            self.result = M.false_value
+        Rmod.enable_learned_memory(graph)
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.false_value:
+            self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class SentenceGrammarGenericTest(M.Edge):
     """The quantified-goal grammar is compositional, not a target template.
 
@@ -17174,6 +17330,10 @@ def install_default_tests(graph):
         _register_test(graph, "cache_hit_provenance_test", empty, CacheHitProvenanceTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "ground_evaluation_test", empty, GroundEvaluationTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "self_improvement_loop_test", empty, SelfImprovementLoopTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "invariant_loop_test", empty, InvariantLoopTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:

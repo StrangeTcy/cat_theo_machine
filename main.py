@@ -3472,6 +3472,81 @@ def run_talk_mode(sentence: str = None):
                     + str(_library_rule_count())
                     + "; provenance LIBRARY_THEOREM; they join every attempt from now on.")
 
+        if lowered == "mine compressed laws":
+            graph = _research_graph()
+            candidates = Rmod.mine_compressed_laws(graph)
+            if M.IdentityCompare(candidates, M.EmptyList)() is M.truth_value:
+                return "no repeated motif across distinct traces; nothing to propose."
+            reply = "compressed-law candidates (anti-unified from your own traces):"
+            index = 0
+            cur = candidates
+            while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                reply += ("\n  [" + str(index) + "] "
+                          + _research_term_text(M.Head(cur)(), graph))
+                index += 1
+                cur = M.Tail(cur)()
+            reply += "\nadoption is rent-gated: `adopt compressed law <n>` measures a held-out attempt."
+            return reply
+
+        if lowered.startswith("adopt compressed law"):
+            graph = _research_graph()
+            position = _research_position(line, 3)
+            if position is None:
+                return "usage: adopt compressed law <index>"
+            candidates = Rmod.mine_compressed_laws(graph)
+            pick = _request_at_position_walk(candidates, position)
+            if M.IdentityCompare(pick, M.EmptyList)() is M.truth_value:
+                return "no candidate with index " + str(position)
+            if M.IdentityCompare(research_goal_facts, M.EmptyList)() is M.truth_value:
+                return "no held-out goal on record; `attempt goal:` one first -- rent needs a measurement."
+            rules = _research_rules(graph)
+            axioms = Rmod.axiom_facts(graph)
+            outcome = Rmod.adopt_compressed_law(
+                graph, pick, axioms, research_goal_facts, rules
+            )
+            adopted = M.Head(outcome)()
+            before = _research_nat_text(M.Head(M.Tail(outcome)())())
+            after = _research_nat_text(M.Head(M.Tail(M.Tail(outcome)())())())
+            _persist_research_state()
+            if M.IdentityCompare(adopted, M.truth_value)() is M.truth_value:
+                return ("adopted with provenance INVENTED_LEMMA: rent paid -- fired chain "
+                        + before + " -> " + after + " on the held-out attempt.")
+            return ("not adopted: rent unpaid -- fired chain " + before + " -> " + after
+                    + " on the held-out attempt. The candidate stays a proposal.")
+
+        if lowered == "conjecture invariants":
+            graph = _research_graph()
+            conjectures = Rmod.conjecture_invariants(graph)
+            if M.IdentityCompare(conjectures, M.EmptyList)() is M.truth_value:
+                return ("no observable from the library survives every trace; "
+                        "nothing to conjecture.")
+            reply = "conjectured invariants (library survivors over your own traces):"
+            index = 0
+            cur = conjectures
+            while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                reply += ("\n  [" + str(index) + "] "
+                          + _research_term_text(M.Head(cur)(), graph))
+                index += 1
+                cur = M.Tail(cur)()
+            reply += "\nadoption is human-gated: `adopt invariant <n>`; prunes ride the learned-memory mask."
+            return reply
+
+        if lowered.startswith("adopt invariant"):
+            graph = _research_graph()
+            position = _research_position(line, 2)
+            if position is None:
+                return "usage: adopt invariant <index>"
+            conjectures = Rmod.conjecture_invariants(graph)
+            pick = _request_at_position_walk(conjectures, position)
+            if M.IdentityCompare(pick, M.EmptyList)() is M.truth_value:
+                return "no conjecture with index " + str(position)
+            Rmod.adopt_invariant(graph, pick)
+            _persist_research_state()
+            return ("adopted into learned memory: "
+                    + _research_term_text(pick, graph)
+                    + "\nviolating goals are pruned as conjectured-unreachable while "
+                    "learned memory is enabled; reset erases the invariant.")
+
         if lowered == "disable learned memory":
             graph = _research_graph()
             Rmod.disable_learned_memory(graph)

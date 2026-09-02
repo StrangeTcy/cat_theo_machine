@@ -269,6 +269,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SchemaReplayLabel",
     "SearchDerivedLabel",
     "InventedLemmaLabel",
+    "InvariantLabel",
     "InventedObjectLabel",
     "InventedTransformationLabel",
     "CounterexampleLabel",
