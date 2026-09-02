@@ -2564,10 +2564,14 @@ class TaughtFormalRules(Edge):
     a stale compiled certificate.
     """
 
-    def __init__(self, provenance_map):
+    def __init__(self, provenance_map, include_invented=None):
+        if include_invented is None:
+            include_invented = M.truth_value
         trusted = ProvenanceEntriesFor(provenance_map, Lmod.HumanSuppliedTrustedTheoremLabel)()
         priors = ProvenanceEntriesFor(provenance_map, Lmod.HumanSuppliedStrategyPriorLabel)()
-        invented = ProvenanceEntriesFor(provenance_map, Lmod.InventedLemmaLabel)()
+        invented = EmptyList
+        if IdentityCompare(include_invented, M.truth_value)() is M.truth_value:
+            invented = ProvenanceEntriesFor(provenance_map, Lmod.InventedLemmaLabel)()
         self.result = self._rules(
             trusted, self._rules(priors, self._rules(invented, EmptyList))
         )
@@ -2590,8 +2594,16 @@ def rebuild_taught_rules(graph):
     """Recompile and re-tag every checkpointed taught rule.
 
     Returns Pair(rule, Pair(formal term, EmptyList)) entries, newest last.
+    Human-taught theorems and priors always recompile; INDUCED laws
+    (INVENTED_LEMMA) are learned structure and ride the learned-memory
+    mask -- masked memory removes them from the rule set, so a speedup
+    they produce disappears with them. A speedup that survived the mask
+    would be indistinguishable from a hardcoded prior.
     """
-    return RecompiledRules(graph, TaughtFormalRules(graph.provenance_map)())()
+    include_invented = learned_memory_enabled(graph)
+    return RecompiledRules(
+        graph, TaughtFormalRules(graph.provenance_map, include_invented)()
+    )()
 
 
 class RecompiledRules(Edge):
@@ -2947,8 +2959,41 @@ def learn_policies(graph):
     return chain
 
 
+class WithoutProvenance(Edge):
+    """The provenance map minus entries carrying one label."""
+
+    def __init__(self, provenance_map, label):
+        self.label = label
+        self.result = self._walk(provenance_map)
+        super().__init__(inputs=M.Pair(provenance_map, M.Pair(label, EmptyList)), results=self.result)
+
+    def _walk(self, chain):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(chain)()
+        rest = Tail(chain)()
+        if M.IsPair(entry)() is M.truth_value:
+            payload = Tail(entry)()
+            if M.IsPair(payload)() is M.truth_value:
+                if IdentityCompare(Head(payload)(), self.label)() is M.truth_value:
+                    return self._walk(rest)
+        return M.Pair(entry, self._walk(rest))
+
+    def __call__(self):
+        return self.result
+
+
 def reset_learned_memory(graph):
-    """Forget episodes and policies. Predictions must disappear with them."""
+    """Forget everything the machine learned by itself.
+
+    Episodes, policies, adopted invariants, and INDUCED laws all die
+    here: a capability produced by mining must vanish on reset or it
+    was never learned. Human-taught theorems, priors and axioms stay --
+    they were supplied, not learned, and their provenance says so.
+    """
+    graph._replace_context(
+        provenance_map=WithoutProvenance(graph.provenance_map, Lmod.InventedLemmaLabel)()
+    )
     return graph.reset_learned_memory()
 
 

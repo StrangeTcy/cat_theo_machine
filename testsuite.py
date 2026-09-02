@@ -15337,6 +15337,138 @@ class InvariantLoopTest(M.Edge):
         return self.result
 
 
+class MotifDataflowNegativeControlTest(M.Edge):
+    """Rung 2's negative control: co-occurrence is not a motif.
+
+    Two rules fire in every trace but never feed each other; the miner
+    must propose nothing from them. The positive control in the same
+    fact world: a dataflow-linked chain yields its candidate. A miner
+    passing the positive but failing the negative is pattern-matching
+    surface statistics.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy = T.var("x"), T.var("y")
+        rule_a = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        rule_c = MultiRule(T.chain(T.term(T.sym("u"), vy)), T.term(T.sym("w"), vy))()
+        rules = T.chain(rule_a, rule_c)
+        self.result = M.truth_value
+        for const in ("a", "b"):
+            facts = T.chain(
+                T.term(T.sym("p"), T.sym(const)), T.term(T.sym("u"), T.sym(const))
+            )
+            goal = T.chain(
+                T.term(T.sym("q"), T.sym(const)), T.term(T.sym("w"), T.sym(const))
+            )
+            outcome = Rmod.attempt_goal(graph, facts, goal, rules)
+            if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+                self.result = M.false_value
+        candidates = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(candidates, empty)() is M.false_value:
+            # both rules fired in both traces, never dataflow-linked:
+            # any candidate here is a co-occurrence artifact
+            self.result = M.false_value
+        vz = T.var("z")
+        rule_b = MultiRule(T.chain(T.term(T.sym("q"), vz)), T.term(T.sym("r"), vz))()
+        linked = T.chain(rule_a, rule_b)
+        for const in ("c", "d"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), linked,
+            )
+        candidates = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class MacroLawAblationTest(M.Edge):
+    """Rung 5's unfakeable cycle, for induced macro-laws.
+
+    S_fast with the induced law active; disable learned memory -> the
+    law leaves the rule set and the held-out proof lengthens to
+    S_slow; enable -> S_fast returns; reset -> the law is gone from
+    provenance and the proof stays at S_slow even with memory enabled.
+    A speedup surviving the reset would be a hardcoded prior.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy = T.var("x"), T.var("y")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        base = T.chain(r1, r2)
+        self.result = M.truth_value
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), base,
+            )
+        candidates = Rmod.mine_compressed_laws(graph)
+        adopted = Rmod.adopt_compressed_law(
+            graph, M.Head(candidates)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), base,
+        )
+        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+
+        def held_out_steps():
+            rules = base
+            entries = Rmod.rebuild_taught_rules(graph)
+            cur = entries
+            while M.IdentityCompare(cur, empty)() is M.false_value:
+                rules = M.Pair(M.Head(M.Head(cur)())(), rules)
+                cur = M.Tail(cur)()
+            outcome = Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym("f"))),
+                T.chain(T.term(T.sym("r"), T.sym("f"))), rules,
+            )
+            if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+                return None
+            count = 0
+            fired = Rmod.ForwardSearchFired(outcome)()
+            while M.IdentityCompare(fired, empty)() is M.false_value:
+                count += 1
+                fired = M.Tail(fired)()
+            return count
+
+        s_fast = held_out_steps()
+        if s_fast is None:
+            self.result = M.false_value
+        Rmod.disable_learned_memory(graph)
+        s_slow = held_out_steps()
+        if s_slow is None or s_fast is None or not s_fast < s_slow:
+            self.result = M.false_value
+        Rmod.enable_learned_memory(graph)
+        s_back = held_out_steps()
+        if s_back != s_fast:
+            self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        s_reset = held_out_steps()
+        if s_reset != s_slow:
+            self.result = M.false_value
+        remaining = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.InventedLemmaLabel)()
+        if M.IdentityCompare(remaining, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class SentenceGrammarGenericTest(M.Edge):
     """The quantified-goal grammar is compositional, not a target template.
 
@@ -17334,6 +17466,10 @@ def install_default_tests(graph):
         _register_test(graph, "self_improvement_loop_test", empty, SelfImprovementLoopTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "invariant_loop_test", empty, InvariantLoopTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "motif_dataflow_negative_control_test", empty, MotifDataflowNegativeControlTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "macro_law_ablation_test", empty, MacroLawAblationTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:

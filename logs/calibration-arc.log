@@ -153,3 +153,55 @@ Corrections after sol's review of the third cut
    testable only on symbolic instances on this substrate; the B2/B3
    sessions use them, and the ground version is run once to show the
    evaluator doing exactly what it should.
+
+Self-improvement ladder audit (rungs mapped to the build)
+---------------------------------------------------------
+
+Rung 1 (trace as data): traces are DerivationLabel records carrying
+  the fired chain with bindings; dataflow links are computed
+  deterministically from the ground instantiated terms -- the pairing
+  "fact produced by step i, consumed by step j" is exact Compare
+  linkage, not co-occurrence and not a guess. Divergence from the
+  ladder's letter: links are derived from instances rather than stored
+  as edge objects; equivalent because instances are ground.
+
+Rung 2 (motif detection): pinned including THE NEGATIVE CONTROL --
+  two rules firing in every trace but never feeding each other mine
+  nothing; the dataflow-linked chain in the same fact world mines its
+  candidate (MotifDataflowNegativeControlTest). Divergence: threshold
+  is >= 2 distinct traces, not the ladder's >= 3 traces / >= 2 goals.
+
+Rung 3 (compression): anti-unification with shared variables;
+  candidates alpha-deduped against adopted laws; degenerate
+  conclusions dropped (SelfImprovementLoopTest).
+
+Rung 4 (rent): paid in fired-chain length under the same budget --
+  the held-out attempt must close having fired fewer steps, or close
+  where it was open. A candidate that never fires cannot pay
+  (adopt_compressed_law returns the measured lengths either way).
+
+Rung 5 (ablation contract): the audit found this rung FAILING as
+  built -- induced INVENTED_LEMMA laws sat outside learned memory,
+  ignored the mask, and survived reset, which by the ladder's own
+  invariant makes them indistinguishable from hardcoded priors. Fixed
+  on this cut: induced laws leave the rule set under disable learned
+  memory and are erased from provenance by reset, while human-taught
+  theorems, priors and axioms stay (they were supplied, not learned).
+  The full cycle is pinned: S_fast with the law, S_slow masked, S_fast
+  restored, S_slow after reset with the law gone
+  (MacroLawAblationTest).
+
+Rung 6 (recursive turn): pinned before this audit -- adopting the
+  mined (p -> r) makes the (p -> s) pair-motif mineable, which was
+  structurally invisible while the chain was three diffuse steps
+  (SelfImprovementLoopTest). Pair-mining makes the invisibility
+  claim exact: a 3-step chain cannot be a 2-step motif.
+
+Rung 7 (cross-domain rent): a measurement, not a mechanism; not yet
+  run. Requires an induced law paying rent on a goal family it was
+  not learned in, ablation-confirmed.
+
+The ladder's single acceptance criterion is met at rung 5: a held-out
+problem closes in fewer steps than the frozen rules alone allow, using
+a law the machine mined from its own traces, and the speedup tracks
+the learned-memory mask exactly and dies with reset.
