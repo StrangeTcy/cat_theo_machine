@@ -125,3 +125,31 @@ lacks the rule, and additionally cannot express it toward research
 goals across the vocabulary boundary. Prescription applied: teach that
 specific rule live, rerun B1 alone, confirm Regime B before B2/B3 are
 reconsidered. Experiment 4 stays unrun.
+
+Corrections after sol's review of the third cut
+-----------------------------------------------
+
+1. Precision: B1 found REFLEXIVITY, not transport. The residual
+   (eq (times k m) (times k m)) is symbolic self-equality; transport
+   means moving a property across an equality -- Eq(a,b), P(a) -> P(b).
+   The B1 log's phrase "transport-shaped" was too loose; the precise
+   statement is: the machine found a missing symbolic reflexivity
+   premise required by a goal-directed power-decomposition rule.
+   B1 = reflexivity; B2 = substitutivity/transport; B3 = no-solutions
+   transport. Three different logical forms, calibrated separately.
+
+2. Invariant provenance, read precisely. An adopted (Invariant ...)
+   record audited under INVENTED_LEMMA means exactly three things and
+   no more: the observable SHAPE came from the fixed trainer-supplied
+   library; the CONJECTURE came from trace evidence the machine
+   checked; the ADOPTION came from the operator. The machine verified
+   and selected; it did not invent the observable. Trace-compression
+   candidates, by contrast, are anti-unified from the machine's own
+   traces end to end.
+
+3. Sol's ground transport probe collides with the evaluator by
+   design: (divides 3 (plus 3 3)) is ground-decidable and closes by
+   evaluation without touching any transport law. Transport is
+   testable only on symbolic instances on this substrate; the B2/B3
+   sessions use them, and the ground version is run once to show the
+   evaluator doing exactly what it should.

@@ -71,6 +71,24 @@ permanently under `reset learned memory`, while the raw residual-derived
 requests survive every toggle. Any suggestion that violates this cycle is
 hardcoded and is a defect.
 
+## Checkpoint discipline
+
+Three artifacts, kept distinct:
+
+1. the frozen production-code tag (shared by everything);
+2. a library-only control checkpoint -- the empty research state whose
+   manifest declares the packs load on demand;
+3. the Set-B cumulative checkpoint -- the research state carrying the
+   approved Set B episodes and learned policies.
+
+A cold process is not a blank learned state. A baseline session boots
+the control checkpoint; a cumulative-transfer session boots the Set-B
+checkpoint; the audit names everything restored either way. Experiment
+4's audit must state which of the two it loaded -- testing accumulated
+learning requires the cumulative checkpoint, and erasing Set B learning
+immediately before Experiment 4 would test the library-only machine
+instead.
+
 ## Experiment 4 (the target sentence)
 
 Run once, cold, on the frozen tag:
