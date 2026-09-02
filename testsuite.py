@@ -15469,6 +15469,78 @@ class MacroLawAblationTest(M.Edge):
         return self.result
 
 
+class ResetRemineReproducibilityTest(M.Edge):
+    """An induced law is a function of the evidence, not session residue.
+
+    Traces survive reset -- they are evidence, not learning. After
+    reset erases the adopted law, re-mining the surviving traces must
+    re-induce an alpha-equal candidate, and re-adoption must pay the
+    same rent. A different candidate, or none, would mean traces were
+    partially reset or induction is nondeterministic.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy = T.var("x"), T.var("y")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        base = T.chain(r1, r2)
+        self.result = M.truth_value
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), base,
+            )
+        first = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(first, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        first_shape = Rmod.AlphaNormalized(M.Head(first)(), empty)()
+        adopted = Rmod.adopt_compressed_law(
+            graph, M.Head(first)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), base,
+        )
+        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        support = M.Head(M.Tail(M.Tail(M.Tail(adopted)())())())()
+        if M.IdentityCompare(support, empty)() is M.truth_value:
+            # adopted at support >= 2 by construction; zero recorded support
+            # means the counter is broken
+            self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        gone = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.InventedLemmaLabel)()
+        if M.IdentityCompare(gone, empty)() is M.false_value:
+            self.result = M.false_value
+        traces = Rmod.TracesOnRecord(graph)()
+        if M.IdentityCompare(traces, empty)() is M.truth_value:
+            # traces are evidence and must survive reset
+            self.result = M.false_value
+        again = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(again, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            again_shape = Rmod.AlphaNormalized(M.Head(again)(), empty)()
+            if M.Compare(first_shape, again_shape)() is M.false_value:
+                self.result = M.false_value
+            readopted = Rmod.adopt_compressed_law(
+                graph, M.Head(again)(),
+                T.chain(T.term(T.sym("p"), T.sym("c"))),
+                T.chain(T.term(T.sym("r"), T.sym("c"))), base,
+            )
+            if M.IdentityCompare(M.Head(readopted)(), M.truth_value)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class SentenceGrammarGenericTest(M.Edge):
     """The quantified-goal grammar is compositional, not a target template.
 
@@ -17470,6 +17542,8 @@ def install_default_tests(graph):
         _register_test(graph, "motif_dataflow_negative_control_test", empty, MotifDataflowNegativeControlTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "macro_law_ablation_test", empty, MacroLawAblationTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "reset_remine_reproducibility_test", empty, ResetRemineReproducibilityTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:

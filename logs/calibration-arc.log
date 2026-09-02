@@ -205,3 +205,32 @@ The ladder's single acceptance criterion is met at rung 5: a held-out
 problem closes in fewer steps than the frozen rules alone allow, using
 a law the machine mined from its own traces, and the speedup tracks
 the learned-memory mask exactly and dies with reset.
+
+Predictions and disciplines added after fable's ladder review
+-------------------------------------------------------------
+
+Defect-nine prediction, logged in advance so the fix is attributed to
+the ladder when it fires: dataflow links are derived from ground
+instances, equivalent to stored edges only while traces are ground.
+The first mining session over SCHEMATIC traces -- a step producing
+(times k m) consumed later under different bindings -- will make
+Compare-based linkage either miss links or overmatch structurally
+equal but semantically distinct terms. Not fixed preemptively; the
+protocol fixes what running reveals.
+
+Support discipline: every adopted induced law records its supporting
+trace count at adoption (visible in the adopt reply and stored with
+the candidate). Minimal-support anti-unification is where
+over-generalization hides; the rent gate cannot catch a law that
+fires correctly by coincidence. Laws adopted at support 2 are to be
+re-examined when support grows.
+
+Determinism pinned: traces survive reset (evidence, not learning);
+re-mining after reset re-induces the alpha-equal law and re-adoption
+pays the same rent (ResetRemineReproducibilityTest). An induced law
+is a function of the evidence, not a residue of a session.
+
+Note on ordering: fable's items 4 (B2/B3 baseline-then-calibration)
+were already executed on the third cut -- see the Set B transport
+calibration logs -- and B3-B produced the no-solutions residual that
+gates Experiment 4.

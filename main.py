@@ -3080,7 +3080,13 @@ def run_talk_mode(sentence: str = None):
         cost_text = _research_nat_text(Rmod.ForwardSearchCost(outcome)())
         if M.IdentityCompare(closed, M.truth_value)() is M.truth_value:
             stored_provenance = M.Head(M.Tail(M.Tail(graph.last_proof)())())()
+            fired_count = 0
+            fired_walk = Rmod.ForwardSearchFired(outcome)()
+            while M.IdentityCompare(fired_walk, M.EmptyList)() is M.false_value:
+                fired_count += 1
+                fired_walk = M.Tail(fired_walk)()
             return ("goal closed. cost=" + cost_text
+                    + "; firings=" + str(fired_count)
                     + "; provenance " + _term_text(stored_provenance, graph))
         attempts = graph.research_attempts
         count = 0
@@ -3507,10 +3513,14 @@ def run_talk_mode(sentence: str = None):
             adopted = M.Head(outcome)()
             before = _research_nat_text(M.Head(M.Tail(outcome)())())
             after = _research_nat_text(M.Head(M.Tail(M.Tail(outcome)())())())
+            support = _research_nat_text(M.Head(M.Tail(M.Tail(M.Tail(outcome)())())())())
             _persist_research_state()
             if M.IdentityCompare(adopted, M.truth_value)() is M.truth_value:
                 return ("adopted with provenance INVENTED_LEMMA: rent paid -- fired chain "
-                        + before + " -> " + after + " on the held-out attempt.")
+                        + before + " -> " + after + " on the held-out attempt; "
+                        + "supporting traces: " + support
+                        + " (re-examine at higher support; minimal support is where "
+                        + "over-generalization hides).")
             return ("not adopted: rent unpaid -- fired chain " + before + " -> " + after
                     + " on the held-out attempt. The candidate stays a proposal.")
 

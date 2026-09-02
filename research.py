@@ -3691,6 +3691,39 @@ def mine_compressed_laws(graph):
     return M.Reverse(candidates)()
 
 
+def candidate_support(graph, candidate):
+    """How many distinct traces carry an instance of this candidate.
+
+    Counted by matching the candidate's schematic body -- premises and
+    conclusion, shared variables -- against each trace's composed
+    instances. Recorded at adoption so a law adopted at support 2 can
+    be re-examined when its support grows: minimal-support
+    anti-unification is where over-generalization hides, and the rent
+    gate cannot catch a law that fires correctly by coincidence.
+    """
+    pattern = M.Pair(
+        FormalRulePremises(candidate)(),
+        M.Pair(FormalRuleConclusion(candidate)(), EmptyList),
+    )
+    traces = TracesOnRecord(graph)()
+    support = EmptyList
+    while IdentityCompare(traces, EmptyList)() is M.false_value:
+        trace = Head(traces)()
+        traces = Tail(traces)()
+        composed = ComposedInstances(Head(Tail(Tail(Tail(trace)())())())())()
+        matched_here = M.false_value
+        while IdentityCompare(composed, EmptyList)() is M.false_value:
+            instance = Head(composed)()
+            composed = Tail(composed)()
+            verdict = M.Match(pattern, Tail(instance)())()
+            if IdentityCompare(Head(verdict)(), M.truth_value)() is M.truth_value:
+                matched_here = M.truth_value
+                composed = EmptyList
+        if IdentityCompare(matched_here, M.truth_value)() is M.truth_value:
+            support = M.Pair(M.truth_value, support)
+    return support
+
+
 def adopt_compressed_law(graph, candidate, start_facts, goal_facts, rules, fuel=None):
     """Rent gate: activate the candidate only if it pays.
 
@@ -3722,8 +3755,12 @@ def adopt_compressed_law(graph, candidate, start_facts, goal_facts, rules, fuel=
     if IdentityCompare(pays, M.truth_value)() is M.truth_value:
         graph.add_provenance(candidate, Lmod.InventedLemmaLabel)
         graph.tag_rule_origin(compiled, Lmod.InventedLemmaLabel)
-        return M.Pair(M.truth_value, M.Pair(fired_before, M.Pair(fired_after, EmptyList)))
-    return M.Pair(M.false_value, M.Pair(fired_before, M.Pair(fired_after, EmptyList)))
+        support = candidate_support(graph, candidate)
+        graph.add_counterfactual_result(
+            M.Pair(Lmod.UsefulCountLabel, M.Pair(candidate, M.Pair(support, EmptyList)))
+        )
+        return M.Pair(M.truth_value, M.Pair(fired_before, M.Pair(fired_after, M.Pair(support, EmptyList))))
+    return M.Pair(M.false_value, M.Pair(fired_before, M.Pair(fired_after, M.Pair(EmptyList, EmptyList))))
 
 
 # --- Phase 2: invariant conjecture from a fixed observable library --------
