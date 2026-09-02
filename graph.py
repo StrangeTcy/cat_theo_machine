@@ -11902,8 +11902,14 @@ class DefaultCorrespondenceVocabulary(M.Edge):
             M.Pair(
             CompileRuleToLaw(P.Rule(genus_body, genus_meaning))(),
             M.Pair(
-            CompileRuleToLaw(P.Rule(genus_body_bare, genus_meaning))(),
-            M.Pair(
+            # `genus_body_bare` -- the pattern `?a` -- is deliberately NOT a
+            # template law. ConverseInterpretations consults the number-word
+            # entries only when NO template matched, and `?a` matches every
+            # one-word sentence, so as a template it shadowed every number
+            # word: `four` parsed as a genus rather than 4, and every equality
+            # question died on its bare right clause (defect: the whole
+            # ConversePropositionTest crash). A genus is read from the
+            # anchored `a ?a` form; a bare noun keeps its own meaning.
             CompileRuleToLaw(P.Rule(equal_sentence, equal_meaning))(),
             M.Pair(
                 CompileRuleToLaw(P.Rule(even_sentence, even_meaning))(),
@@ -12000,7 +12006,6 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
-            ),
             ),
             ),
             ),

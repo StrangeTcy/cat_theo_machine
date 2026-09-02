@@ -13713,6 +13713,22 @@ class _ResearchToy:
 
     @staticmethod
     def reset(graph):
+        """Clear research state AND the rules teaching installed.
+
+        STATE HYGIENE, measured not assumed: clearing the twelve research
+        fields is not enough. `teach_dependency` -> `teach_trusted_theorem`
+        installs the taught rule into `all_rules`/`rule_order`, and those
+        survive this reset. A second construction in the same process
+        therefore begins with the previous test's taught rule already
+        present, the goal closes with no residual, no request compiles, and
+        the test reports false_value -- the Diff/Diff/Same flapping seen
+        under shard ordering. Green in a fresh process, red on repeat: test
+        contamination, not checkpoint nondeterminism.
+
+        Clearing `all_rules` wholesale is NOT the remedy -- it also removes
+        the domain rules the episodes need, and every construction then
+        fails. The taught rules are dropped by name below instead.
+        """
         from . import research as Rmod
         empty = M.EmptyList
         graph._replace_context(
