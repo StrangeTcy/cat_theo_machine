@@ -468,3 +468,69 @@ and the resulting `ImportError` presents as a circular-import defect in
 
 The 8-failure two-shard number stands, with this test named as a known
 nondeterministic red rather than a contamination defect.
+
+## Distributing the work: roles, partition, and what actually blocks what
+
+The evidence standard depends on one frozen build per measurement, while
+five tracks want to change code at once. The split that survives that is not
+one agent per track. It is two kinds of agent over two kinds of artifact.
+
+Engineers change code on track branches and produce the next frozen cut.
+Operators run sessions on the current cut and produce measurements. One
+integrator merges, runs the full two-shard suite, cuts tags, and owns this
+index. Engineers never cut tags. Operators never edit code. The integrator
+writes no track features.
+
+Operators run one cut behind engineers, and that is correct rather than
+unfortunate: a measurement is only valid against a frozen build, and the
+build engineers are changing is by definition not frozen. When a new cut
+lands, operators rerun blank controls before any measurement counts.
+
+### The one agent who must stay blind
+
+Every engineer has read the reference decomposition. The operator who runs
+the blind session must not have. That operator gets a fresh context, no
+reference graph, no curriculum answers, and no other track's logs. The same
+discipline that keeps the reference graph out of the machine keeps it out of
+that operator.
+
+The exam has the same shape of leak. Whoever authors the curriculum must not
+also choose the held-out problems, or the curriculum drifts toward the test
+without anyone intending it. The held-out set is selected before curriculum
+work begins, its hash is committed here, and problems are revealed one at a
+time when the exam runs.
+
+### File partition, installed rather than agreed
+
+Four files would otherwise be fought over every merge. Three now carry
+per-track marked blocks -- `labels.py`, `testsuite.py` for both class
+definitions and registrations. Append inside your own block; do not edit
+another track's. Shared primitives are requested from the integrator, never
+forked into a track block.
+
+The registration blocks sit after every existing test, which is not
+cosmetic. `TestShardAccept` ticks the shard cursor on every guarded block,
+so a registration inserted earlier shifts every later test across the shard
+boundary and the failure set stops being comparable to the recorded
+baseline. It also keeps `learned_memory_checkpoint_test` at its current
+cursor index.
+
+The fourth file is this one. It is now an index; each track writes ledgers
+to `protocol/<TRACK>.md`. Two agents never edit the same ledger file.
+
+### What blocks what
+
+The shared baseline fix blocks the next tag cut and every claim that the
+suite is green. It does not block engineering on track branches, and it does
+not block sessions on the current cut.
+
+The critical path runs strategy wiring, then curriculum sessions, then the
+exam, because that chain is where proof volume for mining and for
+explanation comes from. Everything else is parallel to it. Staff the front
+of that chain first.
+
+Distribution multiplies engineering and session throughput. It does not
+shorten the serial chains inside a track, and it makes the integrator the
+bottleneck for tag cuts. That role wants the most disciplined agent, not the
+most ambitious one: the shared fix, the merge order, the suite, and nothing
+creative.

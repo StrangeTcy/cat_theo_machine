@@ -16238,6 +16238,29 @@ def _register_test(graph, name, input_nodes, computation_edge, expected):
     return test
 
 
+# ============================================================================
+# TRACK-PARTITIONED TEST CLASS BLOCKS
+#
+# Define new test Edge classes ONLY inside your own track's block, then
+# register them in the matching block inside install_default_tests. Do not
+# edit another track's block. Merge order is SHARED -> S -> E -> G -> I.
+# ============================================================================
+
+# --- [SHARED] --- INT only -------------------------------------------------
+# --- end [SHARED] ---
+
+# --- [S] -------------------------------------------------------------------
+# --- end [S] ---
+
+# --- [E] -------------------------------------------------------------------
+# --- end [E] ---
+
+# --- [G] -------------------------------------------------------------------
+# --- end [G] ---
+
+# --- [I] -------------------------------------------------------------------
+# --- end [I] ---
+
 def install_default_tests(graph):
     if M.IdentityCompare(graph.default_tests_installed, M.truth_value)() is M.truth_value:
         return graph
@@ -18347,6 +18370,36 @@ def install_default_tests(graph):
             MILESTONE_SKIPPED,
         )
 
+    # ========================================================================
+    # TRACK-PARTITIONED REGISTRATION BLOCKS
+    #
+    # Register new tests ONLY inside your own track's block, and ONLY using
+    # the established guarded form:
+    #
+    #     if Gmod.TestShardAccept(graph)() is M.truth_value:
+    #         _register_test(graph, "name", empty, YourTest(graph), M.truth_value)
+    #
+    # The guard is not decoration: TestShardAccept ticks the shard cursor, so
+    # an unguarded registration shifts every later test across the shard
+    # boundary and invalidates the comparable failure set. Registering here,
+    # after every existing test, also keeps learned_memory_checkpoint_test at
+    # its current cursor index.
+    # ========================================================================
+
+    # --- [SHARED] --- INT only ------------------------------------------
+    # --- end [SHARED] ---
+
+    # --- [S] ------------------------------------------------------------
+    # --- end [S] ---
+
+    # --- [E] ------------------------------------------------------------
+    # --- end [E] ---
+
+    # --- [G] ------------------------------------------------------------
+    # --- end [G] ---
+
+    # --- [I] ------------------------------------------------------------
+    # --- end [I] ---
     graph.default_tests_installed = M.truth_value
     return graph
 

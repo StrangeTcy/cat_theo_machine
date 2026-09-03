@@ -3142,4 +3142,33 @@ RenderLawLabel = RenderLawLabel()
 
 
 
+
+# ============================================================================
+# TRACK-PARTITIONED LABEL BLOCKS
+#
+# Append new singleton labels ONLY inside your own track's block. Do not edit
+# another track's block. A new label must also be listed in
+# labels.sync_from_namespace and reach persistence.py's reload hook, or it
+# will not survive a snapshot round-trip.
+#
+# Merge order is SHARED -> S -> E -> G. Shared primitives are requested from
+# INT, never forked into a track block.
+# ============================================================================
+
+# --- [SHARED] --- INT only ---------------------------------------------
+# --- end [SHARED] ---
+
+# --- [S] --- self-improvement: schemas, contracts, provenance ----------
+# --- end [S] ---
+
+# --- [E] --- explanation: render laws, plan and presentation terms ------
+# --- end [E] ---
+
+# --- [G] --- Engel strategies: planner method payloads ------------------
+# --- end [G] ---
+
+# --- [I] --- IMO problems: training-record and tier terms ---------------
+# --- end [I] ---
+
+
 __all__ = [name for name in globals() if not name.startswith("_")]
