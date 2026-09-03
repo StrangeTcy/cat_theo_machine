@@ -16368,7 +16368,7 @@ class TestShardCursorPinTest(M.Edge):
     pinned test name in this docstring are not counted.
     """
 
-    EXPECTED_GUARD_COUNT = 297
+    EXPECTED_GUARD_COUNT = 298
     EXPECTED_CURSOR_INDEX = 218
     EXPECTED_SHARD = 0
 
@@ -16403,6 +16403,70 @@ class TestShardCursorPinTest(M.Edge):
             self.result = M.false_value
         if self.pinned_shard != self.EXPECTED_SHARD:
             self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+VALUE_ATOM_IDENTITY_OPEN = M.Char("value-atom-identity-open")
+
+
+class SnapshotValueAtomIdentityTest(M.Edge):
+    """D3: a restored value atom has to be the machine's atom for that value.
+
+    Nats are interned at construction: building two twice yields one
+    object, and `IdentityCompare` says so. Restore does not go through that
+    interning. It fabricates a fresh atom per record, so a restored two is
+    not the interned two, and every `TermEqual` and `IdentityCompare` over
+    restored value-bearing state is false -- while `NatEq`, which reads the
+    value, reports the two as intact. That is the whole of D3: identity, not
+    information.
+
+    GMPRep numerals are deliberately out of scope here. Two freshly
+    constructed GMPReps are already unequal, so their behaviour across a
+    restore is not a restore defect, and folding them in would misdirect
+    whoever fixes this.
+
+    The probe costs one capture of the booted graph, which is the price of
+    measuring the real codec rather than a stand-in.
+
+    While the defect is open the test returns VALUE_ATOM_IDENTITY_OPEN, and
+    that sentinel is the registered expectation: the suite stays green and
+    the gap is reported rather than hidden. Fixing restore flips the result
+    to truth_value and fails against this expectation until it is
+    deliberately updated -- the same discipline as the milestone checks.
+    """
+
+    def __init__(self, graph):
+        from .main import _runtime_namespace
+        from .persistence import SnapshotCodec
+
+        empty = M.EmptyList
+
+        registry = M.FromContextGetConstructors(graph)()
+        pair = M.Succ(M.Zero, registry)()
+        one = M.Head(pair)()
+        registry = M.Head(M.Tail(pair)())()
+        pair = M.Succ(one, registry)()
+        two = M.Head(pair)()
+
+        codec = SnapshotCodec(_runtime_namespace())
+        state = codec.load_snapshot(
+            codec.capture(graph, extra_roots={"value_atom_probe": two})
+        )
+        restored = state.roots["value_atom_probe"]
+
+        registry = M.FromContextGetConstructors(graph)()
+        pair = M.Succ(M.Zero, registry)()
+        one = M.Head(pair)()
+        registry = M.Head(M.Tail(pair)())()
+        pair = M.Succ(one, registry)()
+        fresh_two = M.Head(pair)()
+
+        self.result = VALUE_ATOM_IDENTITY_OPEN
+        if M.IdentityCompare(restored, fresh_two)() is M.truth_value:
+            self.result = M.truth_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
@@ -18564,6 +18628,14 @@ def install_default_tests(graph):
             empty,
             TestShardCursorPinTest(graph),
             M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_value_atom_identity_test",
+            empty,
+            SnapshotValueAtomIdentityTest(graph),
+            VALUE_ATOM_IDENTITY_OPEN,
         )
     # --- end [SHARED] ---
 
