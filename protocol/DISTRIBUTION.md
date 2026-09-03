@@ -148,6 +148,17 @@ docstring is not counted. Pins verified statically against the tree without
 booting the machine. The runner filter is unblocked by this and is verified
 against it in both modes.
 
+**The pin splits in two, one test, two answers.** The index and the shard are a
+*hard* pin: `learned_memory_checkpoint_test` moving means a registration landed
+before it, which is the partition rule breaking, so the test returns
+`CURSOR_PIN_MOVED` and an integrator has to re-baseline the whole suite. The
+guard count is a *soft* pin: it moves whenever anyone adds a test, and that is
+intended, so the test returns `GUARD_COUNT_STALE` and the commit that adds the
+registration updates the constant. A single pin taught workers to bump whichever
+number failed, and the first time someone bumped the index the partition would
+break silently. A failing test now names what it returned, so the two are told
+apart in the runner output instead of only in the docstring.
+
 **D3 — restored value atoms are not equal to their originals. Global scope,
 not data loss.** Found while running the D1 repro, and settled this turn by
 `tools/repro_d3_scope.py`.
@@ -212,6 +223,38 @@ The operator's call at step 3 is to fix before the tag, so this is the next
 `[SHARED]` item: make restore resolve decoded atoms through the constructor
 registry's interning rather than fabricating them.
 
+**The fix is designed and not yet made.** The mechanism is interning on
+restore: a decoded atom that represents an interned value has to resolve to the
+machine's own atom for that value through the existing registry lookup path,
+never a fabricated one. Reading `math/peano.py` to find that path turned up two
+things that make the obvious implementation wrong, and they are recorded here
+so the commit starts from them rather than rediscovering them:
+
+- `NatRepOf` accepts anything whose cached value stringifies. A restored `Char`
+  carrying `"a"` returns `"a"` as if it were a numeral rep, so "call
+  `NatRepOf` on every restored atom and intern what comes back" would try to
+  intern Chars and raise inside the codec — on every snapshot, not on one. A
+  rep is a rep only when it comes from a Nat-shaped record.
+- `NatFromRep._discover` walks every registry entry and computes `NatRepOf` for
+  each until it finds a match. Called once per restored Nat that is O(n²) over
+  a checkpoint that already costs minutes to boot. The fix has to build a
+  rep → nat index once from `nat_value_index` and then look up, not call
+  `NatFromRep` per atom.
+- The registry is not finished when `load_snapshot` creates its atoms, so
+  interning has to run after the registry root is rebuilt and before the roots
+  are handed out; interning against a half-built tree would insert into the
+  wrong place.
+
+Scope of the commit, agreed: interning on restore, applied to every interned
+family and not assumed to be Nats alone — labels through the namespace,
+`Zero`/`One`/`Two`, any `Char` interning, anything identity-compared live. The
+`__new__` and base-`Edge` Gate-B debt in `persistence.py` stays out: one
+commit, one mechanism. The commit flips `snapshot_value_atom_identity_test` to
+`truth_value` and updates the expectation in the same commit, which is what
+takes the open count to zero, and re-runs `learned_memory_checkpoint_test` —
+measured green before the fix (3.4 s, passes), so green afterwards is a
+finding and changed is a finding that D3 and that failure are not independent.
+
 **D3b — `PrettyTerm` does not terminate on a restored value atom.** A printer
 that hangs is itself the diagnostic: the restored atom has a shape the
 printer's Nat/Pair walk cannot exit, so the atom restore produces is not one
@@ -227,6 +270,16 @@ added with `graph.add_node` never reaches a snapshot — a registered control
 atom vanished identically. Any future repro that "adds a control term" has to
 place it under a named root, either a field the codec captures or an
 `extra_roots` entry.
+
+**D5 — GMPRep carriers are not interned.** Filed separately from D3, under Nat
+calibration, because it was first recorded as an *exclusion* from D3 and that
+was the wrong shape: the exclusion said "do not look here", and the right
+statement is "this is broken here". Two freshly constructed `GMPRep("42")` are
+already unequal before any snapshot is involved, so their behaviour across a
+restore is not a restore defect — but `IdentityCompare` on a GMPRep carrier is
+unsound in the live machine too, and nothing in the code says so. Every
+comparison of a numeral has to go through `NatEq` or the structural Nat. It is
+live, it is not D3, and it does not go in the D3 commit.
 
 **D4 — root debris** (T0, below).
 
@@ -325,6 +378,22 @@ registration order invalidates the baseline it was meant to speed up. The
 sentinel exists now (D2), so the runner is unblocked and is the next
 `[SHARED]` item after the branch decision.
 
+**Sandbox resets — the wrong-base failure, six times.** A reset keeps the
+working tree and drops git objects, so a session can wake up with a full tree
+and a `HEAD` that no longer descends from the integration tip. The next commit
+then goes in against the old base and shows up as 190 files and 359k lines;
+only the rejected push catches it. Two fixes are in, both `[SHARED]`:
+`tools/recover.sh` makes the check and the recovery one command (fetch,
+`merge-base --is-ancestor` against the tip, save the diff and reset if it
+fails, rebuild the venv, re-run the pin check), and `.gitignore` takes the
+bytecode, search-compare scratch and cold-debug logs so a bad base diffs small
+instead of enormous. The rule it encodes is the standing one and is not new:
+**HEAD descends from the integration tip before the first commit of a
+session.** Verify it before writing anything, not after the push is rejected.
+It happened again this turn — the working tree was intact at `7acaf4c` while
+`HEAD` sat at `41e8078` — and recovery took four commands instead of the
+morning it took the first time.
+
 **F1 — no `save checkpoint` / `load checkpoint`, no content-addressed ids.**
 Noted only. It is F-tooling, owned by whoever takes F.
 
@@ -332,12 +401,16 @@ Noted only. It is F-tooling, owned by whoever takes F.
 
 ```text
 0. operator: one integration branch          DONE (arena/01a06542)
-1. D2 sentinel                               DONE (298 / 218 / 0)
+1. D2 sentinel                               DONE (298 / 218 / 0, split
+                                             hard index+shard / soft count)
 2. D3 scope run                              DONE (global; restore bypasses
                                              Nat interning)
+2b. runner reports OPEN apart from PASS       DONE (three-way tally, both
+                                             runners; D3's flip is visible)
 3. D3 fix: restore resolves decoded atoms     NEXT [SHARED], blocks the tag
    through the registry's interning
    -- snapshot_value_atom_identity_test is the executable target
+   -- design and two wrong-implementation traps recorded under D3
 4. full two-shard suite on the integration tip
 5. cut experiment-5-frozen; rerun manifest; rerun blank controls
 6. T0 (archive .txt, quarantine hyge.py)
