@@ -9,24 +9,18 @@ tree that was one commit behind and had no `explanation.py` and no `protocol/`.
 Standing constraints (§0 of the v1 charter) are unchanged and apply to every
 worker named here.
 
-## UNRESOLVED — the branch contradiction, operator's call
+## RESOLVED — one integration branch
 
-The previous report confirmed `arena/01a06274-cat-theo-machine` as the
-integration branch and pushed four `[SHARED]` commits to
-`arena/01a06542-cat-theo-machine`. Both cannot be operative. `01a06542` is a
-strict descendant of `01a06274` (`5361a87` → `bdf1822` → `e691c67` →
-`50042a5` → `0f15929`), so there is no divergence, only lag: any agent bound
-to `01a06274` cannot see D1's verdict, the completeness test, the repros, or
-D3.
+The previous report confirmed `arena/01a06274-cat-theo-machine` and pushed
+`[SHARED]` commits to `arena/01a06542-cat-theo-machine`, a strict descendant
+of it (`5361a87` → `bdf1822` → `e691c67` → `50042a5` → `0f15929` →
+`cc8f803` → `7e11745`). Two names for one role is not survivable, so the
+operator picked one.
 
-Two ways out, and the operator picks one:
-
-- declare `01a06542` the integration branch, or
-- fast-forward `01a06274` to the current tip of `01a06542` and keep the name.
-
-This session cannot perform the second one: it is pinned to `01a06542` and
-does not push to another branch. Until the operator resolves it, no third
-worker should be staffed.
+**Integration branch: `arena/01a06542-cat-theo-machine`.** Agents branch from
+its tip, push to their own arena branch, and file a merge request in their
+report. `01a06274` is retired as a name for the role; do not branch from it.
+Anyone who already did, rebases onto this tip before their next push.
 
 ---
 
@@ -145,15 +139,14 @@ and `SNAPSHOT_SYMBOL_NAMES` the way the singletons are partitioned — per-track
 tuples concatenated at one point each — so a label added in a track block
 cannot be omitted from the other two lists.
 
-**D2 — the cursor-pinning sentinel.** Built this turn as
-`test_shard_cursor_pin_test` in the `[SHARED]` block: it walks
-`install_default_tests`, ticks a cursor at every `TestShardAccept` guard, and
-pins the count, the index `learned_memory_checkpoint_test` occupies, and its
-shard — 297 guards, index 218, shard 0. The walk starts at the function so
-that the pinned name in this docstring is not counted. Pins verified
-statically against the tree without booting the machine. The runner filter is
-now unblocked: it lands second and is verified against this test in both
-modes.
+**D2 — the cursor-pinning sentinel.** Built as `test_shard_cursor_pin_test`
+in the `[SHARED]` block: it walks `install_default_tests`, ticks a cursor at
+every `TestShardAccept` guard, and pins the count, the index
+`learned_memory_checkpoint_test` occupies, and its shard — 298 guards, index
+218, shard 0. The walk starts at the function so that the pinned name in the
+docstring is not counted. Pins verified statically against the tree without
+booting the machine. The runner filter is unblocked by this and is verified
+against it in both modes.
 
 **D3 — restored value atoms are not equal to their originals. Global scope,
 not data loss.** Found while running the D1 repro, and settled this turn by
@@ -194,7 +187,30 @@ with a value-aware predicate, or compare named-symbol structure only. E-eng in
 particular cannot write its round-trip tests the obvious way until this is
 fixed or the convention is set.
 
-Owner is the integrator's to assign. It sits under checkpoint fidelity.
+**The mechanism, narrowed this turn.** Two freshly constructed Nats are the
+same object: `IdentityCompare(nat 2, nat 2)` is true, and so is `TermEqual`.
+Nats are interned at construction. Restore does not go through that interning
+— it fabricates a fresh atom per record — so a restored two is not the
+interned two. That is D3 in one line: restore bypasses Nat interning, and
+every equality check over restored value-bearing state is false while the
+value itself is intact.
+
+GMPRep numerals are deliberately excluded. Two freshly constructed GMPReps are
+already unequal, so their behaviour across a restore is not a restore defect;
+folding them in would send whoever fixes this to the wrong place.
+
+`snapshot_value_atom_identity_test` pins it: restore a Nat through the real
+codec and compare with the interned Nat. It returns
+`VALUE_ATOM_IDENTITY_OPEN` while the defect is open, and that sentinel is the
+registered expectation, so the suite stays green and the gap is reported
+rather than hidden — the same convention as the milestone checks. Fixing
+restore flips the result to `truth_value` and fails against the expectation
+until it is deliberately updated. Verified by running the test: it returns the
+sentinel today.
+
+The operator's call at step 3 is to fix before the tag, so this is the next
+`[SHARED]` item: make restore resolve decoded atoms through the constructor
+registry's interning rather than fabricating them.
 
 **D3b — `PrettyTerm` does not terminate on a restored value atom.** A printer
 that hangs is itself the diagnostic: the restored atom has a shape the
@@ -315,11 +331,13 @@ Noted only. It is F-tooling, owned by whoever takes F.
 **Ordering, fixed by the integrator and not negotiable by a worker.**
 
 ```text
-0. operator: one integration branch          <- OPEN, blocks everything below
-1. D2 sentinel                               DONE (297 / 218 / 0)
-2. D3 scope run                              DONE (global, equality infidelity)
-3. D3 global: fix before the tag, or record the convention that round-trip
-   tests may not use TermEqual on value-bearing state   <- integrator's call
+0. operator: one integration branch          DONE (arena/01a06542)
+1. D2 sentinel                               DONE (298 / 218 / 0)
+2. D3 scope run                              DONE (global; restore bypasses
+                                             Nat interning)
+3. D3 fix: restore resolves decoded atoms     NEXT [SHARED], blocks the tag
+   through the registry's interning
+   -- snapshot_value_atom_identity_test is the executable target
 4. full two-shard suite on the integration tip
 5. cut experiment-5-frozen; rerun manifest; rerun blank controls
 6. T0 (archive .txt, quarantine hyge.py)
@@ -328,8 +346,8 @@ Noted only. It is F-tooling, owned by whoever takes F.
 9. staff S-eng, E-eng, G-eng from the new tag
 ```
 
-Operators stay blocked through step 5. Steps 1 and 2 are recorded above with
-their measurements; T0 and the runner have not been started.
+Operators stay blocked through step 5. T0 and the runner have not been
+started.
 
 ---
 
