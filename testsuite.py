@@ -16247,6 +16247,99 @@ def _register_test(graph, name, input_nodes, computation_edge, expected):
 # ============================================================================
 
 # --- [SHARED] --- INT only -------------------------------------------------
+class LabelRegistrationCompletenessTest(M.Edge):
+    """Every leaf label class reaches both reload tables.
+
+    A new label needs four registrations: the class, the singleton,
+    `labels.sync_from_namespace`, and `persistence.SNAPSHOT_SYMBOL_NAMES`.
+    The track-partitioned singleton block makes the first two visible; the
+    other two are unmarked, so a worker who follows the blocks exactly can
+    still add a label that never survives a snapshot round trip. Four label
+    families from four different tracks are already missing from both
+    tables; the partition makes the omission visible, not impossible.
+
+    This test walks every leaf class declared in `labels.py`, asks which of
+    the two tables each name is missing from, and compares the result with
+    the debt recorded below. A newly omitted label changes the counts and
+    fails; a repaired label also fails, until the pins are deliberately
+    tightened, so paying the debt is a recorded act rather than a silent
+    one. The walk parses source text rather than introspecting types: the
+    invariant is textual, and type checks are not available here.
+    """
+
+    EXPECTED_MISSING_SYNC_COUNT = 40
+    EXPECTED_MISSING_SNAPSHOT_COUNT = 198
+    EXPECTED_MISSING_BOTH = (
+        "AudienceLevelLabel",
+        "BridgeLemmaLabel",
+        "ContextResearchAttemptsLabel",
+        "CoreIdeaLabel",
+        "ExplanationPlanLabel",
+        "ExplanationSpineLabel",
+        "GenDependencyRequestFromResidualLabel",
+        "GraphVersionLabel",
+        "ImportedBecauseLabel",
+        "KObligationLabel",
+        "KeyInvariantLabel",
+        "NaiveFailureLabel",
+        "NeededForLabel",
+        "OmittedDetailLabel",
+        "ReasonStaleLabel",
+        "RenderLawLabel",
+        "RepresentationShiftLabel",
+        "SpineStepLabel",
+    )
+
+    def __init__(self, graph):
+        import os
+        import re
+
+        empty = M.EmptyList
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "labels.py"), "r", encoding="utf-8") as handle:
+            labels_source = handle.read()
+        with open(os.path.join(here, "persistence.py"), "r", encoding="utf-8") as handle:
+            persistence_source = handle.read()
+
+        declarations = re.findall(r"^class (\w+)\(([^)]*)\):", labels_source, flags=re.MULTILINE)
+        base_names = ()
+        for _name, spec in declarations:
+            for part in spec.split(","):
+                base_names = base_names + (part.strip(),)
+        leaf_names = ()
+        for name, _spec in declarations:
+            if name not in base_names:
+                leaf_names = leaf_names + (name,)
+
+        start = labels_source.index("def sync_from_namespace(namespace):")
+        end = start + re.search(r"^\s*\):", labels_source[start:], flags=re.MULTILINE).end()
+        sync_names = frozenset(re.findall(r'"(\w+)"', labels_source[start:end]))
+
+        start = persistence_source.index("SNAPSHOT_SYMBOL_NAMES = [")
+        end = start + re.search(r"^\]", persistence_source[start:], flags=re.MULTILINE).end()
+        snapshot_names = frozenset(re.findall(r'"(\w+)"', persistence_source[start:end]))
+
+        self.missing_sync = tuple(sorted(n for n in leaf_names if n not in sync_names))
+        self.missing_snapshot = tuple(sorted(n for n in leaf_names if n not in snapshot_names))
+        both = ()
+        for name in self.missing_sync:
+            if name not in snapshot_names:
+                both = both + (name,)
+        self.missing_both = both
+
+        self.result = M.truth_value
+        if len(self.missing_sync) != self.EXPECTED_MISSING_SYNC_COUNT:
+            self.result = M.false_value
+        if len(self.missing_snapshot) != self.EXPECTED_MISSING_SNAPSHOT_COUNT:
+            self.result = M.false_value
+        if both != self.EXPECTED_MISSING_BOTH:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 # --- end [SHARED] ---
 
 # --- [S] -------------------------------------------------------------------
@@ -18387,6 +18480,14 @@ def install_default_tests(graph):
     # ========================================================================
 
     # --- [SHARED] --- INT only ------------------------------------------
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "label_registration_completeness_test",
+            empty,
+            LabelRegistrationCompletenessTest(graph),
+            M.truth_value,
+        )
     # --- end [SHARED] ---
 
     # --- [S] ------------------------------------------------------------
