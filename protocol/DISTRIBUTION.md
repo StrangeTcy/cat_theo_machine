@@ -266,6 +266,98 @@ takes the open count to zero, and re-runs `learned_memory_checkpoint_test` —
 measured green before the fix (3.4 s, passes), so green afterwards is a
 finding and changed is a finding that D3 and that failure are not independent.
 
+**The rule D3 is one instance of.** Anything crossing a process or
+persistence boundary loses identity unless it is re-interned on arrival.
+Two surfaces have now shown it independently: the codec, where a restored Nat
+is a new object with the same value; and the test harness, where a sentinel
+that crossed the shard queue came back as a different object with the same
+text and an identity check counted every OPEN as a PASS. The general
+response is the one the runner already applies — compare by text or
+structure at a boundary, never by identity — and the codec fix is the codec
+learning the same rule.
+
+**D3 is three mechanisms, not one. Measured this turn.** A prototype
+interning pass was written, run, and *not* committed, because running it
+showed the defect is wider than "restore fabricates fresh atoms". Restored
+Nats fall into three classes, and the machine's own predicate — `NatRepOf`,
+which is what `IsNat`, `NatEq` and `NatFromRep` all stand on — recognises
+only the first:
+
+```text
+(a) cached rep is a GMPRep object     NatRepOf resolves it      internable
+(b) cached rep is an mpz, successor   NatRepOf returns          NOT internable
+    chain absent from the registry    EmptyList; IsNat is       without a decision
+                                      false for a Nat
+(c) no cached rep at all              same                      same
+```
+
+On a packs-booted graph, `tools/repro_d3_interning.py` reports
+
+```text
+interning pass absent: visited 16696 terms, nats checked 5, mismatched 5
+```
+
+and every one of those five is class (b): an atom holding the number two as
+an mpz, whose successor chain the restored registry does not carry, so the
+machine cannot see that it is holding a number at all. The prototype remapped
+8 duplicated atoms of class (a) and could not touch these.
+
+**Why the chains are missing, and the decision this forces.** The restored
+constructor registry carries about ten entries; the successor facts for most
+Nats are not among them, so there is nothing to walk. A class (b) Nat can
+therefore only be interned from its payload — and at the machine level its
+payload is indistinguishable from a GMPRep carrier, which caches an mpz and
+is not a Nat (that is D5, and it stays separate). So the fix has to choose,
+deliberately and in the commit message:
+
+- intern on an unverifiable payload, accepting that a GMPRep carrier cannot
+  be told from a historical Nat and would be registered as one; or
+- narrow the fix to class (a) and record class (b) as its own defect, with
+  the consequence that `NatEq` stays false for part of the restored state.
+
+Neither is a detail and neither should be decided by whoever is trying to
+get the number to zero.
+
+**Named symbols split one restore into two worlds.** Restore resolves a
+*symbol* record to the live object of that name — which is why a label chain
+survives — while the restored `nat_value_index` names a restored atom. The
+number two is therefore two objects inside a single restore: the object the
+namespace calls `two`, and the object the index names. Verified directly:
+for values 1..9 the canonical symbol and the index's atom are different
+objects, and `NatFromRep(2)` returns neither. This is the `Zero`/`One`/`Two`
+family, it is interned on a different path from Nats, and any pass that only
+consults the index will leave the split in place.
+
+**Rebuilt tree roots are new object graphs.** `activate` rebuilds
+`nat_value_index`, `all_rules`, `derivations`, `derivation_schemata` and
+`search_memo` from their entry chains into fresh Pairs that no record names,
+and `state.roots` still points at the *loaded* trees rather than the rebuilt
+ones. A substitution pass seeded from `snapshot` state rewrites the
+superseded copies and misses the ones the graph actually uses; it has to
+seed from the graph's own roots.
+
+**The pinned test measures a path no production code uses.**
+`snapshot_value_atom_identity_test` calls `capture()` and `load_snapshot()`
+and stops there. Activate is the step that rebuilds the roots and wires
+`nat_value_index`, so a fix placed after activate is invisible to it — the
+test returned its open sentinel throughout the prototype run for exactly
+that reason. Two changes belong in the fix commit: the probe has to go
+through `save` and `boot_from_snapshot`, and it has to compare *inside one
+restore* — a restored atom against the Nat the restored machine builds —
+never across the boundary, where identity is not a property anyone promised.
+
+**The prototype, and why it is not in the tree.** It ran at the end of
+`activate`, after the upgraded-snapshot save so that no published checkpoint
+is rewritten by a fix. It built the canonical map from the restored index,
+let a named symbol outrank the index, adopted values the index had never
+been asked for rather than building new atoms, rewrote every reference by
+walking from the graph's roots, and re-pointed roots, symbols and
+`id_to_obj`. Measured on the packs graph: 8 atoms remapped, 40 references
+substituted over 25,720 visited objects, about 0.1 s, nothing corrupted. It
+was reverted rather than committed because it closes part of D3 and leaves
+class (b), and a change that moves the number without closing the defect is
+worse than an open defect with a measurement beside it.
+
 **D3b — `PrettyTerm` does not terminate on a restored value atom.** A printer
 that hangs is itself the diagnostic: the restored atom has a shape the
 printer's Nat/Pair walk cannot exit, so the atom restore produces is not one
@@ -418,10 +510,13 @@ Noted only. It is F-tooling, owned by whoever takes F.
                                              Nat interning)
 2b. runner reports OPEN apart from PASS       DONE (three-way tally, both
                                              runners; D3's flip is visible)
-3. D3 fix: restore resolves decoded atoms     NEXT [SHARED], blocks the tag
+3. D3 fix: restore resolves decoded atoms     OPEN [SHARED], blocks the tag
    through the registry's interning
-   -- snapshot_value_atom_identity_test is the executable target
-   -- design and two wrong-implementation traps recorded under D3
+   -- snapshot_value_atom_identity_test is the executable target, and it
+      has to be moved onto save + boot first; it currently skips activate
+   -- three classes of restored Nat, only one internable; the class (b)
+      decision above is the operator's to make
+   -- prototype measured, reverted, and recorded under D3
 4. full two-shard suite on the integration tip
 5. cut experiment-5-frozen; rerun manifest; rerun blank controls
 6. T0 (archive .txt, quarantine hyge.py)
