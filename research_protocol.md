@@ -534,3 +534,35 @@ shorten the serial chains inside a track, and it makes the integrator the
 bottleneck for tag cuts. That role wants the most disciplined agent, not the
 most ambitious one: the shared fix, the merge order, the suite, and nothing
 creative.
+
+### Tag `preflight-shard-cursor-gate` (df97e18), 2026-09-03
+
+Cut on operator instruction that a code change gets a tag at the change, not
+at its verification. What the tag contains: `ShardCursorPartitionGateTest`
+and its registration in the SHARED blocks of `testsuite.py`, the E1 held-out
+split declaration in `protocol/E.md`, and the F2 ruling with the
+contamination bound and the sealed-exam ordering rule in `protocol/F.md`.
+
+What is proved at the tag: the cursor invariant, re-checked by a single-pass
+AST visitor after the edit. 295 guarded blocks, the gate last at index 294,
+`learned_memory_checkpoint_test` still at index 218 and still shard 0. The
+suite at the parent commit `5361a87` returned 3 + 5 = 8 failures, the
+baseline set exactly, so the gate's registration does not disturb it.
+
+What is not proved at the tag: that the gate fires. The verification runs two
+arms through `/tmp/probe/gate.py`, a clean arm that must return true and a
+violation arm that prepends a registration ahead of the suite and must return
+false. Each arm executes `install_default_tests`, so each costs about an
+hour, and three successive attempts were killed by sandbox resets before
+returning. The tag message says so. This entry says so. A gate that has never
+been seen to fail on a violation is an assertion, not yet an invariant, and
+it does not license the claim that the partition rule is mechanical until
+both arms report.
+
+The D3 minimal-case table, the boundary-rule replacement, the D3 acceptance
+block, the archive classification and the provisioning block requested for
+INT do not exist in this repository or in any commit reachable from any
+branch. Verified by grep over `protocol/`, over this file, and over
+`git log --all --diff-filter=A --name-only`. There is no `DISTRIBUTION.md`.
+The operator has confirmed the request belongs to another agent's thread. No
+such artifact is authored here, and none is fabricated to satisfy it.
