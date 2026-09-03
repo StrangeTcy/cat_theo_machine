@@ -14,6 +14,11 @@ means two agents never edit the same ledger, so merges stay mechanical.
     protocol/G.md   Engel strategies as planner methods
     protocol/I.md   IMO problems as the held-out exam
 
+`protocol/DISTRIBUTION.md` is INT-owned and is not a track ledger. It holds
+the multi-agent distribution: the integrator rule, which registration points
+a worker may write to, the roster, and the open items. It names no future
+tag — tag naming is decided at integration, after the suite number.
+
 Rules that apply to every file here:
 
 - An entry states what was predicted, what was run, and what came back. An
