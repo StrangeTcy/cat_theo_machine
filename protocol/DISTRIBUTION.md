@@ -44,11 +44,11 @@ that S and E must share one engineer. Both were artifacts of the stale tip.
 arena branch, and files a merge request in its report. Only the integrator
 merges, re-runs the two-shard suite, and cuts tags.**
 
-Proposed integration branch: `arena/01a06274-cat-theo-machine`. It is the
-furthest ahead, it carries the partition blocks and the pre-flight closure, and
-the suite baseline is being run against it. **Awaiting operator confirmation**;
-a different designation is fine, but one has to exist before a third worker is
-staffed.
+Integration branch, confirmed by the operator: **`arena/01a06274-cat-theo-machine`**.
+It is the furthest ahead, it carries the partition blocks and the pre-flight
+closure, and the suite baseline is being run against it. Workers branch from
+its tip, push to their own arena branch, and file a merge request in their
+report. Only the integrator merges, re-baselines, and cuts tags.
 
 Consequences that follow from the rule and bind today:
 
@@ -86,38 +86,70 @@ integrator, never local forks.
 
 ---
 
-## 3. Defects found by reading this tree
+## 3. Defects
 
-**D1 — thirteen E labels are missing from both snapshot registration lists.**
-`ExplanationPlanLabel`, `CoreIdeaLabel`, `RepresentationShiftLabel`,
-`KeyInvariantLabel`, `NaiveFailureLabel`, `BridgeLemmaLabel`, `NeededForLabel`,
-`ImportedBecauseLabel`, `OmittedDetailLabel`, `AudienceLevelLabel`,
-`ExplanationSpineLabel`, `SpineStepLabel`, `RenderLawLabel` each have a class
-(`labels.py:3055+`) and a singleton (`labels.py:3129+`), and none appears in
-`labels.sync_from_namespace` (2,473+) or in `persistence.SNAPSHOT_SYMBOL_NAMES`
-(202+, 352 entries). The block header the partition commit added says so
-explicitly: a new label must reach both or it will not survive a snapshot
-round-trip.
+**D1 — label registration is unenforced, and the omission is currently inert.**
+Measured, not inferred. Of the 526 leaf label classes declared in `labels.py`,
+40 are missing from `sync_from_namespace`, 198 are missing from
+`SNAPSHOT_SYMBOL_NAMES`, and 18 are missing from both: the thirteen added with
+`explanation.py`, plus five that predate it (`ContextResearchAttemptsLabel`,
+`GenDependencyRequestFromResidualLabel`, `GraphVersionLabel`, `KObligationLabel`,
+`ReasonStaleLabel`). Four label families from four tracks are in that state, so
+this is the fifth appearance of the class: a registration point is added, the
+new family skips it, and nothing notices. The partition blocks make the
+omission visible, not impossible — they cover one of the four sites.
 
-Whether that fails loudly or silently is for the integrator to settle by
-running the six E tests after a save/load round-trip; this document reports the
-omission, not a measured failure. The reason it belongs in a distribution
-document is that it is the exact failure mode five tracks will reproduce: the
-partition makes one of four registration points safe and leaves three
-unmarked, and a worker following the blocks correctly still misses them.
+The round-trip question is settled, and the answer is that the omission does
+not currently bite. `tools/repro_label_roundtrip.py` puts one registered label
+and one unregistered label in the same term, captures it, and restores it:
+both atoms come back identity-identical, and all thirteen E labels do the same
+in nested position. Capture does not consult `SNAPSHOT_SYMBOL_NAMES` to name
+symbols, and restore resolves names through the runtime namespace. So this is
+`D1_INERT`: cleanup debt, not urgent-before-checkpoint-work.
+
+It stays a tracked defect because the debt is one commit away from being live.
+`label_registration_completeness_test` (`[SHARED]`, registered after every
+existing test so the shard cursor is untouched) walks every leaf class, asks
+which tables each name is missing from, and pins the counts at 40 / 198 and
+the eighteen names. A new omission moves a count and fails the suite; a repair
+also fails until the pins are deliberately tightened, so paying the debt is a
+recorded act. Tightening to the strict form — every leaf class in both tables
+— is a one-line change once the integrator decides to clean up.
 
 Suggested `[SHARED]` fix, integrator's call: partition `sync_from_namespace`
-and `SNAPSHOT_SYMBOL_NAMES` the same way the singletons are partitioned —
-per-track tuples concatenated at one point each — so a label added in a track
-block cannot be omitted from the other two lists.
+and `SNAPSHOT_SYMBOL_NAMES` the way the singletons are partitioned — per-track
+tuples concatenated at one point each — so a label added in a track block
+cannot be omitted from the other two lists.
 
 **D2 — the cursor-pinning sentinel did not land.** The registration block
 header asserts that registering after every existing test keeps
 `learned_memory_checkpoint_test` at its current cursor index; nothing in the
 tree checks that assertion. Both `[SHARED]` blocks are empty. Until a test pins
-the index, the guarantee the partition depends on is a comment.
+the index, the guarantee the partition depends on is a comment. This blocks the
+runner and T0, in that order: sentinel on the known-good values first (295
+guards, index 218, shard 0), then the runner verified against it, then anything
+else touching `testsuite.py`.
 
-**D3 — root debris** (T0, below).
+**D3 — the blackboard obligation does not survive a snapshot.** Found while
+running the D1 repro, and it is not a label problem: a chain of registered
+labels round-trips, a chain embedding `_ExplanationToy.blackboard_preserves`
+does not, and the assembled `ExplanationPlan` does not. Walking the two terms
+side by side puts the first divergence at `<root>.tail.head`, where both sides
+are atoms — not pairs, not `EmptyList`, and matching none of the 1,477 entries
+in the runtime namespace, so they are value atoms rather than named symbols.
+Whether the restored atom carries the same value or a lost one is unresolved:
+`PrettyTerm` on it does not terminate. `tools/repro_obligation_roundtrip.py`
+reproduces it with the label probes as controls in the same capture. Owner is
+the integrator's to assign — it touches checkpoint fidelity, which every
+operator session depends on.
+
+Two wrong turns in that investigation are recorded here because a worker will
+repeat them otherwise. Parking a term with `graph.add_node` proves nothing:
+`SnapshotCodec` serializes the named roots in its capture table and nothing
+else, so a registered control atom vanished the same way. And `PrettyTerm` on
+the obligation hangs, so divergences are walked, not printed.
+
+**D4 — root debris** (T0, below).
 
 ---
 
@@ -216,6 +248,12 @@ or the runner lands unguarded.
 
 **F1 — no `save checkpoint` / `load checkpoint`, no content-addressed ids.**
 Noted only. It is F-tooling, owned by whoever takes F.
+
+**Ordering, fixed by the integrator and not negotiable by a worker.** D2's
+sentinel lands first, on the known-good cursor values. The runner lands second,
+verified against the sentinel in both modes. T0 and all track work on
+`testsuite.py` come third. As of this document the sentinel is unbuilt, so the
+runner and T0 are both blocked, and neither has been started.
 
 ---
 
