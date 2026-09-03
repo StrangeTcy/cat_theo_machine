@@ -16267,6 +16267,11 @@ class LabelRegistrationCompletenessTest(M.Edge):
     invariant is textual, and type checks are not available here.
     """
 
+    # These three constants are a pin on the debt as it stands, not a
+    # statement that registration is complete. The target is 0 / 0 / 0.
+    # The pin moves only downward: a commit that registers a label updates
+    # the constants in the same commit, and a commit that adds a label
+    # without registering it must fail here rather than move them up.
     EXPECTED_MISSING_SYNC_COUNT = 40
     EXPECTED_MISSING_SNAPSHOT_COUNT = 198
     EXPECTED_MISSING_BOTH = (
@@ -16333,6 +16338,70 @@ class LabelRegistrationCompletenessTest(M.Edge):
         if len(self.missing_snapshot) != self.EXPECTED_MISSING_SNAPSHOT_COUNT:
             self.result = M.false_value
         if both != self.EXPECTED_MISSING_BOTH:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class TestShardCursorPinTest(M.Edge):
+    """The shard cursor stays where the partition says it is.
+
+    `TestShardAccept` ticks a cursor at every registration site and admits
+    a test only when the cursor equals the configured shard index, so a
+    test's shard is a function of its position in registration order. The
+    partition relies on this: registering inside a track block, after
+    every existing test, must not move an earlier test across a shard
+    boundary. Nothing in the tree checked that until now -- it was a
+    comment in the block header.
+
+    The pins record the known-good state: the number of guarded sites,
+    the cursor index `learned_memory_checkpoint_test` occupies, and its
+    shard. Adding a test at the end moves the first number and leaves the
+    other two alone; inserting a test earlier moves all three, and this
+    test fails. That is the signal the runner filter has to be built
+    against: a filter that perturbs registration order fails here before
+    it can move a baseline.
+
+    The walk starts at `install_default_tests` so that mentions of the
+    pinned test name in this docstring are not counted.
+    """
+
+    EXPECTED_GUARD_COUNT = 297
+    EXPECTED_CURSOR_INDEX = 218
+    EXPECTED_SHARD = 0
+
+    def __init__(self, graph):
+        import os
+
+        empty = M.EmptyList
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "testsuite.py"), "r", encoding="utf-8") as handle:
+            source = handle.read()
+
+        guard = "Gmod.TestShardAccept(graph)() is M.truth_value"
+        body = source[source.index("def install_default_tests(graph):") :]
+        cursor = 0
+        pinned = -1
+        for line in body.split("\n"):
+            if guard in line:
+                cursor = cursor + 1
+            if pinned < 0 and "learned_memory_checkpoint_test" in line:
+                pinned = cursor - 1
+
+        self.guard_count = cursor
+        self.pinned_index = pinned
+        self.pinned_shard = 0
+        if pinned >= 0:
+            self.pinned_shard = pinned % 2
+
+        self.result = M.truth_value
+        if cursor != self.EXPECTED_GUARD_COUNT:
+            self.result = M.false_value
+        if pinned != self.EXPECTED_CURSOR_INDEX:
+            self.result = M.false_value
+        if self.pinned_shard != self.EXPECTED_SHARD:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
@@ -18486,6 +18555,14 @@ def install_default_tests(graph):
             "label_registration_completeness_test",
             empty,
             LabelRegistrationCompletenessTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_shard_cursor_pin_test",
+            empty,
+            TestShardCursorPinTest(graph),
             M.truth_value,
         )
     # --- end [SHARED] ---
