@@ -1478,3 +1478,41 @@ class CounterfactualUtility(Edge):
 
     def __call__(self):
         return self.result
+
+
+class DropRulesByOrigin(Edge):
+    """A rule chain with every rule of one origin removed.
+
+    The provenance-keyed counterpart to FilterRulesByPolicy: that one
+    keeps or drops by policy switches, this one drops exactly one origin
+    class by identity. Order is preserved.
+
+    The reset path needs this. Clearing `all_rules` wholesale removes the
+    domain axioms a research episode depends on, so a reset that wants to
+    forget only what teaching installed must key on the origin tag rather
+    than on the chain.
+    """
+
+    def __init__(self, rules, origin_tree, origin_tag, registry):
+        self.result = self._drop(rules, origin_tree, origin_tag, registry)
+        super().__init__(
+            inputs=Pair(rules, Pair(origin_tag, EmptyList)), results=self.result
+        )
+
+    def _drop(self, rules, origin_tree, origin_tag, registry):
+        if IdentityCompare(rules, EmptyList)() is truth_value:
+            return EmptyList
+        rule = Head(rules)()
+        rest = self._drop(Tail(rules)(), origin_tree, origin_tag, registry)
+        origin = LookupRuleOrigin(origin_tree, self._raw(rule), registry)()
+        if IdentityCompare(origin, origin_tag)() is truth_value:
+            return rest
+        return Pair(rule, rest)
+
+    def _raw(self, compiled_rule):
+        from .proof import CompiledRuleRaw
+
+        return CompiledRuleRaw(compiled_rule)()
+
+    def __call__(self):
+        return self.result

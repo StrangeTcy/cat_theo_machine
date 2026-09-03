@@ -13726,17 +13726,32 @@ class _ResearchToy:
         contamination, not checkpoint nondeterminism.
 
         Clearing `all_rules` wholesale is NOT the remedy -- it also removes
-        the domain rules the episodes need, and every construction then
-        fails. The taught rules are dropped by name below instead.
+        the domain axioms the episodes depend on, and every construction
+        then fails. Only the taught class is dropped, keyed by its
+        provenance tag through the same LookupRuleOrigin index that
+        FilterRulesByPolicy uses.
         """
         from . import research as Rmod
+        from . import provenance as Prov
         empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        # `rule_order` is the CHAIN of rules; `all_rules` is a Tree keyed
+        # for lookup and is not walkable as a chain. add_rule pushes onto
+        # rule_order, so that is where a taught rule lands and where the
+        # drop applies.
+        kept = Prov.DropRulesByOrigin(
+            M.FromContextGetRuleOrder(graph)(),
+            graph._rule_origins,
+            Lmod.HumanSuppliedTrustedTheoremLabel,
+            registry,
+        )()
         graph._replace_context(
             dependency_requests=empty, dependency_graph=empty,
             generator_metrics=empty, last_proof=empty, research_residuals=empty,
             provenance_map=empty, generator_policy=empty, last_residuals=empty,
             counterfactual_results=empty, research_attempts=empty,
             intervention_episodes=empty, dependency_policies=empty,
+            rule_order=kept,
         )
         Rmod.EnableResearchMode(graph)
 

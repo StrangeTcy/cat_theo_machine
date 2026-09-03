@@ -219,3 +219,93 @@ routed-around. Every test in this layer was then checked by mutation --
 six mutations, each caught by exactly one test. A pinned test in this
 substrate is not accepted until a mutation of the code it covers is shown
 to fail it.
+
+## Ledger: defect ten -- compile-once versus structural keys
+
+```text
+Defect: mine_compressed_laws keyed motif pairs by IdentityCompare on
+compiled rule objects. The live REPL recompiles taught rules per attempt,
+so identical laws across traces never shared a key. Mining silently
+returned zero motifs on every live session.
+
+Fix: structural pair keys using alpha-normalized rule forms.
+
+Lesson: a test that compiles once and a live path that compiles per
+attempt are testing different machines. The divergence is invisible until
+a live session is run as a measurement.
+
+Evidence: SameLawTwiceCompiledTest (pinned); live near-transfer rerun
+showing motif found and macro proposed.
+```
+
+This is the second historical appearance of one class -- head-bucket
+memoisation in the search stack, pair keys in the miner. The class is
+named rather than the instance, because the verbatim rule prevents a third
+appearance more reliably than either specific fix.
+
+### Test-authoring, from the same class
+
+Two rules now govern authoring in this area. Both were found by
+measurement, not by review.
+
+```text
+Build terms through _research_parse. A test that constructs terms by hand
+exercises a simplified analogue; a test that parses them exercises the
+live grammar. SameLawTwiceCompiledTest and ReplyAgreesWithGateTest are the
+first research tests to go through the full taught-law pipeline rather
+than a harness shortcut.
+```
+
+```text
+A negative fixture must reach the mechanism under test. If the case is
+rejected by an earlier filter, the test passes for the wrong reason and
+will keep passing after the mechanism breaks.
+```
+
+## Ledger: the predicate-identity wall, and the option 1 / option 2 decision
+
+```text
+Finding: The induced transport macro retained 'Divides' as its head.
+It increased search noise on congruence proofs (8 firings vs 5 masked)
+and provided no speedup. Anti-unification generalized arguments while
+preserving predicate identity.
+
+Decision: Option 2, narrow scope only.
+  - Predicate head position becomes generalizable.
+  - Generalization requires motifs from at least two distinct relation
+    families carrying a shared extensionality contract.
+  - Schemas do not fire directly; they instantiate concrete laws only for
+    contracted relations.
+  - All instantiated laws pass the existing rent gate, support threshold,
+    human approval, and ablation cycle unchanged.
+  - One new negative control required before first use: a schema must not
+    instantiate for a relation whose argument structure matches but whose
+    semantic contract is absent.
+
+Scope explicitly excluded: second-order motifs over predicate positions
+in premises; cross-domain predicate abstraction without semantic contracts.
+
+Evidence: near-transfer session on fifth cut showing 8 vs 5 firings;
+predicate-identity wall confirmed by independent mechanism (anti-unifier
+retains conclusion head).
+```
+
+Why the scope is narrow, recorded so the boundary is not quietly widened
+later. The wall is confirmed twice by independent mechanisms -- the B1
+groundness wall and the Rung 7 alphabet wall -- and that is this project's
+standard for naming a capability boundary rather than a defect. But the
+confirmation establishes option 2's *justification*, not its *scope*. The
+evidence in hand is one transport macro bound to `divides` failing on
+`congruent`, and that justifies exactly the narrow reading.
+
+The wide reading -- second-order motifs generally, laws quantifying over
+predicate positions anywhere in premises and conclusions -- is a new
+expressive tier the rent gate has never been validated against. It moves
+the over-generalization failure mode from "the law fires on wrong
+instances of the right predicate" to "the law fires on structurally
+similar instances of the *wrong* predicate", and the current negative
+controls do not cover that shape. If the narrow version pays rent and
+survives its controls, the wide version becomes a later, separately-gated
+decision.
+
+Experiment 4 remains unspent.
