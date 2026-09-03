@@ -9,6 +9,25 @@ tree that was one commit behind and had no `explanation.py` and no `protocol/`.
 Standing constraints (§0 of the v1 charter) are unchanged and apply to every
 worker named here.
 
+## UNRESOLVED — the branch contradiction, operator's call
+
+The previous report confirmed `arena/01a06274-cat-theo-machine` as the
+integration branch and pushed four `[SHARED]` commits to
+`arena/01a06542-cat-theo-machine`. Both cannot be operative. `01a06542` is a
+strict descendant of `01a06274` (`5361a87` → `bdf1822` → `e691c67` →
+`50042a5` → `0f15929`), so there is no divergence, only lag: any agent bound
+to `01a06274` cannot see D1's verdict, the completeness test, the repros, or
+D3.
+
+Two ways out, and the operator picks one:
+
+- declare `01a06542` the integration branch, or
+- fast-forward `01a06274` to the current tip of `01a06542` and keep the name.
+
+This session cannot perform the second one: it is pinned to `01a06542` and
+does not push to another branch. Until the operator resolves it, no third
+worker should be staffed.
+
 ---
 
 ## 0. Inventory at the integration tip
@@ -116,38 +135,82 @@ also fails until the pins are deliberately tightened, so paying the debt is a
 recorded act. Tightening to the strict form — every leaf class in both tables
 — is a one-line change once the integrator decides to clean up.
 
+The pins are a record of the current gap, not a claim that registration is
+complete. The target is `0 / 0 / 0`, the pin moves only downward, and a commit
+that registers part of the debt updates the three constants in the same
+commit. A passing run of this test means "no drift", never "complete".
+
 Suggested `[SHARED]` fix, integrator's call: partition `sync_from_namespace`
 and `SNAPSHOT_SYMBOL_NAMES` the way the singletons are partitioned — per-track
 tuples concatenated at one point each — so a label added in a track block
 cannot be omitted from the other two lists.
 
-**D2 — the cursor-pinning sentinel did not land.** The registration block
-header asserts that registering after every existing test keeps
-`learned_memory_checkpoint_test` at its current cursor index; nothing in the
-tree checks that assertion. Both `[SHARED]` blocks are empty. Until a test pins
-the index, the guarantee the partition depends on is a comment. This blocks the
-runner and T0, in that order: sentinel on the known-good values first (295
-guards, index 218, shard 0), then the runner verified against it, then anything
-else touching `testsuite.py`.
+**D2 — the cursor-pinning sentinel.** Built this turn as
+`test_shard_cursor_pin_test` in the `[SHARED]` block: it walks
+`install_default_tests`, ticks a cursor at every `TestShardAccept` guard, and
+pins the count, the index `learned_memory_checkpoint_test` occupies, and its
+shard — 297 guards, index 218, shard 0. The walk starts at the function so
+that the pinned name in this docstring is not counted. Pins verified
+statically against the tree without booting the machine. The runner filter is
+now unblocked: it lands second and is verified against this test in both
+modes.
 
-**D3 — the blackboard obligation does not survive a snapshot.** Found while
-running the D1 repro, and it is not a label problem: a chain of registered
-labels round-trips, a chain embedding `_ExplanationToy.blackboard_preserves`
-does not, and the assembled `ExplanationPlan` does not. Walking the two terms
-side by side puts the first divergence at `<root>.tail.head`, where both sides
-are atoms — not pairs, not `EmptyList`, and matching none of the 1,477 entries
-in the runtime namespace, so they are value atoms rather than named symbols.
-Whether the restored atom carries the same value or a lost one is unresolved:
-`PrettyTerm` on it does not terminate. `tools/repro_obligation_roundtrip.py`
-reproduces it with the label probes as controls in the same capture. Owner is
-the integrator's to assign — it touches checkpoint fidelity, which every
-operator session depends on.
+**D3 — restored value atoms are not equal to their originals. Global scope,
+not data loss.** Found while running the D1 repro, and settled this turn by
+`tools/repro_d3_scope.py`.
 
-Two wrong turns in that investigation are recorded here because a worker will
-repeat them otherwise. Parking a term with `graph.add_node` proves nothing:
-`SnapshotCodec` serializes the named roots in its capture table and nothing
-else, so a registered control atom vanished the same way. And `PrettyTerm` on
-the obligation hangs, so divergences are walked, not printed.
+Scope is global, not E-specific. In one capture, with a chain of registered
+labels surviving as the passing control and the explanation obligation failing
+as the failing control:
+
+```text
+zero (M.Zero)              survives
+Succ(Zero), Succ(Succ(..))  LOST
+GMPRep("42"), GMPRep("7")   LOST
+taught MultiRule            LOST
+numeral-bearing term        LOST
+registered-label chain      survives   <- control
+explanation obligation      LOST       <- control
+```
+
+Both stages on real state agree: after a save and boot, `all_rules` and
+`rule_order` differ on a graph booted from packs, and ten of nineteen roots
+differ on the Set B cumulative checkpoint, including `intervention_episodes`,
+`dependency_requests`, `dependency_graph`, `derivations` and `last_proof`.
+
+The nature of it is not what the first report said. The values survive:
+`NatEq(restored two, fresh two)` is true and `NatEq(restored two, fresh
+three)` is false, while `TermEqual(restored two, fresh two)` and
+`IdentityCompare` are both false. Restore builds a new atom object per record,
+and only named symbols get interned back to their singletons — so a label
+chain survives `TermEqual` and a value-bearing chain does not, even though the
+value is intact by the machine's own arithmetic.
+
+Two consequences for the ledgers. Earlier "checkpoint round-trip PASS"
+entries stand: they check non-emptiness and provenance, not `TermEqual`, and
+the non-emptiness checks are unaffected. Any *future* round-trip test must not
+assert `TermEqual` across a restore on value-bearing state — it has to compare
+with a value-aware predicate, or compare named-symbol structure only. E-eng in
+particular cannot write its round-trip tests the obvious way until this is
+fixed or the convention is set.
+
+Owner is the integrator's to assign. It sits under checkpoint fidelity.
+
+**D3b — `PrettyTerm` does not terminate on a restored value atom.** A printer
+that hangs is itself the diagnostic: the restored atom has a shape the
+printer's Nat/Pair walk cannot exit, so the atom restore produces is not one
+the printer can read. Filed separately from D3 because it is a printer
+defect with its own reproduction, and because it removes the obvious tool for
+inspecting D3: walk the two atoms with `IdentityCompare` and structural
+comparison, and report the first position where comparison diverges. Do not
+call `PrettyTerm` on a restored atom.
+
+**D3c — `graph.add_node` parks nothing the codec sees.** `SnapshotCodec`
+serializes the named roots in its capture table and nothing else, so a term
+added with `graph.add_node` never reaches a snapshot — a registered control
+atom vanished identically. Any future repro that "adds a control term" has to
+place it under a named root, either a field the codec captures or an
+`extra_roots` entry.
 
 **D4 — root debris** (T0, below).
 
@@ -242,18 +305,31 @@ every worker pays a full suite run to verify one class. Constraint on the fix,
 as specified by the integrator: a name filter must bypass the cursor for
 targeted runs while leaving the full-suite cursor path byte-identical, and the
 cursor-pinning sentinel must pass in both modes. A filter that perturbs
-registration order invalidates the baseline it was meant to speed up. D2 says
-the sentinel does not exist yet, so the runner and the sentinel land together
-or the runner lands unguarded.
+registration order invalidates the baseline it was meant to speed up. The
+sentinel exists now (D2), so the runner is unblocked and is the next
+`[SHARED]` item after the branch decision.
 
 **F1 — no `save checkpoint` / `load checkpoint`, no content-addressed ids.**
 Noted only. It is F-tooling, owned by whoever takes F.
 
-**Ordering, fixed by the integrator and not negotiable by a worker.** D2's
-sentinel lands first, on the known-good cursor values. The runner lands second,
-verified against the sentinel in both modes. T0 and all track work on
-`testsuite.py` come third. As of this document the sentinel is unbuilt, so the
-runner and T0 are both blocked, and neither has been started.
+**Ordering, fixed by the integrator and not negotiable by a worker.**
+
+```text
+0. operator: one integration branch          <- OPEN, blocks everything below
+1. D2 sentinel                               DONE (297 / 218 / 0)
+2. D3 scope run                              DONE (global, equality infidelity)
+3. D3 global: fix before the tag, or record the convention that round-trip
+   tests may not use TermEqual on value-bearing state   <- integrator's call
+4. full two-shard suite on the integration tip
+5. cut experiment-5-frozen; rerun manifest; rerun blank controls
+6. T0 (archive .txt, quarantine hyge.py)
+7. runner filter, verified against the sentinel in both modes
+8. D1 cleanup toward 0 / 0 / 0, pins updated in the same commit
+9. staff S-eng, E-eng, G-eng from the new tag
+```
+
+Operators stay blocked through step 5. Steps 1 and 2 are recorded above with
+their measurements; T0 and the runner have not been started.
 
 ---
 
