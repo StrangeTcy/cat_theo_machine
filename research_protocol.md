@@ -412,3 +412,59 @@ attempted, and the explanation substrate is not pointed at this target.
 The deliverable is a transcript in which every taught theorem traces to a
 recorded residual and every unlock is measured, not a claim that a
 theorem was proved.
+
+## Ledger: the learned-memory checkpoint failure is not contamination
+
+The `learned_memory_checkpoint_test` failure resisted three successive
+explanations. Each was tested and each was wrong. The sequence is recorded
+because the errors were methodological, not arithmetic, and they recur.
+
+First explanation: state contamination from a predecessor test. The taught
+rules from an earlier research test survived into this one. That much was
+real, and `DropRulesByOrigin` fixes it: the test now passes on repeat
+in-process and in isolation. It did not fix the suite failure.
+
+Second explanation: eager test registration, so shard membership filters
+reporting rather than execution. This was checked with an AST pass over
+`install_default_tests` rather than by reading line by line. Every one of
+the 226 test constructions sits inside a `TestShardAccept` guard, and the
+construction is an argument to `_register_test` inside the taken branch.
+Registration is already shard-guarded. Shard membership already is
+execution membership. A lazy-registration patch would have been a no-op
+against a defect that does not exist, and the pinned test for it would
+have asserted an invariant already held.
+
+Third explanation: accumulated registration volume breaks the snapshot.
+A probe registered the 109 true predecessors through `_register_test` and
+reported `False`, against `True` for the same predecessors constructed
+without registration. That looked like a clean A/B. It was not. Repeating
+the registration arm with a trivially-serializable test -- 96 registrations
+of `Compare(a, a)`, no research state anywhere -- returned `True` on three
+consecutive runs, with `n=0` returning `True` on three more. The single
+`False` came from a run whose log carried `RuntimeError` spam from spawn
+workers. It was a polluted process, not a measurement.
+
+What actually holds: the test is nondeterministic under load in a way that
+is not caused by predecessor state, not caused by registration volume, and
+not yet characterized. `DropRulesByOrigin` remains correct and stays.
+
+Three method rules, each earned by a wasted cycle:
+
+A single run is not a measurement when the process spawns workers. Every
+repeat probe carries an environment-variable parent guard, never a PID
+guard -- spawn children recompute `os.getpid()` and pass a PID check,
+emitting contradictory result lines into the same stdout. Any conclusion
+drawn from one run of a spawning process is provisional until repeated.
+
+Read the guard structure with a parser, not with `grep` and a
+previous-line heuristic. The line-based check reported 179 unguarded
+constructions; the AST pass reported zero. Multi-line call forms defeat
+line heuristics entirely.
+
+Probe scripts live in a subdirectory, never directly in `/tmp`. A file
+named `/tmp/bisect.py` shadows the stdlib `bisect` that `random` imports,
+and the resulting `ImportError` presents as a circular-import defect in
+`provenance.py`. That cost most of a session.
+
+The 8-failure two-shard number stands, with this test named as a known
+nondeterministic red rather than a contamination defect.
