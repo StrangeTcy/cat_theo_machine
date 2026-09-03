@@ -17960,8 +17960,10 @@ class Test(Hypergraph):
     def run(self):
         result = self.computation_edge()
 
+        actual = result
         if M.IsPair(result)() is M.truth_value:
             value = M.Head(result)()
+            actual = value
             rest = M.Tail(result)()
             if M.IsPair(rest)() is M.truth_value:
                 maybe_registry = M.Head(rest)()
@@ -17986,7 +17988,12 @@ class Test(Hypergraph):
             outcome = M.TestFail(M.FromContextGetConstructors(self.graph)())
 
         self.result = outcome
-        entry = M.Pair(self.name, M.Pair(outcome, M.EmptyList))
+        # The third field carries the value the test actually returned, not
+        # only the OK/Fail verdict. TestResultsSummary needs it to tell a
+        # genuine pass from a test that returned a known-open sentinel and
+        # was expected to: both come back TestOK, and folding the second
+        # into the pass column hides a standing defect behind a green run.
+        entry = M.Pair(self.name, M.Pair(outcome, M.Pair(actual, M.EmptyList)))
         self.graph._replace_context(test_results=M.Pair(entry, M.FromContextGetTestResults(self.graph)()))
         return entry
 
@@ -18102,6 +18109,49 @@ class RunDefaultTestsParallel(M.Edge):
         return self.result
 
 
+def _term_text(x):
+    """The readable text a term carries, or "" when it carries none.
+
+    Read by value, never by identity: shard results cross a process
+    boundary through a queue on their way to the tally, and an unpickled
+    sentinel is a different object carrying the same text.
+
+    This runs over every result the suite produced, so it refuses to let
+    one unprintable value take the report down with it: a term that
+    carries no text reads as empty and is simply not an open sentinel.
+    """
+
+    try:
+        value = x()
+    except Exception:
+        return ""
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _is_open_sentinel(actual):
+    """True when a test returned one of the registered OPEN sentinels.
+
+    A test registered against an open sentinel reports OK, so the returned
+    value is the only place the standing defect is visible. Both the tally
+    and the report read it here, from one list, by text so that it holds
+    for a shard's results as well as for a test run in this process.
+    """
+
+    from .sentinels import OPEN_SENTINELS
+
+    text = _term_text(actual)
+    if text == "":
+        return M.false_value
+    index = 0
+    while index < len(OPEN_SENTINELS):
+        if text == _term_text(OPEN_SENTINELS[index]):
+            return M.truth_value
+        index = index + 1
+    return M.false_value
+
+
 class TestResultsReport(M.Edge):
     def __init__(self, graph):
         self.graph = graph
@@ -18112,10 +18162,28 @@ class TestResultsReport(M.Edge):
         if M.Compare(results, M.EmptyList)() is M.truth_value:
             return "No tests were run."
 
-        failed_names = self._failed_names(results)
-        if failed_names:
-            return "\n".join(failed_names)
+        lines = list(self._failed_names(results))
+        open_names = self._open_names(results)
+        if open_names:
+            lines.append("open: " + ", ".join(open_names))
+        if lines:
+            return "\n".join(lines)
         return "All the tests have passed."
+
+    def _open_names(self, results):
+        if M.Compare(results, M.EmptyList)() is M.truth_value:
+            return []
+
+        entry = M.Head(results)()
+        rest = M.Tail(results)()
+        names = self._open_names(rest)
+
+        outcome = M.Head(M.Tail(entry)())()
+        if self._is_test_ok(outcome) is M.truth_value:
+            actual = M.Head(M.Tail(M.Tail(entry)())())()
+            if _is_open_sentinel(actual) is M.truth_value:
+                names.append(self._name_text(M.Head(entry)()))
+        return names
 
     def _failed_names(self, results):
         if M.Compare(results, M.EmptyList)() is M.truth_value:
@@ -18130,8 +18198,114 @@ class TestResultsReport(M.Edge):
         if self._is_test_ok(outcome) is M.truth_value:
             return failed
 
-        failed.append(self._name_text(name))
+        # A failing test names what it returned, not only that it failed.
+        # The two cursor pins differ only in the value they hand back, and
+        # that value is the whole difference between "bump the count in
+        # this commit" and "stop and re-baseline".
+        actual = M.Head(M.Tail(M.Tail(entry)())())()
+        line = self._name_text(name)
+        returned = self._optional_text(actual)
+        if returned and len(returned) <= 60:
+            line = line + " -> " + returned
+        failed.append(line)
         return failed
+
+    def _optional_text(self, x):
+        """Like `_name_text`, but empty when the value carries no text.
+
+        A failing test's actual result is often a machine object with no
+        readable value, and printing its repr would bury the names that
+        matter.
+        """
+        constructor = M.GetConstructor(x, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            label = M.Head(constructor)()
+            if M.IdentityCompare(label, M.TestNameLabel)() is M.truth_value:
+                atom = M.Head(M.Tail(constructor)())()
+                value = atom()
+                if value is None:
+                    return ""
+                return str(value)
+        value = x()
+        if value is None:
+            return ""
+        return str(value)
+
+    def _is_test_ok(self, outcome):
+        value = outcome()
+        if value == "TestOK":
+            return M.truth_value
+        if value == "TestFail":
+            return M.false_value
+        constructor = M.GetConstructor(outcome, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        label = M.Head(constructor)()
+        return M.IdentityCompare(label, M.TestOKLabel)()
+
+    def _name_text(self, name):
+        constructor = M.GetConstructor(name, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            label = M.Head(constructor)()
+            if M.IdentityCompare(label, M.TestNameLabel)() is M.truth_value:
+                name_atom = M.Head(M.Tail(constructor)())()
+                value = name_atom()
+                return str(value)
+        value = name()
+        if value is None:
+            return str(name)
+        return str(value)
+
+    def __call__(self):
+        return self.result
+
+
+class TestResultsSummary(M.Edge):
+    """Three-way tally: passed, failed, and known-open.
+
+    A test registered against an open sentinel reports OK, so a two-way
+    summary counts a standing defect as a pass. This prints them apart and
+    names them, so the flip from an open sentinel to `truth_value` shows up
+    in the runner output and not only in a docstring.
+
+    The open test is identified by the value it returned, which rides in
+    the third field of each result entry, so the tally is the same whether
+    the tests ran in this process or came back from a shard worker.
+    """
+
+    def __init__(self, graph):
+        self.graph = graph
+        passed = 0
+        failed = 0
+        open_names = []
+        walker = M.FromContextGetTestResults(graph)()
+        while M.Compare(walker, M.EmptyList)() is M.false_value:
+            entry = M.Head(walker)()
+            name_text = self._name_text(M.Head(entry)())
+            outcome = M.Head(M.Tail(entry)())()
+            actual = M.Head(M.Tail(M.Tail(entry)())())()
+            if self._is_test_ok(outcome) is M.truth_value:
+                if _is_open_sentinel(actual) is M.truth_value:
+                    open_names.append(name_text)
+                else:
+                    passed = passed + 1
+            else:
+                failed = failed + 1
+            walker = M.Tail(walker)()
+
+        if passed == 0 and failed == 0 and not open_names:
+            self.result = "No tests were run."
+        else:
+            suffix = ""
+            if open_names:
+                suffix = " (" + ", ".join(open_names) + ")"
+            self.result = "passed: %d   failed: %d   open: %d%s" % (
+                passed,
+                failed,
+                len(open_names),
+                suffix,
+            )
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
 
     def _is_test_ok(self, outcome):
         value = outcome()

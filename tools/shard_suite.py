@@ -38,7 +38,9 @@ def main():
     start = time.time()
     install_default_tests(runtime.graph)
     report = runtime.run_tests_report()
+    summary = Gmod.TestResultsSummary(runtime.graph)()
     print("SHARD", shard_index, "elapsed", time.time() - start)
+    print(summary)
     print(report)
 
 if __name__ == "__main__":

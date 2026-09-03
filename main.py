@@ -4069,6 +4069,10 @@ def run_test_mode(debug: bool = False):
         learning_report += "LEARNING INSTRUMENT TEST FAILED: " + str(exc) + "\n"
     print(learning_report, end="")
 
+    # The three-way tally prints in both branches: a test registered against
+    # an open sentinel reports OK, so without it a green run hides whatever
+    # is standing open.
+    print(G.TestResultsSummary(runtime.graph)())
     if report == "All the tests have passed." and not learning_failed:
         print(f"All tests passed in {elapsed} seconds.")
     else:

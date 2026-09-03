@@ -14,6 +14,7 @@ from . import machine as M
 from . import graph as Gmod
 from . import heuristics as Hmod
 from . import labels as Lmod
+from .sentinels import MILESTONE_SKIPPED, VALUE_ATOM_IDENTITY_OPEN
 from . import matching as Xmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
@@ -16076,7 +16077,6 @@ def _registry(graph):
 # are allowed to be unmet while the substrate scales, but they are never
 # deleted, and none of them may be weakened to make it pass.
 MILESTONE_MET = M.Char("milestone-met")
-MILESTONE_SKIPPED = M.Char("milestone-skipped")
 
 
 class MilestoneM1CyclesWithoutRefusalTest(M.Edge):
@@ -16345,6 +16345,10 @@ class LabelRegistrationCompletenessTest(M.Edge):
         return self.result
 
 
+CURSOR_PIN_MOVED = M.Char("cursor-pin-moved")
+GUARD_COUNT_STALE = M.Char("guard-count-stale")
+
+
 class TestShardCursorPinTest(M.Edge):
     """The shard cursor stays where the partition says it is.
 
@@ -16366,6 +16370,20 @@ class TestShardCursorPinTest(M.Edge):
 
     The walk starts at `install_default_tests` so that mentions of the
     pinned test name in this docstring are not counted.
+
+    Two pins, two remediations, deliberately not one:
+
+    - the index and shard are a HARD pin. `learned_memory_checkpoint_test`
+      moving means a registration landed before it, which is the partition
+      rule being broken. The test returns CURSOR_PIN_MOVED and an
+      integrator has to re-baseline the whole suite, not bump a number.
+    - the guard count is a SOFT pin. It changes every time anyone adds a
+      test, and that is intended. The test returns GUARD_COUNT_STALE, and
+      the same commit that adds the registration updates the constant.
+
+    A single pin would teach workers to bump whichever number failed, and
+    the first time they bumped the index the partition would be silently
+    broken.
     """
 
     EXPECTED_GUARD_COUNT = 298
@@ -16397,19 +16415,14 @@ class TestShardCursorPinTest(M.Edge):
             self.pinned_shard = pinned % 2
 
         self.result = M.truth_value
-        if cursor != self.EXPECTED_GUARD_COUNT:
-            self.result = M.false_value
-        if pinned != self.EXPECTED_CURSOR_INDEX:
-            self.result = M.false_value
-        if self.pinned_shard != self.EXPECTED_SHARD:
-            self.result = M.false_value
+        if pinned != self.EXPECTED_CURSOR_INDEX or self.pinned_shard != self.EXPECTED_SHARD:
+            self.result = CURSOR_PIN_MOVED
+        elif cursor != self.EXPECTED_GUARD_COUNT:
+            self.result = GUARD_COUNT_STALE
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
         return self.result
-
-
-VALUE_ATOM_IDENTITY_OPEN = M.Char("value-atom-identity-open")
 
 
 class SnapshotValueAtomIdentityTest(M.Edge):
