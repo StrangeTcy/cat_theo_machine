@@ -309,3 +309,106 @@ survives its controls, the wide version becomes a later, separately-gated
 decision.
 
 Experiment 4 remains unspent.
+
+## The FLT programme: curriculum, blind session, and grading instrument
+
+A human reference decomposition of FLT exists in the session notes. It is
+an *oracle*, never a curriculum. It is consulted after a transcript is
+recorded, to grade what the machine asked for. It is never taught, never
+pasted into a live session, and never used to choose what to teach next.
+Teaching from the oracle converts the experiment into a rehearsal.
+
+### Two activities, two ledger headers
+
+Activity A -- CURRICULUM. Generic number theory taught in its own right:
+divisibility, Bezout, prime factorization, well-ordering, descent. These
+sessions never mention FLT and never mention exponents above two. What they
+establish becomes LIBRARY_THEOREM for later sessions.
+
+Activity B -- RESEARCH. The target sentence is stated once. The machine
+stalls. `suggest dependencies`. Only what a residual actually asks for is
+taught, and only when it passes the seven questions. One shot.
+
+The separation is the whole experiment. Teaching a reduction in A because
+the oracle says it is coming in B is contamination, and it is invisible
+afterwards unless the ledger header says which activity a theorem came
+from.
+
+### Substrate facts, measured rather than assumed
+
+The parser accepts arbitrary heads. `(zorblewidget x y)` parses exactly as
+cleanly as `(nosolutions ...)`, so a successful parse is evidence of
+nothing at all. Vocabulary claims must be checked against pack rules and
+against what the search can fire, never against the parser.
+
+Checked this way: `nosolutions` appears in zero pack rules. Neither a
+producer nor a consumer exists. This is the B3 finding, confirmed directly
+rather than inferred, and it is the first blocker on the path.
+
+### The Layer 0 gap, stated precisely
+
+A rule of the shape "if every candidate yields False then nosolutions"
+*produces* `nosolutions` and does not consume it. Teaching only that
+direction reproduces the B3 dead end one step later: the machine can
+introduce the conclusion and then do nothing with it. Layer 0 needs both
+directions, and the consumer is the one that is missing. Any A1 session
+that ends with a producer and no consumer has not closed Layer 0,
+regardless of whether the toy goal went green.
+
+### Recall-eligible versus discovery-eligible roles
+
+Grading by role coverage is unfalsifiable unless the split below is fixed
+in writing *before* the B session runs. A curriculum session that
+rehearses a move converts that move from evidence of discovery into
+evidence of recall.
+
+Recall-eligible, because Activity A teaches them directly: primitive
+normalization, descent, exponent transport. Their appearance in B confirms
+the library works and is not evidence about the machine's reach.
+
+Discovery-eligible, because nothing in the library points at them:
+exponent structure (splitting `n` by divisibility), impossibility
+transport (a `nosolutions` bridge across substitution), and the richer
+object (attaching an object whose invariants are forced two incompatible
+ways). Only these three are evidence.
+
+A transcript covering all three recall roles and none of the discovery
+roles is a negative result, and must be recorded as one.
+
+### The required negative control
+
+Role-coverage scoring cannot by itself distinguish "the machine
+characterized this dependency graph" from "the machine emits this request
+list for any unsolved Diophantine statement." Before the B transcript is
+graded, the identical stall-and-`suggest dependencies` loop is run on a
+decoy of matching surface shape and known-easy resolution -- the same
+equation restricted to the solvable exponent, or the same shape with the
+right side left un-powered. If the residuals come back substantially the
+same, the transcript measures the residual generator's default output and
+the FLT reading is withdrawn.
+
+### Scope
+
+The reachable target is a complete impossibility proof at the smallest
+even exponent. It exercises well-ordering with a strictly decreasing
+measure, case split, coprimality, and exponent algebra, and its dependency
+graph is small enough to compare against the oracle honestly.
+
+The odd-prime case is out of scope here for a structural reason, not a
+difficulty reason: it needs a new number system carrying norm and units.
+That is concept acquisition, a different experiment with a different
+gate, and it does not belong in a dependency-discovery session.
+
+Everything above the odd-prime case is out of current expressive range.
+The machine has no vocabulary in which those objects could be stated, so
+"it failed to request one" is not a measurement and must not be scored as
+one. Grading is by structural role, never by the human name attached to
+the answer.
+
+### Stop condition
+
+The programme stops at the even-exponent result. No FLT explanation is
+attempted, and the explanation substrate is not pointed at this target.
+The deliverable is a transcript in which every taught theorem traces to a
+recorded residual and every unlock is measured, not a claim that a
+theorem was proved.
