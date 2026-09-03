@@ -226,9 +226,9 @@ registry's interning rather than fabricating them.
 **The fix is designed and not yet made.** The mechanism is interning on
 restore: a decoded atom that represents an interned value has to resolve to the
 machine's own atom for that value through the existing registry lookup path,
-never a fabricated one. Reading `math/peano.py` to find that path turned up two
-things that make the obvious implementation wrong, and they are recorded here
-so the commit starts from them rather than rediscovering them:
+never a fabricated one. Reading `math/peano.py` to find that path turned up
+what makes the obvious implementation wrong, and it is recorded here so the
+commit starts from it rather than rediscovering it:
 
 - `NatRepOf` accepts anything whose cached value stringifies. A restored `Char`
   carrying `"a"` returns `"a"` as if it were a numeral rep, so "call
@@ -237,13 +237,24 @@ so the commit starts from them rather than rediscovering them:
   rep is a rep only when it comes from a Nat-shaped record.
 - `NatFromRep._discover` walks every registry entry and computes `NatRepOf` for
   each until it finds a match. Called once per restored Nat that is O(n²) over
-  a checkpoint that already costs minutes to boot. The fix has to build a
-  rep → nat index once from `nat_value_index` and then look up, not call
-  `NatFromRep` per atom.
-- The registry is not finished when `load_snapshot` creates its atoms, so
-  interning has to run after the registry root is rebuilt and before the roots
-  are handed out; interning against a half-built tree would insert into the
-  wrong place.
+  a checkpoint that already costs minutes to boot. It is reached only when
+  `NatValueIndex` is missing or empty: `_from_value` looks the value up in
+  `M.NatValueIndex` first and returns in one `TreeLookup`. The cost of the fix
+  is therefore decided by whether the index is wired before the pass runs.
+- and the ordering constraint, which is where the two meet. `M.NatValueIndex`
+  is set in `Graph._sync_from_context`, so it points at the restored index
+  only after `activate` has rebuilt the roots — not while `load_snapshot` is
+  creating atoms, and not while `nat_value_index` is still in its pre-upgrade
+  chain form. The pass belongs at the end of `activate`: walk
+  `state.id_to_obj`, resolve each Nat-shaped atom through `NatFromRep` against
+  the restored registry, substitute the fields that pointed at the fabricated
+  atom, then re-point the roots through the mapping, because a root that *is*
+  a Nat has no field to substitute. Interning earlier either scans the
+  registry or, for values ≤ 256, builds a fresh chain from `Zero` and
+  installs a second `2` into a graph that already has one.
+- the Nat-shaped test has to be "the cached value is a decimal numeral", not
+  "`NatRepOf` did not return `EmptyList`", for the reason above: a Char is not
+  a Nat, and the codec has to be told so in a form it can check.
 
 Scope of the commit, agreed: interning on restore, applied to every interned
 family and not assumed to be Nats alone — labels through the namespace,
