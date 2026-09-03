@@ -16247,6 +16247,70 @@ def _register_test(graph, name, input_nodes, computation_edge, expected):
 # ============================================================================
 
 # --- [SHARED] --- INT only -------------------------------------------------
+
+
+class ShardCursorPartitionGateTest(M.Edge):
+    """Registration order is pinned, so a misplaced registration is caught here.
+
+    `TestShardAccept` ticks the shard cursor once per guarded registration
+    block. A registration inserted anywhere but the track-partitioned blocks
+    at the end of `install_default_tests` shifts every later test across the
+    shard boundary, and the recorded failure set silently stops being
+    comparable to the baseline it is measured against.
+
+    That placement rule is otherwise a comment, and comments decay. This test
+    converts the part of it that is mode-invariant into a gate.
+
+    Absolute ordinals cannot be pinned here: under `shard_count` two only the
+    accepted half of the guarded blocks ever registers, so the distance
+    between any two sentinels depends on the shard configuration the suite
+    was launched with. What does not depend on it is which test registers
+    first, and whether the sentinels registered at all. A registration
+    prepended ahead of the existing suite -- the failure mode that silently
+    renumbers everything downstream -- moves the first-registered test and
+    fails here.
+
+    The chain from `FromContextGetTests` is newest-first, so the
+    first-registered test is its final element.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        self.result = M.truth_value
+        registry = M.FromContextGetConstructors(graph)()
+
+        first_name = M.TestName("cmp1_test", registry)
+        registry = M.FromContextGetConstructors(first_name)()
+        pinned_name = M.TestName("learned_memory_checkpoint_test", registry)
+        registry = M.FromContextGetConstructors(pinned_name)()
+        graph._replace_context(constructors=registry)
+
+        pinned_seen = M.false_value
+        oldest = empty
+
+        node = M.FromContextGetTests(graph)()
+        while M.IsPair(node)() is M.truth_value:
+            entry = M.Head(node)()
+            oldest = entry
+            if M.IdentityCompare(entry.name.value, pinned_name.value)() is M.truth_value:
+                pinned_seen = M.truth_value
+            node = M.Tail(node)()
+
+        if M.IdentityCompare(pinned_seen, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+
+        if M.IdentityCompare(oldest, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            if M.IdentityCompare(oldest.name.value, first_name.value)() is M.false_value:
+                self.result = M.false_value
+
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 # --- end [SHARED] ---
 
 # --- [S] -------------------------------------------------------------------
@@ -18387,6 +18451,14 @@ def install_default_tests(graph):
     # ========================================================================
 
     # --- [SHARED] --- INT only ------------------------------------------
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shard_cursor_partition_gate_test",
+            empty,
+            ShardCursorPartitionGateTest(graph),
+            M.truth_value,
+        )
     # --- end [SHARED] ---
 
     # --- [S] ------------------------------------------------------------
