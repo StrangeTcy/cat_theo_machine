@@ -758,6 +758,45 @@ them, and it is semantic. What changed is what the fix is — not a conclusion
 shape to add, but a vocabulary bridge. Scope:
 `protocol/D11-REPAIR-SCOPE.md`.
 
+**§8 ruling (operator): per-pack `surface:` headers; a loader-level global
+table is rejected.** A global table would silently re-key every shipped rule
+naming a mapped label, mixing a loader capability with a content port. The
+mapping is opt-in, pack-local, and constructor-head scoped: a declared symbol
+compiles to the named research-surface atom in the `head` position of a `call`
+and nowhere else, so a label used as data is never rewritten.
+
+**D11-MAP capability (commit 1) landed and gated** — `packs.py` only; no
+shipped pack, no parser, no search, no global table:
+
+```text
+1. shipped 167, no headers   167 rules, sha256 786cff5c... == pre-change
+                             probe -> partial matches 0            PASS
+2. {sym:} heads, no header   probe -> partial matches 0            PASS
+3. {sym:} heads + surface:   probe -> partial matches 1            PASS
+4. unrelated goal            probe -> partial matches 0            PASS
+5. char-form fixture         diagnostic only, never cited as fixed
+```
+
+Gate: `python3 tools/d11_gate.py` (fresh clone). Transcript:
+`logs/d11-map-capability.log`. Pins 305/218/0 PASS; the four pack-booting
+tests (`snapshot_value_atom_identity_test` and the three
+`boot_snapshot_nat_*_test`) pass.
+
+Capability commit is **semantic-capable with default-live behavior unchanged**
+— no shipped pack declares a header, so nothing moves yet. The semantic cut is
+commit 2, the first shipped pack port, which triggers re-baseline and blank
+controls.
+
+Deviations flagged, not faked: the operator's gate asked condition 3 for
+`provenance LIBRARY_THEOREM`. That string is the REPL's announcement for
+`load theorem packs` (`main.py:3479`), not a per-rule tag — a rule's origin is
+`origin_tag_for_text(pack origin)`, `primitive` for a pack declaring none. The
+gate asserts the discriminating fact instead (pack rule reached through the
+mapping, attributable by rule id, not a taught law) and prints the real tag.
+And `LibraryRuleMatchedViaSurfaceMapping` is emitted at **compile** time, not
+match time: a rule reached this way is reachable only through the mapping, and
+match-time attribution would need a search hook, which commit 1 forbids.
+
 Consequences for the two candidates, which is why neither is the fix:
 
 - (a) is inert: decomposing the wrapper to expose `pow`, `plus`, `eq`
@@ -813,9 +852,13 @@ engineer.
 ## 5. Staffing order
 
 **Stalled: F.** No cross-track flow in either direction for two turns.
-The block is **not** staffing — it is **D11**, which INT ruled on (`feb457e`;
-mechanism corrected by the spike in `logs/d11-spike.log`). Repair scope at
-`protocol/D11-REPAIR-SCOPE.md`, written and not started. It is semantic
+The block is **not** staffing — it is **D11**. Ruled (`feb457e`), mechanism
+corrected by the spike (`logs/d11-spike.log`), §8 ruled per-pack headers, and
+the capability commit is **landed and gated** (`tools/d11_gate.py`, 4/4,
+shipped 167 fingerprint unchanged). What has not happened is the **content
+port**: no shipped pack declares a `surface:` header yet, so the instrument is
+still blind and F's measurement is still blocked. The port is commit 2; it is
+semantic
 (neither the structural rule nor the pack entry; the library's rewrite
 rules contribute no goal candidates at all). It is semantic, so it forces
 a re-baseline whatever the staffing looks like. Blank controls run

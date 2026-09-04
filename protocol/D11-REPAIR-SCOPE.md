@@ -1,9 +1,10 @@
 # D11 repair scope — option 2, with the mechanism corrected
 
-Status: **written, not started.** Nothing in `packs.py`, `main.py`, or any
-pack has been changed for this repair. The two files under `protocol/d11-spike/`
-are fixtures for the acceptance run and are deliberately outside `packs/`, so
-nothing loads them.
+Status: **capability (commit 1) implemented and gated; content port (commit 2)
+NOT started.** `packs.py` now supports the per-pack `surface:` header. No
+shipped `packs/*.yaml` was touched, and the shipped 167 compile to a
+byte-identical fingerprint. The fixtures under `protocol/d11-spike/` are
+deliberately outside `packs/`, so nothing loads them.
 
 Branch from `experiment-5-frozen-r1` (`ef571b6`). Baseline for this work is
 `feb457e`; the ruling transcript is `logs/defect-1-ruling-diagnostic.log` and
@@ -169,14 +170,122 @@ library-only-control       -> name kept, meaning annotated
   they were true statements about a blind instrument.
 ```
 
-## 8. Open question for the operator
+## 8. §8 ruling (operator) — per-pack headers
 
-The scope above is one loader change with a narrow blast radius. The question
-worth ruling on before it starts: when the shipped 167 are eventually ported,
-does the mapping live in each pack's header, or in one loader-level table
-mapping the label namespace to the surface vocabulary? Per-pack headers keep
-packs self-describing and keep the blast radius at zero for unported packs; one
-loader table ports everything at once and is a single point of truth, but it
-makes every shipped rule reachable in the same commit that lands it — which
-risks mixing capability with content after all. The scope as written assumes
-**per-pack headers**; say the word if the loader table is preferred.
+```text
+D11 surface mapping location:
+  chosen: per-pack header
+  rejected: one loader-level global table
+
+reason:
+  per-pack headers keep each pack self-describing, reviewable, and ablatable.
+  unported packs compile exactly as before.
+  porting becomes a visible content decision per pack, not a hidden global
+  loader behavior.
+```
+
+A loader-level table would silently re-key every shipped rule that names a
+mapped label. That mixes a loader capability with a library-content port in one
+action. For D11, that is too broad.
+
+The mapping is **opt-in**, **pack-local**, and **constructor-head scoped**:
+
+```text
+Within this pack only:
+  a declared pack symbol used as a constructor head may compile to the named
+  research-surface atom for matching against research-mode parsed goals.
+
+Without this header:
+  {sym: DividesLabel} keeps compiling exactly as it does now.
+```
+
+A label used as data is never rewritten. The mapping applies only where the
+compiler has a position-specific reason to treat the symbol as a constructor
+head — the `head` position of a `call`, and nowhere else.
+
+## 9. The two-commit split
+
+**Commit 1 — D11-MAP capability** (this one). Loader support only:
+
+```text
+allowed:   packs.py support for the per-pack surface header
+           protocol/d11-spike fixture exercising the new header
+           a gate proving unported packs compile unchanged
+           transcripts proving the A/B/A still discriminates
+not allowed: shipped packs/*.yaml port; global table; parser change;
+           search change; char-form shortcut as the passing case
+```
+
+Classification: **semantic-capable, with default-live behavior unchanged.**
+Nothing changes for any pack that declares no header, which today is all of
+them. The semantic cut is commit 2, not this one.
+
+**Commit 2 — first shipped pack port.** Not started. Adds a `surface:` header
+to one reviewed pack or reviewed subset, records the exact labels mapped and
+the before/after reachability. That commit is **semantic, requires a re-cut,
+and requires blank controls before any F measurement counts.** No bulk port of
+the 167 without an explicit authorization and a full re-baseline plan.
+
+## 10. Audit terms
+
+```text
+PackSurfaceMapping(pack_id, label_atom, surface_atom)
+LibraryRuleMatchedViaSurfaceMapping(rule_id, pack_id, label_atom, surface_atom)
+```
+
+Both are emitted by the loader as audit lines and carried on the `LoadedPack`
+(`surface_mapping_audit`, `surface_mapped_rules`) for programmatic readers. The
+atoms are held in the tuple; the printed form names the label and the surface
+because a `ConstructorLabel` has no host text to print.
+
+`LibraryRuleMatchedViaSurfaceMapping` is emitted **at compile time**, when the
+rule's head is compiled through the mapping — not at match time. A rule reached
+this way is reachable from research goals *only* through the mapping, so the
+attribution is complete at compile time and no match-time hook is needed. That
+is a deliberate consequence of "no search change" in commit 1; if the operator
+wants the line emitted per match instead, that is a search hook and belongs in
+a later commit.
+
+## 11. What commit 1 produced
+
+```text
+packs.py          per-pack surface: header; constructor-head-scoped mapping
+                  via _compile_term(..., as_head=True); eager validation
+tools/d11_gate.py the gate, rerunnable from a fresh clone
+protocol/d11-spike/d11-spike-mapped.pack.yaml   the header fixture
+protocol/d11-spike/shipped-167-rules.sha256     pre-change fingerprint
+logs/d11-map-capability.log                     the transcript
+```
+
+Gate result, on a fresh venv after reset #8:
+
+```text
+1. shipped 167, no headers     167 rules, sha256 786cff5c... == pre-change
+                               probe -> partial matches 0        PASS
+2. {sym:} heads, no header     probe -> partial matches 0        PASS
+3. {sym:} heads + surface:     probe -> partial matches 1        PASS
+                               provenance: pack rule, not taught
+                               audit names the pack-local mapping
+4. unrelated goal              probe -> partial matches 0        PASS
+5. char-form fixture           diagnostic only, not a gate
+```
+
+The digest is `sha256` over, per rule, a **kind walk** (the class name of every
+atom, preserving pair shape) joined to the rendered content. The kind walk
+exists because `PrettyTerm` cannot render a `ConstructorLabel` — it prints `?`
+— so a content-only digest could not see a `Label` silently re-keyed to a
+`Char`. A rule is a host `Edge`, so the walk runs on `EdgeInputs`; rendering the
+rule directly yields its `repr` with a memory address, which made an earlier
+version of this digest unstable across boots.
+
+**One deviation from the operator's gate text, flagged rather than faked.** The
+gate as specified asks condition 3 to show `provenance LIBRARY_THEOREM`. That
+string is the REPL's announcement for `load theorem packs` (`main.py:3479`),
+not a per-rule tag: a rule's origin is `origin_tag_for_text(pack origin)`,
+which is `primitive` for a pack that declares none — as the fixture does, and
+as nine of the thirteen shipped packs do. Asserting the literal string would
+have meant either lying or changing provenance mapping, which is out of scope
+for a capability commit. The gate instead asserts the discriminating fact: the
+match is a pack rule reached through the mapping, attributable by rule id in
+the audit, and not a taught law (`HUMAN_SUPPLIED_TRUSTED_THEOREM`). The tag it
+carries is printed verbatim in the transcript.

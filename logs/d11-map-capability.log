@@ -1,0 +1,99 @@
+D11-MAP capability transcript -- per-pack surface: headers
+==============================================================
+under test: packs.py per-pack surface: support, on top of d76f781
+host: fresh venv rebuilt after reset #8; gate: python3 tools/d11_gate.py
+probe goal: (divides k (plus p q))   unrelated goal: (cornersum t whole)
+shipped-167 baseline: 167 786cff5cc33a58471ab6ca1a38d5a996f3b7d44d5c71e7120480ea7c9a62c7bb
+  (recorded on the PRE-CHANGE tree, before packs.py was touched)
+
+== condition 1: shipped packs, no surface headers ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.04s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.05s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.25s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.13s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 0.18s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.28s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.06s
+Reading pack geometry...
+Reading pack geometry, done in 1.24s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.13s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.47s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.25s
+[PASS] 1. shipped 167 unchanged, zero candidates
+       rules compiled: 167
+       compiled-rule sha256: 786cff5cc33a58471ab6ca1a38d5a996f3b7d44d5c71e7120480ea7c9a62c7bb
+       probe (divides k (plus p q)) -> partial matches 0 (cost 334)
+       surface mappings emitted: 0; rules attributed: 0
+       digest matches the pre-change baseline (167 rules)
+
+== condition 2: fixture with {sym:} heads, no surface header ==
+Reading pack d11-spike-label...
+Reading pack d11-spike-label, done in 0.00s
+[PASS] 2. no header -> 0 candidates
+       probe (divides k (plus p q)) -> partial matches 0 (cost 2)
+       surface mappings emitted: 0
+
+== condition 3: same fixture plus pack-local surface: header ==
+PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+Reading pack d11-spike-mapped...
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+Reading pack d11-spike-mapped, done in 0.00s
+[PASS] 3. surface: header -> 1 candidate, pack-rule provenance, audit emitted
+       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
+       rule origins: primitive
+       audit lines:
+       PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+       PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+       LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+       LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+       LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+       LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+       provenance: primitive -- a pack rule reached through the mapping, not a
+       taught law. See the note in this file about the LIBRARY_THEOREM
+       wording; the discriminating check is attribution, not the string.
+
+== condition 4: unrelated goal, mapped fixture loaded ==
+PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+Reading pack d11-spike-mapped...
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+Reading pack d11-spike-mapped, done in 0.00s
+[PASS] 4. unrelated goal -> 0 candidates
+       probe (cornersum t whole) -> partial matches 0 (cost 2)
+
+== condition 5: char-form fixture (DIAGNOSTIC, NOT A GATE) ==
+Reading pack d11-spike-char...
+Reading pack d11-spike-char, done in 0.00s
+       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
+       This is the char shorthand. It worked before the D11 fix and
+       proves nothing about it. It is never cited as D11 fixed.
+
+4/4 gated conditions passed.
+EXIT=0
+
+--- pack-booting tests via tools/run_named_tests.py ---
+boot 12.1s   install 59.8s   run 2.3s   total 74.3s
+registered 4 tests
+passed: 4   failed: 0   open: 0
+All the tests have passed.
