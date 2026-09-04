@@ -42,9 +42,10 @@ Measured from the tree, not assumed:
 | `main.py` / `persistence.py` | 5,062 / 2,106 lines; **no partition blocks in either** |
 | shard cursor | 295 `TestShardAccept` guards, 295 registrations; `learned_memory_checkpoint_test` sits at cursor index 218 → shard 0 |
 | cursor-pinning sentinel | **not landed.** Both `[SHARED]` blocks in `testsuite.py` are empty; no shard or cursor test exists in the tree |
+| pre-flight item 2 | **BLOCKED ON D11**, not merely open. "At least one nosolutions producer or consumer is a candidate partial match on the toy goal" cannot pass in the current vocabulary: a pack entry compiles its heads to `Label` atoms, a session goal to `Char` atoms, and they never unify. Do not attempt item 2 until the D11 fix lands (`protocol/D11-REPAIR-SCOPE.md`). |
 | pre-flight item 1 | **OPEN.** `learned_memory_checkpoint_test` is in the failure set at every tag and tip since `da33a45`, which closed the *diagnosis* (nondeterministic under load, not contamination, not volume) and never removed the failure. It passes standalone. |
 | subset test runner | `tools/run_named_tests.py` — exact-name selection at registration; 305 constructed for a full run, only the named ones for a targeted one |
-| checkpoints | `snapshots/library-only-control.json`, `snapshots/set-b-cumulative.json`, both named in `research_protocol.md` |
+| checkpoints | `snapshots/library-only-control.json` **(D11 annotation: on a pre-D11 tag this checkpoint is behaviorally indistinguishable from an empty library for backward search — its loaded rules contribute no candidates to any goal. Name kept; the audits citing it stay true as statements about a blind instrument)**, `snapshots/set-b-cumulative.json`, both named in `research_protocol.md` |
 | checkpoint verbs | none. No `save checkpoint` / `load checkpoint`, no content-addressed ids |
 
 Withdrawn from the `06c0e52` draft: T2 ("E has no home module") and the claim
@@ -326,7 +327,9 @@ pass disabled: visited 16696 terms, nats checked 5, mismatched 5
 pass active:   visited 16696 terms, nats checked 5, mismatched 0
 ```
 
-Both published checkpoints boot on the production path:
+Both published checkpoints boot on the production path (D11 annotation:
+booting is not reaching — the library inside `library-only-control` loads and
+contributes nothing to backward search):
 `library-only-control` in 4.8 s and `set-b-cumulative` in 3.7 s, no
 duplicated numeric value in either, and the Set B value index comes back
 fact-identical across two independent boots.
@@ -716,14 +719,44 @@ Three things follow, and they are the ruling:
    the same goal from 0 partial matches to 1. So this is not a broken
    matcher and not a missing domain: it is that the *library* has
    nothing for the matcher to match.
-3. **The library cannot match because of what a pack rule is.** All 167
-   compile at `packs.py:287-300` as `Rule(pattern, replacement)` (82) or
-   `MultiRule(premises, replacement)` (85). No pack rule carries a
-   conclusion. Backward search unifies a goal against rule conclusions,
-   so a rewrite rule offers nothing to unify against — for any goal, in
-   any domain, wrapped or not. The goals that do close close through the
-   ground evaluator with `firings=0`, which is why the library's
-   contribution has been invisible: nothing ever counted it.
+3. **The library cannot match because of what a pack rule's heads are.**
+   All 167 compile at `packs.py:287-300` as `Rule(pattern, replacement)`
+   (82) or `MultiRule(premises, replacement)` (85) — shapes that match
+   fine, as the spike below shows — but their heads are `ConstructorLabel`
+   atoms while a session goal's heads are `M.Char` atoms, and unification
+   treats the two as different constants. So no shipped rule can be a
+   candidate for any goal, in any domain, wrapped or not. The goals that
+   do close close through the ground evaluator with `firings=0`, which is
+   why the library's contribution has been invisible: nothing ever
+   counted it.
+
+**Mechanism corrected by spike `logs/d11-spike.log` — the ruling was right
+in its conclusion and wrong in its reason.** The ruling above says pack rules
+carry no conclusion and therefore offer nothing to unify against. That is
+false: `packs.py:287-300` compiles `premises -> replacement` into the very same
+`MultiRule(premises, X)` a taught law compiles into — the shape that produced
+`partial matches 1` in the A/B above. There is no shape gap. The spike proves
+it with one pack rule, nothing taught:
+
+```text
+heads {char: divides}      goal (divides k (plus p q))  partial matches 1
+heads {sym: DividesLabel}  goal (divides k (plus p q))  partial matches 0
+spike-char loaded          goal (cornersum t whole)     partial matches 0
+```
+
+Same rule, same loader, same search, same goal; only the head vocabulary
+differs. The boundary is **atom kind**: a session goal is parsed by
+`_research_parse` (`main.py:4336`) into `_RESEARCH_SYMBOLS.atom(name)`, an
+`M.Char`; a pack term is compiled from `{sym: DividesLabel}` into a
+`ConstructorLabel` (`labels.py:1170`); unification treats the two as different
+constants, always. `M.Char` interning is *not* the cause — `M.Char("divides")
+is M.Char("divides")` is `False`, and the char-form spike matched across two
+different string tables anyway, so Char atoms compare by content. All 167
+contribute zero because their heads are Labels and the goal's heads are Chars.
+The conclusion stands: (a) and (b) are both inert, the defect is upstream of
+them, and it is semantic. What changed is what the fix is — not a conclusion
+shape to add, but a vocabulary bridge. Scope:
+`protocol/D11-REPAIR-SCOPE.md`.
 
 Consequences for the two candidates, which is why neither is the fix:
 
@@ -734,13 +767,18 @@ Consequences for the two candidates, which is why neither is the fix:
   `replacement`, and contributes zero candidates exactly like the other
   167.
 
-The fix is one of: give the search a rewrite mode that normalizes the
-goal and its sub-terms with the library before matching; or let packs
-declare conclusion-shaped rules and compile those into the backward set;
-or treat a pack's `pattern -> replacement` as usable backward where the
-rewrite is an equality. All three are **semantic** — they change what the
-instrument can attempt — so a re-baseline is required after whichever one
-lands, and no tag cut between here and then is comparable to one after.
+The fix is a vocabulary bridge, and it has two homes: a per-pack
+`surface:` declaration mapping the pack's `sym` names to the session's
+surface names, compiled in `_compile_term`'s `sym` branch; or one
+loader-level table doing that mapping for the whole label namespace. Both
+are opt-in or additive and leave the shipped 167 compiling unchanged. Both
+are **semantic** — they change what the instrument can attempt — so a
+re-baseline is required after whichever lands, and no tag cut between here
+and then is comparable to one after. Chosen: per-pack headers, pending
+operator confirmation (`protocol/D11-REPAIR-SCOPE.md` §3, §8). Held as
+not-built-deliberate: a rewrite/normalization mode in search, and backward
+use of equality rewrites — both change what every session attempts for
+every goal, and neither is shown to be needed.
 
 This also reframes the F finding that was read as root-connective
 blindness: the zero is not specific to quantified goals, and the
@@ -775,7 +813,9 @@ engineer.
 ## 5. Staffing order
 
 **Stalled: F.** No cross-track flow in either direction for two turns.
-The block is **not** staffing — it is **D11**, which INT ruled on this turn
+The block is **not** staffing — it is **D11**, which INT ruled on (`feb457e`;
+mechanism corrected by the spike in `logs/d11-spike.log`). Repair scope at
+`protocol/D11-REPAIR-SCOPE.md`, written and not started. It is semantic
 (neither the structural rule nor the pack entry; the library's rewrite
 rules contribute no goal candidates at all). It is semantic, so it forces
 a re-baseline whatever the staffing looks like. Blank controls run
@@ -835,7 +875,9 @@ git commit -am "F-blind: curriculum, records, other-track ledgers, Set-B removed
 git tag f-blind-<cut-tag>
 ```
 
-Only `snapshots/library-only-control.json` survives. When the one-shot is done,
+Only `snapshots/library-only-control.json` survives. (D11 annotation: cited
+as a library-loaded control, it is one in which the library is blind — cite it
+as such while D11 is open.) When the one-shot is done,
 INT ports `protocol/F.md` back and nothing else. Checkpoints are read-only
 published artifacts; two operators never write the same one.
 
