@@ -1,0 +1,39 @@
+diff_exit=0 (0 = empty diff)
+
+RESULT: all 34 pinned hash lines (30 search_compare files + 3 top-level
+snapshots + talk_lessons.log) are byte-identical to the fresh re-hash.
+No file under snapshots/ has mutated since the pinned audit. An earlier
+in-turn diff attempt showed 6 spurious lines because the grep pattern also
+caught audit prose; the shape filter above is the corrected, reproducible
+form.
+
+## Measurement 2: run-manifest schema, key names only (verbatim)
+
+command:
+  jq -r 'keys[]' snapshots/search_compare/run-1787048794305/astar.snapshot.json.manifest.json
+  for m in snapshots/search_compare/run-*/astar.snapshot.json.manifest.json; do
+    echo "$m: $(jq -r 'keys|length' "$m") keys, $(jq -r 'keys|join(",")' "$m" | sha256sum | cut -c1-16)"
+  done
+
+output:
+goal_text
+start_text
+snapshots/search_compare/run-1786543184669/astar.snapshot.json.manifest.json: 2 keys, 051cab1c91c29939
+snapshots/search_compare/run-1786548752373/astar.snapshot.json.manifest.json: 2 keys, 051cab1c91c29939
+snapshots/search_compare/run-1787048794305/astar.snapshot.json.manifest.json: 2 keys, 051cab1c91c29939
+
+RESULT: every run manifest carries exactly 2 keys (goal_text, start_text)
+and the key-set is hash-identical across all three runs (051cab1c91c29939).
+Manifest VALUES (goal_text, start_text) were not read: they belong to prior
+experiment states and reading them risks prohibited exposure under the
+blindness declaration. Structure-class only is recorded here.
+
+## Handling decisions
+
+1. snapshots/ remains byte-frozen; any future load test starts from the
+   pinned ids and this check proves no drift up to this artifact's date.
+2. The manifest schema (goal_text/start_text) is now on record as the
+   structure a future F3-style comparator would consume if the protocol
+   owner pushes residual-comparison refs.
+3. This check is replayable with the two commands above on the pinned
+   build; their outputs are the authoritative measurement.

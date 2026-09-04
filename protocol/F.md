@@ -60,7 +60,21 @@ process ran, so none was found by running. Routing: INT (protocol owner).
   Gates the live teaching loop.
 - DEF-2026-09-05-04 — dependency-request channel absent.
   Locus: repo-wide `grep -in "suggest depend"` = 0 hits. Gates dependency
-  classification and the F3 input path.
+  classification and the F3 input path. DEEPENED 2026-09-05 by the
+  residual-harness check: the only "residual" concept in machine code is
+  `ResidualHeadBucketLabel` (labels.py:282 defined, :1819 instantiated,
+  :2102 registered — a constructor label, not a residual producer);
+  machine.py, planner.py, session.py, runtime.py and search/ have zero
+  "residual" occurrences; the only word-boundary stall surface is
+  tools/repro_compose_stall.py, which reports engine counters and a
+  reproduction banner — no residual term, no dependency suggestion, no
+  unmatched-premise listing. No code path emits a concrete residual.
+- DEF-2026-09-05-09 — terminal-term vocabulary absent (added 2026-09-05 by
+  the residual-harness check). Locus: zero occurrences of
+  UncharacterizedStall, InstrumentDefect, RegimeA/B/C in all tracked .py
+  files. The machine defines no constructors for the protocol's terminal
+  terms, so even a closed derivation could not be reported by the machine
+  itself in that vocabulary on this build.
 - DEF-2026-09-05-05 — no declared session tag, no named checkpoint, no
   profile definitions. Locus: `protocol/` and `checkpoints/` absent at
   HEAD; no declaration artifact at any pushed ref. Gates items 3 and 6 and
@@ -98,7 +112,20 @@ Any future exposure is recorded here as
 | start-gate report         | logs/2026-09-05-F-PROVER-start-gate.txt |
 | checkpoint integrity audit| logs/2026-09-05-F-PROVER-checkpoint-audit.txt |
 | transcript inventory      | logs/2026-09-05-F-PROVER-transcript-inventory.txt |
+| residual-harness check    | logs/2026-09-05-F-PROVER-residual-harness-check.txt |
+| replay-manifest check     | logs/2026-09-05-F-PROVER-replay-manifest-check.txt |
 | hash manifest             | checkpoints/2026-09-05-F-PROVER-manifest.txt |
+
+Dated reproducible measurements recorded this session (replayable by the
+commands inside the two check artifacts):
+- 34/34 hash lines under snapshots/ byte-identical to the pinned
+  checkpoint-audit listing (replay-manifest check, measurement 1).
+- Run-manifest schema stable: 2 keys (goal_text, start_text), key-set
+  hash-identical across all three search_compare runs; values unread
+  (blindness preserved) (replay-manifest check, measurement 2).
+- Terminal-term vocabulary counts: 0/0/0/0/0 for UncharacterizedStall,
+  InstrumentDefect, RegimeA, RegimeB, RegimeC (residual-harness check,
+  scan 3).
 
 Content ids (sha256) for every artifact above are recorded in the hash
 manifest; the manifest's own id is computed post-write and recorded in the
@@ -134,13 +161,15 @@ channel only, never through repository files or chat prose.
 ## 9. Next active tasks (non-target, authorized)
 
 1. Cold-load verification of pinned snapshot states (byte-pinned in the
-   checkpoint audit) through the machine's own persistence path, in a
-   fresh process, once a python invocation channel is agreed — this
-   is checkpoint verification, not a target process.
-2. Residual-harness pre-check: confirm whether any machine code path can
-   emit a residual term at all on this build (expected: none), deepening
-   DEF-2026-09-05-04 with a precise code locus.
-3. Replay-manifest check: pin the three `snapshots/search_compare` run
-   manifests against their producing tool (`search/compare_*`) read-only.
+   checkpoint audit, drift-free per the replay-manifest check) through the
+   machine's own persistence path, in a fresh process, once a python
+   invocation channel is agreed — this is checkpoint verification, not a
+   target process.
+2. DONE 2026-09-05: residual-harness pre-check — DEF-2026-09-05-04 deepened
+   with precise loci and DEF-2026-09-05-09 added
+   (logs/2026-09-05-F-PROVER-residual-harness-check.txt).
+3. DONE 2026-09-05: replay-manifest check — 34/34 byte-identical to the
+   pinned audit; manifest schema pinned
+   (logs/2026-09-05-F-PROVER-replay-manifest-check.txt).
 4. On owner declarations (a)–(g): re-run the start gate on the declared
    tag in a fresh session; only on PASS may the decoy session run first.

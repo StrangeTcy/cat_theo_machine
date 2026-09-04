@@ -1,0 +1,84 @@
+# F-PROVER residual-harness check (start-gate pivot artifact)
+# session: FPS-20260905-A1
+# date: 2026-09-05
+# purpose: deepen DEF-2026-09-05-04 (dependency-request channel absent) with
+#          precise code loci; static inspection only, no machine process
+#          launched, no tracked file modified
+# blindness note: all sections below are identifier-level machine-code scans
+#          (pattern hits with line numbers); no proof, curriculum, or
+#          reference-graph content is displayed or recorded
+
+## Scan 1: every occurrence of "residual" in machine code (verbatim)
+
+command: grep -rin residual --include="*.py" . | grep -v "^./.git"
+
+./labels.py:282:class ResidualHeadBucketLabel(ConstructorLabel):
+./labels.py:1819:ResidualHeadBucketLabel = ResidualHeadBucketLabel()
+./labels.py:2102:        "ResidualHeadBucketLabel",
+
+characterization: exactly one concept on the build carries the word
+"residual": ResidualHeadBucketLabel, a constructor label class defined at
+labels.py:282, instantiated at labels.py:1819, registered by name string at
+labels.py:2102. It is a label in the constructor-label registry, not an
+emitter of a residual term. machine.py, planner.py, session.py, runtime.py,
+and all of search/ have zero occurrences. Conclusion: the build has NO code
+path that emits a residual term at a stall; the protocol's "concrete
+residual" has no producer on this tag-or-tree.
+
+## Scan 2: word-boundary stall occurrences (verbatim)
+
+command: grep -rinw "stall" --include="*.py" . | grep -v "^./.git" | head -25
+
+./tools/repro_compose_stall.py:15:is refused. Engine counters at the stall: 423 facts, 202 conclusions
+./tools/repro_compose_stall.py:26:Expected today: "STALL REPRODUCED". After the fix: "DEF SPANS".
+./tools/repro_compose_stall.py:94:    # the stall: verify the pieces the composition needs are all present
+./tools/repro_compose_stall.py:119:    print("STALL REPRODUCED: SBJ+PREDNOM->DEF never concluded")
+
+characterization: genuine stall occurrences live only in
+tools/repro_compose_stall.py (the compose-stall repro harness; the
+branch-tip commit message names the compose stall a handover). The
+machine-recorded stall surface reports engine counters -- the tool's own
+line 15 records "423 facts, 202 conclusions" at the stall -- and a
+reproduction banner at line 119. No dependency suggestion, no residual
+term, no unmatched-premise listing is produced. (All other case-insensitive
+"stall" hits across the tree are the substring inside "install".)
+
+## Scan 3: protocol terminal vocabulary in machine code (counts)
+
+command lines (each piped to wc -l):
+  grep -rn "UncharacterizedStall" --include="*.py" . | grep -v "^./.git" | wc -l
+  grep -rn "InstrumentDefect" --include="*.py" . | grep -v "^./.git" | wc -l
+  grep -rn "RegimeA" --include="*.py" . | grep -v "^./.git" | wc -l   (likewise RegimeB, RegimeC)
+
+UncharacterizedStall count: 0
+InstrumentDefect count: 0
+RegimeA count: 0
+RegimeB count: 0
+RegimeC count: 0
+
+characterization: the protocol's terminal machine terms and dependency
+regimes appear nowhere in machine code. The machine cannot, by
+construction, emit the protocol's terminal terms or regime classifications
+on this build. F3's comparator therefore has no input term class here, and
+any dependency classification by this operator would rest on a channel
+that does not exist -- reinforcing that the decoy and target sessions are
+unrunnable beyond what the start gate already established.
+
+## Defect ledger updates (routed to INT)
+
+- DEF-2026-09-05-04 (deepened): dependency-request channel absent; precise
+  loci: zero "residual" emitters outside labels.py:282/1819/2102
+  (ResidualHeadBucketLabel, a label class, not a residual producer); the
+  only stall surface is tools/repro_compose_stall.py, whose machine output
+  is engine counters and a reproduction banner.
+- DEF-2026-09-05-09 (new): terminal-term vocabulary absent. The machine
+  defines no constructors for the protocol's terminal terms; locus: zero
+  occurrences of UncharacterizedStall / InstrumentDefect / RegimeA|B|C in
+  all tracked .py files. Consequence: even a closed derivation could not
+  be reported by the machine itself in the protocol's terminal vocabulary
+  on this build.
+
+## Reproducibility
+
+The three scan commands above regenerate every recorded line on the pinned
+build (operator branch tip 570050b59d38d1af3b58f5a86233916c9c2ba815).
