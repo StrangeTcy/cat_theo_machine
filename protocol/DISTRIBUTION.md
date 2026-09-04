@@ -674,6 +674,82 @@ settles the off-by-one that has been carried in these ledgers: 305 guard
 that shows the guarded registration form, not a guard that registers
 nothing.
 
+**D11 — the library contributes no candidates to any goal. Ruled on, and
+it is neither of the two candidate forms.** Defect 1 was put to INT as a
+choice between (a) a structural rule — teach the planner to decompose
+`forall`/`implies` wrappers so inner sub-terms reach the matcher — and
+(b) a pack entry — add `NosolutionsIntroduction`-shaped rules so the
+matcher has a head to unify against. The ruling is **neither**: both are
+inert until a third thing is fixed, and the diagnostic that was supposed
+to decide between them cannot be run as specified.
+
+The evidence, all of it measured on `experiment-5-frozen-r1` (tip
+`b7e6c90` differs from the tag only in this file and two standalone
+tools — no machine code), transcript at
+`logs/defect-1-ruling-diagnostic.log`:
+
+```text
+cold start, 167 LIBRARY_THEOREM rules loaded, nothing taught
+
+  (real (sqrt 2))              cost=334  partial matches 0
+  (divides 3 (plus p q))       cost=334  partial matches 0
+  (primitivetriple 8 15 17)    cost=334  partial matches 0
+  (eq (pow t 6) (pow (pow t 2) 3))     cost=334  partial matches 0
+
+  (eq (plus 2 2) 4)            goal closed, cost=0, firings=0
+  (eq (times 3 (plus 4 5)) ...)  goal closed, cost=0, firings=0
+
+controlled A/B, same goal, same session, no wrapper anywhere:
+  library only                 cost=334  partial matches 0
+  + one taught conclusion law  cost=336  partial matches 1
+```
+
+Three things follow, and they are the ruling:
+
+1. **The wrapper is not the cause.** The specified diagnostic needs a
+   goal with nonzero partial matches to wrap; no such goal exists on this
+   tag. Every non-ground goal returns 0 whether or not it is wrapped, so
+   the diagnostic's control and its probe are the same number and it
+   cannot discriminate. The wrapped and unwrapped forms of
+   `(eq (pow t 6) ...)` both return cost=334, partial matches 0.
+2. **The matcher works.** Teaching one `premises -> conclusion` law takes
+   the same goal from 0 partial matches to 1. So this is not a broken
+   matcher and not a missing domain: it is that the *library* has
+   nothing for the matcher to match.
+3. **The library cannot match because of what a pack rule is.** All 167
+   compile at `packs.py:287-300` as `Rule(pattern, replacement)` (82) or
+   `MultiRule(premises, replacement)` (85). No pack rule carries a
+   conclusion. Backward search unifies a goal against rule conclusions,
+   so a rewrite rule offers nothing to unify against — for any goal, in
+   any domain, wrapped or not. The goals that do close close through the
+   ground evaluator with `firings=0`, which is why the library's
+   contribution has been invisible: nothing ever counted it.
+
+Consequences for the two candidates, which is why neither is the fix:
+
+- (a) is inert: decomposing the wrapper to expose `pow`, `plus`, `eq`
+  still finds nothing, because nothing in the library has a conclusion.
+- (b) is inert for the same reason: a `NosolutionsIntroduction` entry in
+  the current pack format compiles to yet another rewrite rule with a
+  `replacement`, and contributes zero candidates exactly like the other
+  167.
+
+The fix is one of: give the search a rewrite mode that normalizes the
+goal and its sub-terms with the library before matching; or let packs
+declare conclusion-shaped rules and compile those into the backward set;
+or treat a pack's `pattern -> replacement` as usable backward where the
+rewrite is an equality. All three are **semantic** — they change what the
+instrument can attempt — so a re-baseline is required after whichever one
+lands, and no tag cut between here and then is comparable to one after.
+
+This also reframes the F finding that was read as root-connective
+blindness: the zero is not specific to quantified goals, and the
+`zero-successor-root` residuals in `logs/blank-controls-*.log` are what a
+blank instrument looks like *for any goal*. Blank controls run before
+D11 is fixed certify nothing about domain coverage, which is a stronger
+reason to hold F than the one previously recorded. F is blocked on D11,
+not on staffing and not on a pack entry.
+
 **D4 — root debris** (T0, below).
 
 ---
@@ -699,16 +775,18 @@ engineer.
 ## 5. Staffing order
 
 **Stalled: F.** No cross-track flow in either direction for two turns.
-The block is **not** staffing — it is INT's ruling on defect 1
-(structural rule versus pack entry), which is a semantic change and will
-force a re-baseline whatever the staffing looks like. Blank controls run
+The block is **not** staffing — it is **D11**, which INT ruled on this turn
+(neither the structural rule nor the pack entry; the library's rewrite
+rules contribute no goal candidates at all). It is semantic, so it forces
+a re-baseline whatever the staffing looks like. Blank controls run
 on `experiment-5-frozen` would also certify nothing: per the INT turn
 audit, the F4 finding on that tag is root-connective blindness — every
 quantified goal returns `cost=334`, partial match 0,
 `zero-successor-root` — so a blank control is blank by construction.
 (That finding is recorded as reported by the audit; it has not been
-independently re-measured here.) Order: re-cut tooling tag, rule on
-defect 1 and re-cut semantic, then staff F blank controls on that tag.
+independently re-measured here.) Order: re-cut tooling tag (done:
+`experiment-5-frozen-r1`), rule on defect 1 (done: D11), land the D11 fix
+and re-cut semantic, then staff F blank controls on that tag.
 
 
 ```text
