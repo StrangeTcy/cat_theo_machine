@@ -9253,7 +9253,10 @@ class DefinitionNodeOpenDependencies(M.Edge):
     Walks the conditions; a Hole's predicate is an open dependency.
     Order follows the conditions; duplicates drop. This is the report
     that replaces asking about unknown words: the graph was formed, and
-    these are the predicates it still needs definitions for.
+    these are the predicates it still needs definitions for. The walk
+    follows the predicate position: a condition may carry its Hole
+    bare, applied to arguments, or under a Not -- negation does not
+    close a dependency, and neither does application.
     """
 
     def __init__(self, node):
@@ -9262,26 +9265,40 @@ class DefinitionNodeOpenDependencies(M.Edge):
         walker = DefinitionNodeConditions(node)()
         while M.IdentityCompare(walker, empty)() is M.false_value:
             condition = M.Head(walker)()
-            if M.IdentityCompare(
-                M.Head(condition)(), Lmod.HoleLabel,
-            )() is M.truth_value:
-                predicate = M.Head(M.Tail(condition)())()
-                present = M.false_value
-                dependency_walker = reversed_dependencies
-                while M.IdentityCompare(
-                    dependency_walker, empty,
-                )() is M.false_value:
-                    if M.IdentityCompare(
-                        predicate, M.Head(dependency_walker)(),
-                    )() is M.truth_value:
-                        present = M.truth_value
-                        dependency_walker = empty
-                    else:
-                        dependency_walker = M.Tail(dependency_walker)()
-                if present is M.false_value:
-                    reversed_dependencies = M.Pair(
-                        predicate, reversed_dependencies,
-                    )
+            term = condition
+            descending = M.truth_value
+            while descending is M.truth_value:
+                if M.IsPair(term)() is M.false_value:
+                    descending = M.false_value
+                elif M.IdentityCompare(
+                    M.Head(term)(), Lmod.HoleLabel,
+                )() is M.truth_value:
+                    predicate = M.Head(M.Tail(term)())()
+                    present = M.false_value
+                    dependency_walker = reversed_dependencies
+                    while M.IdentityCompare(
+                        dependency_walker, empty,
+                    )() is M.false_value:
+                        if M.IdentityCompare(
+                            predicate, M.Head(dependency_walker)(),
+                        )() is M.truth_value:
+                            present = M.truth_value
+                            dependency_walker = empty
+                        else:
+                            dependency_walker = M.Tail(dependency_walker)()
+                    if present is M.false_value:
+                        reversed_dependencies = M.Pair(
+                            predicate, reversed_dependencies,
+                        )
+                    descending = M.false_value
+                elif M.IdentityCompare(
+                    M.Head(term)(), Lmod.NotLabel,
+                )() is M.truth_value:
+                    term = M.Head(M.Tail(term)())()
+                elif M.IsPair(M.Head(term)())() is M.truth_value:
+                    term = M.Head(term)()
+                else:
+                    descending = M.false_value
             walker = M.Tail(walker)()
         self.result = M.Reverse(reversed_dependencies)()
         super().__init__(
