@@ -151,3 +151,62 @@ teaches 0, goal closed no.
 Reading withdrawn; nothing taught; no checkpoint saved; step 4 never
 entered. Goal closed: no. The open dependency remains INT's: the
 D11-MAP pack port, the next tag, blank controls on it.
+
+## 2026-09-05, tooling port -- F tooling merged from arena/01a06da9; the measurement deliverable is closed
+
+Ratification (gpt 5.5 review) recorded: the pair is an admissible
+negative-control measurement, the conclusion is the permitted one --
+reading withdrawn -- and manual grep comparison was accepted for the
+first pass because the compared fields are single transcript lines and
+the missing tools were ledgered, not ignored. The review cites the
+branch at 56372a5; by the time it arrived the branch had moved on --
+the tooling had landed here independently at 1aed8e4 (closing F-D1..F-D3)
+and the null was measured at n=4 (f58eec6), all four passes
+byte-identical. Both facts are now on the record in one place.
+
+Binding ruling accepted: no further pairs on unchanged semantics. The
+F measurement deliverable is closed; the next measurement happens only
+after the next semantic tag, blank controls first, decoy before
+target.
+
+Port executed per the review's task 1, from
+arena/01a06da9-cat-theo-machine @ 966a077: tools/f2_grader.sh,
+tools/f3-residual-diff.sh, tools/f3_batch_diff.sh, tools/f4_auditor.sh,
+and the five spec files (f1-checkpoint-verbs, f2-grading-fixtures,
+f3-residual-diff-batch, f4-audit-historical, blank-controls-r2).
+
+One collision needed a decision: this branch and that one had both
+written tools/f2_grader.sh and tools/f3-residual-diff.sh as different
+instruments. Their f3 is the ported one (four axes and the
+silence-class verdict; this branch's three-axis version is superseded
+by it). Their f2 and this branch's f2 graded different things -- theirs
+counts operator compliance (taught theorems, unlock evidence, circular
+and computable requests, cite coverage), this branch's classified the
+machine's outcome (A/B/C/D per research_protocol.md). Both functions
+survive: theirs keeps the f2_grader.sh name as the review directs, and
+this branch's classifier is renamed tools/f2-outcome-class.sh with its
+function stated in its header. tools/f4-sheet.md stays as the hand-
+filled per-pair sheet; f4_auditor.sh is the mechanical per-transcript
+audit. INT's merge of the two branches is now free of content
+conflicts on the tools/ paths.
+
+Validation artifact: logs/2026-09-05-F-TOOLING-PORT-validation.txt
+(dates in filenames are local, Europe/Moscow; the artifact's header
+timestamp is UTC). Results: their F2 grader reports zero on every
+count across all eight transcripts -- nothing was ever taught in any
+pass, so compliance is trivially clean; their F3 reports identical on
+all four pairs (exit 0; the silence-class verdict reserves exit 3 for
+same-silence pairs that differ on an axis, which these do not); the
+renamed outcome-class grader reports class A on all eight; the F4
+auditor on the pass-4 pair reports packs loaded, audit present,
+loaded-class list present, regime A, contamination no, and names the
+instrument pre-D11 backward-blind.
+
+Remaining programme per the review, none of it on this branch's lane:
+D11 content work (pack port to the per-pack surface, nonzero partial
+matches on non-FLT probes, full suite, next frozen tag) is engineering
+and INT's tag cut; blank controls and the resumed pair follow the new
+tag. The ZeroPartialMatchAmbiguity finding from the ported branch's
+ledger -- the matcher cannot distinguish "no rule could match this
+shape" from "the criterion is too coarse" -- is noted here by
+reference; it is routed to S/INT as an instrument concern.
