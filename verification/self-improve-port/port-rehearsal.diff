@@ -1,0 +1,1089 @@
+diff --git a/labels.py b/labels.py
+index de04508..2ecdaf8 100644
+--- a/labels.py
++++ b/labels.py
+@@ -2963,6 +2963,11 @@ def sync_from_namespace(namespace):
+         "TestInstanceLabel",
+         "AttemptResultLabel",
+         "InvarianceLabel",
++        "TraceLabel",
++        "MotifLabel",
++        "CompressedLawLabel",
++        "RefusedLabel",
++        "CandidateObservableLabel",
+     ):
+         if name in namespace:
+             globals()[name] = namespace[name]
+@@ -3171,4 +3176,44 @@ RenderLawLabel = RenderLawLabel()
+ # --- end [I] ---
+ 
+ 
++# =============================================================================
++# [S] SELF-IMPROVEMENT LOOP (INT-CODE-SELF-IMPROVE)
++#
++# Session-owned surface. Only this block adds labels for the rung-7+
++# self-improvement loop: trace mining, rent-gated compression, recursive
++# re-mining, invariant conjecture from a fixed library, and the
++# learned-memory cycle over the artifacts. Do not edit outside [S]/[/S].
++# =============================================================================
++
++
++class TraceLabel(ConstructorLabel):
++    pass
++
++
++class MotifLabel(ConstructorLabel):
++    pass
++
++
++class CompressedLawLabel(ConstructorLabel):
++    pass
++
++
++class RefusedLabel(ConstructorLabel):
++    pass
++
++
++class CandidateObservableLabel(ConstructorLabel):
++    pass
++
++
++TraceLabel = TraceLabel()
++MotifLabel = MotifLabel()
++CompressedLawLabel = CompressedLawLabel()
++RefusedLabel = RefusedLabel()
++CandidateObservableLabel = CandidateObservableLabel()
++
++
++# [/S] SELF-IMPROVEMENT LOOP
++
++
+ __all__ = [name for name in globals() if not name.startswith("_")]
+diff --git a/persistence.py b/persistence.py
+index 96a9c78..5e725f2 100644
+--- a/persistence.py
++++ b/persistence.py
+@@ -543,6 +543,11 @@ SNAPSHOT_SYMBOL_NAMES = [
+     "ClaimStoreLabel",
+     "CorrespondenceLawLabel",
+     "ZeroLabel",
++    "TraceLabel",
++    "MotifLabel",
++    "CompressedLawLabel",
++    "RefusedLabel",
++    "CandidateObservableLabel",
+     "one",
+     "two",
+     "three",
+diff --git a/research.py b/research.py
+index fb49cbe..b3caefc 100644
+--- a/research.py
++++ b/research.py
+@@ -4019,3 +4019,526 @@ def invariant_prune(graph, goal_facts):
+             if M.Compare(observed, value)() is M.false_value:
+                 return record
+     return EmptyList
++
++
++# =============================================================================
++# [S] SELF-IMPROVEMENT LOOP (INT-CODE-SELF-IMPROVE)
++#
++# Rung-7+ surface. This block, and the matching [S] blocks in labels.py and
++# testsuite.py, are the only places the self-improvement loop is extended:
++# trace mining over retained Next(g0, fire, g1) chains, rent-gated
++# compression, the recursive turn, invariant conjecture from a fixed
++# structural library, and the learned-memory cycle over adopted artifacts.
++#
++# Nothing here proposes structure from outside the machine's own recorded
++# derivations, and nothing here activates without measured rent and an
++# explicit adoption step. Adopted laws and invariants ride the
++# learned-memory mask: they appear with memory enabled, disappear with it
++# disabled, and are stripped from provenance on reset.
++# =============================================================================
++
++
++class NumberedTraces(Edge):
++    """Retained derivations with a positional trace id, newest first.
++
++    Each entry: Pair(id, Pair(trace, EmptyList)). The id is a Char token
++    ("t0", "t1", ...) so proposals can name their source traces and two
++    traces stay comparable. Traces are evidence, never learned memory.
++    """
++
++    def __init__(self, traces):
++        self.result = self._walk(traces, 0)
++        super().__init__(inputs=M.Pair(traces, EmptyList), results=self.result)
++
++    def _walk(self, chain, count):
++        if IdentityCompare(chain, EmptyList)() is M.truth_value:
++            return EmptyList
++        trace = Head(chain)()
++        rest = Tail(chain)()
++        entry = M.Pair(M.Char("t" + str(count)), M.Pair(trace, EmptyList))
++        return M.Pair(entry, self._walk(rest, count + 1))
++
++    def __call__(self):
++        return self.result
++
++
++class NextStep(Edge):
++    """One fired step rewritten as Next(g0, fire, g1).
++
++    g0 are the instantiated premises, fire is the rule, g1 is the
++    instantiated conclusion. This is the shape MineTraces walks.
++    """
++
++    def __init__(self, step):
++        rule = Head(step)()
++        premises = Head(Tail(step)())()
++        conclusion = Head(Tail(Tail(step)())())()
++        self.result = M.Pair(
++            Lmod.NextLabel,
++            M.Pair(premises, M.Pair(rule, M.Pair(conclusion, EmptyList))),
++        )
++        super().__init__(inputs=M.Pair(step, EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class TraceView(Edge):
++    """Pair(TraceLabel, Pair(id, Pair(next-chain, EmptyList))) for one trace.
++
++    The next-chain is every fired step of the derivation rewritten as
++    Next(g0, fire, g1).
++    """
++
++    def __init__(self, trace, trace_id):
++        fired = Head(Tail(Tail(Tail(trace)())())())()
++        steps = StepInstances(fired)()
++        self.result = M.Pair(
++            Lmod.TraceLabel,
++            M.Pair(trace_id, M.Pair(self._chain(steps), EmptyList)),
++        )
++        super().__init__(
++            inputs=M.Pair(trace, M.Pair(trace_id, EmptyList)), results=self.result
++        )
++
++    def _chain(self, steps):
++        if IdentityCompare(steps, EmptyList)() is M.truth_value:
++            return EmptyList
++        return M.Pair(NextStep(Head(steps)())(), self._chain(Tail(steps)()))
++
++    def __call__(self):
++        return self.result
++
++
++class TraceObservations(Edge):
++    """Pair(id, Pair(composed-instances, EmptyList)) per numbered trace."""
++
++    def __init__(self, numbered):
++        self.result = self._walk(numbered)
++        super().__init__(inputs=M.Pair(numbered, EmptyList), results=self.result)
++
++    def _walk(self, chain):
++        if IdentityCompare(chain, EmptyList)() is M.truth_value:
++            return EmptyList
++        entry = Head(chain)()
++        trace_id = Head(entry)()
++        trace = Head(Tail(entry)())()
++        fired = Head(Tail(Tail(Tail(trace)())())())()
++        composed = ComposedInstances(fired)()
++        return M.Pair(
++            M.Pair(trace_id, M.Pair(composed, EmptyList)),
++            self._walk(Tail(chain)()),
++        )
++
++    def __call__(self):
++        return self.result
++
++
++class ComposedInstancesMatch(Edge):
++    """True when one composed instance matches a schematic body pattern."""
++
++    def __init__(self, instances, pattern):
++        self.result = self._walk(instances, pattern)
++        super().__init__(
++            inputs=M.Pair(instances, M.Pair(pattern, EmptyList)), results=self.result
++        )
++
++    def _walk(self, instances, pattern):
++        if IdentityCompare(instances, EmptyList)() is M.truth_value:
++            return M.false_value
++        instance = Head(instances)()
++        rest = Tail(instances)()
++        verdict = M.Match(pattern, Tail(instance)())()
++        if IdentityCompare(Head(verdict)(), M.truth_value)() is M.truth_value:
++            return M.truth_value
++        return self._walk(rest, pattern)
++
++    def __call__(self):
++        return self.result
++
++
++class SupportAndIds(Edge):
++    """Pair(support-marks, Pair(trace-ids, EmptyList)) for one candidate.
++
++    A support mark is one truth_value per distinct supporting trace, so
++    the chain length is the support count and the ids name those traces.
++    """
++
++    def __init__(self, observations, pattern):
++        self.result = self._walk(observations, pattern, EmptyList, EmptyList)
++        super().__init__(
++            inputs=M.Pair(observations, M.Pair(pattern, EmptyList)), results=self.result
++        )
++
++    def _walk(self, observations, pattern, marks, ids):
++        if IdentityCompare(observations, EmptyList)() is M.truth_value:
++            return M.Pair(marks, M.Pair(ids, EmptyList))
++        entry = Head(observations)()
++        rest = Tail(observations)()
++        trace_id = Head(entry)()
++        composed = Head(Tail(entry)())()
++        matched = ComposedInstancesMatch(composed, pattern)()
++        if IdentityCompare(matched, M.truth_value)() is M.truth_value:
++            return self._walk(
++                rest, pattern, M.Pair(M.truth_value, marks), M.Pair(trace_id, ids)
++            )
++        return self._walk(rest, pattern, marks, ids)
++
++    def __call__(self):
++        return self.result
++
++
++class MotifRuleKey(Edge):
++    def __init__(self, motif):
++        self.result = Head(Tail(motif)())()
++        super().__init__(inputs=M.Pair(motif, EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class MotifSupport(Edge):
++    def __init__(self, motif):
++        self.result = Head(Tail(Tail(motif)())())()
++        super().__init__(inputs=M.Pair(motif, EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class MotifTraceIds(Edge):
++    def __init__(self, motif):
++        self.result = Head(Tail(Tail(Tail(motif)())())())()
++        super().__init__(inputs=M.Pair(motif, EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class CompressedLawLaw(Edge):
++    def __init__(self, proposal):
++        self.result = Head(Tail(proposal)())()
++        super().__init__(inputs=M.Pair(proposal, EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class CompressedLawSupport(Edge):
++    def __init__(self, proposal):
++        self.result = Head(Tail(Tail(proposal)())())()
++        super().__init__(inputs=M.Pair(proposal, EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class CompressedLawTraceIds(Edge):
++    def __init__(self, proposal):
++        self.result = Head(Tail(Tail(Tail(proposal)())())())()
++        super().__init__(inputs=M.Pair(proposal, EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++def MineTraces(graph):
++    """Mine recurring dataflow-linked step subsequences into law candidates.
++
++    Walks every retained Next(g0, fire, g1) chain (each recorded
++    derivation, each fired step rewritten as Next(premises, rule,
++    conclusion)). A recurring subsequence is a rule pair whose two steps
++    feed each other in at least two distinct traces; the pair's two
++    instances are anti-unified into a generalized law shape. Nothing is
++    read from strategy skeletons or human priors, and nothing activates:
++    adoption is a separate, human-gated, rent-measured step.
++
++    Returns Pair(motifs, Pair(proposals, EmptyList)):
++    - a motif is Pair(MotifLabel, Pair(rule-pair, Pair(support,
++      Pair(trace-ids, EmptyList))));
++    - a proposal is Pair(CompressedLawLabel, Pair(law-shape, Pair(support,
++      Pair(trace-ids, EmptyList)))), the shape being a FormalRule.
++    """
++    numbered = NumberedTraces(TracesOnRecord(graph)())()
++    observations = TraceObservations(numbered)()
++    motifs = EmptyList
++    proposals = EmptyList
++    outer = observations
++    while IdentityCompare(outer, EmptyList)() is M.false_value:
++        obs_a = Head(outer)()
++        outer = Tail(outer)()
++        composed_a = Head(Tail(obs_a)())()
++        inner = outer
++        while IdentityCompare(inner, EmptyList)() is M.false_value:
++            obs_b = Head(inner)()
++            inner = Tail(inner)()
++            composed_b = Head(Tail(obs_b)())()
++            walk_a = composed_a
++            while IdentityCompare(walk_a, EmptyList)() is M.false_value:
++                record_a = Head(walk_a)()
++                walk_a = Tail(walk_a)()
++                key_a = Head(record_a)()
++                walk_b = composed_b
++                while IdentityCompare(walk_b, EmptyList)() is M.false_value:
++                    record_b = Head(walk_b)()
++                    walk_b = Tail(walk_b)()
++                    key_b = Head(record_b)()
++                    same_pair = M.AndAtom(
++                        IdentityCompare(Head(key_a)(), Head(key_b)())(),
++                        IdentityCompare(Tail(key_a)(), Tail(key_b)())(),
++                    )()
++                    if IdentityCompare(same_pair, M.truth_value)() is M.false_value:
++                        continue
++                    generalized = Head(
++                        AntiUnify(Tail(record_a)(), Tail(record_b)())()
++                    )()
++                    converted = Head(PlaceholdersToVars(generalized)())()
++                    premises = Head(converted)()
++                    conclusion = Head(Tail(converted)())()
++                    if SharesStructure(conclusion)() is M.false_value:
++                        continue
++                    if M.IsPair(conclusion)() is M.false_value:
++                        continue
++                    candidate = FormalRule(premises, conclusion)()
++                    known = ProvenanceEntriesFor(
++                        graph.provenance_map, Lmod.InventedLemmaLabel
++                    )()
++                    duplicate = M.false_value
++                    walk_known = known
++                    while IdentityCompare(walk_known, EmptyList)() is M.false_value:
++                        known_term = Head(walk_known)()
++                        walk_known = Tail(walk_known)()
++                        if M.Compare(
++                            AlphaNormalized(known_term, EmptyList)(),
++                            AlphaNormalized(candidate, EmptyList)(),
++                        )() is M.truth_value:
++                            duplicate = M.truth_value
++                            walk_known = EmptyList
++                    walk_seen = proposals
++                    while IdentityCompare(walk_seen, EmptyList)() is M.false_value:
++                        seen = Head(walk_seen)()
++                        walk_seen = Tail(walk_seen)()
++                        if M.Compare(
++                            AlphaNormalized(CompressedLawLaw(seen)(), EmptyList)(),
++                            AlphaNormalized(candidate, EmptyList)(),
++                        )() is M.truth_value:
++                            duplicate = M.truth_value
++                            walk_seen = EmptyList
++                    if IdentityCompare(duplicate, M.truth_value)() is M.truth_value:
++                        continue
++                    pattern = M.Pair(premises, M.Pair(conclusion, EmptyList))
++                    support_pair = SupportAndIds(observations, pattern)()
++                    support = Head(support_pair)()
++                    trace_ids = Head(Tail(support_pair)())()
++                    motifs = M.Pair(
++                        M.Pair(
++                            Lmod.MotifLabel,
++                            M.Pair(key_a, M.Pair(support, M.Pair(trace_ids, EmptyList))),
++                        ),
++                        motifs,
++                    )
++                    proposals = M.Pair(
++                        M.Pair(
++                            Lmod.CompressedLawLabel,
++                            M.Pair(
++                                candidate,
++                                M.Pair(support, M.Pair(trace_ids, EmptyList)),
++                            ),
++                        ),
++                        proposals,
++                    )
++    return M.Pair(M.Reverse(motifs)(), M.Pair(M.Reverse(proposals)(), EmptyList))
++
++
++def RentGateCompression(graph, proposal, start_facts, goal_facts, rules, fuel=None):
++    """Rent gate for one mined compression, reusing the existing machinery.
++
++    The counterfactual runs the held-out goal with and without the
++    compiled law. It activates only if the held-out proof still closes
++    with the law installed and the fired chain strictly shortens. On pass
++    the adopted outcome is returned unchanged; on fail the refusal is an
++    explicit term: Pair(RefusedLabel, Pair(fired-before, Pair(fired-after,
++    EmptyList))).
++    """
++    candidate = CompressedLawLaw(proposal)()
++    outcome = adopt_compressed_law(
++        graph, candidate, start_facts, goal_facts, rules, fuel
++    )
++    if IdentityCompare(Head(outcome)(), M.truth_value)() is M.truth_value:
++        return outcome
++    fired_before = Head(Tail(outcome)())()
++    fired_after = Head(Tail(Tail(outcome)())())()
++    return M.Pair(
++        Lmod.RefusedLabel,
++        M.Pair(fired_before, M.Pair(fired_after, EmptyList)),
++    )
++
++
++class InvariantLibraryCandidates(Edge):
++    """Candidate observables from a fixed structural library, nothing more.
++
++    The three structural families only: parity of a count, sum of a
++    labeling, residue mod k -- instantiated over the two Engel E2
++    observable heads (the board sum and the extremal maximum). Each
++    record: Pair(CandidateObservableLabel, Pair(kind, Pair(phi,
++    EmptyList))).
++    """
++
++    def __init__(self):
++        p_bit = M.Pair(M.VarTag, M.Pair(M.Char("p"), EmptyList))
++        q_bit = M.Pair(M.VarTag, M.Pair(M.Char("q"), EmptyList))
++        state = M.Pair(M.VarTag, M.Pair(M.Char("state"), EmptyList))
++        sum_var = M.Pair(M.VarTag, M.Pair(M.Char("sum"), EmptyList))
++        residue = M.Pair(M.VarTag, M.Pair(M.Char("r"), EmptyList))
++        parity_of_sum = M.Pair(
++            Lmod.ParityLabel, M.Pair(Lmod.BoardSumObservableLabel, M.Pair(p_bit, EmptyList))
++        )
++        parity_of_max = M.Pair(
++            Lmod.ParityLabel, M.Pair(Lmod.ExtremalMaxLabel, M.Pair(q_bit, EmptyList))
++        )
++        sum_of_labeling = M.Pair(
++            Lmod.BoardSumLabel, M.Pair(state, M.Pair(sum_var, EmptyList))
++        )
++        residue_mod_two = M.Pair(
++            Lmod.ModuloLabel,
++            M.Pair(
++                Lmod.BoardSumObservableLabel,
++                M.Pair(M.Char("2"), M.Pair(residue, EmptyList)),
++            ),
++        )
++        self.result = M.Pair(
++            M.Pair(
++                Lmod.CandidateObservableLabel,
++                M.Pair(M.Char("parity"), M.Pair(parity_of_sum, EmptyList)),
++            ),
++            M.Pair(
++                M.Pair(
++                    Lmod.CandidateObservableLabel,
++                    M.Pair(M.Char("parity"), M.Pair(parity_of_max, EmptyList)),
++                ),
++                M.Pair(
++                    M.Pair(
++                        Lmod.CandidateObservableLabel,
++                        M.Pair(M.Char("sum"), M.Pair(sum_of_labeling, EmptyList)),
++                    ),
++                    M.Pair(
++                        M.Pair(
++                            Lmod.CandidateObservableLabel,
++                            M.Pair(M.Char("residue"), M.Pair(residue_mod_two, EmptyList)),
++                        ),
++                        EmptyList,
++                    ),
++                ),
++            ),
++        )
++        super().__init__(inputs=EmptyList, results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class TraceSteps(Edge):
++    """Every fired step of every retained trace, flattened, newest first."""
++
++    def __init__(self, traces):
++        self.result = self._walk(traces)
++        super().__init__(inputs=M.Pair(traces, EmptyList), results=self.result)
++
++    def _walk(self, traces):
++        if IdentityCompare(traces, EmptyList)() is M.truth_value:
++            return EmptyList
++        trace = Head(traces)()
++        rest = Tail(traces)()
++        fired = Head(Tail(Tail(Tail(trace)())())())()
++        steps = StepInstances(fired)()
++        return ChainConcat(steps, self._walk(rest))()
++
++    def __call__(self):
++        return self.result
++
++
++class ChainConcat(Edge):
++    def __init__(self, left, right):
++        self.result = self._walk(left, right)
++        super().__init__(inputs=M.Pair(left, M.Pair(right, EmptyList)), results=self.result)
++
++    def _walk(self, left, right):
++        if IdentityCompare(left, EmptyList)() is M.truth_value:
++            return right
++        return M.Pair(Head(left)(), self._walk(Tail(left)(), right))
++
++    def __call__(self):
++        return self.result
++
++
++class PhiVerdictAgainstSteps(Edge):
++    """Pair(flag, Pair(counterexample-step, EmptyList)) for one phi.
++
++    Runs the generic Preserves engine against every step of every trace.
++    All steps preserving yields truth_value with no counterexample; the
++    first refuting step is returned as the counterexample.
++    """
++
++    def __init__(self, phi, steps, registry):
++        self.result = self._walk(steps, phi, registry)
++        super().__init__(
++            inputs=M.Pair(phi, M.Pair(steps, M.Pair(registry, EmptyList))),
++            results=self.result,
++        )
++
++    def _walk(self, steps, phi, registry):
++        from . import invariance as Imod
++
++        if IdentityCompare(steps, EmptyList)() is M.truth_value:
++            return M.Pair(M.truth_value, EmptyList)
++        step = Head(steps)()
++        rest = Tail(steps)()
++        rule = Head(step)()
++        verdict = Imod.Preserves(rule, phi, registry)()
++        if IdentityCompare(Head(verdict)(), Lmod.InvariantRefutedLabel)() is M.truth_value:
++            return M.Pair(M.false_value, M.Pair(step, EmptyList))
++        return self._walk(rest, phi, registry)
++
++    def __call__(self):
++        return self.result
++
++
++def ConjectureInvariantsFromLibrary(graph):
++    """Invariant candidates from the fixed library, via the Preserves engine.
++
++    Each library candidate phi runs the generic Preserves engine against
++    every step of every retained trace. Survivors become InvariantCandidate
++    records; failures become InvariantRefuted records carrying the
++    counterexample step. Conjecture only: adoption is human-gated.
++
++    Returns Pair(candidates, Pair(survivors, Pair(refuted, EmptyList))).
++    """
++    registry = M.FromContextGetConstructors(graph)()
++    candidates = InvariantLibraryCandidates()()
++    steps = TraceSteps(TracesOnRecord(graph)())()
++    survivors = EmptyList
++    refuted = EmptyList
++    walk = candidates
++    while IdentityCompare(walk, EmptyList)() is M.false_value:
++        record = Head(walk)()
++        walk = Tail(walk)()
++        phi = Head(Tail(Tail(record)())())()
++        verdict = PhiVerdictAgainstSteps(phi, steps, registry)()
++        if IdentityCompare(Head(verdict)(), M.truth_value)() is M.truth_value:
++            survivors = M.Pair(
++                M.Pair(Lmod.InvariantCandidateLabel, M.Pair(phi, EmptyList)),
++                survivors,
++            )
++        else:
++            counterexample = Head(Tail(verdict)())()
++            refuted = M.Pair(
++                M.Pair(
++                    Lmod.InvariantRefutedLabel,
++                    M.Pair(phi, M.Pair(counterexample, EmptyList)),
++                ),
++                refuted,
++            )
++    return M.Pair(candidates, M.Pair(M.Reverse(survivors)(), M.Pair(M.Reverse(refuted)(), EmptyList)))
++
++
++# [/S] SELF-IMPROVEMENT LOOP
+diff --git a/testsuite.py b/testsuite.py
+index 348a22a..a86d492 100644
+--- a/testsuite.py
++++ b/testsuite.py
+@@ -16066,6 +16066,420 @@ def _set_registry(graph, registry):
+     return registry
+ 
+ 
++# =============================================================================
++# [S] SELF-IMPROVEMENT LOOP (INT-CODE-SELF-IMPROVE)
++#
++# Session-owned surface. Only this block adds tests for the rung-7+
++# self-improvement loop: trace mining, rent-gated compression, the
++# recursive turn, invariant conjecture from a fixed library, and the
++# learned-memory cycle over adopted artifacts. Do not edit outside the
++# [S]/[/S] markers.
++# =============================================================================
++
++
++class SelfImproveHeldOutMarks(M.Edge):
++    """Fired-chain mark count of a held-out attempt, or EmptyList if open.
++
++    The adopted law set is recompiled on top of the base rules, exactly
++    as the live protocol does, so the mask governs which induced laws
++    participate. One truth_value mark per fired step; the chain length
++    is the chain length.
++    """
++
++    def __init__(self, graph, base, start, goal):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        rules = base
++        entries = Rmod.rebuild_taught_rules(graph)
++        cur = entries
++        while M.IdentityCompare(cur, empty)() is M.false_value:
++            rules = M.Pair(M.Head(M.Head(cur)())(), rules)
++            cur = M.Tail(cur)()
++        outcome = Rmod.attempt_goal(graph, start, goal, rules)
++        self.result = empty
++        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
++            self.result = self._marks(Rmod.ForwardSearchFired(outcome)())
++        super().__init__(inputs=M.Pair(base, M.Pair(start, M.Pair(goal, empty))), results=M.Pair(self.result, empty))
++
++    def _marks(self, fired):
++        if M.IdentityCompare(fired, M.EmptyList)() is M.truth_value:
++            return M.EmptyList
++        return M.Pair(M.truth_value, self._marks(M.Tail(fired)()))
++
++    def __call__(self):
++        return self.result
++
++
++class SelfImprovementTraceMiningTest(M.Edge):
++    """Phase 1: trace mining over retained Next chains, Engel E2 evidence.
++
++    Two Engel E2 derivations carry the parity-preservation argument for a
++    board move as two single-conclusion steps (doubling is even, then
++    subtracting an even preserves parity) that feed each other by
++    dataflow and recur across both traces. MineTraces must surface at
++    least one motif with support >= 2 whose generalized conclusion is a
++    Parity fact. The traces are the only input; nothing is read from
++    packs or priors.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++        from .proof import MultiRule
++
++        T = _ResearchToy
++        empty = M.EmptyList
++        T.reset(graph)
++        k = M.Pair(M.VarTag, M.Pair(M.Char("k"), empty))
++        state = M.Pair(M.VarTag, M.Pair(M.Char("state"), empty))
++        S = M.Pair(M.VarTag, M.Pair(M.Char("S"), empty))
++        p = M.Pair(M.VarTag, M.Pair(M.Char("p"), empty))
++        x = M.Pair(M.VarTag, M.Pair(M.Char("x"), empty))
++        d = M.Pair(M.VarTag, M.Pair(M.Char("d"), empty))
++        step_even = MultiRule(
++            T.chain(
++                BoardSumFact(state, AddTerm(S, NegTerm(MulTerm(M.two, k)())())())(),
++                ParityFact(S, p)(),
++            ),
++            IsEvenFact(MulTerm(M.two, k)())(),
++        )()
++        step_sub = MultiRule(
++            T.chain(
++                ParityFact(x, p)(),
++                IsEvenFact(d)(),
++                BoardSumFact(state, AddTerm(x, NegTerm(d)())())(),
++            ),
++            ParityFact(AddTerm(x, NegTerm(d)())(), p)(),
++        )()
++        rules = T.chain(step_even, step_sub)
++        self.result = M.truth_value
++        for tag in ("0", "1"):
++            S0 = M.Char("S" + tag)
++            K0 = M.Char("K" + tag)
++            st0 = M.Char("st" + tag)
++            start = T.chain(
++                BoardSumFact(st0, AddTerm(S0, NegTerm(MulTerm(M.two, K0)())())())(),
++                ParityFact(S0, Lmod.OddLabel)(),
++            )
++            goal = T.chain(
++                ParityFact(AddTerm(S0, NegTerm(MulTerm(M.two, K0)())())(), Lmod.OddLabel)()
++            )
++            out = Rmod.attempt_goal(graph, start, goal, rules)
++            if Rmod.ForwardSearchClosed(out)() is M.false_value:
++                self.result = M.false_value
++        mined = Rmod.MineTraces(graph)
++        proposals = M.Head(M.Tail(mined)())()
++        found = M.false_value
++        walk = proposals
++        while M.IdentityCompare(walk, empty)() is M.false_value:
++            proposal = M.Head(walk)()
++            walk = M.Tail(walk)()
++            support = Rmod.CompressedLawSupport(proposal)()
++            if M.IdentityCompare(M.Tail(support)(), empty)() is M.truth_value:
++                continue
++            conclusion = Rmod.FormalRuleConclusion(Rmod.CompressedLawLaw(proposal)())()
++            if M.IsPair(conclusion)() is M.truth_value:
++                if M.Compare(M.Head(conclusion)(), Lmod.ParityLabel)() is M.truth_value:
++                    found = M.truth_value
++        if found is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class SelfImprovementRentGateTest(M.Edge):
++    """Phase 2: the rent gate admits only compressions that pay.
++
++    A compression that shortens a held-out proof must be adopted; one
++    that does not shorten (the same law against a held-out goal it
++    cannot serve) must be refused with the explicit Refused term.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++        from .proof import MultiRule
++
++        T = _ResearchToy
++        empty = M.EmptyList
++        vx = T.var("x")
++        vy = T.var("y")
++        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
++        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
++        rules = T.chain(r1, r2)
++        self.result = M.truth_value
++        T.reset(graph)
++        for const in ("a", "b"):
++            Rmod.attempt_goal(
++                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
++                T.chain(T.term(T.sym("r"), T.sym(const))), rules,
++            )
++        mined = Rmod.MineTraces(graph)
++        proposals = M.Head(M.Tail(mined)())()
++        if M.IdentityCompare(proposals, empty)() is M.truth_value:
++            self.result = M.false_value
++            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++            return
++        adopted = Rmod.RentGateCompression(
++            graph, M.Head(proposals)(),
++            T.chain(T.term(T.sym("p"), T.sym("c"))),
++            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
++        )
++        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
++            self.result = M.false_value
++        T.reset(graph)
++        for const in ("a", "b"):
++            Rmod.attempt_goal(
++                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
++                T.chain(T.term(T.sym("r"), T.sym(const))), rules,
++            )
++        mined = Rmod.MineTraces(graph)
++        proposals = M.Head(M.Tail(mined)())()
++        refused = Rmod.RentGateCompression(
++            graph, M.Head(proposals)(),
++            T.chain(T.term(T.sym("q"), T.sym("c"))),
++            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
++        )
++        if M.Compare(M.Head(refused)(), Lmod.RefusedLabel)() is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class SelfImprovementRecursiveTurnTest(M.Edge):
++    """Phase 3: an adopted law changes what the miner sees next cycle.
++
++    Before adoption the miner sees only the p->r motif; after the
++    p->r law is adopted and p->s derivations are recorded through it,
++    the next mining cycle must surface the p->s motif that was
++    invisible before.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++        from .proof import MultiRule
++
++        T = _ResearchToy
++        empty = M.EmptyList
++        vx = T.var("x")
++        vy = T.var("y")
++        vz = T.var("z")
++        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
++        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
++        r3 = MultiRule(T.chain(T.term(T.sym("r"), vz)), T.term(T.sym("s"), vz))()
++        rules = T.chain(r1, r2)
++        self.result = M.truth_value
++        T.reset(graph)
++        for const in ("a", "b"):
++            Rmod.attempt_goal(
++                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
++                T.chain(T.term(T.sym("r"), T.sym(const))), rules,
++            )
++        mined = Rmod.MineTraces(graph)
++        proposals = M.Head(M.Tail(mined)())()
++        if M.IdentityCompare(proposals, empty)() is M.truth_value:
++            self.result = M.false_value
++            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++            return
++        if self._conclusion_head_present(proposals, T.sym("s")) is M.truth_value:
++            self.result = M.false_value
++        adopted = Rmod.RentGateCompression(
++            graph, M.Head(proposals)(),
++            T.chain(T.term(T.sym("p"), T.sym("c"))),
++            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
++        )
++        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
++            self.result = M.false_value
++        rules2 = T.chain(r3)
++        entries = Rmod.rebuild_taught_rules(graph)
++        cur = entries
++        while M.IdentityCompare(cur, empty)() is M.false_value:
++            rules2 = M.Pair(M.Head(M.Head(cur)())(), rules2)
++            cur = M.Tail(cur)()
++        for const in ("d", "e"):
++            out = Rmod.attempt_goal(
++                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
++                T.chain(T.term(T.sym("s"), T.sym(const))), rules2,
++            )
++            if Rmod.ForwardSearchClosed(out)() is M.false_value:
++                self.result = M.false_value
++        mined = Rmod.MineTraces(graph)
++        proposals = M.Head(M.Tail(mined)())()
++        if self._conclusion_head_present(proposals, T.sym("s")) is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def _conclusion_head_present(self, proposals, head):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        walk = proposals
++        while M.IdentityCompare(walk, empty)() is M.false_value:
++            proposal = M.Head(walk)()
++            walk = M.Tail(walk)()
++            law = Rmod.CompressedLawLaw(proposal)()
++            conclusion = Rmod.FormalRuleConclusion(law)()
++            if M.IsPair(conclusion)() is M.truth_value:
++                if M.Compare(M.Head(conclusion)(), head)() is M.truth_value:
++                    return M.truth_value
++        return M.false_value
++
++    def __call__(self):
++        return self.result
++
++
++class InvariantConjectureTest(M.Edge):
++    """Phase 4: invariant conjecture from a fixed structural library.
++
++    Engel E2 blackboard move traces (the existing EraseAndReplaceRule
++    applied over symbolic a and b) are the derivations. The library
++    proposes parity-of-a-count, sum-of-a-labeling, and residue-mod-k
++    candidates. The generic Preserves engine accepts parity of the board
++    sum and refutes parity of the maximum, which the move does not
++    preserve.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        T = _ResearchToy
++        empty = M.EmptyList
++        T.reset(graph)
++        erase = EraseAndReplaceRule()()
++        for tag in ("1", "2"):
++            before = M.Char("b" + tag)
++            after = M.Char("a" + tag)
++            a = M.Char("x" + tag)
++            b = M.Char("y" + tag)
++            S = M.Char("S" + tag)
++            start = T.chain(
++                BoardSumFact(before, S)(),
++                ParityFact(S, Lmod.OddLabel)(),
++                BlackboardPhiPattern(Lmod.OddLabel)(),
++                MoveErasesFact(before, a, b, after)(),
++            )
++            moved = SumMinusTwiceMinTerm(S, a, b)()
++            goal = T.chain(
++                BoardSumFact(after, moved)(),
++                ParityFact(moved, Lmod.OddLabel)(),
++                BlackboardPhiPattern(Lmod.OddLabel)(),
++            )
++            fired = T.chain(M.Pair(erase, M.Pair(empty, empty)))
++            Rmod.record_trace(graph, start, goal, fired)
++        result = Rmod.ConjectureInvariantsFromLibrary(graph)
++        survivors = M.Head(M.Tail(result)())()
++        refuted = M.Head(M.Tail(M.Tail(result)())())()
++        self.result = M.truth_value
++        sum_accepted = self._phi_present(survivors, Lmod.ParityLabel, Lmod.BoardSumObservableLabel)
++        if sum_accepted is M.false_value:
++            self.result = M.false_value
++        max_candidate = self._phi_present(survivors, Lmod.ParityLabel, Lmod.ExtremalMaxLabel)
++        if max_candidate is M.truth_value:
++            self.result = M.false_value
++        max_refuted = self._phi_present(refuted, Lmod.ParityLabel, Lmod.ExtremalMaxLabel)
++        if max_refuted is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def _phi_present(self, records, head, arg0):
++        empty = M.EmptyList
++        walk = records
++        while M.IdentityCompare(walk, empty)() is M.false_value:
++            record = M.Head(walk)()
++            walk = M.Tail(walk)()
++            phi = M.Head(M.Tail(record)())()
++            if M.IsPair(phi)() is M.false_value:
++                continue
++            if M.Compare(M.Head(phi)(), head)() is M.false_value:
++                continue
++            args = M.Tail(phi)()
++            if M.IsPair(args)() is M.truth_value:
++                if M.Compare(M.Head(args)(), arg0)() is M.truth_value:
++                    return M.truth_value
++        return M.false_value
++
++    def __call__(self):
++        return self.result
++
++
++class SelfImprovementMemoryCycleTest(M.Edge):
++    """Phase 5: an adopted compression rides the learned-memory mask.
++
++    With the induced law active the held-out chain is short; disabling
++    learned memory removes the law and the chain lengthens; enabling
++    brings the short chain back; reset strips the law from provenance
++    and the chain stays long even with memory enabled.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++        from .proof import MultiRule
++
++        T = _ResearchToy
++        empty = M.EmptyList
++        vx = T.var("x")
++        vy = T.var("y")
++        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
++        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
++        base = T.chain(r1, r2)
++        self.result = M.truth_value
++        T.reset(graph)
++        for const in ("a", "b"):
++            Rmod.attempt_goal(
++                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
++                T.chain(T.term(T.sym("r"), T.sym(const))), base,
++            )
++        mined = Rmod.MineTraces(graph)
++        proposals = M.Head(M.Tail(mined)())()
++        if M.IdentityCompare(proposals, empty)() is M.truth_value:
++            self.result = M.false_value
++            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++            return
++        adopted = Rmod.RentGateCompression(
++            graph, M.Head(proposals)(),
++            T.chain(T.term(T.sym("p"), T.sym("c"))),
++            T.chain(T.term(T.sym("r"), T.sym("c"))), base,
++        )
++        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
++            self.result = M.false_value
++        start_f = T.chain(T.term(T.sym("p"), T.sym("f")))
++        goal_f = T.chain(T.term(T.sym("r"), T.sym("f")))
++        s_fast = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
++        if M.IdentityCompare(s_fast, empty)() is M.truth_value:
++            self.result = M.false_value
++        Rmod.disable_learned_memory(graph)
++        s_slow = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
++        if M.IdentityCompare(s_slow, empty)() is M.truth_value:
++            self.result = M.false_value
++        if Rmod.ChainShorter(s_fast, s_slow)() is M.false_value:
++            self.result = M.false_value
++        Rmod.enable_learned_memory(graph)
++        s_back = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
++        if Rmod.ChainShorter(s_fast, s_back)() is M.truth_value:
++            self.result = M.false_value
++        if Rmod.ChainShorter(s_back, s_fast)() is M.truth_value:
++            self.result = M.false_value
++        Rmod.reset_learned_memory(graph)
++        s_reset = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
++        if Rmod.ChainShorter(s_reset, s_fast)() is M.truth_value:
++            self.result = M.false_value
++        if Rmod.ChainShorter(s_fast, s_reset)() is M.false_value:
++            self.result = M.false_value
++        remaining = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.InventedLemmaLabel)()
++        if M.IdentityCompare(remaining, empty)() is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++# [/S] SELF-IMPROVEMENT LOOP
++
++
+ def _registry(graph):
+     return M.FromContextGetConstructors(graph)()
+ 
+@@ -16395,7 +16809,7 @@ class TestShardCursorPinTest(M.Edge):
+     broken.
+     """
+ 
+-    EXPECTED_GUARD_COUNT = 305
++    EXPECTED_GUARD_COUNT = 310
+     EXPECTED_CURSOR_INDEX = 218
+     EXPECTED_SHARD = 0
+ 
+@@ -19173,6 +19587,46 @@ def install_default_tests(graph):
+     # --- end [SHARED] ---
+ 
+     # --- [S] ------------------------------------------------------------
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "self_improvement_trace_mining_test",
++            empty,
++            SelfImprovementTraceMiningTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "self_improvement_rent_gate_test",
++            empty,
++            SelfImprovementRentGateTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "self_improvement_recursive_turn_test",
++            empty,
++            SelfImprovementRecursiveTurnTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "invariant_conjecture_test",
++            empty,
++            InvariantConjectureTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "self_improvement_memory_cycle_test",
++            empty,
++            SelfImprovementMemoryCycleTest,
++            M.truth_value,
++        )
+     # --- end [S] ---
+ 
+     # --- [E] ------------------------------------------------------------

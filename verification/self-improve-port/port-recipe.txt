@@ -1,0 +1,107 @@
+PORT RECIPE — self-improvement S track onto experiment-5-frozen-r1
+
+Rehearsed and verified locally. INT has ratified this recipe (fable 5) with
+two corrections applied below.
+
+--------------------------------------------------------------------------
+base
+--------------------------------------------------------------------------
+experiment-5-frozen-r1 = ef571b688bcfb581bd3e65ec28a18f438ca32595
+
+port branch (created by the executing hand):
+arena/01a06cca-self-improve-r1-port
+
+--------------------------------------------------------------------------
+source commits, in order (referenced by hash; unaltered)
+--------------------------------------------------------------------------
+548c6f672de2de642b534b5c89a9a9ce6b65959e [S] trace mining
+8738bcf30660279b2ae5304924b1dc5a58e68503 [S] rent gate for compressions
+1e451888aa24b7814c11711f9c2a7241cbd31d2f [S] recursive turn
+0e50bc179ca4aff8186a056db4f33e126461cca1 [S] invariant conjecture from fixed library
+218a40f66d3aa1fb63c395f85db6202deb76f4c5 [S] learned-memory cycle for self-improvement
+
+--------------------------------------------------------------------------
+conflict map (measured, reproduced twice)
+--------------------------------------------------------------------------
+Every commit conflicts in testsuite.py only, at the registration hunk, at the
+'# --- end [S] ---' boundary. labels.py and research.py are clean on every
+commit. One mechanical hunk per commit, five resolutions total, never a
+second hunk, never a new file.
+
+  548c6f6 trace mining       testsuite.py: 1 hunk
+  8738bcf rent gate          testsuite.py: 1 hunk
+  1e45188 recursive turn     testsuite.py: 1 hunk
+  0e50bc1 invariant library  testsuite.py: 1 hunk
+  218a40f memory cycle       testsuite.py: 1 hunk
+
+Resolution (deltas 1+2): keep the r1 track-partitioned registration block and
+place each registration inside '# --- [S] --- ... # --- end [S] ---', in class
+form (SelfImprovementXTest, not SelfImprovementXTest(graph)) to match the r1
+_register_test signature. Script: rehearse_resolve.py <name>.
+
+--------------------------------------------------------------------------
+deltas, applied in the port commit (same commit, after the five cherry-picks)
+--------------------------------------------------------------------------
+delta 3 (SHARED, INT sign-off given):
+  - labels.sync_from_namespace: add the five names after "InvarianceLabel",
+  - persistence.SNAPSHOT_SYMBOL_NAMES: add the five names after
+    "CorrespondenceLawLabel",
+  - pins UNCHANGED at 40 / 198 / 18. The earlier 40->45 / 198->203 / 18->23
+    figure described the unregistered failure mode (the completeness test
+    fails on it by design, pins move only downward). Registering keeps them
+    put. The five labels are genuine leaf ConstructorLabel singletons and
+    transient markers (never persisted, never in the provenance map), so the
+    snapshot-table entries are benign over-registration forced by the
+    no-upward-pin rule. Script: rehearse_deltas.py.
+
+delta 4 (same port commit):
+  - TestShardCursorPinTest.EXPECTED_GUARD_COUNT: 305 -> 310.
+  - hard pin holds unchanged: EXPECTED_CURSOR_INDEX 218, EXPECTED_SHARD 0,
+    because the registrations land after every existing test.
+
+--------------------------------------------------------------------------
+verified green on r1 (PYTHONPATH=/tmp, venv gmpy2+pyyaml)
+--------------------------------------------------------------------------
+label_registration_completeness_test  PASS
+test_shard_cursor_pin_test            PASS
+self_improvement_trace_mining_test    PASS
+self_improvement_rent_gate_test       PASS
+self_improvement_recursive_turn_test  PASS
+invariant_conjecture_test             PASS
+self_improvement_memory_cycle_test    PASS
+
+Harness: run_ported.py.
+
+--------------------------------------------------------------------------
+shard assignment on r1 (registrations at cursors 305..309)
+--------------------------------------------------------------------------
+trace(305), recursive(307), memory(309) -> shard 1
+rent(306), invariant(308) -> shard 0
+
+--------------------------------------------------------------------------
+open item for the executing hand (INT gate item 4)
+--------------------------------------------------------------------------
+Shard-1 halt discrepancy. Static evidence on r1: ConversePropositionTest still
+exists (testsuite.py:7370) and still holds the fragile outcome-extraction at
+line 7449 (M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),); the converse
+registrations (18418/18426) precede the [S] block. The recorded r1 baseline
+145/5/2 is from a completed shard-1 run, so on the baseline environment shard 1
+finishes; this sandbox's full-shard-1 run halted at the converse install, an
+environment effect not reproduced here as a named-test matter. One full shard-1
+run on the port branch decides: (a) completes -> the three shard-1 tests are
+reached and must be green, comparison 145/5/2 unchanged; (b) halts -> the gate
+baseline statement needs correction. The port report must state which world it
+found.
+
+--------------------------------------------------------------------------
+remaining gate items (executing hand)
+--------------------------------------------------------------------------
+1. create arena/01a06cca-self-improve-r1-port from ef571b6
+2. apply this recipe (five cherry-picks + four deltas)
+3. full shard 0: expect 147/3/2 plus rent(306) and invariant(308) green
+4. full shard 1: resolves the halt discrepancy above
+5. per-entry OPEN mapping, explicit (no arithmetic-only claim)
+6. memory-cycle test on the r1 persistence path (D3 interaction), or a
+   recorded machine term that the path is absent
+7. merge-tree against INT's landing tip at execution time
+8. push; the five source commits remain the port source, referenced by hash
