@@ -11635,6 +11635,46 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                 ),
             ),
         )()
+        # An expression can sit in the equality's subject slot: "is two
+        # plus two equal to four". The template matcher binds one word per
+        # variable, so the composed phrasing is its own template, the same
+        # rule the bracket-group reducer follows for primality subjects.
+        # The meaning nests the sum inside the equality; evaluation runs
+        # MeaningEvaluate recursively, so both sides reach Nats and NatEq
+        # answers yes or no. D2, 2026-09-05.
+        plus_equal_sentence = Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(
+                    var_a,
+                    M.Pair(
+                        M.Char("plus"),
+                        M.Pair(
+                            var_b,
+                            M.Pair(
+                                M.Char("equal"),
+                                M.Pair(M.Char("to"), M.Pair(var_c, empty)),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        plus_equal_meaning = Meaning(
+            M.Pair(
+                Lmod.EqualLabel,
+                M.Pair(
+                    M.Pair(
+                        M.ExprAddLabel,
+                        M.Pair(
+                            Surface(M.Pair(var_a, empty))(),
+                            M.Pair(Surface(M.Pair(var_b, empty))(), empty),
+                        ),
+                    ),
+                    M.Pair(Surface(M.Pair(var_c, empty))(), empty),
+                ),
+            ),
+        )()
         real_sentence = Surface(
             M.Pair(
                 M.Char("is"),
@@ -11724,6 +11764,10 @@ class DefaultCorrespondenceVocabulary(M.Edge):
             CompileRuleToLaw(P.Rule(genus_body_bare, genus_meaning))(),
             M.Pair(
             CompileRuleToLaw(P.Rule(equal_sentence, equal_meaning))(),
+            M.Pair(
+                CompileRuleToLaw(
+                    P.Rule(plus_equal_sentence, plus_equal_meaning),
+                )(),
             M.Pair(
                 CompileRuleToLaw(P.Rule(even_sentence, even_meaning))(),
             M.Pair(
@@ -11819,6 +11863,7 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
+            ),
             ),
             ),
             ),
