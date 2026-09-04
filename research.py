@@ -4350,4 +4350,28 @@ def MineTraces(graph):
     return M.Pair(M.Reverse(motifs)(), M.Pair(M.Reverse(proposals)(), EmptyList))
 
 
+def RentGateCompression(graph, proposal, start_facts, goal_facts, rules, fuel=None):
+    """Rent gate for one mined compression, reusing the existing machinery.
+
+    The counterfactual runs the held-out goal with and without the
+    compiled law. It activates only if the held-out proof still closes
+    with the law installed and the fired chain strictly shortens. On pass
+    the adopted outcome is returned unchanged; on fail the refusal is an
+    explicit term: Pair(RefusedLabel, Pair(fired-before, Pair(fired-after,
+    EmptyList))).
+    """
+    candidate = CompressedLawLaw(proposal)()
+    outcome = adopt_compressed_law(
+        graph, candidate, start_facts, goal_facts, rules, fuel
+    )
+    if IdentityCompare(Head(outcome)(), M.truth_value)() is M.truth_value:
+        return outcome
+    fired_before = Head(Tail(outcome)())()
+    fired_after = Head(Tail(Tail(outcome)())())()
+    return M.Pair(
+        Lmod.RefusedLabel,
+        M.Pair(fired_before, M.Pair(fired_after, EmptyList)),
+    )
+
+
 # [/S] SELF-IMPROVEMENT LOOP

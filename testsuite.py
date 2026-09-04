@@ -15813,6 +15813,66 @@ class SelfImprovementTraceMiningTest(M.Edge):
         return self.result
 
 
+class SelfImprovementRentGateTest(M.Edge):
+    """Phase 2: the rent gate admits only compressions that pay.
+
+    A compression that shortens a held-out proof must be adopted; one
+    that does not shorten (the same law against a held-out goal it
+    cannot serve) must be refused with the explicit Refused term.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+
+        T = _ResearchToy
+        empty = M.EmptyList
+        vx = T.var("x")
+        vy = T.var("y")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        rules = T.chain(r1, r2)
+        self.result = M.truth_value
+        T.reset(graph)
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), rules,
+            )
+        mined = Rmod.MineTraces(graph)
+        proposals = M.Head(M.Tail(mined)())()
+        if M.IdentityCompare(proposals, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        adopted = Rmod.RentGateCompression(
+            graph, M.Head(proposals)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
+        )
+        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        T.reset(graph)
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), rules,
+            )
+        mined = Rmod.MineTraces(graph)
+        proposals = M.Head(M.Tail(mined)())()
+        refused = Rmod.RentGateCompression(
+            graph, M.Head(proposals)(),
+            T.chain(T.term(T.sym("q"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
+        )
+        if M.Compare(M.Head(refused)(), Lmod.RefusedLabel)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 # [/S] SELF-IMPROVEMENT LOOP
 
 
@@ -18093,6 +18153,14 @@ def install_default_tests(graph):
             "self_improvement_trace_mining_test",
             empty,
             SelfImprovementTraceMiningTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "self_improvement_rent_gate_test",
+            empty,
+            SelfImprovementRentGateTest(graph),
             M.truth_value,
         )
     # [/S] SELF-IMPROVEMENT LOOP

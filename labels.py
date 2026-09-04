@@ -3097,9 +3097,14 @@ class CompressedLawLabel(ConstructorLabel):
     pass
 
 
+class RefusedLabel(ConstructorLabel):
+    pass
+
+
 TraceLabel = TraceLabel()
 MotifLabel = MotifLabel()
 CompressedLawLabel = CompressedLawLabel()
+RefusedLabel = RefusedLabel()
 
 
 # [/S] SELF-IMPROVEMENT LOOP
