@@ -266,97 +266,194 @@ takes the open count to zero, and re-runs `learned_memory_checkpoint_test` —
 measured green before the fix (3.4 s, passes), so green afterwards is a
 finding and changed is a finding that D3 and that failure are not independent.
 
-**The rule D3 is one instance of.** Anything crossing a process or
-persistence boundary loses identity unless it is re-interned on arrival.
-Two surfaces have now shown it independently: the codec, where a restored Nat
-is a new object with the same value; and the test harness, where a sentinel
-that crossed the shard queue came back as a different object with the same
-text and an identity check counted every OPEN as a PASS. The general
-response is the one the runner already applies — compare by text or
-structure at a boundary, never by identity — and the codec fix is the codec
-learning the same rule.
+**The three identity contracts at a boundary.** The earlier wording here
+was too broad — "anything crossing a boundary loses identity unless it is
+re-interned on arrival" — and the breadth is what sent the first attempt
+looking for a payload test. A persistence boundary carries three different
+contracts, and only one of them was broken:
 
-**D3 is three mechanisms, not one. Measured this turn.** A prototype
-interning pass was written, run, and *not* committed, because running it
-showed the defect is wider than "restore fabricates fresh atoms". Restored
-Nats fall into three classes, and the machine's own predicate — `NatRepOf`,
-which is what `IsNat`, `NatEq` and `NatFromRep` all stand on — recognises
-only the first:
+1. *Sharing inside one serialized graph.* Two fields that referenced one
+   object before capture reference one restored object afterwards. Restore
+   has always done this.
+2. *Named singleton identity.* `EmptyList`, `truth_value`, the labels, and
+   the named Nats resolve to the existing runtime singleton. Restore has
+   always done this too, and it is why a label chain survived while a Nat
+   did not.
+3. *Canonical-family identity.* An interned value resolves through its
+   family's canonical index. This is the one restore skipped.
+
+Arbitrary value-bearing atoms are not interned. Two unrelated atoms carrying
+the same payload stay distinct. So D3 is specifically:
+
+> Snapshot boot violated the canonical-family invariant for Nats.
+
+It is not "all restored value atoms should preserve host identity". The
+shard-queue sentinel is the same lesson one layer up and stays recorded:
+compare by text or structure at a boundary, never by identity.
+
+**D3 is closed. Fixed in `[SHARED]` commit bf5a2c7.** The class (b) choice
+offered last turn was a false choice, and the answer was neither: preserve
+Nat-ness explicitly in the snapshot representation, then canonicalize only
+records known to have been Nats. The encoder knows which objects are Nats
+before capture — `NatRepOf`, or the `SuccLabel` constructor when the rep is
+gone — and that fact now travels in the record as a canonical-family
+marker. Nothing infers Nat-ness from a payload, so a GMPRep carrier holding
+2 and a Char carrying "2" are never asked whether they are numbers.
+
+The boot is staged, because the order is the fix:
 
 ```text
-(a) cached rep is a GMPRep object     NatRepOf resolves it      internable
-(b) cached rep is an mpz, successor   NatRepOf returns          NOT internable
-    chain absent from the registry    EmptyList; IsNat is       without a decision
-                                      false for a Nat
-(c) no cached rep at all              same                      same
+1. decode records, carrying the canonical-family marker
+2. restore named singletons and generic graph objects
+3. activate: rebuild roots and constructor context
+4. map each marked restored record -> canonical live Nat
+5. rewrite every graph-owned root through that mapping
+6. rebuild nat_value_index from the canonicalised graph
+7. replace the context roots
+8. validated by the eight tests below
 ```
 
-On a packs-booted graph, `tools/repro_d3_interning.py` reports
+Canonical authority is the live runtime: a named symbol when there is one,
+otherwise `NatFromRep`, which is the interning entry point and registers what
+it has to build. Restored copies are inputs to the mapping, not competing
+canonical objects.
+
+Measured, before and after, with `tools/repro_d3_interning.py`:
 
 ```text
-interning pass absent: visited 16696 terms, nats checked 5, mismatched 5
+pass disabled: visited 16696 terms, nats checked 5, mismatched 5
+pass active:   visited 16696 terms, nats checked 5, mismatched 0
 ```
 
-and every one of those five is class (b): an atom holding the number two as
-an mpz, whose successor chain the restored registry does not carry, so the
-machine cannot see that it is holding a number at all. The prototype remapped
-8 duplicated atoms of class (a) and could not touch these.
+Both published checkpoints boot on the production path:
+`library-only-control` in 4.8 s and `set-b-cumulative` in 3.7 s, no
+duplicated numeric value in either, and the Set B value index comes back
+fact-identical across two independent boots.
 
-**Why the chains are missing, and the decision this forces.** The restored
-constructor registry carries about ten entries; the successor facts for most
-Nats are not among them, so there is nothing to walk. A class (b) Nat can
-therefore only be interned from its payload — and at the machine level its
-payload is indistinguishable from a GMPRep carrier, which caches an mpz and
-is not a Nat (that is D5, and it stays separate). So the fix has to choose,
-deliberately and in the commit message:
+**Two live-machine findings the attempt turned up, both recorded and not
+fixed here.** They were discovered because the obvious membership test kept
+failing. The first is not a persistence defect at all — it is live in a
+fresh process with no snapshot involved — so it is filed below as **D6**
+rather than left as a footnote to D3:
 
-- intern on an unverifiable payload, accepting that a GMPRep carrier cannot
-  be told from a historical Nat and would be registered as one; or
-- narrow the fix to class (a) and record class (b) as its own defect, with
-  the consequence that `NatEq` stays false for part of the restored state.
+- `TreeLookup` on the *live* `nat_value_index` returns `EmptyList` for every
+  value, so `NatFromRep` builds and re-registers rather than finding. The
+  pre-built small Nats are in the index but not findable through it.
+- Consequently `NatFromRep(2)` is not `M.two`, and `Succ(Succ(Zero))` is not
+  `M.two` either. The live machine carries two objects for the number two:
+  the named singleton and the one interning returns. `NatEq` hides it
+  because it compares values. This is a live canonicality split, not a
+  restore defect, and it is why the canonical resolution prefers the named
+  symbol and then rebuilds the index to agree with it.
 
-Neither is a detail and neither should be decided by whoever is trying to
-get the number to zero.
+**One comparison contract left open, filed as D7 and routed to E-track.**
+`Compare(live ExplanationPlan, restored ExplanationPlan)` is false at the
+root while every child position compares equal. If every child agrees and
+the root does not, the root is being compared on something beyond its
+children — an identity check on the root atom itself, or a cached value
+that did not survive restore. The plan test asserts what the boot owes —
+the plan survives, keeps its Preserves obligation, and renders with its
+law — and leaves the `Compare` contract to its own defect.
 
-**Named symbols split one restore into two worlds.** Restore resolves a
-*symbol* record to the live object of that name — which is why a label chain
-survives — while the restored `nat_value_index` names a restored atom. The
-number two is therefore two objects inside a single restore: the object the
-namespace calls `two`, and the object the index names. Verified directly:
-for values 1..9 the canonical symbol and the index's atom are different
-objects, and `NatFromRep(2)` returns neither. This is the `Zero`/`One`/`Two`
-family, it is interned on a different path from Nats, and any pass that only
-consults the index will leave the split in place.
+**Both shards, measured against the pre-D3 tree.** The same two shards were
+run on a worktree of `92e61f2` so the failure sets could be compared rather
+than remembered.
 
-**Rebuilt tree roots are new object graphs.** `activate` rebuilds
-`nat_value_index`, `all_rules`, `derivations`, `derivation_schemata` and
-`search_memo` from their entry chains into fresh Pairs that no record names,
-and `state.roots` still points at the *loaded* trees rather than the rebuilt
-ones. A substitution pass seeded from `snapshot` state rewrites the
-superseded copies and misses the ones the graph actually uses; it has to
-seed from the graph's own roots.
+```text
+                     baseline 92e61f2        with the D3 fix
+shard 0              143 passed  3 failed    147 passed  3 failed
+shard 1              141 passed  5 failed    145 passed  5 failed
+failure set          identical in both columns
+suite-wide open      5                       4
+```
 
-**The pinned test measures a path no production code uses.**
-`snapshot_value_atom_identity_test` calls `capture()` and `load_snapshot()`
-and stops there. Activate is the step that rebuilds the roots and wires
-`nat_value_index`, so a fix placed after activate is invisible to it — the
-test returned its open sentinel throughout the prototype run for exactly
-that reason. Two changes belong in the fix commit: the probe has to go
-through `save` and `boot_from_snapshot`, and it has to compare *inside one
-restore* — a restored atom against the Nat the restored machine builds —
-never across the boundary, where identity is not a property anyone promised.
+The open count is **suite-wide, not per shard**, and a shard table that
+shows `open: 0` is wrong: the four remaining opens are distributed across
+the two shards and each shard's own tally shows its share of them. What
+D3 closes is exactly one sentinel:
 
-**The prototype, and why it is not in the tree.** It ran at the end of
-`activate`, after the upgraded-snapshot save so that no published checkpoint
-is rewritten by a fix. It built the canonical map from the restored index,
-let a named symbol outrank the index, adopted values the index had never
-been asked for rather than building new atoms, rewrote every reference by
-walking from the graph's roots, and re-pointed roots, symbols and
-`id_to_obj`. Measured on the packs graph: 8 atoms remapped, 40 references
-substituted over 25,720 visited objects, about 0.1 s, nothing corrupted. It
-was reverted rather than committed because it closes part of D3 and leaves
-class (b), and a change that moves the number without closing the defect is
-worse than an open defect with a measurement beside it.
+```text
+suite-wide OPEN   before D3: 5   after D3: 4
+closed by D3:     snapshot_value_atom_identity_test
+                  (VALUE_ATOM_IDENTITY_OPEN -> truth_value)
+still open:       test_milestone_m1_cycles_without_refusal
+                  test_milestone_m2_handle_lifecycle
+                  test_milestone_m3_meta_handle_reorders
+                  test_milestone_m4_policy_loosen_then_tighten
+```
+
+Report shard results as `passed / failed / open` per shard plus a suite
+total, never as passed/failed alone and never with a fabricated `0` in the
+open column.
+
+The eight failures are the same eight, test for test, before and after:
+
+```text
+learned_memory_checkpoint_test                              (both trees)
+tree_insert_deep_pair_lookup_avoids_recursion_test          (both trees)
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+heuristic_canonical_knowledge_agreement_test
+dependency_graph_checkpoint_test
+curator_report_test
+cold_e2_reaches_snapshot_save_test
+```
+
+So D3 adds eight passing tests, four per shard, removes its own sentinel from
+the open count, and moves nothing else. `learned_memory_checkpoint_test` —
+the one the gate asked to be recorded either way — fails in the shard on
+*both* trees and passes standalone on both, which is the "unchanged" finding:
+D3 and that failure are independent, and it is a suite-context failure of its
+own.
+
+**A pre-existing fragility the suite run exposed.** The baseline shard 0 did
+not finish: it died with `AttributeError: 'Hypergraph' object has no
+attribute 'id'` inside the capture walk, from the *old* pinned D3 probe,
+which captured the live suite graph. Any test that saves the live graph can
+hit it, because the suite builds hypergraph objects into that graph and a
+hypergraph carries no `.id`. The new probes capture a graph of their own
+instead, which is why both shards complete with the fix. The fragility is not
+fixed here and is not D3's.
+
+**What that does to the baseline.** The old probe has captured the live
+graph since `8c7039d` ("Pin D3: a restored value atom is not the interned
+atom", nine commits below the integration tip), so *no shard-0 run taken
+since then has ever completed cleanly*: every shard-0 number from that
+window is either a partial result out of a crashed run or a run with the
+probe neutered. The honest pre-D3 baseline for shard 0 is therefore "three
+failures plus a crash", not "three failures and a completed run", and the
+D3 commit is what makes shard 0 completable again. The comparison table
+above survives that correction because both of its columns were produced
+the same way, with the same neutered probe; what changes is how clean the
+old numbers were, not the failure set.
+
+**The eight tests, in the `[SHARED]` block**, in the order the boot
+establishes the contract:
+
+```text
+raw_snapshot_nat_fidelity_test            payload and sharing survive raw
+                                           load; no external identity claim
+boot_snapshot_nat_canonicality_test       nested Nat is canonical
+boot_snapshot_nat_root_canonicality_test  a captured root that IS a Nat
+boot_snapshot_nat_index_canonicality_test index values canonical, no
+                                           duplicate indexed
+non_nat_value_carrier_not_interned_test   Char "2" and GMPRep 2 are not
+                                           canonicalized to Nat 2
+large_nat_canonicality_test               past the prebuilt range, no second
+                                           successor chain
+explanation_plan_snapshot_round_trip_test obligation-bearing plan survives
+snapshot_value_atom_identity_test         whole restored payload, production
+                                           boot path; OPEN -> truth_value
+```
+
+The last one replaced a probe that called `capture` and `load_snapshot` and
+stopped there. Activate is the step that rebuilds the roots and wires the
+index, so a fix placed after activation was invisible to it — which is why
+the prototype could run and the test could still hold its sentinel.
+
+Guard count moved 298 -> 305 with the new tests, in the same commit. The
+cursor index (218) and shard (0) are unchanged, because the `[SHARED]` block
+sits after the pinned test.
 
 **D3b — `PrettyTerm` does not terminate on a restored value atom.** A printer
 that hangs is itself the diagnostic: the restored atom has a shape the
@@ -383,6 +480,94 @@ restore is not a restore defect — but `IdentityCompare` on a GMPRep carrier is
 unsound in the live machine too, and nothing in the code says so. Every
 comparison of a numeral has to go through `NatEq` or the structural Nat. It is
 live, it is not D3, and it does not go in the D3 commit.
+
+**D6 — the live machine already carries two objects for the number two.**
+Filed out of the D3 work and deliberately *not* fixed there: this is a
+construction-time interning gap in the live runtime, and it reproduces in a
+fresh process with no snapshot anywhere in it.
+
+```text
+IdentityCompare(NatFromRep(2), M.two)       false_value
+IdentityCompare(Succ(Succ(Zero)), M.two)    false_value
+NatEq(NatFromRep(2), M.two)                 truth_value
+```
+
+Two facts, one consequence:
+
+- `TreeLookup` on the *live* `nat_value_index` returns `EmptyList` for
+  every value. The index is populated — the prebuilt small Nats are in it —
+  but it is not queryable, so `NatFromRep._from_value` never hits and
+  `NatFromRep` builds and re-registers instead of finding.
+- So a Nat reached through `NatFromRep`, or built by applying `Succ` to
+  `Zero`, is a different object from the named singleton for the same
+  number. Nothing fails today because `NatEq` compares values and
+  structural comparison compares shape; both hide the split.
+
+The contract that is violated is the identity one, and it is violated at
+construction, not at restore: **every site that calls `IdentityCompare` on a
+Nat it did not take from the named symbol is silently wrong.** Until D6 is
+fixed, compare Nats with `NatEq`, or take them from the named symbol.
+
+D3 canonicalizes *toward* the named symbol and rebuilds `nat_value_index`
+to agree with it, so a restored Nat is now the same object as `M.two`.
+The fixed state is therefore strictly more canonical than the live machine
+it restores into, which is the right direction to leave it. Repairing the
+live index is D6's work, in `math/peano.py`, and it does not go in the D3
+commit.
+
+**D7 — `Compare` disagrees at a constructed root while every child
+position agrees.** Routed to E-track, filed from the D3 plan test: the
+disagreement is in how `Compare` treats the constructor of a constructed
+term, not in the payload, so the fault is in a comparison primitive that
+E-track owns. Not blocking, and not investigated further here.
+
+**D8 — `recover.sh` checks descent, not currency.** Filed from the second
+consecutive sandbox reset, which replaced `.git` with a fresh clone and
+destroyed three local commits while leaving the working tree intact. The
+gate the script has is
+
+```text
+merge-base --is-ancestor HEAD <integration tip>        # descent
+```
+
+and that gate *passed*. It would: a fresh clone leaves `HEAD` at
+`41e8078`, which is a real ancestor of the tip. Descent catches a
+divergent branch — a topic branch, a rebase gone wrong — and nothing else.
+The reset failure mode is the opposite one: `HEAD` is *behind* the tip,
+and the working tree holds work that no commit points at. So the gate
+that is missing is currency:
+
+```text
+test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"   # currency
+```
+
+Descent pass plus currency fail means the checkout is not clean and must
+not be committed from:
+
+```text
+DESCENT PASS / CURRENCY FAIL
+local checkout is a stale ancestor of the integration tip
+files may contain recovered work from a newer tree
+do not commit before resetting to the tip
+```
+
+The recovery is four commands and it has worked twice:
+
+```text
+git fetch origin <integration branch>
+git reset --mixed FETCH_HEAD      # move HEAD and the index, keep the tree
+git diff --stat                   # small => the work is still in the tree
+```
+
+Read the diff afterwards. Four files is the surviving work; 48 files and
+359k lines is the signature of a wrong base, which is what `.gitignore`
+and `recover.sh` already refuse on. `recover.sh` has to encode exactly
+this: the currency gate ahead of the descent gate, the patch saved before
+the reset, and the changed-file count printed after it.
+
+Not changed in this commit: recovery tooling is `[SHARED]`, the fix is
+queued behind the push, and the tree is committed from the recovered
+state first so that the measurement and the remote agree.
 
 **D4 — root debris** (T0, below).
 
@@ -496,6 +681,40 @@ session.** Verify it before writing anything, not after the push is rejected.
 It happened again this turn — the working tree was intact at `7acaf4c` while
 `HEAD` sat at `41e8078` — and recovery took four commands instead of the
 morning it took the first time.
+
+**The variant the descent check does not catch.** It happened again the turn
+after that, again at the start of the turn after *that*, and this time
+`recover.sh` passed it through. The reset had
+replaced `.git` with a fresh clone, so `HEAD` sat at `41e8078`: a *real*
+ancestor of the tip, so `merge-base --is-ancestor` is satisfied and the
+script has nothing to say — while the three commits made locally since the
+last push had ceased to exist anywhere. Descent asks "is my base below the
+tip"; the failure is "my base is *behind* the tip, and the working tree
+holds work no commit points at". The gate that catches it is currency:
+
+```text
+git fetch origin <integration branch>
+git merge-base --is-ancestor HEAD FETCH_HEAD             # descent: passes here
+test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"  # currency: fails
+git reset --mixed FETCH_HEAD        # move HEAD and the index, keep the tree
+git diff --stat                     # small => the work is still in the tree
+```
+
+After moving to the tip the diff *is* the surviving work — four files this
+time (`persistence.py`, `testsuite.py`, `tools/repro_d3_interning.py`,
+`protocol/DISTRIBUTION.md`) — where against the wrong base it is 48 files
+and 359k lines, which is the number `recover.sh` already refuses on. So the
+post-reset diff size is the signal that the tree survived, and the currency
+gate belongs ahead of the descent gate in `recover.sh`. Not changed here:
+recovery tooling is `[SHARED]` and is not tested in this commit. What is
+recovered is recoverable because the tree was intact — the three lost
+commits were re-made from it, and their content is byte-identical to what
+was measured, verified by re-running the pins (305 / 218 / 0 PASS), the D3
+repro (mismatched 5 disabled, 0 active), both checkpoints (4.0 s / 3.4 s,
+index canonical, Set B identical across two boots) and the nine targeted
+tests (9 passed, 0 failed, 0 open). It recurred a second time at the start
+of the next turn, and the currency check caught it in the first command;
+it is filed as **D8** below and the fix is queued behind the push.
 
 **F1 — no `save checkpoint` / `load checkpoint`, no content-addressed ids.**
 Noted only. It is F-tooling, owned by whoever takes F.
