@@ -32,7 +32,7 @@ Measured from the tree, not assumed:
 |---|---|
 | integration tip | `aed9c0e` |
 | frozen tag | `experiment-5-frozen` → `aed9c0e` (annotated tag `5defc8d`) |
-| previous tag | `experiment-4-frozen` → `06c0e52`, 28 commits below the new one |
+| previous tag | `experiment-4-frozen` → `06c0e52`, 27 commits below the new one |
 | `explanation.py` | exists, 1,012 lines; 6 tests registered at `testsuite.py:17912–17926` |
 | `research.py` / `provenance.py` | 4,021 / 1,518 lines |
 | `research_protocol.md` | 119 lines; the cross-track index |
