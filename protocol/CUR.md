@@ -21,17 +21,24 @@ Details:
 
 - The superseded `CUR-ENGEL-E7` note (commit subject `38d4e58`, and the narration that produced it)
   used the §0 banned phrase item 5 (`0x686f6e657374`) applied to a machine classification. The
-  standing charter (the §0 list referenced by `protocol/DISTRIBUTION.md:9`) bans **six exact
-  phrases**, not every human-normative adjective; this note refers to the phrase by its item
-  number and byte encoding above, and does not restate it verbatim.
-- **In-tree status of the §0 list:** the prohibition is referenced by `protocol/DISTRIBUTION.md`
-  but is **not present verbatim** in the current tree. This note records the prohibition as the
-  standing charter supplied to the session, not as a list found verbatim in the working tree.
+  standing charter (the §0 list referenced by `protocol/DISTRIBUTION.md:9`) bans **exact phrases**
+  (six, per the session-supplied list), not every human-normative adjective; this note refers to the
+  phrase by its item number and byte encoding above, and does not restate it verbatim.
+- **Confirmed from in-tree artifacts, exactly three of the six items:** the flagged item 5
+  (`0x686f6e657374`), and two more enumerated verbatim at
+  `verification/verification_report_tao_spec.md:35` (the scan lists them there). These three were
+  swept across the CUR/SHARED/protocol docs and the CU batch commit messages — 0 literal occurrences
+  of any of the three. (They are referenced here only by item number / byte encoding / artifact path,
+  not restated verbatim.)
+- **The full six-item list is session-supplied, NOT recoverable in-tree.** Only three items are
+  confirmable from repository artifacts; the remaining three are not present verbatim anywhere in the
+  tree. Claims of a full six-item sweep are therefore not made; only the three confirmed items are
+  reported as verified.
+- The prohibition is referenced by `protocol/DISTRIBUTION.md:9` but is **not present verbatim** in the
+  current tree. This note records the prohibition as the standing charter supplied to the session, not
+  as a list found verbatim in the working tree.
 - The commit history is not rewritten, so `38d4e58` and `bb9681a` stand as-is. The `bb9681a` commit
   message and the preceding ledger entry carried the phrase verbatim; this successor entry replaces
   the ledger text with the nonliteral encoding above and does not claim prior history was edited.
-- **This note itself does not assert that the E3/E4/E7 files avoid the phrase.** The E7 artifact was
-  amended to remove it; the E3/E4 artifacts never contained it. This ledger note uses the nonliteral
-  encoding so it does not restate the phrase.
 
-Remote tip recorded before work: `d76f7814a5a886d26248b52b95a3dfa1699fd491`.
+Remote tip recorded before work: `e0853a915baf260b7d1e9d3678c8f9d78300655b`.
