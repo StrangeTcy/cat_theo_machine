@@ -1,0 +1,36 @@
+F3 golden exits
+tool: tools/f3-residual-diff.sh
+fixtures: logs/fixtures/f3-golden/
+
+identical
+  a: identical-a.log
+  b: identical-b.log
+  stdout:
+    a cost=334 partial=0 head=zero-successor-root unmatched=none
+    b cost=334 partial=0 head=zero-successor-root unmatched=none
+    identical
+  exit: 0
+
+silence-class
+  a: silence-a.log
+  b: silence-b.log
+  stdout:
+    a cost=334 partial=0 head=zero-successor-root unmatched=none
+    b cost=0 partial=0 head=zero-successor-root unmatched=none
+    silence-class
+  exit: 3
+
+distinct
+  a: distinct-a.log
+  b: distinct-b.log
+  stdout:
+    a cost=10 partial=3 head=zero-successor-root unmatched=none
+    b cost=10 partial=0 head=zero-successor-root unmatched=none
+    distinct
+  exit: 1
+
+incomparable
+  a: incomparable-a.log
+  b: incomparable-b.log
+  stderr: incomparable: missing cost or partial-match field
+  exit: 2

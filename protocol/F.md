@@ -440,12 +440,34 @@ exit 2 incomparable
 ```
 
 decoy vs FLT: identical (0). decoy vs T3: silence-class (3).
-Prior binary run called decoy/T3 distinct; that was the binary mode.
+
+F3 binary-vs-three-way supersession:
+
+```text
+binary mode (pre-966a077): decoy vs T3 = distinct (exit 1)
+three-way mode (966a077+): decoy vs T3 = silence-class (exit 3)
+```
+
+The two modes are not the same classifier. Do not compare their
+outputs as if they were. Three-way supersedes binary. Golden exits:
+`logs/f3-golden-exits.txt`.
 
 ## F2/F4 cross-check
 
 Teach-law counts agree 4/4. T2–T3 are further nonzero-teach transcripts.
 See `logs/f2-f4-cross-check.txt`.
+
+T4 encoding:
+
+```text
+T4:
+  base-regime-before-contamination: RegimeC
+  final-classification: Contamination
+  teach-count: 1
+```
+
+Final class is single-valued. F1 implementation checklist:
+`tools/f1-implementation-checklist.md`.
 
 ---
 
@@ -453,12 +475,14 @@ See `logs/f2-f4-cross-check.txt`.
 agent: F
 branch: arena/01a06da9-cat-theo-machine
 base: 41e8078
-tests: F2 T1-T4 hand=script; F4 teach-count 4/4; F3 three-way decoy/FLT identical, decoy/T3 silence-class
+tests: F2 T1-T4 hand=script; F4 teach-count 4/4 T4 final Contamination; F3 goldens 0/3/1/2
 measurement: none (pair closed; no third knock)
 pair status: closed
 track status: active
 F2: closed
+F4: single-valued final-classification
 F1 spec: landed docs-only
+F1 checklist: tools/f1-implementation-checklist.md
 ready for INT docs/log merge: yes
 ready for F1 code merge: no
 blocked on: INT publishing diagnostic log (low priority)

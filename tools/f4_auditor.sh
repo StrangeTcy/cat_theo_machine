@@ -1,6 +1,7 @@
 #!/bin/sh
 # F4 auditor. One transcript in, a sheet out.
 # Does not rewrite the log.
+# final-classification is single-valued.
 
 set -u
 
@@ -51,23 +52,23 @@ else
   echo "D12: first audit omits loaded classes"
 fi
 
-regime=B
-contamination=no
+base=UncharacterizedStall
+contaminated=no
 if grep -q 'restoring the research checkpoint' "$t"
 then
-  regime=C
-  contamination=yes
+  base=RegimeC
+  contaminated=yes
 fi
 first_taught=$(grep -m 1 '^state: taught rules ' "$t" | sed -n 's/.*taught rules \([0-9][0-9]*\).*/\1/p')
 if [ -n "$first_taught" ]
 then
   if [ "$first_taught" -gt 0 ]
   then
-    regime=C
-    contamination=yes
+    base=RegimeC
+    contaminated=yes
   fi
 fi
-if [ "$regime" != "C" ]
+if [ "$base" != "RegimeC" ]
 then
   tl=$(grep -c '^you> teach law:' "$t" || true)
   if [ -z "$tl" ]
@@ -76,13 +77,36 @@ then
   fi
   if [ "$tl" -eq 0 ]
   then
-    regime=A
+    base=RegimeA
   else
-    regime=B
+    base=RegimeB
   fi
 fi
-echo "regime: $regime"
-echo "contamination: $contamination"
+echo "base-regime-before-contamination: $base"
+
+circular=0
+if grep -q '^you> teach law: (rule (premises) (conclusion' "$t"
+then
+  circular=1
+fi
+computable=0
+if grep -q 'need=(eq [0-9]' "$t"
+then
+  computable=1
+fi
+
+final=$base
+if [ "$contaminated" = "yes" ]
+then
+  final=Contamination
+elif [ "$circular" -eq 1 ]
+then
+  final=CircularRequest
+elif [ "$computable" -eq 1 ]
+then
+  final=ComputableRequest
+fi
+echo "final-classification: $final"
 
 teaches=$(grep -c '^you> teach law:' "$t" || true)
 if [ -z "$teaches" ]
