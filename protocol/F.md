@@ -375,6 +375,34 @@ Not touched: research.py, main.py, packs, parser, decoy/FLT pair.
 
 ---
 
+## request to INT
+
+```text
+request to INT: publish logs/defect-1-ruling-diagnostic.log
+                to a path reachable from F's base, or include it
+                in the next docs/log merge batch
+reason: F4 audit sheet cannot be completed without the transcript
+priority: low — does not block any code or measurement
+```
+
+The log lives on INT's integration branch, not on this branch. The F4
+sheet stays incomparable until the transcript is published.
+
+---
+
+## F2 grader
+
+`tools/f2_grader.sh <transcript>` emits taught, unlock-evidence,
+circular, computable, cite-coverage. T1 fixture is
+`logs/fixtures/toy-live-protocol.log`.
+
+```text
+T1 expected: taught 3, unlock 2, circular 0, computable 0, cite 2/1
+null decoy:  all zeros
+```
+
+---
+
 ## status
 
 ```text
