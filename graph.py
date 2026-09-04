@@ -31,6 +31,10 @@ class Hypergraph:
         self._test_shard_index = M.Zero
         self._test_shard_count = M.one
         self._test_shard_cursor = M.Zero
+        # None means "no filter": every test is registered, which is the
+        # baseline. A set means "only these names", and is a runner
+        # convenience for iterating on one test -- never a baseline.
+        self._test_name_filter = None
         self._search_console_input = None
         self._search_disable_console = M.false_value
         self._search_disable_progress_ticker = M.false_value
@@ -17893,6 +17897,20 @@ class TestShardAccept(M.Edge):
     """Advance the test ordinal and admit it only to the configured shard."""
 
     def __init__(self, graph):
+        # A filtered run is not a shard run: nothing is being assigned to
+        # a shard, so the cursor has nothing to decide and ticking it is
+        # minutes of pure waste -- each tick replaces the constructor
+        # context, and that context is a large tree. Admit everything and
+        # let `_register_test` do the selecting.
+        #
+        # The full-suite path is untouched, and the pin is a static walk
+        # of the registration source rather than a runtime cursor reading,
+        # so 305 / 218 / 0 means the same thing in both modes.
+        if getattr(graph, "_test_name_filter", None) is not None:
+            self.result = M.truth_value
+            super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+            return
+
         registry = M.FromContextGetConstructors(graph)()
         self.result = M.NatEq(
             graph._test_shard_cursor,
@@ -17910,6 +17928,51 @@ class TestShardAccept(M.Edge):
 
     def __call__(self):
         return self.result
+
+
+class TestNameFilter(M.Edge):
+    """Run only these tests, by exact name.
+
+    Selection is applied *at registration*, before the test object
+    exists. That is the whole point: these tests do their work in their
+    constructors, so a filter applied at run time would save nothing --
+    installing the full suite costs tens of minutes even when one test is
+    wanted, because all 305 get built to be thrown away.
+
+    The shard cursor is deliberately untouched. Every guard still ticks
+    whether or not its test is admitted, so a filtered run cannot move a
+    test across a shard boundary, and the cursor pin (305 / 218 / 0) means
+    the same thing in both modes. A filtered run is therefore evidence
+    about the named tests only; it is never a baseline, and the shard
+    runner is the only thing that produces one.
+    """
+
+    def __init__(self, graph, names):
+        wanted = set()
+        walker = names
+        while M.Compare(walker, M.EmptyList)() is M.false_value:
+            wanted.add(str(M.Head(walker)()()))
+            walker = M.Tail(walker)()
+        graph._test_name_filter = wanted or None
+        self.result = graph
+        super().__init__(
+            inputs=M.Pair(graph, M.Pair(names, M.EmptyList)),
+            results=M.Pair(graph, M.EmptyList),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+def test_name_wanted(graph, name):
+    """Whether `name` survives the current name filter.
+
+    No filter set means everything is admitted, so the full-suite path
+    behaves exactly as it did before the filter existed.
+    """
+
+    wanted = getattr(graph, "_test_name_filter", None)
+    return wanted is None or name in wanted
 
 
 class RunDefaultTestShard(M.Edge):

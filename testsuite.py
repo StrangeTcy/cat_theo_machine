@@ -16232,6 +16232,15 @@ class MilestoneM4PolicyLoosenThenTightenTest(M.Edge):
 
 
 def _register_test(graph, name, input_nodes, computation_edge, expected):
+    # Registration is where selection happens, and it has to be: these
+    # tests do their work in their constructors, so a filter applied
+    # later would build all 305 to throw 304 away. Pass the *class*
+    # (`YourTest`), not an instance (`YourTest(graph)`), so an unselected
+    # test is never constructed at all.
+    if not Gmod.test_name_wanted(graph, name):
+        return None
+    if isinstance(computation_edge, type):
+        computation_edge = computation_edge(graph)
     test = Test(graph, M.TestName(name, _registry(graph)), input_nodes, computation_edge, expected)
     _set_registry(graph, M.FromContextGetConstructors(test)())
     graph.add_hypergraph(test)
@@ -17174,7 +17183,7 @@ def install_default_tests(graph):
             graph,
             "minimal_graph_one_step_map_extension_test",
             empty,
-            MinimalGraphOneStepMapExtensionTest(graph),
+            MinimalGraphOneStepMapExtensionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17182,7 +17191,7 @@ def install_default_tests(graph):
             graph,
             "minimal_graph_source_constraint_test",
             empty,
-            MinimalGraphSourceConstraintTest(graph),
+            MinimalGraphSourceConstraintTest,
             M.truth_value,
         )
 
@@ -17224,7 +17233,7 @@ def install_default_tests(graph):
             graph,
             "tree_lookup_uses_structural_keys_test",
             empty,
-            TreeLookupUsesStructuralKeysTest(graph),
+            TreeLookupUsesStructuralKeysTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17232,7 +17241,7 @@ def install_default_tests(graph):
             graph,
             "tree_lookup_uses_index_buckets_test",
             empty,
-            TreeLookupUsesIndexBucketsTest(graph),
+            TreeLookupUsesIndexBucketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17240,7 +17249,7 @@ def install_default_tests(graph):
             graph,
             "legacy_tree_lookup_remains_readable_test",
             empty,
-            LegacyTreeLookupRemainsReadableTest(graph),
+            LegacyTreeLookupRemainsReadableTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17248,7 +17257,7 @@ def install_default_tests(graph):
             graph,
             "tree_insert_migrates_legacy_tree_test",
             empty,
-            TreeInsertMigratesLegacyTreeTest(graph),
+            TreeInsertMigratesLegacyTreeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17256,7 +17265,7 @@ def install_default_tests(graph):
             graph,
             "getconstructor_sees_patricia_tree_terms_test",
             empty,
-            GetConstructorSeesPatriciaTreeTermsTest(graph),
+            GetConstructorSeesPatriciaTreeTermsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17264,7 +17273,7 @@ def install_default_tests(graph):
             graph,
             "comparein_sees_patricia_tree_terms_test",
             empty,
-            CompareInSeesPatriciaTreeTermsTest(graph),
+            CompareInSeesPatriciaTreeTermsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17272,7 +17281,7 @@ def install_default_tests(graph):
             graph,
             "comparein_sees_tree_wrapper_test",
             empty,
-            CompareInSeesTreeWrapperTest(graph),
+            CompareInSeesTreeWrapperTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17280,7 +17289,7 @@ def install_default_tests(graph):
             graph,
             "search_prompt_cost_step_builds_hundred_test",
             empty,
-            SearchPromptCostStepBuildsHundredTest(graph),
+            SearchPromptCostStepBuildsHundredTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17288,7 +17297,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_builds_deep_root_wave_shards_without_recursion_test",
             empty,
-            CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest(graph),
+            CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17296,7 +17305,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_resident_executor_ready_handshake_test",
             empty,
-            CompareSearchModesResidentExecutorReadyHandshakeTest(graph),
+            CompareSearchModesResidentExecutorReadyHandshakeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17304,7 +17313,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_uses_resident_executor_test",
             empty,
-            CompareSearchModesRootWaveUsesResidentExecutorTest(graph),
+            CompareSearchModesRootWaveUsesResidentExecutorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17312,7 +17321,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_requires_resident_executor_test",
             empty,
-            CompareSearchModesRootWaveRequiresResidentExecutorTest(graph),
+            CompareSearchModesRootWaveRequiresResidentExecutorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17320,7 +17329,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_fill_warms_resident_pool_before_root_wave_test",
             empty,
-            CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest(graph),
+            CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17328,7 +17337,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_retries_failed_shard_on_resident_test",
             empty,
-            CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(graph),
+            CompareSearchModesRootWaveRetriesFailedShardOnResidentTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17336,7 +17345,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_replaces_exhausted_resident_test",
             empty,
-            CompareSearchModesRootWaveReplacesExhaustedResidentTest(graph),
+            CompareSearchModesRootWaveReplacesExhaustedResidentTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17344,7 +17353,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_seeds_single_rewrite_handoff_test",
             empty,
-            CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest(graph),
+            CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17352,7 +17361,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_records_empty_expansion_test",
             empty,
-            CompareSearchModesRootWaveRecordsEmptyExpansionTest(graph),
+            CompareSearchModesRootWaveRecordsEmptyExpansionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17360,7 +17369,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packetizes_non_root_frontier_test",
             empty,
-            CompareSearchModesPacketizesNonRootFrontierTest(graph),
+            CompareSearchModesPacketizesNonRootFrontierTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17368,7 +17377,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packetizes_wide_frontier_in_chunks_test",
             empty,
-            CompareSearchModesPacketizesWideFrontierInChunksTest(graph),
+            CompareSearchModesPacketizesWideFrontierInChunksTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17376,7 +17385,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_prunes_packets_after_best_attempt_test",
             empty,
-            CompareSearchModesPrunesPacketsAfterBestAttemptTest(graph),
+            CompareSearchModesPrunesPacketsAfterBestAttemptTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17384,7 +17393,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_fresh_root_jobs_packetize_whole_state_test",
             empty,
-            CompareSearchModesFreshRootJobsPacketizeWholeStateTest(graph),
+            CompareSearchModesFreshRootJobsPacketizeWholeStateTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17392,7 +17401,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_merges_packet_job_test",
             empty,
-            CompareSearchModesMergesPacketJobTest(graph),
+            CompareSearchModesMergesPacketJobTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17400,7 +17409,7 @@ def install_default_tests(graph):
             graph,
             "search_tree_delta_skips_structurally_equal_trees_test",
             empty,
-            SearchTreeDeltaSkipsStructurallyEqualTreesTest(graph),
+            SearchTreeDeltaSkipsStructurallyEqualTreesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17408,7 +17417,7 @@ def install_default_tests(graph):
             graph,
             "search_patricia_lookup_uses_structural_keys_test",
             empty,
-            SearchPatriciaLookupUsesStructuralKeysTest(graph),
+            SearchPatriciaLookupUsesStructuralKeysTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17416,7 +17425,7 @@ def install_default_tests(graph):
             graph,
             "search_tree_delta_skips_structurally_equal_patricia_trees_test",
             empty,
-            SearchTreeDeltaSkipsStructurallyEqualPatriciaTreesTest(graph),
+            SearchTreeDeltaSkipsStructurallyEqualPatriciaTreesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17424,7 +17433,7 @@ def install_default_tests(graph):
             graph,
             "search_tree_delta_skips_equal_content_different_shape_trees_test",
             empty,
-            SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest(graph),
+            SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17432,7 +17441,7 @@ def install_default_tests(graph):
             graph,
             "tree_insert_deep_pair_lookup_avoids_recursion_test",
             empty,
-            TreeInsertDeepPairLookupAvoidsRecursionTest(graph),
+            TreeInsertDeepPairLookupAvoidsRecursionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17440,7 +17449,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_drops_exhausted_pending_packets_test",
             empty,
-            CompareSearchModesDropsExhaustedPendingPacketsTest(graph),
+            CompareSearchModesDropsExhaustedPendingPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17448,7 +17457,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_enqueue_all_packets_after_exhausted_backlog_test",
             empty,
-            CompareSearchModesEnqueueAllPacketsAfterExhaustedBacklogTest(graph),
+            CompareSearchModesEnqueueAllPacketsAfterExhaustedBacklogTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17456,7 +17465,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_refill_widens_pending_packets_test",
             empty,
-            CompareSearchModesRefillWidensPendingPacketsTest(graph),
+            CompareSearchModesRefillWidensPendingPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17464,7 +17473,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_live_budget_uses_soft_window_test",
             empty,
-            CompareSearchModesLiveBudgetUsesSoftWindowTest(graph),
+            CompareSearchModesLiveBudgetUsesSoftWindowTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17472,7 +17481,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packet_budget_uses_quantum_test",
             empty,
-            CompareSearchModesPacketBudgetUsesQuantumTest(graph),
+            CompareSearchModesPacketBudgetUsesQuantumTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17480,7 +17489,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packet_budget_zero_beam_uses_packet_width_fallback_test",
             empty,
-            CompareSearchModesPacketBudgetZeroBeamUsesPacketWidthFallbackTest(graph),
+            CompareSearchModesPacketBudgetZeroBeamUsesPacketWidthFallbackTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17488,7 +17497,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_skips_root_cache_during_raw_benchmark_test",
             empty,
-            CompareSearchModesSkipsRootCacheDuringRawBenchmarkTest(graph),
+            CompareSearchModesSkipsRootCacheDuringRawBenchmarkTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17496,7 +17505,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_skips_shared_root_schema_during_raw_benchmark_test",
             empty,
-            CompareSearchModesSkipsSharedRootSchemaDuringRawBenchmarkTest(graph),
+            CompareSearchModesSkipsSharedRootSchemaDuringRawBenchmarkTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17504,7 +17513,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stores_derivation_backed_attempt_test",
             empty,
-            CompareSearchModesStoresDerivationBackedAttemptTest(graph),
+            CompareSearchModesStoresDerivationBackedAttemptTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17512,7 +17521,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_worker_entry_tracks_packet_job_test",
             empty,
-            CompareSearchModesWorkerEntryTracksPacketJobTest(graph),
+            CompareSearchModesWorkerEntryTracksPacketJobTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17520,7 +17529,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
             empty,
-            CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
+            CompareSearchModesFindsReusableWorkerSnapshotDirTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17528,7 +17537,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_console_disabled_skips_approval_replay_prompt_test",
             empty,
-            CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(graph),
+            CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17536,7 +17545,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_resume_derivation_missing_plan_raises_runtime_error_test",
             empty,
-            SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(graph),
+            SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17544,7 +17553,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test",
             empty,
-            CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(graph),
+            CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17552,7 +17561,7 @@ def install_default_tests(graph):
             graph,
             "rewrite_strategy_goal_demand_allows_goal_head_test",
             empty,
-            RewriteStrategyGoalDemandAllowsGoalHeadTest(graph),
+            RewriteStrategyGoalDemandAllowsGoalHeadTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17560,7 +17569,7 @@ def install_default_tests(graph):
             graph,
             "pretty_print_named_tao_quantity_test",
             empty,
-            PrettyPrintNamedTaoQuantityTest(graph),
+            PrettyPrintNamedTaoQuantityTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17568,7 +17577,7 @@ def install_default_tests(graph):
             graph,
             "tao_geometry_example_goals_use_named_quantities_test",
             empty,
-            TaoGeometryExampleGoalsUseNamedQuantitiesTest(graph),
+            TaoGeometryExampleGoalsUseNamedQuantitiesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17576,7 +17585,7 @@ def install_default_tests(graph):
             graph,
             "tao_compact_rules_use_shrunk_premise_sets_test",
             empty,
-            TaoCompactRulesUseShrunkPremiseSetsTest(graph),
+            TaoCompactRulesUseShrunkPremiseSetsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17592,7 +17601,7 @@ def install_default_tests(graph):
             graph,
             "build_derivation_replays_structurally_equal_repeated_bindings_test",
             empty,
-            BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(graph),
+            BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17600,7 +17609,7 @@ def install_default_tests(graph):
             graph,
             "tao_generic_cosine_replay_cases_test",
             empty,
-            TaoGenericCosineReplayCasesTest(graph),
+            TaoGenericCosineReplayCasesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17608,7 +17617,7 @@ def install_default_tests(graph):
             graph,
             "legacy_cosine_rules_removed_test",
             empty,
-            LegacyCosineRulesRemovedTest(graph),
+            LegacyCosineRulesRemovedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17616,7 +17625,7 @@ def install_default_tests(graph):
             graph,
             "search_comparison_outcome_field_test",
             empty,
-            SearchComparisonOutcomeFieldTest(graph),
+            SearchComparisonOutcomeFieldTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17624,7 +17633,7 @@ def install_default_tests(graph):
             graph,
             "search_comparison_job_roundtrip_test",
             empty,
-            SearchComparisonJobRoundtripTest(graph),
+            SearchComparisonJobRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17632,7 +17641,7 @@ def install_default_tests(graph):
             graph,
             "search_comparison_job_uses_grouped_blocks_test",
             empty,
-            SearchComparisonJobUsesGroupedBlocksTest(graph),
+            SearchComparisonJobUsesGroupedBlocksTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17640,7 +17649,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_baseline_uses_grouped_problem_block_test",
             empty,
-            SearchWorkerBaselineUsesGroupedProblemBlockTest(graph),
+            SearchWorkerBaselineUsesGroupedProblemBlockTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17648,7 +17657,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_packet_uses_grouped_blocks_test",
             empty,
-            SearchWorkerPacketUsesGroupedBlocksTest(graph),
+            SearchWorkerPacketUsesGroupedBlocksTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17656,7 +17665,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_launch_uses_grouped_dispatch_test",
             empty,
-            SearchWorkerLaunchUsesGroupedDispatchTest(graph),
+            SearchWorkerLaunchUsesGroupedDispatchTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17664,7 +17673,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_launch_pickle_roundtrip_test",
             empty,
-            SearchWorkerLaunchPickleRoundtripTest(graph),
+            SearchWorkerLaunchPickleRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17672,7 +17681,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_result_pickle_roundtrip_test",
             empty,
-            SearchWorkerResultPickleRoundtripTest(graph),
+            SearchWorkerResultPickleRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17680,7 +17689,7 @@ def install_default_tests(graph):
             graph,
             "paused_search_job_snapshot_roundtrip_test",
             empty,
-            PausedSearchJobSnapshotRoundtripTest(graph),
+            PausedSearchJobSnapshotRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17688,7 +17697,7 @@ def install_default_tests(graph):
             graph,
             "nat_value_index_snapshot_roundtrip_test",
             empty,
-            NatValueIndexSnapshotRoundtripTest(graph),
+            NatValueIndexSnapshotRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17696,7 +17705,7 @@ def install_default_tests(graph):
             graph,
             "cold_e2_reaches_snapshot_save_test",
             empty,
-            ColdE2ReachesSnapshotSaveTest(graph),
+            ColdE2ReachesSnapshotSaveTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17704,7 +17713,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_save_timeout_preserves_existing_snapshot_test",
             empty,
-            SnapshotSaveTimeoutPreservesExistingSnapshotTest(graph),
+            SnapshotSaveTimeoutPreservesExistingSnapshotTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17712,7 +17721,7 @@ def install_default_tests(graph):
             graph,
             "unpaused_snapshot_probe_skips_activation_and_rewrite_test",
             empty,
-            UnpausedSnapshotProbeSkipsActivationAndRewriteTest(graph),
+            UnpausedSnapshotProbeSkipsActivationAndRewriteTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17720,7 +17729,7 @@ def install_default_tests(graph):
             graph,
             "identity_red_black_identity_index_test",
             empty,
-            IdentityRedBlackIdentityIndexTest(graph),
+            IdentityRedBlackIdentityIndexTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17728,7 +17737,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_preserves_machine_edge_structure_test",
             empty,
-            SnapshotPreservesMachineEdgeStructureTest(graph),
+            SnapshotPreservesMachineEdgeStructureTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17736,7 +17745,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_preserves_constructor_labels_and_chars_test",
             empty,
-            SnapshotPreservesConstructorLabelsAndCharsTest(graph),
+            SnapshotPreservesConstructorLabelsAndCharsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17744,7 +17753,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_preserves_rule_edge_inputs_test",
             empty,
-            SnapshotPreservesRuleEdgeInputsTest(graph),
+            SnapshotPreservesRuleEdgeInputsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17752,7 +17761,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_resume_state_restores_saved_plan_test",
             empty,
-            SearchWorkerResumeStateRestoresSavedPlanTest(graph),
+            SearchWorkerResumeStateRestoresSavedPlanTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17760,7 +17769,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_snapshot_boot_with_runtime_namespace_test",
             empty,
-            SearchWorkerSnapshotBootWithRuntimeNamespaceTest(graph),
+            SearchWorkerSnapshotBootWithRuntimeNamespaceTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17768,7 +17777,7 @@ def install_default_tests(graph):
             graph,
             "paused_comparison_job_snapshot_roundtrip_test",
             empty,
-            PausedComparisonJobSnapshotRoundtripTest(graph),
+            PausedComparisonJobSnapshotRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17776,7 +17785,7 @@ def install_default_tests(graph):
             graph,
             "paused_comparison_job_snapshot_resume_test",
             empty,
-            PausedComparisonJobSnapshotResumeTest(graph),
+            PausedComparisonJobSnapshotResumeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17784,7 +17793,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stop_mode_marks_only_requested_mode_test",
             empty,
-            CompareSearchModesStopModeMarksOnlyRequestedModeTest(graph),
+            CompareSearchModesStopModeMarksOnlyRequestedModeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17792,7 +17801,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stop_outcome_clears_pending_packet_count_test",
             empty,
-            CompareSearchModesStopOutcomeClearsPendingPacketCountTest(graph),
+            CompareSearchModesStopOutcomeClearsPendingPacketCountTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17800,7 +17809,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stopped_state_does_not_enqueue_job_frontier_test",
             empty,
-            CompareSearchModesStoppedStateDoesNotEnqueueJobFrontierTest(graph),
+            CompareSearchModesStoppedStateDoesNotEnqueueJobFrontierTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17808,7 +17817,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_pause_state_preserves_backlog_test",
             empty,
-            CompareSearchModesPauseStatePreservesBacklogTest(graph),
+            CompareSearchModesPauseStatePreservesBacklogTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17816,7 +17825,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_pause_requeues_active_packet_into_job_test",
             empty,
-            CompareSearchModesPauseRequeuesActivePacketIntoJobTest(graph),
+            CompareSearchModesPauseRequeuesActivePacketIntoJobTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17824,7 +17833,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_integrates_returned_ready_packets_test",
             empty,
-            CompareSearchModesIntegratesReturnedReadyPacketsTest(graph),
+            CompareSearchModesIntegratesReturnedReadyPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17832,7 +17841,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_empty_ready_result_refills_job_frontier_test",
             empty,
-            CompareSearchModesEmptyReadyResultRefillsJobFrontierTest(graph),
+            CompareSearchModesEmptyReadyResultRefillsJobFrontierTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17840,7 +17849,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_returned_ready_packet_count_follows_packet_shape_test",
             empty,
-            CompareSearchModesReturnedReadyPacketCountFollowsPacketShapeTest(graph),
+            CompareSearchModesReturnedReadyPacketCountFollowsPacketShapeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17848,7 +17857,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_returned_ready_overreported_count_keeps_packet_shape_test",
             empty,
-            CompareSearchModesReturnedReadyOverreportedCountKeepsPacketShapeTest(graph),
+            CompareSearchModesReturnedReadyOverreportedCountKeepsPacketShapeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17856,7 +17865,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_resident_unavailable_leaves_packet_queued_test",
             empty,
-            CompareSearchModesResidentUnavailableLeavesPacketQueuedTest(graph),
+            CompareSearchModesResidentUnavailableLeavesPacketQueuedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17864,7 +17873,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_batches_large_returned_ready_packet_wave_test",
             empty,
-            CompareSearchModesBatchesLargeReturnedReadyPacketWaveTest(graph),
+            CompareSearchModesBatchesLargeReturnedReadyPacketWaveTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17872,7 +17881,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_success_clears_pending_packets_test",
             empty,
-            CompareSearchModesSuccessClearsPendingPacketsTest(graph),
+            CompareSearchModesSuccessClearsPendingPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17880,7 +17889,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_ignores_stopped_mode_result_test",
             empty,
-            CompareSearchModesIgnoresStoppedModeResultTest(graph),
+            CompareSearchModesIgnoresStoppedModeResultTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17888,7 +17897,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_ignores_mismatched_packet_token_result_test",
             empty,
-            CompareSearchModesIgnoresMismatchedPacketTokenResultTest(graph),
+            CompareSearchModesIgnoresMismatchedPacketTokenResultTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17896,7 +17905,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stale_token_retry_requeues_original_packet_test",
             empty,
-            CompareSearchModesStaleTokenRetryRequeuesOriginalPacketTest(graph),
+            CompareSearchModesStaleTokenRetryRequeuesOriginalPacketTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17904,7 +17913,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_ignores_missing_packet_token_result_test",
             empty,
-            CompareSearchModesIgnoresMissingPacketTokenResultTest(graph),
+            CompareSearchModesIgnoresMissingPacketTokenResultTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17912,7 +17921,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_decode_missing_payload_uses_expected_token_test",
             empty,
-            CompareSearchModesDecodeMissingPayloadUsesExpectedTokenTest(graph),
+            CompareSearchModesDecodeMissingPayloadUsesExpectedTokenTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17920,7 +17929,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_missing_payload_retry_requeues_original_packet_test",
             empty,
-            CompareSearchModesMissingPayloadRetryRequeuesOriginalPacketTest(graph),
+            CompareSearchModesMissingPayloadRetryRequeuesOriginalPacketTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17928,7 +17937,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_empty_cursor_theorem_fanout_test",
             empty,
-            CompareSearchModesEmptyCursorTheoremFanoutTest(graph),
+            CompareSearchModesEmptyCursorTheoremFanoutTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17936,7 +17945,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_theorem_fanout_preserves_generated_test",
             empty,
-            CompareSearchModesTheoremFanoutPreservesGeneratedTest(graph),
+            CompareSearchModesTheoremFanoutPreservesGeneratedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17944,7 +17953,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_theorem_fanout_adds_single_rewrite_handoff_test",
             empty,
-            CompareSearchModesTheoremFanoutAddsSingleRewriteHandoffTest(graph),
+            CompareSearchModesTheoremFanoutAddsSingleRewriteHandoffTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17952,7 +17961,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_empty_cursor_theorem_fanout_seeds_generated_tree_test",
             empty,
-            CompareSearchModesEmptyCursorTheoremFanoutSeedsGeneratedTreeTest(graph),
+            CompareSearchModesEmptyCursorTheoremFanoutSeedsGeneratedTreeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17960,7 +17969,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_rewrite_fanout_produces_one_rule_packets_test",
             empty,
-            CompareSearchModesRewriteFanoutProducesOneRulePacketsTest(graph),
+            CompareSearchModesRewriteFanoutProducesOneRulePacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17968,7 +17977,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_packet_delta_uses_resident_baseline_test",
             empty,
-            SearchWorkerPacketDeltaUsesResidentBaselineTest(graph),
+            SearchWorkerPacketDeltaUsesResidentBaselineTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17976,7 +17985,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_filters_seeded_theorem_continuation_test",
             empty,
-            SearchWorkerFiltersSeededTheoremContinuationTest(graph),
+            SearchWorkerFiltersSeededTheoremContinuationTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17984,7 +17993,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_resident_executor_refreshes_baseline_on_generation_change_test",
             empty,
-            CompareSearchModesResidentExecutorRefreshesBaselineOnGenerationChangeTest(graph),
+            CompareSearchModesResidentExecutorRefreshesBaselineOnGenerationChangeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -17992,7 +18001,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_batched_wave_matches_sequential_success_test",
             empty,
-            CompareSearchModesBatchedWaveMatchesSequentialSuccessTest(graph),
+            CompareSearchModesBatchedWaveMatchesSequentialSuccessTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18000,7 +18009,7 @@ def install_default_tests(graph):
             graph,
             "loaded_rules_avoid_symmetric_notation_fact_test",
             empty,
-            LoadedRulesAvoidSymmetricNotationFactTest(graph),
+            LoadedRulesAvoidSymmetricNotationFactTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18008,7 +18017,7 @@ def install_default_tests(graph):
             graph,
             "loaded_rules_have_direct_progression_edge_equations_test",
             empty,
-            LoadedRulesHaveDirectProgressionEdgeEquationsTest(graph),
+            LoadedRulesHaveDirectProgressionEdgeEquationsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18016,7 +18025,7 @@ def install_default_tests(graph):
             graph,
             "invariance_even_goal_unreachable_test",
             empty,
-            InvarianceEvenGoalUnreachableTest(graph),
+            InvarianceEvenGoalUnreachableTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18024,7 +18033,7 @@ def install_default_tests(graph):
             graph,
             "invariance_odd_goal_does_not_prune_test",
             empty,
-            InvarianceOddGoalDoesNotPruneTest(graph),
+            InvarianceOddGoalDoesNotPruneTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18032,7 +18041,7 @@ def install_default_tests(graph):
             graph,
             "invariance_unestablished_even_phi_does_not_prune_test",
             empty,
-            InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+            InvarianceUnestablishedEvenPhiDoesNotPruneTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18040,7 +18049,7 @@ def install_default_tests(graph):
             graph,
             "compile_rule_to_law_test",
             empty,
-            CompileRuleToLawTest(graph),
+            CompileRuleToLawTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18048,7 +18057,7 @@ def install_default_tests(graph):
             graph,
             "shadow_pack_test",
             empty,
-            ShadowPackTest(graph),
+            ShadowPackTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18056,7 +18065,7 @@ def install_default_tests(graph):
             graph,
             "laws_inside_graph_versions_test",
             empty,
-            LawsInsideGraphVersionsTest(graph),
+            LawsInsideGraphVersionsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18064,7 +18073,7 @@ def install_default_tests(graph):
             graph,
             "test_meta_rewrite_KNOWN_GAP",
             empty,
-            MetaRewriteKnownGapTest(graph),
+            MetaRewriteKnownGapTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18072,7 +18081,7 @@ def install_default_tests(graph):
             graph,
             "proposal_store_inert_test",
             empty,
-            ProposalStoreInertTest(graph),
+            ProposalStoreInertTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18080,7 +18089,7 @@ def install_default_tests(graph):
             graph,
             "activate_proposal_test",
             empty,
-            ActivateProposalTest(graph),
+            ActivateProposalTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18088,7 +18097,7 @@ def install_default_tests(graph):
             graph,
             "obligation_commit_gate_test",
             empty,
-            ObligationCommitGateTest(graph),
+            ObligationCommitGateTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18096,7 +18105,7 @@ def install_default_tests(graph):
             graph,
             "proposal_store_history_test",
             empty,
-            ProposalStoreHistoryTest(graph),
+            ProposalStoreHistoryTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18104,7 +18113,7 @@ def install_default_tests(graph):
             graph,
             "firing_ledger_test",
             empty,
-            FiringLedgerTest(graph),
+            FiringLedgerTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18112,7 +18121,7 @@ def install_default_tests(graph):
             graph,
             "pattern_census_test",
             empty,
-            PatternCensusTest(graph),
+            PatternCensusTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18120,7 +18129,7 @@ def install_default_tests(graph):
             graph,
             "handle_fold_unfold_test",
             empty,
-            HandleFoldUnfoldTest(graph),
+            HandleFoldUnfoldTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18128,7 +18137,7 @@ def install_default_tests(graph):
             graph,
             "positional_signatures_test",
             empty,
-            PositionalSignaturesTest(graph),
+            PositionalSignaturesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18136,7 +18145,7 @@ def install_default_tests(graph):
             graph,
             "handle_promotion_test",
             empty,
-            HandlePromotionTest(graph),
+            HandlePromotionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18144,7 +18153,7 @@ def install_default_tests(graph):
             graph,
             "impact_policy_test",
             empty,
-            ImpactPolicyTest(graph),
+            ImpactPolicyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18152,7 +18161,7 @@ def install_default_tests(graph):
             graph,
             "autonomy_cycle_test",
             empty,
-            AutonomyCycleTest(graph),
+            AutonomyCycleTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18160,7 +18169,7 @@ def install_default_tests(graph):
             graph,
             "autonomy_obligation_safety_test",
             empty,
-            AutonomyObligationSafetyTest(graph),
+            AutonomyObligationSafetyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18168,7 +18177,7 @@ def install_default_tests(graph):
             graph,
             "recurring_pattern_mining_test",
             empty,
-            RecurringPatternMiningTest(graph),
+            RecurringPatternMiningTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18176,7 +18185,7 @@ def install_default_tests(graph):
             graph,
             "handle_proposal_generator_test",
             empty,
-            HandleProposalGeneratorTest(graph),
+            HandleProposalGeneratorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18184,7 +18193,7 @@ def install_default_tests(graph):
             graph,
             "witnessed_composition_proposal_test",
             empty,
-            WitnessedCompositionProposalTest(graph),
+            WitnessedCompositionProposalTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18192,7 +18201,7 @@ def install_default_tests(graph):
             graph,
             "autonomy_generation_phase_test",
             empty,
-            AutonomyGenerationPhaseTest(graph),
+            AutonomyGenerationPhaseTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18200,7 +18209,7 @@ def install_default_tests(graph):
             graph,
             "law_ordering_from_ledger_test",
             empty,
-            LawOrderingFromLedgerTest(graph),
+            LawOrderingFromLedgerTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18208,7 +18217,7 @@ def install_default_tests(graph):
             graph,
             "law_preference_installable_test",
             empty,
-            LawPreferenceInstallableTest(graph),
+            LawPreferenceInstallableTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18216,7 +18225,7 @@ def install_default_tests(graph):
             graph,
             "retirement_lifecycle_test",
             empty,
-            RetirementLifecycleTest(graph),
+            RetirementLifecycleTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18224,7 +18233,7 @@ def install_default_tests(graph):
             graph,
             "installed_heuristic_search_test",
             empty,
-            InstalledHeuristicSearchTest(graph),
+            InstalledHeuristicSearchTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18232,7 +18241,7 @@ def install_default_tests(graph):
             graph,
             "heuristic_trial_proposal_test",
             empty,
-            HeuristicTrialProposalTest(graph),
+            HeuristicTrialProposalTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18240,7 +18249,7 @@ def install_default_tests(graph):
             graph,
             "installed_policy_override_test",
             empty,
-            InstalledPolicyOverrideTest(graph),
+            InstalledPolicyOverrideTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18248,7 +18257,7 @@ def install_default_tests(graph):
             graph,
             "policy_change_countersign_test",
             empty,
-            PolicyChangeCountersignTest(graph),
+            PolicyChangeCountersignTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18256,7 +18265,7 @@ def install_default_tests(graph):
             graph,
             "curator_report_test",
             empty,
-            CuratorReportTest(graph),
+            CuratorReportTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18264,7 +18273,7 @@ def install_default_tests(graph):
             graph,
             "contract_enforcement_test",
             empty,
-            ContractEnforcementTest(graph),
+            ContractEnforcementTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18272,7 +18281,7 @@ def install_default_tests(graph):
             graph,
             "robustness_harness_test",
             empty,
-            RobustnessHarnessTest(graph),
+            RobustnessHarnessTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18280,7 +18289,7 @@ def install_default_tests(graph):
             graph,
             "migration_lifecycle_test",
             empty,
-            MigrationLifecycleTest(graph),
+            MigrationLifecycleTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18288,7 +18297,7 @@ def install_default_tests(graph):
             graph,
             "wire_round_trip_test",
             empty,
-            WireRoundTripTest(graph),
+            WireRoundTripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18296,7 +18305,7 @@ def install_default_tests(graph):
             graph,
             "worker_protocol_test",
             empty,
-            WorkerProtocolTest(graph),
+            WorkerProtocolTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18304,7 +18313,7 @@ def install_default_tests(graph):
             graph,
             "conflict_detection_test",
             empty,
-            ConflictDetectionTest(graph),
+            ConflictDetectionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18312,7 +18321,7 @@ def install_default_tests(graph):
             graph,
             "toy_correspondence_round_trip_test",
             empty,
-            ToyCorrespondenceRoundTripTest(graph),
+            ToyCorrespondenceRoundTripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18320,7 +18329,7 @@ def install_default_tests(graph):
             graph,
             "reading_policy_test",
             empty,
-            ReadingPolicyTest(graph),
+            ReadingPolicyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18328,7 +18337,7 @@ def install_default_tests(graph):
             graph,
             "deduction_law_test",
             empty,
-            DeductionLawTest(graph),
+            DeductionLawTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18336,7 +18345,7 @@ def install_default_tests(graph):
             graph,
             "recognise_forms_test",
             empty,
-            RecogniseFormsTest(graph),
+            RecogniseFormsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18344,7 +18353,7 @@ def install_default_tests(graph):
             graph,
             "freshen_template_test",
             empty,
-            FreshenTemplateTest(graph),
+            FreshenTemplateTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18352,7 +18361,7 @@ def install_default_tests(graph):
             graph,
             "grammar_composition_test",
             empty,
-            GrammarCompositionTest(graph),
+            GrammarCompositionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18360,7 +18369,7 @@ def install_default_tests(graph):
             graph,
             "definition_node_test",
             empty,
-            DefinitionNodeTest(graph),
+            DefinitionNodeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18368,7 +18377,7 @@ def install_default_tests(graph):
             graph,
             "lexical_spans_test",
             empty,
-            LexicalSpansTest(graph),
+            LexicalSpansTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18376,7 +18385,7 @@ def install_default_tests(graph):
             graph,
             "definition_production_test",
             empty,
-            DefinitionProductionTest(graph),
+            DefinitionProductionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18384,7 +18393,7 @@ def install_default_tests(graph):
             graph,
             "incremental_parse_test",
             empty,
-            IncrementalParseTest(graph),
+            IncrementalParseTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18392,7 +18401,7 @@ def install_default_tests(graph):
             graph,
             "lexical_growth_test",
             empty,
-            LexicalGrowthTest(graph),
+            LexicalGrowthTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18400,7 +18409,7 @@ def install_default_tests(graph):
             graph,
             "chart_parser_test",
             empty,
-            ChartParserTest(graph),
+            ChartParserTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18408,7 +18417,7 @@ def install_default_tests(graph):
             graph,
             "converse_default_mode_test",
             empty,
-            ConverseDefaultModeTest(graph),
+            ConverseDefaultModeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18416,7 +18425,7 @@ def install_default_tests(graph):
             graph,
             "converse_proposition_test",
             empty,
-            ConversePropositionTest(graph),
+            ConversePropositionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18424,7 +18433,7 @@ def install_default_tests(graph):
             graph,
             "correspondence_induction_test",
             empty,
-            CorrespondenceInductionTest(graph),
+            CorrespondenceInductionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18432,7 +18441,7 @@ def install_default_tests(graph):
             graph,
             "search_match_states_test",
             empty,
-            SearchMatchStatesTest(graph),
+            SearchMatchStatesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18440,7 +18449,7 @@ def install_default_tests(graph):
             graph,
             "fire_law_surgery_test",
             empty,
-            FireLawSurgeryTest(graph),
+            FireLawSurgeryTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18448,7 +18457,7 @@ def install_default_tests(graph):
             graph,
             "fire_law_dangling_mode_test",
             empty,
-            FireLawDanglingModeTest(graph),
+            FireLawDanglingModeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18456,7 +18465,7 @@ def install_default_tests(graph):
             graph,
             "law_maps_complete_test",
             empty,
-            LawMapsCompleteTest(graph),
+            LawMapsCompleteTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18464,7 +18473,7 @@ def install_default_tests(graph):
             graph,
             "dangling_edges_test",
             empty,
-            DanglingEdgesTest(graph),
+            DanglingEdgesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18472,7 +18481,7 @@ def install_default_tests(graph):
             graph,
             "map_extension_alternatives_test",
             empty,
-            MapExtensionAlternativesTest(graph),
+            MapExtensionAlternativesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18480,7 +18489,7 @@ def install_default_tests(graph):
             graph,
             "structured_miss_reason_test",
             empty,
-            StructuredMissReasonTest(graph),
+            StructuredMissReasonTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18488,7 +18497,7 @@ def install_default_tests(graph):
             graph,
             "edge_send_positional_consistency_test",
             empty,
-            EdgeSendPositionalConsistencyTest(graph),
+            EdgeSendPositionalConsistencyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18496,7 +18505,7 @@ def install_default_tests(graph):
             graph,
             "graph_current_version_test",
             empty,
-            GraphCurrentVersionTest(graph),
+            GraphCurrentVersionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18504,7 +18513,7 @@ def install_default_tests(graph):
             graph,
             "invariance_flip_one_refutes_parity_test",
             empty,
-            InvarianceFlipOneRefutesParityTest(graph),
+            InvarianceFlipOneRefutesParityTest,
             M.truth_value,
         )
 
@@ -18513,7 +18522,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_parity_preserved_test",
             empty,
-            BlackboardParityPreservedTest(graph),
+            BlackboardParityPreservedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18521,7 +18530,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_move_sum_is_sum_minus_twice_min_test",
             empty,
-            BlackboardMoveSumIsSumMinusTwiceMinTest(graph),
+            BlackboardMoveSumIsSumMinusTwiceMinTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18529,7 +18538,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_initial_parity_is_odd_test",
             empty,
-            BlackboardInitialParityIsOddTest(graph),
+            BlackboardInitialParityIsOddTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18537,7 +18546,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_final_number_is_odd_test",
             empty,
-            BlackboardFinalNumberIsOddTest(graph),
+            BlackboardFinalNumberIsOddTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18545,7 +18554,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_even_n_refuses_odd_conclusion_test",
             empty,
-            BlackboardEvenNRefusesOddConclusionTest(graph),
+            BlackboardEvenNRefusesOddConclusionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18553,7 +18562,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_proof_expands_no_boards_test",
             empty,
-            BlackboardProofExpandsNoBoardsTest(graph),
+            BlackboardProofExpandsNoBoardsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18561,94 +18570,94 @@ def install_default_tests(graph):
             graph,
             "blackboard_start_has_no_board_cells_test",
             empty,
-            BlackboardStartHasNoBoardCellsTest(graph),
+            BlackboardStartHasNoBoardCellsTest,
             M.truth_value,
         )
 
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "research_mode_test", empty, ResearchModeTest(graph), M.truth_value)
+        _register_test(graph, "research_mode_test", empty, ResearchModeTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "dependency_request_from_residual_test", empty, DependencyRequestFromResidualTest(graph), M.truth_value)
+        _register_test(graph, "dependency_request_from_residual_test", empty, DependencyRequestFromResidualTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "counterfactual_unlock_test", empty, CounterfactualUnlockTest(graph), M.truth_value)
+        _register_test(graph, "counterfactual_unlock_test", empty, CounterfactualUnlockTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "circular_dependency_rejection_test", empty, CircularDependencyRejectionTest(graph), M.truth_value)
+        _register_test(graph, "circular_dependency_rejection_test", empty, CircularDependencyRejectionTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "human_supplied_provenance_test", empty, HumanSuppliedProvenanceTest(graph), M.truth_value)
+        _register_test(graph, "human_supplied_provenance_test", empty, HumanSuppliedProvenanceTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "dependency_graph_checkpoint_test", empty, DependencyGraphCheckpointTest(graph), M.truth_value)
+        _register_test(graph, "dependency_graph_checkpoint_test", empty, DependencyGraphCheckpointTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "generator_policy_learning_test", empty, GeneratorPolicyLearningTest(graph), M.truth_value)
+        _register_test(graph, "generator_policy_learning_test", empty, GeneratorPolicyLearningTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "generator_ablation_test", empty, GeneratorAblationTest(graph), M.truth_value)
+        _register_test(graph, "generator_ablation_test", empty, GeneratorAblationTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "zero_successor_residual_test", empty, ZeroSuccessorResidualTest(graph), M.truth_value)
+        _register_test(graph, "zero_successor_residual_test", empty, ZeroSuccessorResidualTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "uncharacterized_stall_test", empty, UncharacterizedStallTest(graph), M.truth_value)
+        _register_test(graph, "uncharacterized_stall_test", empty, UncharacterizedStallTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "toy_demo_generic_test", empty, ToyDemoGenericTest(graph), M.truth_value)
+        _register_test(graph, "toy_demo_generic_test", empty, ToyDemoGenericTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "learning_after_intervention_test", empty, LearningAfterInterventionTest(graph), M.truth_value)
+        _register_test(graph, "learning_after_intervention_test", empty, LearningAfterInterventionTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "blank_memory_stall_test", empty, BlankMemoryStallTest(graph), M.truth_value)
+        _register_test(graph, "blank_memory_stall_test", empty, BlankMemoryStallTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "user_defined_operator_test", empty, UserDefinedOperatorTest(graph), M.truth_value)
+        _register_test(graph, "user_defined_operator_test", empty, UserDefinedOperatorTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "strategy_prior_quarantine_test", empty, StrategyPriorQuarantineTest(graph), M.truth_value)
+        _register_test(graph, "strategy_prior_quarantine_test", empty, StrategyPriorQuarantineTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "negative_control_unused_dependency_test", empty, NegativeControlUnusedDependencyTest(graph), M.truth_value)
+        _register_test(graph, "negative_control_unused_dependency_test", empty, NegativeControlUnusedDependencyTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "cross_domain_blank_test", empty, CrossDomainBlankTest(graph), M.truth_value)
+        _register_test(graph, "cross_domain_blank_test", empty, CrossDomainBlankTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "engine_attempt_recording_test", empty, EngineAttemptRecordingTest(graph), M.truth_value)
+        _register_test(graph, "engine_attempt_recording_test", empty, EngineAttemptRecordingTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest(graph), M.truth_value)
+        _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "premise_order_independence_test", empty, PremiseOrderIndependenceTest(graph), M.truth_value)
+        _register_test(graph, "premise_order_independence_test", empty, PremiseOrderIndependenceTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "goal_seeded_partial_match_test", empty, GoalSeededPartialMatchTest(graph), M.truth_value)
+        _register_test(graph, "goal_seeded_partial_match_test", empty, GoalSeededPartialMatchTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "generative_rule_budget_test", empty, GenerativeRuleBudgetTest(graph), M.truth_value)
+        _register_test(graph, "generative_rule_budget_test", empty, GenerativeRuleBudgetTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "multi_rule_residual_selection_test", empty, MultiRuleResidualSelectionTest(graph), M.truth_value)
+        _register_test(graph, "multi_rule_residual_selection_test", empty, MultiRuleResidualSelectionTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "single_premise_goal_seeded_test", empty, SinglePremiseGoalSeededTest(graph), M.truth_value)
+        _register_test(graph, "single_premise_goal_seeded_test", empty, SinglePremiseGoalSeededTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "goal_directed_firing_test", empty, GoalDirectedFiringTest(graph), M.truth_value)
+        _register_test(graph, "goal_directed_firing_test", empty, GoalDirectedFiringTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "goal_directed_no_fabrication_test", empty, GoalDirectedNoFabricationTest(graph), M.truth_value)
+        _register_test(graph, "goal_directed_no_fabrication_test", empty, GoalDirectedNoFabricationTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "ordered_footholds_test", empty, OrderedFootholdsTest(graph), M.truth_value)
+        _register_test(graph, "ordered_footholds_test", empty, OrderedFootholdsTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "cache_hit_provenance_test", empty, CacheHitProvenanceTest(graph), M.truth_value)
+        _register_test(graph, "cache_hit_provenance_test", empty, CacheHitProvenanceTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "ground_evaluation_test", empty, GroundEvaluationTest(graph), M.truth_value)
+        _register_test(graph, "ground_evaluation_test", empty, GroundEvaluationTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "self_improvement_loop_test", empty, SelfImprovementLoopTest(graph), M.truth_value)
+        _register_test(graph, "self_improvement_loop_test", empty, SelfImprovementLoopTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "invariant_loop_test", empty, InvariantLoopTest(graph), M.truth_value)
+        _register_test(graph, "invariant_loop_test", empty, InvariantLoopTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "motif_dataflow_negative_control_test", empty, MotifDataflowNegativeControlTest(graph), M.truth_value)
+        _register_test(graph, "motif_dataflow_negative_control_test", empty, MotifDataflowNegativeControlTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "macro_law_ablation_test", empty, MacroLawAblationTest(graph), M.truth_value)
+        _register_test(graph, "macro_law_ablation_test", empty, MacroLawAblationTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "reset_remine_reproducibility_test", empty, ResetRemineReproducibilityTest(graph), M.truth_value)
+        _register_test(graph, "reset_remine_reproducibility_test", empty, ResetRemineReproducibilityTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest(graph), M.truth_value)
+        _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "learned_memory_toggle_test", empty, LearnedMemoryToggleTest(graph), M.truth_value)
+        _register_test(graph, "learned_memory_toggle_test", empty, LearnedMemoryToggleTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "spine_excludes_routed_around_rule_test", empty, SpineExcludesRoutedAroundRuleTest(graph), M.truth_value)
+        _register_test(graph, "spine_excludes_routed_around_rule_test", empty, SpineExcludesRoutedAroundRuleTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "spine_fanout_ranks_producer_above_consumer_test", empty, SpineFanoutRanksProducerAboveConsumerTest(graph), M.truth_value)
+        _register_test(graph, "spine_fanout_ranks_producer_above_consumer_test", empty, SpineFanoutRanksProducerAboveConsumerTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "spine_empty_when_goal_never_closed_test", empty, SpineEmptyWhenGoalNeverClosedTest(graph), M.truth_value)
+        _register_test(graph, "spine_empty_when_goal_never_closed_test", empty, SpineEmptyWhenGoalNeverClosedTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "idea_classifier_refuses_unknown_shape_test", empty, IdeaClassifierRefusesUnknownShapeTest(graph), M.truth_value)
+        _register_test(graph, "idea_classifier_refuses_unknown_shape_test", empty, IdeaClassifierRefusesUnknownShapeTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "rendered_sentence_cites_its_law_test", empty, RenderedSentenceCitesItsLawTest(graph), M.truth_value)
+        _register_test(graph, "rendered_sentence_cites_its_law_test", empty, RenderedSentenceCitesItsLawTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "explanation_is_not_a_proof_test", empty, ExplanationIsNotAProofTest(graph), M.truth_value)
+        _register_test(graph, "explanation_is_not_a_proof_test", empty, ExplanationIsNotAProofTest, M.truth_value)
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()
@@ -18744,7 +18753,7 @@ def install_default_tests(graph):
             graph,
             "goal_head_neighborhood_reachback_test",
             empty,
-            GoalHeadNeighborhoodReachbackTest(graph),
+            GoalHeadNeighborhoodReachbackTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18752,7 +18761,7 @@ def install_default_tests(graph):
             graph,
             "heuristic_canonical_knowledge_agreement_test",
             empty,
-            HeuristicCanonicalKnowledgeAgreementTest(graph),
+            HeuristicCanonicalKnowledgeAgreementTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18760,7 +18769,7 @@ def install_default_tests(graph):
             graph,
             "canonical_arithmetic_add_ac_normalizes_test",
             empty,
-            CanonicalArithmeticAddACNormalizesTest(graph),
+            CanonicalArithmeticAddACNormalizesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18768,7 +18777,7 @@ def install_default_tests(graph):
             graph,
             "canonical_arithmetic_mul_ac_normalizes_test",
             empty,
-            CanonicalArithmeticMulACNormalizesTest(graph),
+            CanonicalArithmeticMulACNormalizesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18776,7 +18785,7 @@ def install_default_tests(graph):
             graph,
             "canonical_arithmetic_equation_symmetry_test",
             empty,
-            CanonicalArithmeticEquationSymmetryTest(graph),
+            CanonicalArithmeticEquationSymmetryTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -18784,7 +18793,7 @@ def install_default_tests(graph):
             graph,
             "arithmetic_canonical_laws_declared_test",
             empty,
-            ArithmeticCanonicalLawsDeclaredTest(graph),
+            ArithmeticCanonicalLawsDeclaredTest,
             M.truth_value,
         )
 
@@ -19067,7 +19076,7 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m1_cycles_without_refusal",
             empty,
-            MilestoneM1CyclesWithoutRefusalTest(graph),
+            MilestoneM1CyclesWithoutRefusalTest,
             MILESTONE_SKIPPED,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -19075,7 +19084,7 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m2_handle_lifecycle",
             empty,
-            MilestoneM2HandleLifecycleTest(graph),
+            MilestoneM2HandleLifecycleTest,
             MILESTONE_SKIPPED,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -19083,7 +19092,7 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m3_meta_handle_reorders",
             empty,
-            MilestoneM3MetaHandleReordersTest(graph),
+            MilestoneM3MetaHandleReordersTest,
             MILESTONE_SKIPPED,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -19091,7 +19100,7 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m4_policy_loosen_then_tighten",
             empty,
-            MilestoneM4PolicyLoosenThenTightenTest(graph),
+            MilestoneM4PolicyLoosenThenTightenTest,
             MILESTONE_SKIPPED,
         )
 
@@ -19102,7 +19111,13 @@ def install_default_tests(graph):
     # the established guarded form:
     #
     #     if Gmod.TestShardAccept(graph)() is M.truth_value:
-    #         _register_test(graph, "name", empty, YourTest(graph), M.truth_value)
+    #         _register_test(graph, "name", empty, YourTest, M.truth_value)
+    #
+    #     ^ the class, not an instance. Registration is where a name
+    #       filter is applied, and it can only skip work it has not done
+    #       yet: `YourTest(graph)` builds the test whether or not the
+    #       filter wants it, which is the difference between a targeted
+    #       run taking seconds and taking the whole install.
     #
     # The guard is not decoration: TestShardAccept ticks the shard cursor, so
     # an unguarded registration shifts every later test across the shard
@@ -19118,25 +19133,25 @@ def install_default_tests(graph):
     # interning something that is not a Nat, and building a second chain
     # for a large one -- then a real obligation-bearing structure.
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "raw_snapshot_nat_fidelity_test", empty, RawSnapshotNatFidelityTest(graph), M.truth_value)
+        _register_test(graph, "raw_snapshot_nat_fidelity_test", empty, RawSnapshotNatFidelityTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "boot_snapshot_nat_canonicality_test", empty, BootSnapshotNatCanonicalityTest(graph), M.truth_value)
+        _register_test(graph, "boot_snapshot_nat_canonicality_test", empty, BootSnapshotNatCanonicalityTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "boot_snapshot_nat_root_canonicality_test", empty, BootSnapshotNatRootCanonicalityTest(graph), M.truth_value)
+        _register_test(graph, "boot_snapshot_nat_root_canonicality_test", empty, BootSnapshotNatRootCanonicalityTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "boot_snapshot_nat_index_canonicality_test", empty, BootSnapshotNatIndexCanonicalityTest(graph), M.truth_value)
+        _register_test(graph, "boot_snapshot_nat_index_canonicality_test", empty, BootSnapshotNatIndexCanonicalityTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "non_nat_value_carrier_not_interned_test", empty, NonNatValueCarrierNotInternedTest(graph), M.truth_value)
+        _register_test(graph, "non_nat_value_carrier_not_interned_test", empty, NonNatValueCarrierNotInternedTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "large_nat_canonicality_test", empty, LargeNatCanonicalityTest(graph), M.truth_value)
+        _register_test(graph, "large_nat_canonicality_test", empty, LargeNatCanonicalityTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
-        _register_test(graph, "explanation_plan_snapshot_round_trip_test", empty, ExplanationPlanSnapshotRoundTripTest(graph), M.truth_value)
+        _register_test(graph, "explanation_plan_snapshot_round_trip_test", empty, ExplanationPlanSnapshotRoundTripTest, M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(
             graph,
             "label_registration_completeness_test",
             empty,
-            LabelRegistrationCompletenessTest(graph),
+            LabelRegistrationCompletenessTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -19144,7 +19159,7 @@ def install_default_tests(graph):
             graph,
             "test_shard_cursor_pin_test",
             empty,
-            TestShardCursorPinTest(graph),
+            TestShardCursorPinTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -19152,7 +19167,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_value_atom_identity_test",
             empty,
-            SnapshotValueAtomIdentityTest(graph),
+            SnapshotValueAtomIdentityTest,
             M.truth_value,
         )
     # --- end [SHARED] ---
