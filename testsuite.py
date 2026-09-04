@@ -15873,6 +15873,88 @@ class SelfImprovementRentGateTest(M.Edge):
         return self.result
 
 
+class SelfImprovementRecursiveTurnTest(M.Edge):
+    """Phase 3: an adopted law changes what the miner sees next cycle.
+
+    Before adoption the miner sees only the p->r motif; after the
+    p->r law is adopted and p->s derivations are recorded through it,
+    the next mining cycle must surface the p->s motif that was
+    invisible before.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+
+        T = _ResearchToy
+        empty = M.EmptyList
+        vx = T.var("x")
+        vy = T.var("y")
+        vz = T.var("z")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        r3 = MultiRule(T.chain(T.term(T.sym("r"), vz)), T.term(T.sym("s"), vz))()
+        rules = T.chain(r1, r2)
+        self.result = M.truth_value
+        T.reset(graph)
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), rules,
+            )
+        mined = Rmod.MineTraces(graph)
+        proposals = M.Head(M.Tail(mined)())()
+        if M.IdentityCompare(proposals, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        if self._conclusion_head_present(proposals, T.sym("s")) is M.truth_value:
+            self.result = M.false_value
+        adopted = Rmod.RentGateCompression(
+            graph, M.Head(proposals)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
+        )
+        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        rules2 = T.chain(r3)
+        entries = Rmod.rebuild_taught_rules(graph)
+        cur = entries
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            rules2 = M.Pair(M.Head(M.Head(cur)())(), rules2)
+            cur = M.Tail(cur)()
+        for const in ("d", "e"):
+            out = Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("s"), T.sym(const))), rules2,
+            )
+            if Rmod.ForwardSearchClosed(out)() is M.false_value:
+                self.result = M.false_value
+        mined = Rmod.MineTraces(graph)
+        proposals = M.Head(M.Tail(mined)())()
+        if self._conclusion_head_present(proposals, T.sym("s")) is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _conclusion_head_present(self, proposals, head):
+        from . import research as Rmod
+
+        empty = M.EmptyList
+        walk = proposals
+        while M.IdentityCompare(walk, empty)() is M.false_value:
+            proposal = M.Head(walk)()
+            walk = M.Tail(walk)()
+            law = Rmod.CompressedLawLaw(proposal)()
+            conclusion = Rmod.FormalRuleConclusion(law)()
+            if M.IsPair(conclusion)() is M.truth_value:
+                if M.Compare(M.Head(conclusion)(), head)() is M.truth_value:
+                    return M.truth_value
+        return M.false_value
+
+    def __call__(self):
+        return self.result
+
+
 # [/S] SELF-IMPROVEMENT LOOP
 
 
@@ -18161,6 +18243,14 @@ def install_default_tests(graph):
             "self_improvement_rent_gate_test",
             empty,
             SelfImprovementRentGateTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "self_improvement_recursive_turn_test",
+            empty,
+            SelfImprovementRecursiveTurnTest(graph),
             M.truth_value,
         )
     # [/S] SELF-IMPROVEMENT LOOP
