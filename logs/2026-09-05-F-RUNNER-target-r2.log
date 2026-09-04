@@ -1,0 +1,39 @@
+F-RUNNER target, second pass -- the FLT sentence, exponent n > 2
+=================================================================
+
+freeze tag: experiment-5-frozen-r1 -> ef571b6 (annotated tag 5ebcd92);
+remote tip before work: origin/master 428ecdc (unchanged since pass 1).
+operator: F-RUNNER (fable 5.1), fresh cold process after the decoy.
+Same-day repeat of the morning pair; the transcript is byte-identical
+to the first pass from `research mode on` through `goodbye`.
+
+Contamination ledger header: nothing live-taught this session; the 167
+library rules are the theorem packs, provenance LIBRARY_THEOREM,
+declared by the manifest below so no transcript can be misread about
+what the machine held at the start. No residual named a premise, so
+nothing was taught and no checkpoint was saved.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> prove that for all n > 2 a^n + b^n = c^n has no solutions in positive integers
+hyge> parsed goal: (forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye

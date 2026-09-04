@@ -53,3 +53,27 @@ reading withdrawn), recorded here rather than scored by a sheet that
 does not exist. Landing the F tooling is the next task on this track;
 independently, the D11-MAP pack port and the new tag it forces are
 what would let a future pair get past step 3.
+
+## 2026-09-05, second pass -- F-RUNNER pair repeated on the same tag: the null holds at n=2
+
+Why repeated: research_protocol.md's own rule -- a single run of a
+spawning process is provisional until repeated -- applied to the first
+pair above. The fable was re-issued unchanged, so steps 1-3 were
+re-executed in full rather than assumed.
+
+Run: step 1 re-verified first -- remote tip still 428ecdc, no new
+tags, experiment-5-frozen-r1 (ef571b6) still the newest frozen tag and
+still admissible (zero semantic commits after it). Then two fresh cold
+processes on the same tag, same command sequence, decoy first.
+Transcripts: logs/2026-09-05-F-RUNNER-decoy-r2.log,
+logs/2026-09-05-F-RUNNER-target-r2.log.
+
+Came back: byte-identical transcripts from `research mode on` through
+`goodbye` on both doors -- cost=334, zero genuine partial matches,
+zero-successor-root, dependency characterized no, on decoy and target
+alike. The morning pair's provisional status is resolved: the null is
+stable across independent cold processes on this tag. Reading stays
+withdrawn; nothing was taught; no checkpoint was saved; step 4 never
+entered. Goal closed: no. The F-D1..F-D3 tooling defects stand
+unchanged; the fable still cannot be executed literally until they
+land.
