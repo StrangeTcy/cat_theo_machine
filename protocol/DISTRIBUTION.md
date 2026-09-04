@@ -43,7 +43,7 @@ Measured from the tree, not assumed:
 | shard cursor | 295 `TestShardAccept` guards, 295 registrations; `learned_memory_checkpoint_test` sits at cursor index 218 → shard 0 |
 | cursor-pinning sentinel | **not landed.** Both `[SHARED]` blocks in `testsuite.py` are empty; no shard or cursor test exists in the tree |
 | pre-flight item 1 | closed at `da33a45`: the learned-memory checkpoint failure is nondeterministic under load — not contamination, not volume |
-| subset test runner | absent. No name-based selection anywhere in the tree |
+| subset test runner | `tools/run_named_tests.py` — exact-name selection at registration; 305 constructed for a full run, only the named ones for a targeted one |
 | checkpoints | `snapshots/library-only-control.json`, `snapshots/set-b-cumulative.json`, both named in `research_protocol.md` |
 | checkpoint verbs | none. No `save checkpoint` / `load checkpoint`, no content-addressed ids |
 
@@ -611,6 +611,21 @@ landed — clean, behind (`reset --mixed`, tree intact, pins re-derived
 PASS) and divergent (patch carried, edit survives, and the 190-file case
 still refuses).
 
+**D9 — installing the suite costs three minutes before any test runs.**
+Found by profiling a targeted run that registered nothing: 180 seconds and
+75 million `uuid4` calls, all of it `TestShardAccept`. Every one of its 304
+guards calls `_replace_context(constructors=registry)`, and the constructor
+context is a large tree, so the cursor tick is O(the registry) and the
+install is O(guards × the registry).
+
+The runner bypasses it in filtered mode — a filtered run assigns nothing to
+a shard, so the tick decides nothing there — which is what took a targeted
+run from 185 s to 14 s. The full-suite path still pays it, on every shard
+run and every future tag cut. Filed rather than fixed: the fix is in the
+cursor's context handling, which is D2's machinery, and it belongs to its
+own commit with its own measurement — the shard assignment has to come out
+bit-identical before and after.
+
 **D4 — root debris** (T0, below).
 
 ---
@@ -699,14 +714,18 @@ production runtime — quarantine it in `archive/` with a README line saying so,
 and leave deletion to the operator. One commit, integration branch, before a
 third worker is staffed.
 
-**Runner gap — no name-based test selection.** Still the top throughput item:
-every worker pays a full suite run to verify one class. Constraint on the fix,
-as specified by the integrator: a name filter must bypass the cursor for
-targeted runs while leaving the full-suite cursor path byte-identical, and the
-cursor-pinning sentinel must pass in both modes. A filter that perturbs
-registration order invalidates the baseline it was meant to speed up. The
-sentinel exists now (D2), so the runner is unblocked and is the next
-`[SHARED]` item after the branch decision.
+**Runner gap — closed.** `tools/run_named_tests.py` selects by exact name at
+*registration*, not at run time, which is the only place it can work: these
+tests do their work in their constructors, so installing the suite builds all
+305 to run one. 231 registration sites now pass the class rather than an
+instance, and an unselected test is never constructed. The constraint the
+integrator set is met in the form it was set: the full-suite cursor path is
+untouched (no filter set means everything is admitted), the sentinel passes in
+both modes, and the pin is still 305 / 218 / 0. Nine tests that cost 2225 s
+now cost 194 s; one cheap test costs 17 s.
+
+Two things it is not: a filtered run is never a baseline, and it is not a
+shard run — which is why the cursor does not tick in that mode at all (D9).
 
 **`sh tools/recover.sh --check` is the first command of every agent turn.**
 No exceptions. It names the base state and exits non-zero unless `HEAD` is
@@ -794,7 +813,9 @@ Noted only. It is F-tooling, owned by whoever takes F.
                                                manifest re-run on it.
                                                Blank controls not re-run.
 6. T0 (archive .txt, quarantine hyge.py)
-7. runner filter, verified against the sentinel in both modes
+7. runner filter, verified against the   DONE (dc22a37), pending the two
+   sentinel in both modes                 shards below; pin 305 / 218 / 0
+                                          unchanged
 8. D1 cleanup toward 0 / 0 / 0, pins updated in the same commit
 9. staff S-eng, E-eng, G-eng from the new tag
 ```
