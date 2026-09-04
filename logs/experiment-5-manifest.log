@@ -1,0 +1,23 @@
+Experiment 5 cold-start manifest -- packs loaded
+================================================
+freeze tag: experiment-5-frozen -> aed9c0e (annotated tag 5defc8d)
+saved from the tagged tree, one commit below this file's own commit
+
+Contamination ledger: nothing live-taught; the 167 library rules are
+the theorem packs, provenance LIBRARY_THEOREM, declared here so no
+transcript can be misread about what the machine held at the start.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> goodbye
+hyge> goodbye
