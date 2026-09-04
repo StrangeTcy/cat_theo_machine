@@ -42,7 +42,7 @@ Measured from the tree, not assumed:
 | `main.py` / `persistence.py` | 5,062 / 2,106 lines; **no partition blocks in either** |
 | shard cursor | 295 `TestShardAccept` guards, 295 registrations; `learned_memory_checkpoint_test` sits at cursor index 218 → shard 0 |
 | cursor-pinning sentinel | **not landed.** Both `[SHARED]` blocks in `testsuite.py` are empty; no shard or cursor test exists in the tree |
-| pre-flight item 1 | closed at `da33a45`: the learned-memory checkpoint failure is nondeterministic under load — not contamination, not volume |
+| pre-flight item 1 | **OPEN.** `learned_memory_checkpoint_test` is in the failure set at every tag and tip since `da33a45`, which closed the *diagnosis* (nondeterministic under load, not contamination, not volume) and never removed the failure. It passes standalone. |
 | subset test runner | `tools/run_named_tests.py` — exact-name selection at registration; 305 constructed for a full run, only the named ones for a targeted one |
 | checkpoints | `snapshots/library-only-control.json`, `snapshots/set-b-cumulative.json`, both named in `research_protocol.md` |
 | checkpoint verbs | none. No `save checkpoint` / `load checkpoint`, no content-addressed ids |
@@ -645,6 +645,35 @@ cursor's context handling, which is D2's machinery, and it belongs to its
 own commit with its own measurement — the shard assignment has to come out
 bit-identical before and after.
 
+**D10 — a shard run dies with the sandbox.** Seven resets; the two-shard
+run for the runner was killed mid-flight once and redone, about an hour
+and a half of compute. `recover.sh` protects the tree, which is what it
+is for, and does nothing for a running measurement. Mitigation in
+`tools/run_shards_detached.sh`: both shards launch detached with output
+to `logs/shard-*.log`, so a reset leaves a partial record and the run can
+be picked up by eye instead of starting blind. It does not make a run
+survive a sandbox restart — nothing does — but it stops a killed run from
+being a total loss.
+
+**The shard map is now a tool, not an inference.** `tools/shard_map.py`
+prints `index  shard  name` for all 304 tests without booting, read from
+the AST rather than from a name regex (a regex pass found 291 of 304 and
+put `learned_memory_checkpoint_test` at 209 instead of its pinned 218,
+because not every test name ends in `_test`). It cross-checks against the
+pin by construction, and:
+
+```text
+diff <(python3 tools/shard_map.py experiment-5-frozen) \
+     <(python3 tools/shard_map.py HEAD)
+    -> empty
+```
+
+is the bit-identical assignment check the D9 fix will need. It also
+settles the off-by-one that has been carried in these ledgers: 305 guard
+*lines* against 304 guards is the comment in the `[SHARED]` block header
+that shows the guarded registration form, not a guard that registers
+nothing.
+
 **D4 — root debris** (T0, below).
 
 ---
@@ -668,6 +697,19 @@ engineer.
 ---
 
 ## 5. Staffing order
+
+**Stalled: F.** No cross-track flow in either direction for two turns.
+The block is **not** staffing — it is INT's ruling on defect 1
+(structural rule versus pack entry), which is a semantic change and will
+force a re-baseline whatever the staffing looks like. Blank controls run
+on `experiment-5-frozen` would also certify nothing: per the INT turn
+audit, the F4 finding on that tag is root-connective blindness — every
+quantified goal returns `cost=334`, partial match 0,
+`zero-successor-root` — so a blank control is blank by construction.
+(That finding is recorded as reported by the audit; it has not been
+independently re-measured here.) Order: re-cut tooling tag, rule on
+defect 1 and re-cut semantic, then staff F blank controls on that tag.
+
 
 ```text
 INT: name integration branch, re-cut, re-baseline
@@ -722,6 +764,34 @@ published artifacts; two operators never write the same one.
 ---
 
 ## 7. Open items
+
+**The three outcome states, defined.** The runner reports passed, failed
+and open, and "open" is not a euphemism for either of the others:
+
+```text
+passed   the test returned what it was registered to expect
+failed   it did not
+open     it returned a declared-open sentinel that is also what it was
+         registered to expect, so the suite stays green while a named
+         defect stays open
+```
+
+The third state is `sentinels.py`'s job: a sentinel names the defect, the
+test registers the sentinel *as* its expectation, and
+`TestResultsSummary` reads `OPEN_SENTINELS` to count it apart. A sentinel
+invented inside a track block would be invisible to the count, which is
+why adding one is `[SHARED]`. An open test is a standing claim about the
+build and is never counted as a pass: the four at this tag are
+`test_milestone_m1..m4`, and they leave when the milestones are met, not
+when someone wants the number to fall.
+
+**Pre-flight, restated every turn.** Two failures sit in the baseline and
+are not noise. Every worker report names them until they are gone:
+
+| test | state |
+|---|---|
+| `learned_memory_checkpoint_test` | **OPEN** (pre-flight item 1). In the failure set at `experiment-5-frozen` and at the tip; passes standalone. |
+| `cold_e2_reaches_snapshot_save_test` | **OPEN, blocks G and E.** A cold E2 that never reaches snapshot save is the instrument both the linear-observable work (G) and the explanation bridge (E) depend on. |
 
 **T0 — root debris.** `graph.py.txt` (748 KB), `firing.py.txt` (76 KB),
 `mining.py.txt`, `language.py.txt`, `deduction.py.txt`, `grammar.py.txt`,
@@ -862,3 +932,23 @@ merge request: <files> -> <integration branch>
 
 A track with no cross-track flow in either direction for two consecutive turns
 is reported as stalled, with the reason.
+
+**Self-merge, and the exception it was.** INT authored and merged
+`dc22a37` — the largest code change of the runner batch — onto the
+integration branch with no second reader. That is the one agent with no
+check on it, which is the inverse of what the role is for, so it is
+recorded as an exception and not as a precedent:
+
+```text
+merge: dc22a37 self-merged by INT
+evidence in lieu of review:
+  - mechanical proof: the same AST transformation applied to the
+    pre-change testsuite.py reproduces the post-change file modulo
+    33 intended lines (the _register_test body and one comment)
+  - behavioural proof: two shards identical to experiment-5-frozen
+    (147/3/2, 145/5/2), pin 305/218/0 unchanged
+  - assignment proof: tools/shard_map.py over both trees, no diff
+```
+
+If a second self-merge happens without a named reader, it is a process
+defect and not an exception.
