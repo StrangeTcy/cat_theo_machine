@@ -40,6 +40,9 @@ do
     if [ "$code" -eq 0 ]
     then
       echo "$i $j identical $a $b"
+    elif [ "$code" -eq 3 ]
+    then
+      echo "$i $j silence-class $a $b"
     elif [ "$code" -eq 1 ]
     then
       echo "$i $j distinct $a $b"

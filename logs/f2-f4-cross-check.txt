@@ -1,0 +1,29 @@
+F2/F4 cross-check on T1–T4
+F4 teach-law count must equal F2 taught-theorem count.
+
+T1 toy-live-protocol
+  F2 taught 3  cite 2/1  unlock 2  circular 0  computable 0
+  F4 teach law 3  regime B  contamination no  D12 missing-class
+  teach-count agree: yes
+
+T2 ground-evaluation
+  F2 taught 2  cite 0/2  unlock 0  circular 0  computable 0
+  F4 teach law 2  regime B  contamination no  loaded-class present
+  teach-count agree: yes
+  prior sheet called T2 "A calibration"; mechanical F4 is B because
+  teach law is present. Definition governs.
+
+T3 blind-geometry-dependencies
+  F2 taught 1  cite 1/0  unlock 0  circular 0  computable 0
+  F4 teach law 1  regime B  contamination no  D12 missing-class
+  teach-count agree: yes
+
+T4 incident-misattributed-teaching
+  F2 taught 1  cite 0/1  unlock 1  circular 0  computable 0
+  F4 teach law 1  regime C  contamination yes  loaded-class present
+  teach-count agree: yes
+  F4 C is taught-at-boot (state taught rules 4), not a contradiction
+  of F2's count of this transcript's teach law lines.
+
+four-way teach-count agreement: 4/4
+second nonzero-teach transcripts on this base: T2 (2), T3 (1), besides T1/T4

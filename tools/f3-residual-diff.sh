@@ -9,7 +9,7 @@ set -u
 
 usage() {
   echo "usage: f3-residual-diff.sh <transcript-a> <transcript-b>" >&2
-  echo "exit 0 identical / 1 distinct / 2 incomparable" >&2
+  echo "exit 0 identical / 3 silence-class / 1 distinct / 2 incomparable" >&2
   exit 2
 }
 
@@ -93,6 +93,28 @@ if [ "$ca" = "$cb" ] && [ "$pa" = "$pb" ] && [ "$ha" = "$hb" ] && [ "$ua" = "$ub
 then
   echo identical
   exit 0
+fi
+
+silence_a=0
+silence_b=0
+if [ "$pa" = "0" ] && [ "$ua" = "none" ]
+then
+  if [ "$ha" = "zero-successor-root" ] || [ "$ha" = "none" ]
+  then
+    silence_a=1
+  fi
+fi
+if [ "$pb" = "0" ] && [ "$ub" = "none" ]
+then
+  if [ "$hb" = "zero-successor-root" ] || [ "$hb" = "none" ]
+  then
+    silence_b=1
+  fi
+fi
+if [ "$silence_a" -eq 1 ] && [ "$silence_b" -eq 1 ]
+then
+  echo silence-class
+  exit 3
 fi
 
 echo distinct

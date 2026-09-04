@@ -422,14 +422,43 @@ null decoy:  all zeros
 
 ## status
 
+## F1 spec
+
+Docs-only contract already on this branch: `tools/f1-checkpoint-verbs.spec.md`.
+Verb surface, content-addressed id, audit header (closes D12),
+inadmissible verbs, inadmissible sessions. Not blocked. Code still
+waits on the SHARED cut.
+
+## F3 three-way
+
+```text
+exit 0 identical
+exit 3 silence-class   both first stalls are silence (partial 0,
+                       unmatched none, head zero-successor-root or none)
+exit 1 distinct
+exit 2 incomparable
+```
+
+decoy vs FLT: identical (0). decoy vs T3: silence-class (3).
+Prior binary run called decoy/T3 distinct; that was the binary mode.
+
+## F2/F4 cross-check
+
+Teach-law counts agree 4/4. T2–T3 are further nonzero-teach transcripts.
+See `logs/f2-f4-cross-check.txt`.
+
+---
+
 ```text
 agent: F
 branch: arena/01a06da9-cat-theo-machine
 base: 41e8078
-tests: F2 T1 taught 3 unlock 2 cite 2/1; F3 decoy/FLT identical exit 0
+tests: F2 T1-T4 hand=script; F4 teach-count 4/4; F3 three-way decoy/FLT identical, decoy/T3 silence-class
 measurement: none (pair closed; no third knock)
 pair status: closed
 track status: active
+F2: closed
+F1 spec: landed docs-only
 ready for INT docs/log merge: yes
 ready for F1 code merge: no
 blocked on: INT publishing diagnostic log (low priority)

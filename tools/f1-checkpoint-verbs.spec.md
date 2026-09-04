@@ -56,6 +56,19 @@ load checkpoint <name>          of a body whose content-id does not
 
 Each prints a refusal and changes no graph.
 
+## inadmissible sessions
+
+```text
+first audit omits the loaded-class list          D12; not a measurement
+load checkpoint of another session's body
+  without printing content-id                    provenance break
+research mode off during save or load            verbs do not run
+```
+
+A session whose first `audit knowledge` omits loaded classes is
+inadmissible as a measurement. It may still be stored as a pre-cut
+instrument record. D12 is that case.
+
 ## not this cut
 
 Implementation waits on SHARED re-cut carrying `research.py`. This

@@ -51,15 +51,38 @@ else
   echo "D12: first audit omits loaded classes"
 fi
 
+regime=B
+contamination=no
 if grep -q 'restoring the research checkpoint' "$t"
 then
-  echo "regime-hint: C restored-checkpoint"
-elif grep -q 'theorem packs loaded:' "$t"
-then
-  echo "regime-hint: A/B packs-on"
-else
-  echo "regime-hint: A/B packs-off"
+  regime=C
+  contamination=yes
 fi
+first_taught=$(grep -m 1 '^state: taught rules ' "$t" | sed -n 's/.*taught rules \([0-9][0-9]*\).*/\1/p')
+if [ -n "$first_taught" ]
+then
+  if [ "$first_taught" -gt 0 ]
+  then
+    regime=C
+    contamination=yes
+  fi
+fi
+if [ "$regime" != "C" ]
+then
+  tl=$(grep -c '^you> teach law:' "$t" || true)
+  if [ -z "$tl" ]
+  then
+    tl=0
+  fi
+  if [ "$tl" -eq 0 ]
+  then
+    regime=A
+  else
+    regime=B
+  fi
+fi
+echo "regime: $regime"
+echo "contamination: $contamination"
 
 teaches=$(grep -c '^you> teach law:' "$t" || true)
 if [ -z "$teaches" ]
