@@ -7444,25 +7444,12 @@ class ConversePropositionTest(M.Edge):
         real_outcome = M.Head(real_pair)()
         registry = M.Head(M.Tail(real_pair)())()
 
-        yes_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
-        )()
-        no_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(no_outcome)())())())(),
-        )()
-        yes_words = M.EmptyList
-        no_words = M.EmptyList
-        if M.IdentityCompare(yes_answer, empty)() is M.false_value:
-            yes_words = M.Head(M.Tail(yes_answer)())()
-        if M.IdentityCompare(no_answer, empty)() is M.false_value:
-            no_words = M.Head(M.Tail(no_answer)())()
-        real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
-        real_body = M.Head(M.Tail(real_meaning)())()
-        real_subject = M.Head(M.Tail(real_body)())()
-        real_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(real_outcome)())())())(),
-        )()
-
+        # The UnderstoodLabel guards run before any outcome navigation:
+        # a NotUnderstood or Ambiguous outcome is a three-slot term, and
+        # reading four tails off it used to raise during suite install,
+        # taking every later test of the shard down with it. An outcome
+        # that is not Understood fails this test; it must not abort the
+        # suite.
         self.result = M.truth_value
         if M.IdentityCompare(
             M.Head(yes_outcome)(),
@@ -7474,35 +7461,55 @@ class ConversePropositionTest(M.Edge):
             Lmod.UnderstoodLabel,
         )() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(yes_words, empty)() is M.truth_value:
-            self.result = M.false_value
-        elif M.Compare(M.Head(yes_words)(), M.Char("yes"))() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(M.Tail(yes_words)(), empty)() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(no_words, empty)() is M.truth_value:
-            self.result = M.false_value
-        elif M.Compare(M.Head(no_words)(), M.Char("no"))() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(M.Tail(no_words)(), empty)() is M.false_value:
-            self.result = M.false_value
         elif M.IdentityCompare(
             M.Head(real_outcome)(),
             Lmod.UnderstoodLabel,
         )() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(
-            M.Head(real_body)(),
-            M.IsRealLabel,
-        )() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(
-            M.Head(real_subject)(),
-            M.SqrtLabel,
-        )() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(real_answer, empty)() is M.false_value:
-            self.result = M.false_value
+        else:
+            yes_answer = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
+            )()
+            no_answer = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(no_outcome)())())())(),
+            )()
+            yes_words = M.EmptyList
+            no_words = M.EmptyList
+            if M.IdentityCompare(yes_answer, empty)() is M.false_value:
+                yes_words = M.Head(M.Tail(yes_answer)())()
+            if M.IdentityCompare(no_answer, empty)() is M.false_value:
+                no_words = M.Head(M.Tail(no_answer)())()
+            real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
+            real_body = M.Head(M.Tail(real_meaning)())()
+            real_subject = M.Head(M.Tail(real_body)())()
+            real_answer = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(real_outcome)())())())(),
+            )()
+
+            if M.IdentityCompare(yes_words, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(M.Head(yes_words)(), M.Char("yes"))() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Tail(yes_words)(), empty)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(no_words, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(M.Head(no_words)(), M.Char("no"))() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Tail(no_words)(), empty)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(real_body)(),
+                M.IsRealLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(real_subject)(),
+                M.SqrtLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(real_answer, empty)() is M.false_value:
+                self.result = M.false_value
 
         graph._replace_context(constructors=registry)
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
