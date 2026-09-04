@@ -30,8 +30,9 @@ Measured from the tree, not assumed:
 
 | Fact | Value |
 |---|---|
-| integration tip | `5361a87`, **untagged**, 6 commits past `experiment-4-frozen` |
-| frozen tag | `experiment-4-frozen` → `06c0e52` |
+| integration tip | `aed9c0e` |
+| frozen tag | `experiment-5-frozen` → `aed9c0e` (annotated tag `5defc8d`) |
+| previous tag | `experiment-4-frozen` → `06c0e52`, 28 commits below the new one |
 | `explanation.py` | exists, 1,012 lines; 6 tests registered at `testsuite.py:17912–17926` |
 | `research.py` / `provenance.py` | 4,021 / 1,518 lines |
 | `research_protocol.md` | 119 lines; the cross-track index |
@@ -386,6 +387,30 @@ Report shard results as `passed / failed / open` per shard plus a suite
 total, never as passed/failed alone and never with a fabricated `0` in the
 open column.
 
+Harvested from the runner's own output at `aed9c0e`, not summarised:
+
+```text
+SHARD 0 elapsed 2909.5627086162567
+passed: 147   failed: 3   open: 2 (test_milestone_m1_cycles_without_refusal, test_milestone_m3_meta_handle_reorders)
+learned_memory_checkpoint_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+open: test_milestone_m3_meta_handle_reorders, test_milestone_m1_cycles_without_refusal
+
+SHARD 1 elapsed 3446.673872947693
+passed: 145   failed: 5   open: 2 (test_milestone_m2_handle_lifecycle, test_milestone_m4_policy_loosen_then_tighten)
+heuristic_canonical_knowledge_agreement_test
+dependency_graph_checkpoint_test
+curator_report_test
+cold_e2_reaches_snapshot_save_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+open: test_milestone_m4_policy_loosen_then_tighten, test_milestone_m2_handle_lifecycle
+```
+
+which totals 292 passed, 8 failed, 4 open across 304 tests. The baseline
+column's per-shard open split was not recorded, so only the suite-wide 5
+is claimed for it.
+
 The eight failures are the same eight, test for test, before and after:
 
 ```text
@@ -683,6 +708,14 @@ registration order invalidates the baseline it was meant to speed up. The
 sentinel exists now (D2), so the runner is unblocked and is the next
 `[SHARED]` item after the branch decision.
 
+**`sh tools/recover.sh --check` is the first command of every agent turn.**
+No exceptions. It names the base state and exits non-zero unless `HEAD` is
+the integration tip, and it is the only thing standing between a reset and
+a turn of work committed against a base that no longer exists. The rule
+was already standing ("verify `HEAD` before the first commit of a
+session"); it is now a single command, and a worker who skips it is
+repeating the failure that cost six commits in three turns.
+
 **Sandbox resets — the wrong-base failure, six times.** A reset keeps the
 working tree and drops git objects, so a session can wake up with a full tree
 and a `HEAD` that sits *below* the integration tip. The next commit then goes
@@ -753,15 +786,13 @@ Noted only. It is F-tooling, owned by whoever takes F.
                                              Nat interning)
 2b. runner reports OPEN apart from PASS       DONE (three-way tally, both
                                              runners; D3's flip is visible)
-3. D3 fix: restore resolves decoded atoms     OPEN [SHARED], blocks the tag
-   through the registry's interning
-   -- snapshot_value_atom_identity_test is the executable target, and it
-      has to be moved onto save + boot first; it currently skips activate
-   -- three classes of restored Nat, only one internable; the class (b)
-      decision above is the operator's to make
-   -- prototype measured, reverted, and recorded under D3
-4. full two-shard suite on the integration tip
-5. cut experiment-5-frozen; rerun manifest; rerun blank controls
+3. D3 fix: typed canonical Nat references at   DONE (bf5a2c7); measured
+   capture, canonicalized at boot              5 -> 0 mismatched Nats
+4. full two-shard suite on the integration tip DONE at aed9c0e against a
+                                               worktree of 92e61f2
+5. cut experiment-5-frozen; rerun manifest     DONE: tag -> aed9c0e,
+                                               manifest re-run on it.
+                                               Blank controls not re-run.
 6. T0 (archive .txt, quarantine hyge.py)
 7. runner filter, verified against the sentinel in both modes
 8. D1 cleanup toward 0 / 0 / 0, pins updated in the same commit
