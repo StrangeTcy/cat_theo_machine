@@ -79,19 +79,59 @@ trace(305), recursive(307), memory(309) -> shard 1
 rent(306), invariant(308) -> shard 0
 
 --------------------------------------------------------------------------
-open item for the executing hand (INT gate item 4)
+shard-1 halt discrepancy — RESOLVED, world (a), with stated grounds
 --------------------------------------------------------------------------
-Shard-1 halt discrepancy. Static evidence on r1: ConversePropositionTest still
-exists (testsuite.py:7370) and still holds the fragile outcome-extraction at
-line 7449 (M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),); the converse
-registrations (18418/18426) precede the [S] block. The recorded r1 baseline
-145/5/2 is from a completed shard-1 run, so on the baseline environment shard 1
-finishes; this sandbox's full-shard-1 run halted at the converse install, an
-environment effect not reproduced here as a named-test matter. One full shard-1
-run on the port branch decides: (a) completes -> the three shard-1 tests are
-reached and must be green, comparison 145/5/2 unchanged; (b) halts -> the gate
-baseline statement needs correction. The port report must state which world it
-found.
+The discrepancy resolves as: the halt is lineage-dependent, not
+environment-dependent, and the port base r1 is the lineage WITHOUT the halt.
+
+Causal chain, established by reading + one runtime probe on r1 this turn:
+
+  - The fragile extraction is INSTALL-TIME. It lives in
+    ConversePropositionTest.__init__ (testsuite.py:7449 on r1), which runs
+    at registration inside install_default_tests: r1's _register_test
+    constructs the edge (computation_edge(graph)) when the name filter
+    admits it, and a full shard run sets no filter. Registration is
+    guarded by TestShardAccept, so the test constructs only on its owning
+    shard (shard 1).
+
+  - The abort is caused by commit 41e8078's genus_body_bare template
+    pattern '?a' shadowing every bare number word (d528573 "Defect: a
+    bare-variable template law shadowed every number word"). With it, the
+    canonical equality sentence 'is two plus two equal to four' returned
+    NotUnderstood at depth 3, and the unconditional four-Tail walk in the
+    test ran off the end -> AttributeError aborting the whole shard-1
+    install.
+
+  - d528573 removes the shadowing template and is IN the r1 lineage
+    (ancestor of ef571b6; the commit's own message: 'the former unblocks
+    shard 1, which had been aborting during installation'). It is NOT in
+    experiment-4 (06c0e52), which is why this session's full-shard-1 runs
+    on experiment-4 and on the 06c0e52-based branch crashed/hung at the
+    converse install.
+
+  - The r1 lineage does NOT contain the later sibling-lineage guard hoist
+    3cac74c ("ConversePropositionTest guards Understood before navigating
+    outcome tails", branched from 41e8078, not an ancestor of ef571b6).
+    r1 still has the unconditional four-Tail walk. It does not matter:
+    on r1 the outcome is Understood again, so the walk succeeds.
+
+Runtime probe, this session, on r1 (ef571b6), venv gmpy2+pyyaml:
+    Converse('is two plus two equal to four') -> outcome head Understood,
+    5 navigable pair slots; ConversePropositionTest constructs and returns
+    truth_value (PASS).
+
+Prediction for the gate (world a): the port branch, based on r1, installs
+shard 1 fully; the three shard-1 registrations (trace 305, recursive 307,
+memory 309) ARE reached and must be green; the comparison is 145/5/2
+unchanged. World (b) is expected only if the executing environment's
+Converse regresses to NotUnderstood for the equality sentence.
+
+One-command check (seconds, before the expensive shard run) to confirm the
+world without running the full shard:
+    python3 tools/run_named_tests.py converse_proposition_test
+on the port branch. PASS (or an ordinary failing-test report) => world (a).
+An install abort at testsuite.py:7449 => world (b), and the gate baseline
+statement needs the corrected caveat before any pass/fail claim.
 
 --------------------------------------------------------------------------
 remaining gate items (executing hand)
@@ -99,9 +139,14 @@ remaining gate items (executing hand)
 1. create arena/01a06cca-self-improve-r1-port from ef571b6
 2. apply this recipe (five cherry-picks + four deltas)
 3. full shard 0: expect 147/3/2 plus rent(306) and invariant(308) green
-4. full shard 1: resolves the halt discrepancy above
+4. full shard 1: prediction world (a) — 145/5/2 unchanged, trace/recursive/memory green; the one-command converse check above confirms before the run
 5. per-entry OPEN mapping, explicit (no arithmetic-only claim)
 6. memory-cycle test on the r1 persistence path (D3 interaction), or a
    recorded machine term that the path is absent
 7. merge-tree against INT's landing tip at execution time
 8. push; the five source commits remain the port source, referenced by hash
+
+Note (D1 fix provenance): the sibling-lineage guard hoist 3cac74c is NOT
+required for the port — the r1 lineage carries d528573, which removes the
+cause rather than guarding the symptom. The executing hand does not need to
+bring 3cac74c in.
