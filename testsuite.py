@@ -15735,6 +15735,40 @@ def _set_registry(graph, registry):
 # =============================================================================
 
 
+class SelfImproveHeldOutMarks(M.Edge):
+    """Fired-chain mark count of a held-out attempt, or EmptyList if open.
+
+    The adopted law set is recompiled on top of the base rules, exactly
+    as the live protocol does, so the mask governs which induced laws
+    participate. One truth_value mark per fired step; the chain length
+    is the chain length.
+    """
+
+    def __init__(self, graph, base, start, goal):
+        from . import research as Rmod
+
+        empty = M.EmptyList
+        rules = base
+        entries = Rmod.rebuild_taught_rules(graph)
+        cur = entries
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            rules = M.Pair(M.Head(M.Head(cur)())(), rules)
+            cur = M.Tail(cur)()
+        outcome = Rmod.attempt_goal(graph, start, goal, rules)
+        self.result = empty
+        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
+            self.result = self._marks(Rmod.ForwardSearchFired(outcome)())
+        super().__init__(inputs=M.Pair(base, M.Pair(start, M.Pair(goal, empty))), results=M.Pair(self.result, empty))
+
+    def _marks(self, fired):
+        if M.IdentityCompare(fired, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(M.truth_value, self._marks(M.Tail(fired)()))
+
+    def __call__(self):
+        return self.result
+
+
 class SelfImprovementTraceMiningTest(M.Edge):
     """Phase 1: trace mining over retained Next chains, Engel E2 evidence.
 
@@ -16024,6 +16058,78 @@ class InvariantConjectureTest(M.Edge):
                 if M.Compare(M.Head(args)(), arg0)() is M.truth_value:
                     return M.truth_value
         return M.false_value
+
+    def __call__(self):
+        return self.result
+
+
+class SelfImprovementMemoryCycleTest(M.Edge):
+    """Phase 5: an adopted compression rides the learned-memory mask.
+
+    With the induced law active the held-out chain is short; disabling
+    learned memory removes the law and the chain lengthens; enabling
+    brings the short chain back; reset strips the law from provenance
+    and the chain stays long even with memory enabled.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+
+        T = _ResearchToy
+        empty = M.EmptyList
+        vx = T.var("x")
+        vy = T.var("y")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        base = T.chain(r1, r2)
+        self.result = M.truth_value
+        T.reset(graph)
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), base,
+            )
+        mined = Rmod.MineTraces(graph)
+        proposals = M.Head(M.Tail(mined)())()
+        if M.IdentityCompare(proposals, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        adopted = Rmod.RentGateCompression(
+            graph, M.Head(proposals)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), base,
+        )
+        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        start_f = T.chain(T.term(T.sym("p"), T.sym("f")))
+        goal_f = T.chain(T.term(T.sym("r"), T.sym("f")))
+        s_fast = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
+        if M.IdentityCompare(s_fast, empty)() is M.truth_value:
+            self.result = M.false_value
+        Rmod.disable_learned_memory(graph)
+        s_slow = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
+        if M.IdentityCompare(s_slow, empty)() is M.truth_value:
+            self.result = M.false_value
+        if Rmod.ChainShorter(s_fast, s_slow)() is M.false_value:
+            self.result = M.false_value
+        Rmod.enable_learned_memory(graph)
+        s_back = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
+        if Rmod.ChainShorter(s_fast, s_back)() is M.truth_value:
+            self.result = M.false_value
+        if Rmod.ChainShorter(s_back, s_fast)() is M.truth_value:
+            self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        s_reset = SelfImproveHeldOutMarks(graph, base, start_f, goal_f)()
+        if Rmod.ChainShorter(s_reset, s_fast)() is M.truth_value:
+            self.result = M.false_value
+        if Rmod.ChainShorter(s_fast, s_reset)() is M.false_value:
+            self.result = M.false_value
+        remaining = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.InventedLemmaLabel)()
+        if M.IdentityCompare(remaining, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
         return self.result
@@ -18333,6 +18439,14 @@ def install_default_tests(graph):
             "invariant_conjecture_test",
             empty,
             InvariantConjectureTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "self_improvement_memory_cycle_test",
+            empty,
+            SelfImprovementMemoryCycleTest(graph),
             M.truth_value,
         )
     # [/S] SELF-IMPROVEMENT LOOP
