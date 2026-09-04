@@ -1,0 +1,57 @@
+CUR-ENGEL-E4 verification evidence
+Date: 2026-09-05 (dir name 2026-09-04 per operator instruction)
+Method: exhaustive enumeration over the finite search space; no runtime machine tests.
+
+#1. Descent case table (exactly two houses; degree d, same-house neighbors s)
+   Delta V = (d - s) - s = d - 2s
+   legal move requires s >= 2; hypothesis max degree <= 3.
+   (d,s) in {(2,2),(3,2),(3,3)}  ->  Delta V in {-2,-1,-3}, all <= -1.
+   Verified over all integer (d,s) with 0<=s<=d and s>=2:
+     d=2,s=2 -> -2 ; d=3,s=2 -> -1 ; d=3,s=3 -> -3     (all <= -1)
+
+#2. Degree-4 counterexample (reason the bound is load-bearing, no bound)
+   d=4, s=2 -> Delta V = 0   (stall, not strict descent)
+   d=5, s=2 -> Delta V = +1
+   d=6, s=2 -> Delta V = +2 ; d=6, s=3 -> 0
+   Conclusion: without max-degree<=3, legal moves can be non-decreasing.
+
+#3. Corrected C4 terminal census
+   C4 (cycle on 4 vertices), exactly two houses (labels 0/1).
+   Legal move: a vertex may relocate iff it has >= 2 same-house neighbors.
+   Per-vertex same-house counts and V for all 16 partitions:
+     (0,0,0,0) V=4 legal=[0,1,2,3] s={0:2,1:2,2:2,3:2}   NOT terminal
+     (0,0,0,1) V=2 legal=[1]       s={0:1,1:2,2:1,3:0}   NOT terminal
+     (0,0,1,0) V=2 legal=[0]       s={0:2,1:1,2:0,3:1}   NOT terminal
+     (0,0,1,1) V=2 legal=[]        s={0:1,1:1,2:1,3:1}   TERMINAL
+     (0,1,0,0) V=2 legal=[3]       s={0:1,1:2,2:1,3:0}   NOT terminal
+     (0,1,0,1) V=0 legal=[]        s={0:0,1:0,2:0,3:0}   TERMINAL
+     (0,1,1,0) V=2 legal=[]        s={0:1,1:1,2:1,3:1}   TERMINAL
+     (0,1,1,1) V=2 legal=[2]       s={0:0,1:1,2:2,3:1}   NOT terminal
+     (1,0,0,0) V=2 legal=[2]       s={0:0,1:1,2:2,3:1}   NOT terminal
+     (1,0,0,1) V=2 legal=[]        s={0:1,1:1,2:1,3:1}   TERMINAL
+     (1,0,1,0) V=0 legal=[]        s={0:0,1:0,2:0,3:0}   TERMINAL
+     (1,0,1,1) V=2 legal=[3]       s={0:1,1:0,2:1,3:2}   NOT terminal
+     (1,1,0,0) V=2 legal=[]        s={0:1,1:1,2:1,3:1}   TERMINAL
+     (1,1,0,1) V=2 legal=[0]       s={0:2,1:1,2:0,3:1}   NOT terminal
+     (1,1,1,0) V=2 legal=[1]       s={0:1,1:2,2:1,3:0}   NOT terminal
+     (1,1,1,1) V=4 legal=[0,1,2,3] s={0:2,1:2,2:2,3:2}   NOT terminal
+   Terminal partitions (no legal move) and their V:
+     (0,0,1,1) V=2, (0,1,0,1) V=0, (0,1,1,0) V=2,
+     (1,0,0,1) V=2, (1,0,1,0) V=0, (1,1,0,0) V=2
+   Terminal V set on C4: {0, 2}.
+   Correction note: an earlier run used a broken legal-move predicate and wrongly
+   included V=4 (single-house) as terminal; with the corrected predicate the
+   single-house partition (0,0,0,0) has a legal move at every vertex and is
+   NOT terminal. Terminal V set is {0, 2}, not {0, 2, 4}.
+
+#4. Vertex count result
+   Number of vertices is invariant under every relocation (constant = n).
+   It never decreases, so it cannot certify descent (no progress toward a target).
+
+#5. Signed vs absolute house-size witnesses (two houses, sizes |H0| and |H1|)
+   Signed difference |H0| - |H1|: over legal moves found both -2 and +2 deltas,
+     so it is NOT monotone (increases for one move direction, decreases for the other).
+   Absolute difference ||H0|-|H1||: observe it can increase or decrease across the
+     sequence (e.g. sizes shift 3/3 -> 2/4 makes the absolute difference 0->2),
+     so it is NOT monotone either.
+   Neither is a valid strictly-decreasing descent measure.
