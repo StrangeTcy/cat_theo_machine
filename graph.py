@@ -11008,6 +11008,86 @@ class RecogniseForms(M.Edge):
         if M.IsPair(restriction)() is M.false_value:
             return M.false_value
         if M.IdentityCompare(
+            M.Head(restriction)(), Lmod.NotLabel,
+        )() is M.truth_value:
+            predicate_term = M.Head(M.Tail(restriction)())()
+            category_np = relation
+            if M.IsPair(category_np)() is M.false_value:
+                return M.false_value
+            if M.IdentityCompare(
+                M.Head(category_np)(), Lmod.LexicalNpLabel,
+            )() is M.false_value:
+                return M.false_value
+            category_predicate = M.Head(M.Tail(category_np)())()
+            category_chunk = M.Head(M.Tail(M.Tail(category_np)())())()
+            if M.IsPair(category_chunk)() is M.false_value:
+                return M.false_value
+            category_presuppositions = M.Tail(category_chunk)()
+            scope = M.GMPRep(self.definition_count_text)
+            self.definition_count_text = GMPSuccText(
+                self.definition_count_text,
+            )()
+            self_variable = M.Pair(
+                M.VarTag,
+                M.Pair(scope, M.Pair(M.Char("?self"), M.EmptyList)),
+            )
+            conditions_reversed = M.EmptyList
+            conditions_reversed = M.Pair(
+                M.Pair(
+                    Lmod.NotLabel,
+                    M.Pair(
+                        M.Pair(
+                            predicate_term,
+                            M.Pair(self_variable, M.EmptyList),
+                        ),
+                        M.EmptyList,
+                    ),
+                ),
+                conditions_reversed,
+            )
+            right_presup_walker = category_presuppositions
+            while M.IdentityCompare(
+                right_presup_walker, M.EmptyList,
+            )() is M.false_value:
+                condition_marker = M.Head(right_presup_walker)()
+                conditions_reversed = M.Pair(
+                    M.Pair(
+                        M.Head(condition_marker)(),
+                        M.Pair(self_variable, M.EmptyList),
+                    ),
+                    conditions_reversed,
+                )
+                right_presup_walker = M.Tail(right_presup_walker)()
+            left_presup_walker = presuppositions
+            while M.IdentityCompare(
+                left_presup_walker, M.EmptyList,
+            )() is M.false_value:
+                condition_marker = M.Head(left_presup_walker)()
+                conditions_reversed = M.Pair(
+                    M.Pair(
+                        M.Head(condition_marker)(),
+                        M.Pair(self_variable, M.EmptyList),
+                    ),
+                    conditions_reversed,
+                )
+                left_presup_walker = M.Tail(left_presup_walker)()
+            conditions_reversed = M.Pair(
+                M.Pair(
+                    category_predicate,
+                    M.Pair(self_variable, M.EmptyList),
+                ),
+                conditions_reversed,
+            )
+            definiendum = M.Pair(
+                Lmod.DefiniendumLabel,
+                M.Pair(concept, M.Pair(category, M.EmptyList)),
+            )
+            return DefinitionNode(
+                definiendum,
+                Binder(scope, self_variable)(),
+                conditions_reversed,
+            )()
+        if M.IdentityCompare(
             M.Head(restriction)(), Lmod.RestrictionLabel,
         )() is M.false_value:
             return M.false_value
