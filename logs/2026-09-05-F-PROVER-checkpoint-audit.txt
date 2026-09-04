@@ -1,0 +1,82 @@
+# F-PROVER checkpoint integrity audit (start-gate pivot artifact)
+# session: FPS-20260905-A1
+# date: 2026-09-05
+# build: working tree at arena/01a06e7b-cat-theo-machine @ 41e80785d4de090337a9dfc08439f2fcb45915dc (untagged; no session tag declared)
+# method: sha256sum + jq parse (jq -e . >/dev/null); no machine process launched; no tracked file modified
+#
+# ACCURACY NOTE: every hash line below is the verbatim sorted output of
+#   find snapshots -type f -exec sha256sum {} \; | sort -k2
+# No hash in this file was typed by hand. Re-running that one-line command
+# on the pinned build reproduces this audit; its output is authoritative.
+
+Status: there is NO declared checkpoint for any F-protocol session on this
+build (no checkpoints/ directory, no naming declaration). The files below
+are CANDIDATE persistence states audited for byte-level integrity only.
+Their sha256 values are their content-addressed ids for the purpose of a
+future declaration: if the protocol owner names one of these files as the
+session checkpoint, the id must match exactly, byte for byte.
+
+## JSON parse status (jq -e . >/dev/null; top-level type via jq -r 'type')
+
+PARSE_OK    snapshots/backup_hyge_snapshot_v4.json   toplevel=object
+PARSE_OK    snapshots/hyge_snapshot_v8.json          toplevel=object
+PARSE_OK    snapshots/hyge_snapshot_v9.json.bad      toplevel=object
+PARSE_FAIL  snapshots/talk_lessons.log               (talk_lessons.log is expected to be non-JSON)
+
+Observations
+- snapshots/hyge_snapshot_v9.json.bad parses as a JSON object despite its
+  ".bad" name: the marking is a provenance flag, not a JSON-syntax verdict.
+  Machine-level loadability was NOT tested (no machine run is permitted
+  under the failed start gate); the byte state is pinned by hash for any
+  future load test.
+- No snapshot carries a content-addressed filename; content ids exist only
+  through this audit. Declaring a mutable snapshot as a session checkpoint
+  without pinning its hash would violate the session invariants
+  (content-addressed accepted states; mutable checkpoints never shared
+  between operators).
+- The per-run manifest files under snapshots/search_compare/ share one hash
+  within each run directory (five strategy snapshots per run reference the
+  same manifest bytes), then differ across runs:
+    run-1786543184669 manifest cf00703a525a08570072caebf7d57bcd7620e868297895fac405b034bfc0126b
+    run-1786548752373 manifest 18468e31c9477f76c7ce523bbaffbc024d855b9068a69e26d145857760f66811
+    run-1787048794305 manifest 9e0e1c41a5f58f217b62c48578a67f4ee6c91bc5fa552d03db2e0ab0a70b4071
+  (These three manifest ids were verified byte-identical across the five
+  copies in their run via the sorted sha256 listing below; they are the
+  only repeated-hash lines in it.)
+
+## Verbatim hash listing (authoritative; find snapshots -type f -exec sha256sum {} \; | sort -k2)
+
+0238b0da4b87e250da58d65846aed772857eaef01dabfdff0a546e51e7a654fd  snapshots/backup_hyge_snapshot_v4.json
+7097c2fb5fde57f5a17e37ed2f659397b0e98d07f85ab74180f95e76957dbbe5  snapshots/hyge_snapshot_v8.json
+979ad5b4be9304db9951501bee550680a91d317e3dfedfeb9ea0ed7c67641749  snapshots/hyge_snapshot_v9.json.bad
+b4cd45c3613b1fd4372a713c4ca9abf2628ce3c8cab9d9b178529a21eb5d790d  snapshots/search_compare/run-1786543184669/astar.snapshot.json
+cf00703a525a08570072caebf7d57bcd7620e868297895fac405b034bfc0126b  snapshots/search_compare/run-1786543184669/astar.snapshot.json.manifest.json
+046586fb22cbc22685f06b4196d95f015be226c42e712298e85ceee9fab74002  snapshots/search_compare/run-1786543184669/beam.snapshot.json
+cf00703a525a08570072caebf7d57bcd7620e868297895fac405b034bfc0126b  snapshots/search_compare/run-1786543184669/beam.snapshot.json.manifest.json
+4b48bb91aea64cabfe935fb5fa34a02285dec5712779c939f2d7e5a5336aa5b1  snapshots/search_compare/run-1786543184669/bfs.snapshot.json
+cf00703a525a08570072caebf7d57bcd7620e868297895fac405b034bfc0126b  snapshots/search_compare/run-1786543184669/bfs.snapshot.json.manifest.json
+a6eb757990e80361374fb000914753de32a3084b7f1fd07b77493af28300d1e7  snapshots/search_compare/run-1786543184669/dfs.snapshot.json
+cf00703a525a08570072caebf7d57bcd7620e868297895fac405b034bfc0126b  snapshots/search_compare/run-1786543184669/dfs.snapshot.json.manifest.json
+2cf6574e3089156bf2c0a0845a79a0681215dff905975197bc175c2cf146e35c  snapshots/search_compare/run-1786543184669/rewritedfs.snapshot.json
+cf00703a525a08570072caebf7d57bcd7620e868297895fac405b034bfc0126b  snapshots/search_compare/run-1786543184669/rewritedfs.snapshot.json.manifest.json
+960b723d0cfcc2a5bf726de60f91224f37b2cfcb3f68f7098c32145707a1b79a  snapshots/search_compare/run-1786548752373/astar.snapshot.json
+18468e31c9477f76c7ce523bbaffbc024d855b9068a69e26d145857760f66811  snapshots/search_compare/run-1786548752373/astar.snapshot.json.manifest.json
+0a2bc8fbe8906207eb838a0d22adfef71e427d178d232c33cf055bbf52e99978  snapshots/search_compare/run-1786548752373/beam.snapshot.json
+18468e31c9477f76c7ce523bbaffbc024d855b9068a69e26d145857760f66811  snapshots/search_compare/run-1786548752373/beam.snapshot.json.manifest.json
+2896d1c504e42067974c06ffadd8962684e60a9f541a7d7ebf73a39e6192e72b  snapshots/search_compare/run-1786548752373/bfs.snapshot.json
+18468e31c9477f76c7ce523bbaffbc024d855b9068a69e26d145857760f66811  snapshots/search_compare/run-1786548752373/bfs.snapshot.json.manifest.json
+05a7cc86647250a12117f4e82bfd4d0d08c151499e5e4703ace62169f93809b7  snapshots/search_compare/run-1786548752373/dfs.snapshot.json
+18468e31c9477f76c7ce523bbaffbc024d855b9068a69e26d145857760f66811  snapshots/search_compare/run-1786548752373/dfs.snapshot.json.manifest.json
+02ea828f18f6a6cdfa09050815060fee6dc86482fc7c323fe0f9bb52e91be79f  snapshots/search_compare/run-1786548752373/rewritedfs.snapshot.json
+18468e31c9477f76c7ce523bbaffbc024d855b9068a69e26d145857760f66811  snapshots/search_compare/run-1786548752373/rewritedfs.snapshot.json.manifest.json
+1d2069a96d858e19c83967745c322776563d727968d6d140fb988499f439d64d  snapshots/search_compare/run-1787048794305/astar.snapshot.json
+9e0e1c41a5f58f217b62c48578a67f4ee6c91bc5fa552d03db2e0ab0a70b4071  snapshots/search_compare/run-1787048794305/astar.snapshot.json.manifest.json
+4ac347184f51c8716047fe58ba6fe4a94c26ee05cf66154a459da2ff455d9b73  snapshots/search_compare/run-1787048794305/beam.snapshot.json
+9e0e1c41a5f58f217b62c48578a67f4ee6c91bc5fa552d03db2e0ab0a70b4071  snapshots/search_compare/run-1787048794305/beam.snapshot.json.manifest.json
+2188c425c7b0e255c25687f8b86e0c3472f25616614a2ab0a16e5d8b7d66d729  snapshots/search_compare/run-1787048794305/bfs.snapshot.json
+9e0e1c41a5f58f217b62c48578a67f4ee6c91bc5fa552d03db2e0ab0a70b4071  snapshots/search_compare/run-1787048794305/bfs.snapshot.json.manifest.json
+011c3fd96c2d12b5ff736c7558f6ef49e57495f1b84e102e7727e8d68191695c  snapshots/search_compare/run-1787048794305/dfs.snapshot.json
+9e0e1c41a5f58f217b62c48578a67f4ee6c91bc5fa552d03db2e0ab0a70b4071  snapshots/search_compare/run-1787048794305/dfs.snapshot.json.manifest.json
+d6fcd13ba118e2f627d54ad63e8c60a7e89ec718d8b2a3abf8e0588caeb529a4  snapshots/search_compare/run-1787048794305/rewritedfs.snapshot.json
+9e0e1c41a5f58f217b62c48578a67f4ee6c91bc5fa552d03db2e0ab0a70b4071  snapshots/search_compare/run-1787048794305/rewritedfs.snapshot.json.manifest.json
+a1cdd6b9191208d3ce4bdb11d627c7b8c6494f910a52b8f0c7ec42a56c7ac4b0  snapshots/talk_lessons.log

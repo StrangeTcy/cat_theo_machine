@@ -1,0 +1,36 @@
+# F-PROVER transcript inventory audit (start-gate pivot artifact)
+# session: FPS-20260905-A1
+# date: 2026-09-05
+# method: file identity + sha256 only; CONTENT NOT MINED (blindness preservation)
+
+Rationale: logs/ contains prior-session transcripts from earlier
+experiments. The protocol forbids inspecting previous target-session
+transcripts, curriculum answers, and known proofs. The target statement has
+not been declared to this operator, so a content read of any prior
+experiment transcript risks prohibited exposure. The audit therefore pins
+byte identity and records structure-class only; no line of any transcript
+below was read or recorded beyond file name, size, and hash.
+
+## Inventory (raw tool output, verbatim)
+
+EOF
+{ ls -la logs/ snapshots/talk_lessons.log; echo; echo "== sha256 =="; sha256sum logs/* snapshots/talk_lessons.log; } >> logs/2026-09-05-F-PROVER-transcript-inventory.txt
+cat >> logs/2026-09-05-F-PROVER-transcript-inventory.txt <<'EOF'
+
+## Classification (structure-class only, from filename and size)
+
+- logs/cold_debug_stage1_runtime.log        114501 bytes  prior cold-start debug capture; NOT a target-session transcript (no target session has ever run for this operator)
+- logs/cold_debug_stage1_runtime_long.log    30645 bytes  prior cold-start debug capture, long variant
+- logs/engel_e1_prove.debug.log              33213 bytes  prior Engel-problem prove-debug capture; unrelated problem family, content not read
+- snapshots/talk_lessons.log                   595 bytes  lesson-store log; content not read (curriculum-adjacent)
+
+## Handling decisions
+
+1. These files stay byte-frozen. Any future F-protocol transcript audit of
+   them starts from the hashes above; a mismatch proves post-hoc mutation.
+2. If the protocol owner later declares one of these a prohibited-exposure
+   source for a target session, Contamination(session_id, source, time)
+   will be recorded in protocol/F.md without this operator reading it.
+3. The decoy and target transcripts of session FPS-20260905-A1, when they
+   eventually exist, will be new files under the dated artifact names; the
+   files inventoried here are never appended to.

@@ -1,0 +1,15 @@
+# F-PROVER artifact hash manifest
+# session: FPS-20260905-A1
+# date: 2026-09-05
+#
+# Content ids (sha256) of every artifact produced by session FPS-20260905-A1.
+# Hash lines are verbatim sha256sum output; none typed by hand.
+# The manifest cannot contain its own hash; its content id is computed
+# post-write and recorded in the session turn report.
+# Regenerate with: sha256sum protocol/2026-09-05-F-PROVER-blindness-declaration.txt logs/2026-09-05-F-PROVER-start-gate.txt logs/2026-09-05-F-PROVER-checkpoint-audit.txt logs/2026-09-05-F-PROVER-transcript-inventory.txt protocol/F.md
+
+4d3a7109247c96952d8de9a240329155bb6f1df89819b63825d93ff1f4f17490  protocol/2026-09-05-F-PROVER-blindness-declaration.txt
+b707028b9c645240bac26bc2d342ce42b389d44befbedb2318cedd941725332d  logs/2026-09-05-F-PROVER-start-gate.txt
+5319b0bc4b800992cea9e299f3c65e2267f0abc1d8db1d1f8019298eb4b7e7e7  logs/2026-09-05-F-PROVER-checkpoint-audit.txt
+e6c16131cdd56be05f7ad4bc7ef0130be84082e07896034cc63988fa79c366b3  logs/2026-09-05-F-PROVER-transcript-inventory.txt
+30f69b9a6e1040f9aad75800b876f8cf647b42359dc35937128cf61dcf4bef2e  protocol/F.md

@@ -1,0 +1,96 @@
+# F-PROVER start-gate report
+# session: FPS-20260905-A1
+# date: 2026-09-05
+# build: one immutable tag (see item 3), fresh process basis
+# verdict: GATE_FAILED -- no decoy process, no target process, no teach on this build
+
+Evidence commands (verbatim, reproducible):
+  git fetch --all --tags
+  git rev-parse HEAD origin/master
+  git for-each-ref --format='%(refname:short) %(objecttype) %(objectname) peeled=%(*objectname)' refs/tags
+  git ls-remote origin
+  git status
+  ls protocol checkpoints
+  grep scans as cited per item below
+
+## Gate items
+
+1. Fetch remote refs and tags .......... PASS
+   git fetch --all --tags completed; new tags fetched: experiment-4-frozen,
+   experiment-5-frozen, experiment-5-frozen-r1, preflight-converse-outcome-guard,
+   preflight-shard-cursor-gate, d2-equality-subject-template.
+
+2. Remote tip before work .............. PASS
+   origin/master = 428ecdc146e38de3481222bed7bddeb3c08e1b2d ("Add files via upload")
+
+3. Immutable tag name + peeled hash .... FAIL (no declaration)
+   No protocol artifact on this build declares a session tag. Candidate tags
+   recorded (tag object -> peeled commit):
+     d2-equality-subject-template     ecdb8cc80faed22e8bce356c47bc6b7e7f824c14 -> 7f5810a5fb702e8713bb7bfedbf49eb45ae8ae87
+     experiment-4-frozen              874c8c51121969ee9e760bab54876a6ec02c3e9c -> 06c0e52ffd5a9206125ccdb207bffc4a14185636   [FORBIDDEN: Experiment 4 may not be run]
+     experiment-5-frozen              5defc8df1216c5a9f3756b05b8cbebabd8a6f8c9 -> aed9c0e8e1de5a0ca40e309c5e444d3acbc32cd9
+     experiment-5-frozen-r1           5ebcd9205808c10deabd971d2800bb35c929f233 -> ef571b688bcfb581bd3e65ec28a18f438ca32595
+     preflight-converse-outcome-guard 8127d164b64eb58d689524b4f6a2e9b4f55fa0b2 -> ba43977510360cbee1b8d2add99583c8222dde6d
+     preflight-shard-cursor-gate      c3afad716c2a21ec42bfed982b5c0bfadec03d63 -> df97e183c470a1b432009d8d9ad0d3f509a181bd
+   Tags were fetched and hashed only; no tag was checked out, cut, or moved.
+
+4. Operator-branch tip ................. PASS
+   arena/01a06e7b-cat-theo-machine @ 41e80785d4de090337a9dfc08439f2fcb45915dc
+   ("Expression subjects answer; the composite definition's grammar lands;
+   the compose stall is a handover.")
+
+5. Working tree free of machine-code changes ... PASS
+   git status: "nothing to commit, working tree clean" at checkout of the
+   branch tip in item 4. No tracked file modified; no machine, parser,
+   search, matcher, planner, or pack file touched by this operator.
+
+6. Named checkpoint + content-addressed id ..... FAIL (absent)
+   No checkpoints/ directory exists; no protocol artifact names a checkpoint.
+   Existing snapshot files were hashed and parse-checked instead (see
+   logs/2026-09-05-F-PROVER-checkpoint-audit.txt); none is a declared
+   checkpoint.
+
+7. Audit header instrument ............. FAIL (instrument absent)
+   grep -c "audit" over runtime.py, main.py, session.py, persistence.py:
+   0 occurrences in each. The build prints no audit header, so the required
+   fields (tag+commit, checkpoint id, provenance classes, library-rule
+   count, taught-rule count, intervention-episode count, learned-policy
+   count, enabled/disabled learned artifacts) cannot be printed by the
+   machine on this tag.
+
+8. Semantic instrument defects gating F closed (D11 or successor) ... FAIL (unverifiable)
+   The term "D11" has zero occurrences repo-wide; no defect-register
+   artifact exists at any pushed ref. Closure of D11 (or any successor) on
+   this tag cannot be confirmed.
+
+9. Post-cut blank controls on this same tag .... FAIL (absent)
+   "blank control" has zero occurrences repo-wide; no blank-control artifact
+   exists on this build.
+
+10. F2 grader, F3 residual comparator, F4 auditor from pushed refs ... FAIL (refs absent)
+   git ls-remote origin lists no F2/F3/F4 refs; the only gate/harness tools
+   on the build are tools/rung1_gate.py, tools/rung2_gate.py,
+   tools/shard_suite.py, tools/repro_compose_stall.py -- none is the F2
+   grader, F3 comparator, or F4 auditor named by the protocol.
+
+## Consequence (per protocol)
+
+A missing gate item produces this dated start-gate artifact, and the target
+is not run on this build. No decoy process and no target process was
+started; nothing was taught; no machine process of any kind was launched
+this session. Pivots executed instead (authorized non-target work):
+  - checkpoint integrity audit      -> logs/2026-09-05-F-PROVER-checkpoint-audit.txt
+  - transcript inventory audit      -> logs/2026-09-05-F-PROVER-transcript-inventory.txt
+  - protocol record + defect ledger -> protocol/F.md
+  - artifact hash manifest          -> checkpoints/2026-09-05-F-PROVER-manifest.txt
+
+## Owner declarations required before any retry of the start gate
+
+  a. the immutable session tag (by name, from the list in item 3 or a new one);
+  b. the named checkpoint and its content-addressed id;
+  c. profile definitions for library-only-control, curriculum-a3,
+     set-b-cumulative (and the authorization conditions for full-audited);
+  d. pushed refs for the F2 grader, F3 residual comparator, F4 auditor;
+  e. D11 (or successor) closure evidence for the declared tag;
+  f. post-cut blank-control evidence for the declared tag;
+  g. the sealed decoy statement, delivered through the machine channel only.

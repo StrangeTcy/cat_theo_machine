@@ -1,0 +1,31 @@
+# F-PROVER project-blind declaration
+# session: FPS-20260905-A1
+# date: 2026-09-05 (Europe/Moscow execution date)
+# operator branch: arena/01a06e7b-cat-theo-machine
+
+ProjectBlind(
+    reference_graph_seen = false,
+    prior_target_logs_seen = false,
+    curriculum_answers_seen = false,
+    pack_source_seen = false,
+    known_proof_consulted = false
+)
+
+Scope of this claim:
+- This is a project-blind claim, not a claim that the operator agent has no
+  general mathematical prior.
+- Repository planning documents (*.md at repo root) were NOT read beyond
+  filename; transcripts in logs/ were hashed, not content-mined; pack YAML
+  sources were not opened; no reference dependency graph, curriculum answer
+  set, or known proof was consulted in any channel.
+- All greps executed this session were pattern-narrow protocol-instrument
+  scans (file-name and count only); no theorem content was displayed or
+  recorded.
+- No prohibited exposure occurred as of this artifact's hash time. If any
+  occurs later, Contamination(session_id, source, time) will be recorded in
+  protocol/F.md and the target session declared inadmissible.
+
+Declared target theorem: NOT KNOWN to this operator. The target statement
+has not been displayed, named, or described to this operator by any channel
+as of this artifact. The protocol owner must declare it through the live
+machine interface only, never through repository files or chat prose.
