@@ -77,3 +77,54 @@ withdrawn; nothing was taught; no checkpoint was saved; step 4 never
 entered. Goal closed: no. The F-D1..F-D3 tooling defects stand
 unchanged; the fable still cannot be executed literally until they
 land.
+
+## 2026-09-05, third pass -- F tooling landed; the fable runs literally; the null holds at n=3
+
+Why: the fable was re-issued a third time with the repo unchanged
+under it. The one part of its programme never executed was its own
+terminal clause -- "move to F tooling" -- so the tooling landed first
+and the pair then ran through the named instruments.
+
+Tooling (closes F-D1..F-D3): tools/f3-residual-diff.sh compares two
+transcripts on the three axes the fable names -- cost, genuine partial
+matches, residual record root -- and prints identical or distinct with
+the differing axes named. tools/f2_grader.sh grades one transcript by
+the A/B/C/D classes fixed in research_protocol.md, keying on the
+machine's own reply strings ("goal closed. cost=" / "[learned policy,
+support" / "dependency requests from attempted rules:" / "dependency
+characterized: no"). tools/f4-sheet.md fixes the pair-sheet format
+with the role split restated unchanged from research_protocol.md
+(recall: primitive normalization, descent, exponent transport;
+discovery: exponent structure, impossibility transport, the richer
+object). All three are text-reading operator tooling in the house
+style of tools/recover.sh; none touches the machine, the packs, or the
+parser, and they were validated against all four earlier transcripts
+before grading a fresh run.
+
+Run: step 1 re-verified -- tip 428ecdc, newest frozen tag still
+experiment-5-frozen-r1 (ef571b6), still admissible. Two fresh cold
+processes, decoy first, same commands. Transcripts:
+logs/2026-09-05-F-RUNNER-decoy-r3.log, -target-r3.log.
+
+Tool outputs on the fresh pair: F3 identical (cost=334, partial=0,
+root=zero-successor-root on both doors); F2 class A -- uncharacterized
+stall -- on both. Transcripts are byte-identical to passes 1 and 2
+from `research mode on` through `goodbye`.
+
+F4 sheet, pass 3 (passes 1 and 2 grade the same, tool-verified):
+
+    pair:              2026-09-05-F-RUNNER-decoy-r3.log vs -target-r3.log
+    freeze tag:        experiment-5-frozen-r1 @ ef571b6 (annotated 5ebcd92)
+    F2 class:          decoy A ; target A
+    F3:                identical (cost=334 partial=0 root=zero-successor-root)
+    recall roles:      none
+    discovery roles:   none
+    target-only requests: none
+    reading:           withdrawn
+    teaches this run:  0
+    goal closed:       no
+
+Reading withdrawn; nothing taught; no checkpoint saved; step 4 never
+entered. Goal closed: no. What would change this result is unchanged
+from the gate note: INT landing the D11-MAP pack port, a new tag, and
+blank controls rerun on it.
