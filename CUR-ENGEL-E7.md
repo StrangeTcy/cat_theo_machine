@@ -109,7 +109,7 @@ This is a single invariant-obligation + one reachability readout: the same struc
 
 Ordering recommendation (same as operator): **E3** (forces new weighted/cyclic-observable capability),
 then **E4** (forces descent/variant method class), then **E7** (another observable shape — modular
-residue + window product — but the same invariance method class as E2/E3). E7 is a good invariance
+residue + window product — but the same invariance method class as E2/E3). E7 is a suitable invariance
 test for the G-track generator *after* it supports products and modular residues, not the first target;
 it is not a linear-invariant task.
 
