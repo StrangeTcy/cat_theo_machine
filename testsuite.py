@@ -15724,6 +15724,98 @@ def _set_registry(graph, registry):
     return registry
 
 
+# =============================================================================
+# [S] SELF-IMPROVEMENT LOOP (INT-CODE-SELF-IMPROVE)
+#
+# Session-owned surface. Only this block adds tests for the rung-7+
+# self-improvement loop: trace mining, rent-gated compression, the
+# recursive turn, invariant conjecture from a fixed library, and the
+# learned-memory cycle over adopted artifacts. Do not edit outside the
+# [S]/[/S] markers.
+# =============================================================================
+
+
+class SelfImprovementTraceMiningTest(M.Edge):
+    """Phase 1: trace mining over retained Next chains, Engel E2 evidence.
+
+    Two Engel E2 derivations carry the parity-preservation argument for a
+    board move as two single-conclusion steps (doubling is even, then
+    subtracting an even preserves parity) that feed each other by
+    dataflow and recur across both traces. MineTraces must surface at
+    least one motif with support >= 2 whose generalized conclusion is a
+    Parity fact. The traces are the only input; nothing is read from
+    packs or priors.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        k = M.Pair(M.VarTag, M.Pair(M.Char("k"), empty))
+        state = M.Pair(M.VarTag, M.Pair(M.Char("state"), empty))
+        S = M.Pair(M.VarTag, M.Pair(M.Char("S"), empty))
+        p = M.Pair(M.VarTag, M.Pair(M.Char("p"), empty))
+        x = M.Pair(M.VarTag, M.Pair(M.Char("x"), empty))
+        d = M.Pair(M.VarTag, M.Pair(M.Char("d"), empty))
+        step_even = MultiRule(
+            T.chain(
+                BoardSumFact(state, AddTerm(S, NegTerm(MulTerm(M.two, k)())())())(),
+                ParityFact(S, p)(),
+            ),
+            IsEvenFact(MulTerm(M.two, k)())(),
+        )()
+        step_sub = MultiRule(
+            T.chain(
+                ParityFact(x, p)(),
+                IsEvenFact(d)(),
+                BoardSumFact(state, AddTerm(x, NegTerm(d)())())(),
+            ),
+            ParityFact(AddTerm(x, NegTerm(d)())(), p)(),
+        )()
+        rules = T.chain(step_even, step_sub)
+        self.result = M.truth_value
+        for tag in ("0", "1"):
+            S0 = M.Char("S" + tag)
+            K0 = M.Char("K" + tag)
+            st0 = M.Char("st" + tag)
+            start = T.chain(
+                BoardSumFact(st0, AddTerm(S0, NegTerm(MulTerm(M.two, K0)())())())(),
+                ParityFact(S0, Lmod.OddLabel)(),
+            )
+            goal = T.chain(
+                ParityFact(AddTerm(S0, NegTerm(MulTerm(M.two, K0)())())(), Lmod.OddLabel)()
+            )
+            out = Rmod.attempt_goal(graph, start, goal, rules)
+            if Rmod.ForwardSearchClosed(out)() is M.false_value:
+                self.result = M.false_value
+        mined = Rmod.MineTraces(graph)
+        proposals = M.Head(M.Tail(mined)())()
+        found = M.false_value
+        walk = proposals
+        while M.IdentityCompare(walk, empty)() is M.false_value:
+            proposal = M.Head(walk)()
+            walk = M.Tail(walk)()
+            support = Rmod.CompressedLawSupport(proposal)()
+            if M.IdentityCompare(M.Tail(support)(), empty)() is M.truth_value:
+                continue
+            conclusion = Rmod.FormalRuleConclusion(Rmod.CompressedLawLaw(proposal)())()
+            if M.IsPair(conclusion)() is M.truth_value:
+                if M.Compare(M.Head(conclusion)(), Lmod.ParityLabel)() is M.truth_value:
+                    found = M.truth_value
+        if found is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+# [/S] SELF-IMPROVEMENT LOOP
+
+
 def _registry(graph):
     return M.FromContextGetConstructors(graph)()
 
@@ -17993,6 +18085,17 @@ def install_default_tests(graph):
             MilestoneM4PolicyLoosenThenTightenTest(graph),
             MILESTONE_SKIPPED,
         )
+
+    # [S] SELF-IMPROVEMENT LOOP (INT-CODE-SELF-IMPROVE)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "self_improvement_trace_mining_test",
+            empty,
+            SelfImprovementTraceMiningTest(graph),
+            M.truth_value,
+        )
+    # [/S] SELF-IMPROVEMENT LOOP
 
     graph.default_tests_installed = M.truth_value
     return graph

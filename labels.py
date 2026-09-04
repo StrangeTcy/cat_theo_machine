@@ -3075,4 +3075,34 @@ ClaimStoreLabel = ClaimStoreLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
 
 
+# =============================================================================
+# [S] SELF-IMPROVEMENT LOOP (INT-CODE-SELF-IMPROVE)
+#
+# Session-owned surface. Only this block adds labels for the rung-7+
+# self-improvement loop: trace mining, rent-gated compression, recursive
+# re-mining, invariant conjecture from a fixed library, and the
+# learned-memory cycle over the artifacts. Do not edit outside [S]/[/S].
+# =============================================================================
+
+
+class TraceLabel(ConstructorLabel):
+    pass
+
+
+class MotifLabel(ConstructorLabel):
+    pass
+
+
+class CompressedLawLabel(ConstructorLabel):
+    pass
+
+
+TraceLabel = TraceLabel()
+MotifLabel = MotifLabel()
+CompressedLawLabel = CompressedLawLabel()
+
+
+# [/S] SELF-IMPROVEMENT LOOP
+
+
 __all__ = [name for name in globals() if not name.startswith("_")]

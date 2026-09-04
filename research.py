@@ -4019,3 +4019,335 @@ def invariant_prune(graph, goal_facts):
             if M.Compare(observed, value)() is M.false_value:
                 return record
     return EmptyList
+
+
+# =============================================================================
+# [S] SELF-IMPROVEMENT LOOP (INT-CODE-SELF-IMPROVE)
+#
+# Rung-7+ surface. This block, and the matching [S] blocks in labels.py and
+# testsuite.py, are the only places the self-improvement loop is extended:
+# trace mining over retained Next(g0, fire, g1) chains, rent-gated
+# compression, the recursive turn, invariant conjecture from a fixed
+# structural library, and the learned-memory cycle over adopted artifacts.
+#
+# Nothing here proposes structure from outside the machine's own recorded
+# derivations, and nothing here activates without measured rent and an
+# explicit adoption step. Adopted laws and invariants ride the
+# learned-memory mask: they appear with memory enabled, disappear with it
+# disabled, and are stripped from provenance on reset.
+# =============================================================================
+
+
+class NumberedTraces(Edge):
+    """Retained derivations with a positional trace id, newest first.
+
+    Each entry: Pair(id, Pair(trace, EmptyList)). The id is a Char token
+    ("t0", "t1", ...) so proposals can name their source traces and two
+    traces stay comparable. Traces are evidence, never learned memory.
+    """
+
+    def __init__(self, traces):
+        self.result = self._walk(traces, 0)
+        super().__init__(inputs=M.Pair(traces, EmptyList), results=self.result)
+
+    def _walk(self, chain, count):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        trace = Head(chain)()
+        rest = Tail(chain)()
+        entry = M.Pair(M.Char("t" + str(count)), M.Pair(trace, EmptyList))
+        return M.Pair(entry, self._walk(rest, count + 1))
+
+    def __call__(self):
+        return self.result
+
+
+class NextStep(Edge):
+    """One fired step rewritten as Next(g0, fire, g1).
+
+    g0 are the instantiated premises, fire is the rule, g1 is the
+    instantiated conclusion. This is the shape MineTraces walks.
+    """
+
+    def __init__(self, step):
+        rule = Head(step)()
+        premises = Head(Tail(step)())()
+        conclusion = Head(Tail(Tail(step)())())()
+        self.result = M.Pair(
+            Lmod.NextLabel,
+            M.Pair(premises, M.Pair(rule, M.Pair(conclusion, EmptyList))),
+        )
+        super().__init__(inputs=M.Pair(step, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TraceView(Edge):
+    """Pair(TraceLabel, Pair(id, Pair(next-chain, EmptyList))) for one trace.
+
+    The next-chain is every fired step of the derivation rewritten as
+    Next(g0, fire, g1).
+    """
+
+    def __init__(self, trace, trace_id):
+        fired = Head(Tail(Tail(Tail(trace)())())())()
+        steps = StepInstances(fired)()
+        self.result = M.Pair(
+            Lmod.TraceLabel,
+            M.Pair(trace_id, M.Pair(self._chain(steps), EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(trace, M.Pair(trace_id, EmptyList)), results=self.result
+        )
+
+    def _chain(self, steps):
+        if IdentityCompare(steps, EmptyList)() is M.truth_value:
+            return EmptyList
+        return M.Pair(NextStep(Head(steps)())(), self._chain(Tail(steps)()))
+
+    def __call__(self):
+        return self.result
+
+
+class TraceObservations(Edge):
+    """Pair(id, Pair(composed-instances, EmptyList)) per numbered trace."""
+
+    def __init__(self, numbered):
+        self.result = self._walk(numbered)
+        super().__init__(inputs=M.Pair(numbered, EmptyList), results=self.result)
+
+    def _walk(self, chain):
+        if IdentityCompare(chain, EmptyList)() is M.truth_value:
+            return EmptyList
+        entry = Head(chain)()
+        trace_id = Head(entry)()
+        trace = Head(Tail(entry)())()
+        fired = Head(Tail(Tail(Tail(trace)())())())()
+        composed = ComposedInstances(fired)()
+        return M.Pair(
+            M.Pair(trace_id, M.Pair(composed, EmptyList)),
+            self._walk(Tail(chain)()),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ComposedInstancesMatch(Edge):
+    """True when one composed instance matches a schematic body pattern."""
+
+    def __init__(self, instances, pattern):
+        self.result = self._walk(instances, pattern)
+        super().__init__(
+            inputs=M.Pair(instances, M.Pair(pattern, EmptyList)), results=self.result
+        )
+
+    def _walk(self, instances, pattern):
+        if IdentityCompare(instances, EmptyList)() is M.truth_value:
+            return M.false_value
+        instance = Head(instances)()
+        rest = Tail(instances)()
+        verdict = M.Match(pattern, Tail(instance)())()
+        if IdentityCompare(Head(verdict)(), M.truth_value)() is M.truth_value:
+            return M.truth_value
+        return self._walk(rest, pattern)
+
+    def __call__(self):
+        return self.result
+
+
+class SupportAndIds(Edge):
+    """Pair(support-marks, Pair(trace-ids, EmptyList)) for one candidate.
+
+    A support mark is one truth_value per distinct supporting trace, so
+    the chain length is the support count and the ids name those traces.
+    """
+
+    def __init__(self, observations, pattern):
+        self.result = self._walk(observations, pattern, EmptyList, EmptyList)
+        super().__init__(
+            inputs=M.Pair(observations, M.Pair(pattern, EmptyList)), results=self.result
+        )
+
+    def _walk(self, observations, pattern, marks, ids):
+        if IdentityCompare(observations, EmptyList)() is M.truth_value:
+            return M.Pair(marks, M.Pair(ids, EmptyList))
+        entry = Head(observations)()
+        rest = Tail(observations)()
+        trace_id = Head(entry)()
+        composed = Head(Tail(entry)())()
+        matched = ComposedInstancesMatch(composed, pattern)()
+        if IdentityCompare(matched, M.truth_value)() is M.truth_value:
+            return self._walk(
+                rest, pattern, M.Pair(M.truth_value, marks), M.Pair(trace_id, ids)
+            )
+        return self._walk(rest, pattern, marks, ids)
+
+    def __call__(self):
+        return self.result
+
+
+class MotifRuleKey(Edge):
+    def __init__(self, motif):
+        self.result = Head(Tail(motif)())()
+        super().__init__(inputs=M.Pair(motif, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MotifSupport(Edge):
+    def __init__(self, motif):
+        self.result = Head(Tail(Tail(motif)())())()
+        super().__init__(inputs=M.Pair(motif, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MotifTraceIds(Edge):
+    def __init__(self, motif):
+        self.result = Head(Tail(Tail(Tail(motif)())())())()
+        super().__init__(inputs=M.Pair(motif, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompressedLawLaw(Edge):
+    def __init__(self, proposal):
+        self.result = Head(Tail(proposal)())()
+        super().__init__(inputs=M.Pair(proposal, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompressedLawSupport(Edge):
+    def __init__(self, proposal):
+        self.result = Head(Tail(Tail(proposal)())())()
+        super().__init__(inputs=M.Pair(proposal, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CompressedLawTraceIds(Edge):
+    def __init__(self, proposal):
+        self.result = Head(Tail(Tail(Tail(proposal)())())())()
+        super().__init__(inputs=M.Pair(proposal, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+def MineTraces(graph):
+    """Mine recurring dataflow-linked step subsequences into law candidates.
+
+    Walks every retained Next(g0, fire, g1) chain (each recorded
+    derivation, each fired step rewritten as Next(premises, rule,
+    conclusion)). A recurring subsequence is a rule pair whose two steps
+    feed each other in at least two distinct traces; the pair's two
+    instances are anti-unified into a generalized law shape. Nothing is
+    read from strategy skeletons or human priors, and nothing activates:
+    adoption is a separate, human-gated, rent-measured step.
+
+    Returns Pair(motifs, Pair(proposals, EmptyList)):
+    - a motif is Pair(MotifLabel, Pair(rule-pair, Pair(support,
+      Pair(trace-ids, EmptyList))));
+    - a proposal is Pair(CompressedLawLabel, Pair(law-shape, Pair(support,
+      Pair(trace-ids, EmptyList)))), the shape being a FormalRule.
+    """
+    numbered = NumberedTraces(TracesOnRecord(graph)())()
+    observations = TraceObservations(numbered)()
+    motifs = EmptyList
+    proposals = EmptyList
+    outer = observations
+    while IdentityCompare(outer, EmptyList)() is M.false_value:
+        obs_a = Head(outer)()
+        outer = Tail(outer)()
+        composed_a = Head(Tail(obs_a)())()
+        inner = outer
+        while IdentityCompare(inner, EmptyList)() is M.false_value:
+            obs_b = Head(inner)()
+            inner = Tail(inner)()
+            composed_b = Head(Tail(obs_b)())()
+            walk_a = composed_a
+            while IdentityCompare(walk_a, EmptyList)() is M.false_value:
+                record_a = Head(walk_a)()
+                walk_a = Tail(walk_a)()
+                key_a = Head(record_a)()
+                walk_b = composed_b
+                while IdentityCompare(walk_b, EmptyList)() is M.false_value:
+                    record_b = Head(walk_b)()
+                    walk_b = Tail(walk_b)()
+                    key_b = Head(record_b)()
+                    same_pair = M.AndAtom(
+                        IdentityCompare(Head(key_a)(), Head(key_b)())(),
+                        IdentityCompare(Tail(key_a)(), Tail(key_b)())(),
+                    )()
+                    if IdentityCompare(same_pair, M.truth_value)() is M.false_value:
+                        continue
+                    generalized = Head(
+                        AntiUnify(Tail(record_a)(), Tail(record_b)())()
+                    )()
+                    converted = Head(PlaceholdersToVars(generalized)())()
+                    premises = Head(converted)()
+                    conclusion = Head(Tail(converted)())()
+                    if SharesStructure(conclusion)() is M.false_value:
+                        continue
+                    if M.IsPair(conclusion)() is M.false_value:
+                        continue
+                    candidate = FormalRule(premises, conclusion)()
+                    known = ProvenanceEntriesFor(
+                        graph.provenance_map, Lmod.InventedLemmaLabel
+                    )()
+                    duplicate = M.false_value
+                    walk_known = known
+                    while IdentityCompare(walk_known, EmptyList)() is M.false_value:
+                        known_term = Head(walk_known)()
+                        walk_known = Tail(walk_known)()
+                        if M.Compare(
+                            AlphaNormalized(known_term, EmptyList)(),
+                            AlphaNormalized(candidate, EmptyList)(),
+                        )() is M.truth_value:
+                            duplicate = M.truth_value
+                            walk_known = EmptyList
+                    walk_seen = proposals
+                    while IdentityCompare(walk_seen, EmptyList)() is M.false_value:
+                        seen = Head(walk_seen)()
+                        walk_seen = Tail(walk_seen)()
+                        if M.Compare(
+                            AlphaNormalized(CompressedLawLaw(seen)(), EmptyList)(),
+                            AlphaNormalized(candidate, EmptyList)(),
+                        )() is M.truth_value:
+                            duplicate = M.truth_value
+                            walk_seen = EmptyList
+                    if IdentityCompare(duplicate, M.truth_value)() is M.truth_value:
+                        continue
+                    pattern = M.Pair(premises, M.Pair(conclusion, EmptyList))
+                    support_pair = SupportAndIds(observations, pattern)()
+                    support = Head(support_pair)()
+                    trace_ids = Head(Tail(support_pair)())()
+                    motifs = M.Pair(
+                        M.Pair(
+                            Lmod.MotifLabel,
+                            M.Pair(key_a, M.Pair(support, M.Pair(trace_ids, EmptyList))),
+                        ),
+                        motifs,
+                    )
+                    proposals = M.Pair(
+                        M.Pair(
+                            Lmod.CompressedLawLabel,
+                            M.Pair(
+                                candidate,
+                                M.Pair(support, M.Pair(trace_ids, EmptyList)),
+                            ),
+                        ),
+                        proposals,
+                    )
+    return M.Pair(M.Reverse(motifs)(), M.Pair(M.Reverse(proposals)(), EmptyList))
+
+
+# [/S] SELF-IMPROVEMENT LOOP
