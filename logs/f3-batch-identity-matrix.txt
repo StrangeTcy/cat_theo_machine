@@ -1,0 +1,39 @@
+F3 batch identity (first stall only)
+tag: experiment-5-frozen
+instrument class: pre-D11 backward-blind
+
+classes:
+
+SILENCE-0
+  cost=0 partial=0 unmatched=none head=zero-successor-root
+  blank-controls-regime-a.log
+  blank-controls-regime-a-postfix.log
+  blank-controls-after-goal-directed.log
+  blind-geometry-dependencies.log
+  blind-group-order-dependencies.log
+  blind-narrative-dependencies.log
+  D11 prediction: every pre-D11 blank control in this class -- confirmed
+
+SILENCE-334
+  cost=334 partial=0 unmatched=none head=zero-successor-root
+  set-b1-symbolic-decomposition.log
+  set-b2-equality-transport.log
+  set-b2-transport-calibration.log
+  set-b3-nosolutions-transport.log
+  set-b3-transport-calibration.log
+  F-OP-BLIND-FLT-RETRY-decoy.log
+  F-OP-BLIND-FLT-RETRY-flt.log
+
+SILENCE-676
+  cost=676 partial=0 unmatched=none head=zero-successor-root
+  set-b1-scope-checks.log
+
+SILENCE-4
+  cost=4 partial=0 unmatched=none head=zero-successor-root
+  ground-evaluation.log
+
+pairwise: all members of a class are identical to each other.
+cross-class: distinguishable by cost only; residual head is the same
+wall (zero-successor-root) in every silence class.
+
+F-OP-BLIND decoy vs FLT: both SILENCE-334; identical except goal term.

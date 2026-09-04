@@ -1,0 +1,10 @@
+F4 transcript audit
+session-id: F-OP-BLIND-FLT-RETRY
+tag: experiment-5-frozen
+processes: two fresh
+cold-start: taught 0 / episodes 0 / policies none / packs 167
+regime: B research one-shot, decoy first
+contamination: no
+teaches: none
+F3 vs decoy: identical
+each teach follows concrete residual: n/a (no teaches)

@@ -1,0 +1,13 @@
+F2 T1 grading — toy-live-protocol.log
+tag: experiment-5-frozen
+instrument class: pre-D11 backward-blind
+
+taught-theorem count:       3
+unlock-evidence count:      2
+cite-coverage cited:        2
+cite-coverage uncited:      1
+circular-request count:     0
+computable-request count:   0
+
+nonzero paths exercised: taught, unlock-evidence, cite-coverage
+harness that emits all zeros on this fixture: FAIL

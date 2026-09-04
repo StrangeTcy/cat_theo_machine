@@ -1,0 +1,18 @@
+F4 sheet — logs/defect-1-ruling-diagnostic.log
+
+session-id: defect-1-ruling-diagnostic
+expected path: logs/defect-1-ruling-diagnostic.log
+observed on arena/01a06da9-cat-theo-machine @ pre-push: file absent
+observed on origin at this writing: file absent from this worktree
+
+regime: INT session with a loaded library (claimed)
+contamination: unknown until the log is published
+audit-header loaded-class list: unknown
+teaches: unknown
+F3 vs decoy: incomparable (transcript not in the audit set)
+
+status: sheet opened; audit incomplete
+action: INT publishes the log; F-op fills the remaining fields
+        without rewriting the log
+instrument class when received: pre-D11 backward-blind unless the
+        log header names a later cut

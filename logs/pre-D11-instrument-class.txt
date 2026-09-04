@@ -1,0 +1,43 @@
+# Contamination ledger annotation
+# Docs-only. Logs are not rewritten.
+# One line per operator or debug log: instrument class: pre-D11 backward-blind
+
+experiment-5-frozen logs/blank-controls-after-goal-directed.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/blank-controls-regime-a-postfix.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/blank-controls-regime-a.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/blind-geometry-dependencies.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/blind-group-order-dependencies.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/blind-narrative-dependencies.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/calibration-arc.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/cold_debug_stage1_runtime.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/cold_debug_stage1_runtime_long.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/congruence-generic-math.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/coprime-ladder-regime-b.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/dependency-generator-ablation.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/divisibility-generic-math.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/engel_e1_prove.debug.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/experiment-4-manifest.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/exponent-algebra-policy.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/exponent-policy-ablation.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/ground-evaluation.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/incident-misattributed-teaching.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/learned-memory-ablation.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/parity-contradiction.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/research-checkpoint-reload.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/set-b1-rerun-regime-b.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/set-b1-scope-checks.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/set-b1-symbolic-decomposition.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/set-b2-equality-transport.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/set-b2-transport-calibration.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/set-b3-nosolutions-transport.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/set-b3-transport-calibration.log	instrument class: pre-D11 backward-blind
+experiment-5-frozen logs/toy-live-protocol.log	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/F-OP-BLIND-FLT-RETRY-decoy.log	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/F-OP-BLIND-FLT-RETRY-flt.log	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/F-OP-BLIND-FLT-RETRY-report.txt	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/F-OP-BLIND-FLT-RETRY-residual-diff.txt	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/F-OP-BLIND-FLT-RETRY-F2-grading.txt	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/F-OP-BLIND-FLT-RETRY-F4-audit.txt	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/cold_debug_stage1_runtime.log	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/cold_debug_stage1_runtime_long.log	instrument class: pre-D11 backward-blind
+arena/01a06da9 logs/engel_e1_prove.debug.log	instrument class: pre-D11 backward-blind

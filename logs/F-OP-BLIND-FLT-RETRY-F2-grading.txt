@@ -1,0 +1,11 @@
+F2 grading
+session-id: F-OP-BLIND-FLT-RETRY
+tag: experiment-5-frozen
+F3: identical except goal term; role-table skipped
+
+circular-request count:     0
+computable-request count:   0
+taught-theorem count:       0
+  with unlock:              0
+  without unlock:           0
+role-table coverage:        skipped (F3 identical)

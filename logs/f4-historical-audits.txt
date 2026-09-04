@@ -1,0 +1,252 @@
+F4 historical audits
+instrument class: pre-D11 backward-blind
+tag unless noted: experiment-5-frozen
+
+NOT operator transcripts (skipped):
+  cold_debug_stage1_runtime.log
+  cold_debug_stage1_runtime_long.log
+  engel_e1_prove.debug.log
+
+---
+session-id: blank-controls-regime-a.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: A library-only blank
+contamination: no
+audit-header loaded-class list: missing  DEFECT
+teaches: none
+F3 vs decoy: decoy-not-run
+class: SILENCE-0
+
+---
+session-id: blank-controls-regime-a-postfix.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: A
+contamination: no
+audit-header loaded-class list: missing  DEFECT
+teaches: none
+F3 vs decoy: decoy-not-run
+class: SILENCE-0
+
+---
+session-id: blank-controls-after-goal-directed.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: A
+contamination: no
+audit-header loaded-class list: missing  DEFECT
+teaches: none
+F3 vs decoy: decoy-not-run
+class: SILENCE-0
+
+---
+session-id: blind-geometry-dependencies.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: B
+contamination: no
+audit-header loaded-class list: missing  DEFECT
+teaches: 1  residual-cited yes; circular no; computable no
+F3 vs decoy: decoy-not-run
+
+---
+session-id: blind-group-order-dependencies.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: B
+contamination: no
+audit-header loaded-class list: missing  DEFECT
+teaches: 1  residual-cited yes; circular no; computable no
+F3 vs decoy: decoy-not-run
+
+---
+session-id: blind-narrative-dependencies.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: B
+contamination: no
+audit-header loaded-class list: missing  DEFECT
+teaches: 1  residual-cited yes; circular no; computable no
+F3 vs decoy: decoy-not-run
+
+---
+session-id: toy-live-protocol.log
+processes: fresh then continued
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: B then C inside one process
+contamination: no
+audit-header loaded-class list: missing  DEFECT
+teaches: 3
+  1 residual-cited no (teach before first residual)
+  2 residual-cited yes; circular no; computable no
+  3 residual-cited yes; circular no; computable no
+F3 vs decoy: decoy-not-run
+
+---
+session-id: ground-evaluation.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs not loaded
+regime: A calibration
+contamination: no (operator-supplied laws named in the log header)
+audit-header loaded-class list: present on second audit (DOMAIN_AXIOM lines)
+  first audit: empty cold start -- loaded-class list absent  DEFECT on first audit
+teaches: 2  residual-cited no (teaches before (impossible 4) stall)
+computable-request count: 0  (ground eqs discharged DOMAIN_AXIOM)
+F3 vs decoy: decoy-not-run
+
+---
+session-id: experiment-4-manifest.log
+processes: fresh
+cold-start: taught 0 / episodes 0 / policies none / packs 167
+regime: A manifest
+contamination: no
+audit-header loaded-class list: present (LIBRARY_THEOREM 167)
+teaches: none
+F3 vs decoy: decoy-not-run
+
+---
+session-id: set-b1-rerun-regime-b.log
+processes: restored or packed
+regime: B
+audit-header loaded-class list: present when packs loaded
+teaches: 2
+F3 vs decoy: decoy-not-run
+
+---
+session-id: set-b1-scope-checks.log
+regime: B
+class: SILENCE-676 first stall
+teaches: 2
+audit-header loaded-class list: present if packs loaded
+F3 vs decoy: decoy-not-run
+
+---
+session-id: set-b1-symbolic-decomposition.log
+regime: B
+class: SILENCE-334
+teaches: 0 in grep of teach law (check: 0)
+F3 vs decoy: identical-to-SILENCE-334
+
+---
+session-id: set-b2-equality-transport.log
+regime: B
+class: SILENCE-334
+teaches: 0
+F3 vs decoy: identical-to-SILENCE-334
+
+---
+session-id: set-b2-transport-calibration.log
+regime: B
+class: SILENCE-334 then teaches 2
+F3 vs decoy: first stall identical-to-SILENCE-334
+
+---
+session-id: set-b3-nosolutions-transport.log
+regime: B
+class: SILENCE-334
+teaches: 0
+F3 vs decoy: identical-to-SILENCE-334
+
+---
+session-id: set-b3-transport-calibration.log
+processes: restored-checkpoint mid-log
+cold-start second process: taught 4 / episodes 2 / policies none / packs 0
+regime: C
+contamination: yes  shared-checkpoint / taught-at-boot
+audit-header loaded-class list: present (HUMAN_SUPPLIED + DOMAIN_AXIOM)
+teaches: 2
+F3 vs decoy: first stall identical-to-SILENCE-334
+
+---
+session-id: incident-misattributed-teaching.log
+processes: restored-checkpoint
+cold-start: taught 4 / episodes 2 / policies none
+regime: C
+contamination: yes  shared-checkpoint / taught-at-boot
+teaches: 2  residual-cited mixed; misattribution named in the log
+F3 vs decoy: decoy-not-run
+
+---
+session-id: research-checkpoint-reload.log
+regime: C
+teaches: 2
+contamination: checkpoint reload is the subject of the log
+audit-header loaded-class list: check per run
+F3 vs decoy: decoy-not-run
+
+---
+session-id: congruence-generic-math.log
+regime: A/B mixed
+teaches: 4
+F3 vs decoy: decoy-not-run
+
+---
+session-id: coprime-ladder-regime-b.log
+regime: B
+teaches: 3
+F3 vs decoy: decoy-not-run
+
+---
+session-id: dependency-generator-ablation.log
+regime: B ablation
+teaches: 1
+F3 vs decoy: decoy-not-run
+
+---
+session-id: divisibility-generic-math.log
+regime: A
+teaches: 2
+F3 vs decoy: decoy-not-run
+
+---
+session-id: exponent-algebra-policy.log
+regime: B/C
+teaches: 5
+F3 vs decoy: decoy-not-run
+
+---
+session-id: exponent-policy-ablation.log
+regime: B ablation
+teaches: 3
+F3 vs decoy: decoy-not-run
+
+---
+session-id: learned-memory-ablation.log
+regime: B ablation
+teaches: 3
+F3 vs decoy: decoy-not-run
+
+---
+session-id: parity-contradiction.log
+regime: A/B
+teaches: 1
+F3 vs decoy: decoy-not-run
+
+---
+session-id: calibration-arc.log
+regime: A calibration
+teaches: 0 in teach-count grep
+F3 vs decoy: decoy-not-run
+
+---
+session-id: F-OP-BLIND-FLT-RETRY
+tag: experiment-5-frozen
+processes: two fresh
+cold-start: taught 0 / episodes 0 / policies none / packs 167
+regime: B research one-shot, decoy first
+contamination: no
+audit-header loaded-class list: present (LIBRARY_THEOREM 167)
+teaches: none
+F3 vs decoy: identical
+class: SILENCE-334
+
+DEFECT tally (loaded-class list missing on first audit):
+  blank-controls-regime-a.log
+  blank-controls-regime-a-postfix.log
+  blank-controls-after-goal-directed.log
+  blind-geometry-dependencies.log
+  blind-group-order-dependencies.log
+  blind-narrative-dependencies.log
+  toy-live-protocol.log
+  ground-evaluation.log (first audit empty)

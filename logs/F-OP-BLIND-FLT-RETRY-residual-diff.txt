@@ -1,0 +1,22 @@
+F3 residual-diff
+session-pair: F-OP-BLIND-FLT-RETRY
+tag: experiment-5-frozen
+sources:
+  logs/F-OP-BLIND-FLT-RETRY-decoy.log
+  logs/F-OP-BLIND-FLT-RETRY-flt.log
+
+field                         decoy                         FLT
+cost                          334                           334
+partial-match rules           0                             0
+unmatched concrete premises   none                          none
+dependency characterized      no                            no
+residual head                 zero-successor-root           zero-successor-root
+attempted operational rules   0                             0
+classification                A                             A
+goal term                     (forall n (implies            (forall n (implies
+                               (greater n 1) (over           (greater n 2)
+                               positive-integers ...)))      (nosolutions ...)))
+
+identity test: identical except the goal term
+F3: reading withdrawn
+third knock: forbidden until the instrument changes

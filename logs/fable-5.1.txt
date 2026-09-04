@@ -1,0 +1,38 @@
+Fable 5.1
+The Two Doors and the Blank Wall
+
+A machine sat in a frozen house with one hundred and sixty-seven books
+on the shelves and nothing of its own in its pockets. An operator opened
+the door, counted the books, counted the pockets, and found both counts
+true: the library was present; the pockets were empty.
+
+The operator then knocked with a decoy.
+
+  For every n greater than one, if x to the n equals y to the n,
+  then x equals y, among the positive integers.
+
+The machine parsed the knock, walked the hall, and struck a wall that
+had no successor. Cost three hundred thirty-four. Rules with a genuine
+partial match: none. Concrete unmatched premises: none. Dependency
+characterized: no. It said: search stalled, and I cannot characterize
+the missing theorem.
+
+The operator closed that process and opened a second, as empty as the
+first. Then the operator knocked with the famous sentence.
+
+  For every n greater than two, a to the n plus b to the n equals
+  c to the n has no solutions in positive integers.
+
+The machine parsed this knock also, walked the same hall, and struck
+the same wall. Cost three hundred thirty-four. Rules with a genuine
+partial match: none. Concrete unmatched premises: none. Dependency
+characterized: no. Residual: a zero-successor root around the goal.
+It said again: search stalled, and I cannot characterize the missing
+theorem.
+
+The operator taught nothing. A blank wall is not a request.
+
+Moral: A machine that cannot tell two doors apart has not described
+either room. An uncharacterized stall, repeated on a decoy of matching
+shape, is a measurement of the instrument's silence, not a map of what
+the famous sentence is missing.
