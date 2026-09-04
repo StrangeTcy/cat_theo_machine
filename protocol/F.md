@@ -390,6 +390,23 @@ sheet stays incomparable until the transcript is published.
 
 ---
 
+## T1 session-hygiene defect
+
+```text
+T1 toy-live-protocol: one claim without dated artifact
+locus: logs/fixtures/toy-live-protocol.log line 18
+       you> teach law: (rule (premises (rel ?x ?y) (mark ?y)) (conclusion (tag ?x)))
+       first FAILED. cost= is line 23
+class: session-hygiene defect, non-semantic
+repair: none to the log; future sessions cite or do not claim
+surfaced-by: tools/f2_grader.sh cite-coverage uncited: 1
+```
+
+The grader found this by running. It is a defect in the session, not
+in the grader.
+
+---
+
 ## F2 grader
 
 `tools/f2_grader.sh <transcript>` emits taught, unlock-evidence,
@@ -408,12 +425,12 @@ null decoy:  all zeros
 ```text
 agent: F
 branch: arena/01a06da9-cat-theo-machine
-base: arena/01a00f6b-cat-theo-machine @ 41e8078
-tests: F3 tool decoy/FLT identical exit 0; no production suite
+base: 41e8078
+tests: F2 T1 taught 3 unlock 2 cite 2/1; F3 decoy/FLT identical exit 0
 measurement: none (pair closed; no third knock)
 pair status: closed
 track status: active
-ready for INT docs/log merge: yes, after push of non-base tip
+ready for INT docs/log merge: yes
 ready for F1 code merge: no
-blocked on: nothing for this docs/log batch
+blocked on: INT publishing diagnostic log (low priority)
 ```

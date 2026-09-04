@@ -1,0 +1,53 @@
+F2 hand-vs-script, T1–T4
+grader: tools/f2_grader.sh @ this commit
+FLT-name grep on grader: zero matches (fermat, flt, nosolutions, pow, a^n)
+
+definition counted:
+  taught-theorem = you> teach law: + you> teach trusted theorem
+  unlock-evidence = status=DemonstratedUsefulDependency; intervention
+  circular = empty-premises teach law
+  computable = need=(eq <digit>
+  cite = teach law after a prior FAILED. cost=
+
+T1 toy-live-protocol.log
+  counter                 hand    script
+  taught-theorem          3       3
+  unlock-evidence         2       2
+  cite-coverage           2 / 1   2 / 1
+  circular-request        0       0
+  computable-request      0       0
+  agree: yes
+
+T2 ground-evaluation.log
+  counter                 hand    script
+  taught-theorem          2       2
+  unlock-evidence         0       0
+  cite-coverage           0 / 2   0 / 2
+  circular-request        0       0
+  computable-request      0       0
+  agree: yes
+  both teaches precede first FAILED (line 35)
+
+T3 blind-geometry-dependencies.log
+  counter                 hand    script
+  taught-theorem          1       1
+  unlock-evidence         0       0
+  cite-coverage           1 / 0   1 / 0
+  circular-request        0       0
+  computable-request      0       0
+  agree: yes
+  teach law line 32 after FAILED line 22
+
+T4 incident-misattributed-teaching.log
+  counter                 hand    script
+  taught-theorem          1       1
+  unlock-evidence         1       1
+  cite-coverage           0 / 1   0 / 1
+  circular-request        0       0
+  computable-request      0       0
+  agree: yes
+  prior fixture note counted teach dependency as a second taught theorem;
+  mechanical definition does not. Hand grade follows the definition.
+  teach law line 30 precedes FAILED line 35.
+
+F2 T1–T4: all four fixtures agree. F2 closes.
