@@ -3101,10 +3101,15 @@ class RefusedLabel(ConstructorLabel):
     pass
 
 
+class CandidateObservableLabel(ConstructorLabel):
+    pass
+
+
 TraceLabel = TraceLabel()
 MotifLabel = MotifLabel()
 CompressedLawLabel = CompressedLawLabel()
 RefusedLabel = RefusedLabel()
+CandidateObservableLabel = CandidateObservableLabel()
 
 
 # [/S] SELF-IMPROVEMENT LOOP

@@ -15955,6 +15955,80 @@ class SelfImprovementRecursiveTurnTest(M.Edge):
         return self.result
 
 
+class InvariantConjectureTest(M.Edge):
+    """Phase 4: invariant conjecture from a fixed structural library.
+
+    Engel E2 blackboard move traces (the existing EraseAndReplaceRule
+    applied over symbolic a and b) are the derivations. The library
+    proposes parity-of-a-count, sum-of-a-labeling, and residue-mod-k
+    candidates. The generic Preserves engine accepts parity of the board
+    sum and refutes parity of the maximum, which the move does not
+    preserve.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        erase = EraseAndReplaceRule()()
+        for tag in ("1", "2"):
+            before = M.Char("b" + tag)
+            after = M.Char("a" + tag)
+            a = M.Char("x" + tag)
+            b = M.Char("y" + tag)
+            S = M.Char("S" + tag)
+            start = T.chain(
+                BoardSumFact(before, S)(),
+                ParityFact(S, Lmod.OddLabel)(),
+                BlackboardPhiPattern(Lmod.OddLabel)(),
+                MoveErasesFact(before, a, b, after)(),
+            )
+            moved = SumMinusTwiceMinTerm(S, a, b)()
+            goal = T.chain(
+                BoardSumFact(after, moved)(),
+                ParityFact(moved, Lmod.OddLabel)(),
+                BlackboardPhiPattern(Lmod.OddLabel)(),
+            )
+            fired = T.chain(M.Pair(erase, M.Pair(empty, empty)))
+            Rmod.record_trace(graph, start, goal, fired)
+        result = Rmod.ConjectureInvariantsFromLibrary(graph)
+        survivors = M.Head(M.Tail(result)())()
+        refuted = M.Head(M.Tail(M.Tail(result)())())()
+        self.result = M.truth_value
+        sum_accepted = self._phi_present(survivors, Lmod.ParityLabel, Lmod.BoardSumObservableLabel)
+        if sum_accepted is M.false_value:
+            self.result = M.false_value
+        max_candidate = self._phi_present(survivors, Lmod.ParityLabel, Lmod.ExtremalMaxLabel)
+        if max_candidate is M.truth_value:
+            self.result = M.false_value
+        max_refuted = self._phi_present(refuted, Lmod.ParityLabel, Lmod.ExtremalMaxLabel)
+        if max_refuted is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _phi_present(self, records, head, arg0):
+        empty = M.EmptyList
+        walk = records
+        while M.IdentityCompare(walk, empty)() is M.false_value:
+            record = M.Head(walk)()
+            walk = M.Tail(walk)()
+            phi = M.Head(M.Tail(record)())()
+            if M.IsPair(phi)() is M.false_value:
+                continue
+            if M.Compare(M.Head(phi)(), head)() is M.false_value:
+                continue
+            args = M.Tail(phi)()
+            if M.IsPair(args)() is M.truth_value:
+                if M.Compare(M.Head(args)(), arg0)() is M.truth_value:
+                    return M.truth_value
+        return M.false_value
+
+    def __call__(self):
+        return self.result
+
+
 # [/S] SELF-IMPROVEMENT LOOP
 
 
@@ -18251,6 +18325,14 @@ def install_default_tests(graph):
             "self_improvement_recursive_turn_test",
             empty,
             SelfImprovementRecursiveTurnTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "invariant_conjecture_test",
+            empty,
+            InvariantConjectureTest(graph),
             M.truth_value,
         )
     # [/S] SELF-IMPROVEMENT LOOP

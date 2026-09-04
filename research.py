@@ -4374,4 +4374,171 @@ def RentGateCompression(graph, proposal, start_facts, goal_facts, rules, fuel=No
     )
 
 
+class InvariantLibraryCandidates(Edge):
+    """Candidate observables from a fixed structural library, nothing more.
+
+    The three structural families only: parity of a count, sum of a
+    labeling, residue mod k -- instantiated over the two Engel E2
+    observable heads (the board sum and the extremal maximum). Each
+    record: Pair(CandidateObservableLabel, Pair(kind, Pair(phi,
+    EmptyList))).
+    """
+
+    def __init__(self):
+        p_bit = M.Pair(M.VarTag, M.Pair(M.Char("p"), EmptyList))
+        q_bit = M.Pair(M.VarTag, M.Pair(M.Char("q"), EmptyList))
+        state = M.Pair(M.VarTag, M.Pair(M.Char("state"), EmptyList))
+        sum_var = M.Pair(M.VarTag, M.Pair(M.Char("sum"), EmptyList))
+        residue = M.Pair(M.VarTag, M.Pair(M.Char("r"), EmptyList))
+        parity_of_sum = M.Pair(
+            Lmod.ParityLabel, M.Pair(Lmod.BoardSumObservableLabel, M.Pair(p_bit, EmptyList))
+        )
+        parity_of_max = M.Pair(
+            Lmod.ParityLabel, M.Pair(Lmod.ExtremalMaxLabel, M.Pair(q_bit, EmptyList))
+        )
+        sum_of_labeling = M.Pair(
+            Lmod.BoardSumLabel, M.Pair(state, M.Pair(sum_var, EmptyList))
+        )
+        residue_mod_two = M.Pair(
+            Lmod.ModuloLabel,
+            M.Pair(
+                Lmod.BoardSumObservableLabel,
+                M.Pair(M.Char("2"), M.Pair(residue, EmptyList)),
+            ),
+        )
+        self.result = M.Pair(
+            M.Pair(
+                Lmod.CandidateObservableLabel,
+                M.Pair(M.Char("parity"), M.Pair(parity_of_sum, EmptyList)),
+            ),
+            M.Pair(
+                M.Pair(
+                    Lmod.CandidateObservableLabel,
+                    M.Pair(M.Char("parity"), M.Pair(parity_of_max, EmptyList)),
+                ),
+                M.Pair(
+                    M.Pair(
+                        Lmod.CandidateObservableLabel,
+                        M.Pair(M.Char("sum"), M.Pair(sum_of_labeling, EmptyList)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            Lmod.CandidateObservableLabel,
+                            M.Pair(M.Char("residue"), M.Pair(residue_mod_two, EmptyList)),
+                        ),
+                        EmptyList,
+                    ),
+                ),
+            ),
+        )
+        super().__init__(inputs=EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class TraceSteps(Edge):
+    """Every fired step of every retained trace, flattened, newest first."""
+
+    def __init__(self, traces):
+        self.result = self._walk(traces)
+        super().__init__(inputs=M.Pair(traces, EmptyList), results=self.result)
+
+    def _walk(self, traces):
+        if IdentityCompare(traces, EmptyList)() is M.truth_value:
+            return EmptyList
+        trace = Head(traces)()
+        rest = Tail(traces)()
+        fired = Head(Tail(Tail(Tail(trace)())())())()
+        steps = StepInstances(fired)()
+        return ChainConcat(steps, self._walk(rest))()
+
+    def __call__(self):
+        return self.result
+
+
+class ChainConcat(Edge):
+    def __init__(self, left, right):
+        self.result = self._walk(left, right)
+        super().__init__(inputs=M.Pair(left, M.Pair(right, EmptyList)), results=self.result)
+
+    def _walk(self, left, right):
+        if IdentityCompare(left, EmptyList)() is M.truth_value:
+            return right
+        return M.Pair(Head(left)(), self._walk(Tail(left)(), right))
+
+    def __call__(self):
+        return self.result
+
+
+class PhiVerdictAgainstSteps(Edge):
+    """Pair(flag, Pair(counterexample-step, EmptyList)) for one phi.
+
+    Runs the generic Preserves engine against every step of every trace.
+    All steps preserving yields truth_value with no counterexample; the
+    first refuting step is returned as the counterexample.
+    """
+
+    def __init__(self, phi, steps, registry):
+        self.result = self._walk(steps, phi, registry)
+        super().__init__(
+            inputs=M.Pair(phi, M.Pair(steps, M.Pair(registry, EmptyList))),
+            results=self.result,
+        )
+
+    def _walk(self, steps, phi, registry):
+        from . import invariance as Imod
+
+        if IdentityCompare(steps, EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, EmptyList)
+        step = Head(steps)()
+        rest = Tail(steps)()
+        rule = Head(step)()
+        verdict = Imod.Preserves(rule, phi, registry)()
+        if IdentityCompare(Head(verdict)(), Lmod.InvariantRefutedLabel)() is M.truth_value:
+            return M.Pair(M.false_value, M.Pair(step, EmptyList))
+        return self._walk(rest, phi, registry)
+
+    def __call__(self):
+        return self.result
+
+
+def ConjectureInvariantsFromLibrary(graph):
+    """Invariant candidates from the fixed library, via the Preserves engine.
+
+    Each library candidate phi runs the generic Preserves engine against
+    every step of every retained trace. Survivors become InvariantCandidate
+    records; failures become InvariantRefuted records carrying the
+    counterexample step. Conjecture only: adoption is human-gated.
+
+    Returns Pair(candidates, Pair(survivors, Pair(refuted, EmptyList))).
+    """
+    registry = M.FromContextGetConstructors(graph)()
+    candidates = InvariantLibraryCandidates()()
+    steps = TraceSteps(TracesOnRecord(graph)())()
+    survivors = EmptyList
+    refuted = EmptyList
+    walk = candidates
+    while IdentityCompare(walk, EmptyList)() is M.false_value:
+        record = Head(walk)()
+        walk = Tail(walk)()
+        phi = Head(Tail(Tail(record)())())()
+        verdict = PhiVerdictAgainstSteps(phi, steps, registry)()
+        if IdentityCompare(Head(verdict)(), M.truth_value)() is M.truth_value:
+            survivors = M.Pair(
+                M.Pair(Lmod.InvariantCandidateLabel, M.Pair(phi, EmptyList)),
+                survivors,
+            )
+        else:
+            counterexample = Head(Tail(verdict)())()
+            refuted = M.Pair(
+                M.Pair(
+                    Lmod.InvariantRefutedLabel,
+                    M.Pair(phi, M.Pair(counterexample, EmptyList)),
+                ),
+                refuted,
+            )
+    return M.Pair(candidates, M.Pair(M.Reverse(survivors)(), M.Pair(M.Reverse(refuted)(), EmptyList)))
+
+
 # [/S] SELF-IMPROVEMENT LOOP
