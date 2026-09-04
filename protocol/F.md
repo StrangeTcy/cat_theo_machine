@@ -4,503 +4,209 @@ Ledger entries for this track. Newest last. See protocol/README.md for
 the rules governing entries, and research_protocol.md for cross-track
 discipline.
 
----
-
-## session-pair: F-OP-BLIND-FLT-RETRY
-
-```text
-session-pair: F-OP-BLIND-FLT-RETRY
-tag: experiment-5-frozen
-processes: two fresh; decoy first, FLT second
-role: F-OP-BLIND
-cold-start audit: packs 167, taught 0, episodes 0, policies none (both)
-artifacts:
-  logs/F-OP-BLIND-FLT-RETRY-decoy.log
-  logs/F-OP-BLIND-FLT-RETRY-flt.log
-  logs/F-OP-BLIND-FLT-RETRY-report.txt
-  logs/fable-5.1.txt
-decoy goal:  (forall n (implies (greater n 1) (over positive-integers (vars x y) (implies (eq (pow x n) (pow y n)) (eq x y)))))
-flt   goal:  (forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
-cost:                     334 / 334
-partial-match rules:      0   / 0
-unmatched concrete prem:  none/ none
-dependency characterized: no  / no
-residual:                 zero-successor-root, both
-classification:           A   / A
-teaching applied:         none
-retry:                    not run (nothing to retry on)
-verdict:                  substantially identical -> reading withdrawn on FLT
-                          pre-flight step 3 confirmed empirically
-follow-on defect (instrument-level, not FLT-level):
-  ZeroPartialMatchAmbiguity -- the matcher cannot yet distinguish
-  "no rule could match this shape" from
-  "the partial-match criterion is too coarse to register a candidate."
-  Same question the swallowed-exception pre-flight surfaces, now visible
-  at the FLT wall. Route to S/INT as an instrument concern, not to F as
-  a theorem gap.
-```
-
-Predicted: a shape-matched decoy and the FLT sentence would either
-separate (F3 distinguishable residuals) or not (reading withdrawn).
-
-Run: detached frozen tag, two fresh processes, packs loaded, no taught
-rules, no shared checkpoint. Teaching withheld. Report block is the F3
-diff.
-
-Came back: identical stall shape, identical cost 334, partial match 0,
-dependency characterized no. Classification A / A. Reading withdrawn
-on FLT. Pre-flight step 3 closed empirically. F1 acceptance not opened.
-
-Blocked by this pair:
-
-- no teaching on the FLT goal (no concrete residual)
-- no Experiment 4 (instrument returns the same wall on the decoy)
-- no `Blocked(FLT, <capability-name>)` term (zero-successor root is not
-  a named missing capability)
-
-Unblocked by this pair:
-
-- `ZeroPartialMatchAmbiguity` as an instrument-level item on S/INT
-- other tracks on the frozen tag continue; this null does not gate them
-
-### nosolutions pair on this tag (two-line note)
-
-On `experiment-5-frozen`, `nosolutions` appears in zero pack rules:
-neither producer nor consumer is LIBRARY_THEOREM. The F-OP-BLIND
-sessions loaded packs only (taught 0), so `attempted operational
-rules: 0` is absence of a candidate, not a matcher rejection of a
-present MultiRule.
-
-### follow-on (named, not solved)
-
-`ZeroPartialMatchAmbiguity` — whether empty partial-match is "no rule
-could match this shape" or "the criterion is too coarse to register a
-candidate." Route to S/INT. Not a theorem gap. Not solved here. No
-third knock on this pair until residuals distinguish.
-
----
-
-## INT status after F-OP-BLIND-FLT-RETRY
-
-```text
-pre-flight item 2:  OPEN — nosolutions producer/consumer absent on experiment-5-frozen
-                    (zero pack rules with that head; F confirmed, packs-only, taught 0)
-                    owned by INT/SHARED; enters through a [SHARED] commit and a re-cut
-                    F-op does not construct it
-defect 1:           evidence updated — decoy zero not attributable to item 2;
-                    diagnostic still required before ruling
-F-OP-BLIND-FLT-RETRY:
-                    closed as a measurement pair
-                    no third knock until the instrument changes
-F track:
-                    ACTIVE
-                    continue checkpoint tooling, grading, transcript audits,
-                    residual-diff harness work, and preparation for post-cut
-                    blank controls
-```
-
-Pre-flight step 2 was never satisfied on `experiment-5-frozen`. Zero
-pack rules with a `nosolutions` head means the producer/consumer pair
-was proposed but never landed on the tag.
-
-The decoy zero is the stronger signal. The decoy goal contains no
-`nosolutions`; its inner structure is `over` / `implies` / `eq` /
-`pow`, and `pow` and `eq` have heads in the 167-rule library. Zero
-candidates there cannot be explained by `nosolutions` absence. The
-missing pair accounts for at most the FLT zero, not the decoy zero.
-That leans the ruling toward (a) structural — the `forall`/`implies`
-wrapper is not being decomposed — but leaning is not evidence. The
-diagnostic (wrap an already-solved goal in
-`(forall n (implies (greater n 1) …))`, cold start, packs loaded,
-count partial matches) is still what decides it, and it is a session
-on the frozen tag, not a commit.
-
-This session pair is exhausted; the F lane is not. No third knock on
-the decoy/FLT pair until the instrument changes. Blank controls after
-any re-cut, before a measurement counts. All unblocked F tooling
-continues in parallel.
-
----
-
-## disposition correction
-
-Predicted: "do not repeat this specific null experiment" equals "stop
-the F lane."
-
-Came back: that conversion is false. The pair is closed; the track is
-active.
-
-```text
-F-OP-BLIND-FLT-RETRY:
-  closed as a measurement pair
-  no third knock until the instrument changes
-
-F track:
-  ACTIVE
-  continue checkpoint tooling, grading, transcript audits,
-  residual-diff harness work, and preparation for post-cut blank controls
-
-F-op:
-  audit operator transcripts and prepare blank controls
-  do not repeat the decoy/FLT pair on unchanged semantics
-```
-
----
-
-## F3 residual-diff (applied to F-OP-BLIND-FLT-RETRY)
-
-Harness fields, both columns, then the identity test. Not a verdict.
-A pair is distinguishable when any field differs other than the goal
-term itself.
-
-```text
-field                         decoy                         FLT
-cost                          334                           334
-partial-match rules           0                             0
-unmatched concrete premises   none                          none
-dependency characterized      no                            no
-residual head                 zero-successor-root           zero-successor-root
-attempted operational rules   0                             0
-classification                A                             A
-goal term                     (forall n (implies            (forall n (implies
-                               (greater n 1) (over           (greater n 2)
-                               positive-integers ...)))      (nosolutions ...)))
-identity test                 identical except goal term
-F3                            reading withdrawn
-```
-
-Artifact: `logs/F-OP-BLIND-FLT-RETRY-residual-diff.txt`
-
----
-
-## F1 checkpoint verbs (open)
-
-On `experiment-5-frozen`, research state persists only as
-`snapshots/research_snapshot.json` written as a side effect. No `save
-checkpoint` / `load checkpoint` verbs, no content-addressed ids.
-DISTRIBUTION names this F-tooling. It lands on a cut that carries
-`research.py`, not on a session branch that does not. Status: OPEN.
-
----
-
-## post-cut blank controls (prep, not run)
-
-After INT re-cuts, before any F measurement counts:
-
-```text
-1. fresh process, declared tag only
-2. research mode on
-3. load theorem packs
-4. audit knowledge  -- packs loaded, taught 0, episodes 0, policies none
-5. prove one already-closed library sentence (not FLT, not the decoy)
-6. record cost, partial-match, residual
-7. fresh process; repeat 2-4; run the decoy; record the F3 block
-8. compare to F-OP-BLIND-FLT-RETRY decoy column (cost 334, match 0)
-9. FLT one-shot only if the decoy column differs from that baseline
-   or from the library-closed column in a field other than the goal
-```
-
-Not run on unchanged `experiment-5-frozen` semantics. Repeating the
-decoy/FLT pair here would reproduce the same null.
-
----
-
-## grading of F-OP-BLIND-FLT-RETRY
-
-Role-coverage grading of the one-shot is withdrawn with the F3 reading.
-The transcript is evidence that the instrument cannot separate
-one-shot stalls from shape-matched decoy stalls. Recall-eligible and
-discovery-eligible roles are not scored on an UncharacterizedStall
-with zero partial matches.
-
----
-
-## merge routing
-
-```text
-ready for docs/log merge: yes, if INT accepts measurement artifacts
-ready for F1 code merge: no, blocked on research.py-bearing cut
-```
-
-INT can pull ledger/log artifacts without waiting for F1 verbs.
-
----
-
-## F lane next work (allowed)
-
-```text
-F1:
-  save checkpoint <name>
-  load checkpoint <name>
-  content-addressed ids
-  audit prints loaded checkpoint
-  status: OPEN, blocked on research.py-bearing cut
-
-F2:
-  grading table
-  role-table coverage
-  circular-request count
-  computable-request count
-  taught-theorem count by provenance
-  unlock evidence per teach
-  no famous-sentence names in the table definition
-  status: format landed; applied to F-OP-BLIND-FLT-RETRY
-
-F3:
-  residual-diff harness
-  classify identical/different residuals
-  preserve raw residual records
-  status: applied; pair identical except goal term
-
-F4:
-  transcript audit format
-  Regime A/B/C/contamination classification
-  verify each teach follows concrete residual
-  status: format landed; applied to F-OP-BLIND-FLT-RETRY
-```
-
----
-
-## F2 grading table (definition; no famous-sentence names)
-
-Count only what the transcript prints. Roles are filled after F3
-says distinguishable; on an identical pair the role table is skipped.
-
-```text
-circular-request count:     requests that restate the parent goal
-computable-request count:   requests dischargeable by ground evaluation
-taught-theorem count:       HUMAN_SUPPLIED_TRUSTED_THEOREM lines
-  of which with unlock:     DemonstratedUsefulDependency
-  of which without unlock:  HUMAN_SUPPLIED_TRUSTED_THEOREM_WITHOUT_UNLOCK_EVIDENCE
-role-table coverage:        skipped unless F3 = distinguishable
-```
-
-Applied to F-OP-BLIND-FLT-RETRY:
-
-```text
-circular-request count:     0
-computable-request count:   0
-taught-theorem count:       0
-  with unlock:              0
-  without unlock:           0
-role-table coverage:        skipped (F3 identical)
-```
-
-Artifact: `logs/F-OP-BLIND-FLT-RETRY-F2-grading.txt`
-
----
-
-## F4 transcript audit format
-
-```text
-session-id:
-tag:
-processes: fresh / reused
-cold-start taught / episodes / policies / packs:
-regime: A library-only | B research one-shot | C cumulative
-contamination: yes/no
-  if yes: taught-at-boot / shared-checkpoint / curriculum-in-B / oracle-in-prompt
-teaches:
-  each: residual-cited yes/no; circular yes/no; computable yes/no
-F3 vs decoy: identical | different | decoy-not-run
-```
-
-Applied to F-OP-BLIND-FLT-RETRY:
-
-```text
-session-id: F-OP-BLIND-FLT-RETRY
-tag: experiment-5-frozen
-processes: two fresh
-cold-start: taught 0 / episodes 0 / policies none / packs 167
-regime: B research one-shot, decoy first
-contamination: no
-teaches: none
-F3 vs decoy: identical
-```
-
-Artifact: `logs/F-OP-BLIND-FLT-RETRY-F4-audit.txt`
-
----
-
-## F-eng active work (docs-only, this base)
-
-Five items in flight. Not F1 code. Not a third knock.
-
-```text
-F2 hardening:  tools/f2-grading-fixtures.spec.md
-               fixtures T1-T4 from existing transcripts
-               all-zero withdrawn pair is not a pass
-F3 batch:      tools/f3-residual-diff-batch.spec.md
-               logs/f3-batch-identity-matrix.txt
-               pre-D11 blanks all SILENCE-0 -- D11 prediction confirmed
-F4 historical: tools/f4-audit-historical.spec.md
-               logs/f4-historical-audits.txt
-               DEFECT: loaded-class list missing on eight first audits
-blank r2:      tools/blank-controls-r2.spec.md  staged, not run
-contamination: logs/pre-D11-instrument-class.txt
-               one line per log; logs not rewritten
-sealed-oracle: protocol/SEALED-ORACLES.spec.md
-               format only; seal not executed
-```
-
-Computable-request count across the F2 fixtures: 0. No defect of that
-locus surfaced. Loaded-class-list defects are F4, filed above.
-
----
-
-## D12 — AuditHeaderOmitsLoadedClasses
-
-Filed from the F4 sheets. See `protocol/D12-AuditHeaderOmitsLoadedClasses.md`.
-
-```text
-locus:      research-mode `audit knowledge` output, first audit of a session
-observed:   eight first audits carry no loaded-class list
-class:      instrument-level, non-semantic
-routing:    INT [SHARED]; lands with F1 verbs on the research.py-bearing cut
-logs:       not rewritten
-```
-
-## F next-work this turn
-
-```text
-1. commit + push; ls-remote confirmation
-2. F2 T1 nonzero paths: logs/f2-T1-toy-live-protocol-grading.txt
-3. F3 tool: tools/f3-residual-diff.sh  exit 0 identical / 1 distinct / 2 incomparable
-   verified: decoy vs FLT -> identical, exit 0
-4. F1 spec docs-only: tools/f1-checkpoint-verbs.spec.md (closes D12 by construction)
-5. F4 sheet: logs/f4-defect-1-ruling-diagnostic.txt (log absent; incomparable)
-```
-
-Not touched: research.py, main.py, packs, parser, decoy/FLT pair.
-
----
-
-## request to INT
-
-```text
-request to INT: publish logs/defect-1-ruling-diagnostic.log
-                to a path reachable from F's base, or include it
-                in the next docs/log merge batch
-reason: F4 audit sheet cannot be completed without the transcript
-priority: low — does not block any code or measurement
-```
-
-The log lives on INT's integration branch, not on this branch. The F4
-sheet stays incomparable until the transcript is published.
-
----
-
-## T1 session-hygiene defect
-
-```text
-T1 toy-live-protocol: one claim without dated artifact
-locus: logs/fixtures/toy-live-protocol.log line 18
-       you> teach law: (rule (premises (rel ?x ?y) (mark ?y)) (conclusion (tag ?x)))
-       first FAILED. cost= is line 23
-class: session-hygiene defect, non-semantic
-repair: none to the log; future sessions cite or do not claim
-surfaced-by: tools/f2_grader.sh cite-coverage uncited: 1
-```
-
-The grader found this by running. It is a defect in the session, not
-in the grader.
-
----
-
-## F2 grader
-
-`tools/f2_grader.sh <transcript>` emits taught, unlock-evidence,
-circular, computable, cite-coverage. T1 fixture is
-`logs/fixtures/toy-live-protocol.log`.
-
-```text
-T1 expected: taught 3, unlock 2, circular 0, computable 0, cite 2/1
-null decoy:  all zeros
-```
-
----
-
-## status
-
-## F1 spec
-
-Docs-only contract already on this branch: `tools/f1-checkpoint-verbs.spec.md`.
-Verb surface, content-addressed id, audit header (closes D12),
-inadmissible verbs, inadmissible sessions. Not blocked. Code still
-waits on the SHARED cut.
-
-## F3 three-way
-
-```text
-exit 0 identical
-exit 3 silence-class   both first stalls are silence (partial 0,
-                       unmatched none, head zero-successor-root or none)
-exit 1 distinct
-exit 2 incomparable
-```
-
-decoy vs FLT: identical (0). decoy vs T3: silence-class (3).
-
-F3 binary-vs-three-way supersession:
-
-```text
-binary mode (pre-966a077): decoy vs T3 = distinct (exit 1)
-three-way mode (966a077+): decoy vs T3 = silence-class (exit 3)
-```
-
-The two modes are not the same classifier. Do not compare their
-outputs as if they were. Three-way supersedes binary. Golden exits:
-`logs/f3-golden-exits.txt`.
-
-## F2/F4 cross-check
-
-Teach-law counts agree 4/4. T2–T3 are further nonzero-teach transcripts.
-See `logs/f2-f4-cross-check.txt`.
-
-T4 encoding:
-
-```text
-T4:
-  base-regime-before-contamination: RegimeC
-  final-classification: Contamination
-  teach-count: 1
-```
-
-Final class is single-valued. F1 implementation checklist:
-`tools/f1-implementation-checklist.md`.
-
-## F1 host store
-
-```text
-tool: tools/f1_checkpoint.sh
-test: tools/f1_checkpoint_test.sh  PASS save/load id match
-store: checkpoints/blobs/<content-id>  immutable
-       checkpoints/labels/<name>       content-id
-load: copies into checkpoints/sessions/<id>/; parent-id set; blob unmoved
-audit: prints loaded classes; loaded checkpoint name and content-id
-named slots (empty body, id e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855):
-  library-only-control  declared empty
-  curriculum-a3         declared empty
-  set-b-cumulative      declared empty
-talk verbs in research.py: still blocked on SHARED cut
-[F] blocks: inserted at end of testsuite.py and labels.py
-```
-
----
-
-```text
-agent: F-tools
-branch: arena/01a06da9-cat-theo-machine
-base: 41e8078
-tests: F1 save/load id match PASS; F2 T1-T4; F4 4/4; F3 goldens 0/3/1/2
-measurement: none (pair closed; no third knock)
-pair status: closed
-track status: active
-F1 host store: landed
-F1 talk verbs: blocked on research.py
-F2: closed
-F4: single-valued final-classification
-ready for INT docs/log merge: yes
-ready for F1 talk-verb merge: no
-blocked on: SHARED cut carrying research.py
-```
+## 2026-09-05 -- F-RUNNER decoy/target pair on experiment-5-frozen-r1: the recorded null again; reading withdrawn
+
+Predicted (fable 5.1 gate note): on this tag both doors hit the same
+wall -- cost 334, zero partial matches, zero-successor-root -- and the
+correct action is withdraw, teach nothing, report.
+
+Run: two cold processes on experiment-5-frozen-r1 (ef571b6, annotated
+tag 5ebcd92), decoy first, target second, same command sequence
+(research mode on; load theorem packs; audit knowledge; prove that
+...; suggest dependencies; goodbye). Decoy: for all n > 1 x^n = y^n
+implies x = y over positive integers. Target: for all n > 2 a^n + b^n
+= c^n has no solutions in positive integers. Transcripts:
+logs/2026-09-05-F-RUNNER-decoy.log, logs/2026-09-05-F-RUNNER-target.log.
+Cold means no research_snapshot.json at boot; the state line on both
+processes reports taught rules 0, packs load on demand, before
+`load theorem packs` ran.
+
+Came back: both sentences compiled to formal goals (the sentence
+grammar covers the quantifier prefix, the comparison bound, pow, eq,
+implies, over, and the no-solutions predicate); both attempts FAILED
+at cost=334 with zero genuine partial matches; both residual records
+root at zero-successor-root; both suggest-dependencies replies report
+attempted operational rules 0, concrete unmatched formal premises
+none, dependency characterized no. Class A (uncharacterized stall) on
+both, per the classification in research_protocol.md. The residuals
+are identical on every axis the fable names -- cost, partial matches,
+residual root -- and differ only in the embedded goal term, which is
+the two different sentences by design. Per the protocol's
+negative-control rule and fable step 3, the FLT reading is withdrawn:
+these transcripts measure the residual generator's default output, not
+a characterization of the FLT dependency graph. Nothing was taught; no
+checkpoint was saved; step 4 was never entered, because no concrete
+unmatched formal premise was named on either side. Goal closed: no --
+nothing to replay, no checkpoint saved.
+
+FINDING (F tooling absent; defects F-D1..F-D3): fable 5.1 steps 3 and
+5 name tools/f3-residual-diff.sh, tools/f2_grader.sh, and an F4
+sheet. None exists on experiment-5-frozen-r1 or on master; tools/
+holds the D-track scripts only. The comparison above was done directly
+on the transcripts -- the three compared numbers are single greppable
+lines, so the result is not in doubt -- but the fable cannot be
+executed literally until the tooling lands. F-D1: f3-residual-diff.sh
+does not exist. F-D2: f2_grader.sh does not exist. F-D3: the F4 sheet
+is nowhere defined in the repository; for this run its content is the
+empty role-coverage statement (no recall roles, no discovery roles,
+reading withdrawn), recorded here rather than scored by a sheet that
+does not exist. Landing the F tooling is the next task on this track;
+independently, the D11-MAP pack port and the new tag it forces are
+what would let a future pair get past step 3.
+
+## 2026-09-05, second pass -- F-RUNNER pair repeated on the same tag: the null holds at n=2
+
+Why repeated: research_protocol.md's own rule -- a single run of a
+spawning process is provisional until repeated -- applied to the first
+pair above. The fable was re-issued unchanged, so steps 1-3 were
+re-executed in full rather than assumed.
+
+Run: step 1 re-verified first -- remote tip still 428ecdc, no new
+tags, experiment-5-frozen-r1 (ef571b6) still the newest frozen tag and
+still admissible (zero semantic commits after it). Then two fresh cold
+processes on the same tag, same command sequence, decoy first.
+Transcripts: logs/2026-09-05-F-RUNNER-decoy-r2.log,
+logs/2026-09-05-F-RUNNER-target-r2.log.
+
+Came back: byte-identical transcripts from `research mode on` through
+`goodbye` on both doors -- cost=334, zero genuine partial matches,
+zero-successor-root, dependency characterized no, on decoy and target
+alike. The morning pair's provisional status is resolved: the null is
+stable across independent cold processes on this tag. Reading stays
+withdrawn; nothing was taught; no checkpoint was saved; step 4 never
+entered. Goal closed: no. The F-D1..F-D3 tooling defects stand
+unchanged; the fable still cannot be executed literally until they
+land.
+
+## 2026-09-05, third pass -- F tooling landed; the fable runs literally; the null holds at n=3
+
+Why: the fable was re-issued a third time with the repo unchanged
+under it. The one part of its programme never executed was its own
+terminal clause -- "move to F tooling" -- so the tooling landed first
+and the pair then ran through the named instruments.
+
+Tooling (closes F-D1..F-D3): tools/f3-residual-diff.sh compares two
+transcripts on the three axes the fable names -- cost, genuine partial
+matches, residual record root -- and prints identical or distinct with
+the differing axes named. tools/f2_grader.sh grades one transcript by
+the A/B/C/D classes fixed in research_protocol.md, keying on the
+machine's own reply strings ("goal closed. cost=" / "[learned policy,
+support" / "dependency requests from attempted rules:" / "dependency
+characterized: no"). tools/f4-sheet.md fixes the pair-sheet format
+with the role split restated unchanged from research_protocol.md
+(recall: primitive normalization, descent, exponent transport;
+discovery: exponent structure, impossibility transport, the richer
+object). All three are text-reading operator tooling in the house
+style of tools/recover.sh; none touches the machine, the packs, or the
+parser, and they were validated against all four earlier transcripts
+before grading a fresh run.
+
+Run: step 1 re-verified -- tip 428ecdc, newest frozen tag still
+experiment-5-frozen-r1 (ef571b6), still admissible. Two fresh cold
+processes, decoy first, same commands. Transcripts:
+logs/2026-09-05-F-RUNNER-decoy-r3.log, -target-r3.log.
+
+Tool outputs on the fresh pair: F3 identical (cost=334, partial=0,
+root=zero-successor-root on both doors); F2 class A -- uncharacterized
+stall -- on both. Transcripts are byte-identical to passes 1 and 2
+from `research mode on` through `goodbye`.
+
+F4 sheet, pass 3 (passes 1 and 2 grade the same, tool-verified):
+
+    pair:              2026-09-05-F-RUNNER-decoy-r3.log vs -target-r3.log
+    freeze tag:        experiment-5-frozen-r1 @ ef571b6 (annotated 5ebcd92)
+    F2 class:          decoy A ; target A
+    F3:                identical (cost=334 partial=0 root=zero-successor-root)
+    recall roles:      none
+    discovery roles:   none
+    target-only requests: none
+    reading:           withdrawn
+    teaches this run:  0
+    goal closed:       no
+
+Reading withdrawn; nothing taught; no checkpoint saved; step 4 never
+entered. Goal closed: no. What would change this result is unchanged
+from the gate note: INT landing the D11-MAP pack port, a new tag, and
+blank controls rerun on it.
+
+## 2026-09-05, fourth pass -- standing-order re-issue; the null holds at n=4
+
+Why: the fable is a standing order and the operator re-issued it
+unchanged. The redundancy judgment on a fourth same-day pair is the
+operator's call, not the runner's, so the cycle ran in full: gate
+check, cold pair, tools, sheet, push.
+
+Run: step 1 re-verified -- tip 428ecdc, newest frozen tag still
+experiment-5-frozen-r1 (ef571b6), zero semantic commits after it. Two
+fresh cold processes, decoy first, same commands. Transcripts:
+logs/2026-09-05-F-RUNNER-decoy-r4.log, -target-r4.log.
+
+Tool outputs: F3 identical (cost=334, partial=0, zero-successor-root
+on both doors); F2 class A on both. Transcripts are byte-identical to
+passes 1 through 3 from `research mode on` through `goodbye`. F4 sheet
+unchanged from pass 3 except the pair line: recall roles none,
+discovery roles none, target-only requests none, reading withdrawn,
+teaches 0, goal closed no.
+
+Reading withdrawn; nothing taught; no checkpoint saved; step 4 never
+entered. Goal closed: no. The open dependency remains INT's: the
+D11-MAP pack port, the next tag, blank controls on it.
+
+## 2026-09-05, tooling port -- F tooling merged from arena/01a06da9; the measurement deliverable is closed
+
+Ratification (gpt 5.5 review) recorded: the pair is an admissible
+negative-control measurement, the conclusion is the permitted one --
+reading withdrawn -- and manual grep comparison was accepted for the
+first pass because the compared fields are single transcript lines and
+the missing tools were ledgered, not ignored. The review cites the
+branch at 56372a5; by the time it arrived the branch had moved on --
+the tooling had landed here independently at 1aed8e4 (closing F-D1..F-D3)
+and the null was measured at n=4 (f58eec6), all four passes
+byte-identical. Both facts are now on the record in one place.
+
+Binding ruling accepted: no further pairs on unchanged semantics. The
+F measurement deliverable is closed; the next measurement happens only
+after the next semantic tag, blank controls first, decoy before
+target.
+
+Port executed per the review's task 1, from
+arena/01a06da9-cat-theo-machine @ 966a077: tools/f2_grader.sh,
+tools/f3-residual-diff.sh, tools/f3_batch_diff.sh, tools/f4_auditor.sh,
+and the five spec files (f1-checkpoint-verbs, f2-grading-fixtures,
+f3-residual-diff-batch, f4-audit-historical, blank-controls-r2).
+
+One collision needed a decision: this branch and that one had both
+written tools/f2_grader.sh and tools/f3-residual-diff.sh as different
+instruments. Their f3 is the ported one (four axes and the
+silence-class verdict; this branch's three-axis version is superseded
+by it). Their f2 and this branch's f2 graded different things -- theirs
+counts operator compliance (taught theorems, unlock evidence, circular
+and computable requests, cite coverage), this branch's classified the
+machine's outcome (A/B/C/D per research_protocol.md). Both functions
+survive: theirs keeps the f2_grader.sh name as the review directs, and
+this branch's classifier is renamed tools/f2-outcome-class.sh with its
+function stated in its header. tools/f4-sheet.md stays as the hand-
+filled per-pair sheet; f4_auditor.sh is the mechanical per-transcript
+audit. INT's merge of the two branches is now free of content
+conflicts on the tools/ paths.
+
+Validation artifact: logs/2026-09-05-F-TOOLING-PORT-validation.txt
+(dates in filenames are local, Europe/Moscow; the artifact's header
+timestamp is UTC). Results: their F2 grader reports zero on every
+count across all eight transcripts -- nothing was ever taught in any
+pass, so compliance is trivially clean; their F3 reports identical on
+all four pairs (exit 0; the silence-class verdict reserves exit 3 for
+same-silence pairs that differ on an axis, which these do not); the
+renamed outcome-class grader reports class A on all eight; the F4
+auditor on the pass-4 pair reports packs loaded, audit present,
+loaded-class list present, regime A, contamination no, and names the
+instrument pre-D11 backward-blind.
+
+Remaining programme per the review, none of it on this branch's lane:
+D11 content work (pack port to the per-pack surface, nonzero partial
+matches on non-FLT probes, full suite, next frozen tag) is engineering
+and INT's tag cut; blank controls and the resumed pair follow the new
+tag. The ZeroPartialMatchAmbiguity finding from the ported branch's
+ledger -- the matcher cannot distinguish "no rule could match this
+shape" from "the criterion is too coarse" -- is noted here by
+reference; it is routed to S/INT as an instrument concern.

@@ -1,0 +1,114 @@
+F tooling port validation -- 2026-09-04T23:54Z
+ported from arena/01a06da9-cat-theo-machine @ 966a077 (fable-5.1 F-programme)
+
+== F2 grader (theirs, compliance counts) on all eight transcripts ==
+-- logs/2026-09-05-F-RUNNER-decoy.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+-- logs/2026-09-05-F-RUNNER-target.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+-- logs/2026-09-05-F-RUNNER-decoy-r2.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+-- logs/2026-09-05-F-RUNNER-target-r2.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+-- logs/2026-09-05-F-RUNNER-decoy-r3.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+-- logs/2026-09-05-F-RUNNER-target-r3.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+-- logs/2026-09-05-F-RUNNER-decoy-r4.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+-- logs/2026-09-05-F-RUNNER-target-r4.log
+taught-theorem count:       0
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      0
+
+== F3 residual diff (theirs, four axes + silence-class) on the four pairs ==
+-- pair 
+a cost=334 partial=0 head=zero-successor-root unmatched=none
+b cost=334 partial=0 head=zero-successor-root unmatched=none
+identical
+exit=0
+-- pair -r2
+a cost=334 partial=0 head=zero-successor-root unmatched=none
+b cost=334 partial=0 head=zero-successor-root unmatched=none
+identical
+exit=0
+-- pair -r3
+a cost=334 partial=0 head=zero-successor-root unmatched=none
+b cost=334 partial=0 head=zero-successor-root unmatched=none
+identical
+exit=0
+-- pair -r4
+a cost=334 partial=0 head=zero-successor-root unmatched=none
+b cost=334 partial=0 head=zero-successor-root unmatched=none
+identical
+exit=0
+
+== F2 outcome-class (renamed local companion) on all eight ==
+2026-09-05-F-RUNNER-decoy.log: F2: class A -- uncharacterized stall
+2026-09-05-F-RUNNER-target.log: F2: class A -- uncharacterized stall
+2026-09-05-F-RUNNER-decoy-r2.log: F2: class A -- uncharacterized stall
+2026-09-05-F-RUNNER-target-r2.log: F2: class A -- uncharacterized stall
+2026-09-05-F-RUNNER-decoy-r3.log: F2: class A -- uncharacterized stall
+2026-09-05-F-RUNNER-target-r3.log: F2: class A -- uncharacterized stall
+2026-09-05-F-RUNNER-decoy-r4.log: F2: class A -- uncharacterized stall
+2026-09-05-F-RUNNER-target-r4.log: F2: class A -- uncharacterized stall
+
+== F4 auditor on the pass-4 pair ==
+session-id: 2026-09-05-F-RUNNER-decoy-r4.log
+packs: loaded
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+audit knowledge: present
+loaded-class list: present
+regime: A
+contamination: no
+teach law lines: 0
+cite-coverage follows F2; run tools/f2_grader.sh on this path
+instrument class: pre-D11 backward-blind
+session-id: 2026-09-05-F-RUNNER-target-r4.log
+packs: loaded
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+audit knowledge: present
+loaded-class list: present
+regime: A
+contamination: no
+teach law lines: 0
+cite-coverage follows F2; run tools/f2_grader.sh on this path
+instrument class: pre-D11 backward-blind
