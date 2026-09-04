@@ -521,53 +521,70 @@ disagreement is in how `Compare` treats the constructor of a constructed
 term, not in the payload, so the fault is in a comparison primitive that
 E-track owns. Not blocking, and not investigated further here.
 
-**D8 — `recover.sh` checks descent, not currency.** Filed from the second
-consecutive sandbox reset, which replaced `.git` with a fresh clone and
-destroyed three local commits while leaving the working tree intact. The
-gate the script has is
+**D8 — the reset recovery: the gate was right and was not run; the repair
+was the wrong tool.** Filed from two consecutive sandbox resets, each of
+which replaced `.git` with a fresh clone and destroyed local commits while
+leaving the working tree intact. **Corrected after the first write-up got
+the mechanism backwards**, which is recorded here because the wrong
+version is what sends the next worker to the wrong place.
+
+The first write-up said the descent gate passed in the reset state. It
+does not. `git merge-base --is-ancestor A B` asks "is A an ancestor of
+B", the script's gate is `--is-ancestor TIP HEAD`, and in the reset state
+(`HEAD` `41e8078`, tip `0212ca7`) that is **false** — the script prints
+`descent: BROKEN` and 189 phantom paths, loudly. What misled the write-up
+is that the opposite statement is comfortably true: `HEAD` *is* an
+ancestor of the tip, which is the same thing said in the direction that
+sounds like success. Anyone reading "HEAD descends from the tip" has to
+know which way `merge-base` points.
+
+So the two real defects are elsewhere:
+
+1. **The gate was never run.** The standing rule — verify `HEAD` before
+   the first commit of a session — is manual. `tools/recover.sh` would
+   have caught both losses; it was not invoked at the start of either
+   turn, and the session worked on an unverified base until the push was
+   rejected. The fix is procedural, not code: run it first, every turn.
+2. **The repair for the reset case was the wrong tool.** "Behind the tip"
+   and "divergent" both printed `descent: BROKEN` and took the same path:
+   `git reset --hard` to the tip, then `git apply` the saved diff. For a
+   divergent branch that is right. For the reset — the case that actually
+   happens — it deletes the surviving files and trusts a patch to put
+   them back, when `reset --mixed` moves `HEAD` and the index and leaves
+   the tree alone.
+
+Fixed in `[SHARED]` commit 9904d57 (below): three named states instead of
+a direction that reads two ways — `clean` (`HEAD` == tip), `behind`
+(`HEAD` is an ancestor of the tip: the reset), `divergent` (neither
+ancestor of the other). `behind` repairs with `reset --mixed` and prints
+how many paths survived, which is the number that says whether the tree
+came through: four is the work, tens is a tree that is not the tip's
+content. `divergent` keeps the patch-carry repair and its 20k-line
+refusal. The header comment states the direction of `merge-base`
+explicitly, because that ambiguity is what produced the wrong write-up.
+
+
+The warning the script prints for the `behind` state, and the recovery it
+now performs:
 
 ```text
-merge-base --is-ancestor HEAD <integration tip>        # descent
-```
-
-and that gate *passed*. It would: a fresh clone leaves `HEAD` at
-`41e8078`, which is a real ancestor of the tip. Descent catches a
-divergent branch — a topic branch, a rebase gone wrong — and nothing else.
-The reset failure mode is the opposite one: `HEAD` is *behind* the tip,
-and the working tree holds work that no commit points at. So the gate
-that is missing is currency:
-
-```text
-test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"   # currency
-```
-
-Descent pass plus currency fail means the checkout is not clean and must
-not be committed from:
-
-```text
-DESCENT PASS / CURRENCY FAIL
+BEHIND THE TIP - reset signature
 local checkout is a stale ancestor of the integration tip
 files may contain recovered work from a newer tree
-do not commit before resetting to the tip
+do not commit before moving HEAD to the tip
 ```
-
-The recovery is four commands and it has worked twice:
 
 ```text
-git fetch origin <integration branch>
-git reset --mixed FETCH_HEAD      # move HEAD and the index, keep the tree
-git diff --stat                   # small => the work is still in the tree
+HEAD moved to the tip; the working tree was not touched.
+surviving work, measured against the tip: N paths
 ```
 
-Read the diff afterwards. Four files is the surviving work; 48 files and
-359k lines is the signature of a wrong base, which is what `.gitignore`
-and `recover.sh` already refuse on. `recover.sh` has to encode exactly
-this: the currency gate ahead of the descent gate, the patch saved before
-the reset, and the changed-file count printed after it.
-
-Not changed in this commit: recovery tooling is `[SHARED]`, the fix is
-queued behind the push, and the tree is committed from the recovered
-state first so that the measurement and the remote agree.
+Read that number. Four paths is the surviving work; 48 files and 359k
+lines is the signature of a wrong base, which is what `.gitignore` and the
+20k-line refusal are for. All three states were exercised before the fix
+landed — clean, behind (`reset --mixed`, tree intact, pins re-derived
+PASS) and divergent (patch carried, edit survives, and the 190-file case
+still refuses).
 
 **D4 — root debris** (T0, below).
 
@@ -668,36 +685,43 @@ sentinel exists now (D2), so the runner is unblocked and is the next
 
 **Sandbox resets — the wrong-base failure, six times.** A reset keeps the
 working tree and drops git objects, so a session can wake up with a full tree
-and a `HEAD` that no longer descends from the integration tip. The next commit
-then goes in against the old base and shows up as 190 files and 359k lines;
-only the rejected push catches it. Two fixes are in, both `[SHARED]`:
+and a `HEAD` that sits *below* the integration tip. The next commit then goes
+in against the old base and shows up as 190 files and 359k lines; only the
+rejected push catches it. Two fixes are in, both `[SHARED]`:
 `tools/recover.sh` makes the check and the recovery one command (fetch,
 `merge-base --is-ancestor` against the tip, save the diff and reset if it
 fails, rebuild the venv, re-run the pin check), and `.gitignore` takes the
 bytecode, search-compare scratch and cold-debug logs so a bad base diffs small
 instead of enormous. The rule it encodes is the standing one and is not new:
-**HEAD descends from the integration tip before the first commit of a
-session.** Verify it before writing anything, not after the push is rejected.
+**HEAD is the integration tip before the first commit of a session** — not
+merely an ancestor of it, which is exactly what a reset leaves behind and
+exactly the state that reads as "descends from" if you say it loosely (D8).
+Verify it before writing anything, not after the push is rejected.
 It happened again this turn — the working tree was intact at `7acaf4c` while
 `HEAD` sat at `41e8078` — and recovery took four commands instead of the
 morning it took the first time.
 
-**The variant the descent check does not catch.** It happened again the turn
-after that, again at the start of the turn after *that*, and this time
-`recover.sh` passed it through. The reset had
-replaced `.git` with a fresh clone, so `HEAD` sat at `41e8078`: a *real*
-ancestor of the tip, so `merge-base --is-ancestor` is satisfied and the
-script has nothing to say — while the three commits made locally since the
-last push had ceased to exist anywhere. Descent asks "is my base below the
-tip"; the failure is "my base is *behind* the tip, and the working tree
-holds work no commit points at". The gate that catches it is currency:
+**The variant, corrected.** It happened again the turn after that, and
+again at the start of the turn after *that* — three turns running, six
+commits lost. The first account of it here said the descent gate passed
+the reset through. **That was wrong, and it is struck out:** the gate is
+`--is-ancestor TIP HEAD`, which is false in the reset state, so
+`recover.sh` reports `descent: BROKEN` and 189 phantom paths. It was never
+silent — it was never *run*. What is true is that the reset state is
+`behind` the tip, which is the one state the old script repaired with
+`reset --hard` and a patch, deleting the surviving files to restore them.
+Both halves are **D8** below, with the fix.
 
 ```text
+sh tools/recover.sh --check        # names the state; exits 1 unless clean
+sh tools/recover.sh                # behind -> reset --mixed, tree untouched
+
+# by hand, which is what the script now does:
 git fetch origin <integration branch>
-git merge-base --is-ancestor HEAD FETCH_HEAD             # descent: passes here
-test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"  # currency: fails
-git reset --mixed FETCH_HEAD        # move HEAD and the index, keep the tree
-git diff --stat                     # small => the work is still in the tree
+git merge-base --is-ancestor TIP HEAD    # false: HEAD is not past the tip
+git merge-base --is-ancestor HEAD TIP    # true:  HEAD is behind the tip
+git reset --mixed FETCH_HEAD             # move HEAD and the index, keep the tree
+git diff --stat                          # small => the work is still in the tree
 ```
 
 After moving to the tip the diff *is* the surviving work — four files this
