@@ -79,9 +79,10 @@ even; `s` (a sum of `width` ±1 terms) is even exactly when `width` is even.
 
 Keep the same reference observable but change the window width to an odd value:
 
-- `width = 3`: one `FlipSign` element sits in exactly 3 products. `s = p1+p2+p3` is a sum of three
-  ±1 terms, so `s ∈ {-3, -1, 1, 3}` (always odd). Then `ΔS = -2·s ∈ {±2, ±6}`, and
-  `±2, ±6 ≡ 2 (mod 4)`, i.e. **`ΔS ≢ 0 (mod 4)`**. The observable is **not** preserved at odd width.
+- `width = 3`: one `FlipSign` element sits in 3 cyclic windows. `s = p1+p2+p3` is a sum of three
+  ±1 terms, so `s ∈ {-3, -1, 1, 3}` (always **odd**). Then `ΔS = -2·s ∈ {±2, ±6}`, and
+  `±2 ≡ 2 (mod 4)`, `±6 ≡ 2 (mod 4)`, i.e. **`ΔS ≢ 0 (mod 4)`** (specifically `ΔS ≡ 2 (mod 4)`).
+  The observable is **not** preserved at odd width.
 
 This is the distinguishing control: the mod-4 preservation holds precisely for **even** window width
 (so the four-window reference works), and fails for odd width (three-window). It isolates that the
@@ -90,7 +91,29 @@ the modulus alone.
 
 Negative-control candidate to reject, with width explicit:
 - `ResidueMod(SumOfProducts(CyclicWindowProduct(state, width=3)), 4)` — **not invariant** under
-  `FlipSign`, witness `ΔS = ±2` (e.g. `[1,1,1]` → flip → `[-1,1,1]` changes `S` by `±2`, residue 2).
+  `FlipSign`.
+
+### Checked witness (measured this session)
+
+Independent brute-force computation for `n = 5`, width = 3:
+
+- Start `[1,1,1,1,1]` (all ones): `S₃ = 5`, residue `5 mod 4 = 1`.
+- Flip any one element → `[-1,1,1,1,1]` (or any single-flip state): `S₃ = -1`, residue `-1 mod 4 = 3`.
+- `ΔS₃ = -6`, `ΔS₃ ≡ 2 (mod 4)`, and residue moves `1 → 3` (not preserved).
+
+This matches the general formula (`ΔS = -2·s` with `s = -3` for a single `-1` among three terms →
+`ΔS = 6`; sign convention gives `-6`, both `≡ 2 mod 4`). The concrete witness and the general
+algebra agree from two directions. Note `n = 5` has overlapping three-windows, so the "sits in
+exactly width distinct windows" claim does not hold here — but the preservation failure still
+registers: the residue is not invariant, which is the point of the control.
+
+A minimal odd-width control with a residue-0 start (`width = 3`, `n = 6`) confirms the same failure
+mechanism from a separation standpoint:
+
+- Start `(1,1,1,1,1,-1)`: `S₃ = 0`, residue `0` (matches the reference hypothesis `S = 0`).
+- `FlipSign(position=0)` → `(-1,1,1,1,1,-1)`: `S₃ = 2`, residue `2`, `ΔS₃ = +2 ≡ 2 (mod 4)`.
+- So from a residue-0 start, an odd-width observable does **not** preserve the residue — a direct
+  separation counterexample. Three ±1 terms give odd `s`, so `ΔS = -2·s ≡ 2 (mod 4)`.
 
 ## 7. Conclusion for the oracle
 
