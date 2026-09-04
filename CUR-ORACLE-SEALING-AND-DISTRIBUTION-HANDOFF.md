@@ -67,6 +67,8 @@ The contamination barrier bars **roles, not activity**. Completing a deliverable
 
 After step 2, the merged tree contains both `CUR-ENGEL-E4-oracle.md` (canonical) and `CUR-ENGEL-E4-ORACLE.md` (sibling). The sibling carries the reclassification note marking it as a verification variant of the canonical (Ruling 1) — it is not a competing canonical.
 
+**E3-seal gate (Ruling 2, made explicit):** E3 oracle card sealing is gated on `01a068c2` merge completing first. The seal step for E3 must run **AFTER** merge step 2, because the canonical E3 oracle card (`CUR-ENGEL-E3-oracle.md`) does not exist in the merged tree until `01a068c2` lands. If INT runs the seal batch before merge step 2, the E3 entry will have no source file and its content-id will be computed from nothing. The E4 and E7 seals are not gated this way (their canonical cards are already on `01a066cf`); only the E3 entry carries this gating dependency.
+
 ---
 
 ```text
