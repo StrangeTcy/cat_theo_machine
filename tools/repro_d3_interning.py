@@ -30,6 +30,45 @@ ROOTS = ("all_rules", "rule_order", "derivations", "derivation_schemata",
          "search_memo", "dependency_graph", "dependency_requests",
          "intervention_episodes", "last_proof", "generator_metrics")
 
+def census(g2, limit=200000):
+    """value text -> how many distinct restored atoms carry it."""
+    import cat_theo_machine.machine as M
+    empty = M.EmptyList
+    registry = M.FromContextGetConstructors(g2)()
+    seen = set()
+    stack = [getattr(g2, n) for n in ("all_rules", "rule_order", "derivations", "derivation_schemata")]
+    per_value = {}
+    while stack and len(seen) < limit:
+        term = stack.pop()
+        if term is None or id(term) in seen:
+            continue
+        seen.add(id(term))
+        if M.IsPair(term)() is M.truth_value:
+            stack.append(M.Head(term)()); stack.append(M.Tail(term)()); continue
+        v = getattr(term, "value", None)
+        if v is not None and M.IsPair(v)() is M.truth_value:
+            stack.append(v)
+        for f in ("inputs", "results"):
+            x = getattr(term, f, None)
+            if x is not None:
+                stack.append(x)
+        if v is None:
+            continue
+        text = str(v)
+        if not text.isdigit():
+            try: text = str(v())
+            except Exception: continue
+        if not text.isdigit() or len(text) > 6:
+            continue
+        ctor = M.GetConstructor(term, registry)()
+        if M.IdentityCompare(ctor, empty)() is M.truth_value:
+            continue
+        if M.IdentityCompare(M.Head(ctor)(), M.SuccLabel)() is M.false_value:
+            continue
+        per_value.setdefault(text, set()).add(id(term))
+    return per_value
+
+
 def count(g2, limit_checked=16, limit_seen=200000):
     global G2
     G2 = g2
@@ -112,7 +151,7 @@ def main():
     disable = "--no-fix" in sys.argv
     from cat_theo_machine.persistence import SnapshotCodec
     if disable:
-        SnapshotCodec._reintern_restored_value_atoms = lambda self, state, graph, debug=False: 0
+        SnapshotCodec._canonicalize_restored_nats = lambda self, state, graph, debug=False: 0
 
     rt, _ = boot_from_packs(PACK_PATHS, _runtime_namespace())
     g = rt.graph
@@ -127,8 +166,11 @@ def main():
     shutil.rmtree(tmp, ignore_errors=True)
     t0 = time.time()
     checked, bad, seen = count(g2)
-    state_text = "absent" if not hasattr(SnapshotCodec, "_reintern_restored_value_atoms") else (
+    state_text = "absent" if not hasattr(SnapshotCodec, "_canonicalize_restored_nats") else (
         "disabled" if "--no-fix" in sys.argv else "active")
+    per_value = census(g2)
+    dupes = {k: len(v) for k, v in sorted(per_value.items()) if len(v) > 1}
+    print("values in payload: %d   values with more than one atom: %r" % (len(per_value), dupes), flush=True)
     print("interning pass %s: visited %d terms, nats checked %d, mismatched %d  (%.1fs)" % (
         state_text, seen, checked, bad, time.time() - t0), flush=True)
 

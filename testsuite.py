@@ -16386,7 +16386,7 @@ class TestShardCursorPinTest(M.Edge):
     broken.
     """
 
-    EXPECTED_GUARD_COUNT = 298
+    EXPECTED_GUARD_COUNT = 305
     EXPECTED_CURSOR_INDEX = 218
     EXPECTED_SHARD = 0
 
@@ -16426,29 +16426,224 @@ class TestShardCursorPinTest(M.Edge):
 
 
 class SnapshotValueAtomIdentityTest(M.Edge):
-    """D3: a restored value atom has to be the machine's atom for that value.
+    """D3, on real state: every restored Nat is the Nat for its value.
 
-    Nats are interned at construction: building two twice yields one
-    object, and `IdentityCompare` says so. Restore does not go through that
-    interning. It fabricates a fresh atom per record, so a restored two is
-    not the interned two, and every `TermEqual` and `IdentityCompare` over
-    restored value-bearing state is false -- while `NatEq`, which reads the
-    value, reports the two as intact. That is the whole of D3: identity, not
-    information.
+    Restore fabricated one object per record and reconnected only what two
+    contracts cover -- sharing inside the snapshot's own graph, and named
+    singletons. Canonical-family identity was the missing third: a
+    snapshot that mentions two in five places restored five twos, none of
+    them the Nat the runtime names, so `TermEqual` and `IdentityCompare`
+    over restored value-bearing state were false while `NatEq`, which
+    reads the value, agreed.
 
-    GMPRep numerals are deliberately out of scope here. Two freshly
-    constructed GMPReps are already unequal, so their behaviour across a
-    restore is not a restore defect, and folding them in would misdirect
-    whoever fixes this.
+    This test walks the whole restored payload on the production boot
+    path, because the synthetic probes in the tests beside this one are
+    what a fix is written against and real state is what it has to hold
+    for. It asks the restored machine for the Nat of each value and
+    compares identity, which is the invariant:
 
-    The probe costs one capture of the booted graph, which is the price of
-    measuring the real codec rather than a stand-in.
+        NatFromRep(v) and every restored occurrence of Nat(v)
+        refer to the same object.
 
-    While the defect is open the test returns VALUE_ATOM_IDENTITY_OPEN, and
-    that sentinel is the registered expectation: the suite stays green and
-    the gap is reported rather than hidden. Fixing restore flips the result
-    to truth_value and fails against this expectation until it is
-    deliberately updated -- the same discipline as the milestone checks.
+    The old version of this test called `capture` and `load_snapshot` and
+    stopped there. Activate is the step that rebuilds the roots and wires
+    the value index, so a fix placed after activation was invisible to it
+    -- the test held its open sentinel through a prototype run that had
+    already changed what it was supposed to be measuring.
+
+    GMPRep carriers are out of scope and stay out (D5). A GMPRep holding
+    2 is not the Nat two, and canonicalizing it would infer a family from
+    a payload.
+    """
+
+    MAX_VISITED = 200000
+
+    def __init__(self, graph):
+        import os
+        import shutil
+        import tempfile
+
+        from .main import _runtime_namespace
+        from .persistence import SnapshotCodec
+        from .runtime import boot_from_snapshot
+
+        empty = M.EmptyList
+        tmpdir = tempfile.mkdtemp()
+        snap_path = os.path.join(tmpdir, "snapshot.json")
+        restored = None
+        try:
+            codec = SnapshotCodec(_runtime_namespace())
+            codec.save(_clean_packs_graph(), snap_path, progress=M.false_value)
+            restored = boot_from_snapshot(snap_path, _runtime_namespace()).graph
+        finally:
+            try:
+                shutil.rmtree(tmpdir)
+            except Exception:
+                pass
+
+        self.result = M.false_value
+        if restored is None:
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+
+        registry = M.FromContextGetConstructors(restored)()
+        roots = [getattr(restored, name, None) for name in SnapshotCodec.ROOT_NAMES]
+        seen = set()
+        stack = roots
+        checked = 0
+        while stack and len(seen) < self.MAX_VISITED:
+            term = stack.pop()
+            if term is None or id(term) in seen:
+                continue
+            seen.add(id(term))
+            if M.IsPair(term)() is M.truth_value:
+                stack.append(M.Head(term)())
+                stack.append(M.Tail(term)())
+                continue
+            value = getattr(term, "value", None)
+            if value is not None:
+                stack.append(value)
+            for field in ("inputs", "results"):
+                child = getattr(term, field, None)
+                if child is not None:
+                    stack.append(child)
+            text = _nat_rep_text(value)
+            if text is None:
+                continue
+            constructor = M.GetConstructor(term, registry)()
+            if M.IdentityCompare(constructor, empty)() is M.truth_value:
+                continue
+            if M.IdentityCompare(M.Head(constructor)(), M.SuccLabel)() is M.false_value:
+                continue
+            canonical = M.Head(M.NatFromRep(M.GMPRep(text), registry)())()
+            checked = checked + 1
+            if M.IdentityCompare(term, canonical)() is M.false_value:
+                self.result = M.false_value
+                super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+                return
+
+        self.result = M.truth_value
+        if checked == 0:
+            # no Nat in the payload means the probe looked at nothing,
+            # which is a broken measurement and not a passing one.
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+def _nat_by_succ(registry, count):
+    """Build the Nat `count` by successor, the way the machine does."""
+
+    current = M.Zero
+    for _step in range(count):
+        pair = M.Succ(current, registry)()
+        current = M.Head(pair)()
+        registry = M.Head(M.Tail(pair)())()
+    return current, registry
+
+
+def _probe_graph():
+    """A small graph of its own for the canonicality probes.
+
+    The probes capture a snapshot, and capturing the live suite graph
+    means capturing whatever the suite has built into it -- including
+    test hypergraphs, which the capture walk does not expect. The
+    contract under test is the codec's, not the fixture's, so the
+    fixture is the smallest graph that has Nats in it. Real state is
+    covered by `snapshot_value_atom_identity_test`, which boots the
+    whole graph.
+    """
+
+    from .runtime import make_fresh_runtime
+
+    return make_fresh_runtime().graph
+
+
+def _clean_packs_graph():
+    """A packs-booted graph of the test's own, with no suite state in it.
+
+    Capturing the live suite graph drags in whatever the suite has built
+    into it, and the capture walk cannot key a hypergraph -- it has no
+    `.id` -- so a `save` of the live graph fails depending on which tests
+    ran before this one. Shard 1 died that way. The payload this test
+    measures is the machine's, not the suite's, so it boots its own copy
+    from the packs and rounds trips that.
+    """
+
+    from .main import PACK_PATHS, _runtime_namespace
+    from .runtime import boot_from_packs
+
+    runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    return runtime.graph
+
+
+def _boot_state_with_extra_roots(graph, extra_roots):
+    """Production boot path, with probe roots kept.
+
+    `boot_from_snapshot` hands back a runtime whose context holds only the
+    named roots, so anything captured as an extra root is unreachable from
+    it. The canonicality tests need to reach their probes, so they drive
+    the codec the way the boot does and keep the state:
+
+        capture -> save -> load -> activate
+
+    which is the sequence whose last step is where canonicality is
+    restored. The probes are read back from `state.roots`, which the
+    canonicalization pass re-points like any other root.
+    """
+
+    import json
+    import os
+    import shutil
+    import tempfile
+
+    from .main import _runtime_namespace
+    from .persistence import SnapshotCodec
+    from .runtime import make_fresh_runtime
+
+    tmpdir = tempfile.mkdtemp()
+    path = os.path.join(tmpdir, "snapshot.json")
+    try:
+        codec = SnapshotCodec(_runtime_namespace())
+        document = codec.capture(graph, extra_roots=extra_roots, progress=M.false_value)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(document, handle)
+        state = codec.load(path)
+        fresh = make_fresh_runtime()
+        codec.activate(state, fresh.graph)
+        return state, fresh.graph
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _nat_rep_text(value):
+    """The decimal text a Nat caches, read host-side, or None.
+
+    Used only to *report* and to group: whether a thing is a Nat is never
+    decided here.
+    """
+
+    if value is None:
+        return None
+    text = str(value)
+    if not text.isdigit():
+        try:
+            text = str(value())
+        except Exception:
+            return None
+    return text if text.isdigit() else None
+
+
+class RawSnapshotNatFidelityTest(M.Edge):
+    """Contract A: the raw codec preserves a Nat and the sharing inside one graph.
+
+    `load_snapshot` owes three things: the value survives, one object
+    referenced twice comes back as one object, and nothing is claimed
+    about the already-running runtime outside the snapshot. Reconnecting
+    a restored Nat to the canonical Nat is contract B and is not asked
+    for here, so this test holds whether or not canonicalization runs.
     """
 
     def __init__(self, graph):
@@ -16456,30 +16651,321 @@ class SnapshotValueAtomIdentityTest(M.Edge):
         from .persistence import SnapshotCodec
 
         empty = M.EmptyList
+        registry = M.FromContextGetConstructors(_probe_graph())()
+        two, registry = _nat_by_succ(registry, 2)
 
-        registry = M.FromContextGetConstructors(graph)()
-        pair = M.Succ(M.Zero, registry)()
-        one = M.Head(pair)()
-        registry = M.Head(M.Tail(pair)())()
-        pair = M.Succ(one, registry)()
-        two = M.Head(pair)()
-
+        shared = M.Pair(two, M.Pair(two, empty))
         codec = SnapshotCodec(_runtime_namespace())
         state = codec.load_snapshot(
-            codec.capture(graph, extra_roots={"value_atom_probe": two})
+            codec.capture(
+                _probe_graph(),
+                extra_roots={
+                    "nat_shared": shared,
+                    "char_digit": M.Char("2"),
+                    "gmp_two": M.GMPRep("2"),
+                },
+            )
         )
-        restored = state.roots["value_atom_probe"]
 
-        registry = M.FromContextGetConstructors(graph)()
-        pair = M.Succ(M.Zero, registry)()
-        one = M.Head(pair)()
-        registry = M.Head(M.Tail(pair)())()
-        pair = M.Succ(one, registry)()
-        fresh_two = M.Head(pair)()
+        restored = state.roots["nat_shared"]
+        first = M.Head(restored)()
+        second = M.Head(M.Tail(restored)())()
+        char_two = state.roots["char_digit"]
+        gmp_two = state.roots["gmp_two"]
 
-        self.result = VALUE_ATOM_IDENTITY_OPEN
-        if M.IdentityCompare(restored, fresh_two)() is M.truth_value:
-            self.result = M.truth_value
+        self.result = M.truth_value
+        if M.NatEq(first, two, registry)() is M.false_value:
+            self.result = M.false_value
+        # sharing inside one serialized graph: one record, one object
+        if M.IdentityCompare(first, second)() is M.false_value:
+            self.result = M.false_value
+        # a Char carrying "2" and a GMPRep holding 2 are not this Nat
+        if M.IdentityCompare(char_two, first)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(gmp_two, first)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class BootSnapshotNatCanonicalityTest(M.Edge):
+    """Contract B: a Nat nested in the payload is the canonical Nat after boot.
+
+    This is the test D3 fails. It goes through the production boot path --
+    capture, save, load, activate -- because a fix placed after activation
+    is invisible to a probe that stops at `load_snapshot`.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        two, _registry = _nat_by_succ(registry, 2)
+        nested = M.Pair(M.Pair(two, empty), empty)
+
+        _state, restored_graph = _boot_state_with_extra_roots(probe, {"nat_nested": nested})
+        restored_root = _state.roots["nat_nested"]
+        nat = M.Head(M.Head(restored_root)())()
+
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep("2"), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(nat, canonical)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class BootSnapshotNatRootCanonicalityTest(M.Edge):
+    """Contract B, at a root: a captured root that is itself a Nat.
+
+    A root has no parent field through which it could be replaced, so the
+    substitution has to consult the mapping before it descends. This is
+    the case that catches a pass which only rewrites children.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        two, _registry = _nat_by_succ(registry, 2)
+
+        state, restored_graph = _boot_state_with_extra_roots(probe, {"nat_root": two})
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep("2"), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(state.roots["nat_root"], canonical)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class BootSnapshotNatIndexCanonicalityTest(M.Edge):
+    """Contract B, in the index: every indexed Nat is canonical, once.
+
+    A preserved index keeps naming the superseded atoms, so the index is
+    rebuilt from the canonical representatives and then checked: each
+    value maps to one Nat, and that Nat is the one `NatFromRep` returns.
+    """
+
+    def __init__(self, graph):
+        from . import trees as Tmod
+
+        empty = M.EmptyList
+        _state, restored_graph = _boot_state_with_extra_roots(_probe_graph(), {})
+        registry = M.FromContextGetConstructors(restored_graph)()
+        walker = Tmod.TreeEntries(restored_graph.nat_value_index)()
+
+        canonical_by_value = {}
+        facts = []
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            entry = M.Head(walker)()
+            fact = M.Head(M.Tail(entry)())()
+            walker = M.Tail(walker)()
+            facts.append(fact)
+
+        self.result = M.truth_value
+        if not facts:
+            self.result = M.false_value
+        for fact in facts:
+            text = _nat_rep_text(getattr(fact, "value", None))
+            if text is None:
+                continue
+            canonical = M.Head(M.NatFromRep(M.GMPRep(text), registry)())()
+            if M.IdentityCompare(fact, canonical)() is M.false_value:
+                self.result = M.false_value
+            previous = canonical_by_value.get(text)
+            if previous is None:
+                canonical_by_value[text] = fact
+            elif previous is not fact:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class NonNatValueCarrierNotInternedTest(M.Edge):
+    """Only a family with a canonicality contract is re-interned.
+
+    A Char carrying "2" and a GMPRep holding 2 name the same number as the
+    Nat two and are not Nats. Canonicalizing either would be inferring a
+    family from a payload, which is the mistake this whole design avoids.
+    GMPRep comparison is D5 and stays out of this commit.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        two, _registry = _nat_by_succ(registry, 2)
+
+        state, restored_graph = _boot_state_with_extra_roots(
+            probe,
+            {
+                "char_digit": M.Char("2"),
+                "gmp_two": M.GMPRep("2"),
+                "nat_two": two,
+            },
+        )
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep("2"), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(state.roots["nat_two"], canonical)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(state.roots["char_digit"], canonical)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(state.roots["gmp_two"], canonical)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LargeNatCanonicalityTest(M.Edge):
+    """A Nat past the prebuilt small-number range, with no second chain.
+
+    Small Nats exist before anyone asks for them, which hides the bug:
+    canonicalizing them can look like a no-op. A Nat that has to be built
+    is the one that shows whether canonicality holds or a duplicate
+    successor chain was installed alongside the original.
+    """
+
+    # Past the prebuilt range (Zero..nine) but inside what the tree
+    # operations can carry: a Nat of a few hundred deepens the value index
+    # enough to exhaust the interpreter's recursion limit, which is D3b's
+    # shape and not what this test is for.
+    LARGE = 40
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        big, _registry = _nat_by_succ(registry, self.LARGE)
+        before, _registry = _nat_by_succ(registry, self.LARGE - 1)
+
+        state, restored_graph = _boot_state_with_extra_roots(probe, {"nat_large": big})
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep(str(self.LARGE)), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(state.roots["nat_large"], canonical)() is M.false_value:
+            self.result = M.false_value
+        # the successor of the predecessor is that same object: no second
+        # chain was built next to the one the snapshot carried
+        successor = M.Head(M.Succ(before, registry)())()
+        if M.IdentityCompare(successor, canonical)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ExplanationPlanSnapshotRoundTripTest(M.Edge):
+    """An obligation-bearing ExplanationPlan survives the production boot.
+
+    Synthetic probes are not enough for a tag-gating persistence change,
+    so this one carries the structure that failed the D3 scope run: a plan
+    with a Preserves obligation, which is where the equality was lost.
+    Structural comparison is `Compare`, not identity: a restored Char is
+    not the object it was.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+
+        empty = M.EmptyList
+        T = _ExplanationToy
+        preserves = T.blackboard_preserves(graph)
+        observable = Emod.PreservesObservable(preserves)()
+        marks = M.Pair(empty, M.Pair(empty, empty))
+        step = Emod.SpineStep(preserves, M.truth_value, marks)()
+        spine = Emod.ExplanationSpine(empty, M.Pair(step, empty), empty)()
+        core = Emod.CoreIdea(empty, Emod.IDEA_INVARIANT)()
+        plan = Emod.ExplanationPlan(
+            Emod.AudienceLevel(M.Char("student"))(), empty, spine, core, empty
+        )()
+
+        # The plan is BUILT on the live graph, which owns the research
+        # fixtures, and BOOTED from a graph of its own: capturing the live
+        # suite graph drags in whatever the suite has built into it,
+        # including hypergraphs the capture walk cannot key. The plan
+        # travels as a root of the probe graph, which is also what makes
+        # this a root-level round trip rather than an extra-root one.
+        probe = _probe_graph()
+        probe._replace_context(last_proof=plan)
+        state, restored_graph = _boot_state_with_extra_roots(probe, {})
+        restored_plan = state.roots["last_proof"]
+        registry = M.FromContextGetConstructors(restored_graph)()
+
+        self.result = M.truth_value
+        # MEASURED, NOT ASSUMED: `Compare(live plan, restored plan)` is
+        # false at the root while every child position compares equal, so
+        # the disagreement is in how `Compare` treats the constructor of a
+        # constructed term, not in the payload. That is a comparison
+        # contract of its own and is recorded under D3 rather than
+        # asserted here; what this test can honestly assert is that the
+        # plan survives, keeps its obligation, and carries canonical Nats.
+        # and it still renders, which is what an obligation is for: a
+        # sentence that cannot cite its law is indistinguishable from
+        # generated prose.
+        sentences = Emod.RenderPlan(restored_plan)()
+        if M.IdentityCompare(sentences, empty)() is M.truth_value:
+            self.result = M.false_value
+        saw_preserves = M.false_value
+        cursor = sentences
+        while M.IdentityCompare(cursor, empty)() is M.false_value:
+            sentence = M.Head(cursor)()
+            if M.IdentityCompare(Emod.SentenceLaw(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                Emod.SentenceLaw(sentence)(), Emod.PreservesStepLawName
+            )() is M.truth_value:
+                saw_preserves = M.truth_value
+            cursor = M.Tail(cursor)()
+        if saw_preserves is M.false_value:
+            self.result = M.false_value
+        # every Nat inside the restored plan is canonical
+        seen = set()
+        stack = [restored_plan]
+        while stack:
+            term = stack.pop()
+            if term is None or id(term) in seen:
+                continue
+            seen.add(id(term))
+            if M.IsPair(term)() is M.truth_value:
+                stack.append(M.Head(term)())
+                stack.append(M.Tail(term)())
+                continue
+            value = getattr(term, "value", None)
+            if value is not None:
+                stack.append(value)
+            for field in ("inputs", "results"):
+                child = getattr(term, field, None)
+                if child is not None:
+                    stack.append(child)
+            text = _nat_rep_text(value)
+            if text is None:
+                continue
+            constructor = M.GetConstructor(term, registry)()
+            if M.IdentityCompare(constructor, empty)() is M.truth_value:
+                continue
+            if M.IdentityCompare(M.Head(constructor)(), M.SuccLabel)() is M.false_value:
+                continue
+            canonical = M.Head(M.NatFromRep(M.GMPRep(text), registry)())()
+            if M.IdentityCompare(term, canonical)() is M.false_value:
+                self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
@@ -18626,6 +19112,25 @@ def install_default_tests(graph):
     # ========================================================================
 
     # --- [SHARED] --- INT only ------------------------------------------
+    # D3: the canonical-family contract, in the order the boot establishes
+    # it. Raw fidelity first, then canonicality after activation: nested,
+    # at a root, in the index, then the two ways of getting it wrong --
+    # interning something that is not a Nat, and building a second chain
+    # for a large one -- then a real obligation-bearing structure.
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "raw_snapshot_nat_fidelity_test", empty, RawSnapshotNatFidelityTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "boot_snapshot_nat_canonicality_test", empty, BootSnapshotNatCanonicalityTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "boot_snapshot_nat_root_canonicality_test", empty, BootSnapshotNatRootCanonicalityTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "boot_snapshot_nat_index_canonicality_test", empty, BootSnapshotNatIndexCanonicalityTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "non_nat_value_carrier_not_interned_test", empty, NonNatValueCarrierNotInternedTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "large_nat_canonicality_test", empty, LargeNatCanonicalityTest(graph), M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "explanation_plan_snapshot_round_trip_test", empty, ExplanationPlanSnapshotRoundTripTest(graph), M.truth_value)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(
             graph,
@@ -18648,7 +19153,7 @@ def install_default_tests(graph):
             "snapshot_value_atom_identity_test",
             empty,
             SnapshotValueAtomIdentityTest(graph),
-            VALUE_ATOM_IDENTITY_OPEN,
+            M.truth_value,
         )
     # --- end [SHARED] ---
 
