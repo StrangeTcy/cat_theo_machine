@@ -128,3 +128,26 @@ Reading withdrawn; nothing taught; no checkpoint saved; step 4 never
 entered. Goal closed: no. What would change this result is unchanged
 from the gate note: INT landing the D11-MAP pack port, a new tag, and
 blank controls rerun on it.
+
+## 2026-09-05, fourth pass -- standing-order re-issue; the null holds at n=4
+
+Why: the fable is a standing order and the operator re-issued it
+unchanged. The redundancy judgment on a fourth same-day pair is the
+operator's call, not the runner's, so the cycle ran in full: gate
+check, cold pair, tools, sheet, push.
+
+Run: step 1 re-verified -- tip 428ecdc, newest frozen tag still
+experiment-5-frozen-r1 (ef571b6), zero semantic commits after it. Two
+fresh cold processes, decoy first, same commands. Transcripts:
+logs/2026-09-05-F-RUNNER-decoy-r4.log, -target-r4.log.
+
+Tool outputs: F3 identical (cost=334, partial=0, zero-successor-root
+on both doors); F2 class A on both. Transcripts are byte-identical to
+passes 1 through 3 from `research mode on` through `goodbye`. F4 sheet
+unchanged from pass 3 except the pair line: recall roles none,
+discovery roles none, target-only requests none, reading withdrawn,
+teaches 0, goal closed no.
+
+Reading withdrawn; nothing taught; no checkpoint saved; step 4 never
+entered. Goal closed: no. The open dependency remains INT's: the
+D11-MAP pack port, the next tag, blank controls on it.
