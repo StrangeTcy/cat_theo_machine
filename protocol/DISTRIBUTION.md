@@ -611,6 +611,25 @@ landed — clean, behind (`reset --mixed`, tree intact, pins re-derived
 PASS) and divergent (patch carried, edit survives, and the 190-file case
 still refuses).
 
+**The registration rewrite is behaviourally confirmed.** Rewriting 231
+registration sites is the kind of change that passes every targeted test and
+still moves a baseline, so the two shards were re-run after it landed:
+
+```text
+                     experiment-5-frozen       after the runner (6c9ab8a)
+shard 0              147 passed 3 failed 2 open  147 passed 3 failed 2 open
+shard 1              145 passed 5 failed 2 open  145 passed 5 failed 2 open
+total                292 passed 8 failed 4 open  292 passed 8 failed 4 open
+failure set          identical
+open set             identical (m1, m3 / m2, m4)
+pin                  305 / 218 / 0              305 / 218 / 0
+```
+
+The suite also ran faster -- shard 0 in 1630 s against 2910 s, shard 1 in
+2146 s against 3447 s -- but that is not attributable to the change: the
+earlier pair was measured while other work shared the two cores. Claim the
+result set, not the elapsed.
+
 **D9 — installing the suite costs three minutes before any test runs.**
 Found by profiling a targeted run that registered nothing: 180 seconds and
 75 million `uuid4` calls, all of it `TestShardAccept`. Every one of its 304
@@ -813,9 +832,11 @@ Noted only. It is F-tooling, owned by whoever takes F.
                                                manifest re-run on it.
                                                Blank controls not re-run.
 6. T0 (archive .txt, quarantine hyge.py)
-7. runner filter, verified against the   DONE (dc22a37), pending the two
-   sentinel in both modes                 shards below; pin 305 / 218 / 0
-                                          unchanged
+7. runner filter, verified against the   DONE (dc22a37): sentinel passes in
+   sentinel in both modes                 filtered and full-suite mode, pin
+                                          305 / 218 / 0 unchanged, and the
+                                          231-site rewrite is confirmed by a
+                                          two-shard run identical to the tag
 8. D1 cleanup toward 0 / 0 / 0, pins updated in the same commit
 9. staff S-eng, E-eng, G-eng from the new tag
 ```
