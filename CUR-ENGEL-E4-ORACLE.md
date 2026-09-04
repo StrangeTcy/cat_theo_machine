@@ -136,9 +136,24 @@ The E4 note from the E7 verification — "modular preservation + reachability, n
 
 ---
 
-## Blocked-on-operator
+## 10. Routing-caution resolution (INT reconciliation)
 
-Nothing. The E4 statement, move, potential, descent, and controls are pinned and the mathematics is verified. The card is written; sealing is INT-executed per `SEALED-ORACLES.spec.md` (a spec located in the operator's instructions, not committed in the tree as of tip `d76f781`).
+**Ancestry (verified against remote, not the operator-supplied hash):**
+
+```text
+ancestry:
+  arena/01a068c2 contains / does not contain 34208cc
+  => DOES NOT CONTAIN. 34208cc is only in arena/01a066cf's DAG.
+  fork base of arena/01a068c2 and arena/01a066cf = 41e8078 (worktree base).
+  arena/01a066cf: only commits unique = 7; arena/01a068c2: only commits unique = 1.
+  remote tips: arena/01a066cf = cf0d13d, arena/01a068c2 = ad15811.
+```
+
+**Fork finding.** `arena/01a066cf` already carries a corrected E4 oracle card at `CUR-ENGEL-E4-oracle.md` (lowercase), using `H`, `ΔH = e_out − e_in`. This card (`CUR-ENGEL-E4-ORACLE.md`, uppercase) uses `V`, `ΔV = d − 2s`. Both state the same corrected facts: max-degree ≤ 3 given, exactly two houses, strict descent ≤ −1, degree-4 break control, 4-cycle dual-terminal control. They are **notation variants, not a conflict**. INT must merge or cherry-pick in a declared order so the E4/CUR docs do not fork (this is the exact risk the operator flagged).
+
+**Merge-request decision (not settled):** the deliverable is a docs-only batch, but it is **not yet ready for a single INT merge** because two parallel `CUR-ENGEL-E4` oracle cards exist on sibling branches (see above). INT must first choose the canonical path (which card is authoritative, or merge one into the other). Until INT resolves that, submitting this card alone would fork doc content.
+
+
 
 ---
 
@@ -146,9 +161,10 @@ Nothing. The E4 statement, move, potential, descent, and controls are pinned and
 result: evidence produced / files changed / tests run / merge request / blocked on
   evidence produced: E4 descent case table; degree-4 counterexample (d=4,s=2 -> 0); corrected
       C4 terminal census (V ∈ {0,2}, single-house V=4 not terminal); vertex-count invariance;
-      signed/absolute house-size witnesses (Δ = ±2 each, neither monotone)
+      signed/absolute house-size witnesses (Δ = ±2 each, neither monotone); ancestry + fork finding
   files changed: CUR-ENGEL-E4-ORACLE.md; verification/2026-09-04-CUR-ENGEL-E4-check.txt
   tests run: source-only verification (exhaustive enumeration), no runtime machine tests
-  merge request: none (docs-only commit being made this turn)
-  blocked on: nothing for E4 authoring; sealing of E3/E4/E7 is INT's job
+  merge request: NOT READY for INT as-is — two parallel CUR-ENGEL-E4 oracle cards exist on
+      sibling branches (01a066cf lowercase, 01a068c2 uppercase); INT must pick/meld canonical first
+  blocked on: INT decision on canonical E4 card path; sealing of E3/E4/E7 is INT's job
 ```
