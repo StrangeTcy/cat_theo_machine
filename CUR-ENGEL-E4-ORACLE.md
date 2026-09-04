@@ -1,5 +1,7 @@
 # CUR-ENGEL-E4-ORACLE
 
+> **Reclassification (canonical path):** independent verification variant of the canonical `CUR-ENGEL-E4-oracle.md` on `arena/01a066cf`; notation `V ≡ H`, `d−2s ≡ e_out−e_in`; agreement verified 2026-09-04. Per Ruling 1 this sibling is **preserved, not deleted, not merged** — it is cross-verification evidence (the strongest kind this program produces), cited in the seal manifest as corroborating evidence with its own content-id. The seal request covers the canonical card on `arena/01a066cf`; this variant corroborates it.
+
 **Date:** September 5, 2026
 **Status:** source-pinned oracle text; not sealed, not machine training input.
 **Format:** oracle card, items 1–9 (item 9 carries the ordering/structural contrast requested by the operator).
