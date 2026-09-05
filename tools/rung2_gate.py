@@ -36,17 +36,18 @@ import cat_theo_machine.proof as P
 import cat_theo_machine.graph as graph
 from cat_theo_machine.main import PACK_PATHS, _runtime_namespace
 from cat_theo_machine.runtime import boot_from_packs
+from cat_theo_machine.training import char_chain
 
 
 def term_mentions(term, atom):
-    stack = [term]
-    while stack:
-        current = stack.pop()
+    stack = M.Pair(term, M.EmptyList)
+    while M.IdentityCompare(stack, M.EmptyList)() is M.false_value:
+        current = M.Head(stack)()
+        stack = M.Tail(stack)()
         if current is atom:
             return True
         if M.IsPair(current)() is M.truth_value:
-            stack.append(M.Head(current)())
-            stack.append(M.Tail(current)())
+            stack = M.Pair(M.Head(current)(), M.Pair(M.Tail(current)(), stack))
     return False
 
 
@@ -67,27 +68,41 @@ def directed_discharge(pack, registry, facts, lemma_ids, goal_fact):
         found = P.JoinPremises(
             P.RulePremises(rule)(), P.KnowledgeFacts(state)(), M.EmptyList,
         )()
-        out = []
+        out = M.EmptyList
         while M.IdentityCompare(found, M.EmptyList)() is M.false_value:
-            out.append((rule, M.Head(found)()))
+            out = M.Pair(M.Pair(rule, M.Pair(M.Head(found)(), M.EmptyList)), out)
             found = M.Tail(found)()
         return out
 
     def walk(state, remaining):
-        if not remaining:
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
             covered = P.FactsCover(
                 goal_facts, P.KnowledgeFacts(state)(),
             )()
             return covered is M.truth_value
-        rid = remaining[0]
-        for rule, bindings in matches_of(state, rid):
+        lemma_id = ""
+        id_chars = M.Head(remaining)()
+        while M.IdentityCompare(id_chars, M.EmptyList)() is M.false_value:
+            lemma_id = lemma_id + str(M.Head(id_chars)()())
+            id_chars = M.Tail(id_chars)()
+        candidates = matches_of(state, lemma_id)
+        while M.IdentityCompare(candidates, M.EmptyList)() is M.false_value:
+            entry = M.Head(candidates)()
+            rule = M.Head(entry)()
+            bindings = M.Head(M.Tail(entry)())()
             stepped = P.ApplyKnowledgeRewrite(state, rule, bindings)()
-            if walk(stepped, remaining[1:]):
+            if walk(stepped, M.Tail(remaining)()):
                 return True
+            candidates = M.Tail(candidates)()
         return False
 
-    ok = walk(P.Knowledge(facts)(), tuple(lemma_ids))
-    return ok, len(lemma_ids) if ok else 0
+    ok = walk(P.Knowledge(facts)(), lemma_ids)
+    steps = 0
+    counting = lemma_ids
+    while M.IdentityCompare(counting, M.EmptyList)() is M.false_value:
+        steps = steps + 1
+        counting = M.Tail(counting)()
+    return ok, steps if ok else 0
 
 
 def nat_value(term, registry):
@@ -145,7 +160,7 @@ def main():
         base_ok, base_steps = directed_discharge(
             pack, registry,
             M.Pair(self_divides, empty),
-            ["mul_one_fold"],
+            M.Pair(char_chain("mul_one_fold"), M.EmptyList),
             base_fact,
         )
 
@@ -155,7 +170,7 @@ def main():
         step_ok, step_steps = directed_discharge(
             pack, registry,
             M.Pair(hypothesis, M.Pair(self_divides, empty)),
-            ["divides_sum", "mul_succ_fold"],
+            M.Pair(char_chain("divides_sum"), M.Pair(char_chain("mul_succ_fold"), M.EmptyList)),
             successor_fact,
         )
 
@@ -201,7 +216,7 @@ def main():
     bad_ok, _ = directed_discharge(
         pack, registry,
         M.Pair(hypothesis, M.Pair(wrong_axiom, empty)),
-        ["divides_sum", "mul_succ_fold"],
+        M.Pair(char_chain("divides_sum"), M.Pair(char_chain("mul_succ_fold"), M.EmptyList)),
         successor_fact,
     )
     if not bad_ok:
