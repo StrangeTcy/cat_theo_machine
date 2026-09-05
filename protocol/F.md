@@ -210,3 +210,53 @@ tag. The ZeroPartialMatchAmbiguity finding from the ported branch's
 ledger -- the matcher cannot distinguish "no rule could match this
 shape" from "the criterion is too coarse" -- is noted here by
 reference; it is routed to S/INT as an instrument concern.
+
+## 2026-09-05, charter check -- six banned phrases retrieved; five subjects clean; launch state recorded
+
+CHARTER-v1 §0 is now in the repo (INT branch arena/01a07130, committed
+6002caf with CHARTER-v2 and TWO-PIPELINE). The six banned phrases in
+prose and commits are: "If you want", "matters", "but wait",
+"actually", "honest", "Let me". Every commit subject on this branch
+was checked against that list mechanically: all five clean. Branch
+history is append-only, no force-push was ever issued, no conda Python
+was run, Experiment 4 was never run, and the famous sentence was never
+explained. The charter's constraints match the standing rules this
+branch was held to from its first handout.
+
+Charter §5 separates the lanes this branch's pre-charter history ran
+together under explicit handouts: the fable 5.1 series had this agent
+run F sessions, and the gpt 5.5 review had it port F tooling. The
+separation -- F-tools builds, the blind operator runs -- binds forward
+from the charter; the history stands as recorded, with its provenance
+in the entries above.
+
+Launch state observed from the remote: INT preflight complete -- item
+1 inapplicable (no LearnedMemoryCheckpointTest exists in this lineage;
+no swallowed exception to raise), item 2 closed (toy nosolutions
+producer and consumer both compile to MultiRule and both register as
+candidate partial matches on x + 1 = x), item 3 decoupled to INT's
+protocol/F.md as an F-op-only gate reading DECOY REDESIGN REQUIRED
+(both goal terms absent on that tip; engineering unblocked), item 4
+two-shard suite run with the engineering baseline failure set
+recorded (converse_default_mode_test; shard-1 install crash at
+ConversePropositionTest / Thingy.tail). Wave-1 base tag eng-base-0
+(1374464) is cut; S-eng has landed S1 (tag s1-relation-contracts,
+897c07c). Setup gap for the human, per the plan's own one-time list:
+the exam seal is not committed -- no protocol/I.md exists on INT's
+branch.
+
+This branch holds the closed F measurement record (null at n=4,
+reading withdrawn, ratified) and the ported F1-F4 tooling. Its session
+runner made no new measurement and will make none: the F-op gate is
+closed and the charter reserves the one-shot for the human operator.
+The unified-plan handout reached this branch truncated at Text #3
+(E3); Texts #4 through #8, including the F-tools-eng text, have not
+arrived. Awaiting the role assignment.
+
+Landing note: this entry was committed twice. A sandbox reset between
+turns rebuilt the branch pointer at the base while the working files
+survived, so the first attempt squashed the whole session into one
+local commit and its push was rejected as non-fast-forward. The branch
+was repaired by fast-forwarding to the pushed tip and re-landing this
+entry as the only new content -- the recovery path tools/recover.sh
+documents. No history was rewritten; the remote chain stands intact.
