@@ -4,6 +4,15 @@ version: 1
 name: arithmetic
 description: Generic arithmetic-progression knowledge
 
+# D11 content port. Pack-local, opt-in, constructor-head scoped.
+# ExprEqLabel is the head of the equation rules in this pack; mapping it
+# lets this pack's equations unify with goals parsed in the research
+# surface vocabulary, which spells the same relation `eq`. Only the head
+# position is affected; the arguments here are variables and bind as they
+# are. No other pack is affected and no rule body is rewritten.
+surface:
+  ExprEqLabel: eq
+
 phi:
   list: []
 

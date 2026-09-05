@@ -787,7 +787,22 @@ Capability commit is **semantic-capable with default-live behavior unchanged**
 commit 2, the first shipped pack port, which triggers re-baseline and blank
 controls.
 
-**A mechanical port is not available.** Inventory at
+**D11-PORT (commit 2) landed — semantic.** `packs/arithmetic.pack.yaml` now
+declares `surface: {ExprEqLabel: eq}` — one pack, one label, no rule body
+rewritten. The probe `(eq (pow t 6) (pow (pow t 2) 3))` goes **0 → 1 → 0**
+across before / after / ablation, and the match is attributed to the pack's
+own rule `arithmetic/arithmetic_equation_is_symmetric`. Gate **8/8**
+(conditions 1-4 plus P1-P4). Details in `protocol/D11-PORT.md`; logs at
+`logs/d11-port-arithmetic-{before,after,ablation}.log`.
+
+The earlier recommendation to port `number-theory` was **wrong and was caught
+by measurement before it shipped**: all eight of its rules conclude `list`,
+not a `divides` application, so no header could make them candidates for a
+`(divides …)` goal. It would have been a port that looks successful and
+measures nothing. The pack was re-picked from rules whose *conclusion* head
+has an attested goal name.
+
+**A mechanical port is not available** for the rest. Inventory at
 `protocol/D11-PORT-CANDIDATES.md`: of the distinct constructor-head symbols
 across the shipped packs, only `DividesLabel -> divides` and
 `SqrtLabel -> sqrt` reach an attested goal name. The dominant arithmetic
@@ -869,11 +884,14 @@ engineer.
 
 **Stalled: F.** No cross-track flow in either direction for two turns.
 The block is **not** staffing — it is **D11**. Ruled (`feb457e`), mechanism
-corrected by the spike (`logs/d11-spike.log`), §8 ruled per-pack headers, and
-the capability commit is **landed and gated** (`tools/d11_gate.py`, 4/4,
-shipped 167 fingerprint unchanged). What has not happened is the **content
-port**: no shipped pack declares a `surface:` header yet, so the instrument is
-still blind and F's measurement is still blocked. The port is commit 2; it is
+corrected by the spike (`logs/d11-spike.log`), §8 ruled per-pack headers, the
+capability commit landed and gated, and the content port landed
+(`protocol/D11-PORT.md`, probe 0 → 1 → 0). What has not happened is the
+**re-baseline**: the port is **semantic** — a library rule is now a candidate
+for a goal it could not see before — so it needs a full two-shard suite, a tag
+cut by INT, and blank controls re-run on that tag before any F measurement
+counts. Until that tag exists, F's measurement is still blocked even though
+the instrument is no longer blind. The port is commit 2; it is
 semantic
 (neither the structural rule nor the pack entry; the library's rewrite
 rules contribute no goal candidates at all). It is semantic, so it forces
