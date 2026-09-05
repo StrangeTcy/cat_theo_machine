@@ -28,8 +28,14 @@ def _chain_text(chain):
         item = M.Head(remaining)()
         if M.IsPair(item)() is M.truth_value:
             text = text + ""
-        elif hasattr(item, "symbol"):
-            text = text + str(item.symbol)
+        else:
+            # A Char answers its own symbol when applied. Anything that is not
+            # a Char contributes nothing, which keeps the caller's
+            # pretty-print fallback reachable for chains that are not text.
+            try:
+                text = text + str(item() + "")
+            except (TypeError, AttributeError):
+                text = text + ""
         remaining = M.Tail(remaining)()
     return text
 

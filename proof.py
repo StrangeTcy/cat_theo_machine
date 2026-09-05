@@ -3986,7 +3986,7 @@ class Prove(M.Edge):
                         zero_search_pair = self._zero_search_cost(new_registry)
                         zero_search_cost = M.Head(zero_search_pair)()
                         zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                        self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else SearchDerivedLabel, self.goal)
+                        self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel, self.goal)
                         return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
 
             immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
@@ -4000,7 +4000,7 @@ class Prove(M.Edge):
                     zero_search_pair = self._zero_search_cost(new_registry)
                     zero_search_cost = M.Head(zero_search_pair)()
                     zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                    self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else SearchDerivedLabel, self.goal)
+                    self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel, self.goal)
                     return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
         else:
             _debug("prove-stage: research mode - skip schema/goal-instantiating/immediate prewritten ladders")
