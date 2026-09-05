@@ -469,21 +469,38 @@ T4:
 Final class is single-valued. F1 implementation checklist:
 `tools/f1-implementation-checklist.md`.
 
+## F1 host store
+
+```text
+tool: tools/f1_checkpoint.sh
+test: tools/f1_checkpoint_test.sh  PASS save/load id match
+store: checkpoints/blobs/<content-id>  immutable
+       checkpoints/labels/<name>       content-id
+load: copies into checkpoints/sessions/<id>/; parent-id set; blob unmoved
+audit: prints loaded classes; loaded checkpoint name and content-id
+named slots (empty body, id e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855):
+  library-only-control  declared empty
+  curriculum-a3         declared empty
+  set-b-cumulative      declared empty
+talk verbs in research.py: still blocked on SHARED cut
+[F] blocks: inserted at end of testsuite.py and labels.py
+```
+
 ---
 
 ```text
-agent: F
+agent: F-tools
 branch: arena/01a06da9-cat-theo-machine
 base: 41e8078
-tests: F2 T1-T4 hand=script; F4 teach-count 4/4 T4 final Contamination; F3 goldens 0/3/1/2
+tests: F1 save/load id match PASS; F2 T1-T4; F4 4/4; F3 goldens 0/3/1/2
 measurement: none (pair closed; no third knock)
 pair status: closed
 track status: active
+F1 host store: landed
+F1 talk verbs: blocked on research.py
 F2: closed
 F4: single-valued final-classification
-F1 spec: landed docs-only
-F1 checklist: tools/f1-implementation-checklist.md
 ready for INT docs/log merge: yes
-ready for F1 code merge: no
-blocked on: INT publishing diagnostic log (low priority)
+ready for F1 talk-verb merge: no
+blocked on: SHARED cut carrying research.py
 ```
