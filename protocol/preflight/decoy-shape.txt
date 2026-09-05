@@ -1,0 +1,11 @@
+FLT goal term:
+  ABSENT — no parsed FLT goal constructor or pack example on this tip.
+
+decoy goal term:
+  ABSENT — no decoy goal constructor or pack example on this tip.
+
+predicate arity: incomparable (both missing)
+case-split shape: incomparable (both missing)
+exponent position: incomparable (both missing)
+
+DECOY REDESIGN REQUIRED
