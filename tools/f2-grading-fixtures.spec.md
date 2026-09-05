@@ -108,7 +108,13 @@ Teach present, concrete unmatched premises present.
 teaches printed:            2  (teach law; teach dependency 2)
 circular-request count:     0
 computable-request count:   0
-taught-theorem count:       2 plus 4 already in the restored checkpoint
+taught-theorem count:       1  (mechanical definition: teach law +
+                             teach trusted theorem lines only)
+  with unlock:              1  (status=DemonstratedUsefulDependency
+                             follows the teach dependency episode)
+  without unlock:           0
+cite-coverage:              0 cited / 1 uncited (teach law line 30
+                             precedes FAILED line 35)
 concrete residuals:         missing (eq (plus p q) ?y);
                             missing (solutionmap ...)
 F4 extra:                   pairing request 2's residual with request 3's
@@ -118,6 +124,16 @@ F4 extra:                   pairing request 2's residual with request 3's
 Restored checkpoint at boot (taught 4, episodes 2) is Regime C, not a
 cold A. F2 counts only teaches printed in this transcript body unless
 the audit header is being scored (F4).
+
+Amendment record: the first hand grade of this fixture counted the
+`teach dependency 2` line as a second taught theorem. The mechanical
+definition counts teach-law and teach-trusted-theorem lines only; the
+teach dependency verb is a dependency-satisfaction path whose evidence
+lands in the unlock counter and in F4's misattribution check, not in
+the taught-theorem count. The hand grade was amended to follow the
+definition (see the closing hand-vs-script run on the porting branch,
+logs/f2-T1-T4-hand-vs-script.txt); this spec now carries the amended
+oracle so a future script is not failed against a stale one.
 
 ## check
 

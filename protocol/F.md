@@ -304,3 +304,47 @@ Constraint note for INT: this sandbox is pinned to one branch
 INT's index records for their own sandbox. When F unparks, [F] work
 proceeds here on this branch, labeled [F], with [SHARED] requests
 routed through the index.
+
+## 2026-09-05, acceptance battery -- F2/F3/F4 proven against their own specs on this branch
+
+Earlier entries claimed F2/F3/F4 complete from the port plus spot
+checks. The specs demand more: F2's spec states the all-zero null case
+is not a pass and hands down a four-fixture oracle including a
+nonzero-teach positive control; F3's spec wants the batch matrix; F4's
+spec wants sheets on operator transcripts. The fixtures are historical
+transcripts of the measurement lineage, now ported to logs/fixtures/
+byte-identical to the porting branch's copies (verified by cmp).
+
+Battery run; artifact: logs/f-tools-acceptance-battery-2026-09-05.txt.
+
+- F2 versus oracle: T1 exact including every nonzero path (taught 3,
+  unlock 2, cite 2/1); T2 exact (2/0/0/0); T3 exact (1/0/0/0); T4
+  exact against the amended oracle (1/1/0/0, cite 0/1).
+- One divergence surfaced and resolved: the ported spec's T4 oracle
+  said two taught theorems; the ported tool counts one. The porting
+  branch's own closing artifact had already amended the T4 hand grade
+  to follow the mechanical definition -- teach law and teach trusted
+  theorem lines only; the teach dependency verb's evidence lands in
+  the unlock counter and in F4's misattribution check -- but its spec
+  file was never updated to match. The spec on this branch now carries
+  the amended oracle with the amendment recorded inline, so a future
+  script is not failed against a stale oracle. No tool was changed;
+  the porting branch's closed ruling stands.
+- F3 batch matrix over twelve transcripts (four fixtures plus this
+  branch's eight): the eight form one identical class (cost=334,
+  partial 0, unmatched none, head zero-successor-root);
+  ground-evaluation and blind-geometry land in silence-class against
+  them (same wall shape, different cost); the incident log's first
+  stall (partial match 2) is distinct from every row; batch exit 0,
+  every pair comparable. All three verdicts of the taxonomy exercised
+  on real transcripts, not constructed ones.
+- F4 auditor sheets on the four fixtures: regime B on three, regime C
+  with contamination on the restored-checkpoint incident log; the D12
+  loaded-class check fires on the two historical logs whose audit
+  headers predate the loaded-class list.
+- FLT-name grep over every script in tools/: zero hits.
+
+F2, F3, and F4 are now closed on this branch against their own specs,
+with the fixtures in-tree and the battery rerunnable. F1 remains
+specced and sequenced after a research.py-bearing cut, unchanged from
+the previous entry.
