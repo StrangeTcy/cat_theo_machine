@@ -1,10 +1,14 @@
 # Research protocol index
 
-Engineering base tag: `eng-base-0` (cut after this commit).
+Engineering base tags:
+
+- Re-cut after partition: `eng-base-0-partition` (annotated immutable tag on
+  the `partition` commit). **Wave 1 engineers branch from this tag/SHA.**
+- Original pre-partition base: `eng-base-0@1374464` @ `137446435362a9727c2f7c181c663adab9d4c357`.
 
 Wave 1 measurement tag: **none**. F-op gated by `protocol/F.md`.
 
-INT remote tip before this gate: `d3de45a179cc76b6c157473a3ca8d684dcf91294`
+INT remote tip before this gate: `d3de45a179cc76b6c157473a3ca8d684dcf91294`.
 
 Charters: `protocol/CHARTER-v1.md`, `protocol/CHARTER-v2.md` @ `6002caf`.
 
@@ -41,5 +45,22 @@ Owner = INT. Change path = [SHARED] proposal.
 | MultiRule | proof.py | `MultiRule` |
 | Pack load | packs.py | `PackLoader.load_pack_dict` |
 
-Marked-block partition (`# --- [S] ---` etc.): **not inserted**. Partition
-commit waits on a Wave 1 spawn, not on F-op.
+## Marked-block partition
+
+Inserted (module scope, at end of each file):
+
+- `labels.py`: `# --- [S] ---`, `# --- [E] ---`, `# --- [G] ---`, `# --- [F] ---`
+- `testsuite.py`: `# --- [S] ---`, `# --- [E] ---`, `# --- [G] ---`, `# --- [F] ---`
+- `main.py`: `# --- [S] ---`, `# --- [E] ---`, `# --- [G] ---`, `# --- [F] ---`
+- `research.py`: **absent at this lineage**. No `research.py` exists on the
+  `eng-base-0@1374464` tree. Phases that list `research.py` among allowed
+  surfaces must re-map onto actually-present files before the track starts;
+  open the re-map as a [SHARED] request for the affected phase.
+
+Boundary rule: the four markers are empty. A track may append below its own
+marker only. The marker itself and the code above it are owned by INT.
+
+`py_compile` green on the three inserted files. Full two-shard rerun was
+blocked in this sandbox: `hyge` package import requires `gmpy2`, which the
+system Python here does not provide and the protocol forbids running conda
+without operator consent.
