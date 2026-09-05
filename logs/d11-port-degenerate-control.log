@@ -1,0 +1,80 @@
+=== D11 DEGENERATE-PROBE CONTROL ===
+
+--- state A: PORTED (arithmetic declares surface: ExprEqLabel: eq) ---
+probe (eq 0 0)
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+probe:           (eq 0 0)
+cost:            0
+partial matches: 0
+rule ids:        none
+origins:         none
+
+probe (eq 1 2)
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+probe:           (eq 1 2)
+cost:            334
+partial matches: 0
+rule ids:        none
+origins:         none
+
+probe (eq (pow t 6) (pow (pow t 2) 3))
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+probe:           (eq (pow t 6) (pow (pow t 2) 3))
+cost:            334
+partial matches: 1
+rule ids:        arithmetic/arithmetic_equation_is_symmetric
+origins:         primitive
+
+--- state B: UNPORTED (pack reverted to 1a547ae, no surface:) ---
+probe (eq 0 0)
+probe:           (eq 0 0)
+cost:            0
+partial matches: 0
+rule ids:        none
+origins:         none
+
+probe (eq 1 2)
+probe:           (eq 1 2)
+cost:            334
+partial matches: 0
+rule ids:        none
+origins:         none
+
+probe (eq (pow t 6) (pow (pow t 2) 3))
+probe:           (eq (pow t 6) (pow (pow t 2) 3))
+cost:            334
+partial matches: 0
+rule ids:        none
+origins:         none
+
+=== DISCRIMINATING PROBES, ported state ===
+--- probe (eq (pow s 6) (pow (pow s 2) 3)) ---
+probe:           (eq (pow s 6) (pow (pow s 2) 3))
+cost:            334
+partial matches: 1
+rule ids:        arithmetic/arithmetic_equation_is_symmetric
+origins:         primitive
+--- probe (eq (plus a b) (plus b a)) ---
+probe:           (eq (plus a b) (plus b a))
+cost:            334
+partial matches: 1
+rule ids:        arithmetic/arithmetic_equation_is_symmetric
+origins:         primitive
+--- probe (eq (pow t 5) (pow (pow t 2) 3)) ---
+probe:           (eq (pow t 5) (pow (pow t 2) 3))
+cost:            334
+partial matches: 1
+rule ids:        arithmetic/arithmetic_equation_is_symmetric
+origins:         primitive

@@ -4,25 +4,38 @@ state: arithmetic declares surface: { ExprEqLabel: eq }
 probe G: (eq (pow t 6) (pow (pow t 2) 3))
 
 Reading pack order-sign...
+Reading pack order-sign, done in 0.05s
 Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.06s
 Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.31s
 Reading pack sequence-order...
+Reading pack sequence-order, done in 0.16s
 Reading pack real-closure...
+Reading pack real-closure, done in 0.06s
 PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
 Reading pack arithmetic...
 LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
 LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
 LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
 LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.23s
 Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.37s
 Reading pack trigonometry...
+Reading pack trigonometry, done in 0.08s
 Reading pack geometry...
+Reading pack geometry, done in 1.66s
 Reading pack engel-coins...
+Reading pack engel-coins, done in 0.17s
 Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
 Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.65s
 Reading pack number-theory...
+Reading pack number-theory, done in 0.39s
 probe:           (eq (pow t 6) (pow (pow t 2) 3))
 cost:            334
 partial matches: 1
-rule ids:        <cat_theo_machine.proof.Rule object at 0x7f94527d7cd0>
+rule ids:        arithmetic/arithmetic_equation_is_symmetric
 origins:         primitive

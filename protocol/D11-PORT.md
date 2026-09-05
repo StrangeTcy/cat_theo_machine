@@ -119,3 +119,41 @@ nosolutions introduction    no -- pre-flight item 2 stays blocked until matches
 FLT / decoy / target probes no -- non-goal by instruction
 tag cut                     no -- INT cuts tags
 ```
+
+
+## Scope limit (verified by degenerate and discriminating probes)
+
+This port demonstrates **head-vocabulary alignment only**. The probe
+`(eq (pow t 6) (pow (pow t 2) 3))` exercises none of its arithmetic
+content: the matching rule is `arithmetic/arithmetic_equation_is_symmetric`,
+whose conclusion is `eq(?right ?left)`, and it is a candidate for any `eq`
+goal whose arguments are structured terms.
+
+Measured in the ported state, fresh process and cold boot each run:
+
+| probe | partial matches |
+|---|---|
+| `(eq (pow t 6) (pow (pow t 2) 3))` — the accepted probe | 1 |
+| `(eq (pow s 6) (pow (pow s 2) 3))` — variable renamed | 1 |
+| `(eq (plus a b) (plus b a))` — different structure | 1 |
+| `(eq (pow t 5) (pow (pow t 2) 3))` — **false** identity | 1 |
+| `(eq 1 2)` — Nat-literal arguments | 0 |
+| `(eq 0 0)` — Nat-literal arguments | 0 |
+
+The false-identity probe is the load-bearing control: the match does not
+depend on the exponent identity being true, so the probe's exponent
+content is not exercised. Goals whose arguments are evaluated Nat literals
+never reach the rule-candidate path, which is why `(eq 1 2)` reads 0 and
+why a literal-only goal is not a valid degeneracy control for this port.
+
+Evidence: `logs/d11-port-degenerate-control.log`.
+
+## Note on the preflight "expected zero" check
+
+The D11 content-port brief expects zero shipped packs declaring `surface:`
+before port work begins. That expectation is stale on this branch: the
+completed port arrived by fast-forward from `arena/01a06542` as `768ea6f`
+(StrangeTcy, 2026-09-05T02:18:57Z). A later session running preflight will
+find one pack already declaring `surface:`; that is the completed port,
+not drift. Confirm with `git log -- packs/<pack>.pack.yaml` before
+escalating it. Update the brief rather than relitigating the finding.
