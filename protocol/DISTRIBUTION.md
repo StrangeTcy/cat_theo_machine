@@ -787,6 +787,22 @@ Capability commit is **semantic-capable with default-live behavior unchanged**
 commit 2, the first shipped pack port, which triggers re-baseline and blank
 controls.
 
+**A mechanical port is not available.** Inventory at
+`protocol/D11-PORT-CANDIDATES.md`: of the distinct constructor-head symbols
+across the shipped packs, only `DividesLabel -> divides` and
+`SqrtLabel -> sqrt` reach an attested goal name. The dominant arithmetic
+family (`ExprMulLabel` 140 head uses, `ExprAddLabel` 98, `ExprPowLabel` 62,
+`ExprEqLabel` 42, `ExprNegLabel` 36, `ExprLtLabel` 28) has no attested
+counterpart, and the plausible-looking candidates are wrong rather than
+merely unproven — `ExprLtLabel` is less-than, so mapping it to the attested
+`greater` would assert the opposite relation; `ExprNegLabel` is unary while
+the attested `minus` is binary. A port that maps by shape would compile,
+emit the audit lines, and be semantically wrong, which is worse than no port
+because it would look like a working library. Recommend porting
+`number-theory` first (`DividesLabel: divides`, confirmed, 8 rules, the
+domain the gate already exercises) and ruling per-symbol on the arithmetic
+family before any `Expr*Label` pack is touched.
+
 Deviations flagged, not faked: the operator's gate asked condition 3 for
 `provenance LIBRARY_THEOREM`. That string is the REPL's announcement for
 `load theorem packs` (`main.py:3479`), not a per-rule tag — a rule's origin is
