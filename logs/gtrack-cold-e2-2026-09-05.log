@@ -1,0 +1,58 @@
+=== marker indices (test needs 0,1 present and 2 after 1) ===
+       -1  engel_e2: proved in
+       -1  proved 1 / 1 theorem cases during cold boot
+     4889  snapshot save FAILED: exceeded 0 seconds during namespace sync
+  SnapshotSaveTimeout propagated: True
+  FIRST GATE TRIPPED: the theorem was not proved.
+  transcript: engel_e2: not proved after 24.587838888168335 seconds
+  transcript: proved 0 / 1 theorem cases during cold boot
+
+=== Q1: does any rule establish Parity(BoardSum, p)? ===
+  Source scan of packs/engel-blackboard.pack.yaml. This is a reading
+  of the pack text, not a machine measurement; the machine-level
+  evidence for the failure is the cold-run transcript above.
+  rule invariant_carries_parity_to_final_number: FinalNumber=True BoardSum=True
+  rule engel_e2_final_number_is_odd: FinalNumber=True BoardSum=True
+  lines naming InitialBoardLabel: 4
+  No rule takes InitialBoard(n) to Parity(BoardSumObservable, p):
+  the observable's initial parity is asserted nowhere in the pack.
+
+=== the example's own terms, rendered by the machine ===
+Reading pack order-sign...
+Reading pack order-sign, done in 0.05s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.06s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.29s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.17s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.06s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.30s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.37s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.09s
+Reading pack geometry...
+Reading pack geometry, done in 1.73s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.23s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.62s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.37s
+  start: Knowledge([InitialBoard(n), Parity(n, Odd), Terminal(final), Invariant(BlackboardProblem, Parity(BoardSumObservable))])
+  goal:  Knowledge([Parity(FinalNumber, Odd)])
+
+  The start asserts parity of the Char n; the goal asks parity of
+  FinalNumber; the one rule bridging them demands parity of the
+  observable. Whether that gap is content or the D11 Char/Label
+  atom split is the open question the ledger records.
