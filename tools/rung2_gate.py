@@ -86,7 +86,7 @@ def directed_discharge(pack, registry, facts, lemma_ids, goal_fact):
                 return True
         return False
 
-    ok = walk(P.Knowledge(facts)(), list(lemma_ids))
+    ok = walk(P.Knowledge(facts)(), tuple(lemma_ids))
     return ok, len(lemma_ids) if ok else 0
 
 
