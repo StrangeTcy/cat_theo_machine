@@ -17,16 +17,24 @@ def main():
     x = M.Pair(M.VarTag, M.Pair(M.Char("x"), M.EmptyList))
     add = call2(M.ExprAddLabel, x, M.one)
     goal = call2(M.ExprEqLabel, add, x)
+    swapped = call2(M.ExprEqLabel, x, add)
     producer = P.MultiRule(M.Pair(goal, M.EmptyList), goal)
-    consumer = P.MultiRule(M.Pair(goal, M.EmptyList), call2(M.ExprEqLabel, x, add))
+    consumer = P.MultiRule(M.Pair(goal, M.EmptyList), swapped)
     print("producer_class", producer.__class__.__name__)
     print("consumer_class", consumer.__class__.__name__)
+    producer_flag = M.Head(M.Match(P.RulePattern(producer)(), goal)())()
+    consumer_flag = M.Head(M.Match(P.RulePattern(consumer)(), goal)())()
+    producer_hit = M.IdentityCompare(producer_flag, M.truth_value)() is M.truth_value
+    consumer_hit = M.IdentityCompare(consumer_flag, M.truth_value)() is M.truth_value
+    print("toy_nosolutions_producer_partial_match", producer_hit)
+    print("toy_nosolutions_consumer_partial_match", consumer_hit)
     arithmetic = packs.by_name("arithmetic")
-    rule = arithmetic.rule_map["arithmetic_equation_is_symmetric"]
-    flag = M.Head(M.Match(P.RulePattern(rule)(), goal)())()
-    selected = M.IdentityCompare(flag, M.truth_value)() is M.truth_value
-    print("candidate_rule", "arithmetic_equation_is_symmetric")
-    print("partial_match_on_x_plus_1_eq_x", selected)
+    pack_rule = arithmetic.rule_map["arithmetic_equation_is_symmetric"]
+    pack_flag = M.Head(M.Match(P.RulePattern(pack_rule)(), goal)())()
+    pack_hit = M.IdentityCompare(pack_flag, M.truth_value)() is M.truth_value
+    print("pack_rule", "arithmetic_equation_is_symmetric")
+    print("pack_rule_partial_match", pack_hit)
+    print("item2_closed", producer_hit or consumer_hit)
 
 
 if __name__ == "__main__":

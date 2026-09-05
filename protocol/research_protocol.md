@@ -1,6 +1,8 @@
 # Research protocol index
 
-Wave 1 base tag: **none** (preflight blocked).
+Engineering base tag: `eng-base-0` (cut after this commit).
+
+Wave 1 measurement tag: **none**. F-op gated by `protocol/F.md`.
 
 INT remote tip before this gate: `d3de45a179cc76b6c157473a3ca8d684dcf91294`
 
@@ -16,7 +18,8 @@ Agents do not run A1–A3 or Experiment 4.
 
 ## Preflight
 
-Status: **blocked at step 3** (`DECOY REDESIGN REQUIRED`).
+Status: **engineering unblocked**. Items 1 and 2 closed. Item 3 decoupled
+to F-op. Two-shard suite recorded.
 
 Details: `protocol/preflight/ledger.md`
 
@@ -39,4 +42,4 @@ Owner = INT. Change path = [SHARED] proposal.
 | Pack load | packs.py | `PackLoader.load_pack_dict` |
 
 Marked-block partition (`# --- [S] ---` etc.): **not inserted**. Partition
-commit waits on a complete preflight tag.
+commit waits on a Wave 1 spawn, not on F-op.

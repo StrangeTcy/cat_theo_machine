@@ -1,11 +1,5 @@
-FLT goal term:
-  ABSENT — no parsed FLT goal constructor or pack example on this tip.
+MOVED
 
-decoy goal term:
-  ABSENT — no decoy goal constructor or pack example on this tip.
+Decoy shape-match is recorded in protocol/F.md.
 
-predicate arity: incomparable (both missing)
-case-split shape: incomparable (both missing)
-exponent position: incomparable (both missing)
-
-DECOY REDESIGN REQUIRED
+It gates F-op sessions only. It does not gate S/E/G/F-tools engineering.
