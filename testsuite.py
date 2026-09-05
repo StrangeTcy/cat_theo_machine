@@ -5634,6 +5634,7 @@ class ConverseDefaultModeTest(M.Edge):
         return self.result
 
 
+# --- [S] begin: relation contract tests (track S zone) ---
 class RelationContractRecordInsertsAndAblatesTest(M.Edge):
     """S1: contracts enter the fact store by record; ablation is rebuild.
 
@@ -14008,6 +14009,7 @@ def install_default_tests(graph):
             RelationContractNeverVariableTest(graph),
             M.truth_value,
         )
+    # --- [S] end: relation contract tests ---
 
     numbers = M.Pair(M.one, M.Pair(M.two, M.Pair(M.three, empty)))
     numbers_with_zero = M.Pair(M.Zero, numbers)

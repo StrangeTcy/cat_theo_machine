@@ -1191,6 +1191,7 @@ class GcdLabel(ConstructorLabel):
     pass
 
 
+# --- [S] begin: relation contracts (track S zone; INT partitions, S-eng fills) ---
 class RelationArityLabel(ConstructorLabel):
     pass
 
@@ -1712,6 +1713,7 @@ RelationArityLabel = RelationArityLabel()
 ExtensionalAtLabel = ExtensionalAtLabel()
 RelationContractsLabel = RelationContractsLabel()
 ContractFactLabel = ContractFactLabel()
+# --- [S] end: relation contracts ---
 CostSavingsLabel = CostSavingsLabel()
 ReuseLabel = ReuseLabel()
 NoveltyLabel = NoveltyLabel()
