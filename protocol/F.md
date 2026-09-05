@@ -260,3 +260,47 @@ local commit and its push was rejected as non-fast-forward. The branch
 was repaired by fast-forwarding to the pushed tip and re-landing this
 entry as the only new content -- the recovery path tools/recover.sh
 documents. No history was rewritten; the remote chain stands intact.
+
+## 2026-09-05, complete plan received -- F-tools lane mapped; F1 specced and waiting; F2-F4 complete
+
+The complete unified launch plan (eight roles, two pipelines, Texts
+#1 through #8) arrived whole, completing the copy that was truncated
+last turn. This branch's role is Text #5, F-tools-eng. INT's protocol
+index at partition-32bc569 -- single-branch reality, INT plus S-eng
+consolidated, wave-1 base tag s1-relation-contracts@897c07c -- parks
+F until structural parity, and names tools/ as the F surface in that
+lineage.
+
+Phase state, checked against the actual trees, not the plan text:
+
+- F1 checkpoint verbs: the spec exists (tools/f1-checkpoint-verbs.spec.md,
+  ported with the tooling batch) and is docs-only by its own text --
+  "No code on this base. Lands on a research.py-bearing cut together
+  with D12." The measurement lineage's main.py carries only internal
+  search-stage checkpoints, not the operator-facing save/load verbs;
+  the engineering lineage has no research.py at all. F1 is blocked on
+  the same structural parity that parks the track. Not built this
+  turn, by the spec's own sequencing.
+- F2 grading script: complete -- tools/f2_grader.sh plus the fixtures
+  spec, closed on four fixtures on the porting branch and revalidated
+  on this branch's eight transcripts (every count zero; no transcript
+  contains a teach).
+- F3 negative-control harness: complete -- tools/f3-residual-diff.sh
+  with the four-verdict taxonomy (identical / silence-class /
+  distinct / incomparable) plus tools/f3_batch_diff.sh for pairwise
+  batches, validated on all four pairs, identical on each.
+- F4 audit format: complete -- tools/f4_auditor.sh plus the
+  historical-audit spec plus the per-pair sheet template
+  (tools/f4-sheet.md); the pass-4 pair audits regime A,
+  contamination no.
+
+Standing procedure for the next measurement tag:
+blank-controls-r2.spec.md is the operators' rerun procedure; this
+branch does not run it -- operators are human and external, per INT's
+index.
+
+Constraint note for INT: this sandbox is pinned to one branch
+(arena/01a06eb9-cat-theo-machine), the same single-branch constraint
+INT's index records for their own sandbox. When F unparks, [F] work
+proceeds here on this branch, labeled [F], with [SHARED] requests
+routed through the index.
