@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # TEST 2: Generic Variable-Only Conclusion Case
 # ============================================================
 import sys, os, time
@@ -68,7 +68,7 @@ try:
     print(f"    PlannerRun completed in {elapsed:.3f}s")
 except Exception as e:
     elapsed = time.time() - t_run_start
-    error_msg = f"{type(e).__name__}: {e}"
+    error_msg = f"{e!r}"
     print(f"    ERROR: {error_msg}")
     import traceback
     traceback.print_exc()

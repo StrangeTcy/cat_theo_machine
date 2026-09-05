@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # TEST 3: Compilation / YAML / 8-Pack Load Checks
 # ============================================================
 import sys, os, time
@@ -49,7 +49,7 @@ try:
     print(f"    All {len(existing)} packs loaded in {t_load_end - t_load_start:.3f}s")
 except Exception as e:
     t_load_end = time.time()
-    load_error = f"{type(e).__name__}: {e}"
+    load_error = f"{e!r}"
     print(f"    ERROR loading packs: {load_error}")
     import traceback
     traceback.print_exc()
@@ -95,7 +95,7 @@ try:
     print(f"    Compilation OK in {t_comp_end - t_comp_start:.3f}s")
 except Exception as e:
     t_comp_end = time.time()
-    compile_error = f"{type(e).__name__}: {e}"
+    compile_error = f"{e!r}"
     print(f"    ERROR during compilation: {compile_error}")
     import traceback
     traceback.print_exc()
@@ -150,7 +150,7 @@ try:
     print(f"    Final root status: {fstatus}, obligation count: {obl_count}")
 except Exception as e:
     t_plan_end = time.time()
-    plan_error = f"{type(e).__name__}: {e}"
+    plan_error = f"{e!r}"
     print(f"    ERROR in PlannerRun: {plan_error}")
     import traceback
     traceback.print_exc()

@@ -1802,9 +1802,7 @@ def boot_from_snapshot(
                 "WARNING: failed to save upgraded snapshot to "
                 + upgraded_snapshot_path
                 + " ("
-                + exc.__class__.__name__
-                + ": "
-                + str(exc)
+                + repr(exc)
                 + ")",
                 flush=True,
             )
