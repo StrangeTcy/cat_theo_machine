@@ -6,6 +6,7 @@ import multiprocessing
 from . import context as Ctx
 from . import machine as M
 from . import proof as P
+from . import knowledge as KnowledgeModule
 from . import schemata as S
 from . import labels as Lmod
 from . import trees as Tmod
@@ -11820,6 +11821,46 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                 ),
             ),
         )()
+        # An expression can sit in the equality's subject slot: "is two
+        # plus two equal to four". The template matcher binds one word per
+        # variable, so the composed phrasing is its own template, the same
+        # rule the bracket-group reducer follows for primality subjects.
+        # The meaning nests the sum inside the equality; evaluation runs
+        # MeaningEvaluate recursively, so both sides reach Nats and NatEq
+        # answers yes or no. D2, 2026-09-05.
+        plus_equal_sentence = Surface(
+            M.Pair(
+                M.Char("is"),
+                M.Pair(
+                    var_a,
+                    M.Pair(
+                        M.Char("plus"),
+                        M.Pair(
+                            var_b,
+                            M.Pair(
+                                M.Char("equal"),
+                                M.Pair(M.Char("to"), M.Pair(var_c, empty)),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )()
+        plus_equal_meaning = Meaning(
+            M.Pair(
+                Lmod.EqualLabel,
+                M.Pair(
+                    M.Pair(
+                        M.ExprAddLabel,
+                        M.Pair(
+                            Surface(M.Pair(var_a, empty))(),
+                            M.Pair(Surface(M.Pair(var_b, empty))(), empty),
+                        ),
+                    ),
+                    M.Pair(Surface(M.Pair(var_c, empty))(), empty),
+                ),
+            ),
+        )()
         real_sentence = Surface(
             M.Pair(
                 M.Char("is"),
@@ -11916,6 +11957,10 @@ class DefaultCorrespondenceVocabulary(M.Edge):
             # anchored `a ?a` form; a bare noun keeps its own meaning.
             CompileRuleToLaw(P.Rule(equal_sentence, equal_meaning))(),
             M.Pair(
+                CompileRuleToLaw(
+                    P.Rule(plus_equal_sentence, plus_equal_meaning),
+                )(),
+            M.Pair(
                 CompileRuleToLaw(P.Rule(even_sentence, even_meaning))(),
             M.Pair(
                 CompileRuleToLaw(P.Rule(odd_sentence, odd_meaning))(),
@@ -12010,6 +12055,7 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
+            ),
             ),
             ),
             ),
@@ -13224,6 +13270,30 @@ class ConverseInterpretations(M.Edge):
         word_entries = M.Head(M.Tail(vocabulary)())()
 
         reversed_interpretations = M.EmptyList
+        # The word and spliced-Nat readings seed the list before the template
+        # scan runs. The bare-genus template (Surface ?a) matches every
+        # single-word chain, so a bare word's own reading can never depend
+        # on the template scan having found nothing: with the fallback
+        # gated on an empty scan, "seven" carried only the genus reading,
+        # which holds no value, and Converse answered NotUnderstood with
+        # ReasonEvaluationLabel (D3, 2026-09-05). Templates still run and
+        # every distinct Meaning is retained, exactly as before.
+        direct = CorrespondenceResolveWord(word_entries, surface_term)()
+        if M.IdentityCompare(direct, M.EmptyList)() is M.truth_value:
+            chain = M.Head(M.Tail(surface_term)())()
+            if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(
+                    M.Tail(chain)(),
+                    M.EmptyList,
+                )() is M.truth_value:
+                    element = M.Head(chain)()
+                    if M.IsNat(element, registry)() is M.truth_value:
+                        direct = element
+        if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
+            reversed_interpretations = M.Pair(
+                M.Pair(Meaning(direct)(), M.Pair(M.EmptyList, M.EmptyList)),
+                reversed_interpretations,
+            )
         scan_text = "0"
         remaining = templates
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -13256,27 +13326,6 @@ class ConverseInterpretations(M.Edge):
                             reversed_interpretations,
                         )
                 remaining = M.Tail(remaining)()
-
-        if M.IdentityCompare(
-            reversed_interpretations,
-            M.EmptyList,
-        )() is M.truth_value:
-            direct = CorrespondenceResolveWord(word_entries, surface_term)()
-            if M.IdentityCompare(direct, M.EmptyList)() is M.truth_value:
-                chain = M.Head(M.Tail(surface_term)())()
-                if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
-                    if M.IdentityCompare(
-                        M.Tail(chain)(),
-                        M.EmptyList,
-                    )() is M.truth_value:
-                        element = M.Head(chain)()
-                        if M.IsNat(element, registry)() is M.truth_value:
-                            direct = element
-            if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
-                reversed_interpretations = M.Pair(
-                    M.Pair(Meaning(direct)(), M.Pair(M.EmptyList, M.EmptyList)),
-                    reversed_interpretations,
-                )
 
         self.result = M.Pair(
             M.Reverse(reversed_interpretations)(),
@@ -14681,6 +14730,135 @@ class RenderPropositionSurface(M.Edge):
 
 
 CORRESPONDENCE_INDUCTION_CAP = M.GMPRep("10")
+
+
+class RelationContractArity(M.Edge):
+    """RelationArity(name, n) as a ground contract atom.
+
+    The name is a ground name constant for one relation; a variable in
+    relation position refuses -- the atom is EmptyList, never a fact. The
+    same refusal guards the arity slot: contracts carry numerals.
+    """
+
+    def __init__(self, name, arity):
+        self.result = M.EmptyList
+        if P.IsVarPattern(name)() is M.false_value:
+            if P.IsVarPattern(arity)() is M.false_value:
+                self.result = M.Pair(
+                    Lmod.RelationArityLabel,
+                    M.Pair(name, M.Pair(arity, M.EmptyList)),
+                )
+        super().__init__(
+            inputs=M.Pair(name, M.Pair(arity, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractExtensionalAt(M.Edge):
+    """ExtensionalAt(name, position) as a ground contract atom.
+
+    Same refusal as RelationContractArity: no variable in relation
+    position, no variable in position slot.
+    """
+
+    def __init__(self, name, position):
+        self.result = M.EmptyList
+        if P.IsVarPattern(name)() is M.false_value:
+            if P.IsVarPattern(position)() is M.false_value:
+                self.result = M.Pair(
+                    Lmod.ExtensionalAtLabel,
+                    M.Pair(name, M.Pair(position, M.EmptyList)),
+                )
+        super().__init__(
+            inputs=M.Pair(name, M.Pair(position, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContracts(M.Edge):
+    """A record of contract atoms with a named human source.
+
+    Pair(RelationContractsLabel, Pair(atoms, Pair(source,
+    Pair(ContractFactLabel, EmptyList)))). The provenance is
+    CONTRACT_FACT: a contract is a taught fact about a named relation,
+    never a library theorem.
+    """
+
+    def __init__(self, atoms, source):
+        self.result = M.Pair(
+            Lmod.RelationContractsLabel,
+            M.Pair(
+                atoms,
+                M.Pair(source, M.Pair(Lmod.ContractFactLabel, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(atoms, M.Pair(source, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractsAtoms(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(record)())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractsSource(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(M.Tail(record)())())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractsProvenance(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(record)())())())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractsInsert(M.Edge):
+    """Insert a RelationContracts record's atoms into a knowledge trie.
+
+    Ablation is the mirror of insertion: rebuild the trie without the
+    record. Contracts are side-condition facts; they never enter a rule
+    pool or a template chain.
+    """
+
+    def __init__(self, knowledge, record, registry):
+        atoms = RelationContractsAtoms(record)()
+        self.result = KnowledgeModule.KnowledgeTrieInsertChain(
+            knowledge,
+            atoms,
+            registry,
+        )()
+        super().__init__(
+            inputs=M.Pair(
+                knowledge,
+                M.Pair(record, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
 
 
 class CorrespondenceExample(M.Edge):

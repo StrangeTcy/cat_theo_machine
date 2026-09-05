@@ -15,6 +15,7 @@ from . import graph as Gmod
 from . import heuristics as Hmod
 from . import labels as Lmod
 from .sentinels import MILESTONE_SKIPPED, VALUE_ATOM_IDENTITY_OPEN
+from . import knowledge as Kmod
 from . import matching as Xmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
@@ -5634,6 +5635,86 @@ class ConverseDefaultModeTest(M.Edge):
         return self.result
 
 
+class RelationContractRecordInsertsAndAblatesTest(M.Edge):
+    """S1: contracts enter the fact store by record; ablation is rebuild.
+
+    A RelationContracts record inserts its atoms into a knowledge trie;
+    the trie answers HasFact for each atom. Ablation is rebuilding
+    without the record: the fresh trie answers nothing. Contract atoms
+    are not laws (IsLawTerm false), and the record's provenance is
+    CONTRACT_FACT -- a taught fact, never a library theorem.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        name = M.Char("divides")
+        arity_atom = Gmod.RelationContractArity(name, M.two)()
+        ext_atom = Gmod.RelationContractExtensionalAt(name, M.one)()
+        atoms = M.Pair(arity_atom, M.Pair(ext_atom, empty))
+        record = Gmod.RelationContracts(atoms, M.Char("operator-session-2026-09-05"))()
+
+        loaded = Gmod.RelationContractsInsert(M.EmptyTree, record, registry)()
+        has_arity = Kmod.KnowledgeTrieHasFact(loaded, arity_atom, registry)()
+        has_ext = Kmod.KnowledgeTrieHasFact(loaded, ext_atom, registry)()
+        ablated = M.EmptyTree
+        has_after = Kmod.KnowledgeTrieHasFact(ablated, arity_atom, registry)()
+        arity_is_law = Gmod.IsLawTerm(arity_atom)()
+        provenance = Gmod.RelationContractsProvenance(record)()
+
+        self.result = M.truth_value
+        if has_arity is M.false_value:
+            self.result = M.false_value
+        elif has_ext is M.false_value:
+            self.result = M.false_value
+        elif has_after is M.truth_value:
+            self.result = M.false_value
+        elif arity_is_law is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(
+            provenance,
+            Lmod.ContractFactLabel,
+        )() is M.false_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractNeverVariableTest(M.Edge):
+    """S1: a variable in relation position or slot refuses construction.
+
+    The predicate-identity wall stands: contracts are ground facts about
+    named relations, so RelationArity(?r, 2) and ExtensionalAt(divides,
+    ?p) are EmptyList, never facts.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        var = M.Pair(M.VarTag, M.Pair(M.Char("?r"), empty))
+        refused_name = Gmod.RelationContractArity(var, M.two)()
+        refused_slot = Gmod.RelationContractExtensionalAt(M.Char("divides"), var)()
+        accepted = Gmod.RelationContractArity(M.Char("divides"), M.two)()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(refused_name, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(refused_slot, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(accepted, empty)() is M.truth_value:
+            self.result = M.false_value
+
+        graph._replace_context(constructors=registry)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class ReadingPolicyTest(M.Edge):
     """A typed line becomes words by the policy, not by string surgery.
 
@@ -7445,25 +7526,12 @@ class ConversePropositionTest(M.Edge):
         real_outcome = M.Head(real_pair)()
         registry = M.Head(M.Tail(real_pair)())()
 
-        yes_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
-        )()
-        no_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(no_outcome)())())())(),
-        )()
-        yes_words = M.EmptyList
-        no_words = M.EmptyList
-        if M.IdentityCompare(yes_answer, empty)() is M.false_value:
-            yes_words = M.Head(M.Tail(yes_answer)())()
-        if M.IdentityCompare(no_answer, empty)() is M.false_value:
-            no_words = M.Head(M.Tail(no_answer)())()
-        real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
-        real_body = M.Head(M.Tail(real_meaning)())()
-        real_subject = M.Head(M.Tail(real_body)())()
-        real_answer = M.Head(
-            M.Tail(M.Tail(M.Tail(M.Tail(real_outcome)())())())(),
-        )()
-
+        # The UnderstoodLabel guards run before any outcome navigation:
+        # a NotUnderstood or Ambiguous outcome is a three-slot term, and
+        # reading four tails off it used to raise during suite install,
+        # taking every later test of the shard down with it. An outcome
+        # that is not Understood fails this test; it must not abort the
+        # suite.
         self.result = M.truth_value
         if M.IdentityCompare(
             M.Head(yes_outcome)(),
@@ -7475,35 +7543,55 @@ class ConversePropositionTest(M.Edge):
             Lmod.UnderstoodLabel,
         )() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(yes_words, empty)() is M.truth_value:
-            self.result = M.false_value
-        elif M.Compare(M.Head(yes_words)(), M.Char("yes"))() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(M.Tail(yes_words)(), empty)() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(no_words, empty)() is M.truth_value:
-            self.result = M.false_value
-        elif M.Compare(M.Head(no_words)(), M.Char("no"))() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(M.Tail(no_words)(), empty)() is M.false_value:
-            self.result = M.false_value
         elif M.IdentityCompare(
             M.Head(real_outcome)(),
             Lmod.UnderstoodLabel,
         )() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(
-            M.Head(real_body)(),
-            M.IsRealLabel,
-        )() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(
-            M.Head(real_subject)(),
-            M.SqrtLabel,
-        )() is M.false_value:
-            self.result = M.false_value
-        elif M.IdentityCompare(real_answer, empty)() is M.false_value:
-            self.result = M.false_value
+        else:
+            yes_answer = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
+            )()
+            no_answer = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(no_outcome)())())())(),
+            )()
+            yes_words = M.EmptyList
+            no_words = M.EmptyList
+            if M.IdentityCompare(yes_answer, empty)() is M.false_value:
+                yes_words = M.Head(M.Tail(yes_answer)())()
+            if M.IdentityCompare(no_answer, empty)() is M.false_value:
+                no_words = M.Head(M.Tail(no_answer)())()
+            real_meaning = M.Head(M.Tail(M.Tail(real_outcome)())())()
+            real_body = M.Head(M.Tail(real_meaning)())()
+            real_subject = M.Head(M.Tail(real_body)())()
+            real_answer = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(real_outcome)())())())(),
+            )()
+
+            if M.IdentityCompare(yes_words, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(M.Head(yes_words)(), M.Char("yes"))() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Tail(yes_words)(), empty)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(no_words, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(M.Head(no_words)(), M.Char("no"))() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(M.Tail(no_words)(), empty)() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(real_body)(),
+                M.IsRealLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(
+                M.Head(real_subject)(),
+                M.SqrtLabel,
+            )() is M.false_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(real_answer, empty)() is M.false_value:
+                self.result = M.false_value
 
         graph._replace_context(constructors=registry)
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
@@ -17039,6 +17127,23 @@ def install_default_tests(graph):
         _register_test(graph, "count2_test", pair2_input, M.Count(pair2_input, _registry(graph)), M.two)
     if Gmod.TestShardAccept(graph)() is M.truth_value:
         _register_test(graph, "thingy1_test", a, M.IsAtom(a, _registry(graph)), M.truth_value)
+
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "relation_contract_record_inserts_and_ablates_test",
+            empty,
+            RelationContractRecordInsertsAndAblatesTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "relation_contract_never_variable_test",
+            empty,
+            RelationContractNeverVariableTest(graph),
+            M.truth_value,
+        )
 
     numbers = M.Pair(M.one, M.Pair(M.two, M.Pair(M.three, empty)))
     numbers_with_zero = M.Pair(M.Zero, numbers)

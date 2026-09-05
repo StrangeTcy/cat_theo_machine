@@ -1191,6 +1191,22 @@ class GcdLabel(ConstructorLabel):
     pass
 
 
+class RelationArityLabel(ConstructorLabel):
+    pass
+
+
+class ExtensionalAtLabel(ConstructorLabel):
+    pass
+
+
+class RelationContractsLabel(ConstructorLabel):
+    pass
+
+
+class ContractFactLabel(ConstructorLabel):
+    pass
+
+
 class CostSavingsLabel(ConstructorLabel):
     pass
 
@@ -2073,6 +2089,10 @@ BaseCaseLabel = BaseCaseLabel()
 StepCaseLabel = StepCaseLabel()
 ModuloLabel = ModuloLabel()
 GcdLabel = GcdLabel()
+RelationArityLabel = RelationArityLabel()
+ExtensionalAtLabel = ExtensionalAtLabel()
+RelationContractsLabel = RelationContractsLabel()
+ContractFactLabel = ContractFactLabel()
 CostSavingsLabel = CostSavingsLabel()
 ReuseLabel = ReuseLabel()
 NoveltyLabel = NoveltyLabel()
