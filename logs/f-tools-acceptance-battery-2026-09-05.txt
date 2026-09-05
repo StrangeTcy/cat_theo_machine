@@ -1,32 +1,33 @@
-F-tools acceptance battery -- 2026-09-05T20:55Z (dates in filenames are local, Europe/Moscow)
+F-tools acceptance battery
+runner: tools/f-tools-battery.sh (this tree)
 grader: tools/f2_grader.sh; oracle: tools/f2-grading-fixtures.spec.md (T4 as amended)
 
-== FLT-name grep over tools/*.sh (fermat, flt, nosolutions, wiles, frey; case-insensitive) ==
-zero hits in every script
+== name-token grep over the grading scripts (five tokens, case-insensitive) ==
+zero hits in every grading script
 
-== F2: script vs oracle, four fixtures ==
--- toy-live-protocol
+== F2: script versus oracle, four fixtures ==
+-- toy-live-protocol.log
 taught-theorem count:       3
 unlock-evidence count:      2
 circular-request count:     0
 computable-request count:   0
 cite-coverage cited:        2
 cite-coverage uncited:      1
--- ground-evaluation
+-- ground-evaluation.log
 taught-theorem count:       2
 unlock-evidence count:      0
 circular-request count:     0
 computable-request count:   0
 cite-coverage cited:        0
 cite-coverage uncited:      2
--- blind-geometry-dependencies
+-- blind-geometry-dependencies.log
 taught-theorem count:       1
 unlock-evidence count:      0
 circular-request count:     0
 computable-request count:   0
 cite-coverage cited:        1
 cite-coverage uncited:      0
--- incident-misattributed-teaching
+-- incident-misattributed-teaching.log
 taught-theorem count:       1
 unlock-evidence count:      1
 circular-request count:     0
@@ -35,85 +36,28 @@ cite-coverage cited:        0
 cite-coverage uncited:      1
 oracle: T1 3/2/0/0 cite 2-1 ; T2 2/0/0/0 ; T3 1/0/0/0 ; T4 (amended) 1/1/0/0 cite 0-1
 
-== F3 batch identity matrix: four fixtures + this branch's eight transcripts ==
+== F3 batch identity matrix: four fixtures plus the F-RUNNER transcripts of this branch ==
 1 1 identical logs/fixtures/toy-live-protocol.log logs/fixtures/toy-live-protocol.log
 1 2 distinct logs/fixtures/toy-live-protocol.log logs/fixtures/ground-evaluation.log
 1 3 distinct logs/fixtures/toy-live-protocol.log logs/fixtures/blind-geometry-dependencies.log
 1 4 distinct logs/fixtures/toy-live-protocol.log logs/fixtures/incident-misattributed-teaching.log
 1 5 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-decoy.log
 1 6 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-target.log
-1 7 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-decoy-r2.log
-1 8 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-target-r2.log
-1 9 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-1 10 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-target-r3.log
-1 11 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-1 12 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-target-r4.log
 2 2 identical logs/fixtures/ground-evaluation.log logs/fixtures/ground-evaluation.log
 2 3 silence-class logs/fixtures/ground-evaluation.log logs/fixtures/blind-geometry-dependencies.log
 2 4 distinct logs/fixtures/ground-evaluation.log logs/fixtures/incident-misattributed-teaching.log
 2 5 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-decoy.log
 2 6 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-target.log
-2 7 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-decoy-r2.log
-2 8 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-target-r2.log
-2 9 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-2 10 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-target-r3.log
-2 11 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-2 12 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-target-r4.log
 3 3 identical logs/fixtures/blind-geometry-dependencies.log logs/fixtures/blind-geometry-dependencies.log
 3 4 distinct logs/fixtures/blind-geometry-dependencies.log logs/fixtures/incident-misattributed-teaching.log
 3 5 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-decoy.log
 3 6 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-target.log
-3 7 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-decoy-r2.log
-3 8 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-target-r2.log
-3 9 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-3 10 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-target-r3.log
-3 11 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-3 12 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-target-r4.log
 4 4 identical logs/fixtures/incident-misattributed-teaching.log logs/fixtures/incident-misattributed-teaching.log
 4 5 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-decoy.log
 4 6 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-target.log
-4 7 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-decoy-r2.log
-4 8 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-target-r2.log
-4 9 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-4 10 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-target-r3.log
-4 11 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-4 12 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-target-r4.log
 5 5 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-decoy.log
 5 6 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-target.log
-5 7 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-decoy-r2.log
-5 8 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-target-r2.log
-5 9 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-5 10 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-target-r3.log
-5 11 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-5 12 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-target-r4.log
 6 6 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-target.log
-6 7 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-decoy-r2.log
-6 8 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-target-r2.log
-6 9 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-6 10 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-target-r3.log
-6 11 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-6 12 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-target-r4.log
-7 7 identical logs/2026-09-05-F-RUNNER-decoy-r2.log logs/2026-09-05-F-RUNNER-decoy-r2.log
-7 8 identical logs/2026-09-05-F-RUNNER-decoy-r2.log logs/2026-09-05-F-RUNNER-target-r2.log
-7 9 identical logs/2026-09-05-F-RUNNER-decoy-r2.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-7 10 identical logs/2026-09-05-F-RUNNER-decoy-r2.log logs/2026-09-05-F-RUNNER-target-r3.log
-7 11 identical logs/2026-09-05-F-RUNNER-decoy-r2.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-7 12 identical logs/2026-09-05-F-RUNNER-decoy-r2.log logs/2026-09-05-F-RUNNER-target-r4.log
-8 8 identical logs/2026-09-05-F-RUNNER-target-r2.log logs/2026-09-05-F-RUNNER-target-r2.log
-8 9 identical logs/2026-09-05-F-RUNNER-target-r2.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-8 10 identical logs/2026-09-05-F-RUNNER-target-r2.log logs/2026-09-05-F-RUNNER-target-r3.log
-8 11 identical logs/2026-09-05-F-RUNNER-target-r2.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-8 12 identical logs/2026-09-05-F-RUNNER-target-r2.log logs/2026-09-05-F-RUNNER-target-r4.log
-9 9 identical logs/2026-09-05-F-RUNNER-decoy-r3.log logs/2026-09-05-F-RUNNER-decoy-r3.log
-9 10 identical logs/2026-09-05-F-RUNNER-decoy-r3.log logs/2026-09-05-F-RUNNER-target-r3.log
-9 11 identical logs/2026-09-05-F-RUNNER-decoy-r3.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-9 12 identical logs/2026-09-05-F-RUNNER-decoy-r3.log logs/2026-09-05-F-RUNNER-target-r4.log
-10 10 identical logs/2026-09-05-F-RUNNER-target-r3.log logs/2026-09-05-F-RUNNER-target-r3.log
-10 11 identical logs/2026-09-05-F-RUNNER-target-r3.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-10 12 identical logs/2026-09-05-F-RUNNER-target-r3.log logs/2026-09-05-F-RUNNER-target-r4.log
-11 11 identical logs/2026-09-05-F-RUNNER-decoy-r4.log logs/2026-09-05-F-RUNNER-decoy-r4.log
-11 12 identical logs/2026-09-05-F-RUNNER-decoy-r4.log logs/2026-09-05-F-RUNNER-target-r4.log
-12 12 identical logs/2026-09-05-F-RUNNER-target-r4.log logs/2026-09-05-F-RUNNER-target-r4.log
 batch exit=0
 
 == F4 auditor sheets, four fixtures ==

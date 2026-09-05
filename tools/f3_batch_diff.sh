@@ -5,10 +5,13 @@
 
 set -u
 
-PAIR=/home/user/cat_theo_machine/tools/f3-residual-diff.sh
+PAIR=$(dirname "$0")/f3-residual-diff.sh
 if [ ! -x "$PAIR" ]
 then
-  PAIR=$(dirname "$0")/f3-residual-diff.sh
+  # Legacy fallback for callers that copied the script elsewhere; the
+  # tree-local tool next to this script always wins, so a fresh copy
+  # of the tree runs against its own pair tool, not another checkout's.
+  PAIR=/home/user/cat_theo_machine/tools/f3-residual-diff.sh
 fi
 
 if [ "$#" -lt 2 ]
