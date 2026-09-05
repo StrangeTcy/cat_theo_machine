@@ -13079,6 +13079,30 @@ class ConverseInterpretations(M.Edge):
         word_entries = M.Head(M.Tail(vocabulary)())()
 
         reversed_interpretations = M.EmptyList
+        # The word and spliced-Nat readings seed the list before the template
+        # scan runs. The bare-genus template (Surface ?a) matches every
+        # single-word chain, so a bare word's own reading can never depend
+        # on the template scan having found nothing: with the fallback
+        # gated on an empty scan, "seven" carried only the genus reading,
+        # which holds no value, and Converse answered NotUnderstood with
+        # ReasonEvaluationLabel (D3, 2026-09-05). Templates still run and
+        # every distinct Meaning is retained, exactly as before.
+        direct = CorrespondenceResolveWord(word_entries, surface_term)()
+        if M.IdentityCompare(direct, M.EmptyList)() is M.truth_value:
+            chain = M.Head(M.Tail(surface_term)())()
+            if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(
+                    M.Tail(chain)(),
+                    M.EmptyList,
+                )() is M.truth_value:
+                    element = M.Head(chain)()
+                    if M.IsNat(element, registry)() is M.truth_value:
+                        direct = element
+        if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
+            reversed_interpretations = M.Pair(
+                M.Pair(Meaning(direct)(), M.Pair(M.EmptyList, M.EmptyList)),
+                reversed_interpretations,
+            )
         scan_text = "0"
         remaining = templates
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
@@ -13111,27 +13135,6 @@ class ConverseInterpretations(M.Edge):
                             reversed_interpretations,
                         )
                 remaining = M.Tail(remaining)()
-
-        if M.IdentityCompare(
-            reversed_interpretations,
-            M.EmptyList,
-        )() is M.truth_value:
-            direct = CorrespondenceResolveWord(word_entries, surface_term)()
-            if M.IdentityCompare(direct, M.EmptyList)() is M.truth_value:
-                chain = M.Head(M.Tail(surface_term)())()
-                if M.IdentityCompare(chain, M.EmptyList)() is M.false_value:
-                    if M.IdentityCompare(
-                        M.Tail(chain)(),
-                        M.EmptyList,
-                    )() is M.truth_value:
-                        element = M.Head(chain)()
-                        if M.IsNat(element, registry)() is M.truth_value:
-                            direct = element
-            if M.IdentityCompare(direct, M.EmptyList)() is M.false_value:
-                reversed_interpretations = M.Pair(
-                    M.Pair(Meaning(direct)(), M.Pair(M.EmptyList, M.EmptyList)),
-                    reversed_interpretations,
-                )
 
         self.result = M.Pair(
             M.Reverse(reversed_interpretations)(),
