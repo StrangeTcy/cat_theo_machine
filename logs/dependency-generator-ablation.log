@@ -1,0 +1,42 @@
+Ablation -- the same stall with the residual generator disabled
+===============================================================
+
+cold start: research_snapshot.json removed before this session.
+
+you> research mode on
+hyge> research mode ON. Derivation-cache answers, comparison shortcuts, prewritten ladders and target-specific schemata are not available here: this runtime holds only live-taught knowledge. Residual states are preserved. `audit knowledge` now prints the cold-start manifest.
+
+you> assume axiom: (rel a b)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (rel a b)
+
+you> teach law: (rule (premises (rel ?x ?y) (mark ?y)) (conclusion (tag ?x)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((rel ?x ?y) (mark ?y)) (tag ?x))
+note: teaching stores knowledge; it demonstrates nothing until a retry or counterfactual measures progress.
+
+you> attempt goal: (tag a)
+hyge> FAILED. cost=1; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (mark b))
+
+you> disable residual generator
+hyge> residual generator disabled (ablation): no requests will be proposed.
+
+you> attempt goal: (tag a)
+hyge> FAILED. cost=1; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> the residual generator is disabled (ablation); no requests are proposed.
+
+you> enable residual generator
+hyge> residual generator enabled.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (mark b))
+
+you> goodbye
+hyge> goodbye

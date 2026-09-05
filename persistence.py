@@ -230,6 +230,97 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ContextSearchJobsLabel",
     "ContextSearchMemoLabel",
     "ContextNatValueIndexLabel",
+    "ContextDependencyRequestsLabel",
+    "ContextDependencyGraphLabel",
+    "ContextGeneratorMetricsLabel",
+    "ContextLastProofLabel",
+    "ContextResearchResidualsLabel",
+    "ContextProvenanceMapLabel",
+    "ContextGeneratorPolicyLabel",
+    "ContextLastResidualsLabel",
+    "ContextCounterfactualResultsLabel",
+    "ContextResearchModeLabel",
+    "DependencyRequestLabel",
+    "GoalDependsOnDependencyLabel",
+    "DependencyDependsOnDependencyLabel",
+    "GoalResidualLabel",
+    "BlockingConditionLabel",
+    "BridgePlanLabel",
+    "CounterfactualEvidenceLabel",
+    "DependencyStatusLabel",
+    "ProvenanceMapLabel",
+    "GeneratorMetricsLabel",
+    "GeneratorPolicyLabel",
+    "ResearchModeLabel",
+    "DependencyGraphLabel",
+    "ResidualStateLabel",
+    "SearchCostBeforeLabel",
+    "SearchCostAfterLabel",
+    "NewlyEnabledFiringsLabel",
+    "RemovedObligationsLabel",
+    "NewObligationsLabel",
+    "GoalClosedLabel",
+    "ProvenanceLabel",
+    "DomainAxiomLabel",
+    "LibraryTheoremLabel",
+    "HumanSuppliedTrustedTheoremLabel",
+    "PrewrittenProofLadderLabel",
+    "DerivationCacheHitLabel",
+    "SchemaReplayLabel",
+    "SearchDerivedLabel",
+    "InventedLemmaLabel",
+    "InvariantLabel",
+    "InventedObjectLabel",
+    "InventedTransformationLabel",
+    "CounterexampleLabel",
+    "FailureLabel",
+    "DependencyRequestProvenanceLabel",
+    "PendingStatusLabel",
+    "ApprovedStatusLabel",
+    "RejectedStatusLabel",
+    "RefinedStatusLabel",
+    "TheoremKindLabel",
+    "ObjectKindLabel",
+    "RepresentationKindLabel",
+    "TransformationKindLabel",
+    "TacticKindLabel",
+    "DomainPropertyKindLabel",
+    "ZeroSuccessorResidualLabel",
+    "MissingPremiseFailureLabel",
+    "InterventionEpisodeLabel",
+    "FormalRuleLabel",
+    "PolicyPredictionLabel",
+    "DependencySuppliedByTheoremLabel",
+    "DependencyUnlockedResidualLabel",
+    "ObservedMissingPremiseLabel",
+    "SpeculativeDependencyLabel",
+    "HumanSuppliedStrategyPriorLabel",
+    "DemonstratedUsefulDependencyLabel",
+    "LearnedDependencyPolicyLabel",
+    "HumanSuppliedTrustedTheoremWithoutUnlockLabel",
+    "AttemptedRuleLabel",
+    "AlphaPlaceholderLabel",
+    "NoApplicableRuleLabel",
+    "PatternMatchFailureLabel",
+    "ObligationFailureLabel",
+    "UncharacterizedStallLabel",
+    "ParentGoalLabel",
+    "ResidualsLabel",
+    "FormalStatementLabel",
+    "AssumptionsLabel",
+    "DependencyIdLabel",
+    "GeneratorIdLabel",
+    "GeneratorStatsLabel",
+    "ProposedCountLabel",
+    "ApprovedCountLabel",
+    "RejectedCountLabel",
+    "UsefulCountLabel",
+    "UsedCountLabel",
+    "MeanCostReductionLabel",
+    "ReuseCountLabel",
+    "LastProofLabel",
+    "LastResidualsLabel",
+    "CounterfactualResultLabel",
     "FiniteLabel",
     "TotalMapLabel",
     "CardinalityLabel",
@@ -604,7 +695,17 @@ def _restore_constructor_registry_shard_worker(snapshot_path, shard_index, shard
 
 
 class SnapshotState:
-    def __init__(self, roots, symbols, root_ids, symbol_ids, id_to_obj, records, needs_upgrade):
+    def __init__(
+        self,
+        roots,
+        symbols,
+        root_ids,
+        symbol_ids,
+        id_to_obj,
+        records,
+        needs_upgrade,
+        canonical_nats=None,
+    ):
         self.roots = roots
         self.symbols = symbols
         self.root_ids = root_ids
@@ -613,6 +714,9 @@ class SnapshotState:
         self.records = records
         self.needs_upgrade = needs_upgrade
         self.upgrade_roots = ()
+        # record id -> (canonical key, symbol name or None), carried over from
+        # capture, where "was this object a canonical Nat" is still answerable.
+        self.canonical_nats = canonical_nats if canonical_nats is not None else {}
 
 
 class SnapshotCodec:
@@ -628,6 +732,19 @@ class SnapshotCodec:
         "search_jobs",
         "search_memo",
         "nat_value_index",
+        "dependency_requests",
+        "dependency_graph",
+        "generator_metrics",
+        "last_proof",
+        "research_residuals",
+        "provenance_map",
+        "generator_policy",
+        "last_residuals",
+        "counterfactual_results",
+        "research_mode",
+        "research_attempts",
+        "intervention_episodes",
+        "dependency_policies",
     ]
 
     def __init__(self, namespace, symbol_names=None):
@@ -1367,10 +1484,92 @@ class SnapshotCodec:
                 "value": self._encode_field(obj.value),
             }
 
-        return {
+        record = {
             "id": oid,
             "value": self._encode_field(obj.value),
         }
+        marker = self._capture_nat_marker(obj)
+        if marker is not None:
+            record["canonical_family"] = marker[0]
+            record["canonical_key"] = marker[1]
+            if marker[2] is not None:
+                record["canonical_name"] = marker[2]
+        return record
+
+    def _capture_nat_marker(self, obj):
+        """The canonical-family marker for a plain atom, or None.
+
+        Three identity contracts cross a persistence boundary and only one
+        of them is this: sharing inside the snapshot's own object graph,
+        named singletons, and canonical-family identity. This stamps the
+        third, on objects the *structure* says are Nats — `Zero`, or a term
+        whose constructor in the live registry is `SuccLabel` — never on
+        objects that merely look like numbers. A GMPRep carrier holding
+        numeric 2 has no Succ constructor and gets no marker. A Char
+        carrying "2" has no Succ constructor and gets no marker. Nothing
+        here reads a payload to decide what a thing is.
+
+        The value is read only after Nat-ness is established, and then it is
+        read by `NatRepOf`, the machine's own rep, with the cached rep as a
+        fallback for a Nat whose successor chain the registry no longer
+        carries. It is taken at capture because that is where the question
+        is answerable: after a restore the chains are gone and `NatRepOf`
+        returns EmptyList for a Nat holding its value as an mpz, which is
+        why the marker has to travel with the record.
+        """
+
+        registry = getattr(self, "_capture_registry", None)
+        if registry is None:
+            return None
+        # Only a machine object can be a Nat. The namespace holds things
+        # that are not -- a hypergraph has no `.id` at all, and asking
+        # `NatRepOf` about one raises inside the structural comparison.
+        try:
+            obj.id
+        except Exception:
+            return None
+        empty = M.EmptyList
+        text = ""
+        if obj is self.namespace["Zero"]:
+            text = "0"
+        else:
+            try:
+                rep = M.NatRepOf(obj, registry)()
+            except Exception:
+                return None
+            if M.IdentityCompare(rep, empty)() is M.false_value:
+                text = self._rep_text(rep)
+            if not text:
+                # `NatRepOf` needs a cached rep or the successor chain, and
+                # a named Nat that has neither is still a Nat by
+                # construction. A Char and a GMPRep carrier fail both
+                # tests: no rep that reads as a number, no Succ
+                # constructor.
+                constructor = C.GetConstructor(obj, registry)()
+                if M.IdentityCompare(constructor, empty)() is M.truth_value:
+                    return None
+                if M.IdentityCompare(M.Head(constructor)(), self.namespace["SuccLabel"])() is M.false_value:
+                    return None
+                text = self._rep_text(getattr(obj, "value", None))
+            if not text:
+                return None
+        return ("nat", text, self._capture_nat_names.get(id(obj)))
+
+    def _rep_text(self, rep):
+        """The decimal text of a rep: a GMPRep, or the mpz itself."""
+
+        if rep is None:
+            return ""
+        text = str(rep)
+        if text.isdigit():
+            return text
+        try:
+            text = str(rep())
+        except Exception:
+            return ""
+        if text.isdigit():
+            return text
+        return ""
 
     def _encode_captured_subtree(
         self,
@@ -1530,10 +1729,17 @@ class SnapshotCodec:
             namespace_oid_number = self._capture_oid_number(namespace_oid)
             if "name" in objects[namespace_oid_number - 1]:
                 continue
-            objects[namespace_oid_number - 1] = {
+            record = {
                 "id": namespace_oid_number,
                 "name": name,
             }
+            marker = self._capture_nat_marker(namespace_object)
+            if marker is not None:
+                record["canonical_family"] = marker[0]
+                record["canonical_key"] = marker[1]
+                if marker[2] is not None:
+                    record["canonical_name"] = marker[2]
+            objects[namespace_oid_number - 1] = record
 
         records_finished_at = time.monotonic()
         self.last_capture_record_seconds = records_finished_at - discovery_finished_at
@@ -1587,6 +1793,16 @@ class SnapshotCodec:
             gc.set_threshold(*collection_thresholds)
 
     def capture(self, graph, extra_roots=None, progress=M.false_value, deadline=None):
+        # Canonical-family markers are decided here, at capture, while the
+        # live registry still holds the successor chains and the live index
+        # still names the Nat for each value. After a restore neither is
+        # true, which is why the marker has to travel with the record.
+        self._capture_registry = graph.constructor_registry
+        self._capture_nat_names = {}
+        for name in self.namespace:
+            symbol = self.namespace[name]
+            if symbol is not None:
+                self._capture_nat_names.setdefault(id(symbol), name)
         roots = {
             "constructor_registry": self._registry_entries_snapshot_root(
                 graph.constructor_registry,
@@ -1601,6 +1817,19 @@ class SnapshotCodec:
             "search_jobs": graph.search_jobs,
             "search_memo": graph.search_memo,
             "nat_value_index": graph.nat_value_index,
+            "dependency_requests": getattr(graph, "dependency_requests", M.EmptyList),
+            "dependency_graph": getattr(graph, "dependency_graph", M.EmptyList),
+            "generator_metrics": getattr(graph, "generator_metrics", M.EmptyList),
+            "last_proof": getattr(graph, "last_proof", M.EmptyList),
+            "research_residuals": getattr(graph, "research_residuals", M.EmptyList),
+            "provenance_map": getattr(graph, "provenance_map", M.EmptyList),
+            "generator_policy": getattr(graph, "generator_policy", M.EmptyList),
+            "last_residuals": getattr(graph, "last_residuals", M.EmptyList),
+            "counterfactual_results": getattr(graph, "counterfactual_results", M.EmptyList),
+            "research_mode": getattr(graph, "research_mode", M.EmptyList),
+            "research_attempts": getattr(graph, "research_attempts", M.EmptyList),
+            "intervention_episodes": getattr(graph, "intervention_episodes", M.EmptyList),
+            "dependency_policies": getattr(graph, "dependency_policies", M.EmptyList),
         }
         if extra_roots is not None:
             for name in extra_roots:
@@ -1754,6 +1983,14 @@ class SnapshotCodec:
             symbols[name] = id_to_obj[snapshot["symbols"][name]]
 
         records = {record["id"]: record for record in snapshot["objects"]}
+        canonical_nats = {}
+        for record in snapshot["objects"]:
+            if record.get("canonical_family") != "nat":
+                continue
+            canonical_nats[record["id"]] = (
+                record["canonical_key"],
+                record.get("canonical_name"),
+            )
         state = SnapshotState(
             roots,
             symbols,
@@ -1762,6 +1999,7 @@ class SnapshotCodec:
             id_to_obj,
             records,
             M.false_value,
+            canonical_nats,
         )
 
         upgrade_roots = ()
@@ -1793,6 +2031,24 @@ class SnapshotCodec:
         state = self.load_snapshot(snapshot)
         state.snapshot_path = os.path.abspath(path)
         return state
+
+    def _sync_namespace_modules(self):
+        """Point every module's globals at the namespace's symbols.
+
+        Restore resolves named symbols to the objects the namespace names,
+        so a pass that replaces an object has to run this or the modules
+        keep pointing at the one it replaced.
+        """
+
+        Core.sync_from_namespace(self.namespace)
+        Ctxmod.sync_from_namespace(self.namespace)
+        Lmod.sync_from_namespace(self.namespace)
+        T.sync_from_namespace(self.namespace)
+        C.sync_from_namespace(self.namespace)
+        Gmpmod.sync_from_namespace(self.namespace)
+        Prettymod.sync_from_namespace(self.namespace)
+        Pmod.sync_from_namespace(self.namespace)
+        Smod.sync_from_namespace(self.namespace)
 
     def activate(
         self,
@@ -1861,6 +2117,19 @@ class SnapshotCodec:
             search_jobs=state.roots.get("search_jobs", self._ns_get("EmptyList")),
             search_memo=rebuilt_search_memo,
             nat_value_index=rebuilt_nat_value_index,
+            dependency_requests=state.roots.get("dependency_requests", self._ns_get("EmptyList")),
+            dependency_graph=state.roots.get("dependency_graph", self._ns_get("EmptyList")),
+            generator_metrics=state.roots.get("generator_metrics", self._ns_get("EmptyList")),
+            last_proof=state.roots.get("last_proof", self._ns_get("EmptyList")),
+            research_residuals=state.roots.get("research_residuals", self._ns_get("EmptyList")),
+            provenance_map=state.roots.get("provenance_map", self._ns_get("EmptyList")),
+            generator_policy=state.roots.get("generator_policy", self._ns_get("EmptyList")),
+            last_residuals=state.roots.get("last_residuals", self._ns_get("EmptyList")),
+            counterfactual_results=state.roots.get("counterfactual_results", self._ns_get("EmptyList")),
+            research_mode=state.roots.get("research_mode", self._ns_get("EmptyList")),
+            research_attempts=state.roots.get("research_attempts", self._ns_get("EmptyList")),
+            intervention_episodes=state.roots.get("intervention_episodes", self._ns_get("EmptyList")),
+            dependency_policies=state.roots.get("dependency_policies", self._ns_get("EmptyList")),
         )
         self.namespace["AllConstructors"] = graph.constructor_registry
 
@@ -1893,7 +2162,307 @@ class SnapshotCodec:
                 elif debug is M.truth_value:
                     print("DEBUG: activate: deferred upgraded snapshot save", flush=True)
 
+        # Canonical-family identity is restored last: it needs the roots
+        # activation just rebuilt, and it runs after any upgraded snapshot is
+        # written because a published checkpoint is not rewritten by a fix.
+        canonicalized = self._canonicalize_restored_nats(state, graph, debug=debug)
+        if debug is M.truth_value:
+            print(
+                f"DEBUG: activate: canonicalized {canonicalized} restored Nats ({time.monotonic() - t0:.2f}s total)",
+                flush=True,
+            )
         return graph
+
+    def _canonicalize_restored_nats(self, state, graph, debug=M.false_value):
+        """D3: make every restored Nat the Nat the machine builds for its value.
+
+        Restore fabricates one object per record and reconnects only what
+        two contracts cover: sharing inside the snapshot's own object graph,
+        and named singletons, which resolve to the live object of that name.
+        Canonical-family identity is the third contract and was missing: a
+        snapshot that mentions the number two in five places restored five
+        twos, none of them the Nat the runtime names, so `TermEqual` and
+        `IdentityCompare` over restored value-bearing state were false while
+        `NatEq`, which reads the value, agreed.
+
+        Which objects are Nats is *not* decided here. It was decided at
+        capture and travelled in the record, because after a restore the
+        machine cannot answer it: the registry does not carry the successor
+        chains and `NatRepOf` returns EmptyList for a Nat holding its value
+        as an mpz. Deciding it here would mean guessing from a payload, and
+        a GMPRep carrier and a digit Char both look like numbers.
+
+        The canonical representative is looked up, never built: either the
+        named symbol the namespace already resolves, or `NatFromRep`, which
+        is the interning entry point and registers what it has to build.
+        The live runtime is the authority, so the restored copies are inputs
+        to this map and not competing canonical objects.
+
+        Staged, because the order is the fix:
+
+          1. map each marked restored record to the canonical Nat
+          2. substitute, from the roots the active graph owns
+          3. re-point roots, symbols and the id map
+          4. rebuild the value index from the canonicalised entries
+        """
+
+        if not state.canonical_nats:
+            return 0
+
+        registry = graph.constructor_registry
+        empty = self.namespace["EmptyList"]
+        # value text -> Nat, from the index the snapshot already carries, so
+        # a value that is indexed is never built.
+        index_by_value = self._nat_index_by_value(graph.nat_value_index)
+        deferred = 0
+        canonical = {}
+        for record_id in state.canonical_nats:
+            text, name = state.canonical_nats[record_id]
+            if text in canonical:
+                continue
+            named = self.namespace.get(name) if name is not None else None
+            if named is not None:
+                canonical[text] = named
+                continue
+            existing = index_by_value.get(text)
+            if existing is not None:
+                canonical[text] = existing
+                continue
+            try:
+                pair = M.NatFromRep(M.GMPRep(text), registry)()
+            except RecursionError:
+                # Building a Nat registers it in the constructor registry,
+                # whose structural key is nested as deeply as the Nat is
+                # long, so a large one exhausts the interpreter stack. That
+                # is the machine's own limit and it is not this pass's to
+                # raise: the value is left as restore produced it rather
+                # than taking the boot down with it.
+                deferred = deferred + 1
+                continue
+            canonical[text] = M.Head(pair)()
+            registry = M.Head(M.Tail(pair)())()
+
+        remap = {}
+        for record_id in state.canonical_nats:
+            obj = state.id_to_obj.get(record_id)
+            if obj is None:
+                continue
+            text, _name = state.canonical_nats[record_id]
+            canonical_nat = canonical.get(text)
+            if canonical_nat is None or canonical_nat is obj:
+                continue
+            remap[id(obj)] = canonical_nat
+
+        if not remap:
+            if debug is M.truth_value and deferred:
+                print(f"DEBUG: canonicalize: {deferred} Nats deferred (too large to build)", flush=True)
+            return 0
+
+        # 2. Substitute from the roots the active graph owns. `state.roots`
+        #    still points at the *loaded* trees while activation rebuilt new
+        #    ones, so seeding from it would rewrite the superseded copies.
+        #    The map is consulted before descending: a root that *is* a Nat
+        #    has no parent field through which it could be replaced.
+        seen = set()
+        for seed in self._canonicalize_seeds(state, graph):
+            replacement = remap.get(id(seed))
+            self._substitute_canonical(seed if replacement is None else replacement, remap, seen)
+
+        # 3. Roots, symbols and the id map, which are reached directly and
+        #    not through a field.
+        # Only a name the context owns can be handed to it: a snapshot may
+        # carry extra roots, and `ReplaceContext` rejects what it does not
+        # know.
+        context_names = set(self.ROOT_NAMES)
+        changed_roots = {}
+        for name in state.roots:
+            current = state.roots[name]
+            replacement = remap.get(id(current))
+            if replacement is not None:
+                state.roots[name] = replacement
+                if name in context_names:
+                    changed_roots[name] = replacement
+        for name in state.symbols:
+            current = state.symbols[name]
+            replacement = remap.get(id(current))
+            if replacement is not None:
+                state.symbols[name] = replacement
+                self.namespace[name] = replacement
+        for record_id in state.id_to_obj:
+            current = state.id_to_obj[record_id]
+            replacement = remap.get(id(current))
+            if replacement is not None:
+                state.id_to_obj[record_id] = replacement
+
+        for name in self.ROOT_NAMES:
+            current = getattr(graph, name, None)
+            if current is None:
+                continue
+            replacement = remap.get(id(current))
+            if replacement is not None:
+                changed_roots[name] = replacement
+
+        if changed_roots:
+            graph._replace_context(**changed_roots)
+
+        # 4. The index last, rebuilt from the canonical representatives: a
+        #    preserved index would keep naming the superseded atoms, and
+        #    `NatFromRep` is what everything else asks.
+        self._rebuild_nat_value_index(graph, canonical, remap, registry)
+        self._sync_namespace_modules()
+        if debug is M.truth_value and deferred:
+            print(f"DEBUG: canonicalize: {deferred} Nats deferred (too large to build)", flush=True)
+        return len(remap)
+
+    def _canonicalize_seeds(self, state, graph):
+        """Every object the restored state is reachable from, once each."""
+
+        seeds = []
+        seen = set()
+        groups = [
+            state.roots.values(),
+            state.symbols.values(),
+            state.id_to_obj.values(),
+            [getattr(graph, name, None) for name in self.ROOT_NAMES],
+        ]
+        for group in groups:
+            for obj in group:
+                if obj is None or id(obj) in seen:
+                    continue
+                seen.add(id(obj))
+                seeds.append(obj)
+        return seeds
+
+    def _substitute_canonical(self, seed, remap, seen):
+        """Walk one restored object graph, re-pointing it through the map.
+
+        Iterative and visited-bounded: the restored state is cyclic and this
+        runs on every boot.
+        """
+
+        stack = [seed]
+        while stack:
+            obj = stack.pop()
+            if obj is None or id(obj) in seen:
+                continue
+            seen.add(id(obj))
+            if self._is_pair_object(obj) is M.truth_value:
+                head = obj.head
+                replacement = remap.get(id(head.value))
+                if replacement is not None:
+                    head.value = replacement
+                tail = obj.tail
+                replacement = remap.get(id(tail.value))
+                if replacement is not None:
+                    tail.value = replacement
+                stack.append(head.value)
+                stack.append(tail.value)
+                continue
+            if self._is_edge_object(obj) is M.truth_value:
+                for field in ("inputs", "results", "value"):
+                    current = getattr(obj, field, None)
+                    if current is None:
+                        continue
+                    replacement = remap.get(id(current))
+                    if replacement is not None:
+                        setattr(obj, field, replacement)
+                        current = replacement
+                    stack.append(current)
+                continue
+            current = getattr(obj, "value", None)
+            if current is None:
+                continue
+            replacement = remap.get(id(current))
+            if replacement is not None:
+                obj.value = replacement
+                current = replacement
+            try:
+                current.id
+            except Exception:
+                continue
+            stack.append(current)
+
+    def _nat_index_by_value(self, index):
+        """value text -> Nat, from the index the snapshot already carries."""
+
+        by_value = {}
+        empty = self.namespace["EmptyList"]
+        walker = T.TreeEntries(index)()
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            entry = M.Head(walker)()
+            key = M.Head(entry)()
+            fact = M.Head(M.Tail(entry)())()
+            walker = M.Tail(walker)()
+            text = self._index_key_text(key)
+            if text and text not in by_value:
+                by_value[text] = fact
+        return by_value
+
+    def _index_key_text(self, key):
+        """The decimal text of a Nat value key: a chain of digit Chars."""
+
+        text = ""
+        walker = key
+        while M.IsPair(walker)() is M.truth_value:
+            element = M.Head(walker)()
+            try:
+                text = text + str(element())
+            except Exception:
+                return ""
+            walker = M.Tail(walker)()
+        return text if text.isdigit() else ""
+
+    def _rebuild_nat_value_index(self, graph, canonical, remap, registry):
+        """Rebuild the Nat value index from the canonicalised entries.
+
+        The index is rebuilt rather than substituted in place because it is
+        a derived structure: what has to survive is the value -> Nat
+        mapping, and the cheapest way to be sure of that is to reinsert the
+        canonical representatives. If the restored index cannot be
+        enumerated -- a shape `TreeEntries` does not read -- it is left
+        exactly as the substitution left it, which is correct but not
+        complete; wiping an unreadable index would be worse.
+        """
+
+        index = graph.nat_value_index
+        empty = self.namespace["EmptyList"]
+
+        # value text -> Nat, seeded from the restored index so that values
+        # no record was marked for survive, then overlaid with the
+        # canonical representatives so that a canonical value always wins.
+        by_value = {}
+        entries = T.TreeEntries(index)()
+        walker = entries
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            entry = M.Head(walker)()
+            key = M.Head(entry)()
+            fact = M.Head(M.Tail(entry)())()
+            walker = M.Tail(walker)()
+            text = self._index_key_text(key)
+            if not text:
+                continue
+            replacement = remap.get(id(fact))
+            by_value[text] = fact if replacement is None else replacement
+        for text in canonical:
+            by_value[text] = canonical[text]
+
+        from .math.peano import NatValueKey
+
+        rebuilt = self.namespace["Tree"](empty)
+        tree_insert = self.namespace["TreeInsert"]
+        for text in by_value:
+            try:
+                rebuilt = tree_insert(
+                    rebuilt,
+                    NatValueKey(M.GMPRep(text))(),
+                    by_value[text],
+                    registry,
+                )()
+            except RecursionError:
+                # An unindexable value is not worth losing the index over.
+                continue
+        index.value = rebuilt.value
+        return len(by_value)
 
 
 __all__ = [

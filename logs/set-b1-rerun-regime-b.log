@@ -1,0 +1,57 @@
+Set B1 rerun -- Regime B confirmed on the symbolic decomposition goal
+=====================================================================
+freeze tag: experiment-4-frozen (99fa78a, third cut); operator: agent
+(contaminated); prescription: sonnet's option (3) -- the library
+genuinely lacked the rule, because Experiment 1's exponent law was
+live-taught into a session whose state was deliberately not carried,
+and pack rules cannot express it across the vocabulary boundary.
+
+Contamination ledger:
+  taught 1 (curriculum): the power-decomposition law itself -- the
+    specific rule the diagnosis named as missing.
+  taught 2 (residual-named): (rule () (eq (times k m) (times k m))),
+    the exact premise instance the machine requested -- a reflexivity
+    instance over symbolic terms, NOT ground-decidable, so it
+    correctly surfaced as a request instead of evaluating.
+
+Outcome: class B crossed into a measured unlock. The symbolic goal
+stalls with ONE genuine partial match naming the concrete premise
+(eq (times k m) (times k m)); taught against it, the counterfactual
+measures goal closed: yes with one newly enabled existing firing, and
+retry closes. The residual the transfer question wanted is now on
+record: what blocks symbolic decomposition is equality reflexivity
+over symbolic products -- a transport-shaped gap, exactly the family
+B2 probes. B2/B3 reconsideration is next; Experiment 4 stays unrun.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> teach law: (rule (premises (eq ?n (times ?k ?d))) (conclusion (eq (pow ?t ?n) (pow (pow ?t ?k) ?d))))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+you> attempt goal: (eq (pow v (times k m)) (pow (pow v k) m))
+hyge> FAILED. cost=336; rules with a genuine partial match: 1
+residual: missing (eq (times k m) (times k m)) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (eq (times k m) (times k m)))
+you> approve dependency 0
+hyge> approved dependency [0] status=SpeculativeDependency
+you> teach dependency 0: (rule (premises) (conclusion (eq (times k m) (times k m))))
+hyge> counterfactual: cost 336 -> 507; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 1
+you> retry parent goal
+hyge> retry: goal closed
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(eq (times k m) (times k m)) outcome=DemonstratedUsefulDependency
+you> goodbye
+hyge> goodbye

@@ -14,6 +14,7 @@ from . import machine as M
 from . import graph as Gmod
 from . import heuristics as Hmod
 from . import labels as Lmod
+from .sentinels import MILESTONE_SKIPPED, VALUE_ATOM_IDENTITY_OPEN
 from . import matching as Xmod
 from . import proof as Pmod
 from . import rewrite_rules as Rmod
@@ -13681,6 +13682,2385 @@ class InvarianceFlipOneRefutesParityTest(M.Edge):
         return self.result
 
 
+class _ResearchToy:
+    """Shared toy-domain builders for the research protocol tests.
+
+    Symbols are Char atoms, variables are matcher var patterns, and rules
+    are compiled MultiRules -- exactly what the live protocol produces.
+    Nothing here names any famous theorem or target.
+    """
+
+    @staticmethod
+    def sym(name):
+        return M.Char(name)
+
+    @staticmethod
+    def var(name):
+        return M.Pair(M.VarTag, M.Pair(M.Char(name), M.EmptyList))
+
+    @staticmethod
+    def term(head, *args):
+        chain = M.EmptyList
+        for arg in reversed(args):
+            chain = M.Pair(arg, chain)
+        return M.Pair(head, chain)
+
+    @staticmethod
+    def chain(*items):
+        out = M.EmptyList
+        for item in reversed(items):
+            out = M.Pair(item, out)
+        return out
+
+    @staticmethod
+    def reset(graph):
+        """Clear research state AND the rules teaching installed.
+
+        STATE HYGIENE, measured not assumed: clearing the twelve research
+        fields is not enough. `teach_dependency` -> `teach_trusted_theorem`
+        installs the taught rule into `all_rules`/`rule_order`, and those
+        survive this reset. A second construction in the same process
+        therefore begins with the previous test's taught rule already
+        present, the goal closes with no residual, no request compiles, and
+        the test reports false_value -- the Diff/Diff/Same flapping seen
+        under shard ordering. Green in a fresh process, red on repeat: test
+        contamination, not checkpoint nondeterminism.
+
+        Clearing `all_rules` wholesale is NOT the remedy -- it also removes
+        the domain axioms the episodes depend on, and every construction
+        then fails. Only the taught class is dropped, keyed by its
+        provenance tag through the same LookupRuleOrigin index that
+        FilterRulesByPolicy uses.
+        """
+        from . import research as Rmod
+        from . import provenance as Prov
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+        # `rule_order` is the CHAIN of rules; `all_rules` is a Tree keyed
+        # for lookup and is not walkable as a chain. add_rule pushes onto
+        # rule_order, so that is where a taught rule lands and where the
+        # drop applies.
+        kept = Prov.DropRulesByOrigin(
+            M.FromContextGetRuleOrder(graph)(),
+            graph._rule_origins,
+            Lmod.HumanSuppliedTrustedTheoremLabel,
+            registry,
+        )()
+        graph._replace_context(
+            dependency_requests=empty, dependency_graph=empty,
+            generator_metrics=empty, last_proof=empty, research_residuals=empty,
+            provenance_map=empty, generator_policy=empty, last_residuals=empty,
+            counterfactual_results=empty, research_attempts=empty,
+            intervention_episodes=empty, dependency_policies=empty,
+            rule_order=kept,
+        )
+        Rmod.EnableResearchMode(graph)
+
+    @staticmethod
+    def two_premise_rule(rel_name, missing_name, conclusion_name):
+        from .proof import MultiRule
+        T = _ResearchToy
+        x, y = T.var("x"), T.var("y")
+        premises = T.chain(
+            T.term(T.sym(rel_name), x, y),
+            T.term(T.sym(missing_name), y),
+        )
+        return MultiRule(premises, T.term(T.sym(conclusion_name), x))()
+
+    @staticmethod
+    def run_episode(graph, rel_name, missing_name, conclusion_name, c1, c2):
+        """One full stall -> request -> approve -> teach -> measure round.
+
+        Returns Pair(status, Pair(evidence, Pair(rule, EmptyList))) from
+        teach_dependency, or EmptyList when no request was compiled.
+        """
+        from . import research as Rmod
+        T = _ResearchToy
+        graph.clear_research_attempts()
+        rule = T.two_premise_rule(rel_name, missing_name, conclusion_name)
+        graph.tag_rule_origin(rule, Lmod.DomainAxiomLabel)
+        facts = T.chain(T.term(T.sym(rel_name), T.sym(c1), T.sym(c2)))
+        goal = T.chain(T.term(T.sym(conclusion_name), T.sym(c1)))
+        rules = T.chain(rule)
+        Rmod.attempt_goal(graph, facts, goal, rules)
+        parent = M.Head(goal)()
+        blocking = M.Pair(Lmod.FailureLabel, M.Pair(parent, M.EmptyList))
+        records = Rmod.suggest_dependencies(parent, graph.research_attempts, blocking, graph)
+        if M.IdentityCompare(records, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        request = M.Head(records)()
+        if Rmod.IsUncharacterizedStall(request)() is M.truth_value:
+            return M.EmptyList
+        dep_id = Rmod.DependencyRequestId(request)()
+        Rmod.approve_dependency(graph, dep_id)
+        u, v = T.var("u"), T.var("v")
+        formal = Rmod.FormalRule(
+            T.chain(T.term(T.sym(rel_name), u, v)),
+            T.term(T.sym(missing_name), v),
+        )()
+        return Rmod.teach_dependency(graph, dep_id, formal, facts, goal, rules)
+
+
+class _ExplanationToy:
+    """Shared builders for the explanation-substrate tests.
+
+    Terms are built the same way the research toy builds them, so these
+    tests exercise the live rule/search path rather than a simplified
+    analogue.
+    """
+
+    @staticmethod
+    def linked_rules():
+        """Two redundant routes to `mark`, then `tag` which needs it.
+
+        MEASURED, NOT ASSUMED: the first draft of this fixture used an
+        unrelated `noise` rule as the thing the spine should exclude. That
+        made the test vacuous -- the noise rule never fired, so it was
+        excluded by the fired-set filter before the ablation ran, and
+        mutating the ablation to "every fired rule is load-bearing" still
+        passed. A rule must FIRE and still be routed-around for the
+        ablation to be under test, so `alt_mark` derives the same `mark`
+        fact from a second premise. Whichever of the two the search fires,
+        withholding it leaves the goal closed through the other, and only
+        `tag` survives ablation.
+        """
+        from .proof import MultiRule
+        T = _ResearchToy
+        x, y = T.var("x"), T.var("y")
+        mark = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y)),
+            T.term(T.sym("mark"), y),
+        )()
+        alt_mark = MultiRule(
+            T.chain(T.term(T.sym("alt"), x, y)),
+            T.term(T.sym("mark"), y),
+        )()
+        tag = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y), T.term(T.sym("mark"), y)),
+            T.term(T.sym("tag"), x),
+        )()
+        return mark, alt_mark, tag
+
+    @staticmethod
+    def problem():
+        T = _ResearchToy
+        facts = T.chain(
+            T.term(T.sym("rel"), T.sym("a"), T.sym("b")),
+            T.term(T.sym("alt"), T.sym("a"), T.sym("b")),
+        )
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        return facts, goal
+
+    @staticmethod
+    def producer_rules():
+        """A single-route chain: `mark` genuinely produces what `tag` eats."""
+        from .proof import MultiRule
+        T = _ResearchToy
+        x, y = T.var("x"), T.var("y")
+        mark = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y)),
+            T.term(T.sym("mark"), y),
+        )()
+        tag = MultiRule(
+            T.chain(T.term(T.sym("rel"), x, y), T.term(T.sym("mark"), y)),
+            T.term(T.sym("tag"), x),
+        )()
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        return mark, tag, facts, goal
+
+    @staticmethod
+    def blackboard_preserves(graph):
+        """The real blackboard-parity obligation, through the live path."""
+        from . import invariance as Imod
+        registry = _registry(graph)
+        rule = EraseAndReplaceRule()()
+        p = BlackboardTerms("p")()
+        phi = Imod.Phi(BlackboardPhiPattern(p)())()
+        return Imod.Preserves(rule, phi, registry)()
+
+
+class SpineExcludesRoutedAroundRuleTest(M.Edge):
+    """The spine is measured by ablation, not read off the fired set.
+
+    `mark` and `alt_mark` each derive the same fact; the search fires one
+    of them. Withholding whichever fired leaves the goal closed through the
+    other, so it is NOT load-bearing and must not reach the spine. Only
+    `tag`, whose removal breaks closure, survives.
+
+    Falsifiability: mutating the ablation verdict to "every fired rule is
+    load-bearing" fails this test, because the fired mark-rule then appears
+    on the spine.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        mark, alt_mark, tag = T.linked_rules()
+        facts, goal = T.problem()
+        rules = _ResearchToy.chain(mark, alt_mark, tag)
+        pair = Emod.ExtractSpine(facts, goal, rules)()
+        spine = M.Head(pair)()
+        self.result = M.truth_value
+        if M.Head(M.Tail(pair)())() is M.false_value:
+            self.result = M.false_value
+        steps = Emod.SpineSteps(spine)()
+        found_tag = M.false_value
+        found_either_mark = M.false_value
+        cursor = steps
+        while M.IdentityCompare(cursor, empty)() is M.false_value:
+            rule = Emod.SpineStepRule(M.Head(cursor)())()
+            if M.IdentityCompare(rule, tag)() is M.truth_value:
+                found_tag = M.truth_value
+            if M.IdentityCompare(rule, mark)() is M.truth_value:
+                found_either_mark = M.truth_value
+            if M.IdentityCompare(rule, alt_mark)() is M.truth_value:
+                found_either_mark = M.truth_value
+            cursor = M.Tail(cursor)()
+        if found_tag is M.false_value:
+            self.result = M.false_value
+        if found_either_mark is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SpineFanoutRanksProducerAboveConsumerTest(M.Edge):
+    """Dataflow linkage, not firing order, picks the 'aha'.
+
+    `mark` produces the fact `tag` consumes, so `mark` outranks it. This
+    pins the two shape traps that silently emptied the fanout: a rule's
+    conclusion is RuleReplacement (RuleIsUnary counts PREMISES), and
+    consumption compares instantiated premises against produced facts,
+    never binding values against facts.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        mark, tag, facts, goal = T.producer_rules()
+        rules = _ResearchToy.chain(mark, tag)
+        pair = Emod.ExtractSpine(facts, goal, rules)()
+        spine = M.Head(pair)()
+        self.result = M.truth_value
+        if M.Head(M.Tail(pair)())() is M.false_value:
+            self.result = M.false_value
+        top = Emod.HighestFanoutStep(spine)()
+        if M.IdentityCompare(top, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            if M.IdentityCompare(Emod.SpineStepRule(top)(), mark)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(Emod.SpineStepFanout(top)(), empty)() is M.truth_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SpineEmptyWhenGoalNeverClosedTest(M.Edge):
+    """No closure, no spine. A spine over an open goal would be noise.
+
+    The flag must say the baseline did not close rather than reporting
+    every rule as load-bearing, which is what a naive ablation returns when
+    nothing closes either way.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        mark, alt_mark, tag = T.linked_rules()
+        facts, _goal = T.problem()
+        unreachable = _ResearchToy.chain(
+            _ResearchToy.term(_ResearchToy.sym("absent"), _ResearchToy.sym("a"))
+        )
+        rules = _ResearchToy.chain(mark, alt_mark, tag)
+        pair = Emod.ExtractSpine(facts, unreachable, rules)()
+        spine = M.Head(pair)()
+        self.result = M.truth_value
+        if M.Head(M.Tail(pair)())() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(Emod.SpineSteps(spine)(), empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class IdeaClassifierRefusesUnknownShapeTest(M.Edge):
+    """The fixed library declines rather than guessing.
+
+    A Preserves-shaped term classifies as Invariant; an ordinary rule
+    classifies as nothing at all. A classifier that returned a plausible
+    label for an unrecognised proof would manufacture agreement in the
+    transfer test, which is the one measurement it must not corrupt.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        preserves = T.blackboard_preserves(graph)
+        self.result = M.truth_value
+        if M.IdentityCompare(
+            Emod.ClassifyIdeaShape(preserves)(), Emod.IDEA_INVARIANT
+        )() is M.false_value:
+            self.result = M.false_value
+        mark, _alt, _tag = T.linked_rules()
+        if M.IdentityCompare(
+            Emod.ClassifyIdeaShape(mark)(), Emod.IDEA_UNCLASSIFIED
+        )() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class RenderedSentenceCitesItsLawTest(M.Edge):
+    """Every sentence names the law and the term that produced it.
+
+    This is the whole discipline in one check: an explanation sentence that
+    cannot cite its law is indistinguishable from generated prose, and the
+    substrate exists to make that distinction mechanical. The invariant's
+    name must also come from the real term -- the sentence has to EMBED the
+    observable that the Preserves obligation is about, not a placeholder.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        preserves = T.blackboard_preserves(graph)
+        observable = Emod.PreservesObservable(preserves)()
+        marks = M.Pair(empty, M.Pair(empty, empty))
+        step = Emod.SpineStep(preserves, M.truth_value, marks)()
+        spine = Emod.ExplanationSpine(empty, M.Pair(step, empty), empty)()
+        core = Emod.CoreIdea(empty, Emod.IDEA_INVARIANT)()
+        plan = Emod.ExplanationPlan(
+            Emod.AudienceLevel(M.Char("student"))(), empty, spine, core, empty
+        )()
+        sentences = Emod.RenderPlan(plan)()
+        self.result = M.truth_value
+        if M.IdentityCompare(sentences, empty)() is M.truth_value:
+            self.result = M.false_value
+        saw_preserves = M.false_value
+        cursor = sentences
+        while M.IdentityCompare(cursor, empty)() is M.false_value:
+            sentence = M.Head(cursor)()
+            if M.IdentityCompare(Emod.SentenceLaw(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(Emod.SentencePieces(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(Emod.SentenceSource(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                Emod.SentenceLaw(sentence)(), Emod.PreservesStepLawName
+            )() is M.truth_value:
+                saw_preserves = M.truth_value
+                if Emod.SentenceMentions(sentence, observable)() is M.false_value:
+                    self.result = M.false_value
+            cursor = M.Tail(cursor)()
+        if saw_preserves is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ExplanationIsNotAProofTest(M.Edge):
+    """The plan is a rendering choice and carries no authority.
+
+    Building a plan must not register a derivation, close a goal, or alter
+    the graph's proof state. If an explanation could ever become the stored
+    proof, soundness would have been weakened to satisfy a presentation
+    preference.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+        from . import proof as Pmod
+        T = _ExplanationToy
+        empty = M.EmptyList
+        _ResearchToy.reset(graph)
+        mark, alt_mark, tag = T.linked_rules()
+        facts, goal = T.problem()
+        rules = _ResearchToy.chain(mark, alt_mark, tag)
+        before = graph.last_proof
+        plan = Emod.BuildPlan(
+            facts, goal, rules, Emod.AudienceLevel(M.Char("student"))()
+        )()
+        self.result = M.truth_value
+        if M.IdentityCompare(plan, empty)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.last_proof, before)() is M.false_value:
+            self.result = M.false_value
+        if Pmod.IsDerivation(plan, _registry(graph))() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ResearchModeTest(M.Edge):
+    """Research mode is a graph-context marker, not module state."""
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        empty = M.EmptyList
+        self.result = M.truth_value
+        Rmod.EnableResearchMode(graph)
+        if Rmod.IsResearchMode(graph) is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_mode, empty)() is M.truth_value:
+            self.result = M.false_value
+        Rmod.DisableResearchMode(graph)
+        if Rmod.IsResearchMode(graph) is M.truth_value:
+            self.result = M.false_value
+        Rmod.EnableResearchMode(graph)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class DependencyRequestFromResidualTest(M.Edge):
+    """A genuine partial match compiles into one formal request.
+
+    The rule was really run: its first premise matched a fact, its second
+    premise failed after substitution. The request's whole content is
+    Need(concrete unmatched premise), alpha-normalized -- a term, never a
+    strategy sentence -- and its status is an observation, not a claim.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        graph.tag_rule_origin(rule, Lmod.DomainAxiomLabel)
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        attempt = M.Head(attempts)()
+        unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
+        expected = T.term(T.sym("mark"), T.sym("b"))
+        if M.Compare(unmatched, expected)() is M.false_value:
+            self.result = M.false_value
+        matched = Rmod.AttemptedRuleMatched(attempt)()
+        if M.IdentityCompare(matched, empty)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(
+            Rmod.AttemptedRuleFailure(attempt)(), Lmod.MissingPremiseFailureLabel
+        )() is M.false_value:
+            self.result = M.false_value
+        parent = M.Head(goal)()
+        records = Rmod.suggest_dependencies(
+            parent, attempts, M.Pair(Lmod.FailureLabel, M.Pair(parent, empty)), graph
+        )
+        if M.IdentityCompare(records, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            request = M.Head(records)()
+            formal = Rmod.DependencyRequestFormalStatement(request)()
+            if M.TermEqual(M.Head(formal)(), Lmod.NeedLabel)() is M.false_value:
+                self.result = M.false_value
+            need = M.Head(M.Tail(formal)())()
+            if M.Compare(need, expected)() is M.false_value:
+                self.result = M.false_value
+            status = Rmod.DependencyRequestStatus(request)()
+            if M.TermEqual(status, Lmod.ObservedMissingPremiseLabel)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class CounterfactualUnlockTest(M.Edge):
+    """Usefulness is measured on a fork, never fabricated.
+
+    Baseline and augmented bounded searches run from the same stall state;
+    the evidence must name the existing rule newly enabled and whether the
+    goal closed. A taught rule irrelevant to the stall must yield no
+    unlock.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        rules = T.chain(rule)
+        u, v = T.var("u"), T.var("v")
+        helpful = Rmod.compile_formal_rule(
+            Rmod.FormalRule(T.chain(T.term(T.sym("rel"), u, v)), T.term(T.sym("mark"), v))()
+        )
+        ev, unlock = Rmod.counterfactual_evaluation(graph, facts, goal, rules, helpful)
+        self.result = M.truth_value
+        if unlock is M.false_value:
+            self.result = M.false_value
+        newly = M.Head(M.Tail(M.Tail(M.Tail(ev)())())())()
+        if M.IdentityCompare(newly, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            enabled_rule = M.Head(M.Head(newly)())()
+            if M.IdentityCompare(enabled_rule, rule)() is M.false_value:
+                self.result = M.false_value
+        goal_closed = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(ev)())())())())())())()
+        if goal_closed is M.false_value:
+            self.result = M.false_value
+        irrelevant = Rmod.compile_formal_rule(
+            Rmod.FormalRule(empty, T.term(T.sym("elsewhere"), T.sym("z")))()
+        )
+        ev2, unlock2 = Rmod.counterfactual_evaluation(graph, facts, goal, rules, irrelevant)
+        if unlock2 is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class CircularDependencyRejectionTest(M.Edge):
+    """Circular and vacuous content is rejected at both gates.
+
+    A request restating the parent goal never becomes a stored node, and a
+    taught rule that assumes the goal as a premise -- or concludes it from
+    nothing -- is refused before compilation.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        parent_goal = T.term(T.sym("tag"), T.sym("a"))
+        bridge = M.Pair(Lmod.BridgePlanLabel, M.Pair(M.Char("b"), empty))
+        ev = Rmod.CounterfactualEvidence(M.Zero, M.Zero, empty, empty, empty, M.false_value)()
+        req1 = Rmod.DependencyRequest(
+            parent_goal, empty, M.Pair(Lmod.FailureLabel, empty), Lmod.TheoremKindLabel,
+            parent_goal, bridge, ev, empty, Lmod.PendingStatusLabel,
+            Lmod.DependencyRequestProvenanceLabel,
+        )()
+        self.result = M.truth_value
+        if Rmod.validate_dependency_request(req1, parent_goal) is M.truth_value:
+            self.result = M.false_value
+        circular_premise = Rmod.FormalRule(
+            T.chain(parent_goal), T.term(T.sym("mark"), T.sym("b"))
+        )()
+        if Rmod.validate_taught_rule(circular_premise, parent_goal) is M.truth_value:
+            self.result = M.false_value
+        goal_from_nothing = Rmod.FormalRule(empty, parent_goal)()
+        if Rmod.validate_taught_rule(goal_from_nothing, parent_goal) is M.truth_value:
+            self.result = M.false_value
+        shared_u = T.var("u")
+        shared_v = T.var("v")
+        admissible = Rmod.FormalRule(
+            T.chain(T.term(T.sym("rel"), shared_u, shared_v)),
+            T.term(T.sym("mark"), shared_v),
+        )()
+        if Rmod.validate_taught_rule(admissible, parent_goal) is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class HumanSuppliedProvenanceTest(M.Edge):
+    """A taught theorem is HUMAN_SUPPLIED_TRUSTED_THEOREM, nothing else.
+
+    It compiles into an executable rule tagged with that origin, and the
+    formal term -- not prose -- is what the provenance map records.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        shared_u = T.var("u")
+        shared_v = T.var("v")
+        formal = Rmod.FormalRule(
+            T.chain(T.term(T.sym("rel"), shared_u, shared_v)),
+            T.term(T.sym("mark"), shared_v),
+        )()
+        rule = Rmod.teach_trusted_theorem(graph, formal)
+        self.result = M.truth_value
+        if M.IdentityCompare(graph.provenance_map, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            entry = M.Head(graph.provenance_map)()
+            if M.IdentityCompare(M.Head(entry)(), formal)() is M.false_value:
+                self.result = M.false_value
+            prov = M.Head(M.Tail(entry)())()
+            if M.IdentityCompare(prov, Lmod.HumanSuppliedTrustedTheoremLabel)() is M.false_value:
+                self.result = M.false_value
+        if M.IdentityCompare(rule, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            origin = graph.rule_origin(rule)
+            if M.IdentityCompare(origin, Lmod.HumanSuppliedTrustedTheoremLabel)() is M.false_value:
+                self.result = M.false_value
+        rebuilt = Rmod.rebuild_taught_rules(graph)
+        if M.IdentityCompare(rebuilt, empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class DependencyGraphCheckpointTest(M.Edge):
+    """Requests survive a checkpoint, and status updates one node in place.
+
+    Approval moves ObservedMissingPremise to SpeculativeDependency on the
+    same node; after a snapshot round trip the request is still there with
+    that status, and no second copy exists.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .runtime import boot_from_snapshot
+        from .main import _runtime_namespace
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        parent = M.Head(goal)()
+        Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        self.result = M.truth_value
+        if M.IdentityCompare(graph.dependency_requests, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        request = M.Head(graph.dependency_requests)()
+        dep_id = Rmod.DependencyRequestId(request)()
+        Rmod.approve_dependency(graph, dep_id)
+        status = Rmod.RequestStatusById(graph.dependency_requests, dep_id)()
+        if M.TermEqual(status, Lmod.SpeculativeDependencyLabel)() is M.false_value:
+            self.result = M.false_value
+        rows = Rmod.show_dependency_graph(graph)
+        count = self._count(rows, M.Zero)
+        if M.IdentityCompare(M.NatEq(count, M.one, M.AllConstructors)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        tmpdir = tempfile.mkdtemp()
+        snap_path = os.path.join(tmpdir, "snapshot.json")
+        try:
+            codec = SnapshotCodec(_runtime_namespace())
+            codec.save(graph, snap_path, progress=M.false_value)
+            runtime2 = boot_from_snapshot(snap_path, _runtime_namespace())
+            g2 = runtime2.graph
+            if M.IdentityCompare(g2.dependency_requests, empty)() is M.truth_value:
+                self.result = M.false_value
+            else:
+                req2 = M.Head(g2.dependency_requests)()
+                if M.TermEqual(
+                    Rmod.DependencyRequestStatus(req2)(), Lmod.SpeculativeDependencyLabel
+                )() is M.false_value:
+                    self.result = M.false_value
+                formal2 = Rmod.DependencyRequestFormalStatement(req2)()
+                if M.TermEqual(M.Head(formal2)(), Lmod.NeedLabel)() is M.false_value:
+                    self.result = M.false_value
+        except Exception:
+            self.result = M.false_value
+        finally:
+            try:
+                shutil.rmtree(tmpdir)
+            except Exception:
+                pass
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _count(self, chain, acc):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return acc
+        return self._count(M.Tail(chain)(), M.Head(M.Succ(acc, M.AllConstructors)())())
+
+    def __call__(self):
+        return self.result
+
+
+class GeneratorPolicyLearningTest(M.Edge):
+    """Structural counters move only on real events.
+
+    Proposing bumps `proposed`; a measured unlock bumps `useful` and, when
+    the goal closes, `used`. Approval alone moves nothing. All counters
+    are machine terms in the graph context, never Python attributes.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        row0 = Rmod.GeneratorStatsRow(graph)()
+        useful0 = Rmod.GeneratorStatsField(row0, Lmod.UsefulCountLabel)()
+        self.result = M.truth_value
+        if M.IdentityCompare(M.NatEq(useful0, M.Zero, M.AllConstructors)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        outcome = T.run_episode(graph, "rel", "mark", "tag", "a", "b")
+        if M.IdentityCompare(outcome, empty)() is M.truth_value:
+            self.result = M.false_value
+        row1 = Rmod.GeneratorStatsRow(graph)()
+        proposed1 = Rmod.GeneratorStatsField(row1, Lmod.ProposedCountLabel)()
+        useful1 = Rmod.GeneratorStatsField(row1, Lmod.UsefulCountLabel)()
+        used1 = Rmod.GeneratorStatsField(row1, Lmod.UsedCountLabel)()
+        if M.IdentityCompare(M.NatEq(proposed1, M.one, M.AllConstructors)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(M.NatEq(useful1, M.one, M.AllConstructors)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(M.NatEq(used1, M.one, M.AllConstructors)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LearningAfterInterventionTest(M.Edge):
+    """Dependency policies come from measured episodes and die with them.
+
+    Two independent useful episodes on structurally similar, differently
+    named problems anti-unify into one policy; the policy predicts a rule
+    shape on a held-out third stall; resetting learned memory removes the
+    policy and the prediction with it. One episode alone is never enough.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        self.result = M.truth_value
+        first = T.run_episode(graph, "rel", "mark", "tag", "a", "b")
+        if M.IdentityCompare(first, empty)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.dependency_policies, empty)() is M.false_value:
+            self.result = M.false_value
+        second = T.run_episode(graph, "rel", "mark", "tag", "c", "d")
+        if M.IdentityCompare(second, empty)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.dependency_policies, empty)() is M.truth_value:
+            self.result = M.false_value
+        graph.clear_research_attempts()
+        rule3 = T.two_premise_rule("rel", "mark", "tag")
+        facts3 = T.chain(T.term(T.sym("rel"), T.sym("e"), T.sym("f")))
+        goal3 = T.chain(T.term(T.sym("tag"), T.sym("e")))
+        Rmod.attempt_goal(graph, facts3, goal3, T.chain(rule3))
+        parent3 = M.Head(goal3)()
+        records3 = Rmod.suggest_dependencies(
+            parent3, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        predictions = Rmod.policy_predictions(graph, records3)
+        if M.IdentityCompare(predictions, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            prediction = M.Head(predictions)()
+            shape = M.Head(M.Tail(M.Tail(prediction)())())()
+            if Rmod.IsFormalRule(shape)() is M.false_value:
+                self.result = M.false_value
+            else:
+                # Transfer, not just recall: the held-out constant is
+                # instantiated into the predicted conclusion, because the
+                # episode features kept residual and rule shape coreferent.
+                predicted_conclusion = Rmod.FormalRuleConclusion(shape)()
+                expected = T.term(T.sym("mark"), T.sym("f"))
+                if M.Compare(predicted_conclusion, expected)() is M.false_value:
+                    self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        if M.IdentityCompare(graph.dependency_policies, empty)() is M.false_value:
+            self.result = M.false_value
+        after = Rmod.policy_predictions(graph, records3)
+        if M.IdentityCompare(after, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GeneratorAblationTest(M.Edge):
+    """Disable the one generator and the requests must disappear.
+
+    The same stall evidence that produced a request with the generator
+    enabled produces nothing with it disabled. If anything were proposed,
+    another ladder would exist. Attempts with no nameable premise also
+    propose nothing either way.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        parent = M.Head(goal)()
+        blocking = M.Pair(Lmod.FailureLabel, empty)
+        attempts = graph.research_attempts
+        self.result = M.truth_value
+        Rmod.disable_generator(graph)
+        silenced = Rmod.suggest_dependencies(parent, attempts, blocking, graph)
+        if M.IdentityCompare(silenced, empty)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.dependency_requests, empty)() is M.false_value:
+            self.result = M.false_value
+        Rmod.enable_generator(graph)
+        restored = Rmod.suggest_dependencies(parent, attempts, blocking, graph)
+        if M.IdentityCompare(restored, empty)() is M.truth_value:
+            self.result = M.false_value
+        blind = Rmod.AttemptedRule(
+            M.Pair(M.Char("rule"), M.Char("r9")), empty, empty, empty, empty,
+            Lmod.NoApplicableRuleLabel,
+        )()
+        T.reset(graph)
+        stall = Rmod.suggest_dependencies(parent, M.Pair(blind, empty), blocking, graph)
+        if M.IdentityCompare(graph.dependency_requests, empty)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(stall, empty)() is M.false_value:
+            if Rmod.IsUncharacterizedStall(M.Head(stall)())() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ZeroSuccessorResidualTest(M.Edge):
+    """The root stays in the residual record even with zero successors."""
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        goal = T.chain(T.term(T.sym("solo"), T.sym("g")))
+        Rmod.attempt_goal(graph, empty, goal, empty)
+        self.result = M.truth_value
+        residuals = graph.last_residuals
+        if M.IsPair(residuals)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(residuals)(), Lmod.ZeroSuccessorResidualLabel)() is M.false_value:
+            self.result = M.false_value
+        else:
+            root_goal = M.Head(M.Tail(residuals)())()
+            if M.Compare(root_goal, goal)() is M.false_value:
+                self.result = M.false_value
+        zr = Rmod.ZeroSuccessorResidual(M.Head(goal)())()
+        if M.IdentityCompare(M.Head(zr)(), Lmod.ZeroSuccessorResidualLabel)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class UncharacterizedStallTest(M.Edge):
+    """Declared ignorance: no partial match means no request, said plainly."""
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        parent_goal = T.term(T.sym("solo"), T.sym("g"))
+        blocking = M.Pair(Lmod.FailureLabel, empty)
+        attempt = Rmod.AttemptedRule(
+            M.Pair(M.Char("rule"), M.Char("r0")), empty, empty, empty, empty,
+            Lmod.NoApplicableRuleLabel,
+        )()
+        attempts = M.Pair(attempt, empty)
+        records = Rmod.suggest_dependencies(parent_goal, attempts, blocking, graph)
+        self.result = M.truth_value
+        if M.IdentityCompare(records, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            record = M.Head(records)()
+            if Rmod.IsUncharacterizedStall(record)() is M.false_value:
+                self.result = M.false_value
+            if M.TermEqual(Rmod.StallGoal(record)(), parent_goal)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(graph.dependency_requests, empty)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class BlankMemoryStallTest(M.Edge):
+    """Blank memory characterizes nothing.
+
+    A fresh state given a compound goal and no rules must report an
+    uncharacterized stall: no request of any shape appears, because no
+    operational rule partially matched. This is the blank-memory control
+    against hidden priors.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        goal_fact = T.term(
+            T.sym("holds"),
+            T.term(T.sym("op"), T.sym("s"), T.term(T.sym("op"), T.sym("s"), T.sym("t"))),
+        )
+        goal = T.chain(goal_fact)
+        Rmod.attempt_goal(graph, empty, goal, empty)
+        self.result = M.truth_value
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        records = Rmod.suggest_dependencies(
+            goal_fact, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        if M.IdentityCompare(records, empty)() is M.false_value:
+            head = M.Head(records)()
+            if Rmod.IsUncharacterizedStall(head)() is M.false_value:
+                self.result = M.false_value
+        if M.IdentityCompare(graph.dependency_requests, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class UserDefinedOperatorTest(M.Edge):
+    """The residual compiler is generic over constructors it has never seen.
+
+    A rule taught live with brand-new constructor symbols partially
+    matches, and the request names its concrete unmatched premise --
+    without any new Python class existing for the constructors.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        shared_x = T.var("x")
+        shared_y = T.var("y")
+        formal = Rmod.FormalRule(
+            T.chain(
+                T.term(T.sym("glimmer"), shared_x, shared_y),
+                T.term(T.sym("crest"), shared_y),
+            ),
+            T.term(T.sym("halo"), shared_x),
+        )()
+        rule = Rmod.teach_trusted_theorem(graph, formal)
+        facts = T.chain(T.term(T.sym("glimmer"), T.sym("p"), T.sym("q")))
+        goal = T.chain(T.term(T.sym("halo"), T.sym("p")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
+            expected = T.term(T.sym("crest"), T.sym("q"))
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class StrategyPriorQuarantineTest(M.Edge):
+    """A preinstalled strategy prior cannot masquerade as discovery.
+
+    Requests compiled from a strategy-prior rule's partial matches carry
+    HUMAN_SUPPLIED_STRATEGY_PRIOR provenance; requests from ordinary rules
+    carry DEPENDENCY_REQUEST provenance. Removing the prior removes its
+    suggestion.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        shared_x = T.var("x")
+        formal = Rmod.FormalRule(
+            T.chain(
+                T.term(T.sym("shape"), shared_x),
+                T.term(T.sym("pivot"), shared_x),
+            ),
+            T.term(T.sym("closed"), shared_x),
+        )()
+        prior = Rmod.teach_strategy_prior(graph, formal)
+        facts = T.chain(T.term(T.sym("shape"), T.sym("k")))
+        goal = T.chain(T.term(T.sym("closed"), T.sym("k")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(prior))
+        parent = M.Head(goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        self.result = M.truth_value
+        if M.IdentityCompare(records, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            request = M.Head(records)()
+            provenance = Rmod.DependencyRequestProvenance(request)()
+            if M.IdentityCompare(provenance, Lmod.HumanSuppliedStrategyPriorLabel)() is M.false_value:
+                self.result = M.false_value
+        T.reset(graph)
+        Rmod.attempt_goal(graph, facts, goal, empty)
+        silent = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        if M.IdentityCompare(silent, empty)() is M.false_value:
+            head = M.Head(silent)()
+            if Rmod.IsUncharacterizedStall(head)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class NegativeControlUnusedDependencyTest(M.Edge):
+    """A dependency that is loaded but unused earns nothing.
+
+    Teaching a rule irrelevant to the stall leaves the request speculative,
+    records no episode, and moves no useful counter. Utility must not move
+    just because knowledge arrived.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        graph.tag_rule_origin(rule, Lmod.DomainAxiomLabel)
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        rules = T.chain(rule)
+        Rmod.attempt_goal(graph, facts, goal, rules)
+        parent = M.Head(goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        request = M.Head(records)()
+        dep_id = Rmod.DependencyRequestId(request)()
+        Rmod.approve_dependency(graph, dep_id)
+        unrelated = Rmod.FormalRule(empty, T.term(T.sym("elsewhere"), T.sym("z")))()
+        outcome = Rmod.teach_dependency(graph, dep_id, unrelated, facts, goal, rules)
+        self.result = M.truth_value
+        if M.IdentityCompare(outcome, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            status = M.Head(outcome)()
+            if M.TermEqual(status, Lmod.DemonstratedUsefulDependencyLabel)() is M.truth_value:
+                self.result = M.false_value
+        if M.IdentityCompare(graph.intervention_episodes, empty)() is M.false_value:
+            self.result = M.false_value
+        row = Rmod.GeneratorStatsRow(graph)()
+        useful = Rmod.GeneratorStatsField(row, Lmod.UsefulCountLabel)()
+        if M.IdentityCompare(M.NatEq(useful, M.Zero, M.AllConstructors)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        without = Rmod.ProvenanceEntriesFor(
+            graph.provenance_map, Lmod.HumanSuppliedTrustedTheoremWithoutUnlockLabel
+        )()
+        if M.IdentityCompare(without, empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class CrossDomainBlankTest(M.Edge):
+    """A fresh checkpoint emits nothing for any domain-shaped goal.
+
+    Three goals in three unrelated vocabularies all stall uncharacterized:
+    no angle phrase, no group phrase, no motif phrase, no phrase at all,
+    because there is no domain dispatch table to produce one.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        self.result = M.truth_value
+        goal_terms = (
+            T.term(T.sym("figure"), T.sym("f"), T.term(T.sym("corner"), T.sym("f"))),
+            T.term(T.sym("system"), T.sym("s"), T.term(T.sym("size"), T.sym("s"))),
+            T.term(T.sym("account"), T.sym("first"), T.sym("second")),
+        )
+        for goal_fact in goal_terms:
+            T.reset(graph)
+            Rmod.attempt_goal(graph, empty, T.chain(goal_fact), empty)
+            records = Rmod.suggest_dependencies(
+                goal_fact, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+            )
+            if M.IdentityCompare(graph.dependency_requests, empty)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(records, empty)() is M.false_value:
+                head = M.Head(records)()
+                if Rmod.IsUncharacterizedStall(head)() is M.false_value:
+                    self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class EngineAttemptRecordingTest(M.Edge):
+    """The search engine itself records the genuine partial match.
+
+    A knowledge stall run through the real prover -- not the bounded
+    fork -- leaves an AttemptedRule with the concrete unmatched premise
+    and the missing-premise failure kind; the same problem closes once
+    the taught rule is compiled into the rule chain.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .runtime import make_fresh_runtime
+        from .proof import KnowledgeLabel, MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        fresh = runtime.graph
+        fresh._search_disable_console = M.truth_value
+        Rmod.EnableResearchMode(fresh)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        fresh.tag_rule_origin(rule, Lmod.DomainAxiomLabel)
+        facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        start = M.Pair(KnowledgeLabel, M.Pair(facts, empty))
+        goal = M.Pair(
+            KnowledgeLabel,
+            M.Pair(T.chain(T.term(T.sym("tag"), T.sym("a"))), empty),
+        )
+        fresh.clear_research_attempts()
+        derivation = runtime.prove(start, goal, rules=T.chain(rule))
+        self.result = M.truth_value
+        if M.IdentityCompare(derivation, empty)() is M.false_value:
+            self.result = M.false_value
+        attempts = fresh.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            attempt = M.Head(attempts)()
+            expected = T.term(T.sym("mark"), T.sym("b"))
+            if M.Compare(Rmod.AttemptedRuleUnmatched(attempt)(), expected)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                Rmod.AttemptedRuleFailure(attempt)(), Lmod.MissingPremiseFailureLabel
+            )() is M.false_value:
+                self.result = M.false_value
+        shared_u = T.var("u")
+        shared_v = T.var("v")
+        taught = Rmod.compile_formal_rule(
+            Rmod.FormalRule(
+                T.chain(T.term(T.sym("rel"), shared_u, shared_v)),
+                T.term(T.sym("mark"), shared_v),
+            )()
+        )
+        closing = runtime.prove(start, goal, rules=T.chain(rule, taught))
+        if M.IdentityCompare(closing, empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LearnedMemoryCheckpointTest(M.Edge):
+    """Episodes and policies survive a checkpoint and die with a reset.
+
+    After two useful episodes the policy chain is on record; a snapshot
+    round trip restores both fields; resetting learned memory on the
+    restored graph empties them again.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .runtime import boot_from_snapshot
+        from .main import _runtime_namespace
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        T.run_episode(graph, "rel", "mark", "tag", "a", "b")
+        graph.clear_research_attempts()
+        second_rule = T.two_premise_rule("link", "mark", "badge")
+        graph.tag_rule_origin(second_rule, Lmod.DomainAxiomLabel)
+        second_facts = T.chain(T.term(T.sym("link"), T.sym("c"), T.sym("d")))
+        second_goal = T.chain(T.term(T.sym("badge"), T.sym("c")))
+        Rmod.attempt_goal(graph, second_facts, second_goal, T.chain(second_rule))
+        parent = M.Head(second_goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        self.result = M.truth_value
+        if M.IdentityCompare(records, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        dep_id = Rmod.DependencyRequestId(M.Head(records)())()
+        Rmod.approve_dependency(graph, dep_id)
+        shared_u = T.var("u")
+        shared_v = T.var("v")
+        formal = Rmod.FormalRule(
+            T.chain(T.term(T.sym("link"), shared_u, shared_v)),
+            T.term(T.sym("mark"), shared_v),
+        )()
+        Rmod.teach_dependency(graph, dep_id, formal, second_facts, second_goal, T.chain(second_rule))
+        if M.IdentityCompare(graph.dependency_policies, empty)() is M.truth_value:
+            self.result = M.false_value
+        tmpdir = tempfile.mkdtemp()
+        snap_path = os.path.join(tmpdir, "snapshot.json")
+        try:
+            codec = SnapshotCodec(_runtime_namespace())
+            codec.save(graph, snap_path, progress=M.false_value)
+            runtime2 = boot_from_snapshot(snap_path, _runtime_namespace())
+            g2 = runtime2.graph
+            if M.IdentityCompare(g2.intervention_episodes, empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(g2.dependency_policies, empty)() is M.truth_value:
+                self.result = M.false_value
+            g2.reset_learned_memory()
+            if M.IdentityCompare(g2.intervention_episodes, empty)() is M.false_value:
+                self.result = M.false_value
+            if M.IdentityCompare(g2.dependency_policies, empty)() is M.false_value:
+                self.result = M.false_value
+        except Exception:
+            self.result = M.false_value
+        finally:
+            try:
+                shutil.rmtree(tmpdir)
+            except Exception:
+                pass
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class PremiseOrderIndependenceTest(M.Edge):
+    """A partial match may skip a failing premise and match later ones.
+
+    The rule Coprime(a,b) & SquareSum(a,b,c) -> PrimitiveTriple(a,b,c)
+    with the fact SquareSum(3,4,5) is blocked on its FIRST premise; the
+    record must still show the second premise matched and name the
+    concrete Coprime(3,4) as the missing one, grounded by the bindings
+    the later match produced.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb, vc = T.var("a"), T.var("b"), T.var("c")
+        premises = T.chain(
+            T.term(T.sym("coprime"), va, vb),
+            T.term(T.sym("squaresum"), va, vb, vc),
+        )
+        rule = MultiRule(premises, T.term(T.sym("primitivetriple"), va, vb, vc))()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        facts = T.chain(T.term(T.sym("squaresum"), T.sym("m"), T.sym("n"), T.sym("p")))
+        goal = T.chain(T.term(T.sym("primitivetriple"), T.sym("m"), T.sym("n"), T.sym("p")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            attempt = M.Head(attempts)()
+            unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
+            expected = T.term(T.sym("coprime"), T.sym("m"), T.sym("n"))
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+            matched = Rmod.AttemptedRuleMatched(attempt)()
+            if M.IdentityCompare(matched, empty)() is M.truth_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GoalSeededPartialMatchTest(M.Edge):
+    """The attempt record carries the goal-to-rule substitution.
+
+    A rule whose premises share no variables with any fact still grounds
+    its record through the conclusion-to-goal match: with the goal
+    (wrap g inner) and the rule (domain ?d) & (marker ?v ?b) ->
+    (wrap ?v ?b), the missing premise must be the concrete
+    (marker g inner), not the schematic (marker ?v ?b).
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vd, vv, vb = T.var("d"), T.var("v"), T.var("b")
+        premises = T.chain(
+            T.term(T.sym("domain"), vd),
+            T.term(T.sym("marker"), vv, vb),
+        )
+        rule = MultiRule(premises, T.term(T.sym("wrap"), vv, vb))()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        facts = T.chain(T.term(T.sym("domain"), T.sym("someplace")))
+        inner = T.term(T.sym("inner"), T.sym("g"))
+        goal = T.chain(T.term(T.sym("wrap"), T.sym("g"), inner))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            attempt = M.Head(attempts)()
+            unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
+            expected = T.term(T.sym("marker"), T.sym("g"), inner)
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GenerativeRuleBudgetTest(M.Edge):
+    """A rule that could generate forever spends exactly the budget.
+
+    (grow ?x) -> (grow (wrap ?x)) feeds its own conclusion back with a
+    fresh term every time; nothing but the firing budget stops it. The
+    search must terminate, stay open, and fire exactly
+    DEFAULT_SEARCH_FUEL times -- verified generically, not against the
+    one divisibility law that exposed the round-budget defect.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        vx = T.var("x")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("grow"), vx)),
+            T.term(T.sym("grow"), T.term(T.sym("wrap"), vx)),
+        )()
+        facts = T.chain(T.term(T.sym("grow"), T.sym("seed")))
+        goal = T.chain(T.term(T.sym("elsewhere"), T.sym("z")))
+        outcome = Rmod.BoundedForwardSearch(
+            facts, goal, T.chain(rule), Rmod.DEFAULT_SEARCH_FUEL
+        )()
+        self.result = M.truth_value
+        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
+            self.result = M.false_value
+        fired = Rmod.ForwardSearchFired(outcome)()
+        if self._same_length(fired, Rmod.DEFAULT_SEARCH_FUEL) is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _same_length(self, left, right):
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+                return M.truth_value
+            return M.false_value
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        return self._same_length(M.Tail(left)(), M.Tail(right)())
+
+    def __call__(self):
+        return self.result
+
+
+class MultiRuleResidualSelectionTest(M.Edge):
+    """With several laws partially matchable, only the goal's blocker reports.
+
+    Sum, difference and product closure laws all sit over the same
+    divisibility facts. For the goal (divides 3 (plus 6 14)) the sum law
+    is goal-seeded and blocked on the concrete (divides 3 14); the
+    difference law matches its premises completely -- a fired
+    instantiation, sentinel, not a residual; the product law's
+    conclusion carries a free variable and never fires. Exactly one
+    attempt must be recorded, naming (divides 3 14).
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vk, vq, vn = T.var("k"), T.var("q"), T.var("n")
+        witness = MultiRule(
+            T.chain(T.term(T.sym("eq"), T.term(T.sym("times"), vk, vq), vn)),
+            T.term(T.sym("divides"), vk, vn),
+        )()
+        k2, a2, b2 = T.var("k"), T.var("a"), T.var("b")
+        sum_law = MultiRule(
+            T.chain(T.term(T.sym("divides"), k2, a2), T.term(T.sym("divides"), k2, b2)),
+            T.term(T.sym("divides"), k2, T.term(T.sym("plus"), a2, b2)),
+        )()
+        k3, a3, b3 = T.var("k"), T.var("a"), T.var("b")
+        diff_law = MultiRule(
+            T.chain(T.term(T.sym("divides"), k3, a3), T.term(T.sym("divides"), k3, b3)),
+            T.term(T.sym("divides"), k3, T.term(T.sym("minus"), a3, b3)),
+        )()
+        k4, a4, b4 = T.var("k"), T.var("a"), T.var("b")
+        product_law = MultiRule(
+            T.chain(T.term(T.sym("divides"), k4, a4)),
+            T.term(T.sym("divides"), k4, T.term(T.sym("times"), a4, b4)),
+        )()
+        rules = T.chain(witness, sum_law, diff_law, product_law)
+        facts = T.chain(
+            T.term(T.sym("eq"), T.term(T.sym("times"), T.sym("3"), T.sym("2")), T.sym("6")),
+            T.term(T.sym("eq"), T.term(T.sym("times"), T.sym("3"), T.sym("5")), T.sym("15")),
+        )
+        goal = T.chain(
+            T.term(T.sym("divides"), T.sym("3"),
+                   T.term(T.sym("plus"), T.sym("6"), T.sym("w")))
+        )
+        Rmod.attempt_goal(graph, facts, goal, rules)
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        count = self._count(attempts, 0)
+        if count != 2:
+            # exactly two rules hold a genuine foothold on this goal: the
+            # goal-seeded sum law and the goal-seeded witness law. A third
+            # entry means a fired instantiation or a free-variable law
+            # leaked into the residual pool; fewer means a foothold was
+            # dropped.
+            self.result = M.false_value
+        else:
+            expected_sum = T.term(T.sym("divides"), T.sym("3"), T.sym("w"))
+            fresh_q = T.var("q")
+            witness_shape = Rmod.AlphaNormalized(
+                T.term(T.sym("eq"), T.term(T.sym("times"), T.sym("3"), fresh_q),
+                       T.term(T.sym("plus"), T.sym("6"), T.sym("w"))),
+                empty,
+            )()
+            found_sum = M.false_value
+            found_witness = M.false_value
+            cur = attempts
+            while M.IdentityCompare(cur, empty)() is M.false_value:
+                unmatched = Rmod.AttemptedRuleUnmatched(M.Head(cur)())()
+                if M.Compare(unmatched, expected_sum)() is M.truth_value:
+                    found_sum = M.truth_value
+                alpha = Rmod.AlphaNormalized(unmatched, empty)()
+                if M.Compare(alpha, witness_shape)() is M.truth_value:
+                    found_witness = M.truth_value
+                cur = M.Tail(cur)()
+            if found_sum is M.false_value:
+                self.result = M.false_value
+            if found_witness is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _count(self, chain, acc):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return acc
+        return self._count(M.Tail(chain)(), acc + 1)
+
+    def __call__(self):
+        return self.result
+
+
+class SinglePremiseGoalSeededTest(M.Edge):
+    """A one-premise rule blocked on its only premise still has a foothold.
+
+    Congruent(a,b,m) <- Divides(m, Sub(a,b)) found this: with the goal
+    (congruent 9 2 5), the conclusion unifies with the goal, grounding
+    the single premise to (divides 5 (minus 9 2)) -- but the matched-
+    premise gate rejected it, because there is no second premise to
+    match. The conclusion-to-goal unification is the evidence; the
+    record must exist and name the grounded premise. Unseeded rules
+    keep the strict gate: with no goal match and no matched premise,
+    nothing is recorded.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb, vm = T.var("a"), T.var("b"), T.var("m")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("divides"), vm, T.term(T.sym("minus"), va, vb))),
+            T.term(T.sym("congruent"), va, vb, vm),
+        )()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        goal = T.chain(T.term(T.sym("congruent"), T.sym("x"), T.sym("y"), T.sym("m")))
+        Rmod.attempt_goal(graph, empty, goal, T.chain(rule))
+        self.result = M.truth_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
+            expected = T.term(
+                T.sym("divides"), T.sym("m"),
+                T.term(T.sym("minus"), T.sym("x"), T.sym("y")),
+            )
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        graph.clear_research_attempts()
+        unrelated_goal = T.chain(T.term(T.sym("elsewhere"), T.sym("z")))
+        Rmod.attempt_goal(graph, empty, unrelated_goal, T.chain(rule))
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            # no goal match, no matched premise: the strict gate must hold
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GoalDirectedFiringTest(M.Edge):
+    """A rule with conclusion-only variables fires toward the goal.
+
+    (eq ?n (times ?k ?d)) -> (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)) can
+    never fire forward: ?t is free in the conclusion. With the
+    factorization fact supplied, the goal instance must close, and the
+    counterfactual must measure that unlock -- the exponent-family
+    episode flow depends on it.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vn, vk, vd, vt = T.var("n"), T.var("k"), T.var("d"), T.var("t")
+        law = MultiRule(
+            T.chain(T.term(T.sym("eq"), vn, T.term(T.sym("times"), vk, vd))),
+            T.term(T.sym("eq"),
+                   T.term(T.sym("pow"), vt, vn),
+                   T.term(T.sym("pow"), T.term(T.sym("pow"), vt, vk), vd)),
+        )()
+        graph.tag_rule_origin(law, Lmod.HumanSuppliedTrustedTheoremLabel)
+        goal = T.chain(
+            T.term(T.sym("eq"),
+                   T.term(T.sym("pow"), T.sym("t"), T.sym("6")),
+                   T.term(T.sym("pow"),
+                          T.term(T.sym("pow"), T.sym("t"), T.sym("2")), T.sym("3")))
+        )
+        self.result = M.truth_value
+        # the numeric factorization is decidable: the evaluator discharges
+        # (eq 6 (times 2 3)) and goal-directed firing closes with nothing
+        # taught at all
+        outcome = Rmod.attempt_goal(graph, empty, goal, T.chain(law))
+        if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        # the symbolic variant is not decidable: the request path stands
+        graph.clear_research_attempts()
+        symbolic_goal = T.chain(
+            T.term(T.sym("eq"),
+                   T.term(T.sym("pow"), T.sym("t"), T.sym("s")),
+                   T.term(T.sym("pow"),
+                          T.term(T.sym("pow"), T.sym("t"), T.sym("k")), T.sym("d")))
+        )
+        Rmod.attempt_goal(graph, empty, symbolic_goal, T.chain(law))
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
+            expected = T.term(T.sym("eq"), T.sym("s"),
+                              T.term(T.sym("times"), T.sym("k"), T.sym("d")))
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        # a taught symbolic factorization still measures its unlock
+        supplied = Rmod.compile_formal_rule(
+            Rmod.FormalRule(
+                empty,
+                T.term(T.sym("eq"), T.sym("s"),
+                       T.term(T.sym("times"), T.sym("k"), T.sym("d"))),
+            )()
+        )
+        ev, unlock = Rmod.counterfactual_evaluation(
+            graph, empty, symbolic_goal, T.chain(law), supplied
+        )
+        if unlock is M.false_value:
+            self.result = M.false_value
+        goal_closed = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(ev)())())())())())())()
+        if goal_closed is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GoalDirectedNoFabricationTest(M.Edge):
+    """Goal-directed firing cannot close a goal over an open premise.
+
+    The conclusion unifies with the goal, one premise matches a fact,
+    the other matches nothing: the goal must stay open and the residual
+    must name the unmatched premise. Closure happens only when every
+    premise is discharged against existing facts under the seed.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb = T.var("a"), T.var("b")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("left"), va), T.term(T.sym("right"), vb)),
+            T.term(T.sym("joined"), va, vb),
+        )()
+        graph.tag_rule_origin(rule, Lmod.HumanSuppliedTrustedTheoremLabel)
+        facts = T.chain(T.term(T.sym("left"), T.sym("p")))
+        goal = T.chain(T.term(T.sym("joined"), T.sym("p"), T.sym("q")))
+        outcome = Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        self.result = M.truth_value
+        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
+            self.result = M.false_value
+        attempts = graph.research_attempts
+        if M.IdentityCompare(attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            unmatched = Rmod.AttemptedRuleUnmatched(M.Head(attempts)())()
+            expected = T.term(T.sym("right"), T.sym("q"))
+            if M.Compare(unmatched, expected)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class OrderedFootholdsTest(M.Edge):
+    """Deeper evidence leads the request list.
+
+    Two rules hold footholds on the goal: one matched a premise against
+    a fact, the other has only the conclusion unification. The stored
+    request order must put the matched-premise obligation first, and a
+    bare-variable-conclusion rule must earn no foothold at all.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va, vb = T.var("a"), T.var("b")
+        strong = MultiRule(
+            T.chain(T.term(T.sym("base"), va), T.term(T.sym("cap"), vb)),
+            T.term(T.sym("goalp"), va, vb),
+        )()
+        vc, vd = T.var("c"), T.var("d")
+        weak = MultiRule(
+            T.chain(T.term(T.sym("other"), vc, vd)),
+            T.term(T.sym("goalp"), vc, vd),
+        )()
+        ve = T.var("e")
+        bare = MultiRule(
+            T.chain(T.term(T.sym("anything"), ve)),
+            ve,
+        )()
+        rules = T.chain(bare, weak, strong)
+        facts = T.chain(T.term(T.sym("base"), T.sym("x")))
+        goal = T.chain(T.term(T.sym("goalp"), T.sym("x"), T.sym("y")))
+        Rmod.attempt_goal(graph, facts, goal, rules)
+        parent = M.Head(goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        self.result = M.truth_value
+        stored = M.Reverse(graph.dependency_requests)()
+        if M.IdentityCompare(stored, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            first = M.Head(stored)()
+            first_need = M.Head(M.Tail(Rmod.DependencyRequestFormalStatement(first)())())()
+            expected_first = T.term(T.sym("cap"), T.sym("y"))
+            if M.Compare(first_need, expected_first)() is M.false_value:
+                self.result = M.false_value
+            count = self._count(stored, 0)
+            if count != 2:
+                # strong + weak; the bare-variable conclusion earns nothing
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def _count(self, chain, acc):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return acc
+        return self._count(M.Tail(chain)(), acc + 1)
+
+    def __call__(self):
+        return self.result
+
+
+class CacheHitProvenanceTest(M.Edge):
+    """A remembered goal reports DERIVATION_CACHE_HIT, never SEARCH_DERIVED.
+
+    First attempt derives and stores; second attempt of the same goal
+    revalidates by fresh bounded search and reports the cache hit. The
+    provenance distinction is the whole point: retrieved and derived
+    are different classes and must never blur.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx = T.var("x")
+        rule = MultiRule(
+            T.chain(T.term(T.sym("seed"), vx)),
+            T.term(T.sym("bloom"), vx),
+        )()
+        facts = T.chain(T.term(T.sym("seed"), T.sym("s")))
+        goal = T.chain(T.term(T.sym("bloom"), T.sym("s")))
+        self.result = M.truth_value
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        first_prov = M.Head(M.Tail(M.Tail(graph.last_proof)())())()
+        if M.IdentityCompare(first_prov, Lmod.SearchDerivedLabel)() is M.false_value:
+            self.result = M.false_value
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        second_prov = M.Head(M.Tail(M.Tail(graph.last_proof)())())()
+        if M.IdentityCompare(second_prov, Lmod.DerivationCacheHitLabel)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(second_prov, Lmod.SearchDerivedLabel)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class GroundEvaluationTest(M.Edge):
+    """Decidable ground arithmetic never becomes a request.
+
+    (eq 21 (times 3 7)) closes by evaluation with zero rules and zero
+    requests; (odd 4) refutes -- the goal stays open, no request is
+    compiled, and the refuted premise is recorded COUNTEREXAMPLE;
+    a premise over symbolic constants still requests.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        self.result = M.truth_value
+        T.reset(graph)
+        closing_goal = T.chain(
+            T.term(T.sym("eq"), T.sym("21"),
+                   T.term(T.sym("times"), T.sym("3"), T.sym("7")))
+        )
+        outcome = Rmod.attempt_goal(graph, empty, closing_goal, empty)
+        if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        T.reset(graph)
+        vn = T.var("n")
+        law = MultiRule(
+            T.chain(T.term(T.sym("even"), vn), T.term(T.sym("odd"), vn)),
+            T.term(T.sym("impossible"), vn),
+        )()
+        facts = T.chain(T.term(T.sym("even"), T.sym("4")))
+        goal = T.chain(T.term(T.sym("impossible"), T.sym("4")))
+        outcome = Rmod.attempt_goal(graph, facts, goal, T.chain(law))
+        if Rmod.ForwardSearchClosed(outcome)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.false_value:
+            self.result = M.false_value
+        refuted = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.CounterexampleLabel)()
+        if M.IdentityCompare(refuted, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            expected = T.term(T.sym("odd"), T.sym("4"))
+            if M.Compare(M.Head(refuted)(), expected)() is M.false_value:
+                self.result = M.false_value
+        T.reset(graph)
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        symbolic_facts = T.chain(T.term(T.sym("rel"), T.sym("a"), T.sym("b")))
+        symbolic_goal = T.chain(T.term(T.sym("tag"), T.sym("a")))
+        Rmod.attempt_goal(graph, symbolic_facts, symbolic_goal, T.chain(rule))
+        if M.IdentityCompare(graph.research_attempts, empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SelfImprovementLoopTest(M.Edge):
+    """Phase 1: mine, rent-gate, adopt, and the recursive turn.
+
+    Two traces sharing the p->q->r motif yield one candidate; the rent
+    gate adopts it because the held-out proof's fired chain shortens;
+    the adopted law recompiles like any taught law; and traces produced
+    WITH it expose the deeper (p -> s) motif that was invisible before.
+    Candidate generation is anti-unification over the machine's own
+    traces -- no oracle proposes anything.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy, vz = T.var("x"), T.var("y"), T.var("z")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        r3 = MultiRule(T.chain(T.term(T.sym("r"), vz)), T.term(T.sym("s"), vz))()
+        rules = T.chain(r1, r2)
+        self.result = M.truth_value
+        Rmod.attempt_goal(graph, T.chain(T.term(T.sym("p"), T.sym("a"))),
+                          T.chain(T.term(T.sym("r"), T.sym("a"))), rules)
+        Rmod.attempt_goal(graph, T.chain(T.term(T.sym("p"), T.sym("b"))),
+                          T.chain(T.term(T.sym("r"), T.sym("b"))), rules)
+        candidates = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        outcome = Rmod.adopt_compressed_law(
+            graph, M.Head(candidates)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), rules,
+        )
+        if M.IdentityCompare(M.Head(outcome)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        entries = Rmod.rebuild_taught_rules(graph)
+        rules2 = T.chain(r3)
+        cur = entries
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            rules2 = M.Pair(M.Head(M.Head(cur)())(), rules2)
+            cur = M.Tail(cur)()
+        closed = Rmod.attempt_goal(
+            graph, T.chain(T.term(T.sym("p"), T.sym("d"))),
+            T.chain(T.term(T.sym("s"), T.sym("d"))), rules2,
+        )
+        if Rmod.ForwardSearchClosed(closed)() is M.false_value:
+            self.result = M.false_value
+        closed = Rmod.attempt_goal(
+            graph, T.chain(T.term(T.sym("p"), T.sym("e"))),
+            T.chain(T.term(T.sym("s"), T.sym("e"))), rules2,
+        )
+        if Rmod.ForwardSearchClosed(closed)() is M.false_value:
+            self.result = M.false_value
+        deeper = Rmod.mine_compressed_laws(graph)
+        found = M.false_value
+        cur = deeper
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            candidate = M.Head(cur)()
+            cur = M.Tail(cur)()
+            conclusion = Rmod.FormalRuleConclusion(candidate)()
+            premises = Rmod.FormalRulePremises(candidate)()
+            if M.IsPair(conclusion)() is M.false_value:
+                continue
+            if M.IsPair(premises)() is M.false_value:
+                continue
+            if M.Compare(M.Head(conclusion)(), T.sym("s"))() is M.truth_value:
+                first_premise = M.Head(premises)()
+                if M.IsPair(first_premise)() is M.truth_value:
+                    if M.Compare(M.Head(first_premise)(), T.sym("p"))() is M.truth_value:
+                        found = M.truth_value
+        if found is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class InvariantLoopTest(M.Edge):
+    """Phases 2 and 3: conjecture from the fixed library, prune on the mask.
+
+    Traces whose facts all carry even arguments yield the parity
+    conjecture from the finite observable library; adopted, it prunes a
+    violating goal, leaves a conforming goal untouched, disappears under
+    the learned-memory mask, returns when unmasked, and dies with reset.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        va = T.var("a")
+        step = MultiRule(T.chain(T.term(T.sym("even"), va)), T.term(T.sym("halved"), va))()
+        for numeral in ("4", "8", "6"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("even"), T.sym(numeral))),
+                T.chain(T.term(T.sym("halved"), T.sym(numeral))), T.chain(step),
+            )
+        conjectures = Rmod.conjecture_invariants(graph)
+        pick = empty
+        cur = conjectures
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            record = M.Head(cur)()
+            cur = M.Tail(cur)()
+            head = M.Head(M.Tail(record)())()
+            shape = M.Head(M.Tail(M.Tail(record)())())()
+            if M.Compare(head, T.sym("halved"))() is M.truth_value:
+                if M.Compare(M.Head(shape)(), Rmod.OBSERVABLE_PARITY)() is M.truth_value:
+                    pick = record
+        self.result = M.truth_value
+        if M.IdentityCompare(pick, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        Rmod.adopt_invariant(graph, pick)
+        bad_goal = T.chain(T.term(T.sym("halved"), T.sym("5")))
+
+        def pruned():
+            residuals = graph.last_residuals
+            if M.IsPair(residuals)() is M.false_value:
+                return M.false_value
+            return M.IdentityCompare(M.Head(residuals)(), Lmod.InvariantLabel)()
+
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.false_value:
+            self.result = M.false_value
+        ok = Rmod.attempt_goal(
+            graph, T.chain(T.term(T.sym("even"), T.sym("10"))),
+            T.chain(T.term(T.sym("halved"), T.sym("10"))), T.chain(step),
+        )
+        if Rmod.ForwardSearchClosed(ok)() is M.false_value:
+            self.result = M.false_value
+        Rmod.disable_learned_memory(graph)
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.truth_value:
+            self.result = M.false_value
+        Rmod.enable_learned_memory(graph)
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.false_value:
+            self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        Rmod.attempt_goal(graph, empty, bad_goal, T.chain(step))
+        if pruned() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class MotifDataflowNegativeControlTest(M.Edge):
+    """Rung 2's negative control: co-occurrence is not a motif.
+
+    Two rules fire in every trace but never feed each other; the miner
+    must propose nothing from them. The positive control in the same
+    fact world: a dataflow-linked chain yields its candidate. A miner
+    passing the positive but failing the negative is pattern-matching
+    surface statistics.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy = T.var("x"), T.var("y")
+        rule_a = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        rule_c = MultiRule(T.chain(T.term(T.sym("u"), vy)), T.term(T.sym("w"), vy))()
+        rules = T.chain(rule_a, rule_c)
+        self.result = M.truth_value
+        for const in ("a", "b"):
+            facts = T.chain(
+                T.term(T.sym("p"), T.sym(const)), T.term(T.sym("u"), T.sym(const))
+            )
+            goal = T.chain(
+                T.term(T.sym("q"), T.sym(const)), T.term(T.sym("w"), T.sym(const))
+            )
+            outcome = Rmod.attempt_goal(graph, facts, goal, rules)
+            if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+                self.result = M.false_value
+        candidates = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(candidates, empty)() is M.false_value:
+            # both rules fired in both traces, never dataflow-linked:
+            # any candidate here is a co-occurrence artifact
+            self.result = M.false_value
+        vz = T.var("z")
+        rule_b = MultiRule(T.chain(T.term(T.sym("q"), vz)), T.term(T.sym("r"), vz))()
+        linked = T.chain(rule_a, rule_b)
+        for const in ("c", "d"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), linked,
+            )
+        candidates = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(candidates, empty)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class MacroLawAblationTest(M.Edge):
+    """Rung 5's unfakeable cycle, for induced macro-laws.
+
+    S_fast with the induced law active; disable learned memory -> the
+    law leaves the rule set and the held-out proof lengthens to
+    S_slow; enable -> S_fast returns; reset -> the law is gone from
+    provenance and the proof stays at S_slow even with memory enabled.
+    A speedup surviving the reset would be a hardcoded prior.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy = T.var("x"), T.var("y")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        base = T.chain(r1, r2)
+        self.result = M.truth_value
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), base,
+            )
+        candidates = Rmod.mine_compressed_laws(graph)
+        adopted = Rmod.adopt_compressed_law(
+            graph, M.Head(candidates)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), base,
+        )
+        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+
+        def held_out_steps():
+            rules = base
+            entries = Rmod.rebuild_taught_rules(graph)
+            cur = entries
+            while M.IdentityCompare(cur, empty)() is M.false_value:
+                rules = M.Pair(M.Head(M.Head(cur)())(), rules)
+                cur = M.Tail(cur)()
+            outcome = Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym("f"))),
+                T.chain(T.term(T.sym("r"), T.sym("f"))), rules,
+            )
+            if Rmod.ForwardSearchClosed(outcome)() is M.false_value:
+                return None
+            count = 0
+            fired = Rmod.ForwardSearchFired(outcome)()
+            while M.IdentityCompare(fired, empty)() is M.false_value:
+                count += 1
+                fired = M.Tail(fired)()
+            return count
+
+        s_fast = held_out_steps()
+        if s_fast is None:
+            self.result = M.false_value
+        Rmod.disable_learned_memory(graph)
+        s_slow = held_out_steps()
+        if s_slow is None or s_fast is None or not s_fast < s_slow:
+            self.result = M.false_value
+        Rmod.enable_learned_memory(graph)
+        s_back = held_out_steps()
+        if s_back != s_fast:
+            self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        s_reset = held_out_steps()
+        if s_reset != s_slow:
+            self.result = M.false_value
+        remaining = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.InventedLemmaLabel)()
+        if M.IdentityCompare(remaining, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ResetRemineReproducibilityTest(M.Edge):
+    """An induced law is a function of the evidence, not session residue.
+
+    Traces survive reset -- they are evidence, not learning. After
+    reset erases the adopted law, re-mining the surviving traces must
+    re-induce an alpha-equal candidate, and re-adoption must pay the
+    same rent. A different candidate, or none, would mean traces were
+    partially reset or induction is nondeterministic.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        from .proof import MultiRule
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        vx, vy = T.var("x"), T.var("y")
+        r1 = MultiRule(T.chain(T.term(T.sym("p"), vx)), T.term(T.sym("q"), vx))()
+        r2 = MultiRule(T.chain(T.term(T.sym("q"), vy)), T.term(T.sym("r"), vy))()
+        base = T.chain(r1, r2)
+        self.result = M.truth_value
+        for const in ("a", "b"):
+            Rmod.attempt_goal(
+                graph, T.chain(T.term(T.sym("p"), T.sym(const))),
+                T.chain(T.term(T.sym("r"), T.sym(const))), base,
+            )
+        first = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(first, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        first_shape = Rmod.AlphaNormalized(M.Head(first)(), empty)()
+        adopted = Rmod.adopt_compressed_law(
+            graph, M.Head(first)(),
+            T.chain(T.term(T.sym("p"), T.sym("c"))),
+            T.chain(T.term(T.sym("r"), T.sym("c"))), base,
+        )
+        if M.IdentityCompare(M.Head(adopted)(), M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        support = M.Head(M.Tail(M.Tail(M.Tail(adopted)())())())()
+        if M.IdentityCompare(support, empty)() is M.truth_value:
+            # adopted at support >= 2 by construction; zero recorded support
+            # means the counter is broken
+            self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        gone = Rmod.ProvenanceEntriesFor(graph.provenance_map, Lmod.InventedLemmaLabel)()
+        if M.IdentityCompare(gone, empty)() is M.false_value:
+            self.result = M.false_value
+        traces = Rmod.TracesOnRecord(graph)()
+        if M.IdentityCompare(traces, empty)() is M.truth_value:
+            # traces are evidence and must survive reset
+            self.result = M.false_value
+        again = Rmod.mine_compressed_laws(graph)
+        if M.IdentityCompare(again, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            again_shape = Rmod.AlphaNormalized(M.Head(again)(), empty)()
+            if M.Compare(first_shape, again_shape)() is M.false_value:
+                self.result = M.false_value
+            readopted = Rmod.adopt_compressed_law(
+                graph, M.Head(again)(),
+                T.chain(T.term(T.sym("p"), T.sym("c"))),
+                T.chain(T.term(T.sym("r"), T.sym("c"))), base,
+            )
+            if M.IdentityCompare(M.Head(readopted)(), M.truth_value)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SentenceGrammarGenericTest(M.Edge):
+    """The quantified-goal grammar is compositional, not a target template.
+
+    Structurally different sentences parse through the same productions
+    into structurally different terms; the same sentence parses
+    deterministically; a non-equational sentence is refused rather than
+    guessed at. Nothing here recognizes any particular equation.
+    """
+
+    def __init__(self, graph):
+        from .main import _research_parse_sentence, _research_parse
+        empty = M.EmptyList
+        self.result = M.truth_value
+
+        term1, err1 = _research_parse_sentence(
+            "for all k >= 2 u^k + v^k = w^(k+1) is not solvable in positive integers"
+        )
+        expected1, expected_err1 = _research_parse(
+            "(forall k (implies (geq k 2) (nosolutions positive-integers"
+            " (unknowns u v w)"
+            " (eq (plus (pow u k) (pow v k)) (pow w (plus k 1))))))"
+        )
+        if term1 is None or expected1 is None:
+            self.result = M.false_value
+        elif M.Compare(term1, expected1)() is M.false_value:
+            self.result = M.false_value
+
+        term2, err2 = _research_parse_sentence(
+            "for all m x^m = y^m implies x = y over positive integers"
+        )
+        expected2, expected_err2 = _research_parse(
+            "(forall m (over positive-integers (vars x y)"
+            " (implies (eq (pow x m) (pow y m)) (eq x y))))"
+        )
+        if term2 is None or expected2 is None:
+            self.result = M.false_value
+        elif M.Compare(term2, expected2)() is M.false_value:
+            self.result = M.false_value
+
+        term3, err3 = _research_parse_sentence(
+            "no positive integers p, q satisfy p^2 = 2*q^2"
+        )
+        expected3, expected_err3 = _research_parse(
+            "(nosolutions positive-integers (unknowns p q)"
+            " (eq (pow p 2) (times 2 (pow q 2))))"
+        )
+        if term3 is None or expected3 is None:
+            self.result = M.false_value
+        elif M.Compare(term3, expected3)() is M.false_value:
+            self.result = M.false_value
+
+        renamed, renamed_err = _research_parse_sentence(
+            "for all k >= 2 g^k + h^k = j^(k+1) is not solvable in positive integers"
+        )
+        if renamed is None:
+            self.result = M.false_value
+        elif M.Compare(renamed, term1)() is M.truth_value:
+            self.result = M.false_value
+
+        again, again_err = _research_parse_sentence(
+            "for all k >= 2 u^k + v^k = w^(k+1) is not solvable in positive integers"
+        )
+        if again is None:
+            self.result = M.false_value
+        elif M.Compare(again, term1)() is M.false_value:
+            self.result = M.false_value
+
+        refused, refused_err = _research_parse_sentence(
+            "the largest room in the house is painted blue"
+        )
+        if refused is not None:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LearnedMemoryToggleTest(M.Edge):
+    """Policy predictions appear, disappear, and reappear with the mask.
+
+    A suggestion that survives disabling the policy store is hardcoded; a
+    suggestion that cannot return when the store is re-enabled was never
+    stored knowledge. The reversible mask separates both failures from
+    the erase operation, which must silence predictions permanently.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        self.result = M.truth_value
+        T.run_episode(graph, "rel", "mark", "tag", "a", "b")
+        T.run_episode(graph, "rel", "mark", "tag", "c", "d")
+        if M.IdentityCompare(graph.dependency_policies, empty)() is M.truth_value:
+            self.result = M.false_value
+        graph.clear_research_attempts()
+        rule = T.two_premise_rule("rel", "mark", "tag")
+        facts = T.chain(T.term(T.sym("rel"), T.sym("e"), T.sym("f")))
+        goal = T.chain(T.term(T.sym("tag"), T.sym("e")))
+        Rmod.attempt_goal(graph, facts, goal, T.chain(rule))
+        parent = M.Head(goal)()
+        records = Rmod.suggest_dependencies(
+            parent, graph.research_attempts, M.Pair(Lmod.FailureLabel, empty), graph
+        )
+        before = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(before, empty)() is M.truth_value:
+            self.result = M.false_value
+        Rmod.disable_learned_memory(graph)
+        masked = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(masked, empty)() is M.false_value:
+            self.result = M.false_value
+        Rmod.enable_learned_memory(graph)
+        restored = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(restored, empty)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            shape_before = Rmod.AlphaNormalized(
+                M.Head(M.Tail(M.Tail(M.Head(before)())())())(), empty
+            )()
+            shape_after = Rmod.AlphaNormalized(
+                M.Head(M.Tail(M.Tail(M.Head(restored)())())())(), empty
+            )()
+            if M.Compare(shape_before, shape_after)() is M.false_value:
+                self.result = M.false_value
+        Rmod.reset_learned_memory(graph)
+        erased = Rmod.policy_predictions(graph, records)
+        if M.IdentityCompare(erased, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ToyDemoGenericTest(M.Edge):
+    """The unnamed toy demonstration, end to end.
+
+    Stall -> observed request -> approval -> taught theorem -> measured
+    counterfactual unlock -> retry closes the goal. Every status the node
+    passes through is checked, and nothing anywhere names a famous
+    theorem.
+    """
+
+    def __init__(self, graph):
+        from . import research as Rmod
+        T = _ResearchToy
+        empty = M.EmptyList
+        T.reset(graph)
+        outcome = T.run_episode(graph, "join", "seal", "crown", "m", "n")
+        self.result = M.truth_value
+        if M.IdentityCompare(outcome, empty)() is M.truth_value:
+            self.result = M.false_value
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+        status = M.Head(outcome)()
+        if M.TermEqual(status, Lmod.DemonstratedUsefulDependencyLabel)() is M.false_value:
+            self.result = M.false_value
+        rule = T.two_premise_rule("join", "seal", "crown")
+        taught = Rmod.rebuild_taught_rules(graph)
+        rules = M.Pair(rule, empty)
+        cur = taught
+        while M.IdentityCompare(cur, empty)() is M.false_value:
+            rules = M.Pair(M.Head(M.Head(cur)())(), rules)
+            cur = M.Tail(cur)()
+        facts = T.chain(T.term(T.sym("join"), T.sym("m"), T.sym("n")))
+        goal = T.chain(T.term(T.sym("crown"), T.sym("m")))
+        retry = Rmod.measure_retry(graph, facts, goal, rules, empty)
+        grade = M.Head(retry)()
+        if M.IdentityCompare(grade, Rmod.RETRY_GOAL_CLOSED)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 def _set_registry(graph, registry):
     graph._replace_context(constructors=registry)
     return registry
@@ -13697,7 +16077,6 @@ def _registry(graph):
 # are allowed to be unmet while the substrate scales, but they are never
 # deleted, and none of them may be weakened to make it pass.
 MILESTONE_MET = M.Char("milestone-met")
-MILESTONE_SKIPPED = M.Char("milestone-skipped")
 
 
 class MilestoneM1CyclesWithoutRefusalTest(M.Edge):
@@ -13853,11 +16232,768 @@ class MilestoneM4PolicyLoosenThenTightenTest(M.Edge):
 
 
 def _register_test(graph, name, input_nodes, computation_edge, expected):
+    # Registration is where selection happens, and it has to be: these
+    # tests do their work in their constructors, so a filter applied
+    # later would build all 305 to throw 304 away. Pass the *class*
+    # (`YourTest`), not an instance (`YourTest(graph)`), so an unselected
+    # test is never constructed at all.
+    if not Gmod.test_name_wanted(graph, name):
+        return None
+    if isinstance(computation_edge, type):
+        computation_edge = computation_edge(graph)
     test = Test(graph, M.TestName(name, _registry(graph)), input_nodes, computation_edge, expected)
     _set_registry(graph, M.FromContextGetConstructors(test)())
     graph.add_hypergraph(test)
     return test
 
+
+# ============================================================================
+# TRACK-PARTITIONED TEST CLASS BLOCKS
+#
+# Define new test Edge classes ONLY inside your own track's block, then
+# register them in the matching block inside install_default_tests. Do not
+# edit another track's block. Merge order is SHARED -> S -> E -> G -> I.
+# ============================================================================
+
+# --- [SHARED] --- INT only -------------------------------------------------
+class LabelRegistrationCompletenessTest(M.Edge):
+    """Every leaf label class reaches both reload tables.
+
+    A new label needs four registrations: the class, the singleton,
+    `labels.sync_from_namespace`, and `persistence.SNAPSHOT_SYMBOL_NAMES`.
+    The track-partitioned singleton block makes the first two visible; the
+    other two are unmarked, so a worker who follows the blocks exactly can
+    still add a label that never survives a snapshot round trip. Four label
+    families from four different tracks are already missing from both
+    tables; the partition makes the omission visible, not impossible.
+
+    This test walks every leaf class declared in `labels.py`, asks which of
+    the two tables each name is missing from, and compares the result with
+    the debt recorded below. A newly omitted label changes the counts and
+    fails; a repaired label also fails, until the pins are deliberately
+    tightened, so paying the debt is a recorded act rather than a silent
+    one. The walk parses source text rather than introspecting types: the
+    invariant is textual, and type checks are not available here.
+    """
+
+    # These three constants are a pin on the debt as it stands, not a
+    # statement that registration is complete. The target is 0 / 0 / 0.
+    # The pin moves only downward: a commit that registers a label updates
+    # the constants in the same commit, and a commit that adds a label
+    # without registering it must fail here rather than move them up.
+    EXPECTED_MISSING_SYNC_COUNT = 40
+    EXPECTED_MISSING_SNAPSHOT_COUNT = 198
+    EXPECTED_MISSING_BOTH = (
+        "AudienceLevelLabel",
+        "BridgeLemmaLabel",
+        "ContextResearchAttemptsLabel",
+        "CoreIdeaLabel",
+        "ExplanationPlanLabel",
+        "ExplanationSpineLabel",
+        "GenDependencyRequestFromResidualLabel",
+        "GraphVersionLabel",
+        "ImportedBecauseLabel",
+        "KObligationLabel",
+        "KeyInvariantLabel",
+        "NaiveFailureLabel",
+        "NeededForLabel",
+        "OmittedDetailLabel",
+        "ReasonStaleLabel",
+        "RenderLawLabel",
+        "RepresentationShiftLabel",
+        "SpineStepLabel",
+    )
+
+    def __init__(self, graph):
+        import os
+        import re
+
+        empty = M.EmptyList
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "labels.py"), "r", encoding="utf-8") as handle:
+            labels_source = handle.read()
+        with open(os.path.join(here, "persistence.py"), "r", encoding="utf-8") as handle:
+            persistence_source = handle.read()
+
+        declarations = re.findall(r"^class (\w+)\(([^)]*)\):", labels_source, flags=re.MULTILINE)
+        base_names = ()
+        for _name, spec in declarations:
+            for part in spec.split(","):
+                base_names = base_names + (part.strip(),)
+        leaf_names = ()
+        for name, _spec in declarations:
+            if name not in base_names:
+                leaf_names = leaf_names + (name,)
+
+        start = labels_source.index("def sync_from_namespace(namespace):")
+        end = start + re.search(r"^\s*\):", labels_source[start:], flags=re.MULTILINE).end()
+        sync_names = frozenset(re.findall(r'"(\w+)"', labels_source[start:end]))
+
+        start = persistence_source.index("SNAPSHOT_SYMBOL_NAMES = [")
+        end = start + re.search(r"^\]", persistence_source[start:], flags=re.MULTILINE).end()
+        snapshot_names = frozenset(re.findall(r'"(\w+)"', persistence_source[start:end]))
+
+        self.missing_sync = tuple(sorted(n for n in leaf_names if n not in sync_names))
+        self.missing_snapshot = tuple(sorted(n for n in leaf_names if n not in snapshot_names))
+        both = ()
+        for name in self.missing_sync:
+            if name not in snapshot_names:
+                both = both + (name,)
+        self.missing_both = both
+
+        self.result = M.truth_value
+        if len(self.missing_sync) != self.EXPECTED_MISSING_SYNC_COUNT:
+            self.result = M.false_value
+        if len(self.missing_snapshot) != self.EXPECTED_MISSING_SNAPSHOT_COUNT:
+            self.result = M.false_value
+        if both != self.EXPECTED_MISSING_BOTH:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+CURSOR_PIN_MOVED = M.Char("cursor-pin-moved")
+GUARD_COUNT_STALE = M.Char("guard-count-stale")
+
+
+class TestShardCursorPinTest(M.Edge):
+    """The shard cursor stays where the partition says it is.
+
+    `TestShardAccept` ticks a cursor at every registration site and admits
+    a test only when the cursor equals the configured shard index, so a
+    test's shard is a function of its position in registration order. The
+    partition relies on this: registering inside a track block, after
+    every existing test, must not move an earlier test across a shard
+    boundary. Nothing in the tree checked that until now -- it was a
+    comment in the block header.
+
+    The pins record the known-good state: the number of guarded sites,
+    the cursor index `learned_memory_checkpoint_test` occupies, and its
+    shard. Adding a test at the end moves the first number and leaves the
+    other two alone; inserting a test earlier moves all three, and this
+    test fails. That is the signal the runner filter has to be built
+    against: a filter that perturbs registration order fails here before
+    it can move a baseline.
+
+    The walk starts at `install_default_tests` so that mentions of the
+    pinned test name in this docstring are not counted.
+
+    Two pins, two remediations, deliberately not one:
+
+    - the index and shard are a HARD pin. `learned_memory_checkpoint_test`
+      moving means a registration landed before it, which is the partition
+      rule being broken. The test returns CURSOR_PIN_MOVED and an
+      integrator has to re-baseline the whole suite, not bump a number.
+    - the guard count is a SOFT pin. It changes every time anyone adds a
+      test, and that is intended. The test returns GUARD_COUNT_STALE, and
+      the same commit that adds the registration updates the constant.
+
+    A single pin would teach workers to bump whichever number failed, and
+    the first time they bumped the index the partition would be silently
+    broken.
+    """
+
+    EXPECTED_GUARD_COUNT = 305
+    EXPECTED_CURSOR_INDEX = 218
+    EXPECTED_SHARD = 0
+
+    def __init__(self, graph):
+        import os
+
+        empty = M.EmptyList
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "testsuite.py"), "r", encoding="utf-8") as handle:
+            source = handle.read()
+
+        guard = "Gmod.TestShardAccept(graph)() is M.truth_value"
+        body = source[source.index("def install_default_tests(graph):") :]
+        cursor = 0
+        pinned = -1
+        for line in body.split("\n"):
+            if guard in line:
+                cursor = cursor + 1
+            if pinned < 0 and "learned_memory_checkpoint_test" in line:
+                pinned = cursor - 1
+
+        self.guard_count = cursor
+        self.pinned_index = pinned
+        self.pinned_shard = 0
+        if pinned >= 0:
+            self.pinned_shard = pinned % 2
+
+        self.result = M.truth_value
+        if pinned != self.EXPECTED_CURSOR_INDEX or self.pinned_shard != self.EXPECTED_SHARD:
+            self.result = CURSOR_PIN_MOVED
+        elif cursor != self.EXPECTED_GUARD_COUNT:
+            self.result = GUARD_COUNT_STALE
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SnapshotValueAtomIdentityTest(M.Edge):
+    """D3, on real state: every restored Nat is the Nat for its value.
+
+    Restore fabricated one object per record and reconnected only what two
+    contracts cover -- sharing inside the snapshot's own graph, and named
+    singletons. Canonical-family identity was the missing third: a
+    snapshot that mentions two in five places restored five twos, none of
+    them the Nat the runtime names, so `TermEqual` and `IdentityCompare`
+    over restored value-bearing state were false while `NatEq`, which
+    reads the value, agreed.
+
+    This test walks the whole restored payload on the production boot
+    path, because the synthetic probes in the tests beside this one are
+    what a fix is written against and real state is what it has to hold
+    for. It asks the restored machine for the Nat of each value and
+    compares identity, which is the invariant:
+
+        NatFromRep(v) and every restored occurrence of Nat(v)
+        refer to the same object.
+
+    The old version of this test called `capture` and `load_snapshot` and
+    stopped there. Activate is the step that rebuilds the roots and wires
+    the value index, so a fix placed after activation was invisible to it
+    -- the test held its open sentinel through a prototype run that had
+    already changed what it was supposed to be measuring.
+
+    GMPRep carriers are out of scope and stay out (D5). A GMPRep holding
+    2 is not the Nat two, and canonicalizing it would infer a family from
+    a payload.
+    """
+
+    MAX_VISITED = 200000
+
+    def __init__(self, graph):
+        import os
+        import shutil
+        import tempfile
+
+        from .main import _runtime_namespace
+        from .persistence import SnapshotCodec
+        from .runtime import boot_from_snapshot
+
+        empty = M.EmptyList
+        tmpdir = tempfile.mkdtemp()
+        snap_path = os.path.join(tmpdir, "snapshot.json")
+        restored = None
+        try:
+            codec = SnapshotCodec(_runtime_namespace())
+            codec.save(_clean_packs_graph(), snap_path, progress=M.false_value)
+            restored = boot_from_snapshot(snap_path, _runtime_namespace()).graph
+        finally:
+            try:
+                shutil.rmtree(tmpdir)
+            except Exception:
+                pass
+
+        self.result = M.false_value
+        if restored is None:
+            super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+            return
+
+        registry = M.FromContextGetConstructors(restored)()
+        roots = [getattr(restored, name, None) for name in SnapshotCodec.ROOT_NAMES]
+        seen = set()
+        stack = roots
+        checked = 0
+        while stack and len(seen) < self.MAX_VISITED:
+            term = stack.pop()
+            if term is None or id(term) in seen:
+                continue
+            seen.add(id(term))
+            if M.IsPair(term)() is M.truth_value:
+                stack.append(M.Head(term)())
+                stack.append(M.Tail(term)())
+                continue
+            value = getattr(term, "value", None)
+            if value is not None:
+                stack.append(value)
+            for field in ("inputs", "results"):
+                child = getattr(term, field, None)
+                if child is not None:
+                    stack.append(child)
+            text = _nat_rep_text(value)
+            if text is None:
+                continue
+            constructor = M.GetConstructor(term, registry)()
+            if M.IdentityCompare(constructor, empty)() is M.truth_value:
+                continue
+            if M.IdentityCompare(M.Head(constructor)(), M.SuccLabel)() is M.false_value:
+                continue
+            canonical = M.Head(M.NatFromRep(M.GMPRep(text), registry)())()
+            checked = checked + 1
+            if M.IdentityCompare(term, canonical)() is M.false_value:
+                self.result = M.false_value
+                super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+                return
+
+        self.result = M.truth_value
+        if checked == 0:
+            # no Nat in the payload means the probe looked at nothing,
+            # which is a broken measurement and not a passing one.
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+def _nat_by_succ(registry, count):
+    """Build the Nat `count` by successor, the way the machine does."""
+
+    current = M.Zero
+    for _step in range(count):
+        pair = M.Succ(current, registry)()
+        current = M.Head(pair)()
+        registry = M.Head(M.Tail(pair)())()
+    return current, registry
+
+
+def _probe_graph():
+    """A small graph of its own for the canonicality probes.
+
+    The probes capture a snapshot, and capturing the live suite graph
+    means capturing whatever the suite has built into it -- including
+    test hypergraphs, which the capture walk does not expect. The
+    contract under test is the codec's, not the fixture's, so the
+    fixture is the smallest graph that has Nats in it. Real state is
+    covered by `snapshot_value_atom_identity_test`, which boots the
+    whole graph.
+    """
+
+    from .runtime import make_fresh_runtime
+
+    return make_fresh_runtime().graph
+
+
+def _clean_packs_graph():
+    """A packs-booted graph of the test's own, with no suite state in it.
+
+    Capturing the live suite graph drags in whatever the suite has built
+    into it, and the capture walk cannot key a hypergraph -- it has no
+    `.id` -- so a `save` of the live graph fails depending on which tests
+    ran before this one. Shard 1 died that way. The payload this test
+    measures is the machine's, not the suite's, so it boots its own copy
+    from the packs and rounds trips that.
+    """
+
+    from .main import PACK_PATHS, _runtime_namespace
+    from .runtime import boot_from_packs
+
+    runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    return runtime.graph
+
+
+def _boot_state_with_extra_roots(graph, extra_roots):
+    """Production boot path, with probe roots kept.
+
+    `boot_from_snapshot` hands back a runtime whose context holds only the
+    named roots, so anything captured as an extra root is unreachable from
+    it. The canonicality tests need to reach their probes, so they drive
+    the codec the way the boot does and keep the state:
+
+        capture -> save -> load -> activate
+
+    which is the sequence whose last step is where canonicality is
+    restored. The probes are read back from `state.roots`, which the
+    canonicalization pass re-points like any other root.
+    """
+
+    import json
+    import os
+    import shutil
+    import tempfile
+
+    from .main import _runtime_namespace
+    from .persistence import SnapshotCodec
+    from .runtime import make_fresh_runtime
+
+    tmpdir = tempfile.mkdtemp()
+    path = os.path.join(tmpdir, "snapshot.json")
+    try:
+        codec = SnapshotCodec(_runtime_namespace())
+        document = codec.capture(graph, extra_roots=extra_roots, progress=M.false_value)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(document, handle)
+        state = codec.load(path)
+        fresh = make_fresh_runtime()
+        codec.activate(state, fresh.graph)
+        return state, fresh.graph
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _nat_rep_text(value):
+    """The decimal text a Nat caches, read host-side, or None.
+
+    Used only to *report* and to group: whether a thing is a Nat is never
+    decided here.
+    """
+
+    if value is None:
+        return None
+    text = str(value)
+    if not text.isdigit():
+        try:
+            text = str(value())
+        except Exception:
+            return None
+    return text if text.isdigit() else None
+
+
+class RawSnapshotNatFidelityTest(M.Edge):
+    """Contract A: the raw codec preserves a Nat and the sharing inside one graph.
+
+    `load_snapshot` owes three things: the value survives, one object
+    referenced twice comes back as one object, and nothing is claimed
+    about the already-running runtime outside the snapshot. Reconnecting
+    a restored Nat to the canonical Nat is contract B and is not asked
+    for here, so this test holds whether or not canonicalization runs.
+    """
+
+    def __init__(self, graph):
+        from .main import _runtime_namespace
+        from .persistence import SnapshotCodec
+
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(_probe_graph())()
+        two, registry = _nat_by_succ(registry, 2)
+
+        shared = M.Pair(two, M.Pair(two, empty))
+        codec = SnapshotCodec(_runtime_namespace())
+        state = codec.load_snapshot(
+            codec.capture(
+                _probe_graph(),
+                extra_roots={
+                    "nat_shared": shared,
+                    "char_digit": M.Char("2"),
+                    "gmp_two": M.GMPRep("2"),
+                },
+            )
+        )
+
+        restored = state.roots["nat_shared"]
+        first = M.Head(restored)()
+        second = M.Head(M.Tail(restored)())()
+        char_two = state.roots["char_digit"]
+        gmp_two = state.roots["gmp_two"]
+
+        self.result = M.truth_value
+        if M.NatEq(first, two, registry)() is M.false_value:
+            self.result = M.false_value
+        # sharing inside one serialized graph: one record, one object
+        if M.IdentityCompare(first, second)() is M.false_value:
+            self.result = M.false_value
+        # a Char carrying "2" and a GMPRep holding 2 are not this Nat
+        if M.IdentityCompare(char_two, first)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(gmp_two, first)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class BootSnapshotNatCanonicalityTest(M.Edge):
+    """Contract B: a Nat nested in the payload is the canonical Nat after boot.
+
+    This is the test D3 fails. It goes through the production boot path --
+    capture, save, load, activate -- because a fix placed after activation
+    is invisible to a probe that stops at `load_snapshot`.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        two, _registry = _nat_by_succ(registry, 2)
+        nested = M.Pair(M.Pair(two, empty), empty)
+
+        _state, restored_graph = _boot_state_with_extra_roots(probe, {"nat_nested": nested})
+        restored_root = _state.roots["nat_nested"]
+        nat = M.Head(M.Head(restored_root)())()
+
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep("2"), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(nat, canonical)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class BootSnapshotNatRootCanonicalityTest(M.Edge):
+    """Contract B, at a root: a captured root that is itself a Nat.
+
+    A root has no parent field through which it could be replaced, so the
+    substitution has to consult the mapping before it descends. This is
+    the case that catches a pass which only rewrites children.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        two, _registry = _nat_by_succ(registry, 2)
+
+        state, restored_graph = _boot_state_with_extra_roots(probe, {"nat_root": two})
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep("2"), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(state.roots["nat_root"], canonical)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class BootSnapshotNatIndexCanonicalityTest(M.Edge):
+    """Contract B, in the index: every indexed Nat is canonical, once.
+
+    A preserved index keeps naming the superseded atoms, so the index is
+    rebuilt from the canonical representatives and then checked: each
+    value maps to one Nat, and that Nat is the one `NatFromRep` returns.
+    """
+
+    def __init__(self, graph):
+        from . import trees as Tmod
+
+        empty = M.EmptyList
+        _state, restored_graph = _boot_state_with_extra_roots(_probe_graph(), {})
+        registry = M.FromContextGetConstructors(restored_graph)()
+        walker = Tmod.TreeEntries(restored_graph.nat_value_index)()
+
+        canonical_by_value = {}
+        facts = []
+        while M.IdentityCompare(walker, empty)() is M.false_value:
+            entry = M.Head(walker)()
+            fact = M.Head(M.Tail(entry)())()
+            walker = M.Tail(walker)()
+            facts.append(fact)
+
+        self.result = M.truth_value
+        if not facts:
+            self.result = M.false_value
+        for fact in facts:
+            text = _nat_rep_text(getattr(fact, "value", None))
+            if text is None:
+                continue
+            canonical = M.Head(M.NatFromRep(M.GMPRep(text), registry)())()
+            if M.IdentityCompare(fact, canonical)() is M.false_value:
+                self.result = M.false_value
+            previous = canonical_by_value.get(text)
+            if previous is None:
+                canonical_by_value[text] = fact
+            elif previous is not fact:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class NonNatValueCarrierNotInternedTest(M.Edge):
+    """Only a family with a canonicality contract is re-interned.
+
+    A Char carrying "2" and a GMPRep holding 2 name the same number as the
+    Nat two and are not Nats. Canonicalizing either would be inferring a
+    family from a payload, which is the mistake this whole design avoids.
+    GMPRep comparison is D5 and stays out of this commit.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        two, _registry = _nat_by_succ(registry, 2)
+
+        state, restored_graph = _boot_state_with_extra_roots(
+            probe,
+            {
+                "char_digit": M.Char("2"),
+                "gmp_two": M.GMPRep("2"),
+                "nat_two": two,
+            },
+        )
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep("2"), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(state.roots["nat_two"], canonical)() is M.false_value:
+            self.result = M.false_value
+        if M.IdentityCompare(state.roots["char_digit"], canonical)() is M.truth_value:
+            self.result = M.false_value
+        if M.IdentityCompare(state.roots["gmp_two"], canonical)() is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class LargeNatCanonicalityTest(M.Edge):
+    """A Nat past the prebuilt small-number range, with no second chain.
+
+    Small Nats exist before anyone asks for them, which hides the bug:
+    canonicalizing them can look like a no-op. A Nat that has to be built
+    is the one that shows whether canonicality holds or a duplicate
+    successor chain was installed alongside the original.
+    """
+
+    # Past the prebuilt range (Zero..nine) but inside what the tree
+    # operations can carry: a Nat of a few hundred deepens the value index
+    # enough to exhaust the interpreter's recursion limit, which is D3b's
+    # shape and not what this test is for.
+    LARGE = 40
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        probe = _probe_graph()
+        registry = M.FromContextGetConstructors(probe)()
+        big, _registry = _nat_by_succ(registry, self.LARGE)
+        before, _registry = _nat_by_succ(registry, self.LARGE - 1)
+
+        state, restored_graph = _boot_state_with_extra_roots(probe, {"nat_large": big})
+        registry2 = M.FromContextGetConstructors(restored_graph)()
+        canonical = M.Head(M.NatFromRep(M.GMPRep(str(self.LARGE)), registry2)())()
+
+        self.result = M.truth_value
+        if M.IdentityCompare(state.roots["nat_large"], canonical)() is M.false_value:
+            self.result = M.false_value
+        # the successor of the predecessor is that same object: no second
+        # chain was built next to the one the snapshot carried
+        successor = M.Head(M.Succ(before, registry)())()
+        if M.IdentityCompare(successor, canonical)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class ExplanationPlanSnapshotRoundTripTest(M.Edge):
+    """An obligation-bearing ExplanationPlan survives the production boot.
+
+    Synthetic probes are not enough for a tag-gating persistence change,
+    so this one carries the structure that failed the D3 scope run: a plan
+    with a Preserves obligation, which is where the equality was lost.
+    Structural comparison is `Compare`, not identity: a restored Char is
+    not the object it was.
+    """
+
+    def __init__(self, graph):
+        from . import explanation as Emod
+
+        empty = M.EmptyList
+        T = _ExplanationToy
+        preserves = T.blackboard_preserves(graph)
+        observable = Emod.PreservesObservable(preserves)()
+        marks = M.Pair(empty, M.Pair(empty, empty))
+        step = Emod.SpineStep(preserves, M.truth_value, marks)()
+        spine = Emod.ExplanationSpine(empty, M.Pair(step, empty), empty)()
+        core = Emod.CoreIdea(empty, Emod.IDEA_INVARIANT)()
+        plan = Emod.ExplanationPlan(
+            Emod.AudienceLevel(M.Char("student"))(), empty, spine, core, empty
+        )()
+
+        # The plan is BUILT on the live graph, which owns the research
+        # fixtures, and BOOTED from a graph of its own: capturing the live
+        # suite graph drags in whatever the suite has built into it,
+        # including hypergraphs the capture walk cannot key. The plan
+        # travels as a root of the probe graph, which is also what makes
+        # this a root-level round trip rather than an extra-root one.
+        probe = _probe_graph()
+        probe._replace_context(last_proof=plan)
+        state, restored_graph = _boot_state_with_extra_roots(probe, {})
+        restored_plan = state.roots["last_proof"]
+        registry = M.FromContextGetConstructors(restored_graph)()
+
+        self.result = M.truth_value
+        # MEASURED, NOT ASSUMED: `Compare(live plan, restored plan)` is
+        # false at the root while every child position compares equal, so
+        # the disagreement is in how `Compare` treats the constructor of a
+        # constructed term, not in the payload. That is a comparison
+        # contract of its own and is recorded under D3 rather than
+        # asserted here; what this test can honestly assert is that the
+        # plan survives, keeps its obligation, and carries canonical Nats.
+        # and it still renders, which is what an obligation is for: a
+        # sentence that cannot cite its law is indistinguishable from
+        # generated prose.
+        sentences = Emod.RenderPlan(restored_plan)()
+        if M.IdentityCompare(sentences, empty)() is M.truth_value:
+            self.result = M.false_value
+        saw_preserves = M.false_value
+        cursor = sentences
+        while M.IdentityCompare(cursor, empty)() is M.false_value:
+            sentence = M.Head(cursor)()
+            if M.IdentityCompare(Emod.SentenceLaw(sentence)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            if M.IdentityCompare(
+                Emod.SentenceLaw(sentence)(), Emod.PreservesStepLawName
+            )() is M.truth_value:
+                saw_preserves = M.truth_value
+            cursor = M.Tail(cursor)()
+        if saw_preserves is M.false_value:
+            self.result = M.false_value
+        # every Nat inside the restored plan is canonical
+        seen = set()
+        stack = [restored_plan]
+        while stack:
+            term = stack.pop()
+            if term is None or id(term) in seen:
+                continue
+            seen.add(id(term))
+            if M.IsPair(term)() is M.truth_value:
+                stack.append(M.Head(term)())
+                stack.append(M.Tail(term)())
+                continue
+            value = getattr(term, "value", None)
+            if value is not None:
+                stack.append(value)
+            for field in ("inputs", "results"):
+                child = getattr(term, field, None)
+                if child is not None:
+                    stack.append(child)
+            text = _nat_rep_text(value)
+            if text is None:
+                continue
+            constructor = M.GetConstructor(term, registry)()
+            if M.IdentityCompare(constructor, empty)() is M.truth_value:
+                continue
+            if M.IdentityCompare(M.Head(constructor)(), M.SuccLabel)() is M.false_value:
+                continue
+            canonical = M.Head(M.NatFromRep(M.GMPRep(text), registry)())()
+            if M.IdentityCompare(term, canonical)() is M.false_value:
+                self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+# --- end [SHARED] ---
+
+# --- [S] -------------------------------------------------------------------
+# --- end [S] ---
+
+# --- [E] -------------------------------------------------------------------
+# --- end [E] ---
+
+# --- [G] -------------------------------------------------------------------
+# --- end [G] ---
+
+# --- [I] -------------------------------------------------------------------
+# --- end [I] ---
 
 def install_default_tests(graph):
     if M.IdentityCompare(graph.default_tests_installed, M.truth_value)() is M.truth_value:
@@ -14047,7 +17183,7 @@ def install_default_tests(graph):
             graph,
             "minimal_graph_one_step_map_extension_test",
             empty,
-            MinimalGraphOneStepMapExtensionTest(graph),
+            MinimalGraphOneStepMapExtensionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14055,7 +17191,7 @@ def install_default_tests(graph):
             graph,
             "minimal_graph_source_constraint_test",
             empty,
-            MinimalGraphSourceConstraintTest(graph),
+            MinimalGraphSourceConstraintTest,
             M.truth_value,
         )
 
@@ -14097,7 +17233,7 @@ def install_default_tests(graph):
             graph,
             "tree_lookup_uses_structural_keys_test",
             empty,
-            TreeLookupUsesStructuralKeysTest(graph),
+            TreeLookupUsesStructuralKeysTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14105,7 +17241,7 @@ def install_default_tests(graph):
             graph,
             "tree_lookup_uses_index_buckets_test",
             empty,
-            TreeLookupUsesIndexBucketsTest(graph),
+            TreeLookupUsesIndexBucketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14113,7 +17249,7 @@ def install_default_tests(graph):
             graph,
             "legacy_tree_lookup_remains_readable_test",
             empty,
-            LegacyTreeLookupRemainsReadableTest(graph),
+            LegacyTreeLookupRemainsReadableTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14121,7 +17257,7 @@ def install_default_tests(graph):
             graph,
             "tree_insert_migrates_legacy_tree_test",
             empty,
-            TreeInsertMigratesLegacyTreeTest(graph),
+            TreeInsertMigratesLegacyTreeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14129,7 +17265,7 @@ def install_default_tests(graph):
             graph,
             "getconstructor_sees_patricia_tree_terms_test",
             empty,
-            GetConstructorSeesPatriciaTreeTermsTest(graph),
+            GetConstructorSeesPatriciaTreeTermsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14137,7 +17273,7 @@ def install_default_tests(graph):
             graph,
             "comparein_sees_patricia_tree_terms_test",
             empty,
-            CompareInSeesPatriciaTreeTermsTest(graph),
+            CompareInSeesPatriciaTreeTermsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14145,7 +17281,7 @@ def install_default_tests(graph):
             graph,
             "comparein_sees_tree_wrapper_test",
             empty,
-            CompareInSeesTreeWrapperTest(graph),
+            CompareInSeesTreeWrapperTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14153,7 +17289,7 @@ def install_default_tests(graph):
             graph,
             "search_prompt_cost_step_builds_hundred_test",
             empty,
-            SearchPromptCostStepBuildsHundredTest(graph),
+            SearchPromptCostStepBuildsHundredTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14161,7 +17297,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_builds_deep_root_wave_shards_without_recursion_test",
             empty,
-            CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest(graph),
+            CompareSearchModesBuildsDeepRootWaveShardsWithoutRecursionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14169,7 +17305,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_resident_executor_ready_handshake_test",
             empty,
-            CompareSearchModesResidentExecutorReadyHandshakeTest(graph),
+            CompareSearchModesResidentExecutorReadyHandshakeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14177,7 +17313,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_uses_resident_executor_test",
             empty,
-            CompareSearchModesRootWaveUsesResidentExecutorTest(graph),
+            CompareSearchModesRootWaveUsesResidentExecutorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14185,7 +17321,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_requires_resident_executor_test",
             empty,
-            CompareSearchModesRootWaveRequiresResidentExecutorTest(graph),
+            CompareSearchModesRootWaveRequiresResidentExecutorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14193,7 +17329,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_fill_warms_resident_pool_before_root_wave_test",
             empty,
-            CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest(graph),
+            CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14201,7 +17337,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_retries_failed_shard_on_resident_test",
             empty,
-            CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(graph),
+            CompareSearchModesRootWaveRetriesFailedShardOnResidentTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14209,7 +17345,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_replaces_exhausted_resident_test",
             empty,
-            CompareSearchModesRootWaveReplacesExhaustedResidentTest(graph),
+            CompareSearchModesRootWaveReplacesExhaustedResidentTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14217,7 +17353,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_seeds_single_rewrite_handoff_test",
             empty,
-            CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest(graph),
+            CompareSearchModesRootWaveSeedsSingleRewriteHandoffTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14225,7 +17361,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_root_wave_records_empty_expansion_test",
             empty,
-            CompareSearchModesRootWaveRecordsEmptyExpansionTest(graph),
+            CompareSearchModesRootWaveRecordsEmptyExpansionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14233,7 +17369,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packetizes_non_root_frontier_test",
             empty,
-            CompareSearchModesPacketizesNonRootFrontierTest(graph),
+            CompareSearchModesPacketizesNonRootFrontierTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14241,7 +17377,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packetizes_wide_frontier_in_chunks_test",
             empty,
-            CompareSearchModesPacketizesWideFrontierInChunksTest(graph),
+            CompareSearchModesPacketizesWideFrontierInChunksTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14249,7 +17385,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_prunes_packets_after_best_attempt_test",
             empty,
-            CompareSearchModesPrunesPacketsAfterBestAttemptTest(graph),
+            CompareSearchModesPrunesPacketsAfterBestAttemptTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14257,7 +17393,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_fresh_root_jobs_packetize_whole_state_test",
             empty,
-            CompareSearchModesFreshRootJobsPacketizeWholeStateTest(graph),
+            CompareSearchModesFreshRootJobsPacketizeWholeStateTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14265,7 +17401,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_merges_packet_job_test",
             empty,
-            CompareSearchModesMergesPacketJobTest(graph),
+            CompareSearchModesMergesPacketJobTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14273,7 +17409,7 @@ def install_default_tests(graph):
             graph,
             "search_tree_delta_skips_structurally_equal_trees_test",
             empty,
-            SearchTreeDeltaSkipsStructurallyEqualTreesTest(graph),
+            SearchTreeDeltaSkipsStructurallyEqualTreesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14281,7 +17417,7 @@ def install_default_tests(graph):
             graph,
             "search_patricia_lookup_uses_structural_keys_test",
             empty,
-            SearchPatriciaLookupUsesStructuralKeysTest(graph),
+            SearchPatriciaLookupUsesStructuralKeysTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14289,7 +17425,7 @@ def install_default_tests(graph):
             graph,
             "search_tree_delta_skips_structurally_equal_patricia_trees_test",
             empty,
-            SearchTreeDeltaSkipsStructurallyEqualPatriciaTreesTest(graph),
+            SearchTreeDeltaSkipsStructurallyEqualPatriciaTreesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14297,7 +17433,7 @@ def install_default_tests(graph):
             graph,
             "search_tree_delta_skips_equal_content_different_shape_trees_test",
             empty,
-            SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest(graph),
+            SearchTreeDeltaSkipsEqualContentDifferentShapeTreesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14305,7 +17441,7 @@ def install_default_tests(graph):
             graph,
             "tree_insert_deep_pair_lookup_avoids_recursion_test",
             empty,
-            TreeInsertDeepPairLookupAvoidsRecursionTest(graph),
+            TreeInsertDeepPairLookupAvoidsRecursionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14313,7 +17449,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_drops_exhausted_pending_packets_test",
             empty,
-            CompareSearchModesDropsExhaustedPendingPacketsTest(graph),
+            CompareSearchModesDropsExhaustedPendingPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14321,7 +17457,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_enqueue_all_packets_after_exhausted_backlog_test",
             empty,
-            CompareSearchModesEnqueueAllPacketsAfterExhaustedBacklogTest(graph),
+            CompareSearchModesEnqueueAllPacketsAfterExhaustedBacklogTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14329,7 +17465,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_refill_widens_pending_packets_test",
             empty,
-            CompareSearchModesRefillWidensPendingPacketsTest(graph),
+            CompareSearchModesRefillWidensPendingPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14337,7 +17473,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_live_budget_uses_soft_window_test",
             empty,
-            CompareSearchModesLiveBudgetUsesSoftWindowTest(graph),
+            CompareSearchModesLiveBudgetUsesSoftWindowTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14345,7 +17481,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packet_budget_uses_quantum_test",
             empty,
-            CompareSearchModesPacketBudgetUsesQuantumTest(graph),
+            CompareSearchModesPacketBudgetUsesQuantumTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14353,7 +17489,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_packet_budget_zero_beam_uses_packet_width_fallback_test",
             empty,
-            CompareSearchModesPacketBudgetZeroBeamUsesPacketWidthFallbackTest(graph),
+            CompareSearchModesPacketBudgetZeroBeamUsesPacketWidthFallbackTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14361,7 +17497,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_skips_root_cache_during_raw_benchmark_test",
             empty,
-            CompareSearchModesSkipsRootCacheDuringRawBenchmarkTest(graph),
+            CompareSearchModesSkipsRootCacheDuringRawBenchmarkTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14369,7 +17505,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_skips_shared_root_schema_during_raw_benchmark_test",
             empty,
-            CompareSearchModesSkipsSharedRootSchemaDuringRawBenchmarkTest(graph),
+            CompareSearchModesSkipsSharedRootSchemaDuringRawBenchmarkTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14377,7 +17513,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stores_derivation_backed_attempt_test",
             empty,
-            CompareSearchModesStoresDerivationBackedAttemptTest(graph),
+            CompareSearchModesStoresDerivationBackedAttemptTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14385,7 +17521,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_worker_entry_tracks_packet_job_test",
             empty,
-            CompareSearchModesWorkerEntryTracksPacketJobTest(graph),
+            CompareSearchModesWorkerEntryTracksPacketJobTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14393,7 +17529,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_finds_reusable_worker_snapshot_dir_test",
             empty,
-            CompareSearchModesFindsReusableWorkerSnapshotDirTest(graph),
+            CompareSearchModesFindsReusableWorkerSnapshotDirTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14401,7 +17537,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_console_disabled_skips_approval_replay_prompt_test",
             empty,
-            CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest(graph),
+            CompareSearchModesConsoleDisabledSkipsApprovalReplayPromptTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14409,7 +17545,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_resume_derivation_missing_plan_raises_runtime_error_test",
             empty,
-            SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest(graph),
+            SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14417,7 +17553,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test",
             empty,
-            CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest(graph),
+            CompareSearchModesFallbackWinnerUsesRecordedPerformanceOrderingTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14425,7 +17561,7 @@ def install_default_tests(graph):
             graph,
             "rewrite_strategy_goal_demand_allows_goal_head_test",
             empty,
-            RewriteStrategyGoalDemandAllowsGoalHeadTest(graph),
+            RewriteStrategyGoalDemandAllowsGoalHeadTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14433,7 +17569,7 @@ def install_default_tests(graph):
             graph,
             "pretty_print_named_tao_quantity_test",
             empty,
-            PrettyPrintNamedTaoQuantityTest(graph),
+            PrettyPrintNamedTaoQuantityTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14441,7 +17577,7 @@ def install_default_tests(graph):
             graph,
             "tao_geometry_example_goals_use_named_quantities_test",
             empty,
-            TaoGeometryExampleGoalsUseNamedQuantitiesTest(graph),
+            TaoGeometryExampleGoalsUseNamedQuantitiesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14449,7 +17585,7 @@ def install_default_tests(graph):
             graph,
             "tao_compact_rules_use_shrunk_premise_sets_test",
             empty,
-            TaoCompactRulesUseShrunkPremiseSetsTest(graph),
+            TaoCompactRulesUseShrunkPremiseSetsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14465,7 +17601,7 @@ def install_default_tests(graph):
             graph,
             "build_derivation_replays_structurally_equal_repeated_bindings_test",
             empty,
-            BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(graph),
+            BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14473,7 +17609,7 @@ def install_default_tests(graph):
             graph,
             "tao_generic_cosine_replay_cases_test",
             empty,
-            TaoGenericCosineReplayCasesTest(graph),
+            TaoGenericCosineReplayCasesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14481,7 +17617,7 @@ def install_default_tests(graph):
             graph,
             "legacy_cosine_rules_removed_test",
             empty,
-            LegacyCosineRulesRemovedTest(graph),
+            LegacyCosineRulesRemovedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14489,7 +17625,7 @@ def install_default_tests(graph):
             graph,
             "search_comparison_outcome_field_test",
             empty,
-            SearchComparisonOutcomeFieldTest(graph),
+            SearchComparisonOutcomeFieldTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14497,7 +17633,7 @@ def install_default_tests(graph):
             graph,
             "search_comparison_job_roundtrip_test",
             empty,
-            SearchComparisonJobRoundtripTest(graph),
+            SearchComparisonJobRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14505,7 +17641,7 @@ def install_default_tests(graph):
             graph,
             "search_comparison_job_uses_grouped_blocks_test",
             empty,
-            SearchComparisonJobUsesGroupedBlocksTest(graph),
+            SearchComparisonJobUsesGroupedBlocksTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14513,7 +17649,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_baseline_uses_grouped_problem_block_test",
             empty,
-            SearchWorkerBaselineUsesGroupedProblemBlockTest(graph),
+            SearchWorkerBaselineUsesGroupedProblemBlockTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14521,7 +17657,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_packet_uses_grouped_blocks_test",
             empty,
-            SearchWorkerPacketUsesGroupedBlocksTest(graph),
+            SearchWorkerPacketUsesGroupedBlocksTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14529,7 +17665,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_launch_uses_grouped_dispatch_test",
             empty,
-            SearchWorkerLaunchUsesGroupedDispatchTest(graph),
+            SearchWorkerLaunchUsesGroupedDispatchTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14537,7 +17673,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_launch_pickle_roundtrip_test",
             empty,
-            SearchWorkerLaunchPickleRoundtripTest(graph),
+            SearchWorkerLaunchPickleRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14545,7 +17681,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_result_pickle_roundtrip_test",
             empty,
-            SearchWorkerResultPickleRoundtripTest(graph),
+            SearchWorkerResultPickleRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14553,7 +17689,7 @@ def install_default_tests(graph):
             graph,
             "paused_search_job_snapshot_roundtrip_test",
             empty,
-            PausedSearchJobSnapshotRoundtripTest(graph),
+            PausedSearchJobSnapshotRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14561,7 +17697,7 @@ def install_default_tests(graph):
             graph,
             "nat_value_index_snapshot_roundtrip_test",
             empty,
-            NatValueIndexSnapshotRoundtripTest(graph),
+            NatValueIndexSnapshotRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14569,7 +17705,7 @@ def install_default_tests(graph):
             graph,
             "cold_e2_reaches_snapshot_save_test",
             empty,
-            ColdE2ReachesSnapshotSaveTest(graph),
+            ColdE2ReachesSnapshotSaveTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14577,7 +17713,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_save_timeout_preserves_existing_snapshot_test",
             empty,
-            SnapshotSaveTimeoutPreservesExistingSnapshotTest(graph),
+            SnapshotSaveTimeoutPreservesExistingSnapshotTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14585,7 +17721,7 @@ def install_default_tests(graph):
             graph,
             "unpaused_snapshot_probe_skips_activation_and_rewrite_test",
             empty,
-            UnpausedSnapshotProbeSkipsActivationAndRewriteTest(graph),
+            UnpausedSnapshotProbeSkipsActivationAndRewriteTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14593,7 +17729,7 @@ def install_default_tests(graph):
             graph,
             "identity_red_black_identity_index_test",
             empty,
-            IdentityRedBlackIdentityIndexTest(graph),
+            IdentityRedBlackIdentityIndexTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14601,7 +17737,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_preserves_machine_edge_structure_test",
             empty,
-            SnapshotPreservesMachineEdgeStructureTest(graph),
+            SnapshotPreservesMachineEdgeStructureTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14609,7 +17745,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_preserves_constructor_labels_and_chars_test",
             empty,
-            SnapshotPreservesConstructorLabelsAndCharsTest(graph),
+            SnapshotPreservesConstructorLabelsAndCharsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14617,7 +17753,7 @@ def install_default_tests(graph):
             graph,
             "snapshot_preserves_rule_edge_inputs_test",
             empty,
-            SnapshotPreservesRuleEdgeInputsTest(graph),
+            SnapshotPreservesRuleEdgeInputsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14625,7 +17761,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_resume_state_restores_saved_plan_test",
             empty,
-            SearchWorkerResumeStateRestoresSavedPlanTest(graph),
+            SearchWorkerResumeStateRestoresSavedPlanTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14633,7 +17769,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_snapshot_boot_with_runtime_namespace_test",
             empty,
-            SearchWorkerSnapshotBootWithRuntimeNamespaceTest(graph),
+            SearchWorkerSnapshotBootWithRuntimeNamespaceTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14641,7 +17777,7 @@ def install_default_tests(graph):
             graph,
             "paused_comparison_job_snapshot_roundtrip_test",
             empty,
-            PausedComparisonJobSnapshotRoundtripTest(graph),
+            PausedComparisonJobSnapshotRoundtripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14649,7 +17785,7 @@ def install_default_tests(graph):
             graph,
             "paused_comparison_job_snapshot_resume_test",
             empty,
-            PausedComparisonJobSnapshotResumeTest(graph),
+            PausedComparisonJobSnapshotResumeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14657,7 +17793,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stop_mode_marks_only_requested_mode_test",
             empty,
-            CompareSearchModesStopModeMarksOnlyRequestedModeTest(graph),
+            CompareSearchModesStopModeMarksOnlyRequestedModeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14665,7 +17801,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stop_outcome_clears_pending_packet_count_test",
             empty,
-            CompareSearchModesStopOutcomeClearsPendingPacketCountTest(graph),
+            CompareSearchModesStopOutcomeClearsPendingPacketCountTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14673,7 +17809,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stopped_state_does_not_enqueue_job_frontier_test",
             empty,
-            CompareSearchModesStoppedStateDoesNotEnqueueJobFrontierTest(graph),
+            CompareSearchModesStoppedStateDoesNotEnqueueJobFrontierTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14681,7 +17817,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_pause_state_preserves_backlog_test",
             empty,
-            CompareSearchModesPauseStatePreservesBacklogTest(graph),
+            CompareSearchModesPauseStatePreservesBacklogTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14689,7 +17825,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_pause_requeues_active_packet_into_job_test",
             empty,
-            CompareSearchModesPauseRequeuesActivePacketIntoJobTest(graph),
+            CompareSearchModesPauseRequeuesActivePacketIntoJobTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14697,7 +17833,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_integrates_returned_ready_packets_test",
             empty,
-            CompareSearchModesIntegratesReturnedReadyPacketsTest(graph),
+            CompareSearchModesIntegratesReturnedReadyPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14705,7 +17841,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_empty_ready_result_refills_job_frontier_test",
             empty,
-            CompareSearchModesEmptyReadyResultRefillsJobFrontierTest(graph),
+            CompareSearchModesEmptyReadyResultRefillsJobFrontierTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14713,7 +17849,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_returned_ready_packet_count_follows_packet_shape_test",
             empty,
-            CompareSearchModesReturnedReadyPacketCountFollowsPacketShapeTest(graph),
+            CompareSearchModesReturnedReadyPacketCountFollowsPacketShapeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14721,7 +17857,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_returned_ready_overreported_count_keeps_packet_shape_test",
             empty,
-            CompareSearchModesReturnedReadyOverreportedCountKeepsPacketShapeTest(graph),
+            CompareSearchModesReturnedReadyOverreportedCountKeepsPacketShapeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14729,7 +17865,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_resident_unavailable_leaves_packet_queued_test",
             empty,
-            CompareSearchModesResidentUnavailableLeavesPacketQueuedTest(graph),
+            CompareSearchModesResidentUnavailableLeavesPacketQueuedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14737,7 +17873,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_batches_large_returned_ready_packet_wave_test",
             empty,
-            CompareSearchModesBatchesLargeReturnedReadyPacketWaveTest(graph),
+            CompareSearchModesBatchesLargeReturnedReadyPacketWaveTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14745,7 +17881,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_success_clears_pending_packets_test",
             empty,
-            CompareSearchModesSuccessClearsPendingPacketsTest(graph),
+            CompareSearchModesSuccessClearsPendingPacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14753,7 +17889,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_ignores_stopped_mode_result_test",
             empty,
-            CompareSearchModesIgnoresStoppedModeResultTest(graph),
+            CompareSearchModesIgnoresStoppedModeResultTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14761,7 +17897,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_ignores_mismatched_packet_token_result_test",
             empty,
-            CompareSearchModesIgnoresMismatchedPacketTokenResultTest(graph),
+            CompareSearchModesIgnoresMismatchedPacketTokenResultTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14769,7 +17905,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_stale_token_retry_requeues_original_packet_test",
             empty,
-            CompareSearchModesStaleTokenRetryRequeuesOriginalPacketTest(graph),
+            CompareSearchModesStaleTokenRetryRequeuesOriginalPacketTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14777,7 +17913,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_ignores_missing_packet_token_result_test",
             empty,
-            CompareSearchModesIgnoresMissingPacketTokenResultTest(graph),
+            CompareSearchModesIgnoresMissingPacketTokenResultTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14785,7 +17921,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_decode_missing_payload_uses_expected_token_test",
             empty,
-            CompareSearchModesDecodeMissingPayloadUsesExpectedTokenTest(graph),
+            CompareSearchModesDecodeMissingPayloadUsesExpectedTokenTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14793,7 +17929,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_missing_payload_retry_requeues_original_packet_test",
             empty,
-            CompareSearchModesMissingPayloadRetryRequeuesOriginalPacketTest(graph),
+            CompareSearchModesMissingPayloadRetryRequeuesOriginalPacketTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14801,7 +17937,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_empty_cursor_theorem_fanout_test",
             empty,
-            CompareSearchModesEmptyCursorTheoremFanoutTest(graph),
+            CompareSearchModesEmptyCursorTheoremFanoutTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14809,7 +17945,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_theorem_fanout_preserves_generated_test",
             empty,
-            CompareSearchModesTheoremFanoutPreservesGeneratedTest(graph),
+            CompareSearchModesTheoremFanoutPreservesGeneratedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14817,7 +17953,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_theorem_fanout_adds_single_rewrite_handoff_test",
             empty,
-            CompareSearchModesTheoremFanoutAddsSingleRewriteHandoffTest(graph),
+            CompareSearchModesTheoremFanoutAddsSingleRewriteHandoffTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14825,7 +17961,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_empty_cursor_theorem_fanout_seeds_generated_tree_test",
             empty,
-            CompareSearchModesEmptyCursorTheoremFanoutSeedsGeneratedTreeTest(graph),
+            CompareSearchModesEmptyCursorTheoremFanoutSeedsGeneratedTreeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14833,7 +17969,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_rewrite_fanout_produces_one_rule_packets_test",
             empty,
-            CompareSearchModesRewriteFanoutProducesOneRulePacketsTest(graph),
+            CompareSearchModesRewriteFanoutProducesOneRulePacketsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14841,7 +17977,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_packet_delta_uses_resident_baseline_test",
             empty,
-            SearchWorkerPacketDeltaUsesResidentBaselineTest(graph),
+            SearchWorkerPacketDeltaUsesResidentBaselineTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14849,7 +17985,7 @@ def install_default_tests(graph):
             graph,
             "search_worker_filters_seeded_theorem_continuation_test",
             empty,
-            SearchWorkerFiltersSeededTheoremContinuationTest(graph),
+            SearchWorkerFiltersSeededTheoremContinuationTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14857,7 +17993,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_resident_executor_refreshes_baseline_on_generation_change_test",
             empty,
-            CompareSearchModesResidentExecutorRefreshesBaselineOnGenerationChangeTest(graph),
+            CompareSearchModesResidentExecutorRefreshesBaselineOnGenerationChangeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14865,7 +18001,7 @@ def install_default_tests(graph):
             graph,
             "compare_search_modes_batched_wave_matches_sequential_success_test",
             empty,
-            CompareSearchModesBatchedWaveMatchesSequentialSuccessTest(graph),
+            CompareSearchModesBatchedWaveMatchesSequentialSuccessTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14873,7 +18009,7 @@ def install_default_tests(graph):
             graph,
             "loaded_rules_avoid_symmetric_notation_fact_test",
             empty,
-            LoadedRulesAvoidSymmetricNotationFactTest(graph),
+            LoadedRulesAvoidSymmetricNotationFactTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14881,7 +18017,7 @@ def install_default_tests(graph):
             graph,
             "loaded_rules_have_direct_progression_edge_equations_test",
             empty,
-            LoadedRulesHaveDirectProgressionEdgeEquationsTest(graph),
+            LoadedRulesHaveDirectProgressionEdgeEquationsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14889,7 +18025,7 @@ def install_default_tests(graph):
             graph,
             "invariance_even_goal_unreachable_test",
             empty,
-            InvarianceEvenGoalUnreachableTest(graph),
+            InvarianceEvenGoalUnreachableTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14897,7 +18033,7 @@ def install_default_tests(graph):
             graph,
             "invariance_odd_goal_does_not_prune_test",
             empty,
-            InvarianceOddGoalDoesNotPruneTest(graph),
+            InvarianceOddGoalDoesNotPruneTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14905,7 +18041,7 @@ def install_default_tests(graph):
             graph,
             "invariance_unestablished_even_phi_does_not_prune_test",
             empty,
-            InvarianceUnestablishedEvenPhiDoesNotPruneTest(graph),
+            InvarianceUnestablishedEvenPhiDoesNotPruneTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14913,7 +18049,7 @@ def install_default_tests(graph):
             graph,
             "compile_rule_to_law_test",
             empty,
-            CompileRuleToLawTest(graph),
+            CompileRuleToLawTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14921,7 +18057,7 @@ def install_default_tests(graph):
             graph,
             "shadow_pack_test",
             empty,
-            ShadowPackTest(graph),
+            ShadowPackTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14929,7 +18065,7 @@ def install_default_tests(graph):
             graph,
             "laws_inside_graph_versions_test",
             empty,
-            LawsInsideGraphVersionsTest(graph),
+            LawsInsideGraphVersionsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14937,7 +18073,7 @@ def install_default_tests(graph):
             graph,
             "test_meta_rewrite_KNOWN_GAP",
             empty,
-            MetaRewriteKnownGapTest(graph),
+            MetaRewriteKnownGapTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14945,7 +18081,7 @@ def install_default_tests(graph):
             graph,
             "proposal_store_inert_test",
             empty,
-            ProposalStoreInertTest(graph),
+            ProposalStoreInertTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14953,7 +18089,7 @@ def install_default_tests(graph):
             graph,
             "activate_proposal_test",
             empty,
-            ActivateProposalTest(graph),
+            ActivateProposalTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14961,7 +18097,7 @@ def install_default_tests(graph):
             graph,
             "obligation_commit_gate_test",
             empty,
-            ObligationCommitGateTest(graph),
+            ObligationCommitGateTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14969,7 +18105,7 @@ def install_default_tests(graph):
             graph,
             "proposal_store_history_test",
             empty,
-            ProposalStoreHistoryTest(graph),
+            ProposalStoreHistoryTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14977,7 +18113,7 @@ def install_default_tests(graph):
             graph,
             "firing_ledger_test",
             empty,
-            FiringLedgerTest(graph),
+            FiringLedgerTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14985,7 +18121,7 @@ def install_default_tests(graph):
             graph,
             "pattern_census_test",
             empty,
-            PatternCensusTest(graph),
+            PatternCensusTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -14993,7 +18129,7 @@ def install_default_tests(graph):
             graph,
             "handle_fold_unfold_test",
             empty,
-            HandleFoldUnfoldTest(graph),
+            HandleFoldUnfoldTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15001,7 +18137,7 @@ def install_default_tests(graph):
             graph,
             "positional_signatures_test",
             empty,
-            PositionalSignaturesTest(graph),
+            PositionalSignaturesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15009,7 +18145,7 @@ def install_default_tests(graph):
             graph,
             "handle_promotion_test",
             empty,
-            HandlePromotionTest(graph),
+            HandlePromotionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15017,7 +18153,7 @@ def install_default_tests(graph):
             graph,
             "impact_policy_test",
             empty,
-            ImpactPolicyTest(graph),
+            ImpactPolicyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15025,7 +18161,7 @@ def install_default_tests(graph):
             graph,
             "autonomy_cycle_test",
             empty,
-            AutonomyCycleTest(graph),
+            AutonomyCycleTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15033,7 +18169,7 @@ def install_default_tests(graph):
             graph,
             "autonomy_obligation_safety_test",
             empty,
-            AutonomyObligationSafetyTest(graph),
+            AutonomyObligationSafetyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15041,7 +18177,7 @@ def install_default_tests(graph):
             graph,
             "recurring_pattern_mining_test",
             empty,
-            RecurringPatternMiningTest(graph),
+            RecurringPatternMiningTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15049,7 +18185,7 @@ def install_default_tests(graph):
             graph,
             "handle_proposal_generator_test",
             empty,
-            HandleProposalGeneratorTest(graph),
+            HandleProposalGeneratorTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15057,7 +18193,7 @@ def install_default_tests(graph):
             graph,
             "witnessed_composition_proposal_test",
             empty,
-            WitnessedCompositionProposalTest(graph),
+            WitnessedCompositionProposalTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15065,7 +18201,7 @@ def install_default_tests(graph):
             graph,
             "autonomy_generation_phase_test",
             empty,
-            AutonomyGenerationPhaseTest(graph),
+            AutonomyGenerationPhaseTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15073,7 +18209,7 @@ def install_default_tests(graph):
             graph,
             "law_ordering_from_ledger_test",
             empty,
-            LawOrderingFromLedgerTest(graph),
+            LawOrderingFromLedgerTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15081,7 +18217,7 @@ def install_default_tests(graph):
             graph,
             "law_preference_installable_test",
             empty,
-            LawPreferenceInstallableTest(graph),
+            LawPreferenceInstallableTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15089,7 +18225,7 @@ def install_default_tests(graph):
             graph,
             "retirement_lifecycle_test",
             empty,
-            RetirementLifecycleTest(graph),
+            RetirementLifecycleTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15097,7 +18233,7 @@ def install_default_tests(graph):
             graph,
             "installed_heuristic_search_test",
             empty,
-            InstalledHeuristicSearchTest(graph),
+            InstalledHeuristicSearchTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15105,7 +18241,7 @@ def install_default_tests(graph):
             graph,
             "heuristic_trial_proposal_test",
             empty,
-            HeuristicTrialProposalTest(graph),
+            HeuristicTrialProposalTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15113,7 +18249,7 @@ def install_default_tests(graph):
             graph,
             "installed_policy_override_test",
             empty,
-            InstalledPolicyOverrideTest(graph),
+            InstalledPolicyOverrideTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15121,7 +18257,7 @@ def install_default_tests(graph):
             graph,
             "policy_change_countersign_test",
             empty,
-            PolicyChangeCountersignTest(graph),
+            PolicyChangeCountersignTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15129,7 +18265,7 @@ def install_default_tests(graph):
             graph,
             "curator_report_test",
             empty,
-            CuratorReportTest(graph),
+            CuratorReportTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15137,7 +18273,7 @@ def install_default_tests(graph):
             graph,
             "contract_enforcement_test",
             empty,
-            ContractEnforcementTest(graph),
+            ContractEnforcementTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15145,7 +18281,7 @@ def install_default_tests(graph):
             graph,
             "robustness_harness_test",
             empty,
-            RobustnessHarnessTest(graph),
+            RobustnessHarnessTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15153,7 +18289,7 @@ def install_default_tests(graph):
             graph,
             "migration_lifecycle_test",
             empty,
-            MigrationLifecycleTest(graph),
+            MigrationLifecycleTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15161,7 +18297,7 @@ def install_default_tests(graph):
             graph,
             "wire_round_trip_test",
             empty,
-            WireRoundTripTest(graph),
+            WireRoundTripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15169,7 +18305,7 @@ def install_default_tests(graph):
             graph,
             "worker_protocol_test",
             empty,
-            WorkerProtocolTest(graph),
+            WorkerProtocolTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15177,7 +18313,7 @@ def install_default_tests(graph):
             graph,
             "conflict_detection_test",
             empty,
-            ConflictDetectionTest(graph),
+            ConflictDetectionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15185,7 +18321,7 @@ def install_default_tests(graph):
             graph,
             "toy_correspondence_round_trip_test",
             empty,
-            ToyCorrespondenceRoundTripTest(graph),
+            ToyCorrespondenceRoundTripTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15193,7 +18329,7 @@ def install_default_tests(graph):
             graph,
             "reading_policy_test",
             empty,
-            ReadingPolicyTest(graph),
+            ReadingPolicyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15201,7 +18337,7 @@ def install_default_tests(graph):
             graph,
             "deduction_law_test",
             empty,
-            DeductionLawTest(graph),
+            DeductionLawTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15209,7 +18345,7 @@ def install_default_tests(graph):
             graph,
             "recognise_forms_test",
             empty,
-            RecogniseFormsTest(graph),
+            RecogniseFormsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15217,7 +18353,7 @@ def install_default_tests(graph):
             graph,
             "freshen_template_test",
             empty,
-            FreshenTemplateTest(graph),
+            FreshenTemplateTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15225,7 +18361,7 @@ def install_default_tests(graph):
             graph,
             "grammar_composition_test",
             empty,
-            GrammarCompositionTest(graph),
+            GrammarCompositionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15233,7 +18369,7 @@ def install_default_tests(graph):
             graph,
             "definition_node_test",
             empty,
-            DefinitionNodeTest(graph),
+            DefinitionNodeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15241,7 +18377,7 @@ def install_default_tests(graph):
             graph,
             "lexical_spans_test",
             empty,
-            LexicalSpansTest(graph),
+            LexicalSpansTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15249,7 +18385,7 @@ def install_default_tests(graph):
             graph,
             "definition_production_test",
             empty,
-            DefinitionProductionTest(graph),
+            DefinitionProductionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15257,7 +18393,7 @@ def install_default_tests(graph):
             graph,
             "incremental_parse_test",
             empty,
-            IncrementalParseTest(graph),
+            IncrementalParseTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15265,7 +18401,7 @@ def install_default_tests(graph):
             graph,
             "lexical_growth_test",
             empty,
-            LexicalGrowthTest(graph),
+            LexicalGrowthTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15273,7 +18409,7 @@ def install_default_tests(graph):
             graph,
             "chart_parser_test",
             empty,
-            ChartParserTest(graph),
+            ChartParserTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15281,7 +18417,7 @@ def install_default_tests(graph):
             graph,
             "converse_default_mode_test",
             empty,
-            ConverseDefaultModeTest(graph),
+            ConverseDefaultModeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15289,7 +18425,7 @@ def install_default_tests(graph):
             graph,
             "converse_proposition_test",
             empty,
-            ConversePropositionTest(graph),
+            ConversePropositionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15297,7 +18433,7 @@ def install_default_tests(graph):
             graph,
             "correspondence_induction_test",
             empty,
-            CorrespondenceInductionTest(graph),
+            CorrespondenceInductionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15305,7 +18441,7 @@ def install_default_tests(graph):
             graph,
             "search_match_states_test",
             empty,
-            SearchMatchStatesTest(graph),
+            SearchMatchStatesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15313,7 +18449,7 @@ def install_default_tests(graph):
             graph,
             "fire_law_surgery_test",
             empty,
-            FireLawSurgeryTest(graph),
+            FireLawSurgeryTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15321,7 +18457,7 @@ def install_default_tests(graph):
             graph,
             "fire_law_dangling_mode_test",
             empty,
-            FireLawDanglingModeTest(graph),
+            FireLawDanglingModeTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15329,7 +18465,7 @@ def install_default_tests(graph):
             graph,
             "law_maps_complete_test",
             empty,
-            LawMapsCompleteTest(graph),
+            LawMapsCompleteTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15337,7 +18473,7 @@ def install_default_tests(graph):
             graph,
             "dangling_edges_test",
             empty,
-            DanglingEdgesTest(graph),
+            DanglingEdgesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15345,7 +18481,7 @@ def install_default_tests(graph):
             graph,
             "map_extension_alternatives_test",
             empty,
-            MapExtensionAlternativesTest(graph),
+            MapExtensionAlternativesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15353,7 +18489,7 @@ def install_default_tests(graph):
             graph,
             "structured_miss_reason_test",
             empty,
-            StructuredMissReasonTest(graph),
+            StructuredMissReasonTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15361,7 +18497,7 @@ def install_default_tests(graph):
             graph,
             "edge_send_positional_consistency_test",
             empty,
-            EdgeSendPositionalConsistencyTest(graph),
+            EdgeSendPositionalConsistencyTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15369,7 +18505,7 @@ def install_default_tests(graph):
             graph,
             "graph_current_version_test",
             empty,
-            GraphCurrentVersionTest(graph),
+            GraphCurrentVersionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15377,7 +18513,7 @@ def install_default_tests(graph):
             graph,
             "invariance_flip_one_refutes_parity_test",
             empty,
-            InvarianceFlipOneRefutesParityTest(graph),
+            InvarianceFlipOneRefutesParityTest,
             M.truth_value,
         )
 
@@ -15386,7 +18522,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_parity_preserved_test",
             empty,
-            BlackboardParityPreservedTest(graph),
+            BlackboardParityPreservedTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15394,7 +18530,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_move_sum_is_sum_minus_twice_min_test",
             empty,
-            BlackboardMoveSumIsSumMinusTwiceMinTest(graph),
+            BlackboardMoveSumIsSumMinusTwiceMinTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15402,7 +18538,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_initial_parity_is_odd_test",
             empty,
-            BlackboardInitialParityIsOddTest(graph),
+            BlackboardInitialParityIsOddTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15410,7 +18546,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_final_number_is_odd_test",
             empty,
-            BlackboardFinalNumberIsOddTest(graph),
+            BlackboardFinalNumberIsOddTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15418,7 +18554,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_even_n_refuses_odd_conclusion_test",
             empty,
-            BlackboardEvenNRefusesOddConclusionTest(graph),
+            BlackboardEvenNRefusesOddConclusionTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15426,7 +18562,7 @@ def install_default_tests(graph):
             graph,
             "blackboard_proof_expands_no_boards_test",
             empty,
-            BlackboardProofExpandsNoBoardsTest(graph),
+            BlackboardProofExpandsNoBoardsTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15434,10 +18570,94 @@ def install_default_tests(graph):
             graph,
             "blackboard_start_has_no_board_cells_test",
             empty,
-            BlackboardStartHasNoBoardCellsTest(graph),
+            BlackboardStartHasNoBoardCellsTest,
             M.truth_value,
         )
 
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "research_mode_test", empty, ResearchModeTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "dependency_request_from_residual_test", empty, DependencyRequestFromResidualTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "counterfactual_unlock_test", empty, CounterfactualUnlockTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "circular_dependency_rejection_test", empty, CircularDependencyRejectionTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "human_supplied_provenance_test", empty, HumanSuppliedProvenanceTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "dependency_graph_checkpoint_test", empty, DependencyGraphCheckpointTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "generator_policy_learning_test", empty, GeneratorPolicyLearningTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "generator_ablation_test", empty, GeneratorAblationTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "zero_successor_residual_test", empty, ZeroSuccessorResidualTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "uncharacterized_stall_test", empty, UncharacterizedStallTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "toy_demo_generic_test", empty, ToyDemoGenericTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "learning_after_intervention_test", empty, LearningAfterInterventionTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "blank_memory_stall_test", empty, BlankMemoryStallTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "user_defined_operator_test", empty, UserDefinedOperatorTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "strategy_prior_quarantine_test", empty, StrategyPriorQuarantineTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "negative_control_unused_dependency_test", empty, NegativeControlUnusedDependencyTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "cross_domain_blank_test", empty, CrossDomainBlankTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "engine_attempt_recording_test", empty, EngineAttemptRecordingTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "premise_order_independence_test", empty, PremiseOrderIndependenceTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "goal_seeded_partial_match_test", empty, GoalSeededPartialMatchTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "generative_rule_budget_test", empty, GenerativeRuleBudgetTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "multi_rule_residual_selection_test", empty, MultiRuleResidualSelectionTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "single_premise_goal_seeded_test", empty, SinglePremiseGoalSeededTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "goal_directed_firing_test", empty, GoalDirectedFiringTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "goal_directed_no_fabrication_test", empty, GoalDirectedNoFabricationTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "ordered_footholds_test", empty, OrderedFootholdsTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "cache_hit_provenance_test", empty, CacheHitProvenanceTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "ground_evaluation_test", empty, GroundEvaluationTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "self_improvement_loop_test", empty, SelfImprovementLoopTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "invariant_loop_test", empty, InvariantLoopTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "motif_dataflow_negative_control_test", empty, MotifDataflowNegativeControlTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "macro_law_ablation_test", empty, MacroLawAblationTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "reset_remine_reproducibility_test", empty, ResetRemineReproducibilityTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "sentence_grammar_generic_test", empty, SentenceGrammarGenericTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "learned_memory_toggle_test", empty, LearnedMemoryToggleTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "spine_excludes_routed_around_rule_test", empty, SpineExcludesRoutedAroundRuleTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "spine_fanout_ranks_producer_above_consumer_test", empty, SpineFanoutRanksProducerAboveConsumerTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "spine_empty_when_goal_never_closed_test", empty, SpineEmptyWhenGoalNeverClosedTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "idea_classifier_refuses_unknown_shape_test", empty, IdeaClassifierRefusesUnknownShapeTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "rendered_sentence_cites_its_law_test", empty, RenderedSentenceCitesItsLawTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "explanation_is_not_a_proof_test", empty, ExplanationIsNotAProofTest, M.truth_value)
 
     theorem_cursor_rules = M.Pair(a, empty)
     theorem_cursor_generated = M.Thingy()
@@ -15533,7 +18753,7 @@ def install_default_tests(graph):
             graph,
             "goal_head_neighborhood_reachback_test",
             empty,
-            GoalHeadNeighborhoodReachbackTest(graph),
+            GoalHeadNeighborhoodReachbackTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15541,7 +18761,7 @@ def install_default_tests(graph):
             graph,
             "heuristic_canonical_knowledge_agreement_test",
             empty,
-            HeuristicCanonicalKnowledgeAgreementTest(graph),
+            HeuristicCanonicalKnowledgeAgreementTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15549,7 +18769,7 @@ def install_default_tests(graph):
             graph,
             "canonical_arithmetic_add_ac_normalizes_test",
             empty,
-            CanonicalArithmeticAddACNormalizesTest(graph),
+            CanonicalArithmeticAddACNormalizesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15557,7 +18777,7 @@ def install_default_tests(graph):
             graph,
             "canonical_arithmetic_mul_ac_normalizes_test",
             empty,
-            CanonicalArithmeticMulACNormalizesTest(graph),
+            CanonicalArithmeticMulACNormalizesTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15565,7 +18785,7 @@ def install_default_tests(graph):
             graph,
             "canonical_arithmetic_equation_symmetry_test",
             empty,
-            CanonicalArithmeticEquationSymmetryTest(graph),
+            CanonicalArithmeticEquationSymmetryTest,
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15573,7 +18793,7 @@ def install_default_tests(graph):
             graph,
             "arithmetic_canonical_laws_declared_test",
             empty,
-            ArithmeticCanonicalLawsDeclaredTest(graph),
+            ArithmeticCanonicalLawsDeclaredTest,
             M.truth_value,
         )
 
@@ -15856,7 +19076,7 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m1_cycles_without_refusal",
             empty,
-            MilestoneM1CyclesWithoutRefusalTest(graph),
+            MilestoneM1CyclesWithoutRefusalTest,
             MILESTONE_SKIPPED,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15864,7 +19084,7 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m2_handle_lifecycle",
             empty,
-            MilestoneM2HandleLifecycleTest(graph),
+            MilestoneM2HandleLifecycleTest,
             MILESTONE_SKIPPED,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15872,7 +19092,7 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m3_meta_handle_reorders",
             empty,
-            MilestoneM3MetaHandleReordersTest(graph),
+            MilestoneM3MetaHandleReordersTest,
             MILESTONE_SKIPPED,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
@@ -15880,10 +19100,89 @@ def install_default_tests(graph):
             graph,
             "test_milestone_m4_policy_loosen_then_tighten",
             empty,
-            MilestoneM4PolicyLoosenThenTightenTest(graph),
+            MilestoneM4PolicyLoosenThenTightenTest,
             MILESTONE_SKIPPED,
         )
 
+    # ========================================================================
+    # TRACK-PARTITIONED REGISTRATION BLOCKS
+    #
+    # Register new tests ONLY inside your own track's block, and ONLY using
+    # the established guarded form:
+    #
+    #     if Gmod.TestShardAccept(graph)() is M.truth_value:
+    #         _register_test(graph, "name", empty, YourTest, M.truth_value)
+    #
+    #     ^ the class, not an instance. Registration is where a name
+    #       filter is applied, and it can only skip work it has not done
+    #       yet: `YourTest(graph)` builds the test whether or not the
+    #       filter wants it, which is the difference between a targeted
+    #       run taking seconds and taking the whole install.
+    #
+    # The guard is not decoration: TestShardAccept ticks the shard cursor, so
+    # an unguarded registration shifts every later test across the shard
+    # boundary and invalidates the comparable failure set. Registering here,
+    # after every existing test, also keeps learned_memory_checkpoint_test at
+    # its current cursor index.
+    # ========================================================================
+
+    # --- [SHARED] --- INT only ------------------------------------------
+    # D3: the canonical-family contract, in the order the boot establishes
+    # it. Raw fidelity first, then canonicality after activation: nested,
+    # at a root, in the index, then the two ways of getting it wrong --
+    # interning something that is not a Nat, and building a second chain
+    # for a large one -- then a real obligation-bearing structure.
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "raw_snapshot_nat_fidelity_test", empty, RawSnapshotNatFidelityTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "boot_snapshot_nat_canonicality_test", empty, BootSnapshotNatCanonicalityTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "boot_snapshot_nat_root_canonicality_test", empty, BootSnapshotNatRootCanonicalityTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "boot_snapshot_nat_index_canonicality_test", empty, BootSnapshotNatIndexCanonicalityTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "non_nat_value_carrier_not_interned_test", empty, NonNatValueCarrierNotInternedTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "large_nat_canonicality_test", empty, LargeNatCanonicalityTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(graph, "explanation_plan_snapshot_round_trip_test", empty, ExplanationPlanSnapshotRoundTripTest, M.truth_value)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "label_registration_completeness_test",
+            empty,
+            LabelRegistrationCompletenessTest,
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "test_shard_cursor_pin_test",
+            empty,
+            TestShardCursorPinTest,
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_value_atom_identity_test",
+            empty,
+            SnapshotValueAtomIdentityTest,
+            M.truth_value,
+        )
+    # --- end [SHARED] ---
+
+    # --- [S] ------------------------------------------------------------
+    # --- end [S] ---
+
+    # --- [E] ------------------------------------------------------------
+    # --- end [E] ---
+
+    # --- [G] ------------------------------------------------------------
+    # --- end [G] ---
+
+    # --- [I] ------------------------------------------------------------
+    # --- end [I] ---
     graph.default_tests_installed = M.truth_value
     return graph
 

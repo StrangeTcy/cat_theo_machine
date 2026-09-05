@@ -1,0 +1,68 @@
+Checkpoint reload -- two processes, one research state
+======================================================
+
+The snapshot is removed before session one and kept for session two.
+Session two is a fresh process: taught rules are recompiled from their
+checkpointed formal terms before use, and request indices are stable.
+
+----- session one (cold) -----
+
+you> research mode on
+hyge> research mode ON. Derivation-cache answers, comparison shortcuts, prewritten ladders and target-specific schemata are not available here: this runtime holds only live-taught knowledge. Residual states are preserved. `audit knowledge` now prints the cold-start manifest.
+
+you> assume axiom: (rel a b)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (rel a b)
+
+you> teach law: (rule (premises (rel ?x ?y) (mark ?y)) (conclusion (tag ?x)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((rel ?x ?y) (mark ?y)) (tag ?x))
+note: teaching stores knowledge; it demonstrates nothing until a retry or counterfactual measures progress.
+
+you> attempt goal: (tag a)
+hyge> FAILED. cost=1; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (mark b))
+
+you> approve dependency 0
+hyge> approved dependency [0] status=SpeculativeDependency
+note: approval is a hypothesis, not evidence. Usefulness is demonstrated only by measured counterfactual unlock.
+
+you> goodbye
+hyge> goodbye
+
+----- session two (restored from checkpoint) -----
+
+you> research mode on
+hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
+hyge> research mode ON. Derivation-cache answers, comparison shortcuts, prewritten ladders and target-specific schemata are not available here: this runtime holds only live-taught knowledge. Residual states are preserved. `audit knowledge` now prints the cold-start manifest.
+
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  [0] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((rel ?x ?y) (mark ?y)) (tag ?x))
+  [1] DOMAIN_AXIOM: (rel a b)
+  intervention episodes: 0
+  learned policies: none
+
+you> show dependencies
+hyge> dependency requests (all):
+  [0] status=SpeculativeDependency kind=THEOREM need=(Need (mark b))
+
+you> attempt goal: (tag a)
+hyge> FAILED. cost=1; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> teach dependency 0: (rule (premises (rel ?u ?v)) (conclusion (mark ?v)))
+hyge> counterfactual fork measured a real unlock: cost 1 -> 2; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episode recorded; `retry parent goal` to apply it for real.
+
+you> retry parent goal
+hyge> retry: goal closed
+
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(mark b) outcome=DemonstratedUsefulDependency
+
+you> goodbye
+hyge> goodbye

@@ -1,0 +1,236 @@
+Calibration arc -- the scientific product of the experiment ladder
+===================================================================
+freeze tag: experiment-4-frozen (fe26dc8)
+
+This record stands independent of whatever Experiment 4 produces.
+
+The arc
+-------
+
+pre-evaluator:  computable premises surfaced as requests
+                (instrument incomplete). Every request the ladder
+                produced -- (coprime 8 15), (eq 21 (times 3 7)),
+                (odd 4), (divides 3 14) -- was a decidable evaluation,
+                not a theorem. Headline then: the first thing this
+                machine runs out of is arithmetic, not number theory.
+
+post-evaluator: computable premises close cold (DOMAIN_AXIOM) or
+                refute (COUNTEREXAMPLE); only genuine theorem-shaped
+                gaps reach the request compiler. Headline now: the
+                machine does not run out of arithmetic at all -- it
+                runs out of theorems.
+
+consequence:    a computable request is a defect signal, not an
+                operator chore. A residual that survives to
+                `suggest dependencies` on the frozen build is
+                theorem-shaped OR an evaluator-coverage gap: the
+                filter guarantees only that nothing the wired
+                evaluations (eq over times/plus/minus/pow, divides,
+                coprime, odd/even, comparisons) could decide gets
+                through. A ground decidable predicate OUTSIDE that
+                coverage -- say (prime 91) with no primality edge --
+                would surface looking theorem-shaped while being
+                computation. The operator distinguishes the two by
+                asking whether the premise is ground and decidable;
+                a covered-but-surfaced request is defect eight. On
+                this substrate, evaluation and theorem-need are
+                separable exactly as far as the evaluator's coverage,
+                and the separation is mechanical within it.
+
+Incident, kept verbatim
+-----------------------
+
+SinglePremiseGoalSeededTest was authored on the goal (congruent 9 2 5)
+with the law (divides ?m (minus ?a ?b)) -> (congruent ?a ?b ?m). The
+goal is false: 9 - 2 = 7 and 5 does not divide 7. When the ground
+evaluator landed, the test failed -- not by crash but by refutation:
+the machine evaluated (divides 5 (minus 9 2)) to false, recorded it
+COUNTEREXAMPLE, and declined to request it. The test's author had
+asserted a falsehood; the instrument contradicted its own test suite
+on a matter of arithmetic fact. The test now runs on symbolic
+constants and the incident stays here: the evaluator is a decision
+procedure, not a lookup dressed up.
+
+Defect ledger, one line each, all found by running
+--------------------------------------------------
+
+1. prefix-only premise matching -- a rule with its failing premise
+   first produced no foothold (found by the coprime ladder)
+2. fired instantiations shadowed genuine partial matches for other
+   instantiations (found by the second ladder problem)
+3. attempt records lacked the goal-to-rule substitution -- schematic
+   holes instead of concrete premises (found by the Step 5 probe)
+4. fuel bounded rounds, not work -- one generative law exhausted the
+   host stack inside a round (found by teaching Divides)
+5. one-premise rules blocked on their only premise had no foothold --
+   conclusion-to-goal unification now is the foothold (found by
+   teaching Congruent)
+6. conclusions with free variables could never fire forward -- the
+   bounded search gained goal-directed firing (found by exponent
+   algebra)
+7. host runtime handle guarded with IdentityCompare -- crashed on the
+   first real `load theorem packs` (found by the freeze manifest run;
+   tag removed before first use and re-cut on the fix)
+
+Standing state at the freeze
+----------------------------
+
+31 research tests passing; both learned policies through their
+three-state ablation cycles; blank controls current with the final
+matcher semantics; cold-start manifest with 167 library rules saved
+at freeze time (logs/experiment-4-manifest.log) and confirmed to
+reproduce byte-for-byte from a cold interpreter on the frozen tag.
+
+Retro-audit of defect eight (sonnet's demand), done mechanically
+----------------------------------------------------------------
+
+Per committed build, fuel representation vs guard family, from
+git show <commit>:research.py --
+
+  460431a  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  c2d890c  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  28e43f7  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  0770b9d  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  fe26dc8  nat fuel   NatEq/NatPred guards   Tail(fuel): absent
+  76f4389  chain fuel zero NatEq(fuel        Tail(fuel): guarded
+
+The broken hybrid -- chain fuel behind a NatEq guard -- existed only
+in the uncommitted working tree during the defect-eight turn and was
+caught by the test battery before any commit and before any session.
+Every logged session ran on an internally consistent engine; the
+walk-off-the-chain failure was never reachable in any evidence build.
+Consistency of the fuel machinery is what this audit certifies --
+nothing more; other defects remain findable only by running.
+
+Set B, restated per sonnet's correction
+---------------------------------------
+
+Three class-A outcomes were not three calibration successes; they were
+two findings wearing one label:
+
+1. The ground factorization policy cannot transfer to symbolic
+   exponents -- and one level deeper, post-evaluator it cannot even
+   form, since its training residuals are discharged before becoming
+   requests. Regime C on this substrate builds from non-ground
+   episodes only.
+2. The pack library holds no rule whose conclusion or premise shape
+   can foothold on research-grammar goals at all: a coverage gap
+   (vocabulary disjointness), not a search-depth gap.
+
+B1 diagnosis, sonnet's three-way question answered: option (3), with a
+correction to its premise. The exponent-algebra law of Experiment 1
+was never in a pack -- it was live-taught in a session whose state was
+deliberately not carried (session hygiene). The library genuinely
+lacks the rule, and additionally cannot express it toward research
+goals across the vocabulary boundary. Prescription applied: teach that
+specific rule live, rerun B1 alone, confirm Regime B before B2/B3 are
+reconsidered. Experiment 4 stays unrun.
+
+Corrections after sol's review of the third cut
+-----------------------------------------------
+
+1. Precision: B1 found REFLEXIVITY, not transport. The residual
+   (eq (times k m) (times k m)) is symbolic self-equality; transport
+   means moving a property across an equality -- Eq(a,b), P(a) -> P(b).
+   The B1 log's phrase "transport-shaped" was too loose; the precise
+   statement is: the machine found a missing symbolic reflexivity
+   premise required by a goal-directed power-decomposition rule.
+   B1 = reflexivity; B2 = substitutivity/transport; B3 = no-solutions
+   transport. Three different logical forms, calibrated separately.
+
+2. Invariant provenance, read precisely. An adopted (Invariant ...)
+   record audited under INVENTED_LEMMA means exactly three things and
+   no more: the observable SHAPE came from the fixed trainer-supplied
+   library; the CONJECTURE came from trace evidence the machine
+   checked; the ADOPTION came from the operator. The machine verified
+   and selected; it did not invent the observable. Trace-compression
+   candidates, by contrast, are anti-unified from the machine's own
+   traces end to end.
+
+3. Sol's ground transport probe collides with the evaluator by
+   design: (divides 3 (plus 3 3)) is ground-decidable and closes by
+   evaluation without touching any transport law. Transport is
+   testable only on symbolic instances on this substrate; the B2/B3
+   sessions use them, and the ground version is run once to show the
+   evaluator doing exactly what it should.
+
+Self-improvement ladder audit (rungs mapped to the build)
+---------------------------------------------------------
+
+Rung 1 (trace as data): traces are DerivationLabel records carrying
+  the fired chain with bindings; dataflow links are computed
+  deterministically from the ground instantiated terms -- the pairing
+  "fact produced by step i, consumed by step j" is exact Compare
+  linkage, not co-occurrence and not a guess. Divergence from the
+  ladder's letter: links are derived from instances rather than stored
+  as edge objects; equivalent because instances are ground.
+
+Rung 2 (motif detection): pinned including THE NEGATIVE CONTROL --
+  two rules firing in every trace but never feeding each other mine
+  nothing; the dataflow-linked chain in the same fact world mines its
+  candidate (MotifDataflowNegativeControlTest). Divergence: threshold
+  is >= 2 distinct traces, not the ladder's >= 3 traces / >= 2 goals.
+
+Rung 3 (compression): anti-unification with shared variables;
+  candidates alpha-deduped against adopted laws; degenerate
+  conclusions dropped (SelfImprovementLoopTest).
+
+Rung 4 (rent): paid in fired-chain length under the same budget --
+  the held-out attempt must close having fired fewer steps, or close
+  where it was open. A candidate that never fires cannot pay
+  (adopt_compressed_law returns the measured lengths either way).
+
+Rung 5 (ablation contract): the audit found this rung FAILING as
+  built -- induced INVENTED_LEMMA laws sat outside learned memory,
+  ignored the mask, and survived reset, which by the ladder's own
+  invariant makes them indistinguishable from hardcoded priors. Fixed
+  on this cut: induced laws leave the rule set under disable learned
+  memory and are erased from provenance by reset, while human-taught
+  theorems, priors and axioms stay (they were supplied, not learned).
+  The full cycle is pinned: S_fast with the law, S_slow masked, S_fast
+  restored, S_slow after reset with the law gone
+  (MacroLawAblationTest).
+
+Rung 6 (recursive turn): pinned before this audit -- adopting the
+  mined (p -> r) makes the (p -> s) pair-motif mineable, which was
+  structurally invisible while the chain was three diffuse steps
+  (SelfImprovementLoopTest). Pair-mining makes the invisibility
+  claim exact: a 3-step chain cannot be a 2-step motif.
+
+Rung 7 (cross-domain rent): a measurement, not a mechanism; not yet
+  run. Requires an induced law paying rent on a goal family it was
+  not learned in, ablation-confirmed.
+
+The ladder's single acceptance criterion is met at rung 5: a held-out
+problem closes in fewer steps than the frozen rules alone allow, using
+a law the machine mined from its own traces, and the speedup tracks
+the learned-memory mask exactly and dies with reset.
+
+Predictions and disciplines added after fable's ladder review
+-------------------------------------------------------------
+
+Defect-nine prediction, logged in advance so the fix is attributed to
+the ladder when it fires: dataflow links are derived from ground
+instances, equivalent to stored edges only while traces are ground.
+The first mining session over SCHEMATIC traces -- a step producing
+(times k m) consumed later under different bindings -- will make
+Compare-based linkage either miss links or overmatch structurally
+equal but semantically distinct terms. Not fixed preemptively; the
+protocol fixes what running reveals.
+
+Support discipline: every adopted induced law records its supporting
+trace count at adoption (visible in the adopt reply and stored with
+the candidate). Minimal-support anti-unification is where
+over-generalization hides; the rent gate cannot catch a law that
+fires correctly by coincidence. Laws adopted at support 2 are to be
+re-examined when support grows.
+
+Determinism pinned: traces survive reset (evidence, not learning);
+re-mining after reset re-induces the alpha-equal law and re-adoption
+pays the same rent (ResetRemineReproducibilityTest). An induced law
+is a function of the evidence, not a residue of a session.
+
+Note on ordering: fable's items 4 (B2/B3 baseline-then-calibration)
+were already executed on the third cut -- see the Set B transport
+calibration logs -- and B3-B produced the no-solutions residual that
+gates Experiment 4.

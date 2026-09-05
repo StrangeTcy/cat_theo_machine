@@ -1,0 +1,44 @@
+Congruence -- second generative definition over divisibility
+============================================================
+
+Contamination ledger: all three laws and the axiom are operator-
+supplied (HUMAN_SUPPLIED_TRUSTED_THEOREM / DOMAIN_AXIOM). The blocked
+goal's residual is grounded by the conclusion-to-goal unification of
+a single-premise law -- the case that exposed and now pins defect 5.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> teach law: (rule (premises (eq (times ?k ?q) ?n)) (conclusion (divides ?k ?n)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq (times ?k ?q) ?n)) (divides ?k ?n))
+you> teach law: (rule (premises (divides ?k ?a) (divides ?k ?b)) (conclusion (divides ?k (minus ?a ?b))))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((divides ?k ?a) (divides ?k ?b)) (divides ?k (minus ?a ?b)))
+you> teach law: (rule (premises (divides ?m (minus ?a ?b))) (conclusion (congruent ?a ?b ?m)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((divides ?m (minus ?a ?b))) (congruent ?a ?b ?m))
+you> assume axiom: (eq (times 5 3) (minus 22 7))
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (eq (times 5 3) (minus 22 7))
+you> attempt goal: (congruent 22 7 5)
+hyge> goal closed. cost=4; provenance SEARCH_DERIVED
+you> attempt goal: (congruent 9 2 5)
+hyge> FAILED. cost=11; rules with a genuine partial match: 1
+residual: missing (divides 5 (minus 9 2)) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (divides 5 (minus 9 2)))
+you> approve dependency 0
+hyge> approved dependency [0] status=SpeculativeDependency
+you> teach dependency 0: (rule (premises) (conclusion (divides 5 (minus 9 2))))
+hyge> counterfactual: cost 11 -> 2; newly enabled existing firings: 0; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 1
+you> retry parent goal
+hyge> retry: goal closed
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(divides 5 (minus 9 2)) outcome=DemonstratedUsefulDependency
+you> goodbye
+hyge> goodbye

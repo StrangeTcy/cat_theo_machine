@@ -1,0 +1,51 @@
+Defect 1 ruling diagnostic -- library rules contribute no goal candidates
+================================================================
+tag: experiment-5-frozen-r1 -> ef571b6 (tip b7e6c90 differs only in
+     protocol/DISTRIBUTION.md and two standalone tools; no machine code)
+session: cold start, research mode on, load theorem packs, nothing taught
+         unless a line below says otherwise.
+
+--- probe goals, cold, packs loaded (167 LIBRARY_THEOREM rules) ---
+you> research mode on
+you> load theorem packs
+you> attempt goal: (real (sqrt 2))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((real (sqrt 2))))
+you> attempt goal: (divides 3 (plus p q))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((divides 3 (plus p q))))
+you> attempt goal: (primitivetriple 8 15 17)
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((primitivetriple 8 15 17)))
+you> attempt goal: (eq (plus 2 2) 4)
+hyge> goal closed. cost=0; firings=0; provenance SEARCH_DERIVED
+you> attempt goal: (eq (times 3 (plus 4 5)) (plus (times 3 4) (times 3 5)))
+hyge> goal closed. cost=0; firings=0; provenance SEARCH_DERIVED
+you> attempt goal: (eq (pow t 6) (pow (pow t 2) 3))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((eq (pow t 6) (pow (pow t 2) 3))))
+you> goodbye
+
+--- the specified diagnostic: same goal wrapped in forall/implies ---
+you> attempt goal: (eq (pow t 6) (pow (pow t 2) 3))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((eq (pow t 6) (pow (pow t 2) 3))))
+you> attempt goal: (forall n (implies (greater n 1) (eq (pow t 6) (pow (pow t 2) 3))))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((forall n (implies (greater n 1) (eq (pow t 6) (pow (pow t 2) 3))))))
+
+--- controlled A/B: same goal, library only vs one taught conclusion law ---
+you> attempt goal: (divides 3 (plus p q))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((divides 3 (plus p q))))
+you> teach law: (rule (premises (divides 3 p) (divides 3 q)) (conclusion (divides 3 (plus p q))))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((divides 3 p) (divides 3 q)) (divides 3 (plus p q)))
+you> attempt goal: (divides 3 (plus p q))
+hyge> FAILED. cost=336; rules with a genuine partial match: 1
+you> goodbye
+
+--- how pack rules are compiled (packs.py:287-300) ---
+  replacement = self._compile_term(r["replacement"], var_env)
+  rule_obj = MultiRule(premises, replacement)   # 85 of 167
+  rule_obj = Rule(pattern, replacement)         # 82 of 167
+  no pack rule carries a conclusion.

@@ -4,11 +4,24 @@ from .core import Edge, EmptyList, Head, IdentityCompare, Pair, Tail, false_valu
 from .labels import (
     ContextAllRulesLabel,
     ContextConstructorsLabel,
+    ContextCounterfactualResultsLabel,
+    ContextDependencyGraphLabel,
+    ContextDependencyRequestsLabel,
     ContextDerivationsLabel,
     ContextDerivationSchemataLabel,
     ContextEdgesLabel,
+    ContextGeneratorMetricsLabel,
+    ContextInterventionEpisodesLabel,
+    ContextDependencyPoliciesLabel,
+    ContextGeneratorPolicyLabel,
+    ContextLastProofLabel,
+    ContextLastResidualsLabel,
     ContextNextRuleIndexLabel,
     ContextNodesLabel,
+    ContextProvenanceMapLabel,
+    ContextResearchModeLabel,
+    ContextResearchAttemptsLabel,
+    ContextResearchResidualsLabel,
     ContextRuleOrderLabel,
     ContextSearchComparisonsLabel,
     ContextSearchComparisonJobsLabel,
@@ -40,7 +53,46 @@ def Context(
     search_jobs,
     search_memo,
     nat_value_index,
+    dependency_requests=None,
+    dependency_graph=None,
+    generator_metrics=None,
+    last_proof=None,
+    research_residuals=None,
+    provenance_map=None,
+    generator_policy=None,
+    last_residuals=None,
+    counterfactual_results=None,
+    research_mode=None,
+    research_attempts=None,
+    intervention_episodes=None,
+    dependency_policies=None,
 ):
+    if dependency_requests is None:
+        dependency_requests = EmptyList
+    if dependency_graph is None:
+        dependency_graph = EmptyList
+    if generator_metrics is None:
+        generator_metrics = EmptyList
+    if last_proof is None:
+        last_proof = EmptyList
+    if research_residuals is None:
+        research_residuals = EmptyList
+    if provenance_map is None:
+        provenance_map = EmptyList
+    if generator_policy is None:
+        generator_policy = EmptyList
+    if last_residuals is None:
+        last_residuals = EmptyList
+    if counterfactual_results is None:
+        counterfactual_results = EmptyList
+    if research_mode is None:
+        research_mode = EmptyList
+    if research_attempts is None:
+        research_attempts = EmptyList
+    if intervention_episodes is None:
+        intervention_episodes = EmptyList
+    if dependency_policies is None:
+        dependency_policies = EmptyList
     tree = Tree(EmptyList)
     tree = TreeInsert(tree, ContextConstructorsLabel, constructors, constructors)()
     tree = TreeInsert(tree, ContextNodesLabel, nodes, constructors)()
@@ -58,6 +110,19 @@ def Context(
     tree = TreeInsert(tree, ContextSearchJobsLabel, search_jobs, constructors)()
     tree = TreeInsert(tree, ContextSearchMemoLabel, search_memo, constructors)()
     tree = TreeInsert(tree, ContextNatValueIndexLabel, nat_value_index, constructors)()
+    tree = TreeInsert(tree, ContextDependencyRequestsLabel, dependency_requests, constructors)()
+    tree = TreeInsert(tree, ContextDependencyGraphLabel, dependency_graph, constructors)()
+    tree = TreeInsert(tree, ContextGeneratorMetricsLabel, generator_metrics, constructors)()
+    tree = TreeInsert(tree, ContextLastProofLabel, last_proof, constructors)()
+    tree = TreeInsert(tree, ContextResearchResidualsLabel, research_residuals, constructors)()
+    tree = TreeInsert(tree, ContextProvenanceMapLabel, provenance_map, constructors)()
+    tree = TreeInsert(tree, ContextGeneratorPolicyLabel, generator_policy, constructors)()
+    tree = TreeInsert(tree, ContextLastResidualsLabel, last_residuals, constructors)()
+    tree = TreeInsert(tree, ContextCounterfactualResultsLabel, counterfactual_results, constructors)()
+    tree = TreeInsert(tree, ContextResearchModeLabel, research_mode, constructors)()
+    tree = TreeInsert(tree, ContextResearchAttemptsLabel, research_attempts, constructors)()
+    tree = TreeInsert(tree, ContextInterventionEpisodesLabel, intervention_episodes, constructors)()
+    tree = TreeInsert(tree, ContextDependencyPoliciesLabel, dependency_policies, constructors)()
     return Pair(MachineContextLabel, Pair(tree, EmptyList))
 
 
@@ -707,6 +772,196 @@ class ContextNatValueIndex(Edge):
         return self.result
 
 
+class ContextDependencyRequests(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextDependencyRequestsLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextDependencyGraph(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextDependencyGraphLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextGeneratorMetrics(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextGeneratorMetricsLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextLastProof(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextLastProofLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextResearchResiduals(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextResearchResidualsLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextProvenanceMap(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextProvenanceMapLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextGeneratorPolicy(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextGeneratorPolicyLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextLastResiduals(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextLastResidualsLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextCounterfactualResults(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextCounterfactualResultsLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextResearchMode(Edge):
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextResearchModeLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextResearchAttempts(Edge):
+    """Attempted-rule records collected during search, newest first.
+
+    EmptyList when nothing has been recorded, including for checkpoints
+    written before this field existed.
+    """
+
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextResearchAttemptsLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextInterventionEpisodes(Edge):
+    """Intervention episodes: measured live-teaching outcomes, newest first.
+
+    Each entry records residual features, the human-supplied formal rule,
+    the newly enabled firings, cost before, cost after and the outcome.
+    EmptyList when no live teaching has been measured, including for
+    checkpoints written before this field existed.
+    """
+
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextInterventionEpisodesLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ContextDependencyPolicies(Edge):
+    """Learned dependency policies, generalized from intervention episodes.
+
+    EmptyList on a cold checkpoint: a policy exists only after at least two
+    independent useful episodes were anti-unified, and resetting learned
+    memory returns this field to EmptyList.
+    """
+
+    def __init__(self, ctx):
+        tree = ContextTree(ctx)()
+        if IdentityCompare(tree, EmptyList)() is truth_value:
+            self.result = EmptyList
+        else:
+            self.result = TreeLookup(tree, ContextDependencyPoliciesLabel)()
+        super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class ReplaceContext(Edge):
     KEEP = object()
 
@@ -729,6 +984,19 @@ class ReplaceContext(Edge):
         search_jobs=KEEP,
         search_memo=KEEP,
         nat_value_index=KEEP,
+        dependency_requests=KEEP,
+        dependency_graph=KEEP,
+        generator_metrics=KEEP,
+        last_proof=KEEP,
+        research_residuals=KEEP,
+        provenance_map=KEEP,
+        generator_policy=KEEP,
+        last_residuals=KEEP,
+        counterfactual_results=KEEP,
+        research_mode=KEEP,
+        research_attempts=KEEP,
+        intervention_episodes=KEEP,
+        dependency_policies=KEEP,
     ):
         current_constructors = ContextConstructors(ctx)()
         current_nodes = ContextNodes(ctx)()
@@ -746,6 +1014,19 @@ class ReplaceContext(Edge):
         current_search_jobs = ContextSearchJobs(ctx)()
         current_search_memo = ContextSearchMemo(ctx)()
         current_nat_value_index = ContextNatValueIndex(ctx)()
+        current_dependency_requests = ContextDependencyRequests(ctx)()
+        current_dependency_graph = ContextDependencyGraph(ctx)()
+        current_generator_metrics = ContextGeneratorMetrics(ctx)()
+        current_last_proof = ContextLastProof(ctx)()
+        current_research_residuals = ContextResearchResiduals(ctx)()
+        current_provenance_map = ContextProvenanceMap(ctx)()
+        current_generator_policy = ContextGeneratorPolicy(ctx)()
+        current_last_residuals = ContextLastResiduals(ctx)()
+        current_counterfactual_results = ContextCounterfactualResults(ctx)()
+        current_research_mode = ContextResearchMode(ctx)()
+        current_research_attempts = ContextResearchAttempts(ctx)()
+        current_intervention_episodes = ContextInterventionEpisodes(ctx)()
+        current_dependency_policies = ContextDependencyPolicies(ctx)()
         self.result = Context(
             current_constructors if constructors is self.KEEP else constructors,
             current_nodes if nodes is self.KEEP else nodes,
@@ -763,6 +1044,19 @@ class ReplaceContext(Edge):
             current_search_jobs if search_jobs is self.KEEP else search_jobs,
             current_search_memo if search_memo is self.KEEP else search_memo,
             current_nat_value_index if nat_value_index is self.KEEP else nat_value_index,
+            current_dependency_requests if dependency_requests is self.KEEP else dependency_requests,
+            current_dependency_graph if dependency_graph is self.KEEP else dependency_graph,
+            current_generator_metrics if generator_metrics is self.KEEP else generator_metrics,
+            current_last_proof if last_proof is self.KEEP else last_proof,
+            current_research_residuals if research_residuals is self.KEEP else research_residuals,
+            current_provenance_map if provenance_map is self.KEEP else provenance_map,
+            current_generator_policy if generator_policy is self.KEEP else generator_policy,
+            current_last_residuals if last_residuals is self.KEEP else last_residuals,
+            current_counterfactual_results if counterfactual_results is self.KEEP else counterfactual_results,
+            current_research_mode if research_mode is self.KEEP else research_mode,
+            current_research_attempts if research_attempts is self.KEEP else research_attempts,
+            current_intervention_episodes if intervention_episodes is self.KEEP else intervention_episodes,
+            current_dependency_policies if dependency_policies is self.KEEP else dependency_policies,
         )
         super().__init__(inputs=Pair(ctx, EmptyList), results=self.result)
 
@@ -1048,6 +1342,115 @@ class FromContextGetNatValueIndex(Edge):
     def __call__(self):
         return self.result
 
+
+class FromContextGetDependencyRequests(Edge):
+    def __init__(self, graph):
+        self.result = ContextDependencyRequests(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetDependencyGraph(Edge):
+    def __init__(self, graph):
+        self.result = ContextDependencyGraph(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetGeneratorMetrics(Edge):
+    def __init__(self, graph):
+        self.result = ContextGeneratorMetrics(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetLastProof(Edge):
+    def __init__(self, graph):
+        self.result = ContextLastProof(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetResearchResiduals(Edge):
+    def __init__(self, graph):
+        self.result = ContextResearchResiduals(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetProvenanceMap(Edge):
+    def __init__(self, graph):
+        self.result = ContextProvenanceMap(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetGeneratorPolicy(Edge):
+    def __init__(self, graph):
+        self.result = ContextGeneratorPolicy(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetLastResiduals(Edge):
+    def __init__(self, graph):
+        self.result = ContextLastResiduals(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetCounterfactualResults(Edge):
+    def __init__(self, graph):
+        self.result = ContextCounterfactualResults(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetInterventionEpisodes(Edge):
+    def __init__(self, graph):
+        self.result = ContextInterventionEpisodes(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetDependencyPolicies(Edge):
+    def __init__(self, graph):
+        self.result = ContextDependencyPolicies(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FromContextGetResearchMode(Edge):
+    def __init__(self, graph):
+        self.result = ContextResearchMode(HypergraphContext(graph)())()
+        super().__init__(inputs=Pair(graph, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 def sync_from_namespace(namespace):
     for name in (
         "EmptyList",
@@ -1070,6 +1473,18 @@ def sync_from_namespace(namespace):
         "ContextSearchJobsLabel",
         "ContextSearchMemoLabel",
         "ContextNatValueIndexLabel",
+        "ContextDependencyRequestsLabel",
+        "ContextDependencyGraphLabel",
+        "ContextGeneratorMetricsLabel",
+        "ContextLastProofLabel",
+        "ContextResearchResidualsLabel",
+        "ContextProvenanceMapLabel",
+        "ContextGeneratorPolicyLabel",
+        "ContextLastResidualsLabel",
+        "ContextCounterfactualResultsLabel",
+        "ContextResearchModeLabel",
+        "ContextInterventionEpisodesLabel",
+        "ContextDependencyPoliciesLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

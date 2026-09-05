@@ -73,10 +73,13 @@ class PackTreeMap:
 
 class LoadedPack:
 
-    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi):
+    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi, origin=None):
         self.name = name
         self.description = description
         self.requires = requires
+        # Declared origin tag (a machine Char from learning.origin_tag_for_text);
+        # defaults to primitive. Read from the pack header 'origin:' field.
+        self.origin = origin
         self.rule_map = rule_map
         self.rule_chain = rule_chain
         self.schema_map = schema_map
@@ -109,13 +112,33 @@ class PackLoader:
         self.symbol_map = M.EmptyList
         self._symbol_map_names = ()
 
+        # D11-MAP. Per-pack, opt-in, and set fresh by every load_pack_dict
+        # call: a pack that declares nothing sees an empty map, so an
+        # unported pack compiles exactly as it did before this existed.
+        self.surface_map = {}
+        self.surface_audit = ()
+        self.surface_rule_audit = ()
+        self._surface_this_rule = ()
+
+    def _record_surface_use(self, label_name, label_atom, surface_atom, surface_name):
+        """Note that a constructor head was compiled through the mapping."""
+        entry = (label_name, label_atom, surface_atom, surface_name)
+        self._surface_this_rule = self._surface_this_rule + (entry,)
+
     def _chain(self, items):
         L = M.EmptyList
         for item in reversed(items):
             L = M.Pair(item, L)
         return L
 
-    def _compile_term(self, spec, var_env=None):
+    def _compile_term(self, spec, var_env=None, as_head=False):
+        """Compile one pack term.
+
+        `as_head` is true only in the head position of a `call`. D11-MAP
+        maps a pack symbol to the research-surface atom **there and only
+        there**: a label used as data must not be silently rewritten into
+        a surface atom just because the pack declared a mapping for it.
+        """
         if var_env is None:
             var_env = {}
 
@@ -127,6 +150,14 @@ class PackLoader:
             if name not in self.namespace:
                 raise RuntimeError(f"Unknown symbol in pack: {name}")
             atom = self.namespace[name]
+            if as_head and name in self.surface_map:
+                # The symbol_map below still records the namespace atom:
+                # what a name denotes is unchanged, only this head
+                # position is spoken in the research vocabulary.
+                surface_name = self.surface_map[name]
+                surface_atom = self.string_table._char_atom(surface_name)
+                self._record_surface_use(name, atom, surface_atom, surface_name)
+                atom = surface_atom
             if name not in self._symbol_map_names:
                 self._symbol_map_names = self._symbol_map_names + (name,)
                 self.symbol_map = M.Pair(
@@ -171,7 +202,7 @@ class PackLoader:
             if "head" not in call or "args" not in call:
                 raise RuntimeError(f"'call' requires 'head' and 'args': {spec}")
 
-            head = self._compile_term(call["head"], var_env)
+            head = self._compile_term(call["head"], var_env, as_head=True)
             args = call["args"]
             if not isinstance(args, list):
                 raise RuntimeError(f"'args' must be a list: {spec}")
@@ -244,15 +275,65 @@ class PackLoader:
         name = data.get("name", "unnamed-pack")
         description = data.get("description", "")
         requires = data.get("requires", ())
+        origin_text = data.get("origin", "primitive")
         if requires is None:
             requires = ()
         else:
             requires = tuple(requires)
 
+        # D11-MAP: pack-local surface declaration. Opt-in and scoped to
+        # constructor heads in this pack only. Validated eagerly so a typo
+        # fails at load rather than silently compiling a Label.
+        surface_spec = data.get("surface", None)
+        if surface_spec is None:
+            surface_spec = {}
+        if not isinstance(surface_spec, dict):
+            raise RuntimeError(
+                f"Pack '{name}': 'surface' must be a map of pack symbol -> surface name"
+            )
+        self.surface_map = {}
+        self.surface_audit = ()
+        self.surface_rule_audit = ()
+        self._surface_this_rule = ()
+        for label_name, surface_name in surface_spec.items():
+            if not isinstance(label_name, str) or not isinstance(surface_name, str):
+                raise RuntimeError(
+                    f"Pack '{name}': bad 'surface' entry {label_name!r}: {surface_name!r}"
+                )
+            if surface_name == "":
+                raise RuntimeError(
+                    f"Pack '{name}': 'surface' maps '{label_name}' to an empty name"
+                )
+            if label_name not in self.namespace:
+                raise RuntimeError(
+                    f"Pack '{name}': 'surface' names unknown symbol '{label_name}'"
+                )
+            self.surface_map[label_name] = surface_name
+
         try:
             self.string_table = graph._pack_string_table
         except AttributeError:
             graph._pack_string_table = self.string_table
+
+        # D11-MAP: now that the pack's string table is the graph's, build
+        # the audit atoms from the same table the rule heads will come
+        # from, so a recorded surface_atom is the atom actually compiled.
+        for label_name, surface_name in self.surface_map.items():
+            self.surface_audit = self.surface_audit + (
+                (label_name, self.namespace[label_name],
+                 self.string_table._char_atom(surface_name), surface_name),
+            )
+        for label_name, _label_atom, _surface_atom, surface_name in self.surface_audit:
+            # The audit term is (pack_id, label_atom, surface_atom); the
+            # atoms are carried in self.surface_audit for programmatic
+            # readers, and named here because a ConstructorLabel has no
+            # host text to print.
+            sys.stdout.write(
+                "PackSurfaceMapping(pack=%s, label=%s, surface=%s)\n"
+                % (name, label_name, surface_name)
+            )
+        if self.surface_audit:
+            sys.stdout.flush()
 
         try:
             loaded_pack_names = graph._loaded_pack_names
@@ -280,6 +361,7 @@ class PackLoader:
         for r in rule_specs:
             rid = r["id"]
             var_env = {}
+            self._surface_this_rule = ()
             replacement = self._compile_term(r["replacement"], var_env)
             if "premises" in r:
                 premise_specs = r["premises"]
@@ -301,6 +383,21 @@ class PackLoader:
 
             rule_map.store(rid, canonical_rule)
             rule_order = rule_order + (canonical_rule,)
+
+            # D11-MAP audit: a rule whose head was compiled through the
+            # mapping is reachable from research goals only by that path,
+            # so the attribution is recorded here, at compile time, and
+            # not left to be inferred from a match later.
+            for label_name, label_atom, surface_atom, surface_name in self._surface_this_rule:
+                sys.stdout.write(
+                    "LibraryRuleMatchedViaSurfaceMapping(rule=%s, pack=%s, "
+                    "label=%s, surface=%s)\n" % (rid, name, label_name, surface_name)
+                )
+                self.surface_rule_audit = self.surface_rule_audit + (
+                    (rid, label_name, label_atom, surface_atom, surface_name),
+                )
+            if self._surface_this_rule:
+                sys.stdout.flush()
 
         rule_chain = self._chain(rule_order)
 
@@ -347,6 +444,14 @@ class PackLoader:
         )
         loaded_pack_names.store(name, M.truth_value)
 
+        from .provenance import origin_tag_for_text
+
+        origin_tag = origin_tag_for_text(origin_text)
+        origin_scan = rule_chain
+        while M.IdentityCompare(origin_scan, M.EmptyList)() is M.false_value:
+            graph.tag_rule_origin(M.Head(origin_scan)(), origin_tag)
+            origin_scan = M.Tail(origin_scan)()
+
         loaded = LoadedPack(
             name=name,
             description=description,
@@ -356,8 +461,26 @@ class PackLoader:
             schema_map=schema_map,
             examples=examples,
             phi=phi,
+            origin=origin_tag,
         )
         loaded.symbol_map = self.symbol_map
+        # D11-MAP: what this pack declared, and which rules were compiled
+        # through it. Empty for every pack that declares nothing.
+        loaded.surface_mapping_audit = tuple(
+            "PackSurfaceMapping(pack=%s, label=%s, surface=%s)"
+            % (name, label_name, surface_name)
+            for label_name, _la, _sa, surface_name in self.surface_audit
+        )
+        loaded.surface_mapped_rules = tuple(
+            "LibraryRuleMatchedViaSurfaceMapping(rule=%s, pack=%s, label=%s, surface=%s)"
+            % (rid, name, label_name, surface_name)
+            for rid, label_name, _la, _sa, surface_name in self.surface_rule_audit
+        )
+        # Per-pack scoping: leave no mapping behind for the next pack.
+        self.surface_map = {}
+        self.surface_audit = ()
+        self.surface_rule_audit = ()
+        self._surface_this_rule = ()
         return loaded
 
     def load_pack_file(self, path, graph):

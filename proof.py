@@ -16,7 +16,12 @@ from .heuristics import (
 )
 from .labels import (
     CompiledRuleLabel,
+    DerivationCacheHitLabel,
     DerivationLabel,
+    FailureLabel,
+    PrewrittenProofLadderLabel,
+    SchemaReplayLabel,
+    SearchDerivedLabel,
     GoalHeadOrderLabel,
     KnowledgeLabel,
     InvariantLabel,
@@ -45,6 +50,8 @@ from .schemata import (
     StoreDerivationSchema,
 )
 from . import gmprep as Gmpmod
+from . import provenance as Provmod
+from . import canonical as Canon
 
 # Canonical zero as a GMP count text, so anchor metadata carries machine
 # numerals instead of host integers.
@@ -583,7 +590,13 @@ class KnowledgeFacts(M.Edge):
 class NormalizeKnowledgeFacts(M.Edge):
     def __init__(self, facts, registry):
         self.registry = registry
-        trie = K.KnowledgeTrieInsertChain(M.EmptyTree, facts, registry)()
+        # Put every fact under canonical commutative order first, so that
+        # NonNegative((b^2) * (a^2)) and NonNegative((a^2) * (b^2)) are the
+        # same fact: * and + are commutative, and without this a genuinely
+        # derived fact whose factors are bound in the wrong order never
+        # matches the requested goal.
+        canonical_facts = Canon.CanonicalFactChain(facts)()
+        trie = K.KnowledgeTrieInsertChain(M.EmptyTree, canonical_facts, registry)()
         self.result = K.KnowledgeTrieFacts(trie, registry)()
         super().__init__(inputs=M.Pair(facts, M.Pair(registry, M.EmptyList)), results=self.result)
 
@@ -597,7 +610,9 @@ class NormalizeKnowledge(M.Edge):
             facts = NormalizeKnowledgeFacts(KnowledgeFacts(x)(), registry)()
             self.result = Knowledge(facts)()
         else:
-            self.result = x
+            # A bare goal fact is canonicalized the same way the facts
+            # are, so goal recognition compares equal up to commutativity.
+            self.result = Canon.CanonicalTerm(x)()
         super().__init__(inputs=M.Pair(x, M.Pair(registry, M.EmptyList)), results=self.result)
 
     def __call__(self):
@@ -748,14 +763,36 @@ class ApplyKnowledgeRewrite(M.Edge):
         premises = RulePremises(rule)()
         replacement = RuleReplacement(rule)()
         consumed = InstantiateFactList(premises, bindings)()
-        leftover = DropMatchedFacts(facts, consumed)()
-        added = InstantiateFactList(replacement, bindings)()
-        next_facts = leftover
+        # The replacement is the single fact the rule concludes (for a
+        # premise-bearing law it is one Pair fact, e.g. NonNegative(x*y)).
+        # Instantiating the replacement term as one term -- and treating
+        # the result as a one-element fact chain -- keeps the conclusion
+        # whole; InstantiateFactList would walk the fact's Pair spine and
+        # split NonNegative(product) into a bare label plus its argument.
+        instantiated_replacement = M.Head(M.Instantiate(replacement, bindings)())()
+        added = M.Pair(instantiated_replacement, M.EmptyList)
+        # Forward inference adds conclusions without erasing premises:
+        # the premises of a multi-premise law (e.g. two NonNegative
+        # facts) are conditions that stay on the board, so later laws can
+        # join against them. Dropping them meant a rule could fire only
+        # once per fact and closure was impossible. Rewrite-style rules
+        # that genuinely replace their input express that in their
+        # replacement, so retaining premises here never duplicates a
+        # conclusion (NormalizeKnowledgeFacts deduplicates the board).
+        # Canonicalize both under commutative order so a derived product
+        # matches the goal regardless of variable binding order.
+        added = Canon.CanonicalFactChain(added)()
+        next_facts = facts
         extra = added
         while M.IdentityCompare(extra, M.EmptyList)() is M.false_value:
             next_facts = M.Pair(M.Head(extra)(), next_facts)
             extra = M.Tail(extra)()
-        self.result = Knowledge(next_facts)()
+        # Canonicalize the accumulated board (existing facts plus the new
+        # conclusion); the trie inside NormalizeKnowledgeFacts then dedups
+        # idempotent firings, and commutative products compare equal
+        # regardless of variable binding order.
+        canonical_board = Canon.CanonicalFactChain(next_facts)()
+        self.result = Knowledge(NormalizeKnowledgeFacts(canonical_board, M.AllConstructors)())()
         super().__init__(inputs=M.Pair(state, M.Pair(rule, M.Pair(bindings, M.EmptyList))), results=self.result)
 
     def __call__(self):
@@ -2905,6 +2942,8 @@ class Prove(M.Edge):
             phi = M.EmptyList
         self.phi = phi
         self._found_limit = M.EmptyList
+        self._grid_result = M.EmptyList
+        self._grid_miss_bound = M.EmptyList
         _debug("prove: start=" + _debug_term(start, registry))
         _debug("prove: goal=" + _debug_term(goal, registry))
         if M.IdentityCompare(phi, M.EmptyList)() is M.false_value:
@@ -3161,9 +3200,38 @@ class Prove(M.Edge):
         self.graph.add_search_attempt(attempt)
         return attempt
 
+    def _provenance_tag_for_cost(self, search_cost):
+        """Search-derived only when states were actually expanded.
+
+        A zero-expansion cost is a rule that closed the goal without a
+        search; that is a library/ladder application, and the rule chain
+        composition (which pack the rule came from) distinguishes those
+        two at audit time. The fallback here is the honest tag for a
+        proof that never expanded a frontier state.
+        """
+        from .search import SearchCostExpanded
+
+        if M.Compare(search_cost, M.EmptyList)() is M.truth_value:
+            return Provmod.LibraryRuleTag
+        expanded = SearchCostExpanded(search_cost)()
+        zero = M.CountRep(M.EmptyList)()
+        if M.TermEqual(expanded, zero)() is M.truth_value:
+            return Provmod.LibraryRuleTag
+        return Provmod.SearchDerivedTag
+
+    def _record_proof_tag(self, tag, witness=M.EmptyList):
+        return self.graph.record_provenance(tag, self.goal, witness)
+
     def _store_success(self, derivation, new_registry, search_cost, heuristic=None):
+        from .search import SearchCostExpanded
+
         self.graph._replace_context(constructors=new_registry)
         _debug("prove-stage: storing derivation in context.derivations (snapshot will persist current context when saved)")
+        tag = self._provenance_tag_for_cost(search_cost)
+        witness = M.EmptyList
+        if M.Compare(search_cost, M.EmptyList)() is not M.truth_value:
+            witness = SearchCostExpanded(search_cost)()
+        self._record_proof_tag(tag, witness)
         stored = self.graph.add_derivation(self.start, self.goal, derivation)
         self._store_search_attempt(stored, search_cost, heuristic)
         return stored
@@ -3605,8 +3673,53 @@ class Prove(M.Edge):
     #     _debug("prove-stage: mixed search derivation built")
     #     return self._store_success(derivation, new_registry, search_cost, self.heuristic)
 
+    def _is_research_mode(self):
+        """Python boolean for search control flow, read from the machine value.
+
+        The rest of this method branches on it, so the machine's truth atom
+        is collapsed to a host boolean exactly here and nowhere else.
+        """
+        try:
+            from . import research as Rmod
+            return M.IdentityCompare(Rmod.IsResearchMode(self.graph), M.truth_value)() is M.truth_value
+        except Exception:
+            return False
+
+    def _store_last_proof_with_provenance(self, derivation, search_cost, provenance_label, goal_term=None):
+        try:
+            from . import research as Rmod
+            # Build last_proof as Pair chain: goal, provenance, derivation, cost
+            g = goal_term if goal_term is not None else self.goal
+            # For explain last proof, store expanded states etc via simple wrapper
+            # Pair(LastProofLabel, Pair(goal, Pair(provenance, Pair(derivation, Pair(search_cost, EmptyList)))))
+            from .labels import LastProofLabel
+            proof_term = M.Pair(LastProofLabel, M.Pair(g, M.Pair(provenance_label, M.Pair(derivation, M.Pair(search_cost, M.EmptyList)))))
+            Rmod.set_last_proof(self.graph, proof_term)
+        except Exception:
+            pass
+
+    def _store_residuals(self, residuals, blocking_condition=None):
+        try:
+            from . import research as Rmod
+            # Store residuals for later dependency suggestion
+            # If zero successors, wrap as ZeroSuccessorResidual
+            if M.IdentityCompare(residuals, M.EmptyList)() is M.truth_value:
+                attempts = Rmod.get_research_attempts(self.graph)
+                if M.IdentityCompare(attempts, M.EmptyList)() is M.false_value:
+                    Rmod.set_last_attempts(self.graph, attempts)
+                    return
+                from .labels import ZeroSuccessorResidualLabel
+                residuals_wrapped = M.Pair(ZeroSuccessorResidualLabel, M.Pair(self.goal, M.EmptyList))
+            else:
+                residuals_wrapped = residuals
+            Rmod.set_last_residuals(self.graph, residuals_wrapped)
+        except Exception:
+            pass
+
     def _prove(self):
         from .search import CompareSearchModes, SearchComparisonBestAttempt, SearchComparisonOutcome, SearchCostOutcome
+
+        research_mode = self._is_research_mode()
 
         if M.IdentityCompare(self._found_limit, M.EmptyList)() is M.false_value:
             if M.Compare(self._found_limit, self.goal)() is M.truth_value:
@@ -3623,6 +3736,7 @@ class Prove(M.Edge):
                 deriv_pair = Derivation(M.Pair(step_node, M.EmptyList), cost, cost_registry)()
                 derivation = M.Head(deriv_pair)()
                 new_registry = M.Head(M.Tail(deriv_pair)())()
+                self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel if not research_mode else SearchDerivedLabel, self.goal)
                 return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
 
         if IsKnowledge(self.goal)() is M.truth_value:
@@ -3641,6 +3755,7 @@ class Prove(M.Edge):
                     deriv_pair = Derivation(M.Pair(step_node, M.EmptyList), cost, cost_registry)()
                     derivation = M.Head(deriv_pair)()
                     new_registry = M.Head(M.Tail(deriv_pair)())()
+                    self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel, self.goal)
                     return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
 
         start_has_var = ContainsVar(self.start)()
@@ -3649,13 +3764,30 @@ class Prove(M.Edge):
 
         if IsKnowledge(self.goal)() is M.truth_value:
             if IsKnowledge(self.start)() is M.truth_value:
-                goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
-                if M.Compare(goal_instantiating_plan, M.EmptyList)() is M.false_value:
-                    _debug("prove-stage: goal-instantiating theorem on findings")
-                    action = M.Head(goal_instantiating_plan)()
-                    bindings = M.Head(M.Tail(goal_instantiating_plan)())()
-                    plan = M.Pair(action, M.EmptyList)
-                    derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+                if not research_mode:
+                    goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
+                    if M.Compare(goal_instantiating_plan, M.EmptyList)() is M.false_value:
+                        _debug("prove-stage: goal-instantiating theorem on findings")
+                        action = M.Head(goal_instantiating_plan)()
+                        bindings = M.Head(M.Tail(goal_instantiating_plan)())()
+                        plan = M.Pair(action, M.EmptyList)
+                        derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+                        derivation = M.Head(derivation_pair)()
+                        new_registry = M.Head(M.Tail(derivation_pair)())()
+                        if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                            if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+                                zero_search_pair = self._zero_search_cost(new_registry)
+                                zero_search_cost = M.Head(zero_search_pair)()
+                                zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                                self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel, self.goal)
+                                return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+                else:
+                    _debug("prove-stage: research mode - skip goal-instantiating shortcut")
+            if not research_mode:
+                immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
+                if M.Compare(immediate_plan, M.EmptyList)() is M.false_value:
+                    _debug("prove-stage: immediate theorem on findings")
+                    derivation_pair = BuildDerivation(self.start, immediate_plan, M.FromContextGetConstructors(self.graph)())()
                     derivation = M.Head(derivation_pair)()
                     new_registry = M.Head(M.Tail(derivation_pair)())()
                     if M.Compare(derivation, M.EmptyList)() is M.false_value:
@@ -3663,22 +3795,33 @@ class Prove(M.Edge):
                             zero_search_pair = self._zero_search_cost(new_registry)
                             zero_search_cost = M.Head(zero_search_pair)()
                             zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                            self._store_last_proof_with_provenance(derivation, zero_search_cost, SearchDerivedLabel, self.goal)
                             return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
-            immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
-            if M.Compare(immediate_plan, M.EmptyList)() is M.false_value:
-                _debug("prove-stage: immediate theorem on findings")
-                derivation_pair = BuildDerivation(self.start, immediate_plan, M.FromContextGetConstructors(self.graph)())()
-                derivation = M.Head(derivation_pair)()
-                new_registry = M.Head(M.Tail(derivation_pair)())()
-                if M.Compare(derivation, M.EmptyList)() is M.false_value:
-                    if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
-                        zero_search_pair = self._zero_search_cost(new_registry)
-                        zero_search_cost = M.Head(zero_search_pair)()
-                        zero_registry = M.Head(M.Tail(zero_search_pair)())()
-                        return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+            else:
+                _debug("prove-stage: research mode - skip immediate shortcut")
 
         if schematic_proof is M.false_value:
-            _debug("prove-stage: concrete proof path")
+            _debug("prove-stage: concrete proof path" + (" (research mode ON)" if research_mode else ""))
+
+            # Positive-integer grid honesty check. A polynomial inequality
+            # over the powers of positive integers is sampled on a bounded
+            # grid before any search: a grid witness is a counterexample
+            # over the claim's actual domain, and a grid miss is recorded
+            # so the eventual failure reports a capability gap rather than
+            # silence. Rationals are never sampled -- the domain is the
+            # positive integers.
+            grid_result = Provmod.PolynomialCounterexampleGrid(self.goal, 5)()
+            if M.Compare(grid_result, M.EmptyList)() is not M.truth_value:
+                grid_found = M.Head(grid_result)()
+                grid_payload = M.Tail(grid_result)()
+                if grid_found is M.truth_value:
+                    _debug("prove-stage: positive-integer grid found a counterexample")
+                    self._record_proof_tag(Provmod.CounterexampleTag, grid_payload)
+                    self._grid_result = grid_result
+                    return M.EmptyList
+                _debug("prove-stage: grid found no counterexample; "
+                       "failure would be a capability gap")
+                self._grid_miss_bound = grid_payload
 
             if IsKnowledge(self.goal)() is M.truth_value:
                 _debug("prove-stage: knowledge-board goal; skip search-mode comparison")
@@ -3694,91 +3837,173 @@ class Prove(M.Edge):
                 search_cost = M.Head(M.Tail(search_pair)())()
                 if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
                     _debug("prove-stage: knowledge search paused")
+                    self._store_residuals(M.EmptyList)
                     return M.EmptyList
                 if M.Compare(search_result, M.EmptyList)() is M.truth_value:
                     _debug("prove-stage: knowledge search returned empty plan")
                     self._store_search_attempt(M.EmptyList, search_cost, self.heuristic)
+                    self._store_residuals(M.EmptyList)
+                    self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
                     return M.EmptyList
                 derivation_pair = BuildDerivation(self.start, search_result, M.FromContextGetConstructors(self.graph)())()
                 derivation = M.Head(derivation_pair)()
                 new_registry = M.Head(M.Tail(derivation_pair)())()
+                self._store_last_proof_with_provenance(derivation, search_cost, SearchDerivedLabel, self.goal)
                 return self._store_success(derivation, new_registry, search_cost, self.heuristic)
 
-            cached = self.graph.lookup_derivation(self.start, self.goal)
-            if M.Compare(cached, M.EmptyList)() is not M.truth_value:
-                _debug("prove-stage: derivation cache hit")
-                zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
-                zero_search_cost = M.Head(zero_search_pair)()
-                self.graph._replace_context(constructors=M.Head(M.Tail(zero_search_pair)())())
-                self._store_search_attempt(cached, zero_search_cost)
-                self._maybe_seed_search_comparison()
-                return cached
+                cached = M.EmptyList
+                if not research_mode and M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.false_value)() is M.truth_value:
+                    cached = self.graph.lookup_derivation(self.start, self.goal)
+                if M.Compare(cached, M.EmptyList)() is not M.truth_value:
+                    _debug("prove-stage: derivation cache hit")
+                    zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
+                    zero_search_cost = M.Head(zero_search_pair)()
+                    self.graph._replace_context(constructors=M.Head(M.Tail(zero_search_pair)())())
+                    self._store_search_attempt(cached, zero_search_cost)
+                    self._maybe_seed_search_comparison()
+                    self._record_proof_tag(Provmod.DerivationCacheHitTag)
+                    self._store_last_proof_with_provenance(cached, zero_search_cost, DerivationCacheHitLabel, self.goal)
+                    return cached
+                if research_mode:
+                    _debug("prove-stage: research mode - skip derivation cache")
+                elif M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.truth_value)() is M.truth_value:
+                    _debug("prove-stage: evaluation mode - skip derivation cache")
 
-            comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
-            if M.Compare(comparison, M.EmptyList)() is M.truth_value:
-                _debug("prove-stage: no search comparison evidence yet; benchmarking all current search modes")
-                comparison_pair = CompareSearchModes(
-                    self.graph,
-                    self.start,
-                    self.goal,
-                    self.rules,
-                    self.heuristic,
-                    M.FromContextGetConstructors(self.graph)(),
-                )()
-                comparison = M.Head(comparison_pair)()
+                comparison = M.EmptyList
+                if not research_mode and M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.false_value)() is M.truth_value:
+                    comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
                 if M.Compare(comparison, M.EmptyList)() is M.truth_value:
-                    if M.IdentityCompare(self.graph._last_search_comparison_outcome, SearchPausedLabel)() is M.truth_value:
-                        _debug("prove-stage: benchmarking paused")
+                    _debug("prove-stage: no search comparison evidence yet; benchmarking all current search modes")
+                    comparison_pair = CompareSearchModes(
+                        self.graph,
+                        self.start,
+                        self.goal,
+                        self.rules,
+                        self.heuristic,
+                        M.FromContextGetConstructors(self.graph)(),
+                    )()
+                    comparison = M.Head(comparison_pair)()
+                    if M.Compare(comparison, M.EmptyList)() is M.truth_value:
+                        if M.IdentityCompare(self.graph._last_search_comparison_outcome, SearchPausedLabel)() is M.truth_value:
+                            _debug("prove-stage: benchmarking paused")
+                        else:
+                            _debug("prove-stage: benchmarking aborted")
+                        self._store_residuals(M.EmptyList)
+                        return M.EmptyList
+                if M.IdentityCompare(SearchComparisonOutcome(comparison)(), SearchPausedLabel)() is M.truth_value:
+                    _debug("prove-stage: benchmarking paused")
+                    self._store_residuals(M.EmptyList)
+                    return M.EmptyList
+
+                best_attempt = SearchComparisonBestAttempt(comparison)()
+                if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
+                    if SearchAttemptSucceeded(best_attempt)() is M.truth_value:
+                        comparison_derivation = SearchAttemptDerivation(best_attempt)()
+                        if M.Compare(comparison_derivation, M.EmptyList)() is M.false_value:
+                            _debug("prove-stage: comparison already produced a derivation")
+                            _debug("prove-stage: storing derivation in context.derivations (snapshot will persist current context when saved)")
+                            self.graph.add_derivation(self.start, self.goal, comparison_derivation)
+                            _debug("prove-stage: storing search attempt in context.search_history")
+                            self.graph.add_search_attempt(best_attempt)
+                            self._record_proof_tag(Provmod.DerivationCacheHitTag)
+                            self._store_last_proof_with_provenance(comparison_derivation, M.EmptyList, SchemaReplayLabel, self.goal)
+                            return comparison_derivation
                     else:
-                        _debug("prove-stage: benchmarking aborted")
-                    return M.EmptyList
-            if M.IdentityCompare(SearchComparisonOutcome(comparison)(), SearchPausedLabel)() is M.truth_value:
-                _debug("prove-stage: benchmarking paused")
-                return M.EmptyList
+                        _debug("prove-stage: comparison found no successful mode; not rerunning the same search immediately")
+                        self._record_proof_tag(Provmod.FailureTag)
+                        self._store_residuals(M.EmptyList)
+                        self._store_last_proof_with_provenance(M.EmptyList, M.EmptyList, FailureLabel, self.goal)
+                        return M.EmptyList
 
-            best_attempt = SearchComparisonBestAttempt(comparison)()
-            if M.Compare(best_attempt, M.EmptyList)() is M.false_value:
-                if SearchAttemptSucceeded(best_attempt)() is M.truth_value:
-                    comparison_derivation = SearchAttemptDerivation(best_attempt)()
-                    if M.Compare(comparison_derivation, M.EmptyList)() is M.false_value:
-                        _debug("prove-stage: comparison already produced a derivation")
-                        _debug("prove-stage: storing derivation in context.derivations (snapshot will persist current context when saved)")
-                        self.graph.add_derivation(self.start, self.goal, comparison_derivation)
-                        _debug("prove-stage: storing search attempt in context.search_history")
-                        self.graph.add_search_attempt(best_attempt)
-                        return comparison_derivation
-                else:
-                    _debug("prove-stage: comparison found no successful mode; not rerunning the same search immediately")
+
+                recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
+                search_pair = M.Head(recommended_search)()
+                recommended_heuristic = M.Head(M.Tail(recommended_search)())()
+                search_result = M.Head(search_pair)()
+                search_cost = M.Head(M.Tail(search_pair)())()
+
+                if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+                    _debug("prove-stage: recommended search paused")
+                    self._store_residuals(M.EmptyList)
                     return M.EmptyList
 
-            recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
-            search_pair = M.Head(recommended_search)()
-            recommended_heuristic = M.Head(M.Tail(recommended_search)())()
-            search_result = M.Head(search_pair)()
-            search_cost = M.Head(M.Tail(search_pair)())()
+                if M.Compare(search_result, M.EmptyList)() is M.false_value:
+                    _debug("prove-stage: recommended search produced a plan")
+                    derivation_pair = BuildDerivation(
+                        self.start,
+                        search_result,
+                        M.FromContextGetConstructors(self.graph)(),
+                    )()
+                    derivation = M.Head(derivation_pair)()
+                    new_registry = M.Head(M.Tail(derivation_pair)())()
+                    if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                        self._store_last_proof_with_provenance(derivation, search_cost, SearchDerivedLabel, self.goal)
+                        return self._store_success(
+                            derivation,
+                            new_registry,
+                            search_cost,
+                            recommended_heuristic,
+                        )
+                _debug("prove-stage: falling through to mixed search (research mode off path finished)")
+            else:
+                _debug("prove-stage: research mode - skip stored search-comparison shortcuts")
 
-            if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
-                _debug("prove-stage: recommended search paused")
-                return M.EmptyList
-
-            if M.Compare(search_result, M.EmptyList)() is M.false_value:
-                _debug("prove-stage: recommended search produced a plan")
-                derivation_pair = BuildDerivation(
-                    self.start,
-                    search_result,
-                    M.FromContextGetConstructors(self.graph)(),
-                )()
+        # Mixed search path - always allowed, but in research mode we preserve residuals and don't use schema shortcuts
+        if not research_mode:
+            # schema and goal-instantiating shortcuts are considered prewritten ladders / target-specific shortcuts
+            # In non-research mode they are allowed, but we still implement research mode disabling
+            schema_hit = self.graph.lookup_derivation_schema(self.start, self.goal)
+            if M.Compare(schema_hit, M.EmptyList)() is not M.truth_value:
+                _debug("prove-stage: schema hit")
+                plan = M.Head(schema_hit)()
+                bindings = M.Head(M.Tail(schema_hit)())()
+                _debug("prove-stage: schema plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+                derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
                 derivation = M.Head(derivation_pair)()
                 new_registry = M.Head(M.Tail(derivation_pair)())()
-                if M.Compare(derivation, M.EmptyList)() is M.false_value:
-                    return self._store_success(
-                        derivation,
-                        new_registry,
-                        search_cost,
-                        recommended_heuristic,
-                    )
+                if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+                    if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+                        _debug("prove-stage: schema replay succeeded")
+                        zero_search_pair = self._zero_search_cost(new_registry)
+                        zero_search_cost = M.Head(zero_search_pair)()
+                        zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                        self._store_last_proof_with_provenance(derivation, zero_search_cost, SchemaReplayLabel, self.goal)
+                        return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
 
-            _debug("prove-stage: falling through to mixed search")
+            goal_instantiating_plan = self._find_goal_instantiating_plan(self.rules, self.start)
+            if M.Compare(goal_instantiating_plan, M.EmptyList)() is not M.truth_value:
+                _debug("prove-stage: found goal-instantiating theorem action")
+                action = M.Head(goal_instantiating_plan)()
+                bindings = M.Head(M.Tail(goal_instantiating_plan)())()
+                plan = M.Pair(action, M.EmptyList)
+                _debug("prove-stage: plan=" + PrettyPlanChain(plan, M.FromContextGetConstructors(self.graph)())())
+                derivation_pair = BuildDerivation(self.start, plan, M.FromContextGetConstructors(self.graph)(), bindings)()
+                derivation = M.Head(derivation_pair)()
+                new_registry = M.Head(M.Tail(derivation_pair)())()
+                if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+                    if self._derivation_reaches_goal(derivation, new_registry) is M.truth_value:
+                        _debug("prove-stage: goal-instantiating plan succeeded")
+                        zero_search_pair = self._zero_search_cost(new_registry)
+                        zero_search_cost = M.Head(zero_search_pair)()
+                        zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                        self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else SearchDerivedLabel, self.goal)
+                        return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+
+            immediate_plan = self._find_immediate_rule_plan(self.rules, self.start)
+            if M.Compare(immediate_plan, M.EmptyList)() is not M.truth_value:
+                _debug("prove-stage: found immediate plan=" + PrettyPlanChain(immediate_plan, M.FromContextGetConstructors(self.graph)())())
+                derivation_pair = BuildDerivation(self.start, immediate_plan, M.FromContextGetConstructors(self.graph)())()
+                derivation = M.Head(derivation_pair)()
+                new_registry = M.Head(M.Tail(derivation_pair)())()
+                if M.Compare(derivation, M.EmptyList)() is not M.truth_value:
+                    _debug("prove-stage: immediate plan succeeded")
+                    zero_search_pair = self._zero_search_cost(new_registry)
+                    zero_search_cost = M.Head(zero_search_pair)()
+                    zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                    self._store_last_proof_with_provenance(derivation, zero_search_cost, PrewrittenProofLadderLabel if hasattr(M, 'PrewrittenProofLadderLabel') else SearchDerivedLabel, self.goal)
+                    return self._store_success(derivation, zero_registry, zero_search_cost, self.heuristic)
+        else:
+            _debug("prove-stage: research mode - skip schema/goal-instantiating/immediate prewritten ladders")
 
         search_pair = M.Search(
             self.graph,
@@ -3793,11 +4018,24 @@ class Prove(M.Edge):
 
         if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
             _debug("prove-stage: mixed search paused")
+            self._store_residuals(M.EmptyList)
+            self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
             return M.EmptyList
 
         if M.Compare(search_result, M.EmptyList)() is M.truth_value:
             _debug("prove-stage: mixed search returned empty plan")
             self._store_search_attempt(M.EmptyList, search_cost, self.heuristic)
+
+            self._store_residuals(M.EmptyList)
+            self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
+            failure_witness = M.EmptyList
+            if M.Compare(search_cost, M.EmptyList)() is not M.truth_value:
+                from .search import SearchCostExpanded as _SearchCostExpanded
+
+                failure_witness = _SearchCostExpanded(search_cost)()
+            if M.IdentityCompare(self._grid_miss_bound, M.EmptyList)() is M.false_value:
+                failure_witness = self._grid_miss_bound
+            self._record_proof_tag(Provmod.FailureTag, failure_witness)
             return M.EmptyList
 
         _debug("prove-stage: mixed search plan=" + PrettyPlanChain(search_result, M.FromContextGetConstructors(self.graph)())())
@@ -3805,6 +4043,13 @@ class Prove(M.Edge):
         derivation = M.Head(derivation_pair)()
         new_registry = M.Head(M.Tail(derivation_pair)())()
         _debug("prove-stage: mixed search derivation built")
+        # Preserve residuals even on success? Store empty residuals on success, else store frontier
+        if M.Compare(derivation, M.EmptyList)() is M.truth_value:
+            self._store_residuals(M.EmptyList)
+            self._store_last_proof_with_provenance(M.EmptyList, search_cost, FailureLabel, self.goal)
+        else:
+            self._store_residuals(M.EmptyList)
+            self._store_last_proof_with_provenance(derivation, search_cost, SearchDerivedLabel, self.goal)
         return self._store_success(derivation, new_registry, search_cost, self.heuristic)
 
     def __call__(self):

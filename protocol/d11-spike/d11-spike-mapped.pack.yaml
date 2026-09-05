@@ -1,0 +1,24 @@
+format: hyge-pack
+version: 1
+
+name: d11-spike-mapped
+description: identical to d11-spike-label plus a pack-local surface header
+requires: []
+
+# D11-MAP: pack-local, opt-in, constructor-head scoped. Within this pack
+# only, these symbols compile to the research-surface atom when used as a
+# constructor head. Nothing outside this pack is affected.
+surface:
+  DividesLabel: divides
+  ExprAddLabel: plus
+
+phi:
+  list: []
+
+rules:
+  - id: spike_divides_add
+    premises:
+      - {call: {head: {sym: DividesLabel}, args: [{var: k}, {var: p}]}}
+      - {call: {head: {sym: DividesLabel}, args: [{var: k}, {var: q}]}}
+    replacement:
+      {call: {head: {sym: DividesLabel}, args: [{var: k}, {call: {head: {sym: ExprAddLabel}, args: [{var: p}, {var: q}]}}]}}

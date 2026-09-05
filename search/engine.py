@@ -619,6 +619,64 @@ class Search(M.Edge):
             return M.EmptyList
         return TermHead(pattern, self.registry)()
 
+    def _record_partial_premise_attempt(self, rule, current, goal=None):
+        """Record a genuine partial premise match that produced no successor.
+
+        The rule was really tried against this knowledge state; some of its
+        premises matched facts, one concrete premise failed after the
+        substitution those matches built. That premise -- and only that
+        premise -- may later be compiled into a dependency request. A rule
+        none of whose premises matched records nothing, so a bare stall
+        stays uncharacterized. Only collected in research mode.
+        """
+        from .. import research as Rmod
+        from ..proof import IsKnowledge, KnowledgeFacts
+
+        if Rmod.IsResearchMode(self.graph)() is M.false_value:
+            return M.EmptyList
+        if IsKnowledge(current)() is M.false_value:
+            return M.EmptyList
+        goal_facts = M.EmptyList
+        if goal is not None:
+            if IsKnowledge(goal)() is M.truth_value:
+                goal_facts = KnowledgeFacts(goal)()
+        return Rmod.RecordPremisePartialMatch(
+            self.graph, rule, KnowledgeFacts(current)(), goal_facts
+        )()
+
+    def _record_failed_attempt(self, rule, subterm):
+        """Record a rule that reached application and did not apply.
+
+        The rule's head was compatible with the subterm, so this is a real
+        partial match: the rule's pattern is the concrete formal premise
+        that failed, and it is stored as a term, never as advice. Only
+        collected in research mode, where residuals are preserved.
+        """
+        from .. import research as Rmod
+
+        if Rmod.IsResearchMode(self.graph)() is M.false_value:
+            return M.EmptyList
+        pattern = RulePattern(rule)()
+        if M.IdentityCompare(pattern, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        origin = M.EmptyList
+        try:
+            from .. import provenance as Provmod
+
+            origin = Provmod.LookupRuleOrigin(self.graph._rule_origins, rule)()
+        except Exception:
+            origin = M.EmptyList
+        attempt = Rmod.AttemptedRule(
+            rule,
+            origin,
+            M.EmptyList,
+            M.EmptyList,
+            pattern,
+            Lmod.PatternMatchFailureLabel,
+        )()
+        self.graph.record_research_attempt(attempt)
+        return attempt
+
     def _rewrite_rule_may_match_subterm(self, rule, subterm):
         pattern = RulePattern(rule)()
         if IsVarPattern(pattern)() is M.truth_value:
@@ -1787,6 +1845,8 @@ class SearchBFS(Search):
                     rule = M.Head(rules)()
                     rest_rules = M.Tail(rules)()
                     successors = KnowledgeRewriteSuccessors(current, rule)()
+                    if M.IdentityCompare(successors, M.EmptyList)() is M.truth_value:
+                        self._record_partial_premise_attempt(rule, current, goal)
                     while M.IdentityCompare(successors, M.EmptyList)() is M.false_value:
                         pair = M.Head(successors)()
                         action = M.Head(pair)()
@@ -2092,6 +2152,7 @@ class SearchBFS(Search):
         next_term = RewriteAtPath(active_rule, current, path, self.registry)()
         next_term = self._canonical_term(next_term)
         if M.TermEqual(next_term, current)() is M.truth_value:
+            self._record_failed_attempt(active_rule, subterm)
             return self._advance_rewrite_cursor(state, next_cursor, goal)
         if self._tree_contains(generated, next_term) is M.truth_value:
             return self._advance_rewrite_cursor(state, next_cursor, goal)
