@@ -5,6 +5,7 @@ b707028b9c645240bac26bc2d342ce42b389d44befbedb2318cedd941725332d  logs/2026-09-0
 e6c16131cdd56be05f7ad4bc7ef0130be84082e07896034cc63988fa79c366b3  logs/2026-09-05-F-PROVER-transcript-inventory.txt
 3630f299dc6a39e2c1cf5f152261734f932e8db364b614ce1c5c02a4b0e75edb  logs/2026-09-05-F-PROVER-residual-harness-check.txt
 a992defd2213984392767c5a86331635c92663aeaffba7d1952c5bd2157f54e1  logs/2026-09-05-F-PROVER-replay-manifest-check.txt
-5cd679a32e1af77526177b0b2fba0795fed7161260b9f06cc0bf70902f5fbcef  protocol/F.md
+590324feb71cf5dc18dc7eac94ee578a34b9883d56dddbb7651a991c9f5eb2a3  protocol/2026-09-05-fable-5-unified-launch-plan-RECEIVED.txt
+09ca110354b338a6761e30eb4f6f1487b46a57223b8d28c4c48999a3eabb2122  protocol/F.md
 
-# rev 2 (2026-09-05): adds residual-harness and replay-manifest checks; updated F.md
+# rev 3 (2026-09-05): adds fable-5 launch-plan receipt (partial, truncation locus marked); F.md gains section 10 (receipt, owner mapping, reset event)

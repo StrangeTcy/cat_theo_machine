@@ -114,6 +114,7 @@ Any future exposure is recorded here as
 | transcript inventory      | logs/2026-09-05-F-PROVER-transcript-inventory.txt |
 | residual-harness check    | logs/2026-09-05-F-PROVER-residual-harness-check.txt |
 | replay-manifest check     | logs/2026-09-05-F-PROVER-replay-manifest-check.txt |
+| launch-plan receipt (fable 5, partial) | protocol/2026-09-05-fable-5-unified-launch-plan-RECEIVED.txt |
 | hash manifest             | checkpoints/2026-09-05-F-PROVER-manifest.txt |
 
 Dated reproducible measurements recorded this session (replayable by the
@@ -173,3 +174,56 @@ channel only, never through repository files or chat prose.
    (logs/2026-09-05-F-PROVER-replay-manifest-check.txt).
 4. On owner declarations (a)–(g): re-run the start gate on the declared
    tag in a fresh session; only on PASS may the decoy session run first.
+
+## 10. Owner launch-plan receipt (fable 5, partial) and reset event
+
+Receipt. On 2026-09-05 the protocol owner issued "fable 5" (Unified Launch
+Plan: One Program, Eight Roles, Two Pipelines) over the direct channel.
+The text arrived TRUNCATED: it stops mid-sentence inside Text #3 (E-eng),
+phase E3, at "two renderings of". Not received: the E3 remainder and any
+later phases, Text #4 (G-eng), Text #5 (F-tools-eng), Text #6 (G/I-op),
+Text #7 (S/E-op), Text #8 (INT batch instruction), and any closing
+sections. The received bytes are archived verbatim with the truncation
+locus marked in
+`protocol/2026-09-05-fable-5-unified-launch-plan-RECEIVED.txt`
+(six-phrase scan over the archive: zero matches). No instruction from the
+plan has been executed by this operator: role assignments and the spawn
+order belong to the owner's launch sequence, and this operator stays on
+the F track. The plan's missing agent texts are owner material; this
+operator neither reconstructs nor invents them.
+
+Owner-mapping of this record's open gate items under the fable-5 roster
+(recorded so the owner can sequence INT and F-tools-eng against them):
+- gate item 3 (no declared tag) → INT deliverable (preflight tag,
+  `preflight-<shortsha>`, cut-<n> tags; INT alone cuts tags).
+- gate item 6 (no named checkpoint) → F-tools-eng F1 deliverable
+  (checkpoints) — its Text (#5) was among the parts NOT received.
+- gate item 7 (audit-header instrument absent) → F-tools-eng F4
+  deliverable (audit format).
+- gate item 8 (D11 closure unverifiable) → INT preflight step 1
+  (exception mechanism named in protocol/preflight/ledger.md).
+- gate item 9 (no blank controls) → fable invariant 2: operators rerun
+  blank controls after each semantic cut; none exists yet on any tag.
+- gate item 10 (no F2/F3/F4 refs) → F-tools-eng F2 (grader), F3 (decoy
+  harness/comparator), F4 (auditor) deliverables.
+- §8 owner declarations (a)–(g) remain prerequisite for any gate retry;
+  the fable's §2 setup items (charters commit, exam seal to protocol/I.md)
+  are also absent from the arena tip as of this receipt and are
+  human-only steps this operator cannot perform.
+- The plan designates F-op as "the human operator ... fresh context,
+  maximally blind". This operator's session record (blindness declaration,
+  gate artifacts, contamination ledger) is pre-wave-0 evidence available
+  to INT's protocol index; no acceptance or ratification role is claimed.
+
+Reset event (2026-09-05, after push 3d9e03b). The workspace reset to the
+original checkout (HEAD 41e8078) with every session artifact surviving
+only as untracked files. Recovery, fully verified: fetched the pushed tip
+refs/heads/arena/01a06e7b-cat-theo-machine @ 3d9e03b (explicit refspec —
+the clone's default fetch refspec covers master only, which is why a plain
+fetch missed the branch); moved the 8 untracked survivors aside after
+hash-verifying them against the pushed manifest; fast-forwarded; proved
+all 8 files byte-identical to the surviving bytes; re-verified every
+manifest hash line. Zero bytes lost. This event is empirical confirmation
+of the plan's standing constraint that an unpushed commit is not
+protected; it is also the first entry for a sandbox-reset ledger on this
+branch.
