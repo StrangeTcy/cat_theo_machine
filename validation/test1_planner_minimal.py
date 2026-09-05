@@ -65,9 +65,8 @@ try:
     print(f"    PlannerRun completed in {elapsed:.3f}s")
 except Exception as e:
     elapsed = time.time() - t_run_start
-    error_msg = f"{e!r}"
+    error_msg = "".join(traceback.format_exception_only(e)).strip()
     print(f"    ERROR: {error_msg}")
-    import traceback
     traceback.print_exc()
 
 if final_state is not None:

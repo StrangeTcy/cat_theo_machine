@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import traceback
 
 """Runtime bundle and boot paths for the active HYGE machine.
 
@@ -1802,7 +1803,7 @@ def boot_from_snapshot(
                 "WARNING: failed to save upgraded snapshot to "
                 + upgraded_snapshot_path
                 + " ("
-                + repr(exc)
+                + "".join(traceback.format_exception_only(exc)).strip()
                 + ")",
                 flush=True,
             )

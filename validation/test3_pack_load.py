@@ -49,9 +49,8 @@ try:
     print(f"    All {len(existing)} packs loaded in {t_load_end - t_load_start:.3f}s")
 except Exception as e:
     t_load_end = time.time()
-    load_error = f"{e!r}"
+    load_error = "".join(traceback.format_exception_only(e)).strip()
     print(f"    ERROR loading packs: {load_error}")
-    import traceback
     traceback.print_exc()
 
 if runtime is None:
@@ -95,9 +94,8 @@ try:
     print(f"    Compilation OK in {t_comp_end - t_comp_start:.3f}s")
 except Exception as e:
     t_comp_end = time.time()
-    compile_error = f"{e!r}"
+    compile_error = "".join(traceback.format_exception_only(e)).strip()
     print(f"    ERROR during compilation: {compile_error}")
-    import traceback
     traceback.print_exc()
 
 if compiled is not None:
@@ -150,9 +148,8 @@ try:
     print(f"    Final root status: {fstatus}, obligation count: {obl_count}")
 except Exception as e:
     t_plan_end = time.time()
-    plan_error = f"{e!r}"
+    plan_error = "".join(traceback.format_exception_only(e)).strip()
     print(f"    ERROR in PlannerRun: {plan_error}")
-    import traceback
     traceback.print_exc()
 
 print()
