@@ -19,6 +19,8 @@ merge both `E4` oracle cards as-is without naming a canonical path (the two file
 case; content is equivalent). Seal content-id for the canonical E4 card: `a11ca451e52…`
 (see `CUR-CROSS-BRANCH-AUDIT-2026-09-05.md`).
 
+**Merge-checklist note:** D13 declared in `protocol/CUR.md`; INT mirrors to `protocol/DISTRIBUTION.md` on merge.
+
 Branch: `arena/01a066cf-cat-theo-machine`. Doc base `34208cc69144dff3c926cbb1d475a13ebbfb751d`.
 Landing-time integration tip: `e0853a915baf260b7d1e9d3678c8f9d78300655b`.
 
