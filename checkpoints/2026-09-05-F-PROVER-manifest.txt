@@ -6,6 +6,8 @@ e6c16131cdd56be05f7ad4bc7ef0130be84082e07896034cc63988fa79c366b3  logs/2026-09-0
 3630f299dc6a39e2c1cf5f152261734f932e8db364b614ce1c5c02a4b0e75edb  logs/2026-09-05-F-PROVER-residual-harness-check.txt
 a992defd2213984392767c5a86331635c92663aeaffba7d1952c5bd2157f54e1  logs/2026-09-05-F-PROVER-replay-manifest-check.txt
 590324feb71cf5dc18dc7eac94ee578a34b9883d56dddbb7651a991c9f5eb2a3  protocol/2026-09-05-fable-5-unified-launch-plan-RECEIVED.txt
-09ca110354b338a6761e30eb4f6f1487b46a57223b8d28c4c48999a3eabb2122  protocol/F.md
+c316a6162067b6953312c77e1f7ca879ac2f7e26a888787297c02c15361beafa  protocol/2026-09-05-fable-5-completion-RECEIVED.txt
+334c802f47b11fa95ae1634f4fe0995ff2c59749f4a95d28f60cbcf7c6925f5c  protocol/2026-09-05-charter-source-chain-RECEIVED.txt
+a6000a7505f2de7825e53a6145d1d2e69b6ddfb49d6e7bfb1bc24aae7b7b5901  protocol/F.md
 
-# rev 3 (2026-09-05): adds fable-5 launch-plan receipt (partial, truncation locus marked); F.md gains section 10 (receipt, owner mapping, reset event)
+# rev 4 (2026-09-05): adds fable-5 completion receipt (coverage COMPLETE, seam noted) and charter source chain (received-record stopgap); F.md section 10 extended with completion/source-chain receipts, scan classifications, refined owner mapping, reset-ledger entry 2
