@@ -135,9 +135,10 @@ Standing conditions:
   there, not before
 - no test deletion this cut
 
-Merge holds only on the two-shard suite: preflight combined failure set
-unchanged; the two compare reds unchanged in shape; nothing new,
-nothing absorbed.
+Two-shard suite on 513f883: both shards exit 0. Combined failure set
+identical to preflight baseline. The two compare reds are the same two,
+same shape. Nothing new, nothing absorbed.
+Artifact: verification/2026-09-07-shared-two-shard.txt
 
 ## Landed runtime (C2, unchanged)
 

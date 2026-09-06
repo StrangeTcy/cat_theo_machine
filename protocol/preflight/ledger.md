@@ -124,3 +124,17 @@ authority: protocol/SHARED.md
 two compare reds stay known-red, same two, same shape
 CONVERGE deferred until workers.py needs pool warming or snapshot reuse
 ```
+
+## [SHARED] two-shard suite on composed candidate
+
+```text
+status: both shards complete
+artifact: verification/2026-09-07-shared-two-shard.txt
+commit: 513f883
+shard 0 exit: 0  elapsed 361.041
+shard 1 exit: 0  elapsed 480.191
+failure set: identical to preflight combined set
+compare reds: same two, same shape
+new reds: none
+absorbed: none
+```

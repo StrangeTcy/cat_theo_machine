@@ -1,0 +1,55 @@
+[SHARED] two-shard default suite on composed candidate
+dated: 2026-09-07
+tree: arena/01a06da9-cat-theo-machine
+commit: 513f8833140c8bc930143fe796d9c9265e1b5889
+workers: 099586e
+C1 findings: 6216ce3
+ruling: REVIVE-LATER @ 513f883
+interpreter: /tmp/hyge-venv/bin/python
+PYTHONPATH=/home/user
+cwd for processes: /home/user
+command:
+  /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 0 2
+  /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 1 2
+both started together
+
+=== shard 0 ===
+process: shard-0-suite-19ea7de8
+exit: 0
+SHARD 0 elapsed 361.0412106513977
+TestResultsReport failed names:
+converse_default_mode_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+shard 0 set identical to preflight baseline.
+
+=== shard 1 ===
+process: shard-1-suite-dcf16a4e
+exit: 0
+SHARD 1 elapsed 480.1908030509949
+install: completed
+TestResultsReport failed names:
+heuristic_canonical_knowledge_agreement_test
+converse_proposition_test
+curator_report_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+shard 1 set identical to preflight baseline.
+
+=== combined failure set ===
+converse_default_mode_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+heuristic_canonical_knowledge_agreement_test
+converse_proposition_test
+curator_report_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+
+=== compare reds ===
+same two, same shape:
+  compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+  compare_search_modes_finds_reusable_worker_snapshot_dir_test
+nothing new, nothing absorbed.
+
+=== exit codes ===
+shard 0: 0
+shard 1: 0
