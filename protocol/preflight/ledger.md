@@ -113,3 +113,14 @@ blocked on operator: none
 
 Wave 1 engineers branch from the tag on this commit. INT does not write
 track features. INT does not spawn Wave 1 in this cut.
+
+## [SHARED] INT ruling on compare_search_modes (2026-09-06)
+
+```text
+ruling: REVIVE-LATER
+active: workers.py @ 099586e
+parked: compare_search_modes resident pool + snapshot reuse
+authority: protocol/SHARED.md
+two compare reds stay known-red, same two, same shape
+CONVERGE deferred until workers.py needs pool warming or snapshot reuse
+```

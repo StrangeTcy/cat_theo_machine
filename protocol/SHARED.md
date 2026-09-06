@@ -111,29 +111,33 @@ mutable state.
 Active line this cut: `workers.py`.
 Parked line: `compare_search_modes` resident-pool / snapshot-dir reuse.
 
-## INT ruling requested (one of three)
-
-This lane does not apply retire or converge. Findings above are the
-grounds. Request:
+## INT ruling — REVIVE-LATER (recorded)
 
 ```text
-a. RETIRE: compare_search_modes is a dead experiment; remove or
-   quarantine the two reds in the same batch. Baseline shrinks by two.
-
-b. REVIVE-LATER: half-built frontier; keep the two reds as known-red.
-   Ledger names workers.py as the active process-worker line and
-   compare_search_modes as parked. No test deletion.
-
-c. CONVERGE: workers.py later adopts snapshot-dir layout and pool
-   warming; ledger the mapping. Not this cut.
+ruling: REVIVE-LATER
+active process-worker line: workers.py (099586e)
+parked subsystem: compare_search_modes (resident pool + snapshot reuse)
+authority: this file
 ```
 
-Recommended: (b) REVIVE-LATER. The measured terms are phase-gate and
-TermEqual-after-load, not an empty module. Deleting the reds would hide
-a live path. Converge is a later mapping: `workers.py` has no pool
-warming and no `snapshots/search_compare` layout.
+Grounds: the two reds are a phase gate and a restored-term identity
+mismatch. Fill still spawns; reuse still writes and loads; neighboring
+compare tests stay green. `workers.py` does not call the resident pool
+or the snapshot-dir reuse path; coexistence is authorized.
 
-Holds merge until INT records one of a/b/c.
+Standing conditions:
+
+- the two compare reds remain known-red and must stay the same two reds
+  at every future cut; a shape change or a third compare red is a
+  regression, not inherited baseline
+- CONVERGE is the expected eventual path: first `workers.py` need for
+  pool warming or snapshot reuse opens that commit; the two reds resolve
+  there, not before
+- no test deletion this cut
+
+Merge holds only on the two-shard suite: preflight combined failure set
+unchanged; the two compare reds unchanged in shape; nothing new,
+nothing absorbed.
 
 ## Landed runtime (C2, unchanged)
 
