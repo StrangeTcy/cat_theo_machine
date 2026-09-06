@@ -154,7 +154,8 @@ R8  SUITE / REPRO PIN. _register_test sites: 288 guard-wrapped + the def, in
     in review notes; if S/E want them, they are added, not assumed.
 
 R9  SHARD + DISPATCH OWNERSHIP. Two-shard suite:
-    `python3 tools/shard_suite.py 0 2` and `1 2`. Track-scoped testing gets
+    `PYTHONPATH=/home/user python3 cat_theo_machine/tools/shard_suite.py 0 2`
+    and `1 2`, run from /home/user (R10). Track-scoped testing gets
     a real mechanism: INT adds `[SHARED] tools/run_test.py <test_name>`,
     which boots the runtime, configures a 1-of-1 shard, and registers ONLY
     the named test. Engineers never edit main.py — every new talk verb is a
@@ -165,10 +166,11 @@ R9  SHARD + DISPATCH OWNERSHIP. Two-shard suite:
 R10 ENVIRONMENT. Interpreter: system python3, gmpy2 + pyyaml
     (`pip install --break-system-packages gmpy2 pyyaml`). Live sessions:
     `python3 -m cat_theo_machine.main talk` from /home/user (repo dir =
-    package `cat_theo_machine`); same rule for the suite runner:
-    `cd /home/user && python3 cat_theo_machine/tools/shard_suite.py 0 2` —
-    from inside the repo dir the import fails (ModuleNotFoundError, verified
-    2026-09-06). `you>` echo is stdin-echo on pipes
+    package `cat_theo_machine`); same rule for the suite runner, which needs
+    the package parent on PYTHONPATH:
+    `cd /home/user && PYTHONPATH=/home/user python3 cat_theo_machine/tools/shard_suite.py 0 2` —
+    without it the import fails (ModuleNotFoundError, verified 2026-09-06;
+    the same applies to run_test.py). `you>` echo is stdin-echo on pipes
     (af7016b) — keep the exact `you> / hyge>` transcript shape in logs.
     /tmp is not persistent. Session ledgers: logs/ stays live-evidence home;
     protocol/<TRACK>.md holds ledgers, rulings, [SHARED] requests.
@@ -298,7 +300,8 @@ required:
    arity, same case-split shape, same exponent position. If they differ,
    write `DECOY REDESIGN REQUIRED` and stop; do not redesign it yourself. No
    theorem names enter the repo from this step; the artifact is a shape.
-4. Full two-shard suite (tools/shard_suite.py 0 2 and 1 2). Record the exact
+4. Full two-shard suite, from /home/user with PYTHONPATH=/home/user
+   (cat_theo_machine/tools/shard_suite.py 0 2 and 1 2). Record the exact
    failure set. If a shard aborts during install, the abort is defect #1:
    fix the instrument-level crash (guard-before-navigation), ledger it,
    rerun.
