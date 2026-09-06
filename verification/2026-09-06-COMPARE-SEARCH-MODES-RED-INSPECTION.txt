@@ -1,0 +1,178 @@
+compare_search_modes red-subsystem inspection — 2026-09-06
+lane: arena/01a06923-cat-theo-machine (compose-support / INT-audit)
+task: build-brief Step 1 entry condition — inspect the two red
+  compare_search_modes tests at the authoritative tip before any
+  machinery is spec'd
+inspected tree: arena/01a06542-cat-theo-machine @ b812db9
+  (single-branch clean clone; gmpy2+pyyaml installed; no working-tree
+  edits made to any machine file during this inspection — read-only
+  reproduction plus throwaway probe scripts under /tmp/csm, outside
+  the repository)
+
+authoritative ref re-checked this cycle: b812db9 — unchanged; no new
+  tags (11 total, all previously catalogued); lane base 4936f92.
+
+--------------------------------------------------------------------
+0. Reproduction (authoritative tip, solo, both shards' named entries)
+
+tools/run_named_tests.py
+  compare_search_modes_finds_reusable_worker_snapshot_dir_test
+  compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+
+result: registered 2, passed 0, failed 2 — both reproduce red solo at
+b812db9 (boot 15.2s, install 28.1s, run 1.8s). No abort, no install
+failure, no timeout: both are assertion failures inside the machine.
+
+--------------------------------------------------------------------
+1. Test A — compare_search_modes_finds_reusable_worker_snapshot_dir_test
+   (testsuite.py:8716)
+
+contract under test: a checkpoint written by _search_worker_checkpoint
+into <root>/snapshots/search_compare/run-1/bfs.snapshot.json must be
+found by _reusable_search_worker_result_paths(root) as the mapping
+"SearchBFS" -> that exact path, while a sibling run-2 whose result
+manifest carries wrong problem texts is not adopted.
+
+executed path:
+  test -> _write_search_worker_manifest (search/compare_subprocess.py:24,
+  writes start_text/goal_text beside the snapshot) ->
+  _search_worker_checkpoint (main.py; snapshot codec writes roots
+  including worker_plan, worker_stage, search_history) ->
+  _reusable_search_worker_result_paths (search/compare_subprocess.py:338)
+  -> result_root resolves correctly, run-1 enumerated, bfs.snapshot.json
+  exists -> _search_worker_snapshot_matches_current_problem
+  (search/compare_subprocess.py:319)
+
+failing assertion: "SearchBFS" not in found — found is the empty
+  mapping. The mismatching sibling is (correctly) not adopted; the
+  MATCHING checkpoint is also dropped.
+
+failure mechanism, pinned by direct instrumentation of each gate:
+  (a) PRIMARY — identity-only equality at the match gate.
+      _search_worker_snapshot_matches_current_problem rejects on
+      M.TermEqual(SearchAttemptStart(attempt)(), self.start). The
+      attempt comes back from the snapshot codec with freshly minted
+      term identities. TermEqual (matching.py:41) is object-identity
+      at the leaves: constructor labels compare by IdentityCompare and
+      literal payloads are never value-compared. Demonstrated in the
+      smallest form: two freshly constructed in-memory Char terms
+      carrying the same symbol are NOT TermEqual to each other — only
+      the identical object passes. Therefore ANY start/goal containing
+      a literal (Char here) can never match after a codec round-trip,
+      even when the same objects were checkpointed. The singleton
+      EmptyList tail does survive (same object), which is why the
+      heuristic axis (labels + numeric fields) round-trips equal while
+      the Char axis cannot. Cross-process reuse as written is
+      unreachable for every real problem.
+  (b) SECONDARY, independent — heuristic axis mismatch. Even with a
+      value-level start/goal compare, the scan matches against
+      self._heuristic_for_mode(mode) (search/compare_attempts.py:324),
+      built from THIS probe's heuristic fields, while the test's
+      checkpoint stores the worker heuristic
+      _search_worker_mode_heuristic (main.py:521) built from the fresh
+      runtime's theorem_heuristic — different rule-order/beam fields;
+      measured NOT TermEqual. Two independent rejections, either of
+      which alone yields the empty mapping.
+
+what already works (all instrumented green): checkpoint write; scan
+  enumeration and run ordering; mode-token path assembly
+  (_mode_worker_token); _loaded_worker_attempt_is_final logic;
+  _partial_worker_attempt_is_resume_ready returns truth with a
+  non-empty worker_plan root loaded from the written checkpoint;
+  resume-stage ranking. Notably the value-level compare the gate needs
+  ALREADY EXISTS in the tree as the manifest mechanism
+  (_search_worker_result_manifest_path / _write_search_worker_manifest,
+  start_text/goal_text rendered via _debug_term) — the scanner simply
+  never consults it; it term-compares instead.
+
+locus of the defect seam: search/compare_subprocess.py:319-331 (match
+  gate) with the equality primitive at matching.py:41-80 (leaf
+  IdentityCompare) — or, equivalently, an identity-preserving codec;
+  which side is the right repair is a ruling for INT / Agents B-C, not
+  this lane.
+
+--------------------------------------------------------------------
+2. Test B — compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+   (testsuite.py:9121)
+
+contract under test: with parallelism one, _fill_parallel_workers over
+  freshly built comparison states must (1) have spawned > 0, (2) leave
+  _comparison_shared_root_candidates_ready truth, (3) return a
+  non-empty worker chain, (4) leave next states not needing a shared
+  root wave. The intent: warm the resident pool BEFORE the root wave
+  materializes.
+
+executed path:
+  test -> _comparison_states(_mode_chain()) (search/compare_state.py:395;
+  each state via _comparison_state with phase unset -> defaults to
+  SearchRootFastPathPhaseLabel, search/compare_state.py:33) ->
+  _fill_parallel_workers (search/compare_executors.py:656)
+
+failing assertion: exactly ONE of the four checks fails — (2)
+  _comparison_shared_root_candidates_ready is false after the fill.
+  Checks (1), (3), (4) pass: spawned is one (the normal leasing path
+  _collect_parallel_worker_launches spawns; the warm branch did not),
+  workers chain non-empty, next states still do not request a wave.
+
+failure mechanism, pinned per state (all five modes measured
+  identically): _comparison_states_need_shared_root_wave
+  (search/compare_packets.py:1410-area, gate at 1417) requires a state
+  that is Running AND in SearchPacketSearchPhaseLabel AND zero active
+  packets AND empty pending AND a fresh-root job. Fresh states satisfy
+  every conjunct EXCEPT phase: they come up in
+  SearchRootFastPathPhaseLabel. So need-wave is false on entry;
+  _fill_parallel_workers then (i) skips
+  _grow_parallel_executor_pool's warm branch and (ii)
+  _comparison_prepare_shared_root_wave returns the states unchanged —
+  _comparison_apply_shared_root_wave never runs, and only it sets
+  _comparison_shared_root_candidates_ready (search/compare_packets.py:
+  1410; initialized false at search/compare.py:69).
+
+root shape: a gating/ordering contradiction. The only in-tree
+  transition RootFastPath -> PacketSearch lives inside the root-wave
+  fast-path evaluation itself (_comparison_root_fast_path_state,
+  search/compare_rules.py:206-224, phase= at :221), i.e. inside the
+  wave that the warm is supposed to PRECEDE. The warm trigger is gated
+  on a phase only the wave produces — chicken-and-egg; the warm branch
+  is unreachable from fresh states by construction.
+
+locus of the defect seam: the need-wave gate's phase conjunct
+  (search/compare_packets.py:1422) versus the fresh-state initializer
+  (search/compare_state.py:33) — either the initializer must build
+  fresh-root states already in packet phase, or the gate must accept
+  fresh-root fast-path states. Ruling belongs to INT / Agent C.
+
+--------------------------------------------------------------------
+3. Verdict for the build brief (Step 1 evidence)
+
+HALF-BUILT FRONTIER — not a dead experiment. All surrounding machinery
+  exists and is internally coherent: the checkpoint/resume pipeline
+  end-to-end minus its match gate's equality primitive; the resident
+  executor pool, packet queues, root-wave fanout and retry/replace
+  paths (their sibling tests pass at baseline — only these two are
+  red). Two named seams, both narrow and both already furnished with
+  in-tree ingredients on at least one side:
+    seam 1 (cross-process resume): match gate needs value-level
+      problem identity — the rendered-text manifest mechanism already
+      exists beside every checkpoint and is unwired; alternatively an
+      identity-preserving codec. Plus the heuristic reconstruction
+      axis (worker-mode heuristic must be derivable to a TermEqual
+      match on the parent side).
+    seam 2 (warm-before-wave): the phase conjunct in the need-wave
+      gate makes the pool warm unreachable from fresh states; the
+      transition it waits for is produced by the wave it precedes.
+No re-implementation is warranted; nothing here justifies replacing
+  the partial machinery. Agent B's two-class journal and Agent C's
+  serial admission must treat TermEqual's identity semantics as a
+  hard boundary: only labels and structurally-shared singletons
+  survive reconstruction — evidence-class mergeability across
+  processes requires text-level or manifest-level identity, exactly
+  the lesson of seam 1.
+
+--------------------------------------------------------------------
+4. §0 hygiene
+
+banned-phrase grep over this artifact: 0 matches (checked before
+  push: the standard machine-code ban vocabulary).
+no machine files were modified; no tags, no merges, no release
+  actions; write authority used: this verification artifact only.
