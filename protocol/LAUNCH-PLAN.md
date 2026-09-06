@@ -165,7 +165,10 @@ R9  SHARD + DISPATCH OWNERSHIP. Two-shard suite:
 R10 ENVIRONMENT. Interpreter: system python3, gmpy2 + pyyaml
     (`pip install --break-system-packages gmpy2 pyyaml`). Live sessions:
     `python3 -m cat_theo_machine.main talk` from /home/user (repo dir =
-    package `cat_theo_machine`); `you>` echo is stdin-echo on pipes
+    package `cat_theo_machine`); same rule for the suite runner:
+    `cd /home/user && python3 cat_theo_machine/tools/shard_suite.py 0 2` —
+    from inside the repo dir the import fails (ModuleNotFoundError, verified
+    2026-09-06). `you>` echo is stdin-echo on pipes
     (af7016b) — keep the exact `you> / hyge>` transcript shape in logs.
     /tmp is not persistent. Session ledgers: logs/ stays live-evidence home;
     protocol/<TRACK>.md holds ledgers, rulings, [SHARED] requests.
