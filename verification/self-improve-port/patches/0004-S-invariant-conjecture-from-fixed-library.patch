@@ -1,0 +1,311 @@
+From 3a64c58dcfbfa23d6e3b3760f4867126c50313f6 Mon Sep 17 00:00:00 2001
+From: StrangeTcy <2532099+StrangeTcy@users.noreply.github.com>
+Date: Fri, 4 Sep 2026 19:58:35 +0000
+Subject: [PATCH 4/6] [S] invariant conjecture from fixed library
+
+Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
+---
+ labels.py    |   5 ++
+ research.py  | 167 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ testsuite.py |  82 +++++++++++++++++++++++++
+ 3 files changed, 254 insertions(+)
+
+diff --git a/labels.py b/labels.py
+index 6c25310..2098170 100644
+--- a/labels.py
++++ b/labels.py
+@@ -3197,10 +3197,15 @@ class RefusedLabel(ConstructorLabel):
+     pass
+ 
+ 
++class CandidateObservableLabel(ConstructorLabel):
++    pass
++
++
+ TraceLabel = TraceLabel()
+ MotifLabel = MotifLabel()
+ CompressedLawLabel = CompressedLawLabel()
+ RefusedLabel = RefusedLabel()
++CandidateObservableLabel = CandidateObservableLabel()
+ 
+ 
+ # [/S] SELF-IMPROVEMENT LOOP
+diff --git a/research.py b/research.py
+index a57799a..b3caefc 100644
+--- a/research.py
++++ b/research.py
+@@ -4374,4 +4374,171 @@ def RentGateCompression(graph, proposal, start_facts, goal_facts, rules, fuel=No
+     )
+ 
+ 
++class InvariantLibraryCandidates(Edge):
++    """Candidate observables from a fixed structural library, nothing more.
++
++    The three structural families only: parity of a count, sum of a
++    labeling, residue mod k -- instantiated over the two Engel E2
++    observable heads (the board sum and the extremal maximum). Each
++    record: Pair(CandidateObservableLabel, Pair(kind, Pair(phi,
++    EmptyList))).
++    """
++
++    def __init__(self):
++        p_bit = M.Pair(M.VarTag, M.Pair(M.Char("p"), EmptyList))
++        q_bit = M.Pair(M.VarTag, M.Pair(M.Char("q"), EmptyList))
++        state = M.Pair(M.VarTag, M.Pair(M.Char("state"), EmptyList))
++        sum_var = M.Pair(M.VarTag, M.Pair(M.Char("sum"), EmptyList))
++        residue = M.Pair(M.VarTag, M.Pair(M.Char("r"), EmptyList))
++        parity_of_sum = M.Pair(
++            Lmod.ParityLabel, M.Pair(Lmod.BoardSumObservableLabel, M.Pair(p_bit, EmptyList))
++        )
++        parity_of_max = M.Pair(
++            Lmod.ParityLabel, M.Pair(Lmod.ExtremalMaxLabel, M.Pair(q_bit, EmptyList))
++        )
++        sum_of_labeling = M.Pair(
++            Lmod.BoardSumLabel, M.Pair(state, M.Pair(sum_var, EmptyList))
++        )
++        residue_mod_two = M.Pair(
++            Lmod.ModuloLabel,
++            M.Pair(
++                Lmod.BoardSumObservableLabel,
++                M.Pair(M.Char("2"), M.Pair(residue, EmptyList)),
++            ),
++        )
++        self.result = M.Pair(
++            M.Pair(
++                Lmod.CandidateObservableLabel,
++                M.Pair(M.Char("parity"), M.Pair(parity_of_sum, EmptyList)),
++            ),
++            M.Pair(
++                M.Pair(
++                    Lmod.CandidateObservableLabel,
++                    M.Pair(M.Char("parity"), M.Pair(parity_of_max, EmptyList)),
++                ),
++                M.Pair(
++                    M.Pair(
++                        Lmod.CandidateObservableLabel,
++                        M.Pair(M.Char("sum"), M.Pair(sum_of_labeling, EmptyList)),
++                    ),
++                    M.Pair(
++                        M.Pair(
++                            Lmod.CandidateObservableLabel,
++                            M.Pair(M.Char("residue"), M.Pair(residue_mod_two, EmptyList)),
++                        ),
++                        EmptyList,
++                    ),
++                ),
++            ),
++        )
++        super().__init__(inputs=EmptyList, results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class TraceSteps(Edge):
++    """Every fired step of every retained trace, flattened, newest first."""
++
++    def __init__(self, traces):
++        self.result = self._walk(traces)
++        super().__init__(inputs=M.Pair(traces, EmptyList), results=self.result)
++
++    def _walk(self, traces):
++        if IdentityCompare(traces, EmptyList)() is M.truth_value:
++            return EmptyList
++        trace = Head(traces)()
++        rest = Tail(traces)()
++        fired = Head(Tail(Tail(Tail(trace)())())())()
++        steps = StepInstances(fired)()
++        return ChainConcat(steps, self._walk(rest))()
++
++    def __call__(self):
++        return self.result
++
++
++class ChainConcat(Edge):
++    def __init__(self, left, right):
++        self.result = self._walk(left, right)
++        super().__init__(inputs=M.Pair(left, M.Pair(right, EmptyList)), results=self.result)
++
++    def _walk(self, left, right):
++        if IdentityCompare(left, EmptyList)() is M.truth_value:
++            return right
++        return M.Pair(Head(left)(), self._walk(Tail(left)(), right))
++
++    def __call__(self):
++        return self.result
++
++
++class PhiVerdictAgainstSteps(Edge):
++    """Pair(flag, Pair(counterexample-step, EmptyList)) for one phi.
++
++    Runs the generic Preserves engine against every step of every trace.
++    All steps preserving yields truth_value with no counterexample; the
++    first refuting step is returned as the counterexample.
++    """
++
++    def __init__(self, phi, steps, registry):
++        self.result = self._walk(steps, phi, registry)
++        super().__init__(
++            inputs=M.Pair(phi, M.Pair(steps, M.Pair(registry, EmptyList))),
++            results=self.result,
++        )
++
++    def _walk(self, steps, phi, registry):
++        from . import invariance as Imod
++
++        if IdentityCompare(steps, EmptyList)() is M.truth_value:
++            return M.Pair(M.truth_value, EmptyList)
++        step = Head(steps)()
++        rest = Tail(steps)()
++        rule = Head(step)()
++        verdict = Imod.Preserves(rule, phi, registry)()
++        if IdentityCompare(Head(verdict)(), Lmod.InvariantRefutedLabel)() is M.truth_value:
++            return M.Pair(M.false_value, M.Pair(step, EmptyList))
++        return self._walk(rest, phi, registry)
++
++    def __call__(self):
++        return self.result
++
++
++def ConjectureInvariantsFromLibrary(graph):
++    """Invariant candidates from the fixed library, via the Preserves engine.
++
++    Each library candidate phi runs the generic Preserves engine against
++    every step of every retained trace. Survivors become InvariantCandidate
++    records; failures become InvariantRefuted records carrying the
++    counterexample step. Conjecture only: adoption is human-gated.
++
++    Returns Pair(candidates, Pair(survivors, Pair(refuted, EmptyList))).
++    """
++    registry = M.FromContextGetConstructors(graph)()
++    candidates = InvariantLibraryCandidates()()
++    steps = TraceSteps(TracesOnRecord(graph)())()
++    survivors = EmptyList
++    refuted = EmptyList
++    walk = candidates
++    while IdentityCompare(walk, EmptyList)() is M.false_value:
++        record = Head(walk)()
++        walk = Tail(walk)()
++        phi = Head(Tail(Tail(record)())())()
++        verdict = PhiVerdictAgainstSteps(phi, steps, registry)()
++        if IdentityCompare(Head(verdict)(), M.truth_value)() is M.truth_value:
++            survivors = M.Pair(
++                M.Pair(Lmod.InvariantCandidateLabel, M.Pair(phi, EmptyList)),
++                survivors,
++            )
++        else:
++            counterexample = Head(Tail(verdict)())()
++            refuted = M.Pair(
++                M.Pair(
++                    Lmod.InvariantRefutedLabel,
++                    M.Pair(phi, M.Pair(counterexample, EmptyList)),
++                ),
++                refuted,
++            )
++    return M.Pair(candidates, M.Pair(M.Reverse(survivors)(), M.Pair(M.Reverse(refuted)(), EmptyList)))
++
++
+ # [/S] SELF-IMPROVEMENT LOOP
+diff --git a/testsuite.py b/testsuite.py
+index 2fe5e74..779018b 100644
+--- a/testsuite.py
++++ b/testsuite.py
+@@ -16297,6 +16297,80 @@ class SelfImprovementRecursiveTurnTest(M.Edge):
+         return self.result
+ 
+ 
++class InvariantConjectureTest(M.Edge):
++    """Phase 4: invariant conjecture from a fixed structural library.
++
++    Engel E2 blackboard move traces (the existing EraseAndReplaceRule
++    applied over symbolic a and b) are the derivations. The library
++    proposes parity-of-a-count, sum-of-a-labeling, and residue-mod-k
++    candidates. The generic Preserves engine accepts parity of the board
++    sum and refutes parity of the maximum, which the move does not
++    preserve.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        T = _ResearchToy
++        empty = M.EmptyList
++        T.reset(graph)
++        erase = EraseAndReplaceRule()()
++        for tag in ("1", "2"):
++            before = M.Char("b" + tag)
++            after = M.Char("a" + tag)
++            a = M.Char("x" + tag)
++            b = M.Char("y" + tag)
++            S = M.Char("S" + tag)
++            start = T.chain(
++                BoardSumFact(before, S)(),
++                ParityFact(S, Lmod.OddLabel)(),
++                BlackboardPhiPattern(Lmod.OddLabel)(),
++                MoveErasesFact(before, a, b, after)(),
++            )
++            moved = SumMinusTwiceMinTerm(S, a, b)()
++            goal = T.chain(
++                BoardSumFact(after, moved)(),
++                ParityFact(moved, Lmod.OddLabel)(),
++                BlackboardPhiPattern(Lmod.OddLabel)(),
++            )
++            fired = T.chain(M.Pair(erase, M.Pair(empty, empty)))
++            Rmod.record_trace(graph, start, goal, fired)
++        result = Rmod.ConjectureInvariantsFromLibrary(graph)
++        survivors = M.Head(M.Tail(result)())()
++        refuted = M.Head(M.Tail(M.Tail(result)())())()
++        self.result = M.truth_value
++        sum_accepted = self._phi_present(survivors, Lmod.ParityLabel, Lmod.BoardSumObservableLabel)
++        if sum_accepted is M.false_value:
++            self.result = M.false_value
++        max_candidate = self._phi_present(survivors, Lmod.ParityLabel, Lmod.ExtremalMaxLabel)
++        if max_candidate is M.truth_value:
++            self.result = M.false_value
++        max_refuted = self._phi_present(refuted, Lmod.ParityLabel, Lmod.ExtremalMaxLabel)
++        if max_refuted is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def _phi_present(self, records, head, arg0):
++        empty = M.EmptyList
++        walk = records
++        while M.IdentityCompare(walk, empty)() is M.false_value:
++            record = M.Head(walk)()
++            walk = M.Tail(walk)()
++            phi = M.Head(M.Tail(record)())()
++            if M.IsPair(phi)() is M.false_value:
++                continue
++            if M.Compare(M.Head(phi)(), head)() is M.false_value:
++                continue
++            args = M.Tail(phi)()
++            if M.IsPair(args)() is M.truth_value:
++                if M.Compare(M.Head(args)(), arg0)() is M.truth_value:
++                    return M.truth_value
++        return M.false_value
++
++    def __call__(self):
++        return self.result
++
++
+ # [/S] SELF-IMPROVEMENT LOOP
+ 
+ 
+@@ -19431,6 +19505,14 @@ def install_default_tests(graph):
+             SelfImprovementRecursiveTurnTest,
+             M.truth_value,
+         )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "invariant_conjecture_test",
++            empty,
++            InvariantConjectureTest,
++            M.truth_value,
++        )
+     # --- end [S] ---
+ 
+     # --- [E] ------------------------------------------------------------
+-- 
+2.39.5
+

@@ -1,0 +1,80 @@
+From 6aba1d2480fb8556ce68194114f8b77b6c4e6cf0 Mon Sep 17 00:00:00 2001
+From: StrangeTcy <2532099+StrangeTcy@users.noreply.github.com>
+Date: Sun, 6 Sep 2026 01:50:34 +0000
+Subject: [PATCH 6/6] [S] port deltas: register five labels in both
+ completeness tables; bump guard pin
+
+Port commit for the self-improvement loop onto experiment-5-frozen-r1.
+
+Delta 3 [SHARED hunk]: the five S labels (TraceLabel, MotifLabel,
+CompressedLawLabel, RefusedLabel, CandidateObservableLabel) register in both
+labels.sync_from_namespace and persistence.SNAPSHOT_SYMBOL_NAMES. The
+label_registration_completeness_test pins stay unchanged at 40 / 198 / 18:
+registering keeps them put; the pins move only downward. The five are genuine
+leaf ConstructorLabel singletons and transient markers (never persisted, never
+in the provenance map), so the snapshot-table entries are benign
+over-registration forced by the no-upward-pin rule.
+
+Delta 4: TestShardCursorPinTest.EXPECTED_GUARD_COUNT 305 -> 310. Hard pin
+(EXPECTED_CURSOR_INDEX 218, EXPECTED_SHARD 0) holds unchanged; registrations
+land after every existing test.
+
+Base: experiment-5-frozen-r1 (ef571b6). Port source commits (referenced by
+hash, unaltered): 548c6f6 trace mining, 8738bcf rent gate, 1e45188 recursive
+turn, 0e50bc1 invariant conjecture, 218a40f learned-memory cycle.
+
+Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
+---
+ labels.py      | 5 +++++
+ persistence.py | 5 +++++
+ testsuite.py   | 2 +-
+ 3 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/labels.py b/labels.py
+index 2098170..2ecdaf8 100644
+--- a/labels.py
++++ b/labels.py
+@@ -2963,6 +2963,11 @@ def sync_from_namespace(namespace):
+         "TestInstanceLabel",
+         "AttemptResultLabel",
+         "InvarianceLabel",
++        "TraceLabel",
++        "MotifLabel",
++        "CompressedLawLabel",
++        "RefusedLabel",
++        "CandidateObservableLabel",
+     ):
+         if name in namespace:
+             globals()[name] = namespace[name]
+diff --git a/persistence.py b/persistence.py
+index 96a9c78..5e725f2 100644
+--- a/persistence.py
++++ b/persistence.py
+@@ -543,6 +543,11 @@ SNAPSHOT_SYMBOL_NAMES = [
+     "ClaimStoreLabel",
+     "CorrespondenceLawLabel",
+     "ZeroLabel",
++    "TraceLabel",
++    "MotifLabel",
++    "CompressedLawLabel",
++    "RefusedLabel",
++    "CandidateObservableLabel",
+     "one",
+     "two",
+     "three",
+diff --git a/testsuite.py b/testsuite.py
+index 2c3d399..a86d492 100644
+--- a/testsuite.py
++++ b/testsuite.py
+@@ -16809,7 +16809,7 @@ class TestShardCursorPinTest(M.Edge):
+     broken.
+     """
+ 
+-    EXPECTED_GUARD_COUNT = 305
++    EXPECTED_GUARD_COUNT = 310
+     EXPECTED_CURSOR_INDEX = 218
+     EXPECTED_SHARD = 0
+ 
+-- 
+2.39.5
+
