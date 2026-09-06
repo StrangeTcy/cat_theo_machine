@@ -1,0 +1,19 @@
+preflight step 1 — swallowed-exception repro
+
+command intended:
+  temporarily replace, in LearnedMemoryCheckpointTest,
+    except Exception: self.result = M.false_value
+  with a re-raise; rerun the 109-predecessor _register_test repro.
+
+result:
+  LearnedMemoryCheckpointTest is not a class in testsuite.py on this tree.
+  grep LearnedMemory over *.py: zero matches.
+  grep "except Exception" in testsuite.py: zero matches.
+  research.py: absent.
+
+traceback: none. The named test was not run. No exception was raised
+because no swap site exists.
+
+locus: testsuite.py (class missing); research.py (file missing)
+dated: 2026-09-06
+tree: arena/01a06da9-cat-theo-machine @ 12d2d46
