@@ -15884,6 +15884,16 @@ def install_default_tests(graph):
             MILESTONE_SKIPPED,
         )
 
+    # --- [S] --- (S1: relation contract required)
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "relation_contract_required_test",
+            empty,
+            RelationContractRequiredTest(graph),
+            M.truth_value,
+        )
+
     graph.default_tests_installed = M.truth_value
     return graph
 
@@ -15892,6 +15902,142 @@ __all__ = [name for name in globals() if not name.startswith("_")]
 
 
 # --- [S] ---
+
+
+class RelationArity(M.Edge):
+    """S1: RelationArity(R, n) is a machine contract term.
+
+    Shape: Pair(RelationArityLabel, Pair(R, Pair(n, EmptyList))).
+    """
+
+    def __init__(self, relation, arity):
+        self.result = M.Pair(
+            Lmod.RelationArityLabel,
+            M.Pair(relation, M.Pair(arity, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(relation, M.Pair(arity, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ExtensionalAt(M.Edge):
+    """S1: ExtensionalAt(R, position) is a machine contract term.
+
+    Shape: Pair(ExtensionalAtLabel, Pair(R, Pair(position, EmptyList))).
+    """
+
+    def __init__(self, relation, position):
+        self.result = M.Pair(
+            Lmod.ExtensionalAtLabel,
+            M.Pair(relation, M.Pair(position, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(relation, M.Pair(position, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractRequiredTest(M.Edge):
+    """S1: relation contracts are required for Divides and Congruent.
+
+    A contract that carries RelationArity and ExtensionalAt protects the
+    extensional port through ContractViolation. A contract that carries the
+    arity but omits the ExtensionalAt term gives no protection for that
+    position, so the same deletion is not a contract violation.
+    """
+
+    def __init__(self, graph):
+        empty = M.EmptyList
+        registry = M.FromContextGetConstructors(graph)()
+
+        divides_arity = RelationArity(Lmod.DividesLabel, M.two)()
+        divides_at = ExtensionalAt(Lmod.DividesLabel, M.one)()
+        congruent_arity = RelationArity(Lmod.CongruentLabel, M.two)()
+        congruent_at = ExtensionalAt(Lmod.CongruentLabel, M.Zero)()
+
+        divides_handle = Gmod.Handle(
+            M.Char("divides-relation-contract"),
+            Gmod.GraphVersion(M.Pair(divides_arity, empty), empty, empty)(),
+        )()
+        divides_contract = Gmod.Contract(
+            divides_handle,
+            M.Pair(divides_arity, M.Pair(divides_at, empty)),
+            Gmod.DefaultContractForbidden()(),
+        )()
+
+        congruent_handle = Gmod.Handle(
+            M.Char("congruent-relation-contract"),
+            Gmod.GraphVersion(M.Pair(congruent_arity, empty), empty, empty)(),
+        )()
+        congruent_contract = Gmod.Contract(
+            congruent_handle,
+            M.Pair(congruent_arity, M.Pair(congruent_at, empty)),
+            Gmod.DefaultContractForbidden()(),
+        )()
+
+        # Same arity and same argument shape, but no ExtensionalAt term:
+        # this contract must not protect the extensional position.
+        bare_congruent_contract = Gmod.Contract(
+            congruent_handle,
+            M.Pair(congruent_arity, empty),
+            Gmod.DefaultContractForbidden()(),
+        )()
+
+        divides_violation = Gmod.ContractViolation(
+            M.Pair(divides_contract, empty),
+            M.Pair(divides_at, empty),
+        )()
+        congruent_violation = Gmod.ContractViolation(
+            M.Pair(congruent_contract, empty),
+            M.Pair(congruent_at, empty),
+        )()
+        bare_violation = Gmod.ContractViolation(
+            M.Pair(bare_congruent_contract, empty),
+            M.Pair(congruent_at, empty),
+        )()
+
+        self.result = M.truth_value
+        if Gmod.IsContract(divides_contract)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsContract(congruent_contract)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.ContractPorts(divides_contract)(),
+            divides_arity,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.ContractPorts(divides_contract)(),
+            divides_at,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.ContractPorts(congruent_contract)(),
+            congruent_arity,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(
+            Gmod.ContractPorts(congruent_contract)(),
+            congruent_at,
+        )() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(divides_violation, divides_contract)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(congruent_violation, congruent_contract)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(bare_violation, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
 
 
 # --- [E] ---

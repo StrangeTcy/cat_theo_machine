@@ -2023,6 +2023,9 @@ def sync_from_namespace(namespace):
         "CategoryLabel",
         "BinderLabel",
         "DividesLabel",
+        "RelationArityLabel",
+        "ExtensionalAtLabel",
+        "CongruentLabel",
         "HoleLabel",
         "NoDefinitionInstalledLabel",
         "ExactFillersLabel",
@@ -2509,6 +2512,23 @@ __all__ = [name for name in globals() if not name.startswith("_")]
 
 
 # --- [S] ---
+
+
+class RelationArityLabel(ConstructorLabel):
+    pass
+
+
+class ExtensionalAtLabel(ConstructorLabel):
+    pass
+
+
+class CongruentLabel(ConstructorLabel):
+    pass
+
+
+RelationArityLabel = RelationArityLabel()
+ExtensionalAtLabel = ExtensionalAtLabel()
+CongruentLabel = CongruentLabel()
 
 
 # --- [E] ---
