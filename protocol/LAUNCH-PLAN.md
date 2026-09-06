@@ -1010,8 +1010,13 @@ I: Tier1 solve rate on held-out problems reported honestly with
   logs/calibration-arc.log (236 lines at this cut); defect nine (schematic
   traces vs dataflow links stored as edges) is a recorded prediction, not a
   preemptive fix.
-- Baseline suite at this cut: first measurement attempt (2026-09-06) lost
-  its shard logs to a sandbox recycle because they were pinned outside the
-  repo; relaunched with logs inside the repo. Whatever lands there is the
-  preflight baseline the first merge batch compares against, recorded in
-  logs/suite-baseline-06c0e52.log with the commit and both shard digests.
+- Baseline suite at this cut: the pre-hand-off two-shard run is best-effort
+  evidence only. Three sandbox recycles in one session (2026-09-06) killed
+  in-flight shard processes mid-run; long background processes are not
+  guaranteed across turns. The canonical baseline is whatever INT records at
+  preflight step 4 on the spawn cut — INT's environment runs the suite as
+  its first act, and that log IS the preflight baseline. Rerun artifacts, if
+  they land, go to logs/suite-baseline-06c0e52.log (assemble only after both
+  "SHARD<n> EXIT" lines exist; abort with NOT-READY otherwise). Never treat
+  a missing pre-hand-off baseline as a reason to skip preflight; never treat
+  an in-flight log as a passing one.
