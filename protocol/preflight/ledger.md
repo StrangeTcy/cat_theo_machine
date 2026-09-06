@@ -59,3 +59,24 @@ by inspection alone. D1–D3 mirror verification/preflight_2026-09-04.md.
 
 - 2026-09-05: reset #3 before the partition turn; reconciled to
   `897c07c`; deps reinstalled. Recorded in the turn report.
+
+## Addenda (Wave-0 ruling turn, 2026-09-05)
+
+8. **S1 persistence question — RESOLVED by measurement.** Cold round-trip
+   of relation-contract terms through the S path (record → trie →
+   SnapshotCodec capture → cold-process load via
+   _runtime_namespace_for_restore) preserves constructor identity and
+   trie facts WITHOUT registration in SNAPSHOT_SYMBOL_NAMES or
+   labels.sync_from_namespace; mechanism: per-label name records at
+   capture, name resolution through vars(Lmod) at load. Measured
+   exemption documented (verification/2026-09-05-s1-checkpoint-roundtrip.txt).
+   Probe-error note: GetConstructor fails identically warm and cold on
+   label-headed atoms (labels are not context constructors) — not a defect.
+9. **A1 selection — interface-level closure.** JoinPremises binding-sets
+   + ApplyKnowledgeRewrite firing, structurally verified, in this
+   machine's documented consumption idiom for multi-premise rules;
+   evidence: protocol/preflight/a1-selection.txt. Real nosolutions pair
+   = lineage variance. "D11" (ruling reference) is undefined in all
+   received texts and this ledger; no port routed; flagged.
+10. **Environment reset #4** before this turn; reconciled to 32bc569 by
+    byte-identity check + hard reset; deps reinstalled; no loss.

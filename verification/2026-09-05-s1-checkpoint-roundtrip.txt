@@ -1,0 +1,64 @@
+# S1 checkpoint cold round-trip — 2026-09-05 (this lineage)
+
+Probes: /tmp/probe/s1_rt_save.py + s1_rt_load2.py + s1_rt_verify.py
+(committed copy: probes/preflight_s1_roundtrip_save.py,
+probes/preflight_s1_roundtrip_load.py). System Python 3.11.2.
+
+## Question (operator ruling, Wave-0 item 4)
+
+Do the S1 relation-contract labels (RelationArityLabel,
+ExtensionalAtLabel, RelationContractsLabel, ContractFactLabel) survive a
+COLD checkpoint round-trip without registration in SNAPSHOT_SYMBOL_NAMES
+or labels.sync_from_namespace? The partition-turn argument from the
+tables' existing incompleteness was explicitly rejected as inference;
+this measurement decides.
+
+## Procedure
+
+1. Warm process: build RelationArity("divides", 2) and
+   ExtensionalAt("divides", 1) atoms; load them into a knowledge trie
+   through the S path (RelationContracts record ->
+   RelationContractsInsert -> KnowledgeTrieInsertChain).
+2. Capture {"trie", "arity_atom", "ext_atom"} through SnapshotCodec with
+   the live namespace (dict(vars(M)) + vars(labels)), exactly as the
+   existing snapshot tests do. Snapshot: 4068 objects. Persist to disk
+   (pickle).
+3. Cold process (fresh interpreter, no prior machine state): load with
+   SnapshotCodec(_runtime_namespace_for_restore()).load_snapshot.
+4. Compare restored machine terms.
+
+## Results (machine outputs, 2026-09-05)
+
+1. restored arity-atom head IS the module's RelationArityLabel singleton:
+   True (identity, not structural).
+2. structural Compare(restored arity atom, freshly built) = truth.
+3. KnowledgeTrieHasFact(restored trie, restored arity atom) = truth.
+4. KnowledgeTrieHasFact(restored trie, restored ext atom) = truth.
+5. restored head type: RelationArityLabel (not a bare Atom).
+
+## Mechanism (measured, from the snapshot records)
+
+- Capture writes a per-label name record ({'id': ..., 'name':
+  'RelationArityLabel'}) for label objects — this does not depend on
+  SNAPSHOT_SYMBOL_NAMES (no RelationArity* entry exists in the symbols
+  table).
+- Cold load resolves record names through the restore namespace;
+  _runtime_namespace_for_restore() includes vars(Lmod), which contains
+  the label singletons; the loaded object IS the module singleton.
+
+## Probe-error note (recorded for the ledger)
+
+A first cold-load script crashed calling GetConstructor on the restored
+atom; the SAME call fails identically on a freshly built WARM atom —
+labels are not context constructors in either state. Probe error, not a
+machine defect; the corrected probe drops that call.
+
+## Decision (per the ruling's rule)
+
+Cold round-trip SUCCEEDS without fallback registration: constructor
+identity preserved, trie facts answer HasFact. The exemption is
+MEASURED, not inferred: new labels in labels.py are name-recorded at
+capture and resolved through vars(Lmod) at cold load. Registration in
+SNAPSHOT_SYMBOL_NAMES remains needed only if a label must appear in the
+symbols table itself (cold bootstrapping contexts that do not pass the
+full labels namespace). No [SHARED] change made; none required.

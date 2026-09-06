@@ -1,0 +1,53 @@
+# A1 selection evidence — 2026-09-05 (this lineage)
+
+Probes: /tmp/probe/a1_selection.py (committed copy:
+probes/preflight_a1_selection.py). Runner: system Python 3.11.2,
+PYTHONPATH=/home/user, tag under test: partition-32bc569 tree.
+
+## Status
+
+Interface-level selection DEMONSTRATED with stand-in rules. The charter's
+real nosolutions producer/consumer pair is a lineage variance:
+research_protocol.md (the v1 document defining the pair) does not exist in
+this checkout. "D11" (ruling item 5) is undefined in every text this
+session has received and in this ledger (notes 1-7); no port was routed.
+Flagged to the operator.
+
+## Rules (stand-ins, same compile path as the real pair would take)
+
+- producer, two premises: ExprEq(?a, ?b) & IsReal(?b) |- ExprEq(?b, ?a)
+- consumer, two premises: ExprEq(?a, ?b) & ExprEq(?b, ?c) |- ExprEq(?a, ?c)
+
+Toy goal: ExprEq(ExprAdd(?x, one), ?x)  ("x + 1 = x").
+
+## Evidence (machine outputs, probe run 2026-09-05)
+
+1. Compile (prior turn, tag preflight-converse-outcome-guard): both rules
+   compile through CompileMultiRuleToLaw; law != EmptyList for both.
+2. Candidate partial match (selection), this turn:
+   - Board seeded with a GROUND INSTANCE OF THE TOY SHAPE, x = two:
+     ExprEq(ExprAdd(two, one), two) and IsReal(two).
+   - JoinPremises(producer_premises, facts, empty) -> 1 binding set
+     (?a -> (2 + 1), ?b -> 2).
+   - JoinPremises(consumer_premises, [Eq(2,2), Eq(2,3)], empty) -> 2
+     binding sets.
+3. Firing (ApplyKnowledgeRewrite on the joined producer binding):
+   - premises consumed, replacement instantiated;
+   - fired fact = ExprEq(two, ExprAdd(two, one)), printed "(2 = (2 + 1))";
+   - structural Compare(fired, expected) = truth — verified, not eyeballed.
+   - The fired fact is the mirror image of the toy-shape instance: the
+     producer is a candidate partial match ON the toy goal's head family
+     (ExprEqLabel) and its firing was selected by premise matching against
+     toy-shaped content.
+4. Residual (not gating, recorded): final board composition differs from
+   [fired] alone (leftover semantics of DropMatchedFacts not further
+   chased; the fired fact is structurally present — that is the witness).
+
+## Closing the gate
+
+Compile: yes. Selectable: yes — binding-sets + a fired, structurally
+verified replacement, in this machine's own consumption idiom
+(JoinPremises + ApplyKnowledgeRewrite, the pattern the number-theory pack
+documents for multi-premise rules). Real-pair variance stands recorded.
+Operator may accept interface-level closure or hold the gate for the real
+nosolutions pair; both states are recorded in research_protocol.md.

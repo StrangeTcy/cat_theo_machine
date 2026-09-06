@@ -1,0 +1,62 @@
+# Two-shard suite artifact — partition cut + verification rerun (2026-09-05)
+
+## Environment (both runs)
+
+- Runner: tools/shard_suite.py <shard_index> 2 (round-robin shard
+  partition over registration order via TestShardConfigure/Accept)
+- Command form: PYTHONPATH=/home/user python3 cat_theo_machine/tools/shard_suite.py <i> 2
+- Python 3.11.2 (system, not conda); gmpy2 + pyyaml via
+  pip --break-system-packages; sandbox /home/user; two shards sequential
+  in the rerun, concurrent in the partition run.
+- Report semantics (measured, graph.py TestResultsReport): the printed
+  lines after "SHARD <i> elapsed <s>" are the FAILING test names only;
+  "All the tests have passed." prints when a shard has zero failures.
+  The instrument does not emit pass totals; registration sites counted
+  in testsuite.py at this tree: see below.
+
+## Run A — partition cut (pre-tag 32bc569 tree)
+
+Tree: 897c07c working tree plus the partition changes (comment lines in
+labels.py/testsuite.py and new protocol/*.md — classified NON-SEMANTIC).
+Logs: /tmp/probe/shard0_part.log, /tmp/probe/shard1_part.log (ephemeral;
+summarized here).
+
+- SHARD 0 elapsed 449.94s — failures (2):
+  tree_insert_deep_pair_lookup_avoids_recursion_test
+  compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+- SHARD 1 elapsed 596.13s — failures (3):
+  heuristic_canonical_knowledge_agreement_test
+  curator_report_test
+  compare_search_modes_finds_reusable_worker_snapshot_dir_test
+- Tracebacks in either log: 0. Install aborts: 0.
+- Exit codes: not captured for run A — the orchestrating shell call was
+  host-terminated after both shard processes had already written complete
+  reports (both logs end with the report block; no partial output). This
+  omission is why run B exists: same tree content, clean capture.
+
+## Run B — verification rerun (post-partition tree, clean exit codes)
+
+Tree: 32bc569 (partition commit) plus this turn's uncommitted docs/probes
+(no machine-code changes; probes and markdown only). Sequential shards.
+
+- SHARD 0 elapsed 436.19s — exit code 0 — failures (2), identical names
+  to run A shard 0:
+  tree_insert_deep_pair_lookup_avoids_recursion_test
+  compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+- SHARD 1 elapsed 643.91s — exit code 0 — failures (3), identical names
+  to run A shard 1:
+  heuristic_canonical_knowledge_agreement_test
+  curator_report_test
+  compare_search_modes_finds_reusable_worker_snapshot_dir_test
+- Tracebacks: 0. Install aborts: 0.
+
+## Verdict
+
+Failure set = the admission baseline exactly (5 names, all pre-existing
+at base 41e8078, undiagnosed by prior turns, two families: shard 0
+tree/search; shard 1 heuristic/curator/search-compare). Matches-or-shrinks
+rule: SATISFIED (exact match, both runs, zero tracebacks, clean exits).
+
+Both relation-contract S1 tests green in-suite in both runs. Total
+registered tests across shards at this tree: 189 (187 classes at the
+original base + 2 S1 tests; counted from _register_test sites).

@@ -1,20 +1,35 @@
 # research_protocol.md — the index (this lineage)
 
 Maintained by INT. Everything below is inspected from the actual code of
-this checkout, not assumed from any earlier charter. Wave-1 base tag:
-`s1-relation-contracts` @ `897c07cdfbfec8866b2b0a0921012d13a646630a`.
+this checkout, not assumed from any earlier charter.
+
+WAVE-1 BASE: none authorized. Candidate: `partition-32bc569` @
+`32bc569a5e596081c4693e00098bfe9868c81504` (must contain the partition).
+Authorization gate (Wave-0 ruling, 2026-09-05): lineage variances
+recorded; A1 selection demonstrated; suite matches-or-shrinks; S1
+persistence result recorded. Status of each: variances recorded (below);
+A1 selection demonstrated at interface level with stand-in rules — the
+real nosolutions pair is a recorded variance (protocol/preflight/
+a1-selection.txt); S1 persistence measured (verification/2026-09-05-
+s1-checkpoint-roundtrip.txt: cold round-trip succeeds, no registration
+required). Operator acceptance of interface-level A1 closure (or a
+supplied real pair) is the remaining authorization step.
 
 ## Roster, mapped to this session's reality
 
 The 8-role roster (INT, S-eng, E-eng, G-eng, F-tools-eng, G/I-op, S/E-op,
-F-op) assumes one clone per agent and per-track branches. This sandbox is
-pinned to a single branch (`arena/01a064d5-cat-theo-machine`); no other
-branch may be created or pushed from here. Consolidation in force, ratified
-by the operator across prior turns: **INT + S-eng merged** (this agent);
-operators are human and external; E/G/F tracks are parked with standing
-rulings (E: awaiting substrate, none exists here; G: unstarted; F: parked
-until structural parity). The never-merge rule (engineer/operator) holds:
-no operator work runs in this sandbox.
+F-op) assumes one clone per agent and per-track branches. PER THE WAVE-0
+RULING (2026-09-05): the platform's single-branch pin does not alter role
+ownership — the earlier INT+S consolidation has ENDED. This agent is INT
+only: preflight repair, protocol index, suite evidence, tags, merge queue.
+It does not begin S2. Track engineering (S2 onward) belongs to a separate
+S-eng agent in its own sandbox on its own branch, spawned by the operator
+from the authorized Wave-1 base tag; the landed S1 work
+(tag `s1-relation-contracts`, commits 897c07c and its predecessors) stands
+as an experimental source artifact for S-eng to import as an exact source
+commit or a reviewed port. E/G/F remain parked/unstarted with standing
+rulings; operators are human and external, and no operator work runs in
+this sandbox.
 
 ## Lineage gap register (checked 2026-09-04, re-confirmed 2026-09-05)
 
@@ -76,19 +91,53 @@ full two-shard suite runs before every tag; failure set must match or
 shrink versus baseline (current baseline: 5 known reds, list in
 protocol/preflight/ledger.md).
 
-## Preflight status (this lineage)
+## Preflight status (this lineage) — BLOCKED AT STEP 2
 
 Executed 2026-09-04 under tag `preflight-converse-outcome-guard`; full
 report: `verification/preflight_2026-09-04.md`; ledger:
-`protocol/preflight/ledger.md`. Items 1 and 3 have no subject in this
-lineage (gap register); item 2 compile half verified, selection half open
-(instrument locus named); item 4 complete, abort-as-defect-#1 applied
-(D1). D2 and D3 fixed on later tags; correspondence family fully green.
+`protocol/preflight/ledger.md`.
+
+- PreflightTargetAbsent(item_1, LearnedMemoryCheckpointTest, lineage) —
+  recorded variance; the equivalent swallowed-fault class was found,
+  named D1, and fixed (guard-before-navigation, the ruling's own rule).
+- PreflightTargetAbsent(item_3, FLTGoalParserSurface, lineage) — recorded
+  variance; no FLT goal term or decoy exists anywhere in this checkout.
+- item_2: compile YES (both rules through CompileMultiRuleToLaw);
+  selectable — interface-level YES with stand-in rules: JoinPremises
+  binding-sets found against a ground instance of the toy shape
+  Eq(Add(x,1),x), and ApplyKnowledgeRewrite fired the structurally
+  verified replacement Eq(two, Add(two, one)); evidence:
+  protocol/preflight/a1-selection.txt. The REAL nosolutions pair is a
+  lineage variance (no v1 research_protocol.md here). "D11", referenced
+  by the ruling, is undefined in every text this session received and in
+  this ledger; no port was routed; flagged to the operator.
+- item_4: complete; dated two-shard artifact:
+  verification/2026-09-05-partition-two-shard.txt (and the rerun log
+  appended to it).
+
+D2 and D3 fixed on later tags; correspondence family fully green.
+
+## S1 persistence (measured, 2026-09-05)
+
+Cold round-trip SUCCEEDS without fallback registration: capture
+name-records label objects per-label; cold load resolves names through
+_runtime_namespace_for_restore() which carries vars(Lmod). Restored head
+IS the module singleton; trie answers HasFact on restored atoms. Measured
+exemption documented in verification/2026-09-05-s1-checkpoint-roundtrip.txt;
+no [SHARED] registration required. Registration in SNAPSHOT_SYMBOL_NAMES
+would be needed only for bootstrap contexts that do not pass the full
+labels namespace.
 
 ## Blocked on operator
 
-- CHARTER-v2 text (never supplied).
-- TWO-PIPELINE.md full text (arrived truncated mid Text #3, 2026-09-05).
+- CHARTER-v2 text (never supplied; absence recorded in protocol/CHARTER-v2.md).
+- TWO-PIPELINE.md text (never supplied; absence recorded in
+  protocol/TWO-PIPELINE.md).
+- UNIFIED-LAUNCH texts #4-#8 (received portion ends mid Text #3;
+  truncation marked in protocol/UNIFIED-LAUNCH.md).
+- A1 gate: accept interface-level selection closure with stand-in rules,
+  or supply the real nosolutions pair / the v1 protocol document defining
+  it; also define "D11" (undefined here).
+- Wave-1 authorization: ruling on the above; then S-eng spawn on its own
+  branch from the authorized base tag.
 - The sealed Tier1 IMO manifest + its hash (F-track; parked regardless).
-- Ratification of INT+S consolidation continuing under the 8-role plan
-  (forced by single-branch pin; assumed yes absent objection).
