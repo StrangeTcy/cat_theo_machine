@@ -152,9 +152,9 @@ Tests green:
 - shared_or_join_and_crash_execution_failure_test
 - shared_serial_admission_and_stale_attempt_test
 
-## Named next tests (not this turn)
+## Named next tests
 
-- ablation: a law admitted via SerialAdmitProposal vanishes on reset, returns on re-mine
+- ablation: landed as `shared_serial_admit_proposal_ablation_test` — SerialAdmitProposal journal, existing approval gate, law present after activate, absent on reset to the base GraphVersion, present again after re-mine through the same path. Observation journals still do not admit.
 - sibling independence: ablating one worker's admitted law does not disturb the other's
 - evidence-class neutrality: suite failure set identical with and without merged evidence entries
 - admission logging: each admission cites its re-baseline point

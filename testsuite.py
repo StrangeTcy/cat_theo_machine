@@ -13761,6 +13761,65 @@ class SharedSerialAdmissionAndStaleAttemptTest(M.Edge):
         return self.result
 
 
+class SharedSerialAdmitProposalAblationTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        left_term = M.Pair(Lmod.ZeroLabel, empty)
+        right_term = M.Pair(Lmod.SuccLabel, M.Pair(left_term, empty))
+        law = Gmod.CompileRuleToLaw(Pmod.Rule(left_term, right_term))()
+        proposal = Gmod.Proposal(law, M.Char("shared-admit-ablation"))()
+        journal = Wmod.ProposalJournal(M.Pair(proposal, empty))()
+        observation = Wmod.ObservationJournal(M.Pair(proposal, empty))()
+        encoded_left = Gmod.EncodeTermAsGraph(left_term)()
+        base = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded_left)(),
+            Gmod.GraphEdges(encoded_left)(),
+            empty,
+        )()
+        admitted = Wmod.SerialAdmitProposal(empty, journal)()
+        observation_refused = Wmod.SerialAdmitProposal(empty, observation)()
+        store = Gmod.ProposalStore(empty)()
+        store = Gmod.ProposalStoreSubmit(store, proposal)()
+        store = Gmod.ProposalStoreAttach(
+            store,
+            proposal,
+            Gmod.Approved(proposal, M.Char("shared-curator"))(),
+        )()
+        approved_entry = M.Head(Gmod.ProposalStoreApproved(store)())()
+        first = Gmod.ActivateProposal(base, approved_entry)()
+        installed = M.Head(first)()
+        reset = base
+        remine_journal = Wmod.ProposalJournal(M.Pair(proposal, empty))()
+        remine_admitted = Wmod.SerialAdmitProposal(empty, remine_journal)()
+        remine_store = Gmod.ProposalStore(empty)()
+        remine_store = Gmod.ProposalStoreSubmit(remine_store, proposal)()
+        remine_store = Gmod.ProposalStoreAttach(
+            remine_store,
+            proposal,
+            Gmod.Approved(proposal, M.Char("shared-curator"))(),
+        )()
+        remine_entry = M.Head(Gmod.ProposalStoreApproved(remine_store)())()
+        remine = Gmod.ActivateProposal(reset, remine_entry)()
+        returned = M.Head(remine)()
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(admitted)(), journal)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(observation_refused, empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(installed)(), law)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(reset)(), law)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(M.Head(remine_admitted)(), remine_journal)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(returned)(), law)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class InvarianceFlipOneRefutesParityTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -16011,6 +16070,14 @@ def install_default_tests(graph):
             "shared_serial_admission_and_stale_attempt_test",
             empty,
             SharedSerialAdmissionAndStaleAttemptTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_serial_admit_proposal_ablation_test",
+            empty,
+            SharedSerialAdmitProposalAblationTest(graph),
             M.truth_value,
         )
 
