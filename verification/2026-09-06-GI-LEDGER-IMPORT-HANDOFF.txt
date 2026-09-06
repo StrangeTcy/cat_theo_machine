@@ -1,0 +1,200 @@
+G/I ledger import handoff — 2026-09-06
+
+source commit: d573e42d659b2c5e9e59811bdf48a7417c5f2360
+  ("docs: G/I-op Track G/I ledger + A1 Tier0 constructor [SHARED] request
+   (A1 blocked on constructors/statements)", 2026-09-06 00:50:41 +0000)
+source branch of record (per ledger text): arena/01a068c2-cat-theo-machine
+  @ 9fb8870561f0a34f5fd0eb32a06486b8a4e91625
+produced by: INT-AUDIT session on arena/01a06923-cat-theo-machine
+  (assignment named arena/01a066cf-cat-theo-machine as push target; that
+  branch is not this session's fixed branch — artifact pushed to
+  arena/01a06923-cat-theo-machine instead; content identical)
+
+## protocol/G.md
+
+source blob: 05188f027e2eef2244c6fe85f37332d5e159c189
+
+G-1  Turn 1 frame — "A1: five Engel TrainingRecords (Pool A, Tier0)"
+  exact subject: authoring turn, not a session; checkpoint n/a; prediction
+    n/a (pre-declared none)
+  finding: no measurement claim exists in this entry by construction
+  classification: authoring record
+  target owner: G/I-op
+  original tag/checkpoint: none recorded (frozen tag: none authorized)
+  import disposition: do not import as measurement
+
+G-2  Remote-tip/state reconciliation
+  exact subject: local stale at 41e8078, reset to 9fb8870 (local only, no
+    force-push); protocol/ directory created on that branch for ledger files
+  finding: hygiene record; establishes the ledger's own provenance
+  classification: authoring record
+  target owner: G/I-op
+  original tag/checkpoint: none recorded
+  import disposition: owner review required (provenance context only)
+
+G-3  A1 determination table (five rows)
+  exact subject: per-problem authorability of the five Engel records
+  finding (measured, loader-backed):
+    row 1  E2 blackboard parity — InvarianceLabel EXISTS;
+           training_records/engel_e2_blackboard_parity.yaml exists and
+           loads via the real loader (records=1). Do not re-author.
+    row 2  longest-path-gives-cycle — ExtremalLabel EXISTS; BLOCKED:
+           missing PathLabel/CycleLabel/GraphLabel; no authoritative
+           statement in tree
+    row 3  n+1 integers two congruent mod n — PigeonholeLabel EXISTS;
+           BLOCKED: missing IntegerLabel/RemainderLabel/ResidueLabel/
+           CongruentLabel; a "compiling" probe would be a vacuous label
+           touchdown, not a faithful statement
+    row 4  binary words no adjacent ones — DivideLabel EXISTS; BLOCKED:
+           missing WordLabel/AdjacentLabel; no statement in tree
+    row 5  one rotation-invariant coloring — SymmetryLabel EXISTS;
+           BLOCKED: missing ColoringLabel/RotationLabel; no statement
+  classification: row 1 historical finding; rows 2-5 open requests
+  target owner: G/I-op (authoring); rows 2-5 carry dependencies routed
+    elsewhere — domain constructors to INT as [SHARED] (see G-5),
+    authoritative statement text to the operator (see I-2)
+  original tag/checkpoint: none recorded
+  import disposition: row 1 owner review required (cite, do not re-author);
+    rows 2-5 owner review required — blocked entries, never measurements
+
+G-4  Loader checks
+  exact subject: E2 loads OK (records=1); four new records rejected as
+    non-faithful rather than authored as vacuous "compiling" records
+  finding: the candidate-absence trap was identified and refused — a
+    record naming the method head without the domain math was rejected
+  classification: historical finding
+  target owner: G/I-op
+  original tag/checkpoint: none recorded (run pre-tag, authoring context)
+  import disposition: owner review required; not a measurement (no tag,
+    no session — the load check is instrument evidence, not a session
+    result)
+
+G-5  Constructor-absence [SHARED] request
+  exact subject: protocol/[SHARED]-A1-CONSTRUCTORS.md filed for the four
+    constructor groups; the E7 observable-constructor request
+    (SHARED-CONSTRUCTORS-E7.md on arena/01a066cf) cited, not re-requested;
+    the two requests are distinct (A1 domain vocabulary vs E7 observables)
+  finding: open [SHARED] request, correctly separated from the sibling
+    request
+  classification: open request
+  target owner: G/I-op (filer); disposition authority is INT as [SHARED]
+  original tag/checkpoint: none recorded
+  import disposition: owner review required — import as an open request,
+    never as a measurement
+
+G-6  PartialMatchZero / D11 pre-declaration
+  exact subject: "the compile-and-partial-match check will likely return
+    partial matches: 0 for every record because D11 ... is open. Recorded
+    as a pending term PartialMatchZero(record_id, tag, D11-open) once a
+    session is authorized — not a record defect."
+  finding: a PRE-DECLARED PREDICTION, not a result; no session was run
+  classification: historical finding (a prediction on record)
+  target owner: G/I-op
+  original tag/checkpoint: none recorded
+  import disposition: do not import as measurement — historical
+    predictions remain historical
+
+G-7  Not-attempted list
+  exact subject: no E5/E4 oracle re-derivation; no session (no authorized
+    tag); no production code/packs/labels/planner; no duplicate E2 record
+  finding: scope discipline record
+  classification: authoring record
+  target owner: G/I-op
+  original tag/checkpoint: none recorded
+  import disposition: do not import as measurement
+
+## protocol/I.md
+
+source blob: 15712851c99436cb9baf3bf41af2970f3a554c0b
+
+I-1  Pool discipline
+  exact subject: Pool A (author: Tier0 + Tier1 practice, in-repo, never
+    held out) vs Pool B (sealed exam, authored by the human operator
+    outside the repo, only its SHA-256 lands in protocol/I.md, handed out
+    one problem at a time at I3, strategy_hint empty, never seen whole)
+  finding: the seal mechanism is correctly described; the file records
+    only Pool A authoring and pool discipline
+  classification: authoring record
+  target owner: G/I-op
+  original tag/checkpoint: none recorded
+  import disposition: owner review required (discipline text)
+
+I-2  Statement-availability finding
+  exact subject: for the four non-E2 problems the tree contains only
+    nicknames — no authoritative Engel text anywhere (grep across packs/,
+    .md, .py; only Engel packs are blackboard/coins/means; only Problem
+    E*n* references are E3/E4/E7) — and the operator-lane explicitly
+    refuses to fabricate wording
+  finding: open request for authoritative statement text; fabrication
+    refused on record
+  classification: open request
+  target owner: G/I-op (route to operator for the statements)
+  original tag/checkpoint: none recorded
+  import disposition: owner review required
+
+I-3  Missing domain constructors
+  exact subject: the same four constructor groups measured absent against
+    the built namespace; [SHARED]-A1-CONSTRUCTORS.md filed; E7 request
+    cited, not duplicated
+  finding: open request, distinct from statement availability
+  classification: open request
+  target owner: G/I-op (disposition authority INT as [SHARED])
+  original tag/checkpoint: none recorded
+  import disposition: owner review required
+
+I-4  Tier0 / Tier1 authoring status
+  exact subject: Tier0 — E2 exists/loads (cite); four BLOCKED (statement +
+    constructors). Tier1 — not started; cannot start until Tier0 method
+    fixtures are unblocked (no method-anchored example set to build >=2 per
+    method from)
+  finding: current authoring state with its dependency chain
+  classification: historical finding (status); embedded open dependency
+  target owner: G/I-op
+  original tag/checkpoint: none recorded
+  import disposition: owner review required — status, not measurement
+
+Exam-seal status: placeholder
+Evidence (exact lines from source blob 15712851...):
+  "The pool B SHA-256 placeholder is reserved; I never author pool B."
+  "Pool B: untouched; SHA-256 placeholder reserved in protocol/I.md"
+  No SHA-256 digest value appears anywhere in either blob. Per the import
+  constraints, a placeholder is not reported as an exam seal: Pool B has
+  no sealed manifest on record in these ledgers.
+
+## Import constraints
+
+- Do not replace integration-line protocol/G.md or protocol/I.md.
+- Owners import entries individually after review.
+- Historical predictions remain historical.
+- A prediction is not promoted into a measurement.
+- A session result without its original tag and checkpoint identity is not
+  imported as a session result. (No entry in either blob carries a tag or
+  checkpoint — none is importable as a session result.)
+- Pool A and Pool B remain separate.
+- A placeholder is not reported as an exam seal.
+- Preserve source commit and blob identities in every imported entry:
+  d573e42d659b2c5e9e59811bdf48a7417c5f2360; G.md 05188f027e2eef2244c6fe85f37332d5e159c189;
+  I.md 15712851c99436cb9baf3bf41af2970f3a554c0b.
+
+## Recommendation
+
+protocol/G.md:
+  G-1, G-2, G-7        -> G/I-op, provenance/context only
+  G-3 row 1, G-4       -> G/I-op, historical findings (cite E2; do not re-author)
+  G-3 rows 2-5, G-5    -> G/I-op owner review; dependencies: constructors
+                          to INT [SHARED], statements to operator
+  G-6                  -> remain historical (prediction; not a measurement)
+
+protocol/I.md:
+  I-1, I-4             -> G/I-op, discipline/status records
+  I-2                  -> G/I-op, route statement request to operator
+  I-3                  -> G/I-op, route constructor request to INT [SHARED]
+  Pool B               -> no seal on record (placeholder only); nothing to
+                          import; sealing remains the operator's pre-launch
+                          obligation
+
+automatic merge:
+  rejected
+
+owner-reviewed ledger import:
+  recommended
