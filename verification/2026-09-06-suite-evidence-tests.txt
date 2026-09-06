@@ -1,0 +1,45 @@
+suite-evidence acceptance runs — 2026-09-06 UTC start 2026-09-06T18:53:43Z
+harness: tools/tests/suite_evidence/run_all.sh (SYNTHETIC fixtures + one real-wrapper kill test)
+
+PASS 01_two_complete_reports
+PASS 02_more_than_25_failures
+PASS 03_exit_before_report
+PASS 04_killed_child
+PASS 05_stale_marker_truncated_log
+PASS 06_different_commits
+PASS 07_altered_log
+PASS 08_failures_remain_failures
+PASS 09_abort_in_report
+cases: 9/9 green
+exit: 0
+
+== end-to-end wrapper proof (dummy child, repo-pinned scratch under logs/suite-attempts/) ==
+attempt dir: logs/suite-attempts/20260906T185344Z-13242-2515/shard-0
+completion.json
+completion.json.sha
+meta.env
+raw.log
+suite_collect: E_SHARD_SET_INCOMPLETE: have 1 shards, count=2; partial runs are never stitched into a full-suite claim
+
+== archived synthetic demo attempt (tooling only; refusal-by-collector is the expected, shown behavior) ==
+-- meta.env
+RUN_ID=20260906T185344Z-13242-2515
+STARTED_UTC=2026-09-06T18:53:44Z
+TESTED_COMMIT=5166768
+TESTED_TREE=9d5d47573ee2e83150c01bd62258eb87b9544a72
+WORKTREE_DIRTY=yes
+SHARD_INDEX=0
+SHARD_COUNT=2
+COMMAND=/usr/bin/printf Reading pack order-sign...\nSHARD 0 elapsed 0.01\nAll the tests have passed.\n
+CWD=/home/user/cat_theo_machine
+PYEXEC=/usr/bin/python3
+PYVERS=3.11.2
+PYTHONPATH=
+-- completion.json
+{"child_exit_status": 0, "duration_seconds": 0.003, "finished_utc": "2026-09-06T18:53:44Z", "wrapper": "suite_attempt.sh"}
+-- completion.json.sha
+fe8e73cd27792ee0ea2f39be6a5b550362e754745c7133a6fc87a98ca8172840 raw.log
+-- raw.log
+Reading pack order-sign...
+SHARD 0 elapsed 0.01
+All the tests have passed.
