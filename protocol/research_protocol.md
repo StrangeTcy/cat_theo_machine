@@ -25,6 +25,7 @@ wave 1 base tag: preflight-<shortsha>@<hash>
 | persistence.py | SnapshotCodec | INT | [SHARED] proposal |
 | packs.py | PackLoader.load_pack_file | INT | [SHARED] proposal |
 | labels.py | ConstructorLabel instances; SNAPSHOT_SYMBOL_NAMES | INT | [SHARED] proposal |
+| workers.py | WorkItem, Claim, WorkerResult, AndJoin, OrJoin, SerialAdmitProposal | INT | [SHARED] landed |
 | research.py | absent on this lineage | INT | [SHARED] proposal |
 | provenance classes | not a separate module on this tree | INT | [SHARED] proposal |
 

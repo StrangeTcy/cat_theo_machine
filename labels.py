@@ -2393,6 +2393,16 @@ def sync_from_namespace(namespace):
         "TestInstanceLabel",
         "AttemptResultLabel",
         "InvarianceLabel",
+        "WorkItemLabel",
+        "ClaimLabel",
+        "WorkerResultLabel",
+        "ExecutionFailureLabel",
+        "ObservationJournalLabel",
+        "ProposalJournalLabel",
+        "AndJoinLabel",
+        "OrJoinLabel",
+        "ObligationDischargedLabel",
+        "ObligationOpenLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
@@ -2503,6 +2513,58 @@ ParticipatesInLabel = ParticipatesInLabel()
 OccursAtLabel = OccursAtLabel()
 ClaimStoreLabel = ClaimStoreLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
+
+
+class WorkItemLabel(ConstructorLabel):
+    pass
+
+
+class ClaimLabel(ConstructorLabel):
+    pass
+
+
+class WorkerResultLabel(ConstructorLabel):
+    pass
+
+
+class ExecutionFailureLabel(ConstructorLabel):
+    pass
+
+
+class ObservationJournalLabel(ConstructorLabel):
+    pass
+
+
+class ProposalJournalLabel(ConstructorLabel):
+    pass
+
+
+class AndJoinLabel(ConstructorLabel):
+    pass
+
+
+class OrJoinLabel(ConstructorLabel):
+    pass
+
+
+class ObligationDischargedLabel(ConstructorLabel):
+    pass
+
+
+class ObligationOpenLabel(ConstructorLabel):
+    pass
+
+
+WorkItemLabel = WorkItemLabel()
+ClaimLabel = ClaimLabel()
+WorkerResultLabel = WorkerResultLabel()
+ExecutionFailureLabel = ExecutionFailureLabel()
+ObservationJournalLabel = ObservationJournalLabel()
+ProposalJournalLabel = ProposalJournalLabel()
+AndJoinLabel = AndJoinLabel()
+OrJoinLabel = OrJoinLabel()
+ObligationDischargedLabel = ObligationDischargedLabel()
+ObligationOpenLabel = ObligationOpenLabel()
 
 
 # --- [S] ---

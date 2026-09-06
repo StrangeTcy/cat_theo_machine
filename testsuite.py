@@ -24,6 +24,7 @@ from . import theorem_rules as Theoremmod
 from . import trees as Tmod
 from .graph import Test
 from .persistence import SnapshotCodec, SnapshotSaveDeadline, SnapshotSaveTimeout
+from . import workers as Wmod
 from .proof import BuildDerivation, CollectRules, Rule, RulePremises, RuleReplacement
 from .runtime import boot_from_packs, boot_from_snapshot, make_fresh_runtime, save_runtime
 from .search import (
@@ -13663,6 +13664,103 @@ class BlackboardStartHasNoBoardCellsTest(M.Edge):
         return self.result
 
 
+class SharedTwoWorkersOverlapAndJoinTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        work_dir = tempfile.mkdtemp(prefix="hyge-shared-snap-")
+        snap_path = os.path.join(work_dir, "parent.snapshot.json")
+        Wmod.WriteMinimalSnapshot(snap_path)()
+        before = Wmod.SnapshotIdentity(snap_path)()
+        launch = Wmod.LaunchTwoWorkers(snap_path, "alpha", "alpha", "beta", "beta", 0.35, False, False)
+        launch()
+        after = Wmod.SnapshotIdentity(snap_path)()
+        left = Wmod.OutcomeFromName(launch.payload_a["outcome"])()
+        right = Wmod.OutcomeFromName(launch.payload_b["outcome"])()
+        joined = Wmod.AndJoin(left, right)()
+        overlap = M.false_value
+        start_a = launch.payload_a["started"]
+        finish_a = launch.payload_a["finished"]
+        start_b = launch.payload_b["started"]
+        finish_b = launch.payload_b["finished"]
+        if start_a < finish_b:
+            if start_b < finish_a:
+                overlap = M.truth_value
+        distinct = M.false_value
+        if launch.pid_a != launch.pid_b:
+            distinct = M.truth_value
+        self.result = M.truth_value
+        if M.IdentityCompare(joined, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(overlap, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(distinct, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(before, after)() is M.false_value:
+            self.result = M.false_value
+        elif Wmod.SnapshotFormatOk(snap_path)() is M.false_value:
+            self.result = M.false_value
+        shutil.rmtree(work_dir, ignore_errors=True)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SharedOrJoinAndCrashExecutionFailureTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        work_dir = tempfile.mkdtemp(prefix="hyge-shared-or-")
+        snap_path = os.path.join(work_dir, "parent.snapshot.json")
+        Wmod.WriteMinimalSnapshot(snap_path)()
+        launch = Wmod.LaunchTwoWorkers(snap_path, "same", "same", "left", "right", 0.05, False, True)
+        launch()
+        left = Wmod.OutcomeFromName(launch.payload_a["outcome"])()
+        right = Wmod.OutcomeFromName(launch.payload_b["outcome"])()
+        or_ok = Wmod.OrJoin(left, right)()
+        and_ok = Wmod.AndJoin(left, right)()
+        self.result = M.truth_value
+        if M.IdentityCompare(left, Lmod.ObligationDischargedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(right, Lmod.ExecutionFailureLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(or_ok, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(and_ok, M.false_value)() is M.false_value:
+            self.result = M.false_value
+        shutil.rmtree(work_dir, ignore_errors=True)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SharedSerialAdmissionAndStaleAttemptTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        proposal = Wmod.ProposalJournal(M.Pair(M.Char("candidate-law"), empty))()
+        observation = Wmod.ObservationJournal(M.Pair(M.Char("trace"), empty))()
+        admitted = empty
+        admitted = Wmod.SerialAdmitProposal(admitted, proposal)()
+        again = Wmod.SerialAdmitProposal(admitted, observation)()
+        first_attempt = M.Char("attempt-1")
+        stale = M.Char("attempt-0")
+        accepted = first_attempt
+        stale_rejected = M.truth_value
+        if M.Compare(stale, accepted)() is M.truth_value:
+            stale_rejected = M.false_value
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(admitted)(), proposal)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(again, admitted)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(stale_rejected, M.truth_value)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class InvarianceFlipOneRefutesParityTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -15889,6 +15987,31 @@ def install_default_tests(graph):
             empty,
             MilestoneM4PolicyLoosenThenTightenTest(graph),
             MILESTONE_SKIPPED,
+        )
+
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_two_workers_overlap_and_join_test",
+            empty,
+            SharedTwoWorkersOverlapAndJoinTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_or_join_and_crash_execution_failure_test",
+            empty,
+            SharedOrJoinAndCrashExecutionFailureTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_serial_admission_and_stale_attempt_test",
+            empty,
+            SharedSerialAdmissionAndStaleAttemptTest(graph),
+            M.truth_value,
         )
 
     graph.default_tests_installed = M.truth_value
