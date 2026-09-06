@@ -1,0 +1,143 @@
+CUR MERGE REHEARSAL — 2026-09-06
+Role: INT-CUR-MERGE-SUPPORT (read-only upgrade of the completed CUR batch; no source-branch edit,
+no implementation edit, no oracle/grading/ledger edit). Rehearsal only.
+
+================================================================================
+1. EXACT SOURCE AND BASE SHAs (ls-remote + fetch, verified commit SHAs)
+================================================================================
+  integration base  arena/01a06542-cat-theo-machine : b812db904b44db72def705eb18a50bbe50c12cc2
+  source a          arena/01a066cf-cat-theo-machine : 1eb4fd709f21be441d63152ff9100d5fee86c468  (canonical CUR batch)
+  source b          arena/01a068c2-cat-theo-machine : d573e42d659b2c5e9e59811bdf48a7417c5f2360  (docs batch)
+  common ancestor (fork base)                       : 41e80785d4de090337a9dfc08439f2fcb45915dc
+  (all three refs share 41e8078 as merge-base: verified merge-base(integ,mine)=merge-base(integ,sib)=merge-base(mine,sib)=41e8078)
+
+================================================================================
+2. MERGE COMMAND / MERGE-TREE COMMAND
+================================================================================
+  step a (source a into base):  git merge-tree --write-tree 01a06542 01a066cf
+      result tree: 027b1e0241ad9b17508b21ebcaffd03ba3fd6f4a   (exit 0, CLEAN)
+  intermediate commit-object (result of a, object only, no branch/worktree):
+      commit-tree 027b1e0... -p 01a06542 -p 01a066cf -> ba7531d4d7a480922395cf115f802621749e7cce
+  step b (source b into step-a result):  git merge-tree --write-tree ba7531d... 01a068c2
+      result tree: a5f87cd35aa9bc5b326706a4a0e011fa4fe1ffd8   (exit 1, CONFLICT)
+
+================================================================================
+3. RESULTING TREE HASH
+================================================================================
+  Raw sequential merge (a then b) = a5f87cd35aa9bc5b326706a4a0e011fa4fe1ffd8  (has conflicts)
+  RECOMMENDED post-rehearsal tree with the declared exclusions =
+      5068fc54c731c80f2a759bf9a8fc2f94a3de0ba2
+  (built by read-tree of the step-a tree + adding the sibling's non-duplicative,
+   non-conflicting files, minus the two protocol collisions and the case-duplicate E4 variant)
+
+================================================================================
+4. CONFLICT RESULT
+================================================================================
+  step a vs integration base         : NONE (clean; docs-only batch applies cleanly)
+  step b (sibling) vs step-a result  : CONFLICT — add/add on
+        protocol/G.md   (integ eb191be... vs sibling 05188f0...)
+        protocol/I.md   (integ 7a8f70e... vs sibling 1571285...)
+  Cause: the integration line already carries protocol/G.md and protocol/I.md (its own,
+  different content); the sibling independently added its own protocol/G.md and protocol/I.md
+  (different blobs). Both sides added these paths relative to the common ancestor 41e8078,
+  so git reports add/add. These two paths are DUPLICATIVE (already on the integration line),
+  NOT approved non-duplicative files; the recommended tree EXCLUDES them (integration-line
+  versions win). No other textual conflict present.
+
+================================================================================
+5. CANONICAL / EXCLUDED FILE LIST (post-rehearsal recommended tree)
+================================================================================
+  CANONICAL (landed):
+    CUR-ENGEL-E4-oracle.md               (lowercase, canonical H / e_out - e_in form; from 01a066cf)
+    CUR-ENGEL-E3-oracle.md               (E3 oracle card; from sibling, lands after step b)
+    CUR-ENGEL-E7-oracle.md               (canonical; from 01a066cf)
+    CUR-ENGEL-E3.md                      (E3 nine-item inventory; from 01a066cf)
+    CUR-ENGEL-E4-descent-refutation.md   (from 01a066cf)
+    protocol/CUR.md                      (contains D13; from 01a066cf)
+    CUR-GRADER-TEST-BATTERY-2026-09-06.md (evaluator-side fixtures; from 01a066cf)
+  GRADER CONTRACTS (evaluator-side, landed as docs, not run):
+    CUR-ENGEL-E3-EVALUATOR-CONTRACT.md
+    CUR-ENGEL-E4-GRADER-CONTRACT.md
+    CUR-ENGEL-E7-GRADER-CONTRACT.md
+  BATCH DOCS:
+    CUR-ORACLE-SEALING-AND-DISTRIBUTION-HANDOFF.md
+    CUR-MERGE-VERIFICATION-CHECKLIST.md
+    protocol/[SHARED]-A1-CONSTRUCTORS.md
+    verification/2026-09-04-CUR-ENGEL-E4-check.txt
+  EXCLUDED:
+    CUR-ENGEL-E4-ORACLE.md   (uppercase case-duplicate of the canonical E4 card; excluded as a
+                              landed path per the operator-ratified INT merge rule; referenced
+                              only as corroborating evidence by content-id 0ff055a6...)
+    protocol/G.md, protocol/I.md  (duplicative paths already on the integration line; integ wins)
+
+================================================================================
+6. POST-REHEARSAL CONTENT-IDs (SHA-256, current source content at the recommended tree)
+================================================================================
+  E3  CUR-ENGEL-E3-oracle.md   = 31a8026d6e59de537d21533d96a0d0050b7bb9a3bbe6c181e138d150fa544b11
+  E4  CUR-ENGEL-E4-oracle.md   = 33eb51673cca21116a348d6e34b6a70cbc50a1b6fac86073fc22cb677ef46b80
+  E7  CUR-ENGEL-E7-oracle.md   = bd4942a6040b80f825bc25c40dbca4c7db450f5cf1f416643024d9fe9a60ef60
+  corroborating E4 variant (not landed)
+      CUR-ENGEL-E4-ORACLE.md  = 0ff055a6f6dc5c81848daa8135cc15efca4ae568c444982ed153e7e75c23c328
+
+  COMPARISON vs the sealing dry-run / audit (CUR-CROSS-BRANCH-AUDIT-2026-09-05.md):
+    E3 : MATCH (31a8026d)                      [unchanged]
+    E7 : MATCH (bd4942a6)                      [unchanged]
+    E4 (canonical) : CHANGE  841a97b7...  ->  33eb5167...
+        cause: the D13 merge-checklist note ("D13 declared in protocol/CUR.md; INT mirrors to
+        protocol/DISTRIBUTION.md on merge") was added to the E4 oracle card in commit fc69cfc,
+        AFTER the audit's sealing dry-run recorded 841a97b7. The card content changed; the
+        recorded dry-run hash is now STALE for the canonical E4 card.
+    E4 variant (corroboration) : MATCH (0ff055a6)
+  NOTE: an earlier recompute initially gave wrong values for all three because it hashed the
+  blob through a command substitution that stripped the trailing newline; the correct method
+  (pipe blob -> sha256sum, preserving the byte stream) is used above and matches the sealing
+  method. No card was edited to recover an older hash.
+
+================================================================================
+7. D13 COLLISION RESULT
+================================================================================
+  protocol/CUR.md (from 01a066cf) contains D13 (line 9/11/12/18/50): present.
+  protocol/DISTRIBUTION.md (integration line, present in the recommended tree):
+      D13 hits = 0. No conflicting D13 assignment. D13 is declared first in protocol/CUR.md;
+      INT mirrors it to protocol/DISTRIBUTION.md at merge time (per the merge-checklist note
+      on the E4 card). No collision detected.
+
+================================================================================
+8. OPEN ITEMS / FINDINGS FOR INT (reported, not silently repaired)
+================================================================================
+  F1 (config error in the batch): sibling's protocol/G.md and protocol/I.md collide as add/add
+     with the integration line's versions (duplicative paths). INT must exclude them (the
+     sibling's G/I track ledgers are NOT part of the approved non-duplicative batch) and keep
+     the integration-line G.md / I.md. Do NOT merge the sibling copies.
+  F2 (instruction inconsistency): the sibling's sealing handoff (CUR-ORACLE-SEALING-AND-
+     DISTRIBUTION-HANDOFF.md, line 68) states that after step 2 the merged tree contains BOTH
+     CUR-ENGEL-E4-oracle.md (canonical) and CUR-ENGEL-E4-ORACLE.md (sibling). That contradicts
+     the operator-ratified INT merge rule (from the E4 reconciliation), which says to ADOPT the
+     lowercase card as sole canonical and to NOT merge the uppercase card as a separate file
+     (case-only naming would collide on case-insensitive filesystems). The recommended tree
+     follows the RATIFIED rule (uppercase excluded). INT should resolve the handoff wording
+     against the ratified rule before sealing.
+  F3 (stale recorded hash): the audit/sealing dry-run for the CANONICAL E4 card lists
+     841a97b7..., but the current canonical E4 card content-id is 33eb5167... (changed by the
+     D13 merge-checklist note, commit fc69cfc). The E3 and E7 recorded hashes still match.
+     INT must recompute at seal time and record 33eb5167 for the canonical E4 card.
+
+================================================================================
+9. FINAL MERGE RECOMMENDATION TO INT
+================================================================================
+  Proceed to merge, in the declared order (01a066cf then the 01a068c2 docs batch), applying:
+    - integrate 01a066cf @ 1eb4fd7 into 01a06542 @ b812db9  (clean);
+    - integrate the 01a068c2 docs batch @ d573e42, EXCLUDING protocol/G.md, protocol/I.md
+      (duplicative, integ wins) and EXCLUDING CUR-ENGEL-E4-ORACLE.md (case-duplicate route;
+      keep lowercase canonical; reference the variant by content-id 0ff055a6...);
+    - seal using the recomputed content-ids: E3 31a8026d, E4 33eb5167, E7 bd4942a6;
+    - confirm D13 has no DISTRIBUTION.md collision, then mirror D13 into protocol/DISTRIBUTION.md.
+  No source branch was altered; this is a rehearsal only.
+
+  result: evidence produced / files changed / tests run / merge request / blocked on
+    evidence produced: sequential merge-tree rehearsal of the CUR batch onto the integration base;
+        conflict census; post-rehearsal content-ids; D13 collision check; 3 findings for INT.
+    files changed: verification/2026-09-06-CUR-MERGE-REHEARSAL.txt (this artifact, docs-only)
+    tests run: none (merge-tree rehearsal; no grader run, no implementation)
+    merge request: none (read-only support; INT executes the real merge)
+    blocked on: INT resolution of F1/F2/F3 (protocol G/I exclusion, handoff wording, stale E4 hash)
