@@ -1,9 +1,13 @@
 # Research protocol index
 
+Operational plan: `protocol/LAUNCH-PLAN.md` (unified launch + per-agent
+instructions + single-session mode).
+
 Engineering base tags:
 
-- Re-cut after partition: `eng-base-0-partition` (annotated immutable tag on
-  the `partition` commit). **Wave 1 engineers branch from this tag/SHA.**
+- Re-cut after partition: `eng-base-0-partition` annotated tag at commit
+  `7c62ca2c6b9f12f3f49e44ae1f7b89d6d2c99ced`.
+  **Wave 1 engineers branch from this tag/SHA.**
 - Original pre-partition base: `eng-base-0@1374464` @ `137446435362a9727c2f7c181c663adab9d4c357`.
 
 Wave 1 measurement tag: **none**. F-op gated by `protocol/F.md`.
@@ -64,3 +68,13 @@ marker only. The marker itself and the code above it are owned by INT.
 blocked in this sandbox: `hyge` package import requires `gmpy2`, which the
 system Python here does not provide and the protocol forbids running conda
 without operator consent.
+
+Open `[SHARED]` requests carried by this index (do not implement in a track):
+
+1. `research.py` absent — re-map S/G surfaces onto present files.
+2. `explanation.py`/`provenance.py` absent — re-map E surfaces; entry point
+   is `Runtime.explain` (`runtime.py`) / `ExplainDerivation` (`proof.py`).
+3. Planner method-set divergence — tree already has `Extremal`, `Induction`,
+   `Symmetry`, `Pigeonhole`, `Divide`, `Bijection`, `DoubleCount`;
+   `labels.py` has `InvarianceLabel`. G must not silently delete extras.
+4. `protocol/D11-PORT.md` referenced but not present in the pulled set.
