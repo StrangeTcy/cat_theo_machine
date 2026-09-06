@@ -6,11 +6,16 @@ E/F/G/I/S); this file holds content-review notes that the reviewer asked to reco
 
 ---
 
-## Note (2026-09-04) — §0 banned-phrase violation in the E7 doc line
+## Note (2026-09-04) — D13: §0 banned-phrase violation in the E7 doc line
+
+Defect ledger tag: **D13** — the §0 banned-phrase item 5 (`68 6f 6e 65 73 74`) applied to a machine
+classification in the E7 doc line. Recorded here as the D13 ledger entry; superseded commits
+retained, current E7 artifact clean.
 
 ```
 source: session-supplied charter §0;
 in-tree status: referenced by protocol/DISTRIBUTION.md, not present verbatim;
+defect id: D13;
 violated entry: §0 banned-phrase item 5;
 exact UTF-8 bytes: 68 6f 6e 65 73 74;
 locus: superseded commit 38d4e58 subject and prior E7 classification prose;
@@ -41,4 +46,5 @@ Details:
   message and the preceding ledger entry carried the phrase verbatim; this successor entry replaces
   the ledger text with the nonliteral encoding above and does not claim prior history was edited.
 
-Remote tip recorded before work: `e0853a915baf260b7d1e9d3678c8f9d78300655b`.
+Remote tip recorded before work (prior, retained): `e0853a915baf260b7d1e9d3678c8f9d78300655b`.
+Remote tip recorded before work (D13 registration): `af0132e0b414f46cef4b2cabe1b40e224033ba8c`.
