@@ -2505,6 +2505,9 @@ ClaimStoreLabel = ClaimStoreLabel()
 CorrespondenceLawLabel = CorrespondenceLawLabel()
 
 
+# --- [S] ---
+# --- [E] ---
+# --- [G] ---
 # --- [F] ---
 # CheckpointLoaded is printed by tools/f1_checkpoint.sh audit, not a
 # ConstructorLabel, until research.py exists.

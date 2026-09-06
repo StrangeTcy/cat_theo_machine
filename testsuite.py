@@ -15888,6 +15888,9 @@ def install_default_tests(graph):
     return graph
 
 
+# --- [S] ---
+# --- [E] ---
+# --- [G] ---
 # --- [F] ---
 # F1 CheckpointIdMatchTest lives in tools/f1_checkpoint_test.sh until a
 # SHARED cut carries research.py. Talk verbs are not registered here.

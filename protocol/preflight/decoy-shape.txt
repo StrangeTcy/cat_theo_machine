@@ -1,0 +1,34 @@
+preflight step 3 — decoy shape
+artifact: F-RUNNER 2026-09-05 cold transcripts on this lineage
+  logs/F-OP-BLIND-FLT-RETRY-decoy.log
+  logs/F-OP-BLIND-FLT-RETRY-flt.log
+research.py absent; talk has no `research mode` verb on this tree.
+Parsed lines copied from those dated transcripts.
+
+decoy parsed goal:
+(forall n (implies (greater n 1) (over positive-integers (vars x y) (implies (eq (pow x n) (pow y n)) (eq x y)))))
+
+target parsed goal:
+(forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+
+predicate arity:
+  forall: binder + body
+  implies: 2
+  greater: 2
+  eq: 2
+  pow: 2
+  match: yes
+
+case-split shape:
+  forall n (implies (greater n K) BODY)
+  match: yes
+  K is 1 on decoy, 2 on target (bound, not shape)
+
+exponent position:
+  pow TERM n   — n is the second argument of pow
+  match: yes
+
+inner binder head (over vs nosolutions) is the intended control, not a
+named shape field.
+
+DECOY SHAPE-MATCH: yes

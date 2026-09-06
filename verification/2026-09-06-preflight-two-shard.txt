@@ -1,0 +1,55 @@
+preflight step 4 — two-shard default suite
+dated: 2026-09-06
+tree: arena/01a06da9-cat-theo-machine
+interpreter: /tmp/hyge-venv/bin/python
+PYTHONPATH=/home/user
+cwd for processes: /home/user
+command:
+  /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 0 2
+  /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 1 2
+both started together (pids 1592 and 1608)
+
+=== shard 0 ===
+process: shard-0-64879d1a
+exit: 0
+SHARD 0 elapsed 423.2124378681183
+TestResultsReport failed names:
+converse_default_mode_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+
+=== shard 1 ===
+process: shard-1-8a660e5b
+exit: 1
+report: none (install_default_tests aborted before run_tests_report)
+abort name: ConversePropositionTest
+locus: testsuite.py:15292 install_default_tests
+       testsuite.py:7448 ConversePropositionTest.__init__
+       core.py:120 Thingy.__call__
+exception: AttributeError: 'Thingy' object has no attribute 'tail'
+traceback:
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/tools/shard_suite.py", line 45, in <module>
+    main()
+  File "/home/user/cat_theo_machine/tools/shard_suite.py", line 39, in main
+    install_default_tests(runtime.graph)
+  File "/home/user/cat_theo_machine/testsuite.py", line 15292, in install_default_tests
+    ConversePropositionTest(graph),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/testsuite.py", line 7448, in __init__
+    M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/core.py", line 120, in __call__
+    return self.p.tail.value
+           ^^^^^^^^^^^
+AttributeError: 'Thingy' object has no attribute 'tail'
+
+=== combined failure set ===
+converse_default_mode_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+ConversePropositionTest (shard 1 install abort; no TestResultsReport name)
+
+=== exit codes ===
+shard 0: 0
+shard 1: 1
