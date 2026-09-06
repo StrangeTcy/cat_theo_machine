@@ -16,8 +16,15 @@ sibling uppercase card means merging its extra reasoning-failure witnesses (vert
 signed and absolute house-size difference) into this card if a single dense card is wanted — or keep
 both only with this file named canonical and the sibling cited as corroborating evidence. Do **not**
 merge both `E4` oracle cards as-is without naming a canonical path (the two filenames differ only in
-case; content is equivalent). Seal content-id for the canonical E4 card: `a11ca451e52…`
-(see `CUR-CROSS-BRANCH-AUDIT-2026-09-05.md`).
+case; content is equivalent).
+
+**Seal identity:** the authoritative E4 content-id is maintained in the **external seal manifest**
+(`CUR-ORACLE-SEALING-AND-DISTRIBUTION-HANDOFF.md` on the sibling, and the audit
+`CUR-CROSS-BRANCH-AUDIT-2026-09-05.md`), not asserted inside this payload. This card is the thing
+being hashed, so a purported current hash is self-referential and goes stale on every edit; it is
+**not** recorded here. Prior identities are historical and superseded: `a11ca451e52…` (original
+dry-run) and `841a97b7…` (post-reconciliation) are historical markers, not the current content-id.
+INT computes the current content-id at seal time from the exact blob bytes.
 
 **Merge-checklist note:** D13 declared in `protocol/CUR.md`; INT mirrors to `protocol/DISTRIBUTION.md` on merge.
 
@@ -99,7 +106,7 @@ than observable-constructor errors:
 | measure = signed house-size difference `\|H0\| − \|H1\|` | non-monotone | changes by `+2` or by `−2` depending on move direction |
 | measure = absolute house-size difference `\|\|H0\| − \|H1\|\|` | non-monotone | it can increase (`3/3 → 2/4` makes `0 → 2`) and can decrease; not monotone |
 | prove termination of the *process* but call it reaching the global min | conflates "no move legal" with "H minimal" | a state with no legal move need not minimize `H` (4-cycle dual terminals) |
-| use an invariant (preservation) | E4 is descent, not preservation | no quantity is invariant; the argument is a strict decrease |
+| use an invariant (preservation) | E4 is descent, not preservation | Preservation alone does not provide the strict decrease required by this termination certificate. |
 
 The vertex-count / signed- and absolute-house-size-difference witnesses were melded from the sibling
 variant (`CUR-ENGEL-E4-ORACLE.md`) so this canonical card carries the full reasoning-failure matrix.

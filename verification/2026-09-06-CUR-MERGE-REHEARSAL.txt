@@ -68,30 +68,56 @@ no implementation edit, no oracle/grading/ledger edit). Rehearsal only.
     CUR-ENGEL-E4-ORACLE.md   (uppercase case-duplicate of the canonical E4 card; excluded as a
                               landed path per the operator-ratified INT merge rule; referenced
                               only as corroborating evidence by content-id 0ff055a6...)
-    protocol/G.md, protocol/I.md  (duplicative paths already on the integration line; integ wins)
+    protocol/G.md   source commit d573e42d659b2c5e9e59811bdf48a7417c5f2360, path protocol/G.md
+                    source blob 05188f027e2eef2244c6fe85f37332d5e159c189
+                    (Track G ledger: A1 five Engel TrainingRecords Pool A/Tier0 determination,
+                     constructor-absence `[SHARED]` request in protocol/[SHARED]-A1-CONSTRUCTORS.md)
+    protocol/I.md   source commit d573e42d659b2c5e9e59811bdf48a7417c5f2360, path protocol/I.md
+                    source blob 15712851c99436cb9baf3bf41af2970f3a554c0b
+                    (Track I ledger: Pool A/B split, Pool B SHA-256 placeholder, statement-
+                     availability finding for the four non-E2 Engel problems)
+
+  DISPOSITION OF THE EXCLUDED G/I LEDGERS (NOT REDUNDANT):
+    The sibling's protocol/G.md and protocol/I.md are NOT "duplicate content" of the integration
+    line's stubs — at b812db9 both integration-side ledgers are empty stubs, whereas at d573e42
+    the sibling's G ledger records authoring findings + constructor requests and its I ledger
+    records curriculum/exam separation + source-availability findings. These are genuine distinct
+    entries. Per the finding, they are EXCLUDED from this CUR import as scoped (the CUR batch owns
+    no G/I ledger), but must be ROUTED, not discarded: each excluded file is recorded here with its
+    source commit + path, and its distinct entries go to the G/I owners for a SEPARATE ledger
+    import. Historical predictions in those entries remain historical; importing them must NOT
+    promote them into current measurements.
 
 ================================================================================
 6. POST-REHEARSAL CONTENT-IDs (SHA-256, current source content at the recommended tree)
 ================================================================================
   E3  CUR-ENGEL-E3-oracle.md   = 31a8026d6e59de537d21533d96a0d0050b7bb9a3bbe6c181e138d150fa544b11
-  E4  CUR-ENGEL-E4-oracle.md   = 33eb51673cca21116a348d6e34b6a70cbc50a1b6fac86073fc22cb677ef46b80
+  E4  CUR-ENGEL-E4-oracle.md   = d30099c947e68d2c23c433e1617ba3b27f9ba4539876e5e6712eb5744bce60f8
   E7  CUR-ENGEL-E7-oracle.md   = bd4942a6040b80f825bc25c40dbca4c7db450f5cf1f416643024d9fe9a60ef60
   corroborating E4 variant (not landed)
       CUR-ENGEL-E4-ORACLE.md  = 0ff055a6f6dc5c81848daa8135cc15efca4ae568c444982ed153e7e75c23c328
 
+  CONTENT-ID CHAIN for the canonical E4 card (all SHA-256, exact blob bytes):
+    a11ca451e52d...  original dry-run         [historical, superseded]
+    841a97b74c90...  post-reconciliation      [historical, superseded]
+    33eb51673cca...  post-D13-merge-checklist [historical, superseded]
+    d30099c947e6...  CURRENT (after source corrections A + B, this batch)
+  The authoritative seal identity is maintained in the external seal manifest, NOT inside this
+  payload (self-referential hashes go stale on every edit). Prior identities are historical
+  markers. INT computes the current content-id at seal time from the exact blob bytes.
+
   COMPARISON vs the sealing dry-run / audit (CUR-CROSS-BRANCH-AUDIT-2026-09-05.md):
     E3 : MATCH (31a8026d)                      [unchanged]
     E7 : MATCH (bd4942a6)                      [unchanged]
-    E4 (canonical) : CHANGE  841a97b7...  ->  33eb5167...
-        cause: the D13 merge-checklist note ("D13 declared in protocol/CUR.md; INT mirrors to
-        protocol/DISTRIBUTION.md on merge") was added to the E4 oracle card in commit fc69cfc,
-        AFTER the audit's sealing dry-run recorded 841a97b7. The card content changed; the
-        recorded dry-run hash is now STALE for the canonical E4 card.
+    E4 (canonical) : CHANGE 841a97b7... -> d30099c9...   (two intervening steps: the D13
+        merge-checklist note in fc69cfc, then source corrections A + B in this batch)
     E4 variant (corroboration) : MATCH (0ff055a6)
-  NOTE: an earlier recompute initially gave wrong values for all three because it hashed the
-  blob through a command substitution that stripped the trailing newline; the correct method
-  (pipe blob -> sha256sum, preserving the byte stream) is used above and matches the sealing
-  method. No card was edited to recover an older hash.
+  NOTE: an earlier recompute initially gave wrong values because it hashed the blob through a
+  command substitution that stripped the trailing newline; the correct method (pipe blob ->
+  sha256sum, preserving the byte stream) is used here and matches the sealing method. The value
+  e3b0c442... seen once was an artifact of that pipelining bug on an empty input, not a real
+  content-id. No card was edited to recover an older hash; the digest changed because the card was
+  corrected (finding A removes the self-referential inline hash; finding B fixes the grading row).
 
 ================================================================================
 7. D13 COLLISION RESULT
@@ -105,22 +131,33 @@ no implementation edit, no oracle/grading/ledger edit). Rehearsal only.
 ================================================================================
 8. OPEN ITEMS / FINDINGS FOR INT (reported, not silently repaired)
 ================================================================================
-  F1 (config error in the batch): sibling's protocol/G.md and protocol/I.md collide as add/add
-     with the integration line's versions (duplicative paths). INT must exclude them (the
-     sibling's G/I track ledgers are NOT part of the approved non-duplicative batch) and keep
-     the integration-line G.md / I.md. Do NOT merge the sibling copies.
+  F1 (config collision + routing): sibling's protocol/G.md and protocol/I.md collide as add/add
+     with the integration line's empty-stub versions (real conflict: integration stubs vs sibling
+     ledgers with distinct G/I authoring/curriculum findings). INT must exclude the sibling copies
+     from THIS CUR import (scoped) and keep the integration-line paths, BUT route the sibling's
+     distinct entries to the G/I owners for a separate ledger import. Each excluded file is
+     recorded with its source commit + path + blob (see Section 5 DISPOSITION). The information is
+     NOT redundant and must NOT be silently discarded; historical predictions in those entries stay
+     historical and must not be promoted into current measurements.
   F2 (instruction inconsistency): the sibling's sealing handoff (CUR-ORACLE-SEALING-AND-
      DISTRIBUTION-HANDOFF.md, line 68) states that after step 2 the merged tree contains BOTH
      CUR-ENGEL-E4-oracle.md (canonical) and CUR-ENGEL-E4-ORACLE.md (sibling). That contradicts
      the operator-ratified INT merge rule (from the E4 reconciliation), which says to ADOPT the
      lowercase card as sole canonical and to NOT merge the uppercase card as a separate file
      (case-only naming would collide on case-insensitive filesystems). The recommended tree
-     follows the RATIFIED rule (uppercase excluded). INT should resolve the handoff wording
-     against the ratified rule before sealing.
-  F3 (stale recorded hash): the audit/sealing dry-run for the CANONICAL E4 card lists
-     841a97b7..., but the current canonical E4 card content-id is 33eb5167... (changed by the
-     D13 merge-checklist note, commit fc69cfc). The E3 and E7 recorded hashes still match.
-     INT must recompute at seal time and record 33eb5167 for the canonical E4 card.
+     follows the RATIFIED rule (uppercase excluded). INT must amend the handoff wording against
+     the ratified rule before sealing (choosing the lowercase file without fixing the handoff
+     leaves contradictory executable guidance).
+  F3 (stale recorded hash + source corrections applied): the audit/sealing dry-run for the
+     canonical E4 card lists 841a97b7..., now superseded in two steps to d30099c9... (the D13
+     merge-checklist note in fc69cfc, then source corrections A + B in this batch). This batch
+     APPLIED two corrections to the canonical E4 card: (A) removed the self-referential inline
+     seal content-id from the payload (moved authoritative identity to the external seal manifest;
+     prior ids marked historical), and (B) fixed the grading row that claimed "no quantity is
+     invariant" (contradicted by the same table identifying vertex count as invariant) — replaced
+     with "Preservation alone does not provide the strict decrease required by this termination
+     certificate." E3 and E7 recorded hashes still match; INT must recompute at seal time and
+     record d30099c9 for the canonical E4 card.
 
 ================================================================================
 9. FINAL MERGE RECOMMENDATION TO INT
@@ -130,9 +167,19 @@ no implementation edit, no oracle/grading/ledger edit). Rehearsal only.
     - integrate the 01a068c2 docs batch @ d573e42, EXCLUDING protocol/G.md, protocol/I.md
       (duplicative, integ wins) and EXCLUDING CUR-ENGEL-E4-ORACLE.md (case-duplicate route;
       keep lowercase canonical; reference the variant by content-id 0ff055a6...);
-    - seal using the recomputed content-ids: E3 31a8026d, E4 33eb5167, E7 bd4942a6;
+    - source corrections A + B (below) were applied to the canonical E4 card on the CUR branch as
+      an authorized docs-resolution batch (finding A: move seal identity out of the payload into
+      the external manifest; finding B: fix the self-contradicting grading row) — the E4 digest is
+      now d30099c9...;
+    - seal using the recomputed content-ids: E3 31a8026d, E4 d30099c9, E7 bd4942a6;
     - confirm D13 has no DISTRIBUTION.md collision, then mirror D13 into protocol/DISTRIBUTION.md.
-  No source branch was altered; this is a rehearsal only.
+  No source branch (integration base, or the sibling 01a068c2) was altered; the corrections were
+  made only to the CUR-branch canonical E4 card, which is on the permitted CUR lane. This is a
+  rehearsal + docs-resolution handoff, not an executed merge or completed seal.
+
+  IDENTITY PRECAUTION: 5068fc5 is a REHEARSED tree, not an integration commit. Including this
+  batch's source corrections and the rehearsal report changes the tree. INT should record the
+  resulting commit and its tree separately; the final landed tree is not required to equal 5068fc5.
 
   result: evidence produced / files changed / tests run / merge request / blocked on
     evidence produced: sequential merge-tree rehearsal of the CUR batch onto the integration base;
