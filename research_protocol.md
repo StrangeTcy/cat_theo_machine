@@ -4,6 +4,24 @@ The rules of the experiment, fixed before the experiment. Code changes
 after the freeze tag are instrument repairs, not research: they cut a new
 tag and invalidate any session log that spans two tags.
 
+## Index (added 2026-09-06; the sections below are unchanged law)
+
+This file is the measurement protocol. Distribution of work and the agent
+roster live elsewhere; INT maintains the links, each file owns its prose:
+
+- `protocol/LAUNCH-PLAN.md` — the operative program document: invariants,
+  roster, rulings against the tree (R1–R11), the eight paste-ready agent
+  texts, turn loop, kill conditions, acceptance sentences.
+- `protocol/CHARTER-v1.md` — constraints (§0) and the pre-flight gate (§1).
+- `protocol/CHARTER-v2.md` — the five-track program and couplings.
+- `protocol/<TRACK>.md` — per-track ledgers, [SHARED] requests, rulings.
+- `logs/` — dated session artifacts; `logs/calibration-arc.log` is the
+  central defect ledger; `snapshots/` holds the named checkpoints.
+
+Track-tagged commits (`[S]`, `[E]`, `[G]`, `[F]`, `[SHARED]`) follow the
+marked-block partition defined in the plan; main.py dispatch belongs to INT
+alone.
+
 ## Session discipline
 
 - Every session log begins with a contamination ledger header: which laws
