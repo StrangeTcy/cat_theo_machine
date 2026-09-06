@@ -19506,9 +19506,66 @@ def install_default_tests(graph):
             SieveStartAtOneNegativeRegressionTest(graph),
             M.truth_value,
         )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "relation_contract_required_test",
+            empty,
+            RelationContractRequiredTest(graph),
+            M.truth_value,
+        )
 
     graph.default_tests_installed = M.truth_value
     return graph
+
+class RelationArity(M.Edge):
+    def __init__(self, relation, arity):
+        self.result = M.Pair(Lmod.RelationArityLabel, M.Pair(relation, M.Pair(arity, M.EmptyList)))
+        super().__init__(inputs=M.Pair(relation, M.Pair(arity, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExtensionalAt(M.Edge):
+    def __init__(self, relation, position):
+        self.result = M.Pair(Lmod.ExtensionalAtLabel, M.Pair(relation, M.Pair(position, M.EmptyList)))
+        super().__init__(inputs=M.Pair(relation, M.Pair(position, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RelationContractRequiredTest(M.Edge):
+    def __init__(self, graph):
+        empty = M.EmptyList
+        divides = RelationArity(Lmod.DividesLabel, M.two)()
+        divides_at = ExtensionalAt(Lmod.DividesLabel, M.one)()
+        congruent = RelationArity(Lmod.CongruentLabel, M.two)()
+        congruent_at = ExtensionalAt(Lmod.CongruentLabel, M.Zero)()
+        divides_handle = Gmod.Handle(M.Char("divides-relation-contract"), Gmod.GraphVersion(M.Pair(divides, empty), empty, empty)())()
+        divides_contract = Gmod.Contract(divides_handle, M.Pair(divides, M.Pair(divides_at, empty)), Gmod.DefaultContractForbidden()())()
+        congruent_handle = Gmod.Handle(M.Char("congruent-relation-contract"), Gmod.GraphVersion(M.Pair(congruent, empty), empty, empty)())()
+        congruent_contract = Gmod.Contract(congruent_handle, M.Pair(congruent, M.Pair(congruent_at, empty)), Gmod.DefaultContractForbidden()())()
+        bare_contract = Gmod.Contract(congruent_handle, M.Pair(congruent, empty), Gmod.DefaultContractForbidden()())()
+        divides_violation = Gmod.ContractViolation(M.Pair(divides_contract, empty), M.Pair(divides_at, empty))()
+        congruent_violation = Gmod.ContractViolation(M.Pair(congruent_contract, empty), M.Pair(congruent_at, empty))()
+        bare_violation = Gmod.ContractViolation(M.Pair(bare_contract, empty), M.Pair(congruent_at, empty))()
+        self.result = M.truth_value
+        if Gmod.IsContract(divides_contract)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.IsContract(congruent_contract)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(divides_violation, divides_contract)() is M.false_value:
+            self.result = M.false_value
+        elif M.TermEqual(congruent_violation, congruent_contract)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(bare_violation, empty)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
