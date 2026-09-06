@@ -1,0 +1,50 @@
+Launch watch ledger — 2026-09-06
+companion to: verification/2026-09-06-AUTHORITATIVE-LAUNCH-WATCH.txt
+             (accepted @ 40fea06)
+author: INT-AUDIT (compose-support lane), per operator acceptance of the
+        authoritative watch artifact
+
+## Ledger
+
+SharedCheckoutHazard
+  locus: this lane's working tree, 2026-09-06
+  effect: a sandbox reset can restore a foreign session's uncommitted state
+          into the lane's checkout; edits or resets there risk destroying
+          another agent's unpushed work
+  mitigation applied: temp-clone push; foreign state untouched
+  route: operator — enforce per-agent worktrees; any agent finding foreign
+         state in its checkout pushes via temp clone and reports, never resets
+
+## Rulings recorded for INT (from the operator's acceptance)
+
+s1-relation-contracts @ 897c07c:
+  pre-launch engineering, NOT a wave-1 branch (hangs off 41e8078, not the
+  integration line). Entry path: replay onto the published wave-1 base
+  with the targeted test rerun there; never direct merge of the divergent
+  history. Launch-index entry: pre-launch-engineering: replay-required.
+
+preflight items 2-4:
+  gated on the pre-launch tag. The item-1 harness landing at b812db9
+  before the amendment is sequence-only (tooling, non-semantic, consumes
+  no baseline). INT running any of items 2-4 against untagged b812db9 is
+  the deviation to flag — the harness landing is not.
+
+## Porting note for INT
+
+The ConversePropositionTest guard-before-navigation fix already exists on
+a sibling lineage (D1, this program). When preflight item 4 on the
+pre-launch tag hits the same shard-1 install abort (AttributeError:
+'Thingy' object has no attribute 'tail'; locus per e73d748's artifact:
+testsuite.py install_default_tests -> ConversePropositionTest.__init__),
+the fix is a [SHARED] instrument repair to PORT, not rediscover — cite
+the sibling commit in the repair commit message.
+
+## Standing
+
+next unmet launch step: INT docs-only amendment commit
+  (text at "05September2026 -- full launch plan grounding.md" section 6.2,
+  branch arena/01a06923-cat-theo-machine)
+watch targets, in order: amendment -> compose merge -> candidate admission
+  (gates + both shards complete) -> pre-launch tag -> preflight artifacts
+  -> wave-1 publication
+watched ref: refs/heads/arena/01a06542-cat-theo-machine
