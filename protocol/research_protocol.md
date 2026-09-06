@@ -12,7 +12,29 @@ Engineering base tags:
 - INT session tip (index + plan, not a code cut): `361f250df4289fd97f7521db851becd7f0dbf1bf` on
   `arena/01a0731d-cat-theo-machine`.
 
-Wave 1 measurement tag: **none**. F-op gated by `protocol/F.md`.
+## Merge batch 1 (cut-1)
+
+- Candidate SHA (exact): `f9ed7fdb561579578146080254eb096cc77ee667`.
+- Item: `[S] s1: relation contract terms for Divides and Congruent`.
+- Engineer evidence: `relation_contract_required_test` 1/1 green.
+- Two-shard suite on composed candidate (isolated boots, `.venv` Python
+  3.11 + gmpy2):
+  - shard 0 elapsed 29.08s, report `converse_default_mode_test`
+  - shard 1 aborted during `install_default_tests` at
+    `ConversePropositionTest` / `Thingy.tail` (`testsuite.py:7448`,
+    `core.py:120`)
+- Failure set vs preflight baseline: **matches exactly** (same two entries).
+- Cross-file touch accepted by S1 rule: `persistence.py` touched to register
+  new labels in `SNAPSHOT_SYMBOL_NAMES`, paired with `sync_from_namespace`
+  registration in the same commit. (Recorded to block later
+  misclassification as an out-of-bounds edit.)
+- Measurement tag: **`cut-1-f9ed7fd` @ `f9ed7fdb561579578146080254eb096cc77ee667`**.
+  This tag authorizes measurements on the candidate. Sessions begin from it;
+  after any later semantic cut, operators rerun blank controls first.
+- S2 base: `cut-1-f9ed7fd@f9ed7fd`. S2 remains blocked on the `research.py`
+  surface re-map (`[SHARED]` #1).
+
+Wave 1 measurement tag: `cut-1-f9ed7fd`. F-op still gated by `protocol/F.md`.
 
 INT remote tip before this gate: `d3de45a179cc76b6c157473a3ca8d684dcf91294`.
 
