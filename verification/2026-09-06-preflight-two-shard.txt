@@ -4,52 +4,62 @@ tree: arena/01a06da9-cat-theo-machine
 interpreter: /tmp/hyge-venv/bin/python
 PYTHONPATH=/home/user
 cwd for processes: /home/user
+
+--- first run (pre-fix; unmeasured shard 1) ---
 command:
   /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 0 2
   /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 1 2
 both started together (pids 1592 and 1608)
 
-=== shard 0 ===
-process: shard-0-64879d1a
-exit: 0
+shard 0 exit: 0
 SHARD 0 elapsed 423.2124378681183
 TestResultsReport failed names:
 converse_default_mode_test
 tree_insert_deep_pair_lookup_avoids_recursion_test
 compare_search_modes_fill_warms_resident_pool_before_root_wave_test
 
-=== shard 1 ===
-process: shard-1-8a660e5b
-exit: 1
+shard 1 exit: 1
 report: none (install_default_tests aborted before run_tests_report)
-abort name: ConversePropositionTest
-locus: testsuite.py:15292 install_default_tests
-       testsuite.py:7448 ConversePropositionTest.__init__
-       core.py:120 Thingy.__call__
-exception: AttributeError: 'Thingy' object has no attribute 'tail'
-traceback:
-Traceback (most recent call last):
-  File "/home/user/cat_theo_machine/tools/shard_suite.py", line 45, in <module>
-    main()
-  File "/home/user/cat_theo_machine/tools/shard_suite.py", line 39, in main
-    install_default_tests(runtime.graph)
-  File "/home/user/cat_theo_machine/testsuite.py", line 15292, in install_default_tests
-    ConversePropositionTest(graph),
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/user/cat_theo_machine/testsuite.py", line 7448, in __init__
-    M.Tail(M.Tail(M.Tail(M.Tail(yes_outcome)())())())(),
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/user/cat_theo_machine/core.py", line 120, in __call__
-    return self.p.tail.value
-           ^^^^^^^^^^^
-AttributeError: 'Thingy' object has no attribute 'tail'
+abort: ShardInstallAbort(ConversePropositionTest, testsuite.py:7448,
+guard-after-navigation; AttributeError no-tail on NotUnderstood outcome)
+defect #1 filed; instrument repair in a separate commit.
 
-=== combined failure set ===
+--- rerun after defect #1 fix (both shards complete) ---
+command:
+  /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 0 2
+  /tmp/hyge-venv/bin/python /home/user/cat_theo_machine/tools/shard_suite.py 1 2
+both started together after the guard-before-navigation commit
+
+=== shard 0 ===
+process: shard-0-rerun-e9bc435d
+exit: 0
+SHARD 0 elapsed 375.4012427330017
+TestResultsReport failed names:
 converse_default_mode_test
 tree_insert_deep_pair_lookup_avoids_recursion_test
 compare_search_modes_fill_warms_resident_pool_before_root_wave_test
-ConversePropositionTest (shard 1 install abort; no TestResultsReport name)
+shard 0 set unchanged by the fix.
 
-=== exit codes ===
+=== shard 1 ===
+process: shard-1-rerun-b4d3a26c
+exit: 0
+SHARD 1 elapsed 487.7102646827698
+install: completed
+TestResultsReport failed names:
+heuristic_canonical_knowledge_agreement_test
+converse_proposition_test
+curator_report_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+
+=== combined failure set (both shards measured) ===
+converse_default_mode_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+heuristic_canonical_knowledge_agreement_test
+converse_proposition_test
+curator_report_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+
+=== exit codes (post-fix) ===
 shard 0: 0
-shard 1: 1
+shard 1: 0

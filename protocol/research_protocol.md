@@ -7,7 +7,8 @@ protocol/F.md.
 ## wave-1 base tag
 
 Named at the preflight tag cut. The git tag on this commit is
-`preflight-<shortsha>`. Wave 1 branches from that tag.
+`preflight-<shortsha>`. Wave 1 branches from that tag. The earlier tag
+`preflight-e73d748` stands and is not the wave-1 base.
 
 ```text
 wave 1 base tag: preflight-<shortsha>@<hash>

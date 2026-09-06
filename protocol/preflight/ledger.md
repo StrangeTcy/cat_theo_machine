@@ -50,27 +50,66 @@ DECOY SHAPE-MATCH: yes
 ## step 4 — two-shard suite
 
 ```text
-status: recorded
+status: recorded — both shards complete
 artifact: verification/2026-09-06-preflight-two-shard.txt
 interpreter: /tmp/hyge-venv/bin/python
 PYTHONPATH: /home/user
 command: tools/shard_suite.py 0 2  and  tools/shard_suite.py 1 2
-         concurrent
+         concurrent, post defect-#1 fix
 shard 0 exit: 0
-shard 1 exit: 1
+shard 1 exit: 0
 ```
 
-Failure names and the shard-1 abort are in the artifact.
+### defect #1 (repaired)
+
+```text
+ShardInstallAbort(ConversePropositionTest, testsuite.py:7448,
+guard-after-navigation; AttributeError no-tail on NotUnderstood outcome)
+fix commit: b28df32 — hoist three UnderstoodLabel guards above Tail^4
+```
+
+First run: shard 1 exit 1, install abort, shard-1 set unmeasured.
+Post-fix rerun: both shards complete. Crash became recorded red test
+`converse_proposition_test`. Shard 0 set unchanged.
+
+### shard 0 failure set (unchanged)
+
+```text
+converse_default_mode_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+```
+
+### shard 1 failure set (first measured)
+
+```text
+heuristic_canonical_knowledge_agreement_test
+converse_proposition_test
+curator_report_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+```
+
+### combined failure set
+
+```text
+converse_default_mode_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+heuristic_canonical_knowledge_agreement_test
+converse_proposition_test
+curator_report_test
+compare_search_modes_finds_reusable_worker_snapshot_dir_test
+```
 
 ## step 5 — commit/tag
 
 ```text
 commit: preflight (this cut)
-tag: preflight-<shortsha> on this commit
-wave 1 base tag: preflight-<shortsha>@<hash>
+tag: preflight-<shortsha> on this commit — this is the wave-1 base
+tag preflight-e73d748: premature; stands; not the wave-1 base
 [F] block: labels.py, testsuite.py
 blocked on operator: none
 ```
 
-Wave 1 engineers do not branch until INT reports `preflight: complete`.
-INT does not write track features. INT does not spawn Wave 1.
+Wave 1 engineers branch from the tag on this commit. INT does not write
+track features. INT does not spawn Wave 1 in this cut.
