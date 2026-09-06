@@ -1,0 +1,75 @@
+Authoritative launch watch — 2026-09-06
+role: INT-AUDIT (compose-support lane; artifact per operator instruction)
+method: direct ref fetch + tag peel + merge-base ancestry checks, this date
+
+Correction acknowledged: the prior watch's "no movement" was accurate at its
+measurement time against the live remote ref (ls-remote is server-side, not a
+stale local branch), but the authoritative tip below postdates that
+measurement. Both facts stand; this artifact re-anchors the watch.
+
+authoritative INT ref: refs/heads/arena/01a06542-cat-theo-machine
+authoritative INT tip: b812db904b44db72def705eb18a50bbe50c12cc2
+previous watched ref:  refs/heads/arena/01a06542-cat-theo-machine
+previous watched tip:  99d92808f124387e3940a0c9abb49eedc9d7b226
+commits between 99d9280 and authoritative tip:
+  b812db9 [SHARED] Preflight item 1: pinned repro harness for the swallowed
+  exception   (tools/preflight_item1_repro.sh only, +79 lines, no machine code)
+
+D11 capability e0853a9 in ancestry: yes
+D11 port 768ea6f in ancestry:       yes
+compose 74bb3e7 in ancestry:        no
+  (proof: the 99d9280..b812db9 range contains only the item-1 commit;
+  compose source id 74bb3e7edd9184ab0cfc9a56bff47ac03c7c32ca, verified
+  against the remote branch arena/01a06923-cat-theo-machine)
+
+pre-launch tag: none
+authorized preflight tag: none
+historical inadmissible preflight tags:
+  preflight-converse-outcome-guard @ ba43977510360cbee1b8d2add99583c8222dde6d
+    predates the launch; unrelated purpose
+  preflight-shard-cursor-gate @ df97e183c470a1b432009d8d9ad0d3f509a181bd
+    predates the launch; unrelated purpose
+  preflight-e73d748 @ e73d74872dc9a237b8efb9475640c5d89acf57b8
+    full preflight attempt OUTSIDE the integration line (its own artifact
+    names tree arena/01a06da9-cat-theo-machine; the commit is NOT an
+    ancestor of the authoritative tip), and its own
+    verification/2026-09-06-preflight-two-shard.txt records shard 1
+    aborting during install (ConversePropositionTest.__init__ -> AttributeError:
+    'Thingy' object has no attribute 'tail', locus testsuite.py:15292 /
+    testsuite.py:7448; exit 1, no report). Inadmissible as wave-1 base on
+    both grounds.
+wave-1 base publication: none
+  note: tag s1-relation-contracts @ 897c07cdfbfec8866b2b0a0921012d13a646630a
+  ("[S] S1: relation contracts as ground facts about named relations";
+  graph.py +130, labels.py +20, testsuite.py +98) exists on a session branch,
+  NOT in the integration line — wave-1 engineering has begun ahead of a
+  published wave-1 base. INT must verify that branch's declared base at
+  merge time; per the plan, engineers branch from the wave-1 base tag.
+
+next unmet launch step: INT lands the docs-only amendment commit
+  (protocol/TWO-PIPELINE.md pre-launch integration gate section; text
+  attached at "05September2026 -- full launch plan grounding.md" section 6.2
+  on branch arena/01a06923-cat-theo-machine). Then, in order: compose merge
+  of 74bb3e7 at the landing-time tip; combined candidate build; admission
+  (compose gate + D11 gate + both complete shards on the candidate);
+  immutable pre-launch tag naming the exact tested commit; preflight items
+  1-4 against that tag; wave-1 base publication in the launch index.
+
+deviation flag: preflight item 1 preparation (b812db9) landed on the
+  integration line BEFORE the amendment, the compose merge, the candidate,
+  and the pre-launch tag. The accepted critical path puts preflight after
+  the pre-launch tag. b812db9 is tools-only (non-semantic), so the
+  deviation is one of sequence, not semantics — but preflight items 2-4
+  must not run against an untagged tree; the path stands.
+
+carried corrections (from the grounding handoff, section 6.3):
+  - preflight item 1 swap site: the charter's quoted except-line matches
+    nothing verbatim; pin an actual guard site (testsuite.py ~14926-14950
+    at 7b91202) — note e73d748's ledger independently classified the
+    quoted target as PreflightTargetAbsent, consistent with this
+  - preflight item 2: the nosolutions producer/consumer selection check is
+    its own obligation; a passing D11 gate does not close it
+
+watch triggers (subsequent cycles monitor the exact INT ref):
+  amendment commit -> compose merge -> candidate admission artifacts ->
+  pre-launch tag -> corrected preflight completion -> wave-1 publication
