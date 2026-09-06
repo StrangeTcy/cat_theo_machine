@@ -1,0 +1,67 @@
+Authoritative launch watch — cycle 2 — 2026-09-06
+predecessor: verification/2026-09-06-AUTHORITATIVE-LAUNCH-WATCH.txt (@ 40fea06)
+
+authoritative INT ref: refs/heads/arena/01a06542-cat-theo-machine
+authoritative INT tip: b812db904b44db72def705eb18a50bbe50c12cc2  (unchanged)
+amendment commit:      not landed
+compose 74bb3e7:       not in the integration line
+pre-launch tag:        none
+
+## Movement this cycle: two new off-line preflight attempts, both tagged
+
+preflight-6a132f3 @ 6a132f3bd83bfc22847ccdf007d8de205daffc00 (16:11 UTC)
+  tree: arena/01a06da9-cat-theo-machine (per its own artifact) — OFF the
+    integration line; tag target is not an ancestor of b812db9
+  compose: not included
+  shards: shard 0 exit 0; shard 1 exit 1 — same install abort
+    (ShardInstallAbort(ConversePropositionTest, testsuite.py:7448))
+  ruling: inadmissible — off-line origin (a preflight baseline must be
+    taken on the integration line it authorizes) AND incomplete suite
+
+preflight-412b215 @ 412b2153e99e447764fe17121b82e8f607261e09 (16:13 UTC)
+  tree: arena/01a06da9-cat-theo-machine — OFF the integration line
+  compose: not included
+  shards (cumulative ledger): shard 0 exit 0; an earlier shard-1 install
+    abort recorded, then a completed rerun — shard 1 exit 0, elapsed
+    487.7s. Both shards exited 0 in the final state.
+  ruling: inadmissible as wave-1 base despite the complete suite —
+    (a) off-line origin, same ground as e73d748;
+    (b) no pre-launch tag beneath it (gate steps 1-3 unmet: no amendment,
+        no combined candidate, no admission on the integration line);
+    (c) compose 74bb3e7 excluded;
+    (d) material baseline divergence: its own ledger records
+        PreflightTargetAbsent(item_1, LearnedMemoryCheckpointTest,
+        lineage) with "research.py is absent on this tree" — the
+        integration line at 7b91202 CARRIES the class (testsuite.py:14898)
+        and carries research.py. A baseline taken on a tree lacking both
+        authorizes nothing on the authoritative line.
+
+## Preflight attempt register (cumulative)
+
+  e73d748        off-line, shard-1 abort                     inadmissible
+  6a132f3        off-line, shard-1 abort                     inadmissible
+  412b215        off-line, both shards exit 0                inadmissible
+                 (off-line; no pre-launch tag; compose excluded;
+                 baseline-surface divergence)
+  b812db9        on-line, item-1 harness only (tools)        sequence-only,
+                                                             non-semantic
+
+## Pattern flag
+
+An INT-side session is actively and repeatedly executing preflight
+against tree arena/01a06da9-cat-theo-machine — off the authoritative
+line, ahead of the pre-launch gate, without compose, on a tree whose
+baseline surface (no research.py, no LearnedMemoryCheckpointTest)
+differs from the line it would authorize. This is the items-2-4
+deviation class from the launch-watch ledger, now observed at whole-
+preflight scale: preflight work is running before and outside the gate
+that orders it. The cure remains the amendment (grounding §6.2) plus
+re-anchoring the preflight session to the authoritative ref.
+
+next unmet launch step (unchanged): INT lands the docs-only amendment
+  commit, then compose merge of 74bb3e7 at the landing-time tip, then
+  the combined candidate, admission (compose gate + D11 gate + both
+  complete shards ON THE INTEGRATION LINE), pre-launch tag, preflight
+  against that tag, wave-1 publication.
+
+watched ref: refs/heads/arena/01a06542-cat-theo-machine
