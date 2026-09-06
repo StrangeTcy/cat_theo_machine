@@ -5,10 +5,12 @@ instructions + single-session mode).
 
 Engineering base tags:
 
-- Re-cut after partition: `eng-base-0-partition` annotated tag at commit
-  `7c62ca2c6b9f12f3f49e44ae1f7b89d6d2c99ced`.
-  **Wave 1 engineers branch from this tag/SHA.**
+- Wave-1 engineering base (code): `eng-base-0-partition@7c62ca2`
+  @ `7c62ca2c6b9f12f3f49e44ae1f7b89d6d2c99ced`.
+  **Engineers branch `work/<T>/eng-base-0-partition@7c62ca2/r1` from this.**
 - Original pre-partition base: `eng-base-0@1374464` @ `137446435362a9727c2f7c181c663adab9d4c357`.
+- INT session tip (index + plan, not a code cut): `361f250df4289fd97f7521db851becd7f0dbf1bf` on
+  `arena/01a0731d-cat-theo-machine`.
 
 Wave 1 measurement tag: **none**. F-op gated by `protocol/F.md`.
 
