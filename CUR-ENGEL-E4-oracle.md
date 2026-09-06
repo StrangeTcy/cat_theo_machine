@@ -3,6 +3,22 @@
 Docs-only content, CUR branch. Grounds the E4 descent/variant semantics against the pinned ruling.
 No production labels, `Edge` classes, packs, or G implementation in this file.
 
+## Canonical / route directive (INT merge)
+
+This file (`CUR-ENGEL-E4-oracle.md`, lowercase) is the **canonical** E4 oracle card. A sibling
+variant `CUR-ENGEL-E4-ORACLE.md` (uppercase, on `arena/01a068c2`) uses different notation
+(`V`, `ΔV = d − 2s`) but states the same facts. The two are **notation-equivalent, not divergent**
+(verified exhaustively: `ΔH = e_out − e_in ≡ ΔV = d − 2s`, identical 4-cycle terminal census
+`V ∈ {0,2}` with single-house `V=4` non-terminal, and the same rejected-candidate witnesses).
+
+**INT merge instruction:** adopt this lowercase card as the single canonical E4 doc. Melding the
+sibling uppercase card means merging its extra reasoning-failure witnesses (vertex-count invariance,
+signed and absolute house-size difference) into this card if a single dense card is wanted — or keep
+both only with this file named canonical and the sibling cited as corroborating evidence. Do **not**
+merge both `E4` oracle cards as-is without naming a canonical path (the two filenames differ only in
+case; content is equivalent). Seal content-id for the canonical E4 card: `a11ca451e52…`
+(see `CUR-CROSS-BRANCH-AUDIT-2026-09-05.md`).
+
 Branch: `arena/01a066cf-cat-theo-machine`. Doc base `34208cc69144dff3c926cbb1d475a13ebbfb751d`.
 Landing-time integration tip: `e0853a915baf260b7d1e9d3678c8f9d78300655b`.
 
@@ -77,8 +93,14 @@ than observable-constructor errors:
 | ignore the degree bound | using the general `e_in ≥ 2` alone | a legal move can have `e_out ≥ e_in`, so `ΔH` is not guaranteed `< 0` (refutation note) |
 | measure = # members in house A | count is non-monotone | a move can increase or decrease it; no strict decrease |
 | measure = max same-house enemies | not guaranteed to fall by ≥ 1 | the max need not drop on every move |
+| measure = vertex count | invariant (constant `n`) under every move | preserved but never descends, so it cannot certify progress toward a target |
+| measure = signed house-size difference `\|H0\| − \|H1\|` | non-monotone | changes by `+2` or by `−2` depending on move direction |
+| measure = absolute house-size difference `\|\|H0\| − \|H1\|\|` | non-monotone | it can increase (`3/3 → 2/4` makes `0 → 2`) and can decrease; not monotone |
 | prove termination of the *process* but call it reaching the global min | conflates "no move legal" with "H minimal" | a state with no legal move need not minimize `H` (4-cycle dual terminals) |
 | use an invariant (preservation) | E4 is descent, not preservation | no quantity is invariant; the argument is a strict decrease |
+
+The vertex-count / signed- and absolute-house-size-difference witnesses were melded from the sibling
+variant (`CUR-ENGEL-E4-ORACLE.md`) so this canonical card carries the full reasoning-failure matrix.
 
 ## 8. Negative controls
 

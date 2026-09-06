@@ -19,9 +19,13 @@ Audit targets:
 facts: max-degree ≤ 3 given, exactly two houses, strict descent ≤ −1 per legal move, degree-4 break
 control, 4-cycle dual-terminal control, and the same E3/E4/E7 ordering contrast. They differ only in
 symbols (`H` vs `V`, and `e_out − e_in` vs `d − 2s`), and the two formulas are provably identical.
-There is one residual divergence that INT must reconcile at merge time (the duplicate filename/route),
-and one optional completeness gap on the canonical card (the sibling card is slightly denser on the
-reasoning-failure witnesses).
+There was one residual divergence that INT must reconcile at merge time (the duplicate filename/route)
+and one optional completeness gap (the sibling card was slightly denser on the reasoning-failure
+witnesses). **Both are now resolved on the canonical card** (see "Reconciliation applied" below): the
+canonical `CUR-ENGEL-E4-oracle.md` now carries the full reasoning-failure matrix (the sibling's
+vertex-count and house-size-difference witnesses melded in) and declares itself canonical with an INT
+merge directive. Only the duplicate-route/filename choice remains, which this audit resolves by naming
+`CUR-ENGEL-E4-oracle.md` (lowercase, canonical) as the single canonical path.
 
 Independent verification (this session, brute-force/exhaustive — not transcribed from a runtime log):
 
@@ -62,17 +66,26 @@ Neither is monotone ⇒ neither is a descent measure ⇒ both rejected on both c
 ## Residual divergence for INT to reconcile at merge time
 
 1. **Duplicate route / two E4 card files.** Canonical has `CUR-ENGEL-E4-oracle.md` (lowercase);
-   sibling has `CUR-ENGEL-E4-ORACLE.md` (uppercase). They are content-equivalent. INT must choose a
-   canonical path and merge/meld one into the other (or keep both with an explicit cross-reference and
-   a single canonical hash in the seal manifest). Do **not** merge both as-is into the integration line
-   without resolving the fork, or the E4 doc content forks.
-2. **Notation.** Canonical uses `H`; sibling uses `V`. Both are correct and equivalent (Claim 1).
-   Either is acceptable as canonical; the seal manifest must name the one it seals.
-3. **Density (optional, non-blocking).** The sibling card lists more distinct reasoning-failure
-   witnesses (vertex-count invariance, signed and absolute house-size difference with concrete
-   `±2`/`0→2` values). The canonical card's grading matrix is slightly sparser. This is a completeness
-   difference, not an inconsistency; INT may fold the extra witnesses into the canonical card if a
-   single dense card is wanted.
+   sibling has `CUR-ENGEL-E4-ORACLE.md` (uppercase). They are content-equivalent. **Resolution (this
+   audit):** adopt **`CUR-ENGEL-E4-oracle.md`** (lowercase) as the single canonical E4 doc. The
+   sibling uppercase file is corroboration, not a second authoritative doc. Do **not** merge both
+   `E4` oracle cards as-is into the integration line without naming a canonical path — the two
+   filenames differ only in case, so Git-on-case-insensitive would collide; pick one.
+2. **Notation.** Canonical uses `H`; sibling uses `V`. Both are correct and equivalent (Claim 1). The
+   seal manifest names the canonical one it seals.
+3. **Density (resolved).** The canonical card now carries the full reasoning-failure matrix — the
+   sibling's vertex-count and signed/absolute house-size-difference witnesses are melded in, with a
+   note that they came from the sibling variant. The completeness gap is closed.
+
+## Reconciliation applied (canonical card, this turn)
+
+- `CUR-ENGEL-E4-oracle.md` now opens with a **Canonical / route directive (INT merge)** block naming
+  itself canonical, cross-referencing the sibling uppercase variant, and stating they are
+  notation-equivalent.
+- Item 7 grading matrix expanded to include the sibling's extra reasoning-failure witnesses
+  (vertex-count invariance; signed house-size difference `±2`; absolute house-size difference
+  `0 → 2`).
+- Canonical content-id updated accordingly (see sealing table).
 
 ## No conflict
 
@@ -105,14 +118,14 @@ is INT's job):
 | path | branch | sha256 |
 |---|---|---|
 | `CUR-ENGEL-E3-oracle.md` | `arena/01a068c2` | `31a8026d6e59de537d21533d96a0d0050b7bb9a3bbe6c181e138d150fa544b11` |
-| `CUR-ENGEL-E4-oracle.md` | `arena/01a066cf` (canonical) | `a11ca451e52dbeb7dc3b65854a2ccc500c33dad5647e108510042a3617af9353` |
-| `CUR-ENGEL-E4-ORACLE.md` | `arena/01a068c2` (variant) | `0ff055a6f6dc5c81848daa8135cc15efca4ae568c444982ed153e7e75c23c328` |
+| `CUR-ENGEL-E4-oracle.md` | `arena/01a066cf` (canonical, reconciled) | `841a97b74c90985abf7af4e63a291b4872e3d4156961b51c861751f6a5b0099a` |
+| `CUR-ENGEL-E4-ORACLE.md` | `arena/01a068c2` (variant, corroboration) | `0ff055a6f6dc5c81848daa8135cc15efca4ae568c444982ed153e7e75c23c328` |
 | `CUR-ENGEL-E7-oracle.md` | `arena/01a066cf` (canonical) | `bd4942a6040b80f825bc25c40dbca4c7db450f5cf1f416643024d9fe9a60ef60` |
 
-> INT note: the seal manifest should record the single canonical E4 content-id. Since cards A and B
-> are content-equivalent, INT may pick `a11ca451…` (canonical `H` form) as the sealed E4 content and
-> list `0ff055a6…` as corroborating evidence, matching the recommendation in the sibling card's
-> routing-caution section.
+> INT note: the seal manifest records the canonical E4 content-id `841a97b7…` (the reconciled
+> lowercase card, canonical `H` form) as the sealed E4 content and lists `0ff055a6…` as corroborating
+> evidence. `841a97b7…` supersedes `a11ca451…` — the card was reconciled (density melded, canonical
+> directive added) so its content-id changed.
 
 ---
 
