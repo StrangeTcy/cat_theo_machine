@@ -1,0 +1,74 @@
+Launch watch ledger — cycle 3 — 2026-09-06
+predecessors: 2026-09-06-LAUNCH-WATCH-LEDGER.txt, AUTHORITATIVE-LAUNCH-WATCH-2.txt
+carries: operator-ordered additions (fourth-ground framing, escalated
+operator route, salvage note) + new movement (partition-32bc569)
+
+## 1. Fourth ground, stated so the clean run is not misread
+
+preflight-412b215's both-shards-exit-0 run is not "almost admissible."
+The 01a06da9 tree lacks research.py and LearnedMemoryCheckpointTest; the
+authoritative line (verified at 7b91202) carries both. A two-shard
+baseline from a tree missing those surfaces measures a DIFFERENT
+INSTRUMENT — its failure set cannot authorize anything on the line that
+has them. The run is a complete baseline of a different machine. The
+fourth ground holds even if the first three were cured. The attempt
+trajectory (abort -> abort -> clean) will tempt a reader to treat the
+clean run as nearly-there. It is fully-there, for a tree that is not the
+launch tree.
+
+## 2. Operator route (escalated after third off-line attempt)
+
+The INT preflight session must be re-briefed with:
+  1. the authoritative ref: arena/01a06542-cat-theo-machine
+  2. the section-6.2 amendment as its first commit (docs-only)
+  3. the order: amendment -> compose merge -> candidate -> gates+shards
+     on the candidate -> pre-launch tag -> preflight items 1-4 against
+     that tag
+Until re-briefed, every further preflight-* tag from 01a06da9 is
+predictably inadmissible and adds catalog noise, not evidence.
+
+## 3. Salvage note (calibration, never baseline)
+
+preflight-412b215's ledger demonstrates shard 1 CAN complete where the
+ConversePropositionTest abort is absent or repaired: exit 0, 487.7s.
+When the authoritative-line preflight hits item 4 and meets the same
+abort class, the porting note in the launch-watch ledger names the
+sibling fix to port; 412b215 supplies the expected post-fix shape —
+shard 1 completing in roughly the 8-minute range. Cite as calibration,
+never as baseline.
+
+## 4. New movement: partition-32bc569 — the fourth off-line artifact,
+   and a wider pattern
+
+partition-32bc569 @ 32bc569a5e596081c4693e00098bfe9868c81504
+  "[INT] partition: protocol index from inspected code; [S] zones marked;
+   charter-v1 transcribed" (2026-09-05 20:38 UTC)
+  OFF the integration line (verified); compose not included (verified).
+  Carries protocol/research_protocol.md (94 lines — the index the
+  off-line ledgers cite), protocol/S.md 42 lines, E/F/G stubs, a
+  preflight ledger, testsuite.py zone markers. Its labels.py has NO [F]
+  block and its TWO-PIPELINE.md carries no amendment — partition was
+  executed from the older charter text, before the amendment existed.
+
+Pattern, widened: the off-line INT-side session is not merely repeating
+preflight — it has executed the entire wave-0 sequence (preflight, then
+partition, per the charter's order) on its own tree, tagging each step,
+beginning a day before the on-line harness landed. Every wave-0 artifact
+so far is off-line: preflight x3, partition x1. The on-line line holds
+only the item-1 harness. The cure is unchanged and now covers both
+phases: re-brief per section 2 above.
+
+## 5. State
+
+authoritative ref:   b812db9 — unchanged through all off-line activity
+amendment commit:    still the single next unmet step
+compose 74bb3e7:     still unmerged
+pre-launch tag:      none
+admissible preflight: none
+evidence package:    five artifacts deep on the watch branch
+new obligation:      operator re-brief of the INT-side session (covers
+                     preflight AND partition phases)
+
+watch triggers: amendment landing; compose merge; any new tag;
+preflight-session re-anchor confirmation. Watched ref:
+refs/heads/arena/01a06542-cat-theo-machine.
