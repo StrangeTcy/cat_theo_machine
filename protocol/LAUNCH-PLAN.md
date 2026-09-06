@@ -86,22 +86,34 @@ engineer with an operator; never merge INT with anything.
 ## 3. Rulings against the tree at `06c0e52` (all ten inspected, 2026-09-06)
 
 ```text
-R1  TAG LINEAGE. `experiment-4-frozen` = 06c0e52 (annotated; tip of the arena
-    branch at hand-off). It is the CURRENT frozen build: operators may run on
-    it today; engineers branch from it; the first measurement tag is
-    post-preflight. One-shot (Experiment 4) is unspent and stays human-only.
+R1  TAG LINEAGE, TWO LINES. The frozen build under test:
+    `experiment-4-frozen` = 06c0e52 — what preflight measures, what operators
+    run on today, what engineers branch code from. The docs line: the
+    branch tip (2d23393 at composition) carries protocol/*.md; every agent's
+    clone must sit AT THE LIVE BRANCH TIP (recorded by the human at spawn
+    time) or the first instruction ("read protocol/LAUNCH-PLAN.md") fails.
+    Paste both lines into every agent header:
+      remote tip at hand-off: <LIVE TIP — record with git ls-remote at spawn>
+      frozen tag under preflight / branch base: experiment-4-frozen@06c0e52
+    The first measurement tag is post-preflight. One-shot (Experiment 4) is
+    unspent and stays human-only.
 
-R2  CLONE HYGIENE. This sandbox arrived with HEAD rolled back to 41e8078
-    while the whole build sat uncommitted in the worktree; the default
-    origin fetch refspec covers only refs/heads/master. Consequences for
-    every agent:
-    - extend the fetch refspec (see §4) or the branch/tags never arrive;
-    - verify your base by CONTENT (file digests against
-      git show <tag>:<file>), not by branch name;
-    - push every green step; an unpushed commit is not protected.
-    (This sandbox was synced to 06c0e52 on 2026-09-06; worktree content
-    verified file-by-file against the tip; imports and a matcher probe green;
-    gmpy2 2.3.1 and pyyaml 6.0.3 reinstalled after the recycle.)
+R2  CLONE HYGIENE, PINNED (verified twice against this very hazard: the
+    sandbox arrived rolled back to 41e8078 with the whole build uncommitted
+    in the worktree, and a later recycle wiped /home/user logs and
+    re-rolled HEAD again). The default origin fetch refspec covers only
+    refs/heads/master. EVERY agent's first action, before reading or
+    writing anything:
+      git ls-remote origin refs/heads/arena/01a05d5d-cat-theo-machine
+      git rev-parse HEAD    # must equal the tip above
+    If HEAD disagrees: fetch the arena branch explicitly, `git reset --soft <tip>`,
+    `git reset -- .`, then VERIFY BY CONTENT — file digests of worktree vs
+    `git show <tip>:<file>` on research.py, main.py, testsuite.py, labels.py,
+    protocol/*.md — and only then commit anything. Push every green step; an
+    unpushed commit is not protected. Run logs belong in the repo (logs/ or
+    tracked under protocol/), never in /home/user scratch: files outside the
+    repo root do not survive a recycle, and pinned logs outside the repo
+    vanished between turns on 2026-09-06.
 
 R3  PLANNER. PlannerAlternative(parent, method, children, status, evidence)
     EXISTS: planner.py:508 with slot accessors at 544–591. The planner
@@ -192,8 +204,10 @@ R11 F CONTENT. No repo artifact names FLT mathematics. The one-shot prompt
 ```text
 1. Charters are in: protocol/CHARTER-v1.md, protocol/CHARTER-v2.md, and this
    plan, committed 2026-09-06 on the arena branch. Nothing to add.
-2. Remote tip at hand-off: 06c0e52ffd5a9206125ccdb207bffc4a14185636 —
-   paste into Text #1 and every agent's first block.
+2. Hand-off header, two lines (R1), pasted into every agent text:
+     remote tip at hand-off: <LIVE TIP — record with git ls-remote at spawn;
+       at composition 2d23393, the commit that carries protocol/*.md>
+     frozen tag under preflight / branch base: experiment-4-frozen@06c0e52
 3. One clone per agent, then in EVERY clone before any work:
      git config --add remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
      git config --add remote.origin.fetch '+refs/tags/*:refs/tags/*'
@@ -268,10 +282,15 @@ research_protocol.md at repo root.
 
 Standing constraints (paste the §1 block from LAUNCH-PLAN verbatim here).
 
-Remote tip at hand-off: 06c0e52ffd5a9206125ccdb207bffc4a14185636
-(= tag experiment-4-frozen). Clone hygiene per LAUNCH-PLAN §4 item 3; record
-the tip you fetched in your first report. If your HEAD disagrees with the
-tip, sync by CONTENT before any commit and ledger it (R2 hazard).
+Remote tip at hand-off (docs line): <PASTE — the live branch tip; the
+commit that carries protocol/*.md; at composition 2d23393>.
+Frozen tag under preflight (build line): experiment-4-frozen@06c0e52 —
+preflight measures THIS build; your preflight/partition commits land on the
+docs tip and the wave-1 tag re-bases the code line onto the merged result.
+Clone hygiene per LAUNCH-PLAN §4 item 3 + R2 first-action check (extend the
+fetch refspec — default covers master only; verify HEAD against the tip you
+fetched BEFORE reading any protocol file; if HEAD disagrees, run R2's
+recovery and ledger it). Record both lines in your first report.
 
 THIS TURN — preflight, one commit named `preflight`, plus one fix commit if
 required:
@@ -991,3 +1010,8 @@ I: Tier1 solve rate on held-out problems reported honestly with
   logs/calibration-arc.log (236 lines at this cut); defect nine (schematic
   traces vs dataflow links stored as edges) is a recorded prediction, not a
   preemptive fix.
+- Baseline suite at this cut: first measurement attempt (2026-09-06) lost
+  its shard logs to a sandbox recycle because they were pinned outside the
+  repo; relaunched with logs inside the repo. Whatever lands there is the
+  preflight baseline the first merge batch compares against, recorded in
+  logs/suite-baseline-06c0e52.log with the commit and both shard digests.
