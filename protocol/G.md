@@ -63,6 +63,31 @@ The reviewer's constructor-scope ruling is appended to `protocol/[SHARED]-A1-CON
 
 ---
 
+## Standing rule — one-ground-clears double-gate (A1 authoring)
+
+Both grounds must clear before authoring any of the four blocked records. This is the standing rule
+for the A1 lane and must not be relaxed by a rushed turn.
+
+```text
+if constructors land but statement text does not:
+  DO NOT author with placeholder / paraphrased statement text
+  DO NOT author with a "close enough" nickname expansion
+  record: ground 1 cleared, ground 2 still open, lane still parked
+
+if statement text lands but constructors do not:
+  DO NOT author with vacuous label touchdowns (the pigeonhole trap)
+  DO NOT approximate with adjacent existing constructors
+  record: ground 2 cleared, ground 1 still open, lane still parked
+
+only BOTH clear -> author
+```
+
+Same shape as F1's double-gate (measurement tag AND distinguishable residual) and the compose lane's
+semantic gate. Applied to A1: ground 1 = A1 domain constructors present; ground 2 = authoritative
+Engel statement text for the four Tier0 problems present.
+
+---
+
 End-of-turn block:
 
 ```text
