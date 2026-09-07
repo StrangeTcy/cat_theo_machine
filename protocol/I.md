@@ -44,6 +44,59 @@ Even given the statements, the four records cannot be stated faithfully in machi
 
 ---
 
+## Turn 3 — Ground 2 CLEARED (authoritative statement text supplied)
+
+**Ground 1 (A1 domain constructors):** STILL OPEN — constructors absent at integration tip `b812db9` (re-grepped `Path/Cycle/Graph/Integer/Remainder/Residue/Congruent/Word/Adjacent/Coloring/Rotation`, all absent). Pending INT landing `[SHARED]-A1-CONSTRUCTORS.md` (label registration only, per the scope ruling).
+
+**Ground 2 (authoritative statements):** **CLEARED** this turn. The operator supplied the exact statement text for all four Tier0 problems. Recorded verbatim below, each annotated with the verified math content (curated, not fabricated) and the method assignment.
+
+### Supplied statement text (verbatim, Ground 2)
+
+**1. Longest Path (Extremal)**
+> In a finite graph G = (V, E), every vertex has degree at least 2. Prove that there exists a cycle.
+
+Verified: TRUE. A finite graph with min degree ≥ 2 always contains a cycle (a maximal simple path's
+endpoint has ≥ 2 neighbors, all on the path, so a back-edge closes a cycle). Method = `Extremal`.
+Proof-target (not a count).
+
+**2. n+1 Integers (Pigeonhole)**
+> Prove that among any n+1 integers, there exist two whose difference is divisible by n.
+
+Verified: TRUE. n+1 integers fall into n residue classes mod n, so two share a residue; their
+difference is ≡ 0 mod n. Method = `Pigeonhole`. Proof-target.
+
+**3. Binary Words (Divide)**
+> Find the number of binary words of length n that do not contain two adjacent ones.
+
+Verified: the count is the Fibonacci number F(n+2) (a_1=2, a_2=3, a_n=a_{n-1}+a_{n-2}). Method =
+`Divide` (recurrence / divide-conquer). NOTE: **count-target**, not a proof-target — the "goal" is a
+closed-form/recurrence count, not a reachable state. Design consideration for authoring.
+
+**4. Vertex Coloring (Symmetry)**
+> Find the number of distinct colorings of the vertices of a square using m colors, where colorings
+> are considered distinct only if they cannot be transformed into one another by rotation.
+
+Verified: "up to rotation" is the cyclic group C4 (not dihedral D4). Burnside over C4 gives
+(m⁴ + m² + 2m)/4. m=2→6, m=3→24, m=4→70, m=5→165. Method = `Symmetry`. NOTE: **count-target**,
+and the group is C4 (rotation only, no reflection).
+
+### Ground status
+
+```text
+Ground 1 (constructors): OPEN   — INT lands [SHARED]-A1-CONSTRUCTORS.md (label registration only)
+Ground 2 (statements):   CLEARED — text recorded above, verified-correct, method-assigned
+=> lane STILL PARKED: DO NOT author until BOTH clear (standing double-gate rule, protocol/G.md)
+```
+
+### Method-target-shape note (for authoring)
+
+Problems 3 and 4 are **counting** questions; problems 1 and 2 are **proving** questions. A
+count-target record's obligation skeleton differs from a proof-target record's (no goal-state
+reachability; the "goal" is a formula/count). This must be reflected when Ground 1 clears and the
+records are authored — do not force a prove-target skeleton onto a count problem.
+
+---
+
 End-of-turn block:
 
 ```text

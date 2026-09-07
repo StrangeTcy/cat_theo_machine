@@ -88,6 +88,21 @@ Engel statement text for the four Tier0 problems present.
 
 ---
 
+## Turn 3 (2026-09-06) — Ground 2 cleared, lane still parked
+
+- **Ground 2 (authoritative statement text) CLEARED** — operator supplied the exact text for all four
+  Tier0 problems this turn. Recorded verbatim, verified-correct, and method-assigned in `protocol/I.md`
+  (Turn 3 section).
+- **Ground 1 (A1 domain constructors) STILL OPEN** — constructors absent at integration tip `b812db9`
+  (re-grepped all 11). Pending INT landing `[SHARED]-A1-CONSTRUCTORS.md` (label registration only).
+- Per the standing double-gate rule: **lane still parked. Do not author any of the four records until
+  Ground 1 also clears.**
+- Method-target-shape design note recorded in `protocol/I.md`: problems 3 & 4 are count-targets
+  (recurrence / Burnside), problems 1 & 2 are proof-targets — the obligation skeleton must reflect
+  the difference when authoring begins.
+
+---
+
 End-of-turn block:
 
 ```text
