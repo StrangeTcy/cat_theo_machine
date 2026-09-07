@@ -30,6 +30,39 @@ Engineering base tags:
 Wave 1 measurement tag: none (batch 1 withdrawn until D1 port lands and shard
 1 completes). F-op still gated by `protocol/F.md`.
 
+## Merge batch 1, corrected (cut-1 complete)
+
+- Candidate SHA (exact): `bf9da23f71b9b178b7c42983fd053b8c2d50f605`.
+- Items:
+  - `[S] s1: relation contract terms for Divides and Congruent` @ `f9ed7fd`.
+  - `[preflight] ConversePropositionTest guards Understood before navigating
+    outcome tails` (D1 port) @ `bf9da23`, cited from
+    `arena/01a064d5@3cac74c`.
+- D1 port: the three `UnderstoodLabel` guards now run before any outcome
+  tail navigation; a non-Understood outcome fails the test instead of
+  aborting install. Non-semantic; no matcher/search/planner path changed,
+  no new constructors.
+- Two-shard rerun on the post-fix candidate (isolated boots, `.venv` Python
+  3.11 + gmpy2):
+  - shard 0: completed 30.04s, report `converse_default_mode_test`.
+  - shard 1: **completed** 30.63s, report
+    `heuristic_canonical_knowledge_agreement_test`.
+  - `SUITE_DONE`, exit 0. No install abort.
+- First complete two-shard measurement on this lineage; baseline hereby
+  established:
+  1. `converse_default_mode_test` (shard 0)
+  2. `heuristic_canonical_knowledge_agreement_test` (shard 1)
+- Cross-file touch accepted by S1 rule: `persistence.py` touched to register
+  new labels in `SNAPSHOT_SYMBOL_NAMES`, paired with `sync_from_namespace`
+  registration in the same commit.
+- Measurement tag: **`cut-1-bf9da23` @ `bf9da23f71b9b178b7c42983fd053b8c2d50f605`**.
+  Authorizes measurements on the post-fix candidate. Sessions begin from it;
+  after any later semantic cut, operators rerun blank controls first.
+- S2 base: `cut-1-bf9da23@bf9da23`. S2 remains blocked on the `research.py`
+  surface re-map (`[SHARED]` #1).
+
+Wave 1 measurement tag: `cut-1-bf9da23`. F-op still gated by `protocol/F.md`.
+
 INT remote tip before this gate: `d3de45a179cc76b6c157473a3ca8d684dcf91294`.
 
 Charters: `protocol/CHARTER-v1.md`, `protocol/CHARTER-v2.md` @ `6002caf`.
