@@ -155,9 +155,55 @@ Tests green:
 ## Named next tests
 
 - ablation: landed as `shared_serial_admit_proposal_ablation_test` — SerialAdmitProposal journal, existing approval gate, law present after activate, absent on reset to the base GraphVersion, present again after re-mine through the same path. Observation journals still do not admit.
-- sibling independence: ablating one worker's admitted law does not disturb the other's
+- sibling independence: blocked on mask-coverage finding below
 - evidence-class neutrality: suite failure set identical with and without merged evidence entries
 - admission logging: each admission cites its re-baseline point
+
+## Finding — learned-memory mask does not cover SerialAdmitProposal laws
+
+Inspected 2026-09-07 on `56a5fc6` (base `shared-7cf6394`). No code change for a workaround.
+
+```text
+question: does the learned-memory mask disable/enable cover laws
+          admitted via SerialAdmitProposal?
+answer: no — the mask is not present on this lineage
+```
+
+Locus of absence:
+
+- `research.py` absent (already indexed)
+- `graph.py`: no `Disable`, `Enable`, `Mask`, `Learned` class
+- `workers.py`: no mask, no disable
+- `labels.py`: no Learned* constructor
+- no named module for learned-memory mask or rent/counterfactual
+  (`protocol/research_protocol.md` already records this)
+
+What SerialAdmitProposal-admitted laws can do today:
+
+- install through the existing approval gate (`ActivateProposal`)
+- vanish together on restore to the base `GraphVersion` (full reset;
+  `shared_serial_admit_proposal_ablation_test`)
+- return together on re-mine through the same admit+activate path
+
+What they cannot do:
+
+- per-artifact disable/enable via the learned-memory mask
+- therefore sibling independence as stated (ablate worker A's law,
+  worker B's law still fires) cannot be tested on this cut
+
+Adjacent machinery that is not the mask:
+
+- `RetireLaw` / `UnretireLaw` (Step 33) append a `Retired` mark on one
+  installed law and leave other installed laws active. That is
+  retirement, not mask disable/enable/reset. Using it as sibling
+  ablation would be a workaround. Not built this cut.
+
+Verdict: lifecycle gap against invariant 3 for concurrency-sourced
+laws. Admission is serial and gated; ablation is version-level only.
+Sibling independence stays owed until a `[SHARED]` proposal lands the
+mask (or INT rules that RetireLaw is the covering disable).
+
+CONVERGE is unrelated and still waits on pool warming / snapshot reuse.
 
 ## Deferred
 

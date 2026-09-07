@@ -32,6 +32,10 @@ wave 1 base tag: preflight-<shortsha>@<hash>
 Learned-memory mask and rent/counterfactual machinery are not present as
 named modules here. They enter only by [SHARED] proposal.
 
+[SHARED] 2026-09-07: SerialAdmitProposal-admitted laws are not covered
+by a learned-memory mask (mask absent). Sibling independence cannot be
+tested as stated. Finding: protocol/SHARED.md. No workaround this cut.
+
 ## marked blocks
 
 Empty `# --- [S] ---`, `# --- [E] ---`, `# --- [G] ---`, `# --- [F] ---`
