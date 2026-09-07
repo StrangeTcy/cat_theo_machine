@@ -160,6 +160,23 @@ Tests green:
 - admission logging: queue-level landed as `shared_serial_admit_proposal_cites_baseline_test` — SerialAdmitProposal writes Pair(journal, Pair(baseline, EmptyList)) and preserves the supplied baseline field (Compare against a reconstructed Char). Observation journals still do not admit and write no record. That cut does not check origin vs coordinator and does not activate.
 - checked admission: landed as `shared_checked_admit_proposal_logging_test` — CheckedAdmitProposal queues through SerialAdmitProposal, compares worker origin snapshot identity to coordinator SnapshotIdentity(path) via Compare (not IdentityCompare), and on match submits through the existing ProposalStore / Approved / ActivateProposal gate. Success records AdmissionSucceededLabel, queued journal, origin digest, coordinator digest, GraphVersion before/after, and the gate return. Missing origin or coordinator digest → AdmissionRejectedLabel, no activate. Origin≠coordinator → AdmissionStaleLabel, no silent relabel, no activate. Unapproved authority and ObservationJournal write no success record and do not modify laws. Two sequential activations record the intervening GraphVersion change. Artifact: verification/2026-09-08-checked-admit-proposal.txt
 
+## Rule — CheckedAdmitProposal stale-mismatch
+
+Ratified on `8620e2d` (SEMANTIC). Gate binding: `CheckedAdmitProposal` calls the existing `ProposalStore` / `Approved` / `ActivateProposal` path; it does not install.
+
+```text
+CheckedAdmitProposal stale-mismatch rule:
+  origin identity mismatch against coordinator SnapshotIdentity
+  emits AdmissionStaleLabel and refuses install
+  no silent relabel — the mismatch is the finding, not a bug to route around
+  this closes the class where a worker's proposal, generated against an
+  earlier snapshot, would otherwise install against a drifted coordinator
+```
+
+Compare is semantic (`M.Compare` on reconstructed Char identities), not `IdentityCompare`. Missing origin or coordinator digest is `AdmissionRejectedLabel`, not stale. Observation journals remain behavioral-null at both `SerialAdmitProposal` and `CheckedAdmitProposal`.
+
+Hold: INT two-shard suite + successor tag to `shared-7cf6394` before measurements count. No CONVERGE this cut.
+
 ## Finding — learned-memory mask does not cover SerialAdmitProposal laws
 
 Inspected 2026-09-07 on `56a5fc6` (base `shared-7cf6394`). No code change for a workaround.
