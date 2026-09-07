@@ -76,3 +76,99 @@ was recorded "CLOSED" by absence (PreflightTargetAbsent), not by fix.
 The orchestrator ruling stands: canonical base = experiment-5-frozen-r1
 (ef571b6). This finding is for INT/orchestrator to rule on; it is not a
 code change and it is not this session's to resolve.
+
+---
+
+## 2026-09-06 — S-unbuildability consequence, recorded (note; standing INT ruling)
+
+All three preflight tags measured directly this turn, not assumed: each is
+based on 41e8078, lacks research.py, lacks provenance.py, and is missing
+the lineage through ef571b6.
+
+```text
+preflight-e73d748 @ e73d748  INADMISSIBLE — off the integration line; shard-1 abort
+preflight-6a132f3 @ 6a132f3  INADMISSIBLE — same tree, same abort
+preflight-412b215 @ 412b215  INADMISSIBLE — same tree; both shards exit 0 but
+                              the build lacks research.py / LearnedMemoryCheckpointTest
+                              — a baseline of a different instrument
+authorized wave-1 base tag: NONE yet
+```
+
+S-specific consequence (the line this session adds to the record):
+
+```text
+S is unbuildable on any of those three tags because the track's entire
+allowed code surface (research.py, provenance.py) is absent there.
+```
+
+Any wave-1 base tag must descend from ef571b6 (integration line
+arena/01a06542, currently b812db9), where research.py and provenance.py
+exist and d528573 carries the guard-before-navigation fix.
+
+---
+
+## 2026-09-06 — composition ruling: sequence, not supersede (recorded)
+
+An earlier line stated the six-phase loop was superseded by the v2 S-track;
+a later line ratified the port recipe for that same loop onto r1. Ruling
+consolidates both, and the supersession line is withdrawn:
+
+```text
+batch A: six-phase self-improvement loop (548c6f6..218a40f) lands via the
+         rehearsed port recipe (deltas 1-4; completeness pins 40/198/18
+         unchanged; guard 305->310) onto the wave-1 base.
+         class: SEMANTIC (new mining/rent/invariant paths reachable)
+
+batch B: S1 relation-contracts (897c07c line) replays onto the same base
+         after batch A; targeted test rerun there; never merged as
+         divergent history.
+         class: SEMANTIC (vocabulary expansion)
+
+batch C: S2 schemas from the held draft, against the post-A+B tree.
+         Its INVENTED_LEMMA input is exactly what batch A produces.
+```
+
+Ordering A->B->C: S2 mines adopted laws (A's output) and gates on
+contracts (B's output); neither exists on the base yet, so S2 cannot be
+built before both land.
+
+---
+
+## 2026-09-06 — batch-B replay checklist: S1 names the S2 draft depends on
+
+The S2 draft re-verifies every S1 name against the merged base tag before
+any code. This checklist makes that verification a list, not a re-read.
+Names below are as of S1 @ 897c07c; batch B may rename or reshape them.
+
+Labels (S2 gate 3 reads these heads):
+- [ ] RelationArityLabel        — head of the arity contract atom
+- [ ] ExtensionalAtLabel        — head of the extensional-at contract atom
+- [ ] RelationContractsLabel    — head of the contract record
+- [ ] ContractFactLabel         — provenance tag inside the record
+
+Edges (S2 gate 3 consumes these):
+- [ ] RelationContractArity(name, arity)            — constructor
+- [ ] RelationContractExtensionalAt(name, position) — constructor
+- [ ] RelationContracts(atoms, source)              — record constructor
+- [ ] RelationContractsAtoms(record)                — accessor
+
+Shapes the draft hard-codes (re-check these three):
+- [ ] contract record =
+      Pair(RelationContractsLabel, Pair(atoms, Pair(source, Pair(ContractFactLabel, EmptyList))))
+- [ ] arity atom =
+      Pair(RelationArityLabel, Pair(name, Pair(arity, EmptyList)))
+- [ ] extensional atom =
+      Pair(ExtensionalAtLabel, Pair(name, Pair(position, EmptyList)))
+
+Refusal semantics (gate 3 must not misread these):
+- [ ] a variable in relation position or slot yields EmptyList, never a
+      fact; an absent/refused contract is no-contract, never a false match.
+
+S1 tests actually registered (the charter's RelationContractRequiredTest
+name does not match; these are the real names):
+- [ ] relation_contract_record_inserts_and_ablates_test
+- [ ] relation_contract_never_variable_test
+
+Batch-A surface S2 also reads (my own code, names known; confirm against
+the merged batch-A tree): adopt_compressed_law, InventedLemmaLabel,
+TracesOnRecord, AntiUnify, FormalRule.
