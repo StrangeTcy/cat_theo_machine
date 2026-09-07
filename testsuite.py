@@ -8738,12 +8738,16 @@ class CompareSearchModesFindsReusableWorkerSnapshotDirTest(M.Edge):
             search_cost = M.Head(search_cost_pair)()
             matching_path = os.path.join(matching_dir, "bfs.snapshot.json")
             probe._write_search_worker_manifest(matching_path)
+            # the resume probe re-derives the expected heuristic from the live
+            # object (_heuristic_for_mode); a checkpoint written for reuse must
+            # carry that same heuristic, not one rebuilt from another runtime's
+            # default base (its rule-order field would differ and block reuse)
             _search_worker_checkpoint(
                 runtime,
                 matching_path,
                 start,
                 goal,
-                worker_heuristic,
+                probe._heuristic_for_mode(M.BFSLabel),
                 Smod.SearchSuccessLabel,
                 M.EmptyList,
                 proof_cost,

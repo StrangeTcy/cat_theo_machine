@@ -318,11 +318,30 @@ class _ComparisonSubprocessMixin:
 
     def _search_worker_snapshot_matches_current_problem(self, mode, heuristic, result_path):
         attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
-        if M.TermEqual(SearchAttemptStart(attempt)(), self.start)() is M.false_value:
+        # Compare, not TermEqual: the attempt comes out of the snapshot codec
+        # with fresh atom instances (a decoded Char is a new object), and
+        # TermEqual treats atoms by object identity, so every non-singleton
+        # atom payload would read as a mismatch and no snapshot would ever
+        # be considered reusable after a decode round-trip.
+        if M.Compare(SearchAttemptStart(attempt)(), self.start)() is M.false_value:
             return M.Pair(M.false_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
-        if M.TermEqual(SearchAttemptGoal(attempt)(), self.goal)() is M.false_value:
+        if M.Compare(SearchAttemptGoal(attempt)(), self.goal)() is M.false_value:
             return M.Pair(M.false_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
-        if M.TermEqual(SearchAttemptHeuristic(attempt)(), heuristic)() is M.false_value:
+        # Heuristic identity for resume purposes is the pair (search mode,
+        # rule order): both are singleton labels that survive the round-trip.
+        # The numeric fields (beam/alpha/beta/strength) reach the decoded
+        # attempt as placeholder atoms the codec cannot re-materialize, and
+        # they never change what a recorded derivation proves — a resumed
+        # wave re-reads them from the live baseline, not from this file.
+        if M.Compare(
+            M.HeuristicSearchMode(SearchAttemptHeuristic(attempt)())(),
+            M.HeuristicSearchMode(heuristic)(),
+        )() is M.false_value:
+            return M.Pair(M.false_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
+        if M.Compare(
+            M.HeuristicRuleOrder(SearchAttemptHeuristic(attempt)())(),
+            M.HeuristicRuleOrder(heuristic)(),
+        )() is M.false_value:
             return M.Pair(M.false_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
         return M.Pair(M.truth_value, M.Pair(attempt, M.Pair(performance, M.EmptyList)))
 

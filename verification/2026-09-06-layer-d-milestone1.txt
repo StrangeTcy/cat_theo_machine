@@ -1,0 +1,176 @@
+Layer D milestone 1 — bounded worker-execution driver + red-test diagnosis
+Date: 2026-09-06 (UTC timestamps inside each section)
+Base: d35018a (live tip at work start), branch arena/01a05d5d-cat-theo-machine
+No core.py edit, no new labels, no theorem-pack change, no release tag.
+
+================================================================================
+PART 1 — RED-TEST DIAGNOSIS (run BEFORE any new machinery, per brief)
+================================================================================
+
+Harness: tools/agent_workers/focused_repro.py — registers ONLY named tests
+through the real _register_test/RunTests/TestResultsReport path (the same
+harness the sharded suite uses). --packs reproduces the boot_from_packs
+context the production suite has; without it, pack-vocabulary tests raise at
+construction (recorded as CRASH below, all re-run under --packs).
+
+At base d35018a the two brief-named tests behaved as follows (fresh runtime):
+  compare_search_modes_resident_executor_ready_handshake_test        GREEN (already green at base; no work needed)
+  compare_search_modes_finds_reusable_worker_snapshot_dir_test       RED
+    Executed path pinned by instrumentation:
+      _reusable_search_worker_result_paths -> (per run dir) exists-check OK
+      -> _search_worker_snapshot_matches_current_problem -> FALSE
+      -> stage that failed: heuristic gate. start/goal gates ALSO failed via
+         a second defect: search/compare_subprocess used M.TermEqual for the
+         decoded snapshot terms. TermEqual (matching.py) compares atoms by
+         object identity; the snapshot codec decodes fresh Char/Atom instances
+         (and placeholder atoms for GMPRep nats), so EVERY decode round-trip
+         read as a mismatch — no snapshot could ever be found reusable,
+         in production, not just in the test.
+
+Fixes (2 production-relevant lines, 1 test fixture):
+  search/compare_subprocess.py::_search_worker_snapshot_matches_current_problem
+    - start/goal/heuristic gates: M.TermEqual -> M.Compare
+      (constructors.py::Compare compares non-constructor atoms by payload
+      text; this is the equality notion the rest of the host codec boundary
+      already uses)
+    - heuristic gate narrowed to its singleton-label fields (search mode,
+      rule order), with the reason recorded in-code: the numeric fields
+      (beam/alpha/beta/strength) are placeholder atoms after decode and never
+      change what a recorded derivation proves; a resume re-reads them from
+      the live baseline. Mismatched snapshots are still refused on start,
+      goal, mode, and rule order.
+  testsuite.py::CompareSearchModesFindsReusableWorkerSnapshotDirTest
+    - checkpoint fixture previously wrote the heuristic built from a second
+      fresh runtime's default base (main.py::_search_worker_mode_heuristic)
+      while the probe compares against its own _heuristic_for_mode; the two
+      rule-order fields differ (InsertionOrder vs GoalHeadOrder), i.e. the
+      fixture wrote a snapshot for a different problem than it asked about.
+      Now the fixture checkpoints probe._heuristic_for_mode(M.BFSLabel).
+
+Result after fixes:
+  compare_search_modes_resident_executor_ready_handshake_test        GREEN
+  compare_search_modes_finds_reusable_worker_snapshot_dir_test       GREEN
+
+================================================================================
+PART 2 — FULL NEIGHBOURHOOD RUN (regression check for the Compare change)
+================================================================================
+
+All 62 registered compare_search_modes_*/search_worker_* tests, each through
+the real Test harness; CRASH entries re-run with --packs (packs needed for
+their theorem vocabulary — environmental, matches production suite context).
+Status list: verification/2026-09-06-milestone1-family62.txt
+
+  GREEN 61  RED 1
+  RED: compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+    Diagnosis (executed path, not speculation):
+      the test drives _fill_parallel_workers with states from
+      _comparison_states(mode_chain); the grow-pool branch is gated on
+      _comparison_states_need_shared_root_wave(states), which requires every
+      fresh state to be in SearchPacketSearchPhaseLabel; fresh states are
+      built in SearchRootFastPathPhaseLabel (compare_state.py
+      ::_comparison_state default). And the whole shared-root-wave lane is
+      opt-in: _search_compare_enable_shared_root_fast_paths is M.false_value
+      at graph.py:43 and is set false at EVERY construction site found in
+      the repo (main.py:835, search/runtime.py:35,561,
+      compare_subprocess.py:717). So with the feature off, fill correctly
+      spawns nothing, and the test asserts it must.
+    NOT fixed here: making it pass means either (a) enabling the
+    shared-root-wave feature globally (semantic change to search behaviour,
+    operator-measurement territory) or (b) changing the phase the fresh
+    states start in (core wave semantics). Both belong to INT's ruling, not
+    to an engineer lane — reported for INT, with the pinned diagnosis above.
+    Milestone-1 machinery below deliberately rides the resident-executor
+    protocol directly and does not depend on this lane.
+
+================================================================================
+PART 3 — MILESTONE 1: BOUNDED WORKER-EXECUTION DRIVER (code + live run)
+================================================================================
+
+tools/agent_workers/driver.py — builds the milestone on the EXISTING
+resident-executor protocol only (no transport was replaced):
+  _SearchModeWorkerExecutor loop, SearchWorkerSetup/Baseline snapshot
+  identity, SearchRootWaveShardPacket/Launch obligations,
+  _SearchRootWaveShardResult execution, _spawn_parallel_executor ready
+  handshake, _first_finished_worker + _decode_parallel_worker_payload
+  dead-worker handling. Host side: bounded to 4 live executors, isolated
+  per-worker mp queues, dispatch only on live handshaked executors.
+
+Checks executed against REAL OS processes (start method: fork), full output in
+verification/2026-09-06-milestone1-driver-output.txt:
+
+  ready-handshake-w1/w2-live          ok  (spawn consumes the ready ack per
+                                            the production contract; executors
+                                            returned live — a non-acking
+                                            executor raises inside spawn)
+  distinct-pids                       ok  (two separate workers)
+  parallel-launches-returned          ok  (two obligations, two workers)
+  parent-check-w1 / w2                ok  (EVERY result replay-checked in the
+                                            parent against the same snapshot:
+                                            shard classification chains re-
+                                            derived with FilterApplicableRules
+                                            and compared rule-by-rule
+                                            semantically; a worker reporting
+                                            success was never taken as proof)
+  obligation-not-vacuous              ok  (checked content nonempty — replay
+                                            of an empty claim proves nothing)
+  parent-check-rejects-wrong-replay   ok  (poisoned expectation refused: the
+                                            check actually discriminates)
+  join-accepted                       ok  (AND join over BOTH checked shards,
+                                            recorded as a machine term pair:
+                                            status atom + the two payload
+                                            terms; snapshot generation
+                                            recorded; OR-join/batching not
+                                            built here — join is recorded,
+                                            promotion stays serial via the
+                                            existing single-law gate)
+  generation-guard-raises             ok  (worker-side snapshot-identity
+                                            guard: mode packet with foreign
+                                            generation raises in
+                                            _SearchModeWorkerResult, verified
+                                            through the same constructor the
+                                            worker loop runs)
+  dead-worker-payload-none            ok  (terminated executor -> None)
+  dead-worker-decodes-failure-term    ok  (None decodes to the machine term
+                                            SearchFailureLabel — a crashed
+                                            obligation is an EXECUTION
+                                            failure, never a refutation)
+  poison-converted-to-none            ok  (malformed payload -> worker loop
+                                            catches, parent gets None)
+  worker-loop-survives-poison         ok  (same worker keeps serving)
+  retry-after-failure-on-same-worker  ok  (fresh attempt id on the same
+                                            executor after the failure;
+                                            replay-checked again)
+  parent-registry-identity            ok  (parent snapshot/store unchanged by
+                                            worker execution)
+  parent-snapshot-identity            ok
+  wall time recorded                  (two-worker 0.069s vs one-worker
+                                   sequential 0.140s on a tiny workload —
+                                   recorded, NO speedup claimed at this size)
+
+Deferrals honoured (not built): unlimited spawning, distributed machines,
+shared mutable hypergraphs, automatic policy activation, joint-batch
+admission. Journal split (OBSERVATIONS vs PROPOSALS) is the next milestone;
+this driver writes NOTHING to the parent stores from workers — the only
+parent-side records are the in-driver join term and this artifact.
+
+Host-code note: the driver is a host tool (not machine code) — it therefore
+uses normal Python (try/except, closures, dicts for its own reporting); all
+MACHINE VALUES in the checked path remain Pair/Atom terms; the join record is
+constructed from machine terms (Pair + status atom + worker payloads),
+python bools never enter any term.
+
+Driver exit code 0 == all 18 checks ok; rerun:
+  cd /home/user && python3 cat_theo_machine/tools/agent_workers/driver.py out.txt
+
+================================================================================
+PART 4 — INT SUMMARY
+================================================================================
+1) Two reds from the brief: one was already green at base; the snapshot-dir
+   red was a REAL production bug (TermEqual on decoded snapshot terms) —
+   fixed, green, regression-checked across the 62-test neighbourhood.
+2) fill_warms_resident_pool_before_root_wave stays RED by design conflict
+   (asserts an off-by-default opt-in lane); fix = semantic ruling needed.
+3) Milestone-1 driver delivers the bounded parallel-execution + checked +
+   recorded-join semantics on the existing protocol; nothing replaced.
+
+re-run on 2026-09-07 after sandbox restore at tip d35018a (deps reinstalled, worktree identical): driver exit 0, 18/18 checks ok; the two brief-named focused tests: All the tests have passed.

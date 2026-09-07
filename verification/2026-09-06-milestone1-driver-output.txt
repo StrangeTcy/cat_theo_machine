@@ -1,0 +1,38 @@
+START utc 2026-09-07T02:44:35Z
+multiprocessing start method: fork
+snapshot: start=pair(s) goal=pair(g); 2 laws; generation=snapshot-1
+T1 begin: spawning two resident executors
+w1 spawned
+w2 spawned
+handshakes consumed inside spawn (production contract)
+CHECK ready-handshake-w1-live: ok
+CHECK ready-handshake-w2-live: ok
+CHECK distinct-pids: ok
+worker pids: 1457, 1459
+sending shared setup to both
+CHECK parallel-launches-returned: ok
+elapsed: two-worker 0.0755s | one-worker sequential 0.1675s (tiny workload; timing recorded, no speedup claimed)
+CHECK parent-check-w1: ok
+CHECK parent-check-w2: ok
+CHECK obligation-not-vacuous: ok
+CHECK parent-check-rejects-wrong-replay: ok
+join: AND over slots 0,1 of snapshot generation snapshot-1 -> accepted
+CHECK join-accepted: ok
+generation guard raised in-process: search worker baseline generation mismatch
+CHECK generation-guard-raises: ok
+CHECK dead-worker-payload-none: ok
+CHECK dead-worker-decodes-failure-term: ok
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/search/runtime.py", line 696, in __init__
+    result_queue.put(_SearchModeWorkerResult(payload, baseline)())
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/search/runtime.py", line 271, in __init__
+    raise RuntimeError("search worker baseline generation mismatch")
+RuntimeError: search worker baseline generation mismatch
+CHECK poison-converted-to-none: ok
+CHECK worker-loop-survives-poison: ok
+CHECK retry-after-failure-on-same-worker: ok
+CHECK parent-registry-identity: ok
+CHECK parent-snapshot-identity: ok
+ALL CHECKS: ok
+END utc 2026-09-07T02:44:38Z

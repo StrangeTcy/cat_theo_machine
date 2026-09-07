@@ -1,0 +1,70 @@
+compare_search_modes_batched_wave_matches_sequential_success_test              GREEN
+compare_search_modes_batches_large_returned_ready_packet_wave_test             GREEN
+compare_search_modes_builds_deep_root_wave_shards_without_recursion_test       GREEN
+compare_search_modes_console_disabled_skips_approval_replay_prompt_test        GREEN
+compare_search_modes_decode_missing_payload_uses_expected_token_test           GREEN
+compare_search_modes_drops_exhausted_pending_packets_test                      GREEN
+compare_search_modes_empty_cursor_theorem_fanout_seeds_generated_tree_test     GREEN
+compare_search_modes_empty_cursor_theorem_fanout_test                          GREEN
+compare_search_modes_empty_ready_result_refills_job_frontier_test              GREEN
+compare_search_modes_enqueue_all_packets_after_exhausted_backlog_test          GREEN
+compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test   GREEN
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test            RED
+compare_search_modes_finds_reusable_worker_snapshot_dir_test                   GREEN
+compare_search_modes_fresh_root_jobs_packetize_whole_state_test                GREEN
+compare_search_modes_ignores_mismatched_packet_token_result_test               GREEN
+compare_search_modes_ignores_missing_packet_token_result_test                  GREEN
+compare_search_modes_ignores_stopped_mode_result_test                          GREEN
+compare_search_modes_integrates_returned_ready_packets_test                    GREEN
+compare_search_modes_live_budget_uses_soft_window_test                         GREEN
+compare_search_modes_merges_packet_job_test                                    GREEN
+compare_search_modes_missing_payload_retry_requeues_original_packet_test       GREEN
+compare_search_modes_packet_budget_uses_quantum_test                           GREEN
+compare_search_modes_packet_budget_zero_beam_uses_packet_width_fallback_test   GREEN
+compare_search_modes_packetizes_non_root_frontier_test                         GREEN
+compare_search_modes_packetizes_wide_frontier_in_chunks_test                   GREEN
+compare_search_modes_pause_requeues_active_packet_into_job_test                GREEN
+compare_search_modes_pause_state_preserves_backlog_test                        GREEN
+compare_search_modes_prunes_packets_after_best_attempt_test                    GREEN
+compare_search_modes_refill_widens_pending_packets_test                        GREEN
+compare_search_modes_resident_executor_ready_handshake_test                    GREEN
+compare_search_modes_resident_executor_refreshes_baseline_on_generation_change_test GREEN
+compare_search_modes_resident_unavailable_leaves_packet_queued_test            GREEN
+compare_search_modes_returned_ready_overreported_count_keeps_packet_shape_test GREEN
+compare_search_modes_returned_ready_packet_count_follows_packet_shape_test     GREEN
+compare_search_modes_rewrite_fanout_produces_one_rule_packets_test             GREEN
+compare_search_modes_root_wave_records_empty_expansion_test                    GREEN
+compare_search_modes_root_wave_replaces_exhausted_resident_test                GREEN
+compare_search_modes_root_wave_requires_resident_executor_test                 GREEN
+compare_search_modes_root_wave_retries_failed_shard_on_resident_test           GREEN
+compare_search_modes_root_wave_seeds_single_rewrite_handoff_test               GREEN
+compare_search_modes_root_wave_uses_resident_executor_test                     GREEN
+compare_search_modes_skips_root_cache_during_raw_benchmark_test                GREEN
+compare_search_modes_skips_shared_root_schema_during_raw_benchmark_test        GREEN
+compare_search_modes_stale_token_retry_requeues_original_packet_test           GREEN
+compare_search_modes_stop_mode_marks_only_requested_mode_test                  GREEN
+compare_search_modes_stop_outcome_clears_pending_packet_count_test             GREEN
+compare_search_modes_stopped_state_does_not_enqueue_job_frontier_test          GREEN
+compare_search_modes_stores_derivation_backed_attempt_test                     GREEN
+compare_search_modes_success_clears_pending_packets_test                       GREEN
+compare_search_modes_theorem_fanout_adds_single_rewrite_handoff_test           GREEN
+compare_search_modes_theorem_fanout_preserves_generated_test                   GREEN
+compare_search_modes_worker_entry_tracks_packet_job_test                       GREEN
+search_worker_baseline_uses_grouped_problem_block_test                         GREEN
+search_worker_filters_seeded_theorem_continuation_test                         GREEN
+search_worker_launch_pickle_roundtrip_test                                     GREEN
+search_worker_launch_uses_grouped_dispatch_test                                GREEN
+search_worker_packet_delta_uses_resident_baseline_test                         GREEN
+search_worker_packet_uses_grouped_blocks_test                                  GREEN
+search_worker_result_pickle_roundtrip_test                                     GREEN
+search_worker_resume_derivation_missing_plan_raises_runtime_error_test         GREEN
+search_worker_resume_state_restores_saved_plan_test                            GREEN
+search_worker_snapshot_boot_with_runtime_namespace_test                        GREEN
+raw focused runs (harness: tools/agent_workers/focused_repro.py) 2026-09-06
+serial fresh-runtime pass + 12-name --packs re-pass; only failure listed:
+
+TEST_REPORT_BEGIN
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+TEST_REPORT_END
+
+per-test status:
