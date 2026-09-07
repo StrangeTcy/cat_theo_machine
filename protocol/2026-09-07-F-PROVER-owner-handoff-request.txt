@@ -1,0 +1,77 @@
+# F-PROVER owner handoff request (section 8 checklist, routed to current owners)
+# session: FPS-20260905-A1
+# date: 2026-09-07
+# source of requirement: external audit review received 2026-09-07 (next-action item 4)
+# status: routing record; requests only — nothing is executed against foreign
+#         branches, no foreign content is read, no target run is authorized
+
+## Context
+
+The external audit established that deliverables now EXIST on other
+branches, so the productive step is connecting this session's completed
+receipt to the existing INT and F-tools deliveries — locate and pin, not
+re-commission. Identities pinned by this operator on 2026-09-07
+(file NAMES and commit identities only; no content inspected):
+
+- canonical charter documents: commit 99d92808f124387e3940a0c9abb49eedc9d7b226
+  ("[SHARED] Setup: replace charter placeholders with operator text",
+  dated 2026-09-06T00:11:37+00:00, parent 7b912028fdec32d8134fc6f834efe85e76aa56f4,
+  tree a5d0d733ef86c8b7cecbb4f32c6f9ed8f3c3a736), containing
+    protocol/CHARTER-v1.md, protocol/CHARTER-v2.md, protocol/TWO-PIPELINE.md
+  — reachable from refs/remotes/origin/arena/01a06542-cat-theo-machine.
+  NOT in this operator branch's history.
+
+- F-tools battery: commit 704db5e1f230a9893b8f389261e21c33c97ba7d0
+  ("Battery runner lands; batch tool resolves its pair tool tree-locally;
+  fresh-tree rerun byte-identical; distinct-case note and empty F4 sweep
+  recorded", dated 2026-09-05T23:30:44+00:00,
+  parent 98508d84f08e683b1e638699996d683786497570,
+  tree 15584541ca7cd0af94a902830312779a75ccd457), containing
+    logs/f-tools-acceptance-battery-2026-09-05.txt
+    protocol/F.md            [F-tools' own track ledger file — see note below]
+    tools/f-tools-battery.sh
+    tools/f3_batch_diff.sh
+  — reachable from refs/remotes/origin/arena/01a06eb9-cat-theo-machine.
+  NOT in this operator branch's history.
+
+- INT-line tags fetched 2026-09-07 (name -> peeled commit):
+    preflight-e73d748    -> e73d74872dc9a237b8efb9475640c5d89acf57b8 (lightweight)
+    preflight-6a132f3    -> 6a132f3bd83bfc22847ccdf007d8de205daffc00 (lightweight)
+    preflight-412b215    -> 412b2153e99e447764fe17121b82e8f607261e09 (lightweight)
+    partition-32bc569    -> 32bc569a5e596081c4693e00098bfe9868c81504
+    shared-7cf6394       -> 7cf6394359455a002eb1df901d882ae719abe302
+    s1-relation-contracts-> 897c07cdfbfec8866b2b0a0921012d13a646630a
+    eng-base-0           -> 137446435362a9727c2f7c181c663adab9d4c357
+    eng-base-0@1374464   -> 137446435362a9727c2f7c181c663adab9d4c357 (same target, two names)
+
+Name-collision note for INT: the F-tools delivery modifies its own
+protocol/F.md (the F track ledger per the partition). This operator
+branch carries a DIFFERENT protocol/F.md (the F-PROVER session record,
+created 2026-09-05, before the partition landed). The two files share a
+path but not a role. Reconciliation (rename, merge, or index separation)
+is an INT ruling; this operator makes no move until ruled.
+
+## Requests
+
+| Owner | Requested handoff |
+|---|---|
+| INT | Declared session tag and peeled commit; applicable admission evidence |
+| F-tools | Checkpoint/codec identity, audit-header capability, exact F2/F3/F4 delivery SHAs |
+| Protocol owner | Session profile, permitted exposure scope, control-input delivery |
+
+## Standing caveats (from the audit, adopted verbatim in effect)
+
+- A declared-empty checkpoint slot is not a supplied checkpoint.
+- Missing declarations remain explicit missing inputs.
+- No target run is authorized by this receipt.
+- Session readiness requires exact artifact identities and compatibility
+  with the owner-declared session tag; branch availability alone is
+  insufficient.
+
+## What this operator will do on receipt
+
+Re-run the start gate (all ten items) against the owner-declared session
+tag in a fresh session, decoy first. Until then the gate stands failed
+per logs/2026-09-05-F-PROVER-start-gate.txt, with section 4 of
+protocol/F.md scoped to its inspected build by the 2026-09-07
+current-status note.

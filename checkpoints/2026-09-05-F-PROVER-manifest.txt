@@ -8,6 +8,8 @@ a992defd2213984392767c5a86331635c92663aeaffba7d1952c5bd2157f54e1  logs/2026-09-0
 590324feb71cf5dc18dc7eac94ee578a34b9883d56dddbb7651a991c9f5eb2a3  protocol/2026-09-05-fable-5-unified-launch-plan-RECEIVED.txt
 c316a6162067b6953312c77e1f7ca879ac2f7e26a888787297c02c15361beafa  protocol/2026-09-05-fable-5-completion-RECEIVED.txt
 334c802f47b11fa95ae1634f4fe0995ff2c59749f4a95d28f60cbcf7c6925f5c  protocol/2026-09-05-charter-source-chain-RECEIVED.txt
-a6000a7505f2de7825e53a6145d1d2e69b6ddfb49d6e7bfb1bc24aae7b7b5901  protocol/F.md
+a5b7722014938619216cb64f911525052fb736bf9649000d1dee81ec6f8b08ae  protocol/2026-09-07-F-PROVER-exposure-update.txt
+baf95c1089bc720f8f559cc8f6c3d3179dc676d82715c00d5991dffdba86a24c  protocol/2026-09-07-F-PROVER-owner-handoff-request.txt
+77e2ac83a57ffdb15f59101d6c6654f99fa4ba0f71ff4df374bd0691360e7604  protocol/F.md
 
-# rev 4 (2026-09-05): adds fable-5 completion receipt (coverage COMPLETE, seam noted) and charter source chain (received-record stopgap); F.md section 10 extended with completion/source-chain receipts, scan classifications, refined owner mapping, reset-ledger entry 2
+# rev 5 (2026-09-07): external-audit correction batch — D11 mapping corrected, absence findings scoped to inspected build, exposure update recorded, section 8 checklist routed to INT/F-tools/protocol owner with identity pins; reset entry 3

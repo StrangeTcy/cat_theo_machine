@@ -94,6 +94,35 @@ process ran, so none was found by running. Routing: INT (protocol owner).
 No defect was renamed as a capability gap; each entry names its precise
 locus. No fabricated capability name appears in this record.
 
+CURRENT-STATUS NOTE (2026-09-07, per external audit correction 2 — this
+note scopes the ledger; the entries above are preserved as the historical
+inspection record):
+
+    historical absence:
+      applies to the recorded inspection build and inspected refs
+      (working tree at 41e80785d4de090337a9dfc08439f2fcb45915dc plus the
+      refs observed 2026-09-05 via git ls-remote: master, the arena
+      branches then listed, and the six tags then fetched). Statements
+      like "absent from every pushed ref" in the entries above must be
+      read with that 2026-09-05 ref set.
+
+    current availability:
+      requires reconciliation with the existing INT and F-tools
+      deliveries. Pinned 2026-09-07, identity level only: charter
+      documents at 99d92808f124387e3940a0c9abb49eedc9d7b226 (on
+      arena/01a06542), F-tools battery at
+      704db5e1f230a9893b8f389261e21c33c97ba7d0 (on arena/01a06eb9), INT
+      preflight/partition/shared/s1/eng-base tags per
+      protocol/2026-09-07-F-PROVER-owner-handoff-request.txt. Neither
+      commit is in this operator branch's history; no content inspected;
+      no duplicate tools commissioned.
+
+    session readiness:
+      requires exact artifact identities and compatibility with the
+      owner-declared session tag; branch availability alone is
+      insufficient. A declared-empty checkpoint slot is not a supplied
+      checkpoint. Missing declarations remain explicit missing inputs.
+
 ## 5. Contamination ledger
 
 Empty. No prohibited exposure occurred in this session: no reference
@@ -103,6 +132,13 @@ exists for this operator). The project-blind declaration with its scope
 statement is `protocol/2026-09-05-F-PROVER-blindness-declaration.txt`.
 Any future exposure is recorded here as
 `Contamination(session_id, source, time)` and voids the target session.
+EXPOSURE UPDATE 2026-09-07: the target programme's identity was disclosed
+through the owner's authorized archives (see
+`protocol/2026-09-07-F-PROVER-exposure-update.txt`). Programme
+identification is recorded there as a scope fact, NOT as Contamination;
+the separate unseen list (reference proof, dependency graph, prior target
+transcript, curriculum answers, pack sources, decoy statement) is
+certified unseen as of 2026-09-07. Contamination count: still zero.
 
 ## 6. Artifacts registered this session
 
@@ -204,6 +240,8 @@ Owner-mapping of this record's open gate items under the fable-5 roster
   deliverable (audit format).
 - gate item 8 (D11 closure unverifiable) → INT preflight step 1
   (exception mechanism named in protocol/preflight/ledger.md).
+  [SUPERSEDED 2026-09-07 — see the CORRECTION block at the end of this
+  section: D11 and preflight item 1 are different investigations.]
 - gate item 9 (no blank controls) → fable invariant 2: operators rerun
   blank controls after each semantic cut; none exists yet on any tag.
 - gate item 10 (no F2/F3/F4 refs) → F-tools-eng F2 (grader), F3 (decoy
@@ -281,9 +319,10 @@ provisional mapping above where more precise):
   exit taxonomy identical/silence-class/distinct/incomparable,
   N-transcript batches), F4 (per-session audit sheet).
 - Gate item 8 (D11) → INT preflight step 1 (swallowed-exception
-  mechanism named in the ledger). Gate item 9 (blank controls) → Text #8
-  re-baseline rule after semantic cuts. Gate item 3 (tag) → INT preflight
-  and cut tags.
+  mechanism named in the ledger). [SUPERSEDED 2026-09-07 — see the
+  CORRECTION block at the end of this section.]
+  Gate item 9 (blank controls) → Text #8 re-baseline rule after semantic
+  cuts. Gate item 3 (tag) → INT preflight and cut tags.
 - F-track kill conditions now on record for any future F session:
   preflight step 2 zero-partial-match on every probe gates F on the
   instrument defect; decoy/target residual identity withdraws the
@@ -292,3 +331,62 @@ provisional mapping above where more precise):
   concept-gap decisions with the human. This operator's session record is
   pre-wave-0 evidence available to INT's protocol index; it claims no
   F-op role and no ratification authority.
+
+CORRECTION (2026-09-07, external audit correction 1 — supersedes the two
+lines above marked [SUPERSEDED], which mapped gate item 8 (D11) to INT
+preflight step 1 and thereby conflated two different investigations):
+
+    gate item 8:
+      owner: INT / SHARED-D11
+      required evidence:
+        relevant vocabulary repair and port included in the declared build;
+        dated reachability and ablation evidence;
+        explicit scope of what the repair demonstrates.
+
+    preflight item 1:
+      separate checkpoint-exception investigation;
+      its closure does not establish D11 closure.
+
+The external audit further cites an existing D11 port record (one
+arithmetic-label port with 0 -> 1 -> 0 candidate counts) and states it
+does not establish readiness for every goal nor close the separate
+producer/consumer selection check. That port record has NOT been
+inspected by this operator; its identity and locus are INT/F-tools
+handoff items under protocol/2026-09-07-F-PROVER-owner-handoff-request.txt.
+
+## 11. External audit receipt and correction batch (2026-09-07)
+
+An external audit review received 2026-09-07 inspected pushed commit
+b1f1d19329f14d18c52c4840551905d1cefe3b0f, accepted the receipt
+completion, and required three corrections, all executed this turn:
+
+1. D11 mapping corrected (block in section 10; the two superseded lines
+   are retained in place and marked, per no-silent-edit discipline).
+2. Absence findings scoped to the inspected build — CURRENT-STATUS NOTE
+   appended to section 4 with the historical-absence /
+   current-availability / session-readiness structure; the 2026-09-05
+   entries preserved unmodified.
+3. Exposure update recorded —
+   protocol/2026-09-07-F-PROVER-exposure-update.txt: programme identity
+   disclosed via the received archives; reference proof, dependency
+   graph, prior target transcript, curriculum answers, pack sources, and
+   the decoy statement separately certified unseen; contamination count
+   still zero.
+
+Also executed: section 8 checklist routed to current owners
+(protocol/2026-09-07-F-PROVER-owner-handoff-request.txt) with identity
+pins taken 2026-09-07 — charter documents at
+99d92808f124387e3940a0c9abb49eedc9d7b226 (arena/01a06542), F-tools
+battery at 704db5e1f230a9893b8f389261e21c33c97ba7d0 (arena/01a06eb9),
+INT-line tags preflight-e73d748 / preflight-6a132f3 / preflight-412b215,
+partition-32bc569, shared-7cf6394, s1-relation-contracts, eng-base-0
+(peeled hashes in the routing artifact). Neither pinned commit is in
+this branch's history; no content of any foreign delivery was inspected;
+no duplicate tooling was commissioned; no target run is authorized by
+the receipt. A protocol/F.md path collision between the F-tools track
+ledger and this session record is flagged to INT for ruling (routing
+artifact, name-collision note).
+
+Reset-ledger entry 3 (2026-09-07): third sandbox reset before this
+batch; recovery repeated the verified procedure against pushed tip
+b1f1d19; all artifacts byte-identical; zero loss.

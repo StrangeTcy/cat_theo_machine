@@ -1,0 +1,69 @@
+# F-PROVER exposure update (supersedes the scope of the 2026-09-05 declaration, not its historical record)
+# session: FPS-20260905-A1
+# date: 2026-09-07
+# source of requirement: external audit review received 2026-09-07 (correction 3)
+# status: precise-scope record; NOT a Contamination entry
+
+## 1. What this updates
+
+The 2026-09-05 project-blind declaration
+(protocol/2026-09-05-F-PROVER-blindness-declaration.txt) stated, in its
+scope section, that the declared target theorem had not been displayed,
+named, or described to this operator through any channel as of that
+artifact's hash time. That statement was true when hashed. It cannot
+certify the LATER state of this context, because the subsequently
+received protocol archives name the F programme's target. The original
+declaration is preserved unmodified as a historical artifact; this file
+is the exposure update the audit requires.
+
+## 2. Received archives and dates (channel: protocol owner, direct paste)
+
+- 2026-09-05: fable 5, Unified Launch Plan, PARTIAL (truncated in Text #3
+  phase E3) — protocol/2026-09-05-fable-5-unified-launch-plan-RECEIVED.txt
+- 2026-09-05: fable 5 completion (Text #3 tail, Texts #4-#8, sections 4-6)
+  — protocol/2026-09-05-fable-5-completion-RECEIVED.txt
+- 2026-09-05: charter source chain — charter v1 (three tracks), charter v2
+  (five tracks), the distribution document, the v1 launch sequence, and
+  the "qwen 3.8" spawn-instruction variant —
+  protocol/2026-09-05-charter-source-chain-RECEIVED.txt
+- 2026-09-07: external audit review (three corrections; the review that
+  required this update)
+
+## 3. Programme identification: DISCLOSED
+
+The received charters identify the F track's programme explicitly: the
+three-letter programme name appears throughout charter v1 (track F
+heading and stop conditions), charter v2 (quarantine rules), and the
+launch texts (preflight shape check, script-grep instruction). From
+2026-09-05 (receipt of the source chain) onward, this operator's context
+therefore carries the TARGET PROGRAMME'S IDENTITY. The original
+declaration's "target not named" clause no longer describes the current
+context state and must not be renewed as-is.
+
+## 4. Separately certified — still unseen, as of 2026-09-07
+
+The following remain UNSEEN through any channel, and this operator
+certifies each as a separate fact, not as a consequence of item 3:
+
+- reference proof for the target programme: NOT seen;
+- reference dependency graph for the target: NOT seen;
+- prior target-session transcript: NOT seen (no target session has ever
+  run in this operator's lineage);
+- curriculum answers / IMO held-out exam set: NOT seen;
+- pack YAML sources: NOT read (file names only, per the 2026-09-05
+  declaration's scope);
+- sealed decoy statement: NOT received through any channel.
+
+## 5. Rule going forward
+
+Per the audit: programme identification is not the same as seeing the
+reference proof, and neither is collapsed into blanket contamination or a
+blanket empty ledger. Any FUTURE project-blind claim made in this lineage
+must state its precise scope — which of {programme identity, reference
+proof, dependency graph, prior target transcript, curriculum answers,
+pack sources, decoy statement} it asserts unseen — and its as-of time.
+The contamination ledger in protocol/F.md section 5 remains empty: no
+prohibited exposure has occurred; a disclosed programme identity received
+through the owner's authorized channel is not prohibited exposure.
+
+## 6. Contamination(session_id, source, time): none recorded, still
