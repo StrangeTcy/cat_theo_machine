@@ -628,3 +628,74 @@ e6488c4 -> 704db5e; 19bed91 -> 545d2ce; the fourth event (no local
 commit, uncommitted batch) -> dbd8d98. Four events, four recoveries,
 zero force-pushes, zero lost content -- all four under the old
 procedure, which is why this one exists.
+
+## 2026-09-08, second hardening batch -- component statuses enforced, selftest isolated, recovery procedure rewritten; twelve acceptance tests green
+
+Source inspection of dbd8d98 found four gaps; all closed in eb47630
+and evidenced below.
+
+Finding 1 (component execution failures could pass): the F2 grader's
+and the F4 auditor's exit statuses were discarded before their
+output was checked, so a component could print correct-looking
+output, fail, and still satisfy the battery; and a requested
+metadata companion that could not be written was silently ignored.
+Closed: the battery captures each component's status at invocation
+and enforces zero. A grader that prints the right counts and then
+exits 7 fails the run. An auditor that prints its sheets and then
+exits 9 fails the run -- the findings stay informational, execution
+errors do not. The metadata companion write is verified complete
+(the write's exit status plus the file's last line) or the run
+fails. A relative companion path now resolves against the caller's
+directory, not the tree.
+
+Finding 2 (shared destructive selftest workspace): the selftest
+deleted a fixed absolute path on entry, so two agents on one host
+could destroy each other's runs. Closed: every invocation allocates
+its own mktemp work directory, cleans only that directory, and
+retains it on failure for inspection.
+
+Finding 3 (the recovery procedure still contained the unsafe
+shortcut): the numbered runbook's in-place reset steps and the
+step-4 amendment's unambiguous-signature path are withdrawn, both
+marked superseded in place above. The revised procedure reconstructs
+in a separate clean clone at the verified remote commit, always; the
+original checkout is inventoried and preserved, never reset before
+its unique content is staged outside it; unidentified or foreign
+content is left untouched. The four recoveries are incident
+evidence; they establish no in-place-reset condition.
+
+Finding 4 (metadata identified the parent, not the tested
+modifications): the morning artifact's metadata recorded commit
+545d2ce while the hardened scripts arrived in dbd8d98, and nothing
+marked the tree dirty. Closed twice over. The metadata companion now
+records tree-state (clean / dirty / no-git) and the sha256 of all
+eleven graded inputs (runner, selftest, five scripts, four
+fixtures). And this batch's published evidence was generated in a
+clean clone of the exact commit it tests: the commit field names the
+tested code, and tree-state: clean backs the claim.
+
+Acceptance: twelve cases, the eight prior plus the four specified by
+the review -- F2 fields correct but exit 7 rejected; F4 execution
+failure (exit 9) rejected; metadata-write failure rejected; two
+concurrent selftests both green. Result 12 of 12, first run in the
+dev tree and again in the clean clone.
+
+Artifacts (dated 2026-09-08, Europe/Moscow; generated in a clean
+clone of eb47630, tree-state clean, input hashes in the companion):
+logs/f-tools-acceptance-battery-2026-09-08b.txt, the deterministic
+core -- byte-identical to its clone rerun and to the morning
+artifact logs/f-tools-acceptance-battery-2026-09-08.txt, which is
+the point: this batch changed what a failed run can get away with,
+not what a green run says; logs/f-tools-battery-metadata-2026-09-08b.txt,
+the run metadata companion (commit eb47630, tree-state clean, eleven
+input hashes); logs/f-tools-battery-selftest-2026-09-08b.txt, the
+12-of-12 record. The unsuffixed 2026-09-08 artifacts remain the
+morning run's record and are kept as history.
+
+The evidence flow itself rehearsed the revised procedure's steps 5
+and 6 without a reset having occurred: the clone was proven clean,
+the battery and selftest ran there, and the artifacts name their
+tested commit. No reset this turn; the event ledger stays at four.
+
+Not done, deliberately: no expected grade changed; no closed
+measurement pair run; no F1; no machine code touched; no tag cut.

@@ -1,0 +1,19 @@
+battery run metadata
+utc: 2026-09-07T22:43:15Z
+commit: eb476304bdfaf2e7a2483ad8292091fded920985
+tree-state: clean
+invoked-as: tools/f-tools-battery.sh
+invoked-from: /tmp/evidence-clone
+resolved-tree: /tmp/evidence-clone
+input-sha256:
+  66a78ddf7086afaf3917871ab73725128bf8a1895bac8ed25181453b849dda48  tools/f-tools-battery.sh
+  070c693a17daf75a67668e7920f9b5ae4bd77b90b416186e769fcc7b3a9031ba  tools/f-tools-battery-selftest.sh
+  2e502d6115ffb4de3005fd1618504e4906fcd3700baa7988774476c2f1022f17  tools/f2_grader.sh
+  5eed83757203d6681e4a8d9b4e07461d5cea813d4940912c82b61a6381cf8789  tools/f3-residual-diff.sh
+  1615045041c09404dbced60c529ea801466ab192872a498f5771cd5b52492074  tools/f3_batch_diff.sh
+  ec8f1709b88c6afaec9dc389ca3bb8f1e7948b9a9ebc54f23393d94ffd4d357b  tools/f4_auditor.sh
+  233a1b6a17573c2a393e3fe3cc4ab94325fbe60091033bcbac4e4aaf565214a6  tools/f2-outcome-class.sh
+  3848550101207d22a105bdb25dc0baefb0ba3e5b85ec784ced80f3f07228d266  logs/fixtures/toy-live-protocol.log
+  7002623f855ff3739f47431d1519c4bac43aa0135bc5bd8844d763e104c38696  logs/fixtures/ground-evaluation.log
+  28afa171713a7e4e8b1102e6a13a59d4de6e653ef0c4861f5f828249c219f9e7  logs/fixtures/blind-geometry-dependencies.log
+  c66b75af75dd221a6b6804c3a75f8e37317b77e0b7c05b215b08b8d507cd7db8  logs/fixtures/incident-misattributed-teaching.log
