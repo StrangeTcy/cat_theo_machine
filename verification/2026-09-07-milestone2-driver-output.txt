@@ -1,0 +1,88 @@
+START utc 2026-09-07T03:33:55Z
+CHECK observations-nonempty: ok
+CHECK failed-attempt-keeps-residual: ok
+CHECK episode-recorded: ok
+CHECK candidates-mined: ok
+  [inertness detail] policies-hit=False provenance-empty=False
+CHECK proposal-absent-from-active-stores: ok
+CHECK duplicate-mining-stable: ok
+CHECK journals-isolated-files: ok
+CHECK observations-file-lacks-candidate-root: ok
+CHECK proposals-file-lacks-episode-root: ok
+  [restore detail] policy entries fresh=nonempty orig=nonempty; fresh resid type=Pair
+  [counts] traces orig=2 fresh=2
+  [eq detail] traces orig=2 fresh=2 shapes orig=2 fresh=2
+  [eq detail] episode fields orig=<cat_theo_machine.gmprep.GMPRep object at 0x7ff936a22290> fresh=<cat_theo_machine.gmprep.GMPRep object at 0x7ff936a23290>
+CHECK restore-equivalence-traces: ok
+CHECK restore-equivalence-episodes-by-replay: ok
+CHECK restore-equivalence-counterfactuals: ok
+CHECK restore-equivalence-residuals: ok
+CHECK proposals-rederive-from-restored-evidence: ok
+CHECK proposals-never-imported-into-restored: ok
+  [dup detail] pre=1 post=1
+CHECK duplicate-delivery-no-effect: ok
+CHECK restore-is-one-way: ok
+  [support] values orig=2 fresh=2
+CHECK support-measurement-equal-after-restore: ok
+aggregate work recorded: attempts+evaluations=4; wall time 20.24s
+ALL CHECKS: ok
+END utc 2026-09-07T03:34:15Z
+
+milestone-2 land notes (journal split) — run above, driver:
+tools/agent_workers/journal_driver.py, exit 0, 19/19 checks ok, wall ~20s,
+aggregate host-side work counter: 4 (two closed attempts, one failed attempt,
+one counterfactual evaluation; each attempt is itself a bounded search per
+the production fuel).
+
+Semantics proven by THIS run, per check:
+  observations-nonempty / failed-attempt-keeps-residual — the OBSERVATIONS
+    stream carries only genuine evidence: closed derivation traces via
+    attempt_goal -> record_trace, and a residual that is a real stall record
+    (never erased when no successor fired).
+  episode-recorded — one InterventionEpisode built EXACTLY as production does
+    (EpisodeFeatures over the taught formal + the residual it discharged),
+    recorded via graph.record_intervention_episode.
+  candidates-mined / proposal-absent-from-active-stores — PROPOSALS =
+    mine_compressed_laws output; it appears in NO active root (policies chain
+    un-hit, InventedLemma provenance empty) because mining never installs
+    anything — the existing production property, demonstrated per land.
+  duplicate-mining-stable / duplicate-delivery-no-effect — re-delivering the
+    same evidence changes nothing derived: candidate counts and alpha-shapes
+    identical after double-append of the same episode term.
+  journals-isolated-files / observations-file-lacks-candidate-root /
+    proposals-file-lacks-episode-root — two files, two root sets, disjoint;
+    the proposals file is data, never a snapshot root the codec would consume.
+  restore-equivalence-* — NOT hash-checked: the observations journal was
+    activated into a fresh graph (production SnapshotCodec path) and the
+    PRODUCTION computations were re-run over the restored data — traces
+    compared by re-derived ComposedInstances shapes, episode entries compared
+    by re-projected EpisodeRuleShape/EpisodeOutcome (alpha-normalized pure
+    terms), counterfactual results compared structurally. All equal.
+  restore-equivalence-residuals — one deliberate scope limit, honest and
+    recorded here: AttemptedRule records carry the rule OBJECT in their
+    rule-id slot; decoded edge twins have no production term-equality
+    (Compare on raw edges falls through to host identity). Residual
+    equivalence therefore compares the record's validator-meaningful fields
+    (kind, origin, substitution, matched/unmatched premises, failure) and
+    requires rule-id presence — never edge-twin equality. No semantics is
+    claimed beyond what any consumer reads.
+  proposals-rederive-from-restored-evidence — re-mining the restored graph
+    (which was never handed the proposals file) re-derives alpha-equal
+    candidates: a proposal is a function of evidence, so restore equivalence
+    needs NO proposals import; conversely importing the file would be the
+    forbidden act, which the next check confirms never happens automatically.
+  proposals-never-imported-into-restored — the restored graph shows no
+    policies hit, no InventedLemma provenance, all_rules equal to a cold
+    store. Activation of OBSERVATIONS cannot smuggle PROPOSALS in.
+  restore-is-one-way / support-measurement-equal-after-restore — restoring
+    left the original graph's trace stream byte-identical (one-way traffic),
+    and candidate support over restored evidence equals the original
+    measurement (2 traces), > 0.
+
+No new labels were minted (no labels.py/persistence.py table change was
+needed); no production file edited by this land; core.py untouched; no tag
+cut. INT note: the milestone-1 comparison red and this milestone's replay
+machinery both ride the SAME equality finding — structural comparison across
+the snapshot boundary must use M.Compare on pure terms and must never be
+asked of raw host edges; if that deserves a machine-side rule-equality term,
+that is a separate ruling, not assumed here.
