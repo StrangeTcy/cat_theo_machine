@@ -1,0 +1,115 @@
+Preflight item 1 — swallowed exception, surfaced.
+
+    commit:           b38965046fb65e61628ffa845ce172ce2abedc52
+    mode:             exact-109
+    selection rule:   every registration before cursor 218 accepted by
+                      shard 0 of 2, in source registration order
+    predecessors:     109
+    ordered set:      verification/2026-09-07-preflight-item1/attempt-1/ordered-set.txt
+    ordered digest:   139c78b9c2bf5c5d375d120f93e768aaea576a55d928fd862850ecbb6c7f87d5
+    command:          sh tools/preflight_item1_repro.sh exact
+    attempt:          1 of 3
+    start_utc:        2026-09-07T23:42:20Z
+    end_utc:          2026-09-07T23:54:21Z
+    exit:             1
+    host:             Linux 6.1.158+ x86_64
+    python:           Python 3.11.2
+    raw log:          verification/2026-09-07-preflight-item1/attempt-1/run.log
+    raw log digest:   9821e40a4ff091ce2a3f26798d87e0ab608c260da6edab3e98ea27ba55636410
+
+    The re-raise was applied at testsuite.py:14957 for the duration of the
+    run and restored by the harness on exit. The tree carries no re-raise.
+
+--------------------------------------------------------------------------
+Traceback (first complete traceback, verbatim)
+--------------------------------------------------------------------------
+
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 102, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 74, in main
+    install_default_tests(graph)
+  File "/home/user/cat_theo_machine/testsuite.py", line 18614, in install_default_tests
+    _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest, M.truth_value)
+  File "/home/user/cat_theo_machine/testsuite.py", line 16243, in _register_test
+    computation_edge = computation_edge(graph)
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/testsuite.py", line 14944, in __init__
+    codec.save(graph, snap_path, progress=M.false_value)
+  File "/home/user/cat_theo_machine/persistence.py", line 1848, in save
+    snapshot = self.capture(graph, progress=progress, deadline=deadline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1840, in capture
+    return self._capture_from_roots(roots, progress, deadline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1659, in _capture_from_roots
+    self._intern(roots[name], deadline)
+  File "/home/user/cat_theo_machine/persistence.py", line 1448, in _intern
+    queue = self._queue_uncaptured(current.head.value, queue, Pair)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1365, in _queue_uncaptured
+    if self._captured_object_id(candidate) is not M.EmptyList:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 806, in _captured_object_id
+    return T.IdentityRedBlackNatLookupValue(self.object_id_index, target)()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/trees.py", line 176, in __init__
+    self.key_id = key.id
+                  ^^^^^^
+AttributeError: 'Hypergraph' object has no attribute 'id'
+
+--------------------------------------------------------------------------
+Mechanism
+--------------------------------------------------------------------------
+
+Named defect: OBJECT_ID_INDEX_ASSUMES_TERM_ID_ON_HOST_OBJECT
+
+Locus: persistence.py:806, `_captured_object_id`, reaching trees.py:176.
+
+Class: codec type gap, not a size threshold.
+
+Reach path, from the traceback, top to bottom:
+
+  codec.save
+    -> capture
+      -> _capture_from_roots            (persistence.py:1659)
+        -> _intern(roots[name])         (persistence.py:1448)
+          -> _queue_uncaptured(current.head.value, ...)   (persistence.py:1365)
+            -> _captured_object_id(candidate)             (persistence.py:806)
+              -> IdentityRedBlackNatLookupValue(object_id_index, target)
+                -> trees.py:176  self.key_id = key.id
+
+The object-id index is a red-black tree keyed on object identity, and its
+lookup constructor reads `key.id` unconditionally. Every machine term in the
+machine carries `.id`. A `Hypergraph` does not: it is a host object, not a
+machine term. When a Hypergraph arrives at `_captured_object_id` as a
+candidate, the lookup raises AttributeError instead of returning "not
+captured", and the whole registration of the test aborts.
+
+Why it looked load-sensitive, and why 109 was the magic number:
+
+The candidate is `current.head.value` reached through root interning. Whether
+that value is a Hypergraph depends on what the preceding registrations have
+put in the graph. With 0, 16, or 32 predecessors the value is never a
+Hypergraph and the run passes. The exact-109 set — every shard-0
+registration before cursor 218 — is the first configuration tried that puts
+a Hypergraph at that position. The count was never the mechanism; the
+configuration was.
+
+Not a defect in the test. Not a defect in the harness. The test did its job
+and reported a failure; the guard swallowed the reason for ~the whole
+history of the pin.
+
+--------------------------------------------------------------------------
+Closure status
+--------------------------------------------------------------------------
+
+Guard:    restored. The harness reverted testsuite.py:14957 on exit; the
+          tree carries no re-raise.
+Fix:      NOT APPLIED. Per the closure rule, the repair lands in a separate
+          commit after `preflight`, then the suite reruns clean.
+Attempts: 1 of 3. Attempts 2 and 3 exist in the ruling to establish
+          non-reproduction; the exception appeared on the first, so the
+          "exception appears" branch is taken and they are not required for
+          closure.
