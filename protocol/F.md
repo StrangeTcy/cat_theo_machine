@@ -742,3 +742,89 @@ lane has a closing commit and a dated artifact; the hold rests on a
 swept-and-empty trigger queue, not asserted idleness. Next action:
 none until a research.py-bearing cut or a real operator transcript
 appears.
+
+## 2026-09-08, holding sweep under the full-set rule -- exhaustive tag delta, four research.py-bearing tags that are not cuts, INT cross-reference
+
+Sweep rule, adopted and standing: tag sweeps compare the FULL
+current tag set against the last recorded set; the delta is
+examined. No fixed-size windows. The alphabetical-tail blind spot
+was one instance of a class -- any bounded window over a sorted
+list silently drops whatever sorts outside it -- and the fix is
+exhaustive comparison, not a better window.
+
+The full tag set at this sweep, fifteen tags, recorded as the new
+baseline: cut-1-bf9da23, shared-7cf6394, preflight-412b215,
+preflight-6a132f3, preflight-e73d748, partition-32bc569, eng-base-0,
+eng-base-0@1374464, s1-relation-contracts,
+d2-equality-subject-template, preflight-converse-outcome-guard,
+experiment-5-frozen-r1, experiment-5-frozen,
+preflight-shard-cursor-gate, experiment-4-frozen. Delta against the
+previously recorded set: cut-1-bf9da23, examined last turn.
+
+Exhaustive trigger-1 result -- the first time the whole namespace
+was checked rather than its newest or alphabetical edges: four tags
+bear research.py in their trees: experiment-4-frozen,
+experiment-5-frozen, experiment-5-frozen-r1,
+preflight-shard-cursor-gate. None is a cut, and all four predate
+the plan partition -- the F-RUNNER decoy/target pair ran on
+experiment-5-frozen-r1 before the plan was received -- so the park
+condition's authors knew these tags and parked F1 anyway: they
+cannot be the trigger. The cut series so far is cut-1-bf9da23 alone
+(predecessor cut-1-f9ed7fd, withdrawn by INT for an unmeasured
+shard), and it bears no research.py. Trigger 1 stays unfired under
+the recorded reading -- an INT-cut tag whose tree contains the
+module. If D12's wording means something broader, that is INT's
+ruling to make, not this lane's.
+
+Cross-reference for INT (informational; this lane's to record, not
+to act on), verified this turn rather than relayed: 41e8078 is an
+ancestor of cut-1-bf9da23, of s1-relation-contracts, and of the
+withdrawn cut-1-f9ed7fd (commit f9ed7fd, an S1 relation-contracts
+cut on that line). The standing program rulings hold that lineage
+inadmissible as a wave-1 base for S-track work. A cut can be
+internally well-formed -- complete two-shard baseline, measured
+shards -- and still sit on a line ruled stale for other tracks.
+Whether INT intends cut-1-bf9da23 as a measurement base for any
+track is INT's to state. Recorded here so the two rulings do not
+drift past each other.
+
+Trigger 2: no operator transcript arena-wide; the newest arena tip
+at this sweep is this branch's own 2c1b253. The F4 sweep stays
+empty. Holding continues.
+
+## 2026-09-08, fifth sandbox reset -- mid-turn, clean tree, first live use of the revised procedure
+
+Event: between receiving the ratification and this turn's first
+command, the sandbox reset again. Signature: HEAD rebuilt at the
+branch base (41e8078) while the remote tip held the full pushed
+chain (2c1b253); remote-tracking refs wiped, restored by the
+arena-wide refspec fetch. One sweep command raced that fetch and
+failed on a tag name not yet fetched -- noted as a rule: the
+recovery fetch completes alone, before any parallel read runs
+against the refs.
+
+What made this event different from all four before it: the working
+tree had been verified clean at 2c1b253 before the reset -- every
+byte already pushed. The entire lane content sat on disk as
+untracked-at-base files. Recovery under the revised procedure:
+inventory first -- HEAD, stash list, every one of the 31 status
+entries classified against the remote tip (untracked paths whose
+on-disk bytes equal the tip's versions are pushed content sitting
+on disk, not unique content) -- zero unique content found, so the
+reconcile step ran: reset to origin/arena/01a06eb9-cat-theo-machine
+(2c1b253). No clean-clone reconstruction was needed because there
+was nothing to reconstruct; the procedure's own test -- does the
+checkout hold anything unique -- answered no before any reset ran,
+which is exactly the property the revision was written to guarantee.
+
+Verification: HEAD 2c1b253, tree clean, battery BATTERY PASSED with
+the deterministic core byte-identical to
+logs/f-tools-acceptance-battery-2026-09-08b.txt, selftest 12 of 12,
+metadata companion recording commit 2c1b253 and tree-state clean.
+
+Ledger of events: 9787811 -> 246162a; e6488c4 -> 704db5e; 19bed91
+-> 545d5ce; uncommitted batch -> dbd8d98; clean tree -> 2c1b253
+reconciled, nothing to re-land. Five events, five recoveries, zero
+force-pushes, zero lost content. The pattern is now plain: the
+remote chain is the only durable state, and pushing every green
+step is what turns a reset from an emergency into a procedure.
