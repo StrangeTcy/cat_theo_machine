@@ -124,3 +124,33 @@ revived, the two named mechanisms are the work queue:
      or make the codec re-intern Char/Heuristic atoms so TermEqual holds.
 Both are bounded, in the already-partitioned search/ surface. This file
 makes no code change and cuts no tag.
+
+--------------------------------------------------------------------------
+Disposition — 2026-09-07
+--------------------------------------------------------------------------
+This inspection independently reproduces the C1 findings on b812db9.
+
+Existing ruling:
+  REVIVE-LATER.
+  workers.py is the active process-worker line.
+  compare_search_modes remains parked.
+
+Cross-lineage repair evidence:
+  Layer-D commit 327a263 reports the reusable-worker-snapshot test green
+  after repairing the restored-term comparison boundary.
+  That result is candidate evidence only until merged, suite-gated, and
+  tagged on the authoritative line.
+
+  Verified this turn, not assumed: 327a263 exists locally, descends from
+  41e8078 (the divergent Layer-D line, NOT ef571b6), touches
+  search/compare_subprocess.py (+25, the Compare-not-TermEqual decode
+  boundary) and testsuite.py (+6, fixture/heuristic alignment), and adds
+  tools/agent_workers/driver.py + focused_repro.py. It is not present on
+  any current remote ref.
+
+The fill-warms failure remains unchanged:
+  worker spawning succeeds;
+  shared-root ready state is not established by the direct fill path.
+
+No red test is retired by this inspection alone.
+No new concurrency implementation is authorized from this S-eng branch.

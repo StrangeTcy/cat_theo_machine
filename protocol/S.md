@@ -307,3 +307,20 @@ standing red tests fail for named, distinct reasons:
 Revive vs replace is INT's ruling. Diagnosis retires two baseline reds by
 naming their mechanism regardless of the answer. No code changed here; no
 tag cut.
+
+CORRECTION (orchestrator, 2026-09-07): two routing lines amended.
+
+1. The ruling already exists: REVIVE-LATER. workers.py is the active
+   process-worker line; compare_search_modes stays parked; future target
+   CONVERGE when workers.py needs pool warming or snapshot reuse. This
+   inspection is independent confirmation of that ruling on b812db9, not
+   a new decision to wait on.
+
+2. Diagnosis does NOT retire the reds. Both tests remain red at b812db9;
+   naming their mechanism is not closure. Cross-lineage evidence:
+   Layer-D commit 327a263 (descends from 41e8078, verified this turn)
+   reports the reusable-worker-snapshot test green after fixing the
+   restored-term comparison boundary (Compare, not TermEqual, across the
+   decode boundary) plus fixture/heuristic alignment; fill-warms stays
+   red there. That is candidate evidence only until merged, suite-gated,
+   and tagged on the authoritative ef571b6 line.
