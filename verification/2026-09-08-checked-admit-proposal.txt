@@ -1,0 +1,43 @@
+date: 2026-09-08
+line: arena/01a06da9-cat-theo-machine
+base: 24a84c235018057948ff6222d9602700378fceff
+subject: CheckedAdmitProposal binds queue logging to gated admission
+
+invocation:
+  /tmp/hyge-venv/bin/python - << 'PY'
+  import os, sys
+  sys.path.insert(0, "/home/user")
+  os.chdir("/home/user/cat_theo_machine")
+  import cat_theo_machine.testsuite as ts
+  from cat_theo_machine import machine as M
+  for name in [
+      "SharedSerialAdmissionAndStaleAttemptTest",
+      "SharedSerialAdmitProposalAblationTest",
+      "SharedSerialAdmitProposalCitesBaselineTest",
+      "SharedCheckedAdmitProposalLoggingTest",
+  ]:
+      edge = getattr(ts, name)(None)
+      print(name, edge.result is M.truth_value)
+  PY
+
+results:
+  SharedSerialAdmissionAndStaleAttemptTest True
+  SharedSerialAdmitProposalAblationTest True
+  SharedSerialAdmitProposalCitesBaselineTest True
+  SharedCheckedAdmitProposalLoggingTest True
+
+coverage:
+  valid reconstructed origin Char vs coordinator SnapshotIdentity → AdmissionSucceededLabel
+  law installed through existing ActivateProposal
+  missing origin → AdmissionRejectedLabel, law absent
+  origin digest mismatch → AdmissionStaleLabel, no activate
+  empty authority (unapproved) → AdmissionRejectedLabel, law absent
+  ObservationJournal → AdmissionRejectedLabel, queued EmptyList, law absent
+  second sequential activation: before equals prior after; after differs; both laws present
+
+not claimed:
+  SerialAdmitProposal refuses a mismatched baseline identity
+  ablation is re-mining of a different law
+  learned-memory mask
+  sibling independence
+  evidence-class neutrality (CounterfactualEvidence / AttemptedRule still absent)

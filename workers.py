@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 
+from . import graph as Gmod
 from . import labels as L
 from . import machine as M
 
@@ -221,6 +222,81 @@ class SerialAdmitProposal(M.Edge):
             self.result = M.Pair(record, admitted)
         super().__init__(
             inputs=M.Pair(admitted, M.Pair(proposal, M.Pair(baseline, M.EmptyList))),
+            results=M.Pair(self.result, M.EmptyList),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CheckedAdmitProposal(M.Edge):
+    def __init__(self, graph_version, journal, origin_digest, snapshot_path, authority):
+        queued = SerialAdmitProposal(M.EmptyList, journal, origin_digest)()
+        coordinator_digest = SnapshotIdentity(snapshot_path)()
+        self.origin_digest = origin_digest
+        self.coordinator_digest = coordinator_digest
+        self.queued = queued
+        self.before = graph_version
+        self.after = graph_version
+        self.version = graph_version
+        self.gate = M.EmptyList
+        self.status = L.AdmissionRejectedLabel
+        if M.IdentityCompare(origin_digest, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(coordinator_digest, M.EmptyList)() is M.false_value:
+                if M.Compare(origin_digest, coordinator_digest)() is M.false_value:
+                    self.status = L.AdmissionStaleLabel
+                elif M.IdentityCompare(queued, M.EmptyList)() is M.false_value:
+                    proposal = M.Head(M.Head(M.Tail(journal)())())()
+                    store = Gmod.ProposalStore(M.EmptyList)()
+                    store = Gmod.ProposalStoreSubmit(store, proposal)()
+                    if M.IdentityCompare(authority, M.EmptyList)() is M.false_value:
+                        store = Gmod.ProposalStoreAttach(
+                            store,
+                            proposal,
+                            Gmod.Approved(proposal, authority)(),
+                        )()
+                    entries = Gmod.ProposalStoreEntries(store)()
+                    approved_entries = Gmod.ProposalStoreApproved(store)()
+                    entry = M.Head(entries)()
+                    if M.IdentityCompare(approved_entries, M.EmptyList)() is M.false_value:
+                        entry = M.Head(approved_entries)()
+                    gate = Gmod.ActivateProposal(graph_version, entry)()
+                    self.gate = gate
+                    installed = M.Head(gate)()
+                    if M.IdentityCompare(installed, M.EmptyList)() is M.false_value:
+                        self.status = L.AdmissionSucceededLabel
+                        self.after = installed
+                        self.version = installed
+        self.result = M.Pair(
+            self.status,
+            M.Pair(
+                queued,
+                M.Pair(
+                    origin_digest,
+                    M.Pair(
+                        coordinator_digest,
+                        M.Pair(
+                            self.before,
+                            M.Pair(self.after, M.Pair(self.gate, M.EmptyList)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(
+                    journal,
+                    M.Pair(
+                        origin_digest,
+                        M.Pair(
+                            M.Char(snapshot_path),
+                            M.Pair(authority, M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
             results=M.Pair(self.result, M.EmptyList),
         )
 

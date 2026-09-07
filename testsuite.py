@@ -13840,15 +13840,97 @@ class SharedSerialAdmitProposalCitesBaselineTest(M.Edge):
         refused = Wmod.SerialAdmitProposal(empty, observation, baseline)()
         record = M.Head(admitted)()
         cited = M.Head(M.Tail(record)())()
+        reconstructed = M.Char("shared-7cf6394")
         self.result = M.truth_value
         if M.IdentityCompare(M.Head(record)(), journal)() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(cited, baseline)() is M.false_value:
+        elif M.Compare(cited, reconstructed)() is M.false_value:
             self.result = M.false_value
-        elif M.IdentityCompare(cited, other_baseline)() is M.truth_value:
+        elif M.Compare(cited, other_baseline)() is M.truth_value:
             self.result = M.false_value
         elif M.IdentityCompare(refused, empty)() is M.false_value:
             self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SharedCheckedAdmitProposalLoggingTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        work_dir = tempfile.mkdtemp(prefix="hyge-checked-admit-")
+        snap_path = os.path.join(work_dir, "coordinator.snapshot.json")
+        Wmod.WriteMinimalSnapshot(snap_path)()
+        origin = Wmod.SnapshotIdentity(snap_path)()
+        reconstructed = Wmod.SnapshotIdentity(snap_path)()
+        mismatch = M.Char("0" * 64)
+        left_a = M.Pair(Lmod.ZeroLabel, empty)
+        right_a = M.Pair(Lmod.SuccLabel, M.Pair(left_a, empty))
+        law_a = Gmod.CompileRuleToLaw(Pmod.Rule(left_a, right_a))()
+        left_b = M.Pair(Lmod.SuccLabel, M.Pair(left_a, empty))
+        right_b = M.Pair(Lmod.SuccLabel, M.Pair(left_b, empty))
+        law_b = Gmod.CompileRuleToLaw(Pmod.Rule(left_b, right_b))()
+        proposal_a = Gmod.Proposal(law_a, M.Char("checked-admit-a"))()
+        proposal_b = Gmod.Proposal(law_b, M.Char("checked-admit-b"))()
+        journal_a = Wmod.ProposalJournal(M.Pair(proposal_a, empty))()
+        journal_b = Wmod.ProposalJournal(M.Pair(proposal_b, empty))()
+        observation = Wmod.ObservationJournal(M.Pair(proposal_a, empty))()
+        encoded = Gmod.EncodeTermAsGraph(left_a)()
+        base = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(),
+            Gmod.GraphEdges(encoded)(),
+            empty,
+        )()
+        authority = M.Char("shared-curator")
+        valid = Wmod.CheckedAdmitProposal(base, journal_a, reconstructed, snap_path, authority)
+        valid()
+        missing = Wmod.CheckedAdmitProposal(base, journal_a, empty, snap_path, authority)
+        missing()
+        stale = Wmod.CheckedAdmitProposal(base, journal_a, mismatch, snap_path, authority)
+        stale()
+        unapproved = Wmod.CheckedAdmitProposal(base, journal_a, origin, snap_path, empty)
+        unapproved()
+        observed = Wmod.CheckedAdmitProposal(base, observation, origin, snap_path, authority)
+        observed()
+        second = Wmod.CheckedAdmitProposal(valid.version, journal_b, origin, snap_path, authority)
+        second()
+        self.result = M.truth_value
+        if M.IdentityCompare(valid.status, Lmod.AdmissionSucceededLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(valid.origin_digest, valid.coordinator_digest)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(valid.version)(), law_a)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(missing.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(missing.version)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(stale.status, Lmod.AdmissionStaleLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(stale.version)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(unapproved.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(unapproved.version)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(observed.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(observed.queued, empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(observed.version)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(second.status, Lmod.AdmissionSucceededLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(second.before, valid.after)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(second.after, valid.after)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(second.version)(), law_a)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(second.version)(), law_b)() is M.false_value:
+            self.result = M.false_value
+        shutil.rmtree(work_dir, ignore_errors=True)
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
     def __call__(self):
@@ -16121,6 +16203,14 @@ def install_default_tests(graph):
             "shared_serial_admit_proposal_cites_baseline_test",
             empty,
             SharedSerialAdmitProposalCitesBaselineTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_checked_admit_proposal_logging_test",
+            empty,
+            SharedCheckedAdmitProposalLoggingTest(graph),
             M.truth_value,
         )
 

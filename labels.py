@@ -2403,6 +2403,9 @@ def sync_from_namespace(namespace):
         "OrJoinLabel",
         "ObligationDischargedLabel",
         "ObligationOpenLabel",
+        "AdmissionSucceededLabel",
+        "AdmissionStaleLabel",
+        "AdmissionRejectedLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
@@ -2565,6 +2568,23 @@ AndJoinLabel = AndJoinLabel()
 OrJoinLabel = OrJoinLabel()
 ObligationDischargedLabel = ObligationDischargedLabel()
 ObligationOpenLabel = ObligationOpenLabel()
+
+
+class AdmissionSucceededLabel(ConstructorLabel):
+    pass
+
+
+class AdmissionStaleLabel(ConstructorLabel):
+    pass
+
+
+class AdmissionRejectedLabel(ConstructorLabel):
+    pass
+
+
+AdmissionSucceededLabel = AdmissionSucceededLabel()
+AdmissionStaleLabel = AdmissionStaleLabel()
+AdmissionRejectedLabel = AdmissionRejectedLabel()
 
 
 # --- [S] ---
