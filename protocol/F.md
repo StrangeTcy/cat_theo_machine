@@ -699,3 +699,46 @@ tested commit. No reset this turn; the event ledger stays at four.
 
 Not done, deliberately: no expected grade changed; no closed
 measurement pair run; no F1; no machine code touched; no tag cut.
+
+## 2026-09-08, ratification and hold -- lane complete on internal work; arena swept, both triggers unfired
+
+The second hardening batch ratified as specified: findings 1-4
+closed (eb47630), evidence accepted with the clean-clone run named
+the check of record (a185c93). Findings ledger six of six lifetime.
+The reviewer singled out the three-way byte-identity of the battery
+core -- morning artifact, dev run, clean-clone rerun -- as the
+correct signature for a fail-closed hardening: it changed what a
+failing run can get away with, not what a green run reports.
+
+Arena sweep this turn, with one method correction:
+
+- A cut-1 tag exists: cut-1-bf9da23, created 2026-09-07 12:14Z,
+  annotated "cut-1 post-D1: first complete two-shard baseline;
+  authorizes measurements". An earlier cut-1 (cut-1-f9ed7fd) was
+  withdrawn by INT for an unmeasured shard before this one landed.
+  Examined against the F1 park condition ("lands on a
+  research.py-bearing cut together with D12"): the cut's tree
+  carries the full machine but no research.py anywhere -- the only
+  research-matching path is protocol/research_protocol.md, a
+  document, not the module. F1 stays parked.
+- That tag was invisible to the previous sweep: the check read the
+  tail of an alphabetically sorted tag list, and cut-* sorts before
+  the preflight-* entries that filled the tail. Tag checks are
+  date-ordered from now on (for-each-ref --sort=-creatordate), so a
+  new tag cannot hide behind a sort order again.
+- Eight arena branch tips carry research.py (the research lanes);
+  the trigger is a cut bearing it, and no such cut exists. Recorded
+  so future sweeps do not false-positive on branch tips.
+- No operator transcript arena-wide in the last 36 hours of commits;
+  the F4 sweep stays empty.
+- preflight-6a132f3: the reviewer confirmed the program-wide ruling
+  -- inadmissible as a wave-1 base, stale lineage -- and that this
+  lane's narrower classification (not an F trigger) is compatible
+  and independently sufficient.
+
+State: holding. Everything the lane can do without an external
+artifact is closed; every inspection finding raised against this
+lane has a closing commit and a dated artifact; the hold rests on a
+swept-and-empty trigger queue, not asserted idleness. Next action:
+none until a research.py-bearing cut or a real operator transcript
+appears.
