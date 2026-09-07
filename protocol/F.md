@@ -409,6 +409,15 @@ history was rewritten; the remote chain stands.
 
 ## Runbook -- sandbox-reset recovery on this branch (named procedure; two events, both recovered)
 
+> **Superseded 2026-09-08** by the revised recovery procedure ("Recovery
+> procedure, revised") later in this file. The numbered steps below -- and
+> the step-4 amendment that follows them -- are withdrawn as an executable
+> procedure and retained as incident history. In particular, every step
+> that mutated this checkout in place (the old steps 4-6, and the in-place
+> path the amendment kept) is withdrawn: the four recoveries are incident
+> evidence and establish no condition under which an in-place hard reset
+> is safe.
+
 Hazard class: the one tools/recover.sh names on the frozen tags
 (INT's line; this runbook is this branch's instantiation of it). Event
 shape, seen twice on 2026-09-05: between turns the sandbox reset
@@ -478,6 +487,12 @@ commit. Three events, three recoveries, zero force-pushes, zero lost
 content.
 
 ## Runbook correction -- step 4, from source inspection
+
+> **Superseded 2026-09-08**: the in-place reset path this amendment retained
+> for the unambiguous signature is withdrawn by the revised recovery
+> procedure later in this file. The observation stands -- the fourth event
+> left no local commit and a partial snapshot -- and it argues for the
+> clean-clone path, not for a safer in-place reset.
 
 Finding: step 4's `git reset --hard origin/<branch>` overwrites
 working-tree content and can clobber obstructing untracked paths, and
@@ -561,3 +576,55 @@ determinism recheck after recovery: byte-identical.
 Not done, deliberately: no expected grade was changed to match script
 output; the closed measurement pair was not run; F1 was not
 implemented; no machine code touched; no tag cut.
+
+## Recovery procedure, revised -- reconstruction in a clean clone only (supersedes the numbered runbook and the step-4 amendment above)
+
+Withdrawn: every recovery path that mutates this checkout in place.
+The old numbered procedure read the delta from the post-reset state
+and ran `git reset --hard` on the theory that the reset signature was
+unambiguous; the fourth event (no local commit, partial snapshot)
+broke the signature reading, and Git's documentation is blunt: a hard
+reset overwrites working-tree content and may overwrite untracked
+files. After a sandbox reset, the working tree is exactly the thing
+whose contents are not yet trusted. No number of successful
+recoveries establishes an in-place-reset condition; the four events
+are incident evidence, nothing more. The procedure, in order:
+
+1. Fetch arena-wide (the refspec `refs/heads/arena/*:refs/remotes/
+   origin/arena/*`, not a single branch) and record the remote tip of
+   this branch before any other action.
+2. Preserve the original checkout. Inventory it completely --
+   tracked, staged, unstaged, untracked, stashes, and file modes --
+   and copy every owned change into a staging directory outside the
+   repository. Intentional deletions are content too: record the
+   deletion itself, there is no file to copy.
+3. Leave unidentified or foreign content untouched: note it in the
+   inventory, set it aside only if it obstructs, adopt nothing,
+   delete nothing.
+4. Do not reset, checkout, clean, or stash the original checkout
+   until step 2 is verified complete -- the staging directory holds
+   every unique byte and the inventory accounts for every path.
+5. Reconstruct in a separate clean clone at the verified remote
+   commit. Prove the clone clean before applying anything. Then
+   apply only reviewed, owned changes, and verify every path, byte,
+   and mode against the staging directory (cmp, ls -l).
+6. Run the acceptance battery and the selftest in the clean clone;
+   proceed only on green. Generate the evidence artifacts there,
+   from the exact tested commit -- which is also why the battery's
+   metadata companion records the commit, the tree state, and the
+   sha256 of every graded input: evidence from a dirty tree names a
+   state no commit will ever have.
+7. Commit and push from the clean clone -- same branch, never force.
+8. Only after the push is verified, reconcile the original checkout
+   to the new remote tip. By then it holds nothing unique; the
+   reconciliation destroys nothing that was not already staged,
+   verified, and committed.
+9. Record the event in the ledger: what the reset looked like, what
+   was staged, what was reconstructed in the clone, what was left
+   untouched.
+
+Ledger of events, unchanged by this revision: 9787811 -> 246162a;
+e6488c4 -> 704db5e; 19bed91 -> 545d2ce; the fourth event (no local
+commit, uncommitted batch) -> dbd8d98. Four events, four recoveries,
+zero force-pushes, zero lost content -- all four under the old
+procedure, which is why this one exists.

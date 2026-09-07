@@ -7,16 +7,24 @@
 #
 # The deterministic core on stdout carries no timestamps, no absolute
 # paths, no host state: byte-identical across reruns of one tree. Run
-# metadata (UTC, commit, invocation, resolved tree) is written to the
-# companion file named by the first argument, when given, and never
-# mixes into the deterministic core.
+# metadata (UTC, commit, tree state, invocation, resolved tree, and
+# the sha256 of every graded input) is written to the companion file
+# named by the first argument, when given, and never mixes into the
+# deterministic core. A relative companion path resolves against the
+# caller's directory, not the tree. A companion that cannot be
+# written completely fails the run.
 #
 # Exit 0 only when every enforced check is green:
 #   - the five grading scripts exist and are executable
 #   - the four fixtures exist and are readable
+#   - the F2 grader exits 0 for every fixture: correct-looking output
+#     with a nonzero exit is a failure, not a pass
 #   - every required F2 field equals the recorded oracle
 #   - the name-token grep is zero across the grading scripts
 #   - the F3 batch completes with zero incomparable pairs
+#   - the F4 auditor exits 0 for every fixture: its findings remain
+#     informational, an execution error does not
+#   - a requested metadata companion is written completely
 # F3 pair verdicts identical / silence-class / distinct are outcomes
 # of the measurement, not failures. Any CHECK FAILED line forces a
 # nonzero exit.
@@ -27,19 +35,52 @@ RUNDIR=$(pwd)
 TREE=$(cd "$(dirname "$0")/.." && pwd) || exit 2
 cd "$TREE" || exit 2
 
+FAILURES=0
 METADATA=${1:-}
 if [ "$METADATA" != "" ]; then
+    case "$METADATA" in
+        /*) ;;
+        *) METADATA="$RUNDIR/$METADATA" ;;
+    esac
     {
         echo "battery run metadata"
         echo "utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+        if git rev-parse --git-dir > /dev/null 2>&1; then
+            if [ -z "$(git status --porcelain 2>/dev/null)" ]; then
+                echo "tree-state: clean"
+            else
+                echo "tree-state: dirty"
+            fi
+        else
+            echo "tree-state: no-git"
+        fi
         echo "invoked-as: $0"
         echo "invoked-from: $RUNDIR"
         echo "resolved-tree: $TREE"
-    } > "$METADATA"
+        echo "input-sha256:"
+        for f in tools/f-tools-battery.sh tools/f-tools-battery-selftest.sh \
+                 tools/f2_grader.sh tools/f3-residual-diff.sh \
+                 tools/f3_batch_diff.sh tools/f4_auditor.sh \
+                 tools/f2-outcome-class.sh \
+                 logs/fixtures/toy-live-protocol.log \
+                 logs/fixtures/ground-evaluation.log \
+                 logs/fixtures/blind-geometry-dependencies.log \
+                 logs/fixtures/incident-misattributed-teaching.log; do
+            if command -v sha256sum > /dev/null 2>&1; then
+                sha256sum "$f" | sed 's/^/  /'
+            else
+                echo "  (sha256sum unavailable) $f"
+            fi
+        done
+    } > "$METADATA" 2>/dev/null
+    meta_status=$?
+    if [ "$meta_status" -ne 0 ] || ! tail -n 1 "$METADATA" 2>/dev/null | grep -q "incident-misattributed-teaching.log$"; then
+        echo "CHECK FAILED: metadata companion write ($METADATA)"
+        FAILURES=$((FAILURES + 1))
+    fi
 fi
 
-FAILURES=0
 FIXTURES="toy-live-protocol ground-evaluation blind-geometry-dependencies incident-misattributed-teaching"
 SCRIPTS="tools/f2_grader.sh tools/f3-residual-diff.sh tools/f3_batch_diff.sh tools/f4_auditor.sh tools/f2-outcome-class.sh"
 FIXTURE_PATHS=""
@@ -98,8 +139,13 @@ while IFS='|' read -r name e_taught e_unlock e_circular e_computable e_cited e_u
         continue
     fi
     out=$(tools/f2_grader.sh "logs/fixtures/$name.log" 2>&1)
+    g_status=$?
     echo "-- $name.log"
     printf '%s\n' "$out"
+    if [ "$g_status" -ne 0 ]; then
+        echo "CHECK FAILED: f2-grader execution status ($name): expected 0, got $g_status"
+        FAILURES=$((FAILURES + 1))
+    fi
     g_taught=$(printf '%s\n' "$out" | sed -n 's/^taught-theorem count: *\([0-9][0-9]*\)$/\1/p')
     g_unlock=$(printf '%s\n' "$out" | sed -n 's/^unlock-evidence count: *\([0-9][0-9]*\)$/\1/p')
     g_circular=$(printf '%s\n' "$out" | sed -n 's/^circular-request count: *\([0-9][0-9]*\)$/\1/p')
@@ -164,7 +210,13 @@ echo
 
 echo "== F4 auditor sheets, four fixtures (informational; no numeric oracle) =="
 for name in $FIXTURES; do
-    tools/f4_auditor.sh "logs/fixtures/$name.log" 2>&1
+    a_out=$(tools/f4_auditor.sh "logs/fixtures/$name.log" 2>&1)
+    a_status=$?
+    printf '%s\n' "$a_out"
+    if [ "$a_status" -ne 0 ]; then
+        echo "CHECK FAILED: f4-auditor execution status ($name): expected 0, got $a_status"
+        FAILURES=$((FAILURES + 1))
+    fi
     echo "--"
 done
 echo
