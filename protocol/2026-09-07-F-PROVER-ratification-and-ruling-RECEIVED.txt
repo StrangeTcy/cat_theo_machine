@@ -1,0 +1,97 @@
+F-PROVER protocol receipt record — correction-batch ratification and INT path-collision ruling
+session: FPS-20260905-A1
+date: 2026-09-07
+document: "fable 5" ratification of the 2026-09-07 correction batch, plus INT ruling SPLIT-ON-MERGE
+channel: protocol owner, direct paste (owner speaks the INT ruling, which is INT's to rule per the partition)
+
+ACCEPTANCE BASIS (recorded per the document's own statement): the
+ratification is against this lane's turn report; the reviewer did not
+independently inspect b42616f2b8637da5e28ec37be9ce183fe42fcaa5; the
+manifest verification chain (sha256sum -c over every listed artifact,
+pre-commit) is the check of record. This lane notes the basis without
+adjustment.
+
+ADOPTION BY THIS LANE: per the ruling, NO rename is performed on this
+branch now. protocol/F.md keeps its name on this lineage until the first
+cross-lineage merge, whose executor cites this ruling, performs the
+migration to protocol/F-PROVER.md inside the merge commit, and preserves
+both file histories. The ruling text is archived verbatim below so it
+exists at a pushed ref and is citable by that executor.
+
+===== RECEIVED TEXT BEGINS =====
+
+**Correction batch ratified.** All three audit items are executed in the form the audit required, and the fourth deliverable — the owner-handoff routing — converts this lane from a record-keeper into a properly blocked operator with named suppliers. I have not independently inspected `b42616f`; this acceptance is against your report, and your manifest verification chain is the check of record.
+
+## Ratified items
+
+**1. D11 re-owned, supersession in place.** The `[SUPERSEDED 2026-09-07]` marking with the replacement block inserted — rather than deletion — is the correct ledger form. History preserved, current authority unambiguous. The explicit note that this operator has *not* inspected the D11 port record keeps the blindness posture intact: you know the record exists by identity, not by content.
+
+**2. The scoping triad landed exactly.** Historical absence pinned to `41e8078` + the 2026-09-05 ref set; current availability pinned by commit identity without reading foreign content; session readiness correctly held open on the one input that does not exist — an owner-declared session tag. The distinction you maintained (locating deliveries by identity vs. inspecting their content) is precisely what preserves this lane's eligibility for a future blind session.
+
+**3. Exposure update is the model form.** Programme-identity disclosure recorded as a scope fact, not contamination; the unseen list (reference proof, dependency graph, prior target transcript, curriculum answers, pack sources, decoy statement) certified separately with an as-of date. This is the granularity future blindness claims need — a single bit ("contaminated: y/n") would have been useless; a scoped ledger with dates is auditable.
+
+**4. Handoff routing with verbatim caveats.** Declared-empty ≠ supplied; missing declarations stay explicit; no target run authorized. Correct on all three.
+
+## The path-collision flag is a real finding — routing it now
+
+Your extra item for INT is the most operationally significant discovery in the batch:
+
+```text
+PathCollision: protocol/F.md
+  instance A: this operator branch (arena/01a06e7b) — F-PROVER session
+              record: gate items, reset ledger, defect registry, receipts
+  instance B: F-tools delivery (arena/01a06eb9) — track ledger per the
+              partition: F1-F4 evidence, fixtures, battery results
+  mechanism: two lineages independently claimed the same partition path
+             for different document classes (session record vs track ledger)
+  risk: any future merge of either branch toward an integration line
+        silently overwrites or conflicts one class with the other
+```
+
+**INT ruling (recorded now, since this is INT's to rule):**
+
+```text
+ruling: SPLIT-ON-MERGE
+  protocol/F.md (track ledger) — F-tools' instance keeps the canonical
+    path; it is the partition-designated track file.
+  protocol/F-PROVER.md — this operator's session record migrates to a
+    session-scoped name at whichever merge first brings both lineages
+    into one tree. Until then, neither branch renames anything —
+    unpushed renames under reset pressure are how content gets lost.
+  merge executor: whoever performs the first cross-lineage merge cites
+    this ruling and performs the rename in the merge commit itself,
+    with both file histories preserved.
+grounds: the partition (§ conflict hotspots) assigned protocol/<TRACK>.md
+  to track ledgers. The session record is an operator artifact, which the
+  charter locates in per-session ledger entries, not the track file.
+  F-tools' claim to the path is the chartered one.
+```
+
+## State of the blocked inputs
+
+```text
+owner            owes                                    status
+INT              declared session tag + peeled commit    OPEN — new tags exist,
+                 + admission evidence                    none owner-declared
+F-tools          F2/F3/F4 delivery SHAs, checkpoint/     OPEN — battery pinned
+                 codec identity, audit-header capability at 704db5e by identity
+protocol owner   profile, exposure scope, control inputs OPEN
+```
+
+All three are genuinely external. This lane has no manufactured work remaining and no idle drift: the record is corrected, scoped, routed, and pushed. The next action is exactly as you stated — on INT's declared tag, fresh session, start gate, decoy first.
+
+## Status
+
+```text
+lane: F-PROVER operator (arena/01a06e7b @ b42616f)
+corrections: 3/3 executed + routing published
+path collision: flagged, INT ruling recorded (SPLIT-ON-MERGE)
+exposure: scoped ledger current as of 2026-09-07; contamination count 0
+blocked on: INT tag declaration; F-tools identities; protocol-owner profile
+next active task: start gate on declared tag, fresh session, decoy first
+resets survived: 3, zero content loss — recovery procedure now routine
+```
+
+The lane is correctly parked on external inputs with every internal obligation discharged. Hold until an owner supplies a declared input; the first one to arrive reopens work.
+
+===== RECEIVED TEXT ENDS =====

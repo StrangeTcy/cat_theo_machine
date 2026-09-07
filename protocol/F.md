@@ -390,3 +390,36 @@ artifact, name-collision note).
 Reset-ledger entry 3 (2026-09-07): third sandbox reset before this
 batch; recovery repeated the verified procedure against pushed tip
 b1f1d19; all artifacts byte-identical; zero loss.
+
+## 12. Ratification receipt and SPLIT-ON-MERGE ruling (2026-09-07)
+
+The correction batch was RATIFIED by the protocol owner's review channel
+(acceptance basis: against this lane's turn report; the manifest
+verification chain is the check of record). The same channel recorded
+the INT ruling on the path collision flagged in section 11:
+
+    ruling: SPLIT-ON-MERGE
+      protocol/F.md (track ledger) — F-tools' instance keeps the
+        canonical path; it is the partition-designated track file.
+      protocol/F-PROVER.md — this operator's session record migrates to
+        a session-scoped name at whichever merge first brings both
+        lineages into one tree. Until then, neither branch renames
+        anything — unpushed renames under reset pressure are how content
+        gets lost.
+      merge executor: whoever performs the first cross-lineage merge
+        cites this ruling and performs the rename in the merge commit
+        itself, with both file histories preserved.
+
+Adoption: archived verbatim at
+protocol/2026-09-07-F-PROVER-ratification-and-ruling-RECEIVED.txt so the
+ruling exists at a pushed ref, citable by the merge executor. This branch
+performs NO rename now. Until that merge, this file's canonical name on
+this lineage remains protocol/F.md, and readers should treat it as the
+F-PROVER session record, distinct in role from the F-tools track ledger
+of the same path on arena/01a06eb9.
+
+Lane state after ratification: correctly parked on external inputs;
+blocked-input table (INT tag declaration / F-tools identities /
+protocol-owner profile) stands as published in the routing artifact; the
+first owner-supplied declared input reopens work. Next active task on
+reopen: start gate on the declared tag, fresh session, decoy first.
