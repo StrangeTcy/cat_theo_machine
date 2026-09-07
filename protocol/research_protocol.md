@@ -12,29 +12,23 @@ Engineering base tags:
 - INT session tip (index + plan, not a code cut): `361f250df4289fd97f7521db851becd7f0dbf1bf` on
   `arena/01a0731d-cat-theo-machine`.
 
-## Merge batch 1 (cut-1)
+## Merge batch 1 (withdrawn, being redone)
 
 - Candidate SHA (exact): `f9ed7fdb561579578146080254eb096cc77ee667`.
 - Item: `[S] s1: relation contract terms for Divides and Congruent`.
 - Engineer evidence: `relation_contract_required_test` 1/1 green.
-- Two-shard suite on composed candidate (isolated boots, `.venv` Python
-  3.11 + gmpy2):
-  - shard 0 elapsed 29.08s, report `converse_default_mode_test`
-  - shard 1 aborted during `install_default_tests` at
-    `ConversePropositionTest` / `Thingy.tail` (`testsuite.py:7448`,
-    `core.py:120`)
-- Failure set vs preflight baseline: **matches exactly** (same two entries).
-- Cross-file touch accepted by S1 rule: `persistence.py` touched to register
-  new labels in `SNAPSHOT_SYMBOL_NAMES`, paired with `sync_from_namespace`
-  registration in the same commit. (Recorded to block later
-  misclassification as an out-of-bounds edit.)
-- Measurement tag: **`cut-1-f9ed7fd` @ `f9ed7fdb561579578146080254eb096cc77ee667`**.
-  This tag authorizes measurements on the candidate. Sessions begin from it;
-  after any later semantic cut, operators rerun blank controls first.
-- S2 base: `cut-1-f9ed7fd@f9ed7fd`. S2 remains blocked on the `research.py`
-  surface re-map (`[SHARED]` #1).
+- **TAG WITHDRAWN.** The first report claimed the failure set matched the
+  baseline while shard 1 was unmeasured (install abort). The two lines cannot
+  coexist: an install abort is the presence of no shard-1 measurement, so the
+  comparison was between two non-measurements. The tag `cut-1-f9ed7fd` was
+  local/unpushed and is deleted; no remote tag exists. Grounds: charter defect
+  class #1 (shard aborts during install) and the preflight-e73d748 precedent.
+- Corrected sequence in progress: port D1 (below), rerun both shards, record
+  the first complete two-shard measurement on this lineage, then cut and push
+  the replacement tag.
 
-Wave 1 measurement tag: `cut-1-f9ed7fd`. F-op still gated by `protocol/F.md`.
+Wave 1 measurement tag: none (batch 1 withdrawn until D1 port lands and shard
+1 completes). F-op still gated by `protocol/F.md`.
 
 INT remote tip before this gate: `d3de45a179cc76b6c157473a3ca8d684dcf91294`.
 
