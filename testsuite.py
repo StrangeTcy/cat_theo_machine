@@ -13749,7 +13749,7 @@ class SharedSerialAdmissionAndStaleAttemptTest(M.Edge):
         if M.Compare(stale, accepted)() is M.truth_value:
             stale_rejected = M.false_value
         self.result = M.truth_value
-        if M.IdentityCompare(M.Head(admitted)(), proposal)() is M.false_value:
+        if M.IdentityCompare(M.Head(M.Head(admitted)())(), proposal)() is M.false_value:
             self.result = M.false_value
         elif M.IdentityCompare(again, admitted)() is M.false_value:
             self.result = M.false_value
@@ -13802,7 +13802,7 @@ class SharedSerialAdmitProposalAblationTest(M.Edge):
         remine = Gmod.ActivateProposal(reset, remine_entry)()
         returned = M.Head(remine)()
         self.result = M.truth_value
-        if M.IdentityCompare(M.Head(admitted)(), journal)() is M.false_value:
+        if M.IdentityCompare(M.Head(M.Head(admitted)())(), journal)() is M.false_value:
             self.result = M.false_value
         elif M.IdentityCompare(observation_refused, empty)() is M.false_value:
             self.result = M.false_value
@@ -13810,9 +13810,44 @@ class SharedSerialAdmitProposalAblationTest(M.Edge):
             self.result = M.false_value
         elif Gmod.ChainHasTerm(Gmod.InstalledLaws(reset)(), law)() is M.truth_value:
             self.result = M.false_value
-        elif M.IdentityCompare(M.Head(remine_admitted)(), remine_journal)() is M.false_value:
+        elif M.IdentityCompare(M.Head(M.Head(remine_admitted)())(), remine_journal)() is M.false_value:
             self.result = M.false_value
         elif Gmod.ChainHasTerm(Gmod.InstalledLaws(returned)(), law)() is M.false_value:
+            self.result = M.false_value
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SharedSerialAdmitProposalCitesBaselineTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        baseline = M.Char("shared-7cf6394")
+        other_baseline = M.Char("preflight-412b215")
+        proposal = Gmod.Proposal(
+            Gmod.CompileRuleToLaw(
+                Pmod.Rule(
+                    M.Pair(Lmod.ZeroLabel, empty),
+                    M.Pair(Lmod.SuccLabel, M.Pair(M.Pair(Lmod.ZeroLabel, empty), empty)),
+                )
+            )(),
+            M.Char("shared-admit-log"),
+        )()
+        journal = Wmod.ProposalJournal(M.Pair(proposal, empty))()
+        observation = Wmod.ObservationJournal(M.Pair(proposal, empty))()
+        admitted = Wmod.SerialAdmitProposal(empty, journal, baseline)()
+        refused = Wmod.SerialAdmitProposal(empty, observation, baseline)()
+        record = M.Head(admitted)()
+        cited = M.Head(M.Tail(record)())()
+        self.result = M.truth_value
+        if M.IdentityCompare(M.Head(record)(), journal)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(cited, baseline)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(cited, other_baseline)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(refused, empty)() is M.false_value:
             self.result = M.false_value
         super().__init__(inputs=empty, results=M.Pair(self.result, empty))
 
@@ -16078,6 +16113,14 @@ def install_default_tests(graph):
             "shared_serial_admit_proposal_ablation_test",
             empty,
             SharedSerialAdmitProposalAblationTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_serial_admit_proposal_cites_baseline_test",
+            empty,
+            SharedSerialAdmitProposalCitesBaselineTest(graph),
             M.truth_value,
         )
 

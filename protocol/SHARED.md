@@ -156,8 +156,8 @@ Tests green:
 
 - ablation: landed as `shared_serial_admit_proposal_ablation_test` — SerialAdmitProposal journal, existing approval gate, law present after activate, absent on reset to the base GraphVersion, present again after re-mine through the same path. Observation journals still do not admit.
 - sibling independence: blocked on mask-coverage finding below
-- evidence-class neutrality: suite failure set identical with and without merged evidence entries
-- admission logging: each admission cites its re-baseline point
+- evidence-class neutrality: still owed — CounterfactualEvidence / AttemptedRule are not on this tree; no merge surface to check
+- admission logging: landed as `shared_serial_admit_proposal_cites_baseline_test` — SerialAdmitProposal writes Pair(journal, Pair(baseline, EmptyList)); observation journals still do not admit and write no record
 
 ## Finding — learned-memory mask does not cover SerialAdmitProposal laws
 
