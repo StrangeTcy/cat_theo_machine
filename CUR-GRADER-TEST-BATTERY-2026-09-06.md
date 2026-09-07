@@ -30,10 +30,24 @@ room blind evaluation and are not feedable as training inputs.
 |---|---|---|
 | `hypothesis-omitted` | C1/C2 | E4 |
 | `descent-unsupported` | C3/C4 | E4 |
-| `overclaim` | C3/C5 (separation-unsupported also folds here) | E4, E7 |
-| `constant-injection` | C6 | E4, E3, E7 |
-| `derivation-absent` | C1 | E7 |
-| `preservation-unsupported` | C2/C4 | E7 |
+| `overclaim` | C3/C5 (separation-unsupported also folds here) | E4, E7; E3 C3/C4 |
+| `constant-injection` | C6 | E4, E3, E7; E3 C5/C6 |
+| `derivation-absent` | C1 | E7; E3 C1 |
+| `preservation-unsupported` | C2/C4 | E7; E3 C2 |
+
+E3's CHECK→TAXONOMY rows (reusing the shared labels where semantics match; the E3 contract
+declares no taxonomy string of its own, so these are derived here): E3 is an **invariance** problem,
+so it has no `descent-unsupported`; it carries no hypothesis-given of the E4 kind, so no
+`hypothesis-omitted`. Concretely per the E3 contract's C1–C6 assertions:
+
+| E3 check | label | why (from the contract assertion) |
+|---|---|---|
+| C1 (candidate derived from move constraints) | `derivation-absent` | FAIL if stated without the move family / not in the kernel — same shape as E7 C1 |
+| C2 (preservation discharged) | `preservation-unsupported` | FAIL if any single move changes the reading — same shape as E7 C2 |
+| C3 (start/target separation discharged) | `overclaim` | FAIL if start and target readings coincide, so it cannot prove unreachability — separation-unsupported folds into overclaim |
+| C4 (odd-cycle control emits the no-nonzero-observable term) | `overclaim` | FAIL if it yields a nonzero candidate on an odd cycle (a false invariant) or silently omits the control — asserting an invariant that does not exist is an overclaim |
+| C5 (disabling weighted generation removes the candidate) | `constant-injection` | FAIL if the candidate survives (a hard-coded constant or a second unexamined path) |
+| C6 (no E3 weights in training inputs or constants) | `constant-injection` | FAIL if the E3 weights are present as input or constant |
 
 The operator-specified six labels are exactly the union of the contracts' taxonomies. Each mock
 below is written against the contract where the label is most directly exercised.
@@ -182,13 +196,94 @@ Check-by-check:
 
 Disposition: FAIL on **C6 only** → taxonomy `constant-injection`. Only that label triggered.
 
-### E3-M (constant-injection, alternate) — placement note
+### E3-M1 — `derivation-absent`
 
-The E3 contract does **not** define a separate taxonomy string in its text (unlike E4/E7); its
-C1–C6 all funnel to either preservation/separation/derivation or injection. The operator's six
-labels are fully covered by the E4/E7 mocks. A **passing** E3 mock is provided below; no separate
-E3 failing mock is needed to cover a distinct label, since `constant-injection` (C6) is already
-covered by E7-M6 and the E3 C6 semantics are identical. (Recorded to avoid a duplicated fixture.)
+Frozen blind-output artifact (G-ENG candidate) claims (E3, six-sector alternating sum):
+```text
+observable: R = sum_{i=1..6} w_i * a_i
+move: add +1 to two neighboring entries
+derivation: "the alternating reading is preserved by the move, so the start (2)
+  and the all-equal target (0) differ, hence all-equal is unreachable."
+classification: PRESERVED_AND_SEPARATING.
+```
+Note: the derivation states preservation and separation but cites **no reference to the move
+constraints** (the move-failure directions / the kernel condition `w_i + w_{i+1} = 0`); the
+alternating weight is asserted from the goal, not generated from the move family.
+
+Check-by-check (against E3 contract):
+- C1 (candidate derived from move constraints): **FAIL** — the weight vector is stated without
+  deriving it from the six move constraints; it is invented from the goal.
+- C2 (preservation discharged): **PASS** — preservation `w_i + w_{i+1} = 0` is asserted (though C1 is
+  the binding failure).
+- C3/C4/C5/C6: **PASS**.
+
+Disposition: FAIL on **C1 only** → taxonomy `derivation-absent`. Only that label triggered.
+
+### E3-M2 — `preservation-unsupported`
+
+Frozen blind-output artifact claims:
+```text
+observable: R = sum_{i=1..6} w_i * a_i, w = (1,-1,1,-1,1,-1)
+move: add +1 to two neighboring entries (family 12,23,34,45,56,61)
+derivation: "the odd/even weighted sum is unchanged, so all-equal is unreachable."
+classification: PRESERVED_AND_SEPARATING.
+```
+Note: preservation is asserted without the **per-move** check `w_i + w_{i+1} = 0` for all six
+moves; it omits the demonstration that no single move changes the reading.
+
+Check-by-check:
+- C2 (preservation via `w_i + w_{i+1} = 0` for all six moves): **FAIL** — preservation is asserted
+  without discharging the six per-move condition.
+- C1: **PASS** — cites the move family.
+- C3/C4/C5/C6: **PASS**.
+
+Disposition: FAIL on **C2 only** → taxonomy `preservation-unsupported`. Only that label triggered.
+
+### E3-M3 — `overclaim`
+
+Frozen blind-output artifact claims:
+```text
+observable: R = sum_{i=1..6} w_i * a_i, w = (1,-1,1,-1,1,-1)
+move: add +1 to two neighboring entries
+derivation: "R is preserved by every move, so the all-equal state is unreachable."
+classification: PRESERVED_AND_SEPARATING.
+```
+Note: the derivation claims **unreachability** but never shows the start reading differs from the
+target reading (the separation check is not discharged; for this candidate the start and target
+readings happen to coincide in the prose, so it cannot prove unreachability).
+
+Check-by-check:
+- C3 (start/target separation discharged): **FAIL** — the start and target readings are not shown
+  to differ, so unreachability does not follow.
+- C1/C2/C4/C5/C6: **PASS**.
+
+Disposition: FAIL on **C3 only** → taxonomy `overclaim` (separation-unsupported folds here). Only
+that label triggered.
+
+### E3-M4 — `constant-injection`
+
+Frozen blind-output artifact claims:
+```text
+observable: R = sum_{i=1..6} w_i * a_i
+move: add +1 to two neighboring entries
+derivation: "the weights (1,-1,1,-1,1,-1) are supplied as the reference observable
+  coefficients; R is preserved and separates, so all-equal is unreachable."
+classification: PRESERVED_AND_SEPARATING.
+```
+Note: the reference weights are **supplied** as an input constant, not derived.
+
+Check-by-check:
+- C6 (no E3 weights in training inputs or constants): **FAIL** — the deterministic alternating
+  weights are present as a supplied constant.
+- C1/C2/C3/C4/C5: **PASS**.
+
+Disposition: FAIL on **C6 only** → taxonomy `constant-injection`. Only that label triggered.
+
+(Duplication note: E3-C5 is a second check that also maps to `constant-injection` (candidate
+survives disabling the weighted generator). A single E3 `constant-injection` mock suffices to
+exercise that label; E3-M4 drives C6. If the grader also needs to exercise C5's distinct failure
+mode, add E3-M5 as `constant-injection` with C5 as the unmet check — not required for single-label
+coverage.)
 
 ---
 
@@ -260,6 +355,10 @@ Check-by-check: **C1 PASS, C2 PASS, C3 PASS, C4 PASS, C5 PASS, C6 PASS** → ver
 | E7-M4 | E7 | C1 | `derivation-absent` |
 | E7-M5 | E7 | C2 | `preservation-unsupported` |
 | E7-M6 | E7 | C6 | `constant-injection` |
+| E3-M1 | E3 | C1 | `derivation-absent` |
+| E3-M2 | E3 | C2 | `preservation-unsupported` |
+| E3-M3 | E3 | C3 | `overclaim` |
+| E3-M4 | E3 | C6 | `constant-injection` |
 | PASS-E3 | E3 | — | PASS |
 | PASS-E4 | E4 | — | PASS |
 | PASS-E7 | E7 | — | PASS |

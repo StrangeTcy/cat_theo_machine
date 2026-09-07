@@ -1,0 +1,83 @@
+E3/E4/E7 GRADER BATTERY DRY-RUN (RERUN with E3) — 2026-09-07b
+Role: CUR-ORACLE (evaluator-side grader battery self-test). Docs-only; no production code,
+no cross-branch write, no executed merge, no sealing. Successor to the 2026-09-07 dry-run: this
+run ADDS the E3 contract to the partition check and exercises the four new E3 failing mocks
+(closed finding F-1 from the first run).
+
+================================================================================
+SCOPE / WHAT CHANGED vs 2026-09-07
+================================================================================
+The first dry-run established: E4/E7 CHECK->TAXONOMY partition CLEAN; E4+E7 failing mocks match
+(6/6); but it found E3 had NO failure taxonomy (finding F-1). This run adds:
+  - E3 CHECK->TAXONOMY rows (derived from the E3 contract's C1-C6 assertions, reusing shared
+    labels): C1->derivation-absent, C2->preservation-unsupported, C3/C4->overclaim,
+    C5/C6->constant-injection;
+  - four E3 failing mocks (E3-M1..M4) in the successor battery;
+  - the partition check now covers all three contracts' maps.
+
+================================================================================
+DECLARED CHECK -> LABEL TAXONOMY (all three, from contract assertions)
+================================================================================
+  E4: C1/C2 -> hypothesis-omitted ; C3/C4 -> descent-unsupported ;
+      C5 -> overclaim ; C6 -> constant-injection
+  E7: C1 -> derivation-absent ; C2/C4 -> preservation-unsupported ;
+      C3/C5 -> overclaim ; C6 -> constant-injection
+  E3: C1 -> derivation-absent ; C2 -> preservation-unsupported ;
+      C3/C4 -> overclaim ; C5/C6 -> constant-injection
+      (E3 is invariance -> no descent-unsupported; no hypothesis-omitted.)
+
+================================================================================
+PART 1 — TAXONOMY PARTITION CHECK (no check maps to two labels; no label without a check)
+================================================================================
+  E4: CLEAN
+  E7: CLEAN
+  E3: CLEAN  (C1->derivation-absent, C2->preservation-unsupported, C3->overclaim,
+              C4->overclaim, C5->constant-injection, C6->constant-injection;
+              no double-map, no unmapped check, no label without a check)
+  Note: C4->overclaim and C5->constant-injection are single-label each (C4 folds into overclaim,
+  C5 into constant-injection), consistent with E7's C3/C5->overclaim folding.
+
+================================================================================
+PART 2 — FAILING MOCKS: does each trigger EXACTLY its own label?
+================================================================================
+MOCK    CTRT  FAILED  EXPECTED                 EMITTED                 MATCH
+------- ----- ------- ------------------------ ----------------------- -----
+E4-M1   E4    C1      hypothesis-omitted       hypothesis-omitted       Y
+E4-M2   E4    C3      descent-unsupported      descent-unsupported      Y
+E4-M3   E4    C5      overclaim                overclaim                Y
+E7-M4   E7    C1      derivation-absent        derivation-absent        Y
+E7-M5   E7    C2      preservation-unsupported preservation-unsupported Y
+E7-M6   E7    C6      constant-injection       constant-injection       Y
+E3-M1   E3    C1      derivation-absent        derivation-absent        Y
+E3-M2   E3    C2      preservation-unsupported preservation-unsupported Y
+E3-M3   E3    C3      overclaim                overclaim                Y
+E3-M4   E3    C6      constant-injection       constant-injection       Y
+
+================================================================================
+PART 3 — PASSING MOCKS (one per contract, all six checks PASS -> PASS)
+================================================================================
+MOCK      CTRT  VERDICT  CLASSIFICATION
+--------- ----- -------- ----------------------------------------
+PASS-E3   E3    PASS     PRESERVED_AND_SEPARATING
+PASS-E4   E4    PASS     CORRECT (descent, bounded-below termination)
+PASS-E7   E7    PASS     PRESERVED_AND_SEPARATING
+
+================================================================================
+SUMMARY
+================================================================================
+  failing mocks emitting exactly one label : 10/10
+  single-label == expected on all         : 10/10
+  taxonomy partition (no double-mapped check): E4 CLEAN, E7 CLEAN, E3 CLEAN
+  passing mocks -> PASS                   : 3/3
+  CLEAN: YES (no grader defect found after closing F-1)
+
+EXACT HEADLINE (unchanged from the 2026-09-07 run, now covering all three contracts):
+  PROVEN:  the CHECK->TAXONOMY map is a valid partition on E4, E7, and E3; and each mock's
+           DECLARED fail-set maps to exactly its DECLARED expected label (10/10 failing, 3/3
+           passing).
+  NOT PROVEN: that a grader can DERIVE the C1..C6 verdicts from a mock's content (the verdicts
+           are the mock author's declared ones; verdict derivation from raw content is
+           unexercised until a real G-ENG artifact exists).
+
+Boundary held: self-test, not clean-room blind grading; training-visible: no; no cross-branch
+write; no production labels, Edge classes, packs, or G implementation touched.

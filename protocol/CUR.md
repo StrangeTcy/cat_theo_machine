@@ -48,3 +48,23 @@ Details:
 
 Remote tip recorded before work (prior, retained): `e0853a915baf260b7d1e9d3678c8f9d78300655b`.
 Remote tip recorded before work (D13 registration): `af0132e0b414f46cef4b2cabe1b40e224033ba8c`.
+Remote tip recorded before work (grading-battery extension): `cb2d383dc308b3e83757766db758d88db2ec4049`.
+
+---
+
+## Note (2026-09-07) — D18: recovery breach, uncommitted work lost to `--hard`
+
+```
+defect: D18 (HardResetLostUncommittedWork);
+locus: this turn (grader-battery dry-run follow-up); `git reset --hard <remote HEAD>` on a
+       worktree the sandbox had already reset to the fork base;
+effect: the uncommitted dry-run file (verification/2026-09-07-GRADER-BATTERY-DRYRUN.txt) was
+       discarded; recreated from scratch;
+rule broken: R2 — soft reset + `reset -- .`, verify by content, never `--hard`;
+consequence this time: none (the file was re-derivable and was regenerated);
+disposition: one line in protocol/CUR.md; the procedure is unchanged;
+note: content survived because it could be regenerated — that is luck, not the mitigation
+       working. The rule exists for the case where it is not recoverable.
+```
+
+Remote tip recorded before work (D18 registration): `cb2d383dc308b3e83757766db758d88db2ec4049`.

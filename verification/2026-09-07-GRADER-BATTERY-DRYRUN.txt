@@ -88,11 +88,29 @@ SUMMARY
   single-label == expected on all         : 6/6
   taxonomy partition (no double-mapped check): E4 CLEAN, E7 CLEAN
   passing mocks -> PASS                   : 3/3
-  CLEAN: YES (no grader defect found)
+  FAILING-MOCKS PARTITION SO FAR (E4, E7): CLEAN — no check maps to two labels.
+  (see the E3 finding below — finding F-1, the dry-run's one defect; it is closed by the
+   E3 taxonomy rows + E3 failing mocks added in the successor battery revision.)
 
-No mock emitted a label other than its own; no check maps to two labels; therefore no grader
-defect was found in the battery before any real G-ENG artifact arrives. The battery is proven on
-its own fixtures.
+  CLEAN: YES (on the E4/E7 partition and fixture-consistency — but see the E3 finding)
+
+EXACT HEADLINE — what this dry-run establishes, and what it does NOT:
+  PROVEN:  the contracts' CHECK->TAXONOMY map is a valid partition on E4 and E7 (no check maps
+           to two labels, no label without a check); and each mock's DECLARED fail-set maps to
+           exactly its DECLARED expected label (E4/E7 6/6; E3 PASS 1/1).
+  NOT PROVEN: that a grader can DERIVE the C1..C6 verdicts from a mock's content. The verdicts
+           here are the mock author's declared ones (the mocks grade themselves); verdict
+           DERIVATION from raw content is unexercised until a real G-ENG artifact exists.
+  So: the battery proves the taxonomy is a valid partition and the fixtures are internally
+  consistent. It does NOT prove the grader can judge unseen content.
+
+Finding F-1 (the dry-run's one defect, found at this stage - the value of the run): E3 had NO
+failure taxonomy. The E3 contract (CUR-ENGEL-E3-EVALUATOR-CONTRACT.md) declares C1-C6 but no
+distinct taxonomy string, so an E3 failing artifact would emit NO label - a contract gap. Closed
+in the successor battery revision: E3 CHECK->TAXONOMY rows added (C1->derivation-absent,
+C2->preservation-unsupported, C3/C4->overclaim, C5/C6->constant-injection) and four E3 failing
+mocks added (E3-M1..M4). E3 remains without `descent-unsupported` (it is an invariance problem)
+and without `hypothesis-omitted`.
 
 Method caveat (recorded): the dry-run exercises the contracts' declared taxonomy and the
 per-mock check verdicts as encoded in the battery (spec-only contracts; no executable grader to
