@@ -406,3 +406,73 @@ batch-tool fix, the regenerated artifact, and this entry. The
 post-recovery tree was verified coherent before pushing -- the runner
 reproduces the committed artifact byte-identically from it. No
 history was rewritten; the remote chain stands.
+
+## Runbook -- sandbox-reset recovery on this branch (named procedure; two events, both recovered)
+
+Hazard class: the one tools/recover.sh names on the frozen tags
+(INT's line; this runbook is this branch's instantiation of it). Event
+shape, seen twice on 2026-09-05: between turns the sandbox reset
+rebuilds the branch pointer at the base (41e8078) while the working
+files survive. Any unpushed commit is lost. A commit made in that
+state stages only the files explicitly added against a rebuilt index,
+so it silently drops the earlier tree (first event: 9787811; second:
+e6488c4). Detection: the push is rejected as non-fast-forward. Never
+force.
+
+Procedure, in order:
+
+1. Diagnose. Fetch the branch, then three comparisons: remote-only
+   commits (git log HEAD..origin/<branch>), local-only (git log
+   origin/<branch>..HEAD), merge base (git merge-base). The reset
+   signature: merge base equals the branch base, remote-only is the
+   true pushed chain, local-only is one squashed commit.
+2. Read the delta with direction in mind. git diff --name-status
+   <remote-tip> <local-squash>: entries marked D are missing from the
+   local COMMIT, not from the disk -- the working tree still holds
+   them. The true delta to re-land is only the M and A entries whose
+   content differs.
+3. Stage the true-delta files outside the repo, one cp per file, each
+   with an explicit full destination path; then ls the staging
+   directory and check every expected name before touching the
+   branch. First-recovery partial failure, recorded exactly so it
+   does not recur: the artifact
+   logs/f-tools-acceptance-battery-2026-09-05.txt was staged by
+   basename but restored under the truncated name 2026-09-05.txt; the
+   cp failed, the && chain broke, and the final file of the restore,
+   protocol/F.md, was not copied back until a second pass. Individual
+   cps with full paths, and the ls check, make that failure mode
+   impossible.
+4. git reset --hard origin/<branch>: fast-forward the branch to the
+   pushed tip. Nothing published is rewritten.
+5. Restore the staged files, one cp per line, full destination paths.
+6. Verify the tree before committing. git status must show exactly
+   the intended delta; then rerun the deterministic acceptance
+   battery (tools/f-tools-battery.sh) and cmp its output against the
+   committed artifact -- byte-identical proves the recovered tree is
+   coherent. If the battery differs, stop: the staging was wrong.
+7. Append a landing note to the affected ledger entry recording the
+   double commit.
+8. Commit with the original subject; push; record the landed hash.
+
+Push discipline throughout: the remote chain is the durability
+boundary. A reset costs the re-landing of unpushed content, never
+history. Ledger of the two events: 9787811 recovered onto 452dd2a,
+landed as 246162a; e6488c4 recovered onto 98508d8, landed as 704db5e.
+Two events, two recoveries, zero force-pushes, zero lost content.
+
+Landing note (third reset, and the runbook's first live use): the
+runbook entry above was itself the unpushed content when a third
+reset hit this turn. Executed as written: diagnosis, delta read with
+direction in mind, one-file staging with the ls check, fast-forward
+to 704db5e, restore, verification -- git status showed exactly
+protocol/F.md, and the battery reproduced the committed artifact
+byte-identically from the recovered tree. No partial failure; the
+individual-cp discipline held. One refinement earned by this event,
+now part of the procedure: this reset also wiped the remote-tracking
+refs, so the single-branch fetch updated only FETCH_HEAD and the
+three comparisons saw an unknown revision. Step 1 must begin with
+the explicit refspec fetch (refs/heads/arena/*:refs/remotes/
+origin/arena/*) whenever the tracking refs are absent. Ledger of
+events: 9787811 -> 246162a; e6488c4 -> 704db5e; 19bed91 -> this
+commit. Three events, three recoveries, zero force-pushes, zero lost
+content.
