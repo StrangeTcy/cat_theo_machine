@@ -40,8 +40,10 @@ Wave 1 measurement tag: none (batch 1 withdrawn until D1 port lands and shard
     `arena/01a064d5@3cac74c`.
 - D1 port: the three `UnderstoodLabel` guards now run before any outcome
   tail navigation; a non-Understood outcome fails the test instead of
-  aborting install. Non-semantic; no matcher/search/planner path changed,
-  no new constructors.
+  aborting install. No matcher/search/planner path changed and no new
+  constructors, but the batch is classified **SEMANTIC** below (S1
+  vocabulary expansion + D1 removes the install-abort that previously
+  prevented any complete baseline).
 - Two-shard rerun on the post-fix candidate (isolated boots, `.venv` Python
   3.11 + gmpy2):
   - shard 0: completed 30.04s, report `converse_default_mode_test`.
@@ -62,6 +64,53 @@ Wave 1 measurement tag: none (batch 1 withdrawn until D1 port lands and shard
   surface re-map (`[SHARED]` #1).
 
 Wave 1 measurement tag: `cut-1-bf9da23`. F-op still gated by `protocol/F.md`.
+
+## Cut-1 classification (corrected: SEMANTIC)
+
+Grounds:
+
+1. **S1 vocabulary expansion.** New labels registered in both completeness
+   tables (`sync_from_namespace`, `SNAPSHOT_SYMBOL_NAMES`); new shapes are
+   reachable in the snapshot codec namespace.
+2. **D1 removes the suite install-abort.** `ConversePropositionTest`
+   non-Understood outcomes now fail cleanly instead of aborting shard-1
+   install. This is the enabling change that makes the suite enumerable
+   end-to-end and is operational even though the edit is test-file code.
+
+Consequence: **operators rerun blank controls before measurements count.**
+(No operators exist yet; applies when they spawn.)
+
+## Baseline set (cut-1-bf9da23) — reference for every future batch
+
+- shard 0: `converse_default_mode_test`
+- shard 1: `heuristic_canonical_knowledge_agreement_test`
+
+Comparison rule for batch N: a cut is permitted if the failure set matches or
+shrinks exactly this pair. If it grows, return the batch and name the new
+failure with no tag. If it changes shape, classify each new and removed
+failure explicitly (no silent absorption).
+
+## S-track wave-1 publishability check (INT duty)
+
+**Result: `research.py` and `provenance.py` are ABSENT from the
+`cut-1-bf9da23` tree** (verified on the fetched tag commit
+`bf9da23f71b9b178b7c42983fd053b8c2d50f605`):
+
+- `research.py`: absent
+- `provenance.py`: absent
+- `explanation.py`: absent
+
+Consequence for the published wave-1 base:
+
+- The cut is a **measurement base** for tracks that do not require those
+  files: test-suite health, D1 verification, S1 label round-trip,
+  instrument/tooling work.
+- **S-track S2/S3 remain blocked** on the standing `[SHARED]` re-map ruling
+  (`research.py`/`provenance.py` absent). D1 does not lift that block.
+- Publication as a general wave-1 engineering base for all S-track phases
+  is **not authorized** while those files are absent; each phase must
+  re-map its surfaces or request the `[SHARED]` primitive before
+  implementation.
 
 INT remote tip before this gate: `d3de45a179cc76b6c157473a3ca8d684dcf91294`.
 
