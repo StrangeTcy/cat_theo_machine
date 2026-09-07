@@ -174,3 +174,42 @@ PART 4 — INT SUMMARY
    recorded-join semantics on the existing protocol; nothing replaced.
 
 re-run on 2026-09-07 after sandbox restore at tip d35018a (deps reinstalled, worktree identical): driver exit 0, 18/18 checks ok; the two brief-named focused tests: All the tests have passed.
+
+================================================================================
+PART 5 — FAILURE-SHAPE CHECK @ 327a263 (owed line for the SHARED ledger)
+================================================================================
+
+Layer-D land 327a263:
+  does not claim closure of fill_warms_resident_pool_before_root_wave
+  failure shape: UNCHANGED
+  locus (probed at 327a263 with the exact test-body call, log
+  /home/user/shape-check-327a263.log copied below):
+    grow-gate _comparison_states_need_shared_root_wave(fresh states) = False
+      (fresh states carry SearchRootFastPathPhaseLabel default, not
+       SearchPacketSearchPhaseLabel)
+    opt-in _search_compare_enable_shared_root_fast_paths = False
+      (set M.false_value at graph.py:43 and every construction site)
+    gate sequence inside the red: gate1 spawned>0 PASS (pool fills via
+      independent launch path) -> gate2
+      _comparison_shared_root_candidates_ready FAIL <- red locus, same as
+      baseline d35018a
+  still covered by the C1 / SHARED REVIVE-LATER parking of compare_search_modes;
+  not a Layer-D regression.
+  companion claim: the other parked-shape red
+  (finds_reusable_worker_snapshot_dir, restored-term identity mechanism) is
+  CLOSED by this land — it now runs green at 327a263 through the real Test
+  harness; a production change (Compare-gate) fixed it, so if it ever turns
+  red again the mechanism check must distinguish identity-of-decoded-terms
+  (old, closed) from snapshot-content (new defect).
+
+raw probe output:
+--- locus probe @ 327a263 (fill_warms mechanism) ---
+grow-gate states_need_shared_root_wave: False
+fresh-state phase label: NoneType
+phase == SearchPacketSearchPhaseLabel: False
+opt-in flag _search_compare_enable_shared_root_fast_paths: False
+uses_shared_root_fast_paths(): False
+--- corrected probe: exact test-body call ---
+spawned == Zero (test gate 1): False
+ready == truth (test gate 2): False
+workers == empty (test gate 3): False
