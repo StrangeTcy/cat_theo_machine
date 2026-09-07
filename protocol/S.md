@@ -274,3 +274,36 @@ triggerable from the teaching path or Step 39.
 Limitation preserved: the ablation test compares a populated trie with an
 empty trie; it does not establish production reset behaviour or
 preservation of unrelated facts.
+
+---
+
+## 2026-09-07 — compare_search_modes inspection (STEP 1 of concurrency brief; [SHARED] routing)
+
+The concurrency brief ("Process-Based Hypergraph Agents") made its STEP 1
+inspection available to any engineer lane. Performed here, read-only, on
+b812db9. Record: verification/compare-search-modes/inspect-b812db9.txt.
+
+Verdict: HALF-BUILT FRONTIER — revive, not dead code. ~40 test classes,
+five mixins, wired into _compare_all_modes_independent_parallel. Both
+standing red tests fail for named, distinct reasons:
+
+1. FillWarmsResidentPoolBeforeRootWave (testsuite.py:9121): the flag
+   _comparison_shared_root_candidates_ready is set ONLY by
+   _comparison_cache_shared_root_candidates (compare_packets.py:1410,
+   via _comparison_apply_shared_root_wave:1455); _fill_parallel_workers
+   (compare_executors.py:656) never sets it, and the test calls fill
+   directly. Test-contract coupling mismatch, not a pool-mechanics defect.
+
+2. FindsReusableWorkerSnapshotDir (testsuite.py:8716): resume matcher
+   _search_worker_snapshot_matches_current_problem (compare_subprocess.py:319)
+   rejects every snapshot for two reasons: (a) checkpoint stores
+   _search_worker_mode_heuristic (main.py:521, built from
+   runtime.theorem_heuristic) while the matcher compares
+   _heuristic_for_mode (compare_attempts.py:324, built from the probe's
+   heuristic) — different bases; (b) the codec round-trip restores
+   start/goal as content-equal (M.Compare true) but not identity-equal
+   (M.TermEqual false), and the matcher uses TermEqual.
+
+Revive vs replace is INT's ruling. Diagnosis retires two baseline reds by
+naming their mechanism regardless of the answer. No code changed here; no
+tag cut.

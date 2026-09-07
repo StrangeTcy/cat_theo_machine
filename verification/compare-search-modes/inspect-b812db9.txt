@@ -1,0 +1,126 @@
+INSPECTION — compare_search_modes subsystem (STEP 1 of the concurrency brief)
+===============================================================================
+
+dated: 2026-09-07
+lane: S-eng (in-lane read-only inspection; brief STEP 1 is "any engineer lane")
+base inspected: b812db904b44db72def705eb18a50bbe50c12cc2 (INT tip, ef571b6 line)
+interpreter: /tmp/venv (gmpy2 2.3.1 + pyyaml); checkout /tmp/cmp-inspect
+method: read the code paths + run the two red tests with per-branch
+        instrumentation. Nothing inferred from test names. No code changed.
+
+--------------------------------------------------------------------------
+VERDICT
+--------------------------------------------------------------------------
+HALF-BUILT FRONTIER — revive, do not remove. The subsystem is extensive
+(~40 test classes, five mixins, wired into the production flow via
+_compare_all_modes_independent_parallel) and internally coherent. Two of
+its test-contract assertions do not hold; both failure mechanisms are
+named below. Diagnosis retires two standing baseline reds either way
+(revive or remove), which is rent regardless of the concurrency answer.
+
+--------------------------------------------------------------------------
+SUBSYSTEM INVENTORY (what the code paths implement)
+--------------------------------------------------------------------------
+search/compare.py            CompareSearchModes edge + mixins; state/attempt
+                             dispatch; calls _fill_parallel_workers at
+                             lines 265/355/562.
+search/compare_executors.py  resident-executor pool: _start_parallel_executor_pool,
+                             _grow_parallel_executor_pool, _resident_executor,
+                             _fill_parallel_workers (line 656),
+                             _collect_parallel_worker_launches. Root-wave +
+                             packet scheduling.
+search/compare_packets.py    packetization, pending-packet budget, and the
+                             shared-root prepass: _comparison_cache_shared_root_candidates
+                             (line 1393), _comparison_apply_shared_root_wave
+                             (line 1455), _comparison_prepare_shared_root_wave.
+search/compare_subprocess.py worker subprocess transport + snapshot reuse:
+                             _search_worker_result_manifest_path, _write_search_worker_manifest,
+                             _load_search_worker_snapshot (157),
+                             _search_worker_snapshot_matches_current_problem (319),
+                             _reusable_search_worker_result_paths (338),
+                             _search_compare_result_root (316).
+search/compare_attempts.py   _heuristic_for_mode (324).
+main.py                      _search_worker_checkpoint (writes snapshot JSON via
+                             SnapshotCodec) and _search_worker_mode_heuristic (521).
+
+The resident pool, root wave, packet scheduler, and per-worker snapshot
+directories all exist as real, wired code — the "multi-worker search"
+machinery is present, not missing.
+
+--------------------------------------------------------------------------
+RED TEST 1 — CompareSearchModesFillWarmsResidentPoolBeforeRootWaveTest
+            (testsuite.py:9121; registered shard 0)
+--------------------------------------------------------------------------
+FAILING BRANCH: c2 — the only failing assertion. Observed:
+  spawned                       = non-zero (Atom)          -> c1 clean
+  _comparison_shared_root_candidates_ready = Diff (false) -> c2 FIRES
+  workers                       = non-empty Pair          -> c3 clean
+  states need root wave after   = false                   -> c4 clean
+
+MECHANISM: the flag _comparison_shared_root_candidates_ready is
+initialized to M.false_value (compare.py:69; probe __init__ in
+testsuite.py:8695) and set to M.truth_value in exactly ONE place:
+_comparison_cache_shared_root_candidates (compare_packets.py:1410), which
+is invoked from _comparison_apply_shared_root_wave (compare_packets.py:1455)
+in the real flow. _fill_parallel_workers (compare_executors.py:656) never
+sets it. The test calls _fill_parallel_workers directly on a fresh probe,
+so the flag stays false.
+
+CLASSIFICATION: test-contract coupling mismatch. The test asserts "filling
+the resident pool leaves the shared-root candidates cached", but caching is
+a separate prepass (_comparison_apply_shared_root_wave ->
+_comparison_cache_shared_root_candidates) that the production pipeline runs
+before the fill, not inside it. Fix is either (a) the test also invokes the
+prepass, or (b) _fill_parallel_workers is declared to own the caching and
+the production flow's prepass is folded in. Ruling for the owner; not a
+defect in the pool/fill mechanics themselves (spawn, worker list, and
+root-wave-dispatch all behave).
+
+--------------------------------------------------------------------------
+RED TEST 2 — CompareSearchModesFindsReusableWorkerSnapshotDirTest
+            (testsuite.py:8716; registered shard 1)
+--------------------------------------------------------------------------
+OBSERVED: _reusable_search_worker_result_paths(temp_dir) returns {}; no
+"SearchBFS" key. The snapshot file IS written (os.path.exists = true) by
+_search_worker_checkpoint. The resume matcher rejects it.
+
+MECHANISM — two independent causes, both inside
+_search_worker_snapshot_matches_current_problem (compare_subprocess.py:319):
+
+  cause (a) heuristic source mismatch:
+    the checkpoint stores _search_worker_mode_heuristic(runtime, "bfs", ...)
+    (main.py:521) which is built from runtime.theorem_heuristic, while the
+    resume matcher compares against _heuristic_for_mode(BFSLabel)
+    (compare_attempts.py:324) which is built from the compare probe's
+    self.heuristic. Different bases -> the stored heuristic never equals
+    the compared heuristic. Observed: TermEqual(worker_heuristic,
+    _heuristic_for_mode(BFSLabel)) = false.
+
+  cause (b) codec TermEqual identity gap:
+    the snapshot round-trip (SnapshotCodec.capture -> load) reconstructs
+    the attempt's start/goal terms as fresh objects. Observed:
+      M.Compare(loaded_start, start)  = truth  (content-equal)
+      M.TermEqual(loaded_start, start) = false  (identity-sensitive)
+    The matcher uses M.TermEqual (compare_subprocess.py:321-326) for
+    start, goal, and heuristic, so a content-identical restored term is
+    rejected. Char atoms are not re-interned by the codec round-trip.
+
+CLASSIFICATION: real resume-reuse defect. The worker-snapshot reuse path
+cannot currently match ANY freshly-written snapshot, because the matcher
+compares identity-sensitive terms against freshly reconstructed codec
+output and against a differently-sourced heuristic. This is the
+"snapshot coverage / fresh-process restore equivalence" gap named in the
+brief; it is a genuine defect, not a test expectation problem.
+
+--------------------------------------------------------------------------
+ROUTING (per brief STEP 2 — for INT/orchestrator ruling, not this lane)
+--------------------------------------------------------------------------
+Revive vs replace is INT's call; this inspection's verdict is REVIVE. If
+revived, the two named mechanisms are the work queue:
+  1. align the resume matcher's heuristic source with what the worker
+     checkpoint stores (or vice versa);
+  2. change resume matching from identity-sensitive TermEqual to
+     content equality (M.Compare) for the round-tripped start/goal/heuristic,
+     or make the codec re-intern Char/Heuristic atoms so TermEqual holds.
+Both are bounded, in the already-partitioned search/ surface. This file
+makes no code change and cuts no tag.
