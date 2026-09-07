@@ -1,0 +1,104 @@
+E3/E4/E7 GRADER BATTERY DRY-RUN — 2026-09-07
+Role: CUR-ORACLE (evaluator-side grader battery self-test). Docs-only; no production code,
+no cross-branch write, no executed merge, no sealing. Evaluation of the grader logic against
+the battery's own mock fixtures.
+
+================================================================================
+BOUNDARY / FIREWALL
+================================================================================
+This is SELF-TEST of KNOWN mocks against the SEALED oracle: CUR-ORACLE built both the contract
+check criteria and the mock fixtures, so this is a grader-logic self-check, NOT clean-room blind
+grading. The clean-room blind-evaluator role is disallowed for this contaminated context; nothing
+here is fed as training input (training-visible: no) and no G-ENG artifact is involved.
+
+Contract status: the E3/E4/E7 grader contracts (arena/01a068c2 @ d573e42) are SPEC-ONLY — no
+executable grader exists on any branch (verified by grep for grader/taxonomy terms in *.py).
+This dry-run therefore exercises the contracts' declared CHECK -> TAXONOMY mapping and the
+per-mock check verdicts, which is the grader logic that a future executable will implement.
+
+================================================================================
+INPUTS
+================================================================================
+Battery:  CUR-GRADER-TEST-BATTERY-2026-09-06.md (arena/01a066cf @ 88b2c0d)
+Contracts: E4  CUR-ENGEL-E4-GRADER-CONTRACT.md  (section 5: check->label taxonomy)
+           E7  CUR-ENGEL-E7-GRADER-CONTRACT.md  (section 5: check->label taxonomy)
+           E3  CUR-ENGEL-E3-EVALUATOR-CONTRACT.md (no distinct taxonomy string)
+
+Declared check -> label taxonomy (verbatim from the contracts' section 5):
+  E4: C1/C2 -> hypothesis-omitted ; C3/C4 -> descent-unsupported ;
+      C5 -> overclaim ; C6 -> constant-injection
+  E7: C1 -> derivation-absent ; C2/C4 -> preservation-unsupported ;
+      C3/C5 -> overclaim ; C6 -> constant-injection
+
+================================================================================
+PART 1 — TAXONOMY PARTITION CHECK (grader-defect class)
+================================================================================
+Does any contract check map to more than one taxonomy label? (If so, a mock failing that check
+would fire two labels.) Does any label own no check, or any check sit outside the map?
+
+  E4: CLEAN  (C1,C2 -> hypothesis-omitted; C3,C4 -> descent-unsupported; C5 -> overclaim;
+              C6 -> constant-injection; no check double-mapped, no check unmapped)
+  E7: CLEAN  (C1 -> derivation-absent; C2,C4 -> preservation-unsupported; C3,C5 -> overclaim;
+              C6 -> constant-injection; no check double-mapped, no check unmapped)
+  E3: no distinct taxonomy string (its checks funnel to preservation/separation/derivation/
+      injection); covered by its PASS mock in Part 3.
+
+RESULT: the taxonomy is a clean partition on both E4 and E7 — no check can fire two labels.
+
+================================================================================
+PART 2 — FAILING MOCKS: does each trigger EXACTLY its own label?
+================================================================================
+MOCK    CTRT  FAILED  EXPECTED                 EMITTED                 MATCH
+------- ----- ------- ------------------------ ----------------------- -----
+E4-M1   E4    C1      hypothesis-omitted       hypothesis-omitted       Y
+E4-M2   E4    C3      descent-unsupported      descent-unsupported      Y
+E4-M3   E4    C5      overclaim                overclaim                Y
+E7-M4   E7    C1      derivation-absent        derivation-absent        Y
+E7-M5   E7    C2      preservation-unsupported preservation-unsupported Y
+E7-M6   E7    C6      constant-injection       constant-injection       Y
+
+FAILed check per mock (from the battery's Disposition lines):
+  E4-M1: C1 (max-degree <= 3 not discharged)          -> hypothesis-omitted
+  E4-M2: C3 (descent Delta H <= -1 not bounded)       -> descent-unsupported
+  E4-M3: C5 (concludes global minimum)                -> overclaim
+  E7-M4: C1 (observable not derived from move set)    -> derivation-absent
+  E7-M5: C2 (even-window preservation not discharged) -> preservation-unsupported
+  E7-M6: C6 (observable weights supplied as constant) -> constant-injection
+
+RESULT: each failing mock's single FAILed check maps to EXACTLY ONE taxonomy label, and that
+label equals the expected label on all 6/6. No mock fires an extra label (the single-label
+invariant holds; per-mock header carries the expected label, cross-checked).
+
+================================================================================
+PART 3 — PASSING MOCKS (one per contract)
+================================================================================
+MOCK      CTRT  VERDICT  CLASSIFICATION
+--------- ----- -------- ----------------------------------------
+PASS-E3   E3    PASS     PRESERVED_AND_SEPARATING
+PASS-E4   E4    PASS     CORRECT (descent, bounded-below termination)
+PASS-E7   E7    PASS     PRESERVED_AND_SEPARATING
+
+RESULT: each passing mock passes all six checks (zero FAILed checks) -> verdict PASS. A PASS
+mock triggers no taxonomy label, consistent with the single-label invariant.
+
+================================================================================
+SUMMARY
+================================================================================
+  failing mocks emitting exactly one label : 6/6
+  single-label == expected on all         : 6/6
+  taxonomy partition (no double-mapped check): E4 CLEAN, E7 CLEAN
+  passing mocks -> PASS                   : 3/3
+  CLEAN: YES (no grader defect found)
+
+No mock emitted a label other than its own; no check maps to two labels; therefore no grader
+defect was found in the battery before any real G-ENG artifact arrives. The battery is proven on
+its own fixtures.
+
+Method caveat (recorded): the dry-run exercises the contracts' declared taxonomy and the
+per-mock check verdicts as encoded in the battery (spec-only contracts; no executable grader to
+invoke). It does not parse G-ENG-generated prose, since no G-ENG artifact exists yet. When a
+frozen G-ENG blind-output artifact arrives, it is graded through the same check -> taxonomy map,
+and only then is the executable path exercised end-to-end.
+
+Boundary held: self-test, not clean-room blind grading; training-visible: no; no cross-branch
+write; no production labels, Edge classes, packs, or G implementation touched.
