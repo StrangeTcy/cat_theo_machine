@@ -226,7 +226,11 @@ contract/forbidden mechanism, registers its labels in both tables (no
 completeness-pin delta), no refusal semantics, terms in testsuite.py,
 instance-form registration (needs the class-form adaptation). 897c07c:
 4 labels, 2 tests, record-based mechanism, graph.py edges, refusal
-semantics, registers nothing (would need 40->44/198->202/18->22).
+semantics. Unadapted it adds four labels WITHOUT registering them — the
+completeness DEBT grows, which is new missing registrations, NOT an
+authorized adjustment (the test forbids raising the debt allowance to
+accommodate omissions). The port adaptation registers all four in both
+tables, so the debt stays 40/198/18. Do not raise the debt pins.
 
 The replay mechanics are verified: relation_contract_required_test is
 GREEN on the authorized-line tree; all dependencies exist on b812db9;
@@ -234,3 +238,39 @@ only mechanical residues are (a) instance->class registration adaptation
 and (b) soft pin 310->311. But batch B cannot land faithfully until
 INT/orchestrator rules WHICH S1 is canonical (or reconciles the two).
 This is an open question, not this session's to adjudicate.
+
+---
+
+## 2026-09-07 — canonical S1 = 897c07c; source-pinned replay green (ruled + rehearsed)
+
+Orchestrator ruled this turn: batch-B canonical source is 897c07c;
+f9ed7fd is comparison evidence only (my earlier instruction to
+substitute f9ed7fd was wrong). Rehearsed and recorded:
+- verification/s1-replay/rehearsal-b812db9-897c07c.txt (record)
+- verification/s1-replay/batch-b-897c07c-adapted.diff (adapted diff)
+- verification/s1-replay/run_batch_b_tests.py (named-test invocation)
+- verification/s1-replay/probe_runtime_boundary.py (boundary probes)
+
+Result: 9/9 named tests green (7 batch-A + the two canonical S1 tests).
+Pin arithmetic: completeness debt stays 40/198/18 (the four labels are
+registered in both tables, not owed); soft pin 310->312; hard pin 218/0
+held. Adaptations: import kept both ways; the two registrations were
+relocated from a mid-install auto-merge into the [S] block and converted
+instance->class.
+
+Boundary probes: source retrieves by identity (M.Char does not intern);
+a refused input (variable in relation position/slot) yields EmptyList and
+never a fact; contract insertion lands a fact in the knowledge trie, not
+a law in the rule pool.
+
+Precise missing connection (open [SHARED], not S1's defect): nothing in
+production teaches or reads a RelationContracts record — the teaching
+verbs (teach_trusted_theorem / teach_law / teach_strategy_prior /
+teach_dependency) install laws, not contracts, and Step 39's
+Contract/ContractViolation is a separate mechanism 897c07c does not
+wire to. S2's relation-schema eligibility is therefore not yet
+triggerable from the teaching path or Step 39.
+
+Limitation preserved: the ablation test compares a populated trie with an
+empty trie; it does not establish production reset behaviour or
+preservation of unrelated facts.

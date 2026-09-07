@@ -6,6 +6,10 @@ session: S-eng (arena/01a06cca-cat-theo-machine)
 base: post-A = b812db9 + the six-phase loop port (five cherry-picks + deltas),
       i.e. rehearsal tree commit 0c71ee3
 source replayed: f9ed7fd [S] s1: relation contract terms for Divides and Congruent
+disposition (orchestrator ruling, 2026-09-07): f9ed7fd is COMPARISON
+    EVIDENCE ONLY. The canonical batch-B source is 897c07c; its adapted
+    replay is recorded in rehearsal-b812db9-897c07c.txt. Keep this file
+    as the comparison record; do not treat the two as interchangeable.
 worktree: /tmp/rehearse-b812db9 (throwaway, detached; NOT a merge)
 interpreter: /tmp/venv (gmpy2 2.3.1 + pyyaml)
 
@@ -99,8 +103,13 @@ completeness-table pin deltas (batch B)
   completeness pins: 40 / 198 / 18 -> UNCHANGED. f9ed7fd registers its
       three labels in BOTH tables (labels.sync_from_namespace and
       persistence.SNAPSHOT_SYMBOL_NAMES), so the missing sets do not
-      grow. No downward pin movement required. (Contrast 897c07c, which
-      registers nothing and WOULD require 40->44 / 198->202 / 18->22.)
+      grow. No downward pin movement required. (Contrast 897c07c,
+      unadapted: it adds four labels WITHOUT registering them, so the
+      completeness DEBT would grow. Those increases are new missing
+      registrations, NOT an authorized adjustment — the completeness
+      test forbids raising the debt allowance to accommodate omissions.
+      The port adaptation registers the four in both required tables, so
+      the debt stays 40 / 198 / 18. Do not raise the debt pins.)
   soft guard pin: EXPECTED_GUARD_COUNT 310 -> 311. The S1 registration
       adds one guarded site; the shard-pin test returns GUARD_COUNT_STALE
       until the same commit bumps it. Measured: guarded sites = 311.
@@ -136,9 +145,13 @@ interchangeable:
   - f9ed7fd: leaner, self-registering (no pin delta), contract/forbidden
     protection, 1 test, no refusal semantics, no contract-record wrapper.
   - 897c07c: richer vocabulary (contract record + provenance), graph.py
-    edges, refusal semantics, 2 tests, but registers nothing (needs the
-    downward pin delta) and carries a knowledge-module import.
+    edges, refusal semantics, 2 tests. Unadapted it adds four labels
+    without registering them (the debt grows); the port adaptation
+    registers all four in both tables (debt stays 40/198/18) and
+    carries a knowledge-module import.
 
-Batch B cannot be replayed faithfully until one is named canonical (or
-the two are reconciled into one). This rehearsal verifies the MECHANICS
-of replaying f9ed7fd; it does not adjudicate which S1 is the spec.
+Batch B could not be replayed faithfully until one was named canonical.
+The orchestrator named 897c07c canonical on 2026-09-07; its adapted
+replay is recorded in rehearsal-b812db9-897c07c.txt. This file verifies
+the MECHANICS of replaying f9ed7fd as comparison evidence and does not
+adjudicate which S1 is the spec.

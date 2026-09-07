@@ -1,0 +1,343 @@
+diff --git a/graph.py b/graph.py
+index 1e0a689..a5d6dc3 100644
+--- a/graph.py
++++ b/graph.py
+@@ -6,6 +6,7 @@ import multiprocessing
+ from . import context as Ctx
+ from . import machine as M
+ from . import proof as P
++from . import knowledge as KnowledgeModule
+ from . import schemata as S
+ from . import labels as Lmod
+ from . import trees as Tmod
+@@ -14683,6 +14684,135 @@ class RenderPropositionSurface(M.Edge):
+ CORRESPONDENCE_INDUCTION_CAP = M.GMPRep("10")
+ 
+ 
++class RelationContractArity(M.Edge):
++    """RelationArity(name, n) as a ground contract atom.
++
++    The name is a ground name constant for one relation; a variable in
++    relation position refuses -- the atom is EmptyList, never a fact. The
++    same refusal guards the arity slot: contracts carry numerals.
++    """
++
++    def __init__(self, name, arity):
++        self.result = M.EmptyList
++        if P.IsVarPattern(name)() is M.false_value:
++            if P.IsVarPattern(arity)() is M.false_value:
++                self.result = M.Pair(
++                    Lmod.RelationArityLabel,
++                    M.Pair(name, M.Pair(arity, M.EmptyList)),
++                )
++        super().__init__(
++            inputs=M.Pair(name, M.Pair(arity, M.EmptyList)),
++            results=self.result,
++        )
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractExtensionalAt(M.Edge):
++    """ExtensionalAt(name, position) as a ground contract atom.
++
++    Same refusal as RelationContractArity: no variable in relation
++    position, no variable in position slot.
++    """
++
++    def __init__(self, name, position):
++        self.result = M.EmptyList
++        if P.IsVarPattern(name)() is M.false_value:
++            if P.IsVarPattern(position)() is M.false_value:
++                self.result = M.Pair(
++                    Lmod.ExtensionalAtLabel,
++                    M.Pair(name, M.Pair(position, M.EmptyList)),
++                )
++        super().__init__(
++            inputs=M.Pair(name, M.Pair(position, M.EmptyList)),
++            results=self.result,
++        )
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContracts(M.Edge):
++    """A record of contract atoms with a named human source.
++
++    Pair(RelationContractsLabel, Pair(atoms, Pair(source,
++    Pair(ContractFactLabel, EmptyList)))). The provenance is
++    CONTRACT_FACT: a contract is a taught fact about a named relation,
++    never a library theorem.
++    """
++
++    def __init__(self, atoms, source):
++        self.result = M.Pair(
++            Lmod.RelationContractsLabel,
++            M.Pair(
++                atoms,
++                M.Pair(source, M.Pair(Lmod.ContractFactLabel, M.EmptyList)),
++            ),
++        )
++        super().__init__(
++            inputs=M.Pair(atoms, M.Pair(source, M.EmptyList)),
++            results=self.result,
++        )
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractsAtoms(M.Edge):
++    def __init__(self, record):
++        self.result = M.Head(M.Tail(record)())()
++        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractsSource(M.Edge):
++    def __init__(self, record):
++        self.result = M.Head(M.Tail(M.Tail(record)())())()
++        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractsProvenance(M.Edge):
++    def __init__(self, record):
++        self.result = M.Head(M.Tail(M.Tail(M.Tail(record)())())())()
++        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractsInsert(M.Edge):
++    """Insert a RelationContracts record's atoms into a knowledge trie.
++
++    Ablation is the mirror of insertion: rebuild the trie without the
++    record. Contracts are side-condition facts; they never enter a rule
++    pool or a template chain.
++    """
++
++    def __init__(self, knowledge, record, registry):
++        atoms = RelationContractsAtoms(record)()
++        self.result = KnowledgeModule.KnowledgeTrieInsertChain(
++            knowledge,
++            atoms,
++            registry,
++        )()
++        super().__init__(
++            inputs=M.Pair(
++                knowledge,
++                M.Pair(record, M.Pair(registry, M.EmptyList)),
++            ),
++            results=self.result,
++        )
++
++    def __call__(self):
++        return self.result
++
++
+ class CorrespondenceExample(M.Edge):
+     """One recorded Surface/Meaning pair with its evidence tag."""
+ 
+diff --git a/labels.py b/labels.py
+index 2ecdaf8..4189d31 100644
+--- a/labels.py
++++ b/labels.py
+@@ -1191,6 +1191,22 @@ class GcdLabel(ConstructorLabel):
+     pass
+ 
+ 
++class RelationArityLabel(ConstructorLabel):
++    pass
++
++
++class ExtensionalAtLabel(ConstructorLabel):
++    pass
++
++
++class RelationContractsLabel(ConstructorLabel):
++    pass
++
++
++class ContractFactLabel(ConstructorLabel):
++    pass
++
++
+ class CostSavingsLabel(ConstructorLabel):
+     pass
+ 
+@@ -2073,6 +2089,10 @@ BaseCaseLabel = BaseCaseLabel()
+ StepCaseLabel = StepCaseLabel()
+ ModuloLabel = ModuloLabel()
+ GcdLabel = GcdLabel()
++RelationArityLabel = RelationArityLabel()
++ExtensionalAtLabel = ExtensionalAtLabel()
++RelationContractsLabel = RelationContractsLabel()
++ContractFactLabel = ContractFactLabel()
+ CostSavingsLabel = CostSavingsLabel()
+ ReuseLabel = ReuseLabel()
+ NoveltyLabel = NoveltyLabel()
+@@ -2499,6 +2519,10 @@ def sync_from_namespace(namespace):
+         "CategoryLabel",
+         "BinderLabel",
+         "DividesLabel",
++        "RelationArityLabel",
++        "ExtensionalAtLabel",
++        "RelationContractsLabel",
++        "ContractFactLabel",
+         "HoleLabel",
+         "NoDefinitionInstalledLabel",
+         "ExactFillersLabel",
+diff --git a/persistence.py b/persistence.py
+index 5e725f2..e6d60b4 100644
+--- a/persistence.py
++++ b/persistence.py
+@@ -329,6 +329,10 @@ SNAPSHOT_SYMBOL_NAMES = [
+     "NonEmptyLabel",
+     "AttainsLabel",
+     "ExtremalAtLabel",
++    "RelationArityLabel",
++    "ExtensionalAtLabel",
++    "RelationContractsLabel",
++    "ContractFactLabel",
+     "VariationLabel",
+     "BetterLabel",
+     "ExistsLabel",
+diff --git a/testsuite.py b/testsuite.py
+index a86d492..6c43ab5 100644
+--- a/testsuite.py
++++ b/testsuite.py
+@@ -15,6 +15,7 @@ from . import graph as Gmod
+ from . import heuristics as Hmod
+ from . import labels as Lmod
+ from .sentinels import MILESTONE_SKIPPED, VALUE_ATOM_IDENTITY_OPEN
++from . import knowledge as Kmod
+ from . import matching as Xmod
+ from . import proof as Pmod
+ from . import rewrite_rules as Rmod
+@@ -5634,6 +5635,86 @@ class ConverseDefaultModeTest(M.Edge):
+         return self.result
+ 
+ 
++class RelationContractRecordInsertsAndAblatesTest(M.Edge):
++    """S1: contracts enter the fact store by record; ablation is rebuild.
++
++    A RelationContracts record inserts its atoms into a knowledge trie;
++    the trie answers HasFact for each atom. Ablation is rebuilding
++    without the record: the fresh trie answers nothing. Contract atoms
++    are not laws (IsLawTerm false), and the record's provenance is
++    CONTRACT_FACT -- a taught fact, never a library theorem.
++    """
++
++    def __init__(self, graph):
++        empty = M.EmptyList
++        registry = M.FromContextGetConstructors(graph)()
++        name = M.Char("divides")
++        arity_atom = Gmod.RelationContractArity(name, M.two)()
++        ext_atom = Gmod.RelationContractExtensionalAt(name, M.one)()
++        atoms = M.Pair(arity_atom, M.Pair(ext_atom, empty))
++        record = Gmod.RelationContracts(atoms, M.Char("operator-session-2026-09-05"))()
++
++        loaded = Gmod.RelationContractsInsert(M.EmptyTree, record, registry)()
++        has_arity = Kmod.KnowledgeTrieHasFact(loaded, arity_atom, registry)()
++        has_ext = Kmod.KnowledgeTrieHasFact(loaded, ext_atom, registry)()
++        ablated = M.EmptyTree
++        has_after = Kmod.KnowledgeTrieHasFact(ablated, arity_atom, registry)()
++        arity_is_law = Gmod.IsLawTerm(arity_atom)()
++        provenance = Gmod.RelationContractsProvenance(record)()
++
++        self.result = M.truth_value
++        if has_arity is M.false_value:
++            self.result = M.false_value
++        elif has_ext is M.false_value:
++            self.result = M.false_value
++        elif has_after is M.truth_value:
++            self.result = M.false_value
++        elif arity_is_law is M.truth_value:
++            self.result = M.false_value
++        elif M.IdentityCompare(
++            provenance,
++            Lmod.ContractFactLabel,
++        )() is M.false_value:
++            self.result = M.false_value
++
++        graph._replace_context(constructors=registry)
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractNeverVariableTest(M.Edge):
++    """S1: a variable in relation position or slot refuses construction.
++
++    The predicate-identity wall stands: contracts are ground facts about
++    named relations, so RelationArity(?r, 2) and ExtensionalAt(divides,
++    ?p) are EmptyList, never facts.
++    """
++
++    def __init__(self, graph):
++        empty = M.EmptyList
++        registry = M.FromContextGetConstructors(graph)()
++        var = M.Pair(M.VarTag, M.Pair(M.Char("?r"), empty))
++        refused_name = Gmod.RelationContractArity(var, M.two)()
++        refused_slot = Gmod.RelationContractExtensionalAt(M.Char("divides"), var)()
++        accepted = Gmod.RelationContractArity(M.Char("divides"), M.two)()
++
++        self.result = M.truth_value
++        if M.IdentityCompare(refused_name, empty)() is M.false_value:
++            self.result = M.false_value
++        elif M.IdentityCompare(refused_slot, empty)() is M.false_value:
++            self.result = M.false_value
++        elif M.IdentityCompare(accepted, empty)() is M.truth_value:
++            self.result = M.false_value
++
++        graph._replace_context(constructors=registry)
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
+ class ReadingPolicyTest(M.Edge):
+     """A typed line becomes words by the policy, not by string surgery.
+ 
+@@ -16809,7 +16890,7 @@ class TestShardCursorPinTest(M.Edge):
+     broken.
+     """
+ 
+-    EXPECTED_GUARD_COUNT = 310
++    EXPECTED_GUARD_COUNT = 312
+     EXPECTED_CURSOR_INDEX = 218
+     EXPECTED_SHARD = 0
+ 
+@@ -19627,6 +19708,22 @@ def install_default_tests(graph):
+             SelfImprovementMemoryCycleTest,
+             M.truth_value,
+         )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_record_inserts_and_ablates_test",
++            empty,
++            RelationContractRecordInsertsAndAblatesTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_never_variable_test",
++            empty,
++            RelationContractNeverVariableTest,
++            M.truth_value,
++        )
+     # --- end [S] ---
+ 
+     # --- [E] ------------------------------------------------------------

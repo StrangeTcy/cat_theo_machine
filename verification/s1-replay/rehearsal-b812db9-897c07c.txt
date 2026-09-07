@@ -1,0 +1,148 @@
+SOURCE-PINNED BATCH-B REHEARSAL — canonical S1 897c07c onto post-A
+==================================================================
+
+dated: 2026-09-07
+session: S-eng (arena/01a06cca-cat-theo-machine)
+ruling: batch-B canonical source = 897c07c (orchestrator, this turn);
+        f9ed7fd is comparison evidence only (see rehearsal-b812db9.txt)
+post-A base: b812db9 + six-phase loop port (rehearsal commit 263b781)
+worktree: /tmp/rehearse-897c07c (throwaway, detached; NOT a merge, no tag)
+interpreter: /tmp/venv (gmpy2 2.3.1 + pyyaml)
+
+--------------------------------------------------------------------------
+1. source (resolved and pinned)
+--------------------------------------------------------------------------
+897c07cdfbfec8866b2b0a0921012d13a646630a
+parent: a93f128735181a8abc41787ab36930dcd33cc754
+subject: [S] S1: relation contracts as ground facts about named relations
+files: graph.py +130, labels.py +20, testsuite.py +98 (248 insertions)
+
+--------------------------------------------------------------------------
+2. conflict inventory (git cherry-pick 897c07c onto post-A 263b781)
+--------------------------------------------------------------------------
+  graph.py      auto-merged clean   (7 edges + knowledge import)
+  labels.py     auto-merged clean   (4 label classes + instances)
+  testsuite.py  1 content hunk      (import line; see 3a)
+  persistence.py not touched by the source (adaptation 3d adds it)
+
+One conflict hunk, one file. Far cleaner than the f9ed7fd replay
+(3 files, 4 hunks), because 897c07c's own placement is already
+runtime-side (graph.py) and label-side (labels.py), matching post-A.
+
+--------------------------------------------------------------------------
+3. adaptations applied (each recorded)
+--------------------------------------------------------------------------
+3a. import (the single conflict). post-A testsuite.py has
+    `from .sentinels import MILESTONE_SKIPPED, VALUE_ATOM_IDENTITY_OPEN`;
+    897c07c adds `from . import knowledge as Kmod`. Resolution: keep BOTH.
+
+3b. registrations relocated + class form. 897c07c's two registrations
+    auto-merged into the WRONG location (mid-install_default_tests,
+    immediately after the count1/count2/thingy1 block, i.e. BEFORE the
+    shard cursor pin) and in INSTANCE form. Leaving them there would
+    shift learned_memory_checkpoint_test and break the hard pin. They
+    were moved into the `# --- [S] ---` block after the five batch-A
+    registrations and converted instance -> class:
+      RelationContractRecordInsertsAndAblatesTest(graph) -> class
+      RelationContractNeverVariableTest(graph)           -> class
+
+3c. labels registration (adaptation). The source commit defines the four
+    labels but does NOT add them to sync_from_namespace. Added after
+    "DividesLabel": RelationArityLabel, ExtensionalAtLabel,
+    RelationContractsLabel, ContractFactLabel.
+
+3d. persistence registration (adaptation). The source commit does not
+    touch persistence.py. Added to SNAPSHOT_SYMBOL_NAMES after
+    "ExtremalAtLabel": the same four names.
+
+3e. soft pin. EXPECTED_GUARD_COUNT 310 -> 312 (measured guarded sites:
+    312 = 310 batch-A + 2 S1 registrations).
+
+3f. hard pin. EXPECTED_CURSOR_INDEX 218, EXPECTED_SHARD 0 UNCHANGED.
+    Measured: learned_memory_checkpoint_test still at cursor 218.
+
+--------------------------------------------------------------------------
+4. pin arithmetic (measured, not assumed)
+--------------------------------------------------------------------------
+  completeness debt  : 40 / 198 / 18 UNCHANGED.
+      The four labels are registered in BOTH required tables, so the
+      missing sets do not grow. The debt is NOT raised; the four are
+      accommodated by registration, not by moving the pins.
+  soft guard pin     : 310 -> 312 (two added registrations).
+  hard cursor/shard  : 218 / 0 UNCHANGED.
+
+--------------------------------------------------------------------------
+5. named-test output (verbatim; 9/9 PASS)
+--------------------------------------------------------------------------
+label_registration_completeness_test: PASS
+test_shard_cursor_pin_test: PASS
+relation_contract_record_inserts_and_ablates_test: PASS
+relation_contract_never_variable_test: PASS
+self_improvement_trace_mining_test: PASS
+self_improvement_rent_gate_test: PASS
+self_improvement_recursive_turn_test: PASS
+invariant_conjecture_test: PASS
+self_improvement_memory_cycle_test: PASS
+
+--------------------------------------------------------------------------
+6. runtime-boundary probes (verbatim; direct construction, not the tests)
+--------------------------------------------------------------------------
+P1 source retrieves: True        (source retrieved BY IDENTITY)
+P1 atoms-head == arity_atom: True
+P1 provenance == ContractFactLabel: True
+   note: M.Char does not intern; a freshly-constructed Char of the same
+   text compares unequal by IdentityCompare (and by TermEqual here), so
+   consumers must hold the source object, not reconstruct it. This is a
+   machine-wide property, not an S1 defect.
+P2 refused atom is EmptyList: True
+P2 refused atom NOT a fact after insert: True
+   (RelationContractArity(?r, 2) -> EmptyList; a record carrying the
+   refused atom inserts nothing into the knowledge trie.)
+P3 contract atom IsLawTerm false: True
+P3 inserted atom IS a fact: True
+P3 inserted atom still not a law: True
+   (contract insertion lands in the fact store, not the rule pool.)
+
+--------------------------------------------------------------------------
+7. Step 39 + teaching-path connection: the precise missing connection
+--------------------------------------------------------------------------
+- RelationContracts* has NO production consumer. After the replay, the
+  only references are graph.py (definitions), testsuite.py (tests), and
+  labels.py/persistence.py (registration). research.py, main.py, and
+  packs.py reference it 0 times.
+- The teaching verbs (research.py: teach_trusted_theorem, teach_law,
+  teach_strategy_prior, teach_dependency; wired through main.py) teach
+  LAWS (rules). None consults RelationContracts.
+- Step 39's Contract/ContractPorts/ContractViolation (graph.py) is a
+  separate mechanism. 897c07c does NOT wire RelationContracts to it.
+  (f9ed7fd's test DID exercise Step 39 ContractViolation; that is one
+  reason f9ed7fd is comparison evidence, not the source.)
+
+=> Precise missing connection: the canonical S1 supplies the runtime
+   interface (constructors, accessors, refusal, fact-store insertion)
+   and it is verified at the boundary, but nothing teaches a
+   RelationContracts record and nothing reads it in production. The
+   relation-schema eligibility S2 needs is therefore not yet triggerable
+   from the teaching path or from Step 39. This is an open [SHARED]
+   re-map, not an S1 defect and not this session's to resolve.
+
+--------------------------------------------------------------------------
+8. limitation preserved
+--------------------------------------------------------------------------
+The source's ablation test compares a populated trie with an EMPTY trie.
+That alone does not establish production reset behaviour (rebuild vs a
+live store) or preservation of unrelated facts across ablation.
+
+--------------------------------------------------------------------------
+9. bundle contents
+--------------------------------------------------------------------------
+  rehearsal-b812db9-897c07c.txt   (this file)
+  batch-b-897c07c-adapted.diff    (adapted diff, post-A -> post-B)
+  run_batch_b_tests.py            (executable named-test invocation)
+  probe_runtime_boundary.py       (executable boundary probes)
+
+This-turn invocation (rehearsal worktree, package name via symlink):
+  ln -s /tmp/rehearse-897c07c /tmp/cat_theo_machine
+  cd /tmp && PYTHONPATH=/tmp /tmp/venv/bin/python \
+      /home/user/cat_theo_machine/verification/s1-replay/run_batch_b_tests.py
+  (probes likewise, probe_runtime_boundary.py)
