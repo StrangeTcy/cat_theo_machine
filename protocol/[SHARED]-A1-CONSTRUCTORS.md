@@ -43,6 +43,26 @@ This request covers **constructors only**. Independent of it, the four problems'
 statement text is not in the tree (only nicknames in `CHARTER-v2.md` §3 G2); that is routed to the
 operator, not part of this [SHARED] request.
 
+## Scope ruling (INT implementation boundary)
+
+Ruling from the reviewer (opus 4.6, ratified): scope this request to **label registration only** —
+the same pattern as every other label addition in this programme. When INT implements:
+
+**INT lands:**
+- label classes in `labels.py` (inside a marked block or `[SHARED]` region);
+- singleton instances;
+- registration in `sync_from_namespace`;
+- registration in `SNAPSHOT_SYMBOL_NAMES` **if** the label must survive cold restore;
+- guard-count bump in the same commit.
+
+**INT does NOT land:**
+- pack rules using these constructors (that is G-eng or G/I-op content);
+- obligation skeletons referencing them (that is G-eng G1 work);
+- training-record meaning structures (that is G/I-op authoring).
+
+The constructors are **vocabulary**; the content that uses them comes from the track owners after the
+vocabulary exists. Same boundary as D11's capability-vs-content split.
+
 ---
 
 ```text

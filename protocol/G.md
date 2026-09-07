@@ -50,6 +50,19 @@ Not yet run as a session (no authorized tag). The brief pre-declares: on this li
 
 ---
 
+## Turn 2 (2026-09-06) — state check, both grounds still open
+
+- Remote tip `d573e42` (unchanged from turn 1). Local reconciled to remote (fast-forward, no force-push).
+- Integration tip advanced to `b812db9` (INT preflight item 1 — pinned repro harness for the swallowed exception). **`protocol/research_protocol.md` still unpublished; no wave/cut tag.**
+- A1 domain constructors **still absent** at the integration tip (re-grepped: `Path/Cycle/Graph/Integer/Remainder/Residue/Congruent/Word/Adjacent/Coloring/Rotation` all absent). Engel statement text for the four problems still not in the tree.
+- Neither blocking ground has cleared. **Lane parked** — do not author records until BOTH constructors and statement text arrive.
+
+### Ruling recorded (constructor scope)
+
+The reviewer's constructor-scope ruling is appended to `protocol/[SHARED]-A1-CONSTRUCTORS.md`: INT lands **label registration only** (classes, singleton instances, `sync_from_namespace`, `SNAPSHOT_SYMBOL_NAMES` if cold-restore, guard-count bump). INT does **not** land pack rules, obligation skeletons, or training-record meaning structures using these constructors — those are track-owner content that comes after the vocabulary exists (same boundary as D11's capability-vs-content split).
+
+---
+
 End-of-turn block:
 
 ```text
