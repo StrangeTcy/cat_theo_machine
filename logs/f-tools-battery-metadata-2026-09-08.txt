@@ -1,0 +1,6 @@
+battery run metadata
+utc: 2026-09-07T22:25:47Z
+commit: 545d2ce1dd99ab91a949246727db3593acd27771
+invoked-as: tools/f-tools-battery.sh
+invoked-from: /home/user/cat_theo_machine
+resolved-tree: /home/user/cat_theo_machine

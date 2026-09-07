@@ -1,0 +1,132 @@
+F-tools acceptance battery (fail-closed)
+runner: tools/f-tools-battery.sh (this tree)
+grader: tools/f2_grader.sh; oracle: tools/f2-grading-fixtures.spec.md (T4 as amended)
+
+== availability ==
+ok: tools/f2_grader.sh
+ok: tools/f3-residual-diff.sh
+ok: tools/f3_batch_diff.sh
+ok: tools/f4_auditor.sh
+ok: tools/f2-outcome-class.sh
+ok: logs/fixtures/toy-live-protocol.log
+ok: logs/fixtures/ground-evaluation.log
+ok: logs/fixtures/blind-geometry-dependencies.log
+ok: logs/fixtures/incident-misattributed-teaching.log
+
+== name-token grep over the grading scripts (five tokens, case-insensitive) ==
+ok: tools/f2_grader.sh (zero hits)
+ok: tools/f3-residual-diff.sh (zero hits)
+ok: tools/f3_batch_diff.sh (zero hits)
+ok: tools/f4_auditor.sh (zero hits)
+ok: tools/f2-outcome-class.sh (zero hits)
+
+== F2: script versus recorded oracle, four fixtures ==
+oracle fields: taught / unlock / circular / computable / cited / uncited
+
+-- toy-live-protocol.log
+taught-theorem count:       3
+unlock-evidence count:      2
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        2
+cite-coverage uncited:      1
+oracle (3/2/0/0/2/1): yes
+-- ground-evaluation.log
+taught-theorem count:       2
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      2
+oracle (2/0/0/0/0/2): yes
+-- blind-geometry-dependencies.log
+taught-theorem count:       1
+unlock-evidence count:      0
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        1
+cite-coverage uncited:      0
+oracle (1/0/0/0/1/0): yes
+-- incident-misattributed-teaching.log
+taught-theorem count:       1
+unlock-evidence count:      1
+circular-request count:     0
+computable-request count:   0
+cite-coverage cited:        0
+cite-coverage uncited:      1
+oracle (1/1/0/0/0/1): yes
+
+== F3 batch identity matrix: four fixtures plus the F-RUNNER transcripts of this branch ==
+1 1 identical logs/fixtures/toy-live-protocol.log logs/fixtures/toy-live-protocol.log
+1 2 distinct logs/fixtures/toy-live-protocol.log logs/fixtures/ground-evaluation.log
+1 3 distinct logs/fixtures/toy-live-protocol.log logs/fixtures/blind-geometry-dependencies.log
+1 4 distinct logs/fixtures/toy-live-protocol.log logs/fixtures/incident-misattributed-teaching.log
+1 5 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-decoy.log
+1 6 distinct logs/fixtures/toy-live-protocol.log logs/2026-09-05-F-RUNNER-target.log
+2 2 identical logs/fixtures/ground-evaluation.log logs/fixtures/ground-evaluation.log
+2 3 silence-class logs/fixtures/ground-evaluation.log logs/fixtures/blind-geometry-dependencies.log
+2 4 distinct logs/fixtures/ground-evaluation.log logs/fixtures/incident-misattributed-teaching.log
+2 5 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-decoy.log
+2 6 silence-class logs/fixtures/ground-evaluation.log logs/2026-09-05-F-RUNNER-target.log
+3 3 identical logs/fixtures/blind-geometry-dependencies.log logs/fixtures/blind-geometry-dependencies.log
+3 4 distinct logs/fixtures/blind-geometry-dependencies.log logs/fixtures/incident-misattributed-teaching.log
+3 5 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-decoy.log
+3 6 silence-class logs/fixtures/blind-geometry-dependencies.log logs/2026-09-05-F-RUNNER-target.log
+4 4 identical logs/fixtures/incident-misattributed-teaching.log logs/fixtures/incident-misattributed-teaching.log
+4 5 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-decoy.log
+4 6 distinct logs/fixtures/incident-misattributed-teaching.log logs/2026-09-05-F-RUNNER-target.log
+5 5 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-decoy.log
+5 6 identical logs/2026-09-05-F-RUNNER-decoy.log logs/2026-09-05-F-RUNNER-target.log
+6 6 identical logs/2026-09-05-F-RUNNER-target.log logs/2026-09-05-F-RUNNER-target.log
+batch exit=0
+f3 check: pass (every pair comparable; verdicts are measurement outcomes)
+
+== F4 auditor sheets, four fixtures (informational; no numeric oracle) ==
+session-id: toy-live-protocol.log
+packs: not loaded
+state: missing
+audit knowledge: present
+loaded-class list: missing
+D12: first audit omits loaded classes
+regime: B
+contamination: no
+teach law lines: 3
+cite-coverage follows F2; run tools/f2_grader.sh on this path
+instrument class: pre-D11 backward-blind
+--
+session-id: ground-evaluation.log
+packs: not loaded
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+audit knowledge: present
+loaded-class list: present
+regime: B
+contamination: no
+teach law lines: 2
+cite-coverage follows F2; run tools/f2_grader.sh on this path
+instrument class: pre-D11 backward-blind
+--
+session-id: blind-geometry-dependencies.log
+packs: not loaded
+state: missing
+audit knowledge: present
+loaded-class list: missing
+D12: first audit omits loaded classes
+regime: B
+contamination: no
+teach law lines: 1
+cite-coverage follows F2; run tools/f2_grader.sh on this path
+instrument class: pre-D11 backward-blind
+--
+session-id: incident-misattributed-teaching.log
+packs: not loaded
+state: taught rules 4; axioms 1; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 2; intervention episodes 2; learned policies 0; residual generator enabled
+audit knowledge: present
+loaded-class list: present
+regime: C
+contamination: yes
+teach law lines: 1
+cite-coverage follows F2; run tools/f2_grader.sh on this path
+instrument class: pre-D11 backward-blind
+--
+
+BATTERY PASSED: all enforced checks green

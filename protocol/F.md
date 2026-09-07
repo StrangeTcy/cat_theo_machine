@@ -476,3 +476,88 @@ origin/arena/*) whenever the tracking refs are absent. Ledger of
 events: 9787811 -> 246162a; e6488c4 -> 704db5e; 19bed91 -> this
 commit. Three events, three recoveries, zero force-pushes, zero lost
 content.
+
+## Runbook correction -- step 4, from source inspection
+
+Finding: step 4's `git reset --hard origin/<branch>` overwrites
+working-tree content and can clobber obstructing untracked paths, and
+step 2's direction reading cannot distinguish reset artifacts from
+intentional deletions. The three recoveries are observed evidence,
+not a guarantee. Step 4 amended accordingly:
+
+- Before touching the branch, inventory the full working state --
+  tracked, staged, unstaged, and untracked (git status and git stash
+  list), saved into the staging directory alongside the true-delta
+  files.
+- When the delta is ambiguous, or the tree is dirty beyond the
+  identified true-delta files, reconstruct in a separate clean clone
+  at the verified remote SHA -- never inside this checkout -- apply
+  only reviewed, owned changes there, and verify paths, bytes, and
+  modes (cmp, ls -l) against the staging directory before committing.
+- The in-place reset path remains only for the unambiguous case:
+  merge base equals the branch base, at most one squashed local
+  commit, the delta reads as exactly the reviewed set, and the
+  post-reset battery check is green. Anything else takes the
+  clean-clone path.
+
+A fourth event this turn validated the amendment's premise: this
+reset left no local commit at all and the surviving snapshot was
+partial -- older artifacts existed only in the pushed chain. The
+staging step protected the turn's work; the reset restored all
+committed content. Observed twice more is still observed, not
+guaranteed.
+
+## 2026-09-08, hardening batch -- the battery fails closed; eight acceptance tests green
+
+Both inspection findings closed.
+
+Finding 2 (battery printed evidence without enforcing it):
+tools/f-tools-battery.sh is now fail-closed. It relocates to its own
+tree before running, so the caller's working directory is irrelevant.
+It gates on availability first -- the five grading scripts executable,
+the four fixtures readable -- and names the first missing thing. It
+compares every required F2 field against the recorded oracle (the
+amended spec values, transcribed, not derived from script output) and
+fails on any mismatch with expected and got printed. The name-token
+grep is enforced: any hit fails the battery. The F3 batch exit is
+propagated: zero incomparable pairs passes; an incomparable pair or a
+missing tool fails; the verdicts identical, silence-class, and
+distinct remain measurement outcomes, never failures. All check
+results aggregate explicitly into one verdict line, and any CHECK
+FAILED line forces a nonzero exit. Deterministic output is split from
+run metadata: the core on stdout carries no timestamps or absolute
+paths and is byte-identical across reruns of one tree; UTC, commit,
+invocation, and resolved tree go to a companion metadata file given
+as the argument.
+
+Finding 2b (cross-checkout fallback): tools/f3_batch_diff.sh no
+longer carries the absolute-path fallback. A missing tree-local pair
+tool is an explicit error with a named locus and exit 2; the batch
+grades with its own tree's pair tool or not at all. The selftest
+proves the isolation: with the pair tool removed from a disposable
+copy, the batch fails even though another checkout's tool exists at
+the old fallback path on this host.
+
+Acceptance tests: tools/f-tools-battery-selftest.sh, eight cases on
+disposable copies -- unchanged tree passes; one altered F2 count
+rejected; missing fixture rejected; missing grader rejected; missing
+adjacent pair tool cannot fall back; valid F3 verdicts keep meaning;
+one failed component fails the whole battery; an unrelated working
+directory still uses the intended tree. Result: 8 of 8 green
+(logs/f-tools-battery-selftest-2026-09-08.txt). The selftest earned
+its keep on its first run: two cases initially failed because the
+test's own mutations were no-ops (a spec-shorthand string that does
+not occur in the fixture; a name token split across two lines), and
+fixing the mutations, not the battery, turned them green.
+
+Artifacts (dated 2026-09-08, Europe/Moscow):
+logs/f-tools-acceptance-battery-2026-09-08.txt (deterministic core,
+regenerated after the reset recovery; BATTERY PASSED),
+logs/f-tools-battery-metadata-2026-09-08.txt (run metadata companion,
+commit recorded as the recovered base 545d2ce),
+logs/f-tools-battery-selftest-2026-09-08.txt (8/8 green). The
+determinism recheck after recovery: byte-identical.
+
+Not done, deliberately: no expected grade was changed to match script
+output; the closed measurement pair was not run; F1 was not
+implemented; no machine code touched; no tag cut.

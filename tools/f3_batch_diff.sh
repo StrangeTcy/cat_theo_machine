@@ -8,10 +8,12 @@ set -u
 PAIR=$(dirname "$0")/f3-residual-diff.sh
 if [ ! -x "$PAIR" ]
 then
-  # Legacy fallback for callers that copied the script elsewhere; the
-  # tree-local tool next to this script always wins, so a fresh copy
-  # of the tree runs against its own pair tool, not another checkout's.
-  PAIR=/home/user/cat_theo_machine/tools/f3-residual-diff.sh
+  # No cross-checkout fallback exists: a batch run must grade with the
+  # pair tool of its own tree or not at all. Executing a pair tool from
+  # another checkout would grade against an unverified instrument.
+  echo "f3_batch_diff.sh: tree-local pair tool missing or not executable: $PAIR" >&2
+  echo "f3_batch_diff.sh: run from a complete tree; no fallback is provided" >&2
+  exit 2
 fi
 
 if [ "$#" -lt 2 ]

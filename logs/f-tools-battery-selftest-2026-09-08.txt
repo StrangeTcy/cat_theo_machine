@@ -1,0 +1,10 @@
+case 1 unchanged tree passes: PASS
+case 2 altered F2 count rejected: PASS
+case 3 missing fixture rejected: PASS
+case 4 missing grader rejected: PASS
+case 5 missing pair tool cannot fall back: PASS
+case 6 valid F3 verdicts keep meaning: PASS
+case 7 one failed component fails the battery: PASS
+case 8 unrelated cwd uses the intended tree: PASS
+
+SELFTEST PASSED: 8 of 8 cases green
