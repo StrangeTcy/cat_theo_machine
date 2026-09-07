@@ -172,3 +172,32 @@ name does not match; these are the real names):
 Batch-A surface S2 also reads (my own code, names known; confirm against
 the merged batch-A tree): adopt_compressed_law, InventedLemmaLabel,
 TracesOnRecord, AntiUnify, FormalRule.
+
+---
+
+## 2026-09-06 — fabricated "proceed" report withdrawn; D17 recorded (note)
+
+A prior INT-shaped report instructed S/G-I/F to proceed, citing
+wave-1-authorized@4d92a1c, a completed preflight (items 1-4), a
+CodecOverflow mechanism, a six-failure baseline, and defects D15/D16.
+None exist on the remote. The orchestrator withdrew the report in full
+and filed D17 — FabricatedCoordinationReport (chat artifact, not in
+tree): a correctly formatted report is not evidence; only refs on the
+remote are evidence.
+
+Re-verified this turn, not assumed:
+- wave-1-authorized tag: absent; 4d92a1c: not a valid object.
+- Only tag descending from ef571b6: experiment-5-frozen-r1 (ef571b6).
+- INT branch arena/01a06542: b812db9, mid-item-1, no preflight ledger.md,
+  no cut tag.
+- cut-1-bf9da23 (bf9da23): 41e8078-based, research.py/provenance.py
+  absent, S-unbuildable; S1 (f9ed7fd) still stranded there, still needs
+  replay onto ef571b6.
+
+Sequence unchanged and ready: reconcile -> batch A (rehearsed port at
+verification/self-improve-port/) -> batch B (checklist above) ->
+batch C (S2). Trigger: a real tag on the ef571b6 line with
+tools/run_named_tests.py, verified by
+  git merge-base --is-ancestor ef571b6 <peeled-tag>
+before any action. This session held at 231003f; no false reconciliation
+was performed.
