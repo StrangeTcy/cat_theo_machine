@@ -1,17 +1,27 @@
 #!/bin/sh
 # Preflight item 1 repro — pinned.
 #
-#   sh tools/preflight_item1_repro.sh <N> [--no-swap]
+#   sh tools/preflight_item1_repro.sh exact [--no-swap]
+#   sh tools/preflight_item1_repro.sh <N>  [--no-swap]
 #
-# Runs the N tests registered immediately before
-# `learned_memory_checkpoint_test` (cursor index 218) plus that test, in
-# registration order, in one process. The name filter is applied at
+# Runs a predecessor set plus `learned_memory_checkpoint_test` (cursor index
+# 218) in one process, in registration order. The name filter is applied at
 # registration (tools/run_named_tests.py), so an unselected test is never
-# constructed: N is the only variable between runs.
+# constructed: the predecessor set is the only variable between runs.
 #
-# Predecessor selection: cursor indices [218-N, 217] from
-# `tools/shard_map.py`, which walks the AST in source order and is the same
-# static assignment the shard pins are computed against.
+# Two selection modes:
+#
+#   exact   every registration before cursor 218 accepted by shard 0 of 2.
+#           That set is 109 tests -- the historical context of the swallowed
+#           exception. This is the decisive mode.
+#   <N>     a trailing window, cursor indices [218-N, 217]. Exploratory
+#           threshold probing only; it does not reproduce the exact context
+#           and never substitutes for it.
+#
+# Either way the ordered set of selected names and a digest of it are
+# printed, so two runs can be compared instead of assumed equal. Names come
+# from `tools/shard_map.py`, which walks the AST in source order and is the
+# same static assignment the shard pins are computed against.
 #
 # The swap. With `--no-swap` the run uses the tree as it stands. Without it
 # the script applies the preflight re-raise itself — replacing the
@@ -62,12 +72,28 @@ trap 'rm -f "$MAP"; _swap "$ORIG" "$NEW"' EXIT INT TERM
 
 python3 tools/shard_map.py > "$MAP" || exit 1
 
-NAMES="$(awk -v n="$N" '$1+0 >= 218-n && $1+0 <= 217 {print $3}' "$MAP")"
+if [ "$N" = exact ]; then
+    # The exact historical context: every registration before cursor 218
+    # accepted by shard 0 of 2, in source registration order. This is where
+    # 109 comes from -- it is not a trailing window of the last N.
+    NAMES="$(awk '$2+0 == 0 && $1+0 < 218 {print $3}' "$MAP")"
+    RULE="cursor index < 218 AND shard == 0 of 2"
+else
+    NAMES="$(awk -v n="$N" '$1+0 >= 218-n && $1+0 <= 217 {print $3}' "$MAP")"
+    RULE="trailing window, cursor indices 218-$N .. 217"
+fi
 COUNT="$(printf '%s\n' "$NAMES" | grep -c .)"
+DIGEST="$(printf '%s\n' "$NAMES" | sha256sum | cut -c1-64)"
 
 echo "predecessors requested: $N"
-echo "predecessors selected:  $COUNT  (cursor indices 218-$N .. 217)"
-echo "target:                 learned_memory_checkpoint_test (index 218)"
+echo "selection rule:         $RULE"
+echo "predecessors selected:  $COUNT"
+echo "target:                 learned_memory_checkpoint_test (index 218, shard 0)"
+echo "ordered set digest:     $DIGEST"
+echo
+echo "--- selected predecessors, registration order ---"
+printf '%s\n' "$NAMES"
+echo "--- end selected predecessors ---"
 echo
 
 PYTHONPATH=/home/user /home/user/.venv/bin/python \
