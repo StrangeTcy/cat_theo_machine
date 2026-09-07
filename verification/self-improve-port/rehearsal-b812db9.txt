@@ -1,0 +1,76 @@
+REHEARSAL A — six-phase self-improvement loop port onto b812db9 (INT tip)
+=======================================================================
+
+dated: 2026-09-07
+session: S-eng (arena/01a06cca-cat-theo-machine)
+base: b812db904b44db72def705eb18a50bbe50c12cc2
+      [SHARED] Preflight item 1: pinned repro harness for the swallowed exception
+      (arena/01a06542-cat-theo-machine tip; descends from ef571b6)
+recipe: verification/self-improve-port/port-recipe.txt (deltas 1-4)
+worktree: /tmp/rehearse-b812db9 (throwaway, detached; NOT a merge)
+interpreter: /tmp/venv (gmpy2 2.3.1 + pyyaml)
+
+--------------------------------------------------------------------------
+delta from ef571b6 (what "3+ commits" actually is)
+--------------------------------------------------------------------------
+b812db9 is 10 commits past ef571b6. Only three touch .py files:
+
+  768ea6f  D11-PORT surface (arithmetic)        -> tools/d11_gate.py
+  e0853a9  D11-MAP per-pack surface: headers    -> packs.py, tools/d11_gate.py
+  b7e6c90  Ledger + tools: audit items 2-7      -> tools/shard_map.py
+
+The other seven are docs/ledger/protocol/probe-shell commits (99d9280,
+7b91202, 1a547ae, 11d0846, d76f781, feb457e, b812db9 itself, which adds
+only tools/preflight_item1_repro.sh).
+
+packs.py touch analysis (the question asked): the port surface is
+labels.py, research.py, testsuite.py, persistence.py (deltas). The
+D11-MAP packs.py + tools/d11_gate.py change and the D11-PORT
+tools/d11_gate.py change are DISJOINT from that surface. No D11 commit
+touches labels.py, research.py, testsuite.py, or persistence.py. The
+port therefore has nothing to collide with.
+
+--------------------------------------------------------------------------
+conflict count per commit (measured; identical to the ef571b6 rehearsal)
+--------------------------------------------------------------------------
+  548c6f6 trace mining       testsuite.py: 1 hunk   (labels.py, research.py clean)
+  8738bcf rent gate          testsuite.py: 1 hunk   (labels.py, research.py clean)
+  1e45188 recursive turn     testsuite.py: 1 hunk
+  0e50bc1 invariant library  testsuite.py: 1 hunk   (labels.py, research.py clean)
+  218a40f memory cycle       testsuite.py: 1 hunk
+
+Five commits, five single-hunk testsuite.py conflicts, never a second
+hunk, never a new file. Same conflict map as ef571b6: the b812db9 delta
+(D11 tools + packs + a shell harness) introduces zero new conflicts.
+
+--------------------------------------------------------------------------
+pin arithmetic (before -> after deltas)
+--------------------------------------------------------------------------
+  completeness pins: EXPECTED_MISSING_SYNC_COUNT 40 -> 40 (unchanged)
+                     EXPECTED_MISSING_SNAPSHOT_COUNT 198 -> 198 (unchanged)
+                     len(EXPECTED_MISSING_BOTH) 18 -> 18 (unchanged)
+  soft guard pin:    EXPECTED_GUARD_COUNT 305 -> 310 (delta 4)
+  hard pin:          EXPECTED_CURSOR_INDEX 218, EXPECTED_SHARD 0 (unchanged)
+
+Five labels registered in both tables (labels.sync_from_namespace 5/5,
+persistence.SNAPSHOT_SYMBOL_NAMES 5/5), as deltas 3.
+
+--------------------------------------------------------------------------
+test run (this rehearsal, on the b812db9-based tree)
+--------------------------------------------------------------------------
+  label_registration_completeness_test  PASS
+  test_shard_cursor_pin_test            PASS
+  self_improvement_trace_mining_test    PASS
+  self_improvement_rent_gate_test       PASS
+  self_improvement_recursive_turn_test  PASS
+  invariant_conjecture_test             PASS
+  self_improvement_memory_cycle_test    PASS
+
+--------------------------------------------------------------------------
+conclusion
+--------------------------------------------------------------------------
+The rehearsed port recipe applies to b812db9 exactly as it does to
+ef571b6: same five single-hunk conflicts, same pin arithmetic, seven
+green named tests. No adjustment to the recipe is required by the ten
+commits INT has added on top of ef571b6. When INT cuts the wave-1 tag on
+this line, batch A is a mechanical replay of this rehearsal.

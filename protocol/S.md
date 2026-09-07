@@ -201,3 +201,36 @@ tools/run_named_tests.py, verified by
   git merge-base --is-ancestor ef571b6 <peeled-tag>
 before any action. This session held at 231003f; no false reconciliation
 was performed.
+
+---
+
+## 2026-09-07 — rehearsals A+B onto b812db9 (INT tip); S1 siblings surfaced
+
+Both in-lane rehearsals run this turn (throwaway worktrees, no merge, no
+touch of arena/01a06542). Records:
+- verification/self-improve-port/rehearsal-b812db9.txt
+- verification/s1-replay/rehearsal-b812db9.txt
+
+Rehearsal A: the port recipe applies to b812db9 identically to ef571b6.
+Five single-hunk testsuite.py conflicts, pins 40/198/18 held, guard
+305->310, seven named tests green. The ten INT commits on top of ef571b6
+touch only packs.py + tools/ (D11) and a shell harness — disjoint from
+the port surface (labels/research/testsuite/persistence) — so zero new
+conflicts.
+
+Rehearsal B (f9ed7fd replay): HEADLINE — the batch-B source f9ed7fd and
+the checklist's source 897c07c are SIBLING S1 implementations (both
+children of 41e8078, neither a descendant of the other), with different
+vocabularies, mechanisms, and test sets. f9ed7fd: 3 labels, 1 test,
+contract/forbidden mechanism, registers its labels in both tables (no
+completeness-pin delta), no refusal semantics, terms in testsuite.py,
+instance-form registration (needs the class-form adaptation). 897c07c:
+4 labels, 2 tests, record-based mechanism, graph.py edges, refusal
+semantics, registers nothing (would need 40->44/198->202/18->22).
+
+The replay mechanics are verified: relation_contract_required_test is
+GREEN on the authorized-line tree; all dependencies exist on b812db9;
+only mechanical residues are (a) instance->class registration adaptation
+and (b) soft pin 310->311. But batch B cannot land faithfully until
+INT/orchestrator rules WHICH S1 is canonical (or reconciles the two).
+This is an open question, not this session's to adjudicate.
