@@ -68,3 +68,28 @@ note: content survived because it could be regenerated — that is luck, not the
 ```
 
 Remote tip recorded before work (D18 registration): `cb2d383dc308b3e83757766db758d88db2ec4049`.
+
+---
+
+## Note (2026-09-09) — artifact→evidence extractor (CUR-GRADER-ENG)
+
+The grader lane now has the missing half: `tools/cur_extract_evidence.py` converts a frozen
+G-ENG-style evaluator bundle (derivation nodes, citations, ablation/preservation/separation
+records, contract-family parameters) into a structural evidence manifest consumed by
+`tools/cur_grade_artifact.py`. Invocation:
+
+```
+python3 tools/cur_extract_evidence.py <bundle.json|bundle_dir> [--out <manifest.json>]
+python3 tools/cur_grade_artifact.py <manifest.json>
+```
+
+- Exit 0: manifest written, no unresolved refs. Exit 1: manifest written, but unresolved/invalid
+  refs present (partial extraction). Exit 2: malformed / unsupported / unsupported-contract.
+- Every true evidence bit is cited (node/record id or `parameters:<name>`); a broken/uncited
+  item yields absent evidence + an `extractor_diagnostics` entry, never a fabricated boolean.
+- Test harness `tools/tests/cur_extractor/run.py` proves the end-to-end path
+  (bundle→extractor→manifest→grader) over PASS, missing-evidence (CANNOT_DETERMINE), broken-ref
+  (CANNOT_DETERMINE + diagnostic), contradictory (exit 2), and unsupported-contract (exit 2)
+  fixtures, and asserts the extractor never reads the grader's sealed expected-results table.
+
+Remote tip recorded before work (extractor): `863a34a180789efba3674ac509bbe21897c51561`.

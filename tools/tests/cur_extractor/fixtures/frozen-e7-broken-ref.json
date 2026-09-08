@@ -1,0 +1,65 @@
+{
+  "schema": "geng-bundle/v1",
+  "contract": "E7",
+  "candidate": {
+    "id": "c1",
+    "text": "candidate claim"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "text": "supporting premise",
+      "role": "premise"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "role": "flip-sign-derivation",
+      "cites": [
+        "c1"
+      ],
+      "text": "derived from flip sign"
+    },
+    {
+      "id": "n2",
+      "role": "even-window-delta",
+      "cites": [
+        "ghost-node"
+      ],
+      "text": "even window delta"
+    },
+    {
+      "id": "n3",
+      "role": "residue-separation",
+      "cites": [
+        "c1"
+      ],
+      "text": "start residue differs"
+    },
+    {
+      "id": "n4",
+      "role": "odd-width-control",
+      "cites": [
+        "c1"
+      ],
+      "text": "emits odd width control"
+    },
+    {
+      "id": "n5",
+      "role": "rejected-classification",
+      "cites": [
+        "c1"
+      ],
+      "text": "classifies rejected"
+    },
+    {
+      "id": "n6",
+      "role": "derived-observable",
+      "cites": [
+        "c1"
+      ],
+      "text": "observable derived"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "schema": "geng-bundle/v1",
+  "contract": "E4",
+  "candidate": {
+    "id": "c1",
+    "text": "candidate claim"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "text": "supporting premise",
+      "role": "premise"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "role": "two-houses",
+      "cites": [
+        "c1"
+      ],
+      "text": "exactly two houses"
+    },
+    {
+      "id": "n2",
+      "role": "descent-monovariant",
+      "cites": [
+        "c1"
+      ],
+      "text": "dH<=-1"
+    },
+    {
+      "id": "n3",
+      "role": "bounded-below",
+      "cites": [
+        "c1"
+      ],
+      "text": "H bounded below"
+    },
+    {
+      "id": "n4",
+      "role": "not-global-min",
+      "cites": [
+        "c1"
+      ],
+      "text": "terminal not global min"
+    },
+    {
+      "id": "n5",
+      "role": "derived-measure",
+      "cites": [
+        "c1"
+      ],
+      "text": "measure derived"
+    }
+  ],
+  "parameters": {
+    "houses": 2
+  }
+}

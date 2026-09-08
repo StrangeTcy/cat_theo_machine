@@ -1,0 +1,73 @@
+CUR-GRADER-ENG — frozen artifact -> evidence -> verdict, END-TO-END raw transcript — 2026-09-09
+branch: arena/01a066cf; extractor tools/cur_extract_evidence.py; grader tools/cur_grade_artifact.py
+Path: frozen G-ENG-style bundle -> cur_extract_evidence.py -> evidence manifest -> cur_grade_artifact.py
+==============================================================================
+FIXTURE frozen-decorative-label
+  extractor exit=0
+  manifest evidence: {"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"generation_disabled_removes_candidate": true}, "C6": {"weights_derived": true}}
+  diagnostics: []
+  grader exit=0  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+FIXTURE frozen-e3-pass
+  extractor exit=0
+  manifest evidence: {"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"generation_disabled_removes_candidate": true}, "C6": {"weights_derived": true}}
+  diagnostics: []
+  grader exit=0  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+FIXTURE frozen-e4-contradictory
+  extractor exit=0
+  manifest evidence: {"C1": {"cites_max_degree_le_3": true, "argues_from_e_in_alone": true}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  diagnostics: []
+  grader exit=2  {"error": "check C1 contradictory evidence (both pass and fail)", "final": "MALFORMED", "discrepancy": "none"}
+FIXTURE frozen-e4-missing-degree-bound
+  extractor exit=0
+  manifest evidence: {"C1": {}, "C2": {"states_exactly_two_houses": true}, "C3": {"derives_delta_h_le_minus1": true}, "C4": {"notes_h_bounded_below": true}, "C5": {"termination_not_global_min": true}, "C6": {"measure_derived": true}}
+  diagnostics: []
+  grader exit=3  {"schema_version": 1, "contract": "E4", "checks": {"C1": "CANNOT_DETERMINE", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE frozen-e7-broken-ref
+  extractor exit=1
+  manifest evidence: {"C1": {"derived_from_flip_sign": true}, "C2": {}, "C3": {"start_residue_differs": true}, "C4": {"emits_odd_width_control": true}, "C5": {"classifies_rejected": true}, "C6": {"observable_derived": true}}
+  diagnostics: ["unresolved ref in node:n2: cites unknown ghost-node"]
+  grader exit=3  {"schema_version": 1, "contract": "E7", "checks": {"C1": "PASS", "C2": "CANNOT_DETERMINE", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE frozen-unsupported-contract
+  extractor exit=2
+  extractor stderr: {"error": "unsupported contract: 'E9' (expected E3/E4/E7)", "final": "MALFORMED"}
+==============================================================================
+EXTRACTOR SELFTEST (python3 tools/tests/cur_extractor/run.py):
+==============================================================================
+EXTRACTOR SELFTEST — tools/tests/cur_extractor/run.py
+==============================================================================
+CHECK 1 — end-to-end extractor -> grader for each fixture
+  frozen-e3-pass                   extractor_exit=0 grader_exit=0 final=PASS (OK)
+  frozen-decorative-label          extractor_exit=0 grader_exit=0 final=PASS (OK)
+  frozen-e4-missing-degree-bound   extractor_exit=0 grader_exit=3 final=CANNOT_DETERMINE (OK)
+  frozen-e7-broken-ref             extractor_exit=1 grader_exit=3 final=CANNOT_DETERMINE (OK)
+  frozen-e4-contradictory          extractor_exit=0 grader_exit=2 final=MALFORMED (OK)
+  frozen-unsupported-contract      extractor_exit=2 (OK)
+
+CHECK 2 — emitted manifest carries matching schema_version / ruleset_id
+  frozen-e3-pass: ruleset_id match=OK
+  frozen-e4-missing-degree-bound: ruleset_id match=OK
+
+CHECK 3 — broken node ref produces absent evidence + diagnostic
+  xrc=1 diagnostic_present=True C2_bit_absent=True (OK)
+
+CHECK 4 — contradictory cited records rejected by grader (exit 2)
+  grader_exit=2 final=MALFORMED (OK)
+
+CHECK 5 — decorative expected-label field is ignored
+  evidence+citations identical: OK
+
+CHECK 6 — concurrent extractions isolate outputs
+  isolated: OK
+
+CHECK 7 — end-to-end from a working directory outside the repository
+  cwd=/home/user/cur_extractor_outside: extractor_exit=0 grader_exit=0 (OK)
+
+CHECK 8 — extractor does not import/read oracle.json or any expected-label
+  no 'oracle' in source: True ; no 'expected_label' in source: True
+
+==============================================================================
+SUMMARY
+  assertions run: 14
+  ok             : 14
+  fail           : 0
+==============================================================================
