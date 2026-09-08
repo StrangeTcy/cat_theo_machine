@@ -1,0 +1,87 @@
+CUR-GRADER-ENG — executable evaluator raw transcript — 2026-09-08
+branch: arena/01a066cf; grader tools/cur_grade_artifact.py
+Each fixture run DIRECTLY through the tool (not the selftest). Output = tool's JSON.
+==============================================================================
+CD-E3                  exit=3  {"contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+CD-E4                  exit=3  {"contract": "E4", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+CD-E7                  exit=3  {"contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+E3-M1                  exit=1  {"contract": "E3", "checks": {"C1": "FAIL", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "FAIL", "discrepancy": "derivation-absent"}
+E3-M2                  exit=1  {"contract": "E3", "checks": {"C1": "PASS", "C2": "FAIL", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "FAIL", "discrepancy": "preservation-unsupported"}
+E3-M3                  exit=1  {"contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "FAIL", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "FAIL", "discrepancy": "overclaim"}
+E3-M4                  exit=1  {"contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "FAIL"}, "final": "FAIL", "discrepancy": "constant-injection"}
+E4-M1                  exit=1  {"contract": "E4", "checks": {"C1": "FAIL", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "FAIL", "discrepancy": "hypothesis-omitted"}
+E4-M2                  exit=1  {"contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "FAIL", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "FAIL", "discrepancy": "descent-unsupported"}
+E4-M3                  exit=1  {"contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "FAIL", "C6": "PASS"}, "final": "FAIL", "discrepancy": "overclaim"}
+E7-M4                  exit=1  {"contract": "E7", "checks": {"C1": "FAIL", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "FAIL", "discrepancy": "derivation-absent"}
+E7-M5                  exit=1  {"contract": "E7", "checks": {"C1": "PASS", "C2": "FAIL", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "FAIL", "discrepancy": "preservation-unsupported"}
+E7-M6                  exit=1  {"contract": "E7", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "FAIL"}, "final": "FAIL", "discrepancy": "constant-injection"}
+PASS-E3                exit=0  {"contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+PASS-E4                exit=0  {"contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+PASS-E7                exit=0  {"contract": "E7", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+contradictory_1        exit=2  {"error": "contradictory or malformed evidence present", "verdicts": "MALFORMED", "final": "MALFORMED", "discrepancy": "none"}
+malformed_1            exit=2  {"error": "unknown contract: None (expected E3/E4/E7)", "verdicts": "MALFORMED", "final": "MALFORMED", "discrepancy": "none"}
+==============================================================================
+SELFTEST RUN (python3 tools/tests/cur_grader/run.py):
+==============================================================================
+GRADER SELFTEST — tools/tests/cur_grader/run.py
+==============================================================================
+fixture             exit  final               discrepancy             ok
+------------------------------------------------------------------------------
+CD-E3               3     CANNOT_DETERMINE    none                    Y
+CD-E4               3     CANNOT_DETERMINE    none                    Y
+CD-E7               3     CANNOT_DETERMINE    none                    Y
+E3-M1               1     FAIL                derivation-absent       Y
+E3-M2               1     FAIL                preservation-unsupportedY
+E3-M3               1     FAIL                overclaim               Y
+E3-M4               1     FAIL                constant-injection      Y
+E4-M1               1     FAIL                hypothesis-omitted      Y
+E4-M2               1     FAIL                descent-unsupported     Y
+E4-M3               1     FAIL                overclaim               Y
+E7-M4               1     FAIL                derivation-absent       Y
+E7-M5               1     FAIL                preservation-unsupportedY
+E7-M6               1     FAIL                constant-injection      Y
+PASS-E3             0     PASS                none                    Y
+PASS-E4             0     PASS                none                    Y
+PASS-E7             0     PASS                none                    Y
+contradictory_1     2     MALFORMED           none                    Y
+malformed_1         2     MALFORMED           none                    Y
+------------------------------------------------------------------------------
+check1/8 fixtures graded: 18 ok, 0 fail
+
+CHECK 2 — decorative expected-label field is ignored
+  E4-M1.json: unchanged
+  E7-M5.json: unchanged
+  PASS-E3.json: unchanged
+
+CHECK 3 — removing required evidence turns PASS to CANNOT_DETERMINE
+  PASS-E3.json: final=CANNOT_DETERMINE OK
+  PASS-E4.json: final=CANNOT_DETERMINE OK
+  PASS-E7.json: final=CANNOT_DETERMINE OK
+
+CHECK 4 — contradictory evidence exits 2
+  contradictory_1: exit=2 OK
+
+CHECK 5 — each failing fixture emits exactly one discrepancy label
+  E3-M1: disc=derivation-absent OK
+  E3-M2: disc=preservation-unsupported OK
+  E3-M3: disc=overclaim OK
+  E3-M4: disc=constant-injection OK
+  E4-M1: disc=hypothesis-omitted OK
+  E4-M2: disc=descent-unsupported OK
+  E4-M3: disc=overclaim OK
+  E7-M4: disc=derivation-absent OK
+  E7-M5: disc=preservation-unsupported OK
+  E7-M6: disc=constant-injection OK
+
+CHECK 6 — concurrent grader processes stay isolated
+  isolated: OK
+
+CHECK 7 — run from a working directory outside the repository
+  cwd=/home/user/grader_selftest_outside: exit=0 final=PASS OK
+
+==============================================================================
+SUMMARY
+  fixtures/checks run     : 37
+  ok                      : 37
+  fail                    : 0
+==============================================================================

@@ -1,0 +1,30 @@
+{
+  "id": "E7-M4",
+  "contract": "E7",
+  "evidence": {
+    "C1": {
+      "derived_from_flip_sign": false,
+      "invented_without_move_set": true
+    },
+    "C2": {
+      "shows_even_window_delta": true,
+      "preservation_no_even_argument": false
+    },
+    "C3": {
+      "start_residue_differs": true,
+      "cannot_separate_4_divides": false
+    },
+    "C4": {
+      "emits_odd_width_control": true,
+      "omits_odd_width_control": false
+    },
+    "C5": {
+      "classifies_rejected": true,
+      "misclassifies_rejected": false
+    },
+    "C6": {
+      "observable_derived": true,
+      "weights_injected": false
+    }
+  }
+}

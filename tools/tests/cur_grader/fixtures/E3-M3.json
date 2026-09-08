@@ -1,0 +1,30 @@
+{
+  "id": "E3-M3",
+  "contract": "E3",
+  "evidence": {
+    "C1": {
+      "derived_from_move_constraints": true,
+      "stated_without_move_family": false
+    },
+    "C2": {
+      "preserved_all_moves": true,
+      "a_move_changes_reading": false
+    },
+    "C3": {
+      "start_differs_from_target": false,
+      "start_equals_target": true
+    },
+    "C4": {
+      "emits_no_nonzero_observable": true,
+      "odd_cycle_false_invariant": false
+    },
+    "C5": {
+      "generation_disabled_removes_candidate": true,
+      "candidate_survives_removal": false
+    },
+    "C6": {
+      "weights_derived": true,
+      "weights_injected": false
+    }
+  }
+}

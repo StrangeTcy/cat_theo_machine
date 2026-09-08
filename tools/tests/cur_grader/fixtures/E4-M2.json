@@ -1,0 +1,30 @@
+{
+  "id": "E4-M2",
+  "contract": "E4",
+  "evidence": {
+    "C1": {
+      "cites_max_degree_le_3": true,
+      "argues_from_e_in_alone": false
+    },
+    "C2": {
+      "states_exactly_two_houses": true,
+      "house_target_ambiguous": false
+    },
+    "C3": {
+      "derives_delta_h_le_minus1": false,
+      "asserts_unbounded_descent": true
+    },
+    "C4": {
+      "notes_h_bounded_below": true,
+      "termination_no_lower_bound": false
+    },
+    "C5": {
+      "termination_not_global_min": true,
+      "concludes_global_minimum": false
+    },
+    "C6": {
+      "measure_derived": true,
+      "measure_injected": false
+    }
+  }
+}
