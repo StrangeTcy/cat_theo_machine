@@ -174,6 +174,28 @@ git fetch --all --tags
 # then the corrected ritual (inventory -> preserve -> reset to verified remote tip)
 ```
 
+### Watch target — wave-1 base tag lineage
+
+The wave-1 base tag comes from the **correct-lineage** INT branch (`arena/01a06542`), not the stale
+`41e8078` line. Watch keyed to that branch specifically:
+
+```text
+watch target: arena/01a06542 tip and any new tag whose peeled commit satisfies:
+      git merge-base --is-ancestor ef571b6 <peeled>
+not a trigger: cut-*/preflight-* tags on the 41e8078 line (already ruled)
+```
+
+Confirmed this turn: integration tip `a3aeff4` is ef571b6-descended (correct line). The tag
+authorizes the base; the `[SHARED]`-A1 constructor registration separately authorizes the vocabulary.
+Both must exist before problems 1–2 author.
+
+### Housekeeping — disposable probe (explicit decision)
+
+`tools/d3_candidate_sweep_probe.py` (untracked, from the completed D3 candidate-sweep task) is a
+**disposable probe, not preserved on reset**. Decision: **DELETED this turn** — it is not a
+deliverable, will vanish on reset with no loss, and deleting it now removes any risk a future recovery
+pass mistakes it for unique content. Working tree now has no untracked non-pycache files.
+
 ---
 
 End-of-turn block:
