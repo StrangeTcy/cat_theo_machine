@@ -11,6 +11,7 @@ c316a6162067b6953312c77e1f7ca879ac2f7e26a888787297c02c15361beafa  protocol/2026-
 a5b7722014938619216cb64f911525052fb736bf9649000d1dee81ec6f8b08ae  protocol/2026-09-07-F-PROVER-exposure-update.txt
 baf95c1089bc720f8f559cc8f6c3d3179dc676d82715c00d5991dffdba86a24c  protocol/2026-09-07-F-PROVER-owner-handoff-request.txt
 f1e94f42269998badd2b8f51c1e7a58b2e301ead7241b9ac8fbbcbca549887f5  protocol/2026-09-07-F-PROVER-ratification-and-ruling-RECEIVED.txt
-c66623fd3784d5ae036f594f3496a4b1710801d4565a6868f359096ea2d45cf7  protocol/F.md
+c10152b82f92ae88b87ce7fe61a86a4af35591534cbff59be75fa719da3f2325  protocol/2026-09-07-F-PROVER-park-confirmation-RECEIVED.txt
+aec448aff2ef51f6ebd1c98105dba21ad72c20ed927c45712bcfe83314aa4667  protocol/F.md
 
-# rev 6 (2026-09-07): correction batch ratified; INT ruling SPLIT-ON-MERGE archived (no rename on this branch; migration to protocol/F-PROVER.md deferred to the first cross-lineage merge, citing the ruling); F.md section 12 records ratification and lane-parked state
+# rev 7 (2026-09-07): park-state confirmed; identity-currency rule adopted (F.md section 13) — battery pin 704db5e marked historical by ancestor corroboration (704db5e -> 545d2ce), future integrations use the owner-supplied current SHA; reset entry 4, zero loss

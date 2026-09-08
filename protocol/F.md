@@ -423,3 +423,28 @@ blocked-input table (INT tag declaration / F-tools identities /
 protocol-owner profile) stands as published in the routing artifact; the
 first owner-supplied declared input reopens work. Next active task on
 reopen: start gate on the declared tag, fresh session, decoy first.
+
+## 13. Identity-currency rule (carry-forward, adopted 2026-09-07)
+
+The review channel's park-confirmation added one carry-forward check,
+adopted here as the standing rule for this lane:
+
+    F-tools identity check:
+      accept the exact SHA supplied by F-tools or INT;
+      verify it by remote ref and manifest;
+      do not substitute a remembered older battery SHA.
+
+The "battery pinned 704db5e by identity" lines in sections 10, 11, and
+the routing artifact are HISTORICAL — correct for the 2026-09-07 identity
+sweep that produced them, and left unmodified in place. Corroboration at
+identity level (no content read): 704db5e1f230a9893b8f389261e21c33c97ba7d0
+is an ancestor of 545d2ce1dd99ab91a949246727db3593acd27771, the
+arena/01a06eb9 tip observed in the 2026-09-07 fetch — the F-tools branch
+advanced past the battery commit, so the pin is a historical pointer, not
+a current one. The next actual integration uses the owner-supplied
+current SHA. Archive:
+protocol/2026-09-07-F-PROVER-park-confirmation-RECEIVED.txt.
+
+Reset-ledger entry 4 (2026-09-07): fourth sandbox reset before this
+entry; recovery repeated the verified procedure against pushed tip
+6732c21; all artifacts byte-identical; zero loss.

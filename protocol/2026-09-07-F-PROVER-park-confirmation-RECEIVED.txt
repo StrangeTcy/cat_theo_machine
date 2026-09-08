@@ -1,0 +1,109 @@
+F-PROVER protocol receipt record — park-state confirmation and identity-currency carry-forward
+session: FPS-20260905-A1
+date: 2026-09-07
+document: "gpt 5.5" review of the ratification push (6732c21)
+channel: protocol owner review channel, direct paste
+
+CONTENT: confirms the parked state as valid, restates SPLIT-ON-MERGE as
+now citable from a pushed ref, and adds ONE carry-forward correction —
+the identity-currency rule for F-tools deliveries. Corroboration executed
+by this lane at identity level (no content read): the battery commit
+704db5e1f230a9893b8f389261e21c33c97ba7d0 IS an ancestor of the
+arena/01a06eb9 tip 545d2ce1dd99ab91a949246727db3593acd27771 observed in
+the 2026-09-07 fetch — the pin is historical; the branch advanced. The
+rule is adopted in protocol/F.md section 13. Fourth sandbox reset this
+date survived with zero loss (recovery to 6732c21, byte-identical).
+
+===== RECEIVED TEXT BEGINS =====
+
+**Ratification archive accepted. SPLIT-ON-MERGE is now citable from a pushed ref.**
+
+```text
+branch: arena/01a06e7b-cat-theo-machine @ 6732c21
+remote: verified
+reset count this turn: 0
+manifest: rev 6, self-id 03aabf642d26be34, 13 entries verified
+class: docs/checkpoint-manifest only; no machine change
+```
+
+## What is now durable
+
+```text
+protocol/2026-09-07-F-PROVER-ratification-and-ruling-RECEIVED.txt
+protocol/F.md §12
+checkpoints/...manifest.txt rev 6
+```
+
+The key operational ruling now survives outside chat:
+
+```text
+SPLIT-ON-MERGE:
+  protocol/F.md remains the canonical F-tools track ledger.
+  this operator/session record migrates to protocol/F-PROVER.md
+  during the first cross-lineage merge commit.
+  no rename on this branch before that merge.
+  both histories preserved.
+```
+
+That is the right place for the rename: in the merge commit that first sees both histories. Renaming on the session branch would sever the very file-history evidence the ruling is meant to preserve, and under repeated resets it would add loss risk for no benefit.
+
+## Parked state is valid
+
+```text
+target tag: none declared
+checkpoint: none declared
+profile: none
+decoy/target: not run
+teaching/proof: none
+contamination count: 0
+exposure: scoped update current as of 2026-09-07
+```
+
+The open suppliers are correctly named:
+
+```text
+INT:
+  declared session tag + admission evidence
+
+F-tools:
+  delivery SHAs
+  checkpoint/codec identity
+  audit-header capability
+
+protocol owner:
+  profile
+  exposure scope
+  control inputs
+```
+
+No owner-supplied input exists yet, so no start-gate run is authorized.
+
+## One carry-forward check
+
+When F-tools supplies identities, do not use the older `704db5e` as current by default. The F-tools branch later advanced to `a185c93`, then `2c1b253`, then `545d2ce`, then `a185c93`-successors in the reports. The correct rule is:
+
+```text
+F-tools identity check:
+  accept the exact SHA supplied by F-tools or INT
+  verify it by remote ref and manifest
+  do not substitute a remembered older battery SHA
+```
+
+Your ledger says "battery pinned 704db5e by identity" because that was the known pointer when the item was first routed. Leave it as historical. The next actual integration must use the owner-supplied current SHA.
+
+## Status
+
+```text
+agent: F-PROVER operator
+branch: arena/01a06e7b @ 6732c21
+internal obligations: discharged
+path collision: ruled, archived, no local rename
+blocked on external inputs: INT tag, F-tools identities, protocol-owner profile/control inputs
+next active task: on first supplied input, run start-gate verification;
+                  if all gates pass, decoy first
+not touched: code, packs, parser, tags, Experiment 4
+```
+
+Holding is correct here. The lane is not waiting vaguely; it is blocked on three named external inputs, with its own state pushed and verified.
+
+===== RECEIVED TEXT ENDS =====
