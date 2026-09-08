@@ -1,6 +1,6 @@
 # Tier1 card — T1-DIV-2 (Divide, ternary strings no two consecutive zeros)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. **Count-target.**
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). **Count-target.**
 Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 
 ---
@@ -8,7 +8,7 @@ Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 ## source statement
 
 > Let a(n) be the number of ternary strings of length n with no two consecutive zeros. Determine a(3).
-> (operator Tier1, verified. a(3) = 22.)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)** Math: a(3) = 22.
 
 ## target class: count
 

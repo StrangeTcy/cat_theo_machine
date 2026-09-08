@@ -1,6 +1,6 @@
 # Tier1 card — T1-INV-1 (Invariance, board |a−b| erasure)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. Proof-target.
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). Proof-target.
 
 ---
 
@@ -8,7 +8,7 @@ Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 prac
 
 > The integers 1 through 10 are written on a board. A move erases two numbers a, b and writes
 > |a − b|. Prove the last remaining number is odd.
-> (operator Tier1, verified)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)**
 
 ## target class: proposition
 

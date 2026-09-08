@@ -1,6 +1,6 @@
 # Tier1 card — T1-EXT-2 (Extremal, tournament king)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. Proof-target.
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). Proof-target.
 
 ---
 
@@ -8,7 +8,7 @@ Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 prac
 
 > In a finite tournament, prove there is a vertex from which every other vertex is reachable by a
 > path of at most two edges.
-> (operator Tier1, verified)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)**
 
 ## target class: proposition
 

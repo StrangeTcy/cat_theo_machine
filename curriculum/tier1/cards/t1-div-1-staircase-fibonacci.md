@@ -1,6 +1,6 @@
 # Tier1 card — T1-DIV-1 (Divide, staircase Fibonacci)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. **Count-target.**
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). **Count-target.**
 Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 
 ---
@@ -9,7 +9,7 @@ Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 
 > A staircase has n steps. A person can climb 1 or 2 steps at a time. In how many ways can the
 > staircase be climbed to the top? (Count the sequences of 1/2-steps that sum to n.)
-> (operator Tier1, verified. Count = F(n+1).)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)** Math: Count = F(n+1).
 
 ## target class: count
 

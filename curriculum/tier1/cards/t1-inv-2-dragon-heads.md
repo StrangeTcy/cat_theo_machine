@@ -1,6 +1,6 @@
 # Tier1 card — T1-INV-2 (Invariance, dragon heads)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. Proof-target.
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). Proof-target.
 
 ---
 
@@ -8,7 +8,7 @@ Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 prac
 
 > A dragon has 100 heads. A knight may cut off 15, 17, 20 or 5 heads, after which 24, 2, 14 or 17
 > heads respectively grow back. The dragon dies only if all heads are cut. Prove it cannot die.
-> (operator Tier1, verified)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)**
 
 ## target class: proposition
 

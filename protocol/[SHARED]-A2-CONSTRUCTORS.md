@@ -23,10 +23,19 @@ vocabulary A1 does not cover.**
 
 ## What is being requested
 
+> **SOURCE-CORRECTION BANNER (fable 5.1, 2026-09-08):** the Tier1 rows of this table (`T1-*`) are
+> derived from a statement set that the operator has since disclosed as **NOT the supplied Tier1 set**
+> — those statements are agent-authored and **unsourced** (see `protocol/I.md` Turn 8). Until the
+> operator supplies the actual Tier1 set verbatim, the **Tier1 rows are provisional and not relied on**
+> for converter readiness. The **G4/G5 rows are authoritative** (those problems are genuine in-family
+> and their statements are source-backed). If the operator's actual Tier1 set requires different
+> vocabulary, A2 will be amended in a follow-up.
+
 The following term constructors are **absent from the tree** (they are un-expressible without them) and
 are **not** in the A1 patch. They are needed to state the G4 / G5 / Tier1 problems **faithfully** — a
 record that "compiles" using only an existing method head plus existing tags is the vacuous-label
-touchdown trap, not a real curriculum record.
+touchdown trap, not a real curriculum record. **G4/G5 rows are authoritative; Tier1 rows are
+provisional (unsourced statements).**
 
 Grouped by the operator-named A2 domains (`board`, `domino`, `glass`, `house`, `enemy`,
 `tournament`, `necklace`, `cube face`) plus the remaining new-card vocabulary.

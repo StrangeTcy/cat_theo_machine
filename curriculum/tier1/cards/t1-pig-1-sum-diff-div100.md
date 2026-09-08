@@ -1,13 +1,13 @@
 # Tier1 card — T1-PIG-1 (Pigeonhole, sum/difference divisible by 100)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. Proof-target.
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). Proof-target.
 
 ---
 
 ## source statement
 
 > Among any 52 integers there exist two whose sum or difference is divisible by 100.
-> (operator Tier1, verified)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)**
 
 ## target class: proposition
 

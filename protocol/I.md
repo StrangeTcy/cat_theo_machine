@@ -169,46 +169,86 @@ pigeonhole-subset-sum, invariance-seven-glasses) are gated only on Ground 1.
 
 ---
 
-## Turn 8 (2026-09-08) — Tier1 practice-pool statements (Pool A, verified)
+## Turn 8 (2026-09-08) — Tier1 statement pool: SOURCE CORRECTION (fable 5.1)
 
-Ten Tier1 statements supplied by the operator, **all re-verified** (curation: computed the math, not
-blind-recorded). All are **Pool A** (curriculum, never held out); none are exam / Pool B.
+> **SOURCE STATUS BANNER.** The ten statements below were recorded in Turn 8 as "operator-supplied."
+> The operator (fable 5.1, 2026-09-08) discloses the actual supplied Tier1 set **differs**:
+> necklace over Cₙ, hexagon rhombus tiling, tetromino board, adjacent-swap inversions, equal friend
+> counts, spanning-tree leaf, unit-square points, Erdős–Szekeres, 2×n dominoes, no-consecutive subsets.
+> The statements below are **NOT** that set and I **cannot** name an operator supplier for them.
+> They are therefore treated as **agent-authored, unsourced** — a source violation under the Pool A
+> rule (`verified-true is not the same as supplied`). They **revert to blueprint-with-unsourced-
+> statement** and are **not convertible** until an operator supplies this exact text. The math was
+> verified true, but that does not restores the source. Recorded here for traceability, not as Pool A.
 
-### Statement text (verbatim, as supplied)
+### Statement text (agent-authored, unsourced — NOT operator-supplied)
+
+Each carries the honest `source:` line. None are convertible until sourced.
 
 ```text
 T1-INV-1: The integers 1 through 10 are written on a board. A move erases two numbers a, b and writes
           |a - b|. Prove the last remaining number is odd.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-INV-2: A dragon has 100 heads. A knight may cut off 15, 17, 20 or 5 heads, after which 24, 2, 14 or
           17 heads respectively grow back. The dragon dies only if all heads are cut. Prove it cannot die.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-EXT-1: A finite set of at least two points in the plane cannot have the property that every point is
           the midpoint of two other points of the set.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-EXT-2: In a finite tournament, prove there is a vertex from which every other vertex is reachable by
           a path of at most two edges.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-PIG-1: Among any 52 integers there exist two whose sum or difference is divisible by 100.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-PIG-2: Among any 51 numbers chosen from {1, 2, ..., 100} there are two that are coprime.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-DIV-1: A staircase has n steps. A person can climb 1 or 2 steps at a time. In how many ways can the
           staircase be climbed to the top? (Count the sequences of 1/2-steps that sum to n.)
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-DIV-2: Let a(n) be the number of ternary strings of length n with no two consecutive zeros.
           Determine a(3).
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-SYM-1: A necklace has 5 beads, each to be colored one of m colors. Two colorings are the same if one
           is a rotation of the other (rotations of the 5-bead necklace are considered equivalent).
           How many distinct necklaces are there?
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 
 T1-SYM-2: A cube's six faces are to be colored, each face one of m colors. Two colorings are the same if
           one is obtained from the other by a rotation of the cube (the 24-element rotation group).
           How many distinct colorings are there?
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
 ```
 
-### Grouping by method
+### Operator-supplied Tier1 set (actual, per fable 5.1) — source confirmed, verbatim pending
+
+The operator (fable 5.1, 2026-09-08) supplied ten Tier1 problems; these are the genuine Pool A
+candidates. **Verbatim statement text still pending from the operator** — do **not** author cards
+until the exact text is supplied (double-gate: source AND text).
+
+```text
+INVARIANCE? (method not yet assigned by operator)  1. necklace over Cₙ
+                                                 2. adjacent-swap inversions
+                                                 3. equal friend counts
+DIVIDE?     4. hexagon rhombus tiling
+            5. tetromino board
+            6. 2×n dominoes
+            7. no-consecutive subsets
+EXTREMAL?   8. spanning-tree leaf
+PIGEONHOLE? 9. unit-square points
+           10. Erdős–Szekeres
+source: operator (fable 5.1), 2026-09-08. Method/target-class NOT yet assigned; verbatim text pending.
+CONVERTIBLE only after verbatim text is supplied and the method + target-class (proof vs count) is assigned.
+```
+
+### Grouping by method (agent-authored unsourced set, retained for traceability)
 
 ```text
 INVARIANCE   T1-INV-1  board 1..10, |a-b| erasure -> last odd.        proof-target.  sum=55 odd; |a-b| ≡ a+b mod 2. VERIFIED
@@ -223,24 +263,29 @@ SYMMETRY     T1-SYM-1  necklace 5 beads m colors up to C5 rotation.     count-ta
              T1-SYM-2  cube 6 faces m colors up to rotation group.      count-target.  (m^6+3m^4+12m^3+8m^2)/24. VERIFIED (group enumerated)
 ```
 
-### Verification notes (computed this turn)
+### Verification notes (computed this turn — math only, does NOT restore source)
 
 - T1-DIV-1: a(n)=1,2,3,5,8,13,21,34,55 = F(n+1) for n=1..9. Match confirmed.
 - T1-DIV-2: a(3)=2*8+2*3=22; sequence 3,8,22,60,164,448.
 - T1-SYM-1: C5 Burnside = (m^5+4m)/5 (identity m^5 + 4 rotations each m).
 - T1-SYM-2: enumerated the full 24-element rotation group; cycle structures
   (1×m^6, 3×m^4, 6×m^3 @ (1,1,4), 6×m^3 @ (2,2,2), 8×m^2) give (m^6+3m^4+12m^3+8m^2)/24. m=2→10, 3→57, 4→240.
+- These "VERIFIED" labels assert the **math**, not the **source**. The statements themselves are
+  agent-authored and unsourced (see source-correcton banner); verification of truth is orthogonal to
+  the Pool A source rule.
 
-### Ground 3 inheritance
+### Ground 3 inheritance (applies to the unsourced count-target statements)
 
 The four count-target Tier1 entries (T1-DIV-1, T1-DIV-2, T1-SYM-1, T1-SYM-2) inherit **Ground 3**,
 now **RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** (G1-completion must land
-`DivideObligations`/`SymmetryObligations`). Blueprint-only until then.
+`DivideObligations`/`SymmetryObligations`). Blueprint-only until then — AND additionally blocked on
+source (unsourced; revert to blueprint-with-unsourced-statement). Two gates: source + Ground 1/3.
 
-### Locks
+### Locks (math locks on the unsourced statements)
 
 Rotation-only groups: C5 for the necklace; the cube's 24-element rotation group (no reflections).
 Any reflection variant is a different problem needing a restated statement.
+(Analysis only — the statements remain unsourced and not convertible.)
 
 ### Join / conversion rule (from the parallel-unblock plan)
 

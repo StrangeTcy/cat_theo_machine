@@ -1,6 +1,6 @@
 # Tier1 card — T1-EXT-1 (Extremal, no point is a midpoint)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. Proof-target.
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). Proof-target.
 
 ---
 
@@ -8,7 +8,7 @@ Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 prac
 
 > A finite set of at least two points in the plane cannot have the property that every point is the
 > midpoint of two other points of the set.
-> (operator Tier1, verified)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)**
 
 ## target class: proposition
 

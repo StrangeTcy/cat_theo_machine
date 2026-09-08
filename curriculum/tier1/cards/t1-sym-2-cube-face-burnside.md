@@ -1,6 +1,6 @@
 # Tier1 card — T1-SYM-2 (Symmetry, cube faces)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. **Count-target.**
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). **Count-target.**
 Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 
 ---
@@ -10,7 +10,7 @@ Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 > A cube's six faces are to be colored, each face one of m colors. Two colorings are the same if one is
 > obtained from the other by a rotation of the cube (the 24-element rotation group). How many distinct
 > colorings are there?
-> (operator Tier1, verified. Rotation-only group order 24; answer `(m^6+3m^4+12m^3+8m^2)/24`.)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)** Math: Rotation-only group order 24; answer `(m^6+3m^4+12m^3+8m^2)/24`.
 
 ## target class: count
 

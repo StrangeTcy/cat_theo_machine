@@ -1,13 +1,13 @@
 # Tier1 card — T1-PIG-2 (Pigeonhole, two coprime from 1..100)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. Proof-target.
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). Proof-target.
 
 ---
 
 ## source statement
 
 > Among any 51 numbers chosen from {1, 2, ..., 100} there are two that are coprime.
-> (operator Tier1, verified)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)**
 
 ## target class: proposition
 

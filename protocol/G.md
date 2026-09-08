@@ -380,29 +380,43 @@ restores the pre-ruling "carried, no children" behavior. Classification SEMANTIC
 wave-1 tag; requires re-baseline.
 ```
 
-### 10 Tier1 statements received + verified (all true)
+### 10 Tier1 statements — SOURCE CORRECTION (fable 5.1)
 
-Two per method, all **Pool A** (practice, never the sealed exam set). Statement text recorded verbatim
-in `protocol/I.md` (Turn 8 section). G/I-op re-verified the math on receipt (all true — computed, not
-blind-recorded). Four are count-targets (T1-DIV-1, T1-DIV-2, T1-SYM-1, T1-SYM-2) and inherit Ground 3.
+**Defect logged:** Turn 8 recorded ten Tier1 statements as "operator-supplied, Pool A, verified." The
+operator (fable 5.1) discloses the **actual supplied Tier1 set differs** (necklace over Cₙ, hexagon
+rhombus tiling, tetromino board, adjacent-swap inversions, equal friend counts, spanning-tree leaf,
+unit-square points, Erdős–Szekeres, 2×n dominoes, no-consecutive subsets). The statements I recorded
+(board 1..10 |a−b|, dragon heads, no-midpoint, tournament, 52-ints, coprime, staircase, ternary,
+5-bead necklace, cube face) are **NOT** that set and I can attach **no operator supplier** to them.
+
+**Disposition (per Pool A rule — `verified-true is not the same as supplied`):** the ten recorded
+statements are treated as **agent-authored, unsourced** — a **source violation**. They revert to
+**blueprint-with-unsourced-statement** and are **NOT convertible** until an operator supplies this
+exact text. The math was verified true, but that does not restore the source. Each statement now
+carries an honest `source:` line in `protocol/I.md`; each of the 10 Tier1 cards now shows an
+`UNSOURCED` status + source line. The operator's actual supplied set is listed in I.md (Turn 8) with
+method/target-class **pending** and verbatim text **pending**.
+
+The "VERIFIED" labels below assert **math only**, not source:
 
 ```text
-T1-INV-1 board 1..10 |a-b|                  parity invariant (sum 55 odd)     proof  VERIFIED
-T1-INV-2 dragon 100 heads                    mod-3 invariant (net changes)    proof  VERIFIED
-T1-EXT-1 finite set no midpoint               max-distance pair                proof  VERIFIED
-T1-EXT-2 tournament <=2 reachability          max out-degree "king"            proof  VERIFIED
-T1-PIG-1 52 ints sum/diff div100              51 boxes                          proof  VERIFIED
-T1-PIG-2 51 from 1..100 coprime               50 adjacent boxes                proof  VERIFIED
-T1-DIV-1 staircase F(n+1)                     DivideObligations (Ground 3)     count  VERIFIED
-T1-DIV-2 ternary no 00, a(3)=22               DivideObligations (Ground 3)     count  VERIFIED
-T1-SYM-1 5-bead necklace C5                   (m^5+4m)/5                       count  VERIFIED
-T1-SYM-2 cube 6 faces rotation group 24       (m^6+3m^4+12m^3+8m^2)/24         count  VERIFIED
+T1-INV-1 board 1..10 |a-b|                  parity invariant (sum 55 odd)     proof  MATH-VERIFIED
+T1-INV-2 dragon 100 heads                    mod-3 invariant (net changes)    proof  MATH-VERIFIED
+T1-EXT-1 finite set no midpoint               max-distance pair                proof  MATH-VERIFIED
+T1-EXT-2 tournament <=2 reachability          max out-degree "king"            proof  MATH-VERIFIED
+T1-PIG-1 52 ints sum/diff div100              51 boxes                          proof  MATH-VERIFIED
+T1-PIG-2 51 from 1..100 coprime               50 adjacent boxes                proof  MATH-VERIFIED
+T1-DIV-1 staircase F(n+1)                     DivideObligations (Ground 3)     count  MATH-VERIFIED
+T1-DIV-2 ternary no 00, a(3)=22               DivideObligations (Ground 3)     count  MATH-VERIFIED
+T1-SYM-1 5-bead necklace C5                   (m^5+4m)/5                       count  MATH-VERIFIED
+T1-SYM-2 cube 6 faces rotation group 24       (m^6+3m^4+12m^3+8m^2)/24         count  MATH-VERIFIED
 ```
 
-T1-SYM-2 verified by **enumerating the actual 24-element rotation group** (cycle structures
-1×m^6, 3×m^4, 6×m^3 @ (1,1,4), 6×m^3 @ (2,2,2), 8×m^2); m=2→10, 3→57, 4→240.
+T1-SYM-2 math verified by **enumerating the actual 24-element rotation group** (cycle structures
+1×m^6, 3×m^4, 6×m^3 @ (1,1,4), 6×m^3 @ (2,2,2), 8×m^2); m=2→10, 3→57, 4→240. All 10 remain
+**UNSOURCED / blueprint-with-unsourced-statement** regardless of math verification.
 
-### 10 Tier1 blueprint cards authored (curriculum/tier1/cards/)
+### 10 Tier1 blueprint cards authored (curriculum/tier1/cards/) — UNSOURCED status
 
 ```text
 t1-inv-1-board-ab-erase.md           (Invariance, proof)
@@ -448,18 +462,66 @@ A1 patch spec (15 constructors, label-registration-only, INT applies on `ef571b6
 INT. **Not landed by this lane** — it is INT's deliverable. This lane files A2, applies A1 vocabulary
 to its own cards when INT lands it.
 
-### Grounds at end of Turn 8
+### Ground 3 ruling — provenance (desk-derived, not executed)
+
+The Ground 3 ruling (`CountTargetUnsupported(Divide/Symmetry, missing_obligation_generator)`) is a
+**desk ruling deduced from the tree-verified pre-finding** (no `DivideObligations`/`SymmetryObligations`
+generator exists today → "supported" is not currently possible). It is **NOT** the output of an
+executed G-COUNT-AUDIT probe. If G-COUNT-AUDIT later runs and finds the same, the ruling is confirmed;
+if it finds a generator path the grep missed, the ruling is revised. Either way the cards' gate wording
+("G-eng G1-completion lands the generator") stays correct.
+
+### Grounds at end of Turn 8 (post fable 5.1 correction)
 
 ```text
-G1 (constructors): OPEN   — A1 patch delivered to INT; lands with INT preflight candidate + wave-1 tag
-G2 (statements):   CLEARED — Tier0 + Tier1 statements both verified
-G3 (count-target): RULED-UNSUPPORTED-PENDING-IMPLEMENTATION — G1-completion deliverable; skeleton shapes fixed
+G1 (constructors): OPEN   — A1 + A2 with INT; lands with INT preflight candidate + wave-1 tag
+G2 (statements):   Tier0 CLEARED; Tier1 CLEARED-by-math but UNSOURCED (source violation) —
+                   Pool A status not established until operator supplies the actual set's verbatim text
+G3 (count-target): RULED-UNSUPPORTED-PENDING-IMPLEMENTATION (G-eng G1-completion); desk-derived
 ```
+
+### D19 ledger entry
+
+```text
+D19 — CheckoutDotRevertsTrackedEdits
+  mechanism: `git checkout -- .` (used to restore tracked __pycache__/*.pyc) reverted every
+             tracked working-tree edit; the docs edits were re-applied from scratch.
+  rule: never restore by `-- .` with unstaged edits present; restore the specific paths, or
+        stage the edits first.
+  root cause (routed to INT as [SHARED] hygiene, non-semantic): 89 __pycache__/*.pyc files are
+        TRACKED in this repo. Every Python run dirties the tree with bytecode deltas, which is
+        what tempted the blanket restore. INT should untrack *.pyc and add the ignore in one
+        hygiene commit; until then, never run `checkout -- .`.
+  status: DOCUMENTED (this entry). Actual sandbox-recovery correction applied this turn (see below).
+```
+
+Sandbox note: a reset had also reverted `remote.origin.fetch` to single-branch refspec and dropped
+local history; recovered via `git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"`,
+`git fetch --all --tags`, then `git reset --hard origin/arena/01a068c2-cat-theo-machine` (verified
+working-tree content byte-identical to remote tip before reset; no unique content lost). This is the
+known recurring reset.
+
+### [SHARED] — tracked-bytecode hygiene routed to INT
+
+Route to INT (non-semantic hygiene): **89 `__pycache__/*.pyc` files are tracked** in this repo. Every
+Python run dirties the working tree with bytecode deltas, which repeatedly tempts a blanket restore
+(see D19). Recommended INT action: untrack `*.pyc` and add a `.gitignore` entry in one hygiene commit.
+Affects every lane that runs Python; not a semantic change.
+
+### Decoy governance lines — confirmation
+
+The **open item** (decoy governance lines) is **CLOSED**: all 5 G4 decoy cards
+(`curriculum/tier0/decoys/*.md`) carry the `## governance (negative-control framing)` section ("this
+decoy is inert until a `LearnedMethodPolicy` exists... grades the POLICY, not the method payload").
+These landed in commit `3f3beb4` and are present in the tree at tip `78a5c6e`.
 
 ### I2 charter remaining
 
-Statements done (10, verified). Cards done (10). A2 filed. Next I2 advance is C-phase
-measurement **only on the authorized tag**; no loadable Tier1 record authored (blueprint-only).
+The agent-authored statement set is **UNSOURCED**, so I2 Pool A is **not established**. The 10
+operator-supplied problems (per fable 5.1) are listed in `protocol/I.md` (Turn 8) with method +
+target-class **pending** and verbatim text **pending**. I2 next advance: wait for the operator to
+supply verbatim text + method/target-class for the actual supplied set; then author cards. No loadable
+Tier1 record exists (blueprint-only, unsourced → not convertible).
 
 ### Watch target
 

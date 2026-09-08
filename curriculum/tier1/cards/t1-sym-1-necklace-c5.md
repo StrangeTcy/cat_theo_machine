@@ -1,6 +1,6 @@
 # Tier1 card — T1-SYM-1 (Symmetry, 5-bead necklace)
 
-Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice. **Count-target.**
+Agent: G/I-op. **Status: blueprint-only, not training input.** Pool A Tier1 practice — UNSOURCED (agent-authored statement; not convertible until operator supplies). **Count-target.**
 Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 
 ---
@@ -10,7 +10,7 @@ Inherits **Ground 3 — RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**.
 > A necklace has 5 beads, each to be colored one of m colors. Two colorings are the same if one is a
 > rotation of the other (rotations of the 5-bead necklace are considered equivalent). How many
 > distinct necklaces are there?
-> (operator Tier1, verified. Rotation-only C5; answer `(m^5 + 4m)/5`.)
+> **(UNSOURCED: agent-authored statement, NOT operator-supplied.)** Math: Rotation-only C5; answer `(m^5 + 4m)/5`.
 
 ## target class: count
 
