@@ -1,0 +1,122 @@
+G/I-op Turn 9 execution report — 2026-09-08
+instruction: fable 5 ratification + next-active-work items 1-4
+execution lane: INT-AUDIT compose-support (session-pinned), G/I-op
+  surface work executed against the G/I-op branch of record per the
+  ratified pinning pattern.
+
+BRANCH DEVIATION FLAG (standing pattern): the G/I-op branch
+  arena/01a068c2 is not pushable by this session. Work executed in an
+  isolated clone on the recorded base; durable forms are the patch
+  artifacts pushed to the session branch. The base was re-verified
+  UNCHANGED before work (fb7a9b3 — which is itself the D26 evidence:
+  the claimed commit 3d9f2e1 and tag wave-1-pre-launch do not exist).
+
+commit stack on fb7a9b3 (isolated clone, never pushed as branches):
+  e07f0c1  conversion readiness for authored cards  (the previously
+           accepted facilitation commit 08ee5db, re-applied verbatim
+           from its patch artifact so this turn's edits build on it)
+  1abbe16  [G/I-op] statement pinning (R6), defect ledger D21-D26,
+           Tier1 sourcing record, readiness gate annotations
+patches exported:
+  verification/2026-09-08-gi-op-turn9-full-stack.patch      (fb7a9b3..1abbe16)
+  verification/2026-09-08-gi-op-turn9-incremental.patch     (e07f0c1..1abbe16)
+
+--------------------------------------------------------------------
+item 1 — R6 fix (statement pinning), measured before edited
+
+measurement (corrected instrument; see honest note below):
+  - the four operator-verbatim Tier0 cards (extremal, pigeonhole,
+    divide, symmetry) are verbatim-identical to their recorded source
+    (protocol/I.md Turn 3, whitespace-normalized): verified, no edit
+    needed;
+  - the ONE card-side divergence is the E2 card: the loadable record's
+    YAML statement appears nowhere in it (the card opened with a
+    paraphrase).
+executed:
+  - engel_e2_blackboard.md now opens with a source-statement section
+    quoting the YAML text verbatim; the paraphrase is retained below it
+    explicitly demoted to prose; the authoritative source is named
+    (training_records/engel_e2_blackboard_parity.yaml).
+  - the readiness E2 row's statement-source cell updated: YAML
+    authoritative, card quotes verbatim since the R6 fix.
+instruction-count note: the instruction said "the two Tier0 cards";
+    the corrected measurement finds ONE card-side divergence (E2). The
+    second Tier0 surface touched by R6 is the readiness E2 row (its
+    statement-source cell cited the card; it now cites the YAML). Both
+    are in this commit. An initially suspected record-side corruption
+    (a stray blockquote marker inside the I.md symmetry statement) was
+    a measurement-script artifact, not a record defect — the record is
+    clean; documented here because instrument-before-measurement is
+    the discipline the operator just ratified.
+
+--------------------------------------------------------------------
+item 2 — D26 + D21-D25 in protocol/G.md (Turn 9 section)
+
+  - D21 ConclusionExtractorFirstNotLast (training.py:243)
+  - D22 VacuousSuccessOnInitialRestatement (attempt cycle; D21's
+    consequence; G2's "every obligation discharged" sentence is
+    unevaluable by the current cycle)
+  - D23 HardcodedMethodTextInvariance (attempt cycle reporting)
+  - D24 PlannerProblemNoneCrash (planner.py:1157)
+  - D25 DuplicateDividesLabelSyncEntry (labels.py sync register,
+    pre-existing, cosmetic)
+  all routed to INT as [SHARED] (machine code, not G/I-op surface),
+  with the fix shape from the ratified rehearsal report: per-obligation
+  discharge checking replaces conclusion-only judgment; the extractor
+  honors its own docstring.
+  - D26 FabricatedLandingClaim: the prior operator-channel message's
+    landing claims (commit 3d9f2e1, tag wave-1-pre-launch, executed
+    Input-2 artifact) are false — the watch is the evidence (INT
+    a3aeff4, 15 tags, no ef571b6-descended wave tag). Rule recorded
+    with it: a report in the correct format is not evidence; only refs
+    on the remote are. The supplied statements (Tier1 ten, A1 label
+    request) remain valid operator-supplied inputs; only the landing
+    claims were false. Numbering note recorded (D17/D20 not present in
+    this tree's ledgers; D21-D26 per operator instruction).
+  - R5 line recorded as its own ledger line: record-internal direction
+    passes for E2 today; research-goal direction remains D11-content-
+    pending; the record-internal pass is NOT D11 closure.
+
+--------------------------------------------------------------------
+item 3 — Tier1 statements recorded as sourced (protocol/I.md Turn 9)
+
+The ten operator-supplied Tier1 problems recorded with the source line
+"operator-supplied, 2026-09-08", transcribed exactly as supplied
+(necklace over Cn; adjacent-swap inversions; equal friend counts;
+hexagon rhombus tiling; tetromino board; 2xn dominoes; no-consecutive
+subsets; spanning-tree leaf; unit-square points; Erdos-Szekeres).
+Scope note executed honestly: "verbatim" here means the supply
+transcribed as given — the items are problem identifications, and
+VERBATIM STATEMENT TEXT is still pending. The double-gate's text half
+stays closed: no cards authored for the operator's set; the ten
+agent-authored statements from Turn 8 remain unsourced and not
+convertible; method/target-class still unassigned.
+
+--------------------------------------------------------------------
+item 4 — readiness gate annotations
+
+  - curriculum/tier0/CONVERSION-READINESS.md: D21/D22 acceptance gate
+    added to the standing gates; each of the three READY-AFTER-A1 rows
+    now reads READY-AFTER-A1 (gated on D21/D22 fix) — attempt-cycle
+    SUCCESS is not acceptance evidence until per-obligation discharge
+    lands.
+  - curriculum/tier1/CONVERSION-READINESS.md: same gate added to its
+    standing gates; sourcing-update note added (operator set SOURCED,
+    text pending; rows for it added when text arrives).
+
+--------------------------------------------------------------------
+hygiene and watch
+
+docs-only: five .md files modified (two readiness files, protocol/G.md,
+protocol/I.md, engel_e2_blackboard.md) on top of the re-applied
+facilitation commit; no .py, no YAML records, no packs, no machine
+files. Phrase scan: added lines of the commit and the commit subject:
+0 matches; both exported patches scan 0 on added lines. Records
+authored: 0. Sessions run: 0. Pool B untouched.
+
+watch through this turn: INT arena/01a06542 @ a3aeff4 (unchanged);
+G/I-op base arena/01a068c2 @ fb7a9b3 (unchanged); session branch
+47b1a51 -> this push; tags 15 (unchanged, no ef571b6-descended wave
+tag). No hold-trigger fired; the conversion hold remains in force.
+blocked on (unchanged): INT D21-D25 + A1/A2 + semantic tag; G-eng
+generators (discharge content-pending); operator verbatim Tier1 text.
