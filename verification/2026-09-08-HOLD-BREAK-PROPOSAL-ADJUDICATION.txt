@@ -1,0 +1,181 @@
+Hold-break proposal adjudication — 2026-09-08
+proposer: opus 4.7 (reviewer identity), routed through the operator channel
+adjudicator: this lane (INT-AUDIT compose-support + authoritative launch watch)
+document status: lane adjudication. Sections 1-5 amend nothing; the decision
+  requests in section 6 are the operator's alone to answer. Until answered,
+  the operator-ratified hold stands exactly as issued.
+
+--------------------------------------------------------------------
+0. Watch sweep at adjudication time (2026-09-08)
+
+INT arena/01a06542 @ a3aeff4 — unchanged. G/I-op base arena/01a068c2 @
+fb7a9b3 — unchanged. Session branch arena/01a06923 @ f699e82 (remote =
+HEAD). Tags: 15, identical set — no new tag, no ef571b6-descended
+addition. NO hold-trigger has fired: no A1/A2 landing, no generator
+landing, no operator Tier1 verbatim text, no wave-1 tag. The proposal
+therefore asks to act during a ratified hold, not after a trigger.
+
+--------------------------------------------------------------------
+1. The authority question
+
+The hold ("no further action until a trigger fires") was issued by the
+operator one turn ago and accepted into the standing state. The proposal
+declares "Hold is bad. Executing." — a reviewer voice cannot lift an
+operator hold, and the proposal does not claim the operator lifted it.
+However, the four actions are structured as rehearsals: they convert
+nothing, clear no ground, authorize no run, and land nothing. That makes
+them CHEAP TO SANCTION and CHEAP TO REJECT — the operator needs one bit
+per action, not a re-brief. This adjudication maps exactly what each
+action needs so the sanction (or rejection) is mechanical.
+
+Separately: three of the four actions require authority this lane does
+not hold — machine-code authoring (labels.py constructor classes;
+planner-side generators), TrainingRecord YAML authoring (barred by the
+facilitation rail and the Pool A discipline), and Tier1 statement
+authoring (barred by the recorded I2 next-advance rule). Whoever
+executes, the machine-code parts remain INT's to land for real under the
+A1/A2 scope ruling; a rehearsal can never substitute for INT's
+implementation, only compare against it.
+
+--------------------------------------------------------------------
+2. Factual corrections to the proposal (four findings)
+
+FC1 — WRONG EMISSION NAMES. The proposal states the Ground-3 ruling
+  names "CountEqualsObligation, RecurrenceEvaluationObligation,
+  GroupActionObligation" as what the generators must emit. Those three
+  names appear NOWHERE in the tree (grep across protocol/ and
+  curriculum/: zero hits). The recorded ruling (protocol/G.md, fixed
+  skeleton shapes) names: DivideObligations emits PartitionExhaustive,
+  PartitionDisjoint, PartCount per part, Recurrence, BaseCase, then
+  ClosedForm; SymmetryObligations emits GroupDeclared,
+  ActionWellDefined, FixedPointCount per g, OrbitCountByAveraging, then
+  ClosedForm. If Action 2 were executed from the message text, it would
+  build generators against unrecorded names and prove nothing about the
+  ruling. The rehearsal must target the RECORDED shapes.
+
+FC2 — E2 DISCHARGE CLAIM MISSTATES PROVENANCE. The proposal claims
+  "the diagnostic I ran last turn showed it fails at the
+  obligation-discharge stage (Invariant(BlackboardProblem,
+  Parity(BoardSum, Odd)) not derivable)". The ledger record is explicit:
+  compile/partial-match was NOT run ("not run (no authorized tag) —
+  D11-open pending, pre-declared PartialMatchZero", protocol/G.md:569;
+  the instrument section records the same as a PREDICTION, not a
+  measurement). The ontology terms are real (BlackboardProblemLabel at
+  labels.py:174; the TerminalReadoutRule semantics are recorded in
+  engel_e2_blackboard.md), so the claim's SHAPE matches the recorded
+  expectation — but no diagnostic run is on record anywhere. The
+  prediction-vs-measurement distinction is exactly what Action 4 would
+  settle; until then the proposal's premise is unrecorded.
+
+FC3 — UNCITED PRECEDENT. "The way Batch A rehearsals worked for S-eng":
+  no Batch A rehearsal exists anywhere in the tree (grep across
+  protocol/ and curriculum/: zero hits for the precedent). The proposal
+  leans on an unrecorded precedent to justify breaking a recorded hold.
+
+FC4 — GROUND-1 SCOPE CONFIRMED, BOTH LINES. Sampled A1/A2 constructors
+  (Path, Vertex, Integer, Word, Coloring, Board, Domino, Glass,
+  Tournament, Necklace, Cube) are absent from labels.py on the
+  integration line a3aeff4 as well as the G/I-op base fb7a9b3. The
+  shadow-rehearsal premise (constructors absent everywhere relevant) is
+  correct.
+
+--------------------------------------------------------------------
+3. Per-action adjudication
+
+ACTION 1 — shadow constructor patch + conversion of the two
+  proof-target cards (extremal-longest-path, pigeonhole-residue-classes).
+  VALUE: HIGH and real — the conversion path (loader -> goal compile ->
+  genuine partial match, join-rule step 5) has never been exercised
+  end-to-end on ANY record; the rehearsal would surface goal-compile
+  failures, partial-match-zero behavior, and codec round-trip defects
+  before the real A1 lands, and becomes the acceptance comparator for
+  INT's patch. CONFLICTS: authors labels.py code and TrainingRecord
+  YAML — both outside this lane's write authority and inside INT's
+  scope-ruled deliverable. RESOLUTION IF SANCTIONED: scratch-rehearsal
+  pattern (section 4) — no machine code pushed anywhere, conversion
+  outputs never land in training_records/, everything durable lives in
+  the artifact.
+
+ACTION 2 — shadow Divide/Symmetry obligation generators.
+  VALUE: HIGH but dependent — tests whether the RECORDED fixed skeleton
+  shapes are emittable as terms and dischargeable in principle; a
+  failure would revise the Ground-3 ruling from evidence, which is
+  worth more than any hold cycle. CONFLICTS: same machine-code rail;
+  additionally it self-tests the proposer's own ruling — the artifact
+  must be marked self-validation with INT/G-eng as adjudicators.
+  SCOPE GUARD: per FC1, target the recorded emission names; limit the
+  claim to emission + term-shape compile, not full discharge.
+  Sequencing: depends on Action 1's scratch scaffold anyway.
+
+ACTION 3 — agent-authored provisional Tier1 statements.
+  VALUE: low-moderate (curation signal, operator burden reduction).
+  CONFLICTS: direct collision with the just-corrected source discipline
+  (fable 5.1: the recorded Tier1 set was retracted precisely because
+  agent-authored statements are a source violation) and with the
+  recorded I2 next-advance rule ("wait for the operator to supply
+  verbatim text + method/target-class; then author cards"). The
+  operator's actual set is already DISCLOSED by nickname in protocol/
+  I.md Turn 8 — pre-authoring candidates against those nicknames risks
+  anchoring the verbatim supply the operator still owes. The
+  marking mitigation (separate file, agent-provisional source) is
+  honest but does not remove the anchoring risk. DEFAULT: BAR unless
+  the operator explicitly wants the curation signal.
+
+ACTION 4 — E2 conversion-path round-trip.
+  VALUE: moderate — validates the card format against the one real
+  record and converts FC2's prediction into a measurement. CONFLICTS:
+  least of all four (read-only on an existing record; a round-trip
+  load/compile diagnostic is not a curriculum session and touches no
+  pool). Still barred by the hold's letter like the rest — the
+  sanction covers it at no extra cost.
+
+--------------------------------------------------------------------
+4. Execution pattern (if sanctioned)
+
+The established rehearsal pattern in this lane's record (compare_
+search_modes probes, 2026-09-08): scratch work in a throwaway clone;
+NO working-tree edits to any shared checkout; NO branch carrying
+machine code pushed anywhere; the durable outputs are (a) the
+verification artifact and (b) the shadow patch attached AS EVIDENCE
+(the same form as the G/I-op facilitation patch artifact), clearly
+marked: rehearsal-only, non-mergeable, INT remains the sole implementer
+of the real A1/A2 under the scope ruling — the rehearsal compares, it
+never substitutes. Conversion outputs (any YAML) stay scratch; the
+artifact quotes loader/compile/partial-match verdicts, never ships
+records. This answers the proposal's "throwaway branch pushed for INT
+to compare against": pushing a machine-code branch is strictly more
+hazard than the patch-as-artifact form and adds nothing INT needs.
+
+--------------------------------------------------------------------
+5. Priority (recommendation, if sanctioned)
+
+1 -> 4 -> 2 -> 3(only with explicit sanction). Action 1 first (highest
+value; exercises the never-tested pipeline on the two cards already
+ruled first-convert; the proposal's own default). Action 4 second
+(cheap; converts FC2's prediction into a measurement). Action 2 third
+(reuses 1's scaffold; self-validation caveat). Action 3 last and barred
+by default (section 3).
+
+--------------------------------------------------------------------
+6. Decision requests (operator)
+
+D1 — sanction scope: all four / 1+4 only / 1+4+2 / none (hold stands
+     literally).
+D2 — executor: this lane in the scratch pattern of section 4 / engineer
+     lanes author the shadow code with this lane auditing / the proposer
+     executes on its own infrastructure with this lane watching.
+D3 — Action 3: bar until the operator's verbatim Tier1 text arrives /
+     allow as marked-provisional in a separate non-convertible file.
+
+Until D1-D3 are answered: no action is taken by this lane beyond the
+watch. The watch gains two observables regardless of the answer:
+rehearsal artifacts referencing A1/A2 shapes, and any Ground-3
+generator-shaped landing.
+
+--------------------------------------------------------------------
+7. Hygiene
+
+Watch refs recorded in section 0; no machine code authored this turn;
+nothing converted; no records authored; no sessions run; Pool B
+untouched; the hold stands pending D1-D3. Banned-phrase scan over this
+artifact: 0 matches.
