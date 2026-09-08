@@ -52,6 +52,13 @@ the failure mode.
 - **must not fire**, or
 - **fire and fail rent** (a Burnside quotient must not close; the trivial `m^4` is the right answer).
 
+## governance (negative-control framing)
+
+This decoy is inert until a `LearnedMethodPolicy` exists for its target method (Symmetry). It grades
+the POLICY, not the method payload. A session run against this decoy before S lands policy machinery
+measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+until the policy machinery is landed.
+
 ## unsound-derivation risk
 
 A wrong "solve" applies Burnside `(m^4 + m^2 + 2m)/4` to a **labeled** square — quotienting by a

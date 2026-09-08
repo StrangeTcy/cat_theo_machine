@@ -55,6 +55,13 @@ failure mode — the method that "overcomplicates" is being tested.
 - **fire and fail rent** (a recurrence route must not be the *accepted simplest* solve; the direct
   `2^(n-1)` bijection is the right method).
 
+## governance (negative-control framing)
+
+This decoy is inert until a `LearnedMethodPolicy` exists for its target method (Divide). It grades
+the POLICY, not the method payload. A session run against this decoy before S lands policy machinery
+measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+until the policy machinery is landed.
+
 ## unsound-derivation risk
 
 A wrong "solve" computes a recurrence and gives the count but does not prove the parity balance;

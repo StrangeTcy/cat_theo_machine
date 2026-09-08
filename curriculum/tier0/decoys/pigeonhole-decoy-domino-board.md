@@ -56,6 +56,13 @@ The Pigeonhole-vs-Invariance distinction is the control. A pigeonhole policy tha
 - **fire and fail rent** (a pigeonhole "solution" must not close; the checkerboard-invariance route
   is the right method).
 
+## governance (negative-control framing)
+
+This decoy is inert until a `LearnedMethodPolicy` exists for its target method (Pigeonhole). It
+grades the POLICY, not the method payload. A session run against this decoy before S lands policy
+machinery measures nothing — there is no policy to fire. Do not record a "the policy did not fire"
+as evidence until the policy machinery is landed.
+
 ## unsound-derivation risk
 
 A wrong "solve" argues "62 squares / 2 per domino = 31, so it's tileable" — a pure count that

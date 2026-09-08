@@ -319,6 +319,39 @@ A1 extended rows. No claim these exist in the tree.
 
 ---
 
+## Turn 7 (2026-09-08) — decoy governance lines + I2 Tier1 statement request
+
+### Decoy governance added (substantive card update)
+
+Each of the 5 G4 decoy cards now carries a `## governance (negative-control framing)` section:
+
+> This decoy is inert until a `LearnedMethodPolicy` exists for its target method. It grades the
+> POLICY, not the method payload. A session run against this decoy before S lands policy machinery
+> measures nothing — there is no policy to fire.
+
+This closes the G4 charter requirement ("the learned policy must not fire, or fire and fail rent")
+against the fact that no policy machinery is landed yet. It prevents a future operator from recording
+vacuous "the policy did not fire" results with no policy present.
+
+### I2 Tier1 statement request (routed to operator)
+
+```text
+TO: operator
+FROM: G/I-op
+NEED: Tier1 practice-pool source statements — minimum ten, at least two per method
+      (Invariance, Extremal, Pigeonhole, Divide, Symmetry)
+FORM: exact statement text, as supplied for the four Tier0 problems
+NOTE: these are Pool A practice candidates, NOT the sealed exam set; the exam set stays
+      INT/operator custody per the G<->I firewall
+DISCIPLINE: same as Tier0 — statements verified before recording, count-vs-proof classified
+      per problem, gates applied per class
+```
+
+I2 is the last unstarted G/I-op card family. Once the Tier1 statements arrive, author ≥2 per method
+(blueprint-only, same discipline), then I2 curation turns to measurement on the authorized tag.
+
+---
+
 End-of-turn block:
 
 ```text

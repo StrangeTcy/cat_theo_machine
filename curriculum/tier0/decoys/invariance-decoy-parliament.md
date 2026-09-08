@@ -65,6 +65,13 @@ failure mode being tested.
 - **fire and fail rent** (the Invariance attempt must not close; the correct Descent route is
   recorded as the right method).
 
+## governance (negative-control framing)
+
+This decoy is inert until a `LearnedMethodPolicy` exists for its target method (Invariance). It
+grades the POLICY, not the method payload. A session run against this decoy before S lands policy
+machinery measures nothing — there is no policy to fire. Do not record a "the policy did not fire"
+as evidence until the policy machinery is landed.
+
 ## unsound-derivation risk
 
 A wrong "solve" would **assert a conserved quantity** (e.g. "the number of enemy pairs is
