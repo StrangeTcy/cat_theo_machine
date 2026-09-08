@@ -97,6 +97,25 @@ records are authored — do not force a prove-target skeleton onto a count probl
 
 ---
 
+## Turn 4 — Ground 3 recorded as an explicit gate
+
+The reviewer elevated count-vs-proof to a **third ground** (problems 3 & 4 only), recorded in
+`protocol/G.md`. Authoring map:
+
+```text
+problems 1, 2: author when Ground 1 clears       (constructors + statements)
+problems 3, 4: author when Ground 1 clears AND count-target skeleton confirmed expressible
+               (constructors + statements + count-target expressibility)
+```
+
+- If G1's method payloads only emit proof-reachability skeletons, that is a `[SHARED]` finding routed
+  to **G-eng**, not something G/I-op forces by writing a prove-skeleton onto a count problem.
+- Coloring count is locked to **C4** (rotation only): `(m^4 + m^2 + 2m)/4`. The dihedral count
+  `(m^4 + 2m^3 + 3m^2 + 2m)/8` is a different problem requiring a restated statement — not a
+  correction to apply during authoring.
+
+---
+
 End-of-turn block:
 
 ```text

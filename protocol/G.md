@@ -103,6 +103,68 @@ Engel statement text for the four Tier0 problems present.
 
 ---
 
+## Turn 4 (2026-09-06) — Ground 3 recorded as an explicit gate
+
+The reviewer elevated the count-vs-proof finding from a design note to a **third ground** (specific to
+problems 3 and 4). Recorded as an explicit gate, not a footnote:
+
+### Ground 3 — count-target expressibility (problems 3, 4 only)
+
+```text
+proof-target (problems 1, 2):  goal = proposition to close; obligation skeleton = method's fixed
+  steps discharged by search (the shape G1's PlannerAlternative methods assume).
+
+count-target (problems 3, 4):  goal = a formula equals a value (F(n+2); (m^4+m^2+2m)/4);
+  there is no goal-state reachability; the "answer" is a closed-form. The obligation skeleton
+  for "prove this count is correct" is a DIFFERENT shape than the method skeletons G1 defines.
+
+Consequence: even with Ground 1 constructors present, problems 3 and 4 may still not be authorable
+as strategy_hint-carrying TrainingRecords in the G1 method shape, because the method obligation
+skeleton is proof-shaped and the target is count-shaped. Constructors are necessary but may not be
+sufficient for the two count-targets.
+```
+
+**Disposition:**
+
+```text
+problems 1, 2: author when Ground 1 clears       (two grounds: constructors + statements)
+problems 3, 4: author when Ground 1 clears AND count-target skeleton confirmed expressible
+               (three grounds: constructors + statements + count-target expressibility)
+```
+
+If G1's method payloads only emit proof-reachability skeletons, that is a `[SHARED]` finding routed to
+**G-eng**, not something G/I-op forces by writing a prove-skeleton onto a count problem.
+
+### Authoring readiness map
+
+```text
+problems 1, 2: blocked on Ground 1 only
+problems 3, 4: blocked on Ground 1 AND Ground 3
+none authorable yet; all statements verified and persisted
+```
+
+### Coloring statement — C4 pinned (no silent drift to D4)
+
+"up to rotation" reads as the **cyclic group C4**: count `(m^4 + m^2 + 2m)/4`
+(m=2→6, 3→24, 4→70, 5→165). This is **locked to the words supplied** (rotation, not rotation and
+reflection). If an operator later intends the dihedral count `(m^4 + 2m^3 + 3m^2 + 2m)/8`, that is a
+**different problem** requiring a restated statement — not a correction to apply during authoring.
+
+### Reset handling (recurring refspec reversion)
+
+A sandbox reset reverts `remote.origin.fetch` to the default single-branch refspec and drops fetched
+objects; that fetch leaves only `FETCH_HEAD` updated. Recovery ritual (same sub-mode F-tools recorded
+in its runbook):
+
+```text
+git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+git fetch --all --tags
+# then reconcile: git reset --hard origin/arena/01a068c2-cat-theo-machine
+#   only after confirming HEAD is an ancestor (fast-forward) — never a force-push
+```
+
+---
+
 End-of-turn block:
 
 ```text
