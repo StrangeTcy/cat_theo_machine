@@ -1,0 +1,106 @@
+Authoritative launch watch — cycle 4 — 2026-09-08
+predecessor: verification/2026-09-06-LAUNCH-WATCH-LEDGER-2.txt (@ 4936f92)
+watched ref: refs/heads/arena/01a06542-cat-theo-machine
+
+authoritative INT tip: a3aeff4 (MOVED from b812db9; fast-forward,
+  b812db9 remains an ancestor; exactly two commits, both [SHARED]
+  item-1 harness work: b389650 "exact-109 selection mode in the repro
+  harness"; a3aeff4 "exception surfaced, mechanism named". Diff
+  surface: protocol/preflight/ artifacts (ledger, exception traceback,
+  attempt-1 records) + tools/preflight_item1_repro.sh only — no
+  machine code, no charter docs. Sequence-consistent: the item-1
+  harness landing is not the deviation.)
+amendment commit:      still not landed (still the single next unmet step)
+compose 74bb3e7:       still not in the integration line (verified
+                       against a3aeff4)
+pre-launch tag:        none
+authorized preflight:  none
+wave-1 base:           none (7cf6394's own record states "wave 1 not
+                       spawned")
+
+## Tag register: 13 -> 15 (all enumerated, peeled hashes cited)
+
+Full register at this cycle: cut-1-bf9da23, d2-equality-subject-
+template, eng-base-0, eng-base-0@1374464, experiment-4-frozen,
+experiment-5-frozen, experiment-5-frozen-r1, partition-32bc569,
+preflight-412b215, preflight-6a132f3, preflight-converse-outcome-guard,
+preflight-e73d748, preflight-shard-cursor-gate, s1-relation-contracts,
+shared-7cf6394. The two new entries:
+
+cut-1-bf9da23 (tag object 21b4fc1) -> peeled
+  bf9da23f71b9b178b7c42983fd053b8c2d50f605 (2026-09-07 11:54:45 UTC)
+  lineage: 72f7919 "INT: cut-1 measurement tag; record merge batch 1"
+  -> 7b938f4 "INT: withdraw cut-1-f9ed7fd (shard-1 unmeasured)" ->
+  bf9da23 "[preflight] ConversePropositionTest guards Understood
+  before navigating outcome tails".
+  reachable from: arena/01a0731d-cat-theo-machine. NOT an ancestor of
+  a3aeff4 — off the integration line.
+  content: bf9da23 is the D1 port named by the standing porting note —
+  "Port defect D1 from sibling lineage arena/01a064d5 @ 3cac74c" — the
+  guard-before-navigation instrument repair for the shard-1
+  ConversePropositionTest install abort (UnderstoodLabel guards now
+  run before any Tail navigation; a non-Understood outcome sets the
+  test's result to false and the suite proceeds). It cites the sibling
+  commit as the note requires, and is test-only per its own record
+  (testsuite.py, 50 insertions / 43 deletions; no matcher, search or
+  planner path changed, no new constructors).
+  discipline signal: the intermediate cut-1-f9ed7fd tag was WITHDRAWN
+  before publication (7b938f4: the tag was local/unpushed and is
+  deleted; grounds: the first batch claimed the failure set matched
+  baseline while shard 1 had no measurement — charter defect class #1,
+  the preflight-e73d748 precedent). The self-catch is honest and is
+  recorded here as such.
+  ruling: inadmissible as a launch artifact — off the integration line
+  and ahead of the gate (no amendment, no pre-launch tag; preflight
+  items 2-4 are still owed against a pre-launch tag that does not
+  exist). The port's mechanics match the standing note; its timing
+  repeats the whole-wave-0 off-line pattern.
+
+shared-7cf6394 (tag object a7223d2) -> peeled
+  7cf6394359455a002eb1df901d882ae719abe302 (2026-09-06 21:35:57 UTC)
+  lineage: 6216ce3 "[SHARED] C1 findings: fill phase-gate, reusable
+  TermEqual, ruling request" -> 513f883 "[SHARED] record INT ruling
+  REVIVE-LATER on compare_search_modes" -> 7cf6394 "[SHARED] two-shard
+  suite matches preflight; compare reds unchanged".
+  reachable from: arena/01a06da9-cat-theo-machine and
+  arena/01a0731d-cat-theo-machine. NOT an ancestor of a3aeff4 — off
+  the integration line.
+  content: (i) an independent lane's findings on the two red
+  compare_search_modes tests, converging with this lane's 6ce9589
+  inspection (fill stays SearchRootFastPathPhase so candidates_ready
+  never sets; reusable load accepts resume-ready then fails TermEqual
+  on the restored start); (ii) INT ruling REVIVE-LATER — "workers.py
+  is the active process-worker line. compare_search_modes resident
+  pool and snapshot reuse stay parked. The two compare reds remain
+  known-red pending CONVERGE."; (iii) a two-shard suite record: both
+  shards exit 0, combined failure set is the preflight seven, the two
+  compare reds keep the same names and shape.
+  ruling: inadmissible as a launch artifact (off-line origin, same
+  ground as the preflight family). The REVIVE-LATER ruling itself is a
+  legitimate INT disposition on a requested question — the first
+  recorded ruling on the compare subsystem's parked status — and is
+  carried into verification/2026-09-06-COMPARE-SEARCH-MODES-RED-
+  INSPECTION.txt (amended) section 5.
+
+## Pattern assessment (cure unchanged)
+
+The whole-wave-0 off-line pattern persists: cut measurement, the D1
+instrument port, and the compare-subsystem ruling all landed outside
+the ordering gate (amendment -> compose merge -> candidate admission
+-> gates + both complete shards on the integration line -> pre-launch
+tag -> preflight against that tag). Two constructive signals this
+cycle: the withdrawn cut tag shows the discipline operating (defect
+self-caught, tag deleted before publication), and REVIVE-LATER shows
+INT answering a properly requested question. The cure remains the
+operator re-brief of the off-line sessions plus the amendment
+(grounding section 6.2) as the first commit on the integration line.
+
+next unmet launch step (unchanged): INT lands the docs-only amendment
+commit, then compose merge of 74bb3e7 at the landing-time tip, then
+the combined candidate, admission (compose gate + D11 gate + both
+complete shards ON THE INTEGRATION LINE), pre-launch tag, preflight
+against that tag, wave-1 publication.
+
+watch triggers (unchanged): amendment landing; compose merge; any new
+tag; preflight-session re-anchor confirmation. Watched ref:
+refs/heads/arena/01a06542-cat-theo-machine.

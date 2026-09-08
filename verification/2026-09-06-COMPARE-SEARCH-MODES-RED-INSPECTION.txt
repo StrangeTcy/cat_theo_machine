@@ -1,16 +1,36 @@
 compare_search_modes red-subsystem inspection — 2026-09-06
+  amended 2026-09-08 after operator review of 6ce9589
 lane: arena/01a06923-cat-theo-machine (compose-support / INT-audit)
 task: build-brief Step 1 entry condition — inspect the two red
   compare_search_modes tests at the authoritative tip before any
   machinery is spec'd
 inspected tree: arena/01a06542-cat-theo-machine @ b812db9
-  (single-branch clean clone; gmpy2+pyyaml installed; no working-tree
-  edits made to any machine file during this inspection — read-only
-  reproduction plus throwaway probe scripts under /tmp/csm, outside
-  the repository)
+  (clean clone; gmpy2+pyyaml installed; read-only reproduction; the
+  executable probes are published alongside this report under
+  verification/probes/; no working-tree edits were made to any machine
+  file)
 
-authoritative ref re-checked this cycle: b812db9 — unchanged; no new
-  tags (11 total, all previously catalogued); lane base 4936f92.
+AMENDMENT 2026-09-08 — what changed and why:
+  All observed results of the original report stand. Two conclusions
+  are corrected after operator review, and three sections are added:
+  (1) the suggested text/manifest remedy for the identity seam is
+      WITHDRAWN — the manifest text collapses different problems
+      (probe 1: with debug tracing disabled, the default, two
+      different goals render identical empty text fields). Replacement
+      wording in section 1.
+  (2) the "warm branch unreachable by construction" claim is WITHDRAWN
+      — the production entry order with the explicit shared-root mode
+      setting reaches the warm branch and sets the candidates-ready
+      flag (probe 2). Replacement wording in section 2.
+  (3) new finding: rejection of a foreign snapshot mutates the parent
+      (section 3, probe 3).
+  (4) candidate repair 327a263 compared (section 4).
+  (5) INT ruling REVIVE-LATER recorded (section 5).
+  authoritative ref at amendment time: a3aeff4 (b812db9 plus two
+  [SHARED] item-1 harness commits; see
+  verification/2026-09-08-AUTHORITATIVE-LAUNCH-WATCH-3.txt). The
+  inspected base for every observation below remains b812db9, where
+  both tests are still red.
 
 --------------------------------------------------------------------
 0. Reproduction (authoritative tip, solo, both shards' named entries)
@@ -74,16 +94,33 @@ failure mechanism, pinned by direct instrumentation of each gate:
       measured NOT TermEqual. Two independent rejections, either of
       which alone yields the empty mapping.
 
-what already works (all instrumented green): checkpoint write; scan
-  enumeration and run ordering; mode-token path assembly
-  (_mode_worker_token); _loaded_worker_attempt_is_final logic;
+what already works (all instrumented green; reproduced by probe 0):
+  checkpoint write; scan enumeration and run ordering; mode-token path
+  assembly (_mode_worker_token); _loaded_worker_attempt_is_final logic;
   _partial_worker_attempt_is_resume_ready returns truth with a
   non-empty worker_plan root loaded from the written checkpoint;
-  resume-stage ranking. Notably the value-level compare the gate needs
-  ALREADY EXISTS in the tree as the manifest mechanism
-  (_search_worker_result_manifest_path / _write_search_worker_manifest,
-  start_text/goal_text rendered via _debug_term) — the scanner simply
-  never consults it; it term-compares instead.
+  resume-stage ranking.
+
+remedy requirement (corrected 2026-09-08; supersedes the original
+  report's suggestion that the manifest mechanism could serve as the
+  compare):
+
+  Cross-process comparison needs stable value semantics for the supported
+  term family, or a canonical, constructor-kind-preserving encoding.
+
+  Debug rendering is diagnostic output, not proof of identity.
+  Matching start/goal values is necessary but does not establish snapshot
+  compatibility or validate a returned proof.
+
+  probe 1 confirms the collapse empirically at this base:
+  _write_search_worker_manifest renders through _debug_term, and
+  DebugTerm (proof.py:141) returns the empty string whenever
+  DEBUG_TRACE_STATE is false — its default. Two probes with different
+  goals both wrote start_text "" and goal_text ""; the manifest cannot
+  distinguish the problems, let alone validate a returned proof.
+
+  Heuristic compatibility remains a separate check. Do not remove it
+  merely because start/goal comparison was repaired.
 
 locus of the defect seam: search/compare_subprocess.py:319-331 (match
   gate) with the equality primitive at matching.py:41-80 (leaf
@@ -110,69 +147,222 @@ executed path:
 
 failing assertion: exactly ONE of the four checks fails — (2)
   _comparison_shared_root_candidates_ready is false after the fill.
-  Checks (1), (3), (4) pass: spawned is one (the normal leasing path
-  _collect_parallel_worker_launches spawns; the warm branch did not),
-  workers chain non-empty, next states still do not request a wave.
+  Checks (1), (3), (4) pass: spawned is nonzero (the normal leasing
+  path _collect_parallel_worker_launches spawns; the warm branch did
+  not), workers chain non-empty, next states still do not request a
+  wave.
 
 failure mechanism, pinned per state (all five modes measured
-  identically): _comparison_states_need_shared_root_wave
-  (search/compare_packets.py:1410-area, gate at 1417) requires a state
-  that is Running AND in SearchPacketSearchPhaseLabel AND zero active
-  packets AND empty pending AND a fresh-root job. Fresh states satisfy
-  every conjunct EXCEPT phase: they come up in
+  identically, reproduced by probe 0): _comparison_states_need_shared_
+  root_wave (search/compare_packets.py:1417) requires a state that is
+  Running AND in SearchPacketSearchPhaseLabel AND zero active packets
+  AND empty pending AND a fresh-root job. Fresh states satisfy every
+  conjunct EXCEPT phase: they come up in
   SearchRootFastPathPhaseLabel. So need-wave is false on entry;
-  _fill_parallel_workers then (i) skips
-  _grow_parallel_executor_pool's warm branch and (ii)
-  _comparison_prepare_shared_root_wave returns the states unchanged —
-  _comparison_apply_shared_root_wave never runs, and only it sets
-  _comparison_shared_root_candidates_ready (search/compare_packets.py:
-  1410; initialized false at search/compare.py:69).
+  _fill_parallel_workers then (i) skips _grow_parallel_executor_pool's
+  warm branch and (ii) _comparison_prepare_shared_root_wave returns
+  the states unchanged — _comparison_apply_shared_root_wave never
+  runs, and only it sets _comparison_shared_root_candidates_ready
+  (search/compare_packets.py:1410 via _comparison_cache_shared_root_
+  candidates; initialized false at search/compare.py:69).
 
-root shape: a gating/ordering contradiction. The only in-tree
-  transition RootFastPath -> PacketSearch lives inside the root-wave
-  fast-path evaluation itself (_comparison_root_fast_path_state,
-  search/compare_rules.py:206-224, phase= at :221), i.e. inside the
-  wave that the warm is supposed to PRECEDE. The warm trigger is gated
-  on a phase only the wave produces — chicken-and-egg; the warm branch
-  is unreachable from fresh states by construction.
+classification (corrected 2026-09-08 after operator review; the
+  original report's "gating/ordering contradiction, chicken-and-egg,
+  unreachable by construction" claim is WITHDRAWN):
 
-locus of the defect seam: the need-wave gate's phase conjunct
-  (search/compare_packets.py:1422) versus the fresh-state initializer
-  (search/compare_state.py:33) — either the initializer must build
-  fresh-root states already in packet phase, or the gate must accept
-  fresh-root fast-path states. Ruling belongs to INT / Agent C.
+  Direct-call fixture/precondition mismatch:
+    fresh states passed straight to fill do not establish shared-root readiness.
+
+  Whole scheduler unreachable by construction:
+    NOT established by this reproduction.
+
+  The production shared-root entry path (search/compare.py, resident
+  path of _compare_all_modes) performs: create fresh states -> start
+  and grow the executor pool (pre-fast-path grow at compare.py:213) ->
+  evaluate root fast paths (_comparison_states_after_root_fast_paths,
+  compare_rules.py:237; on a miss _comparison_root_fast_path_state
+  sets the phase to packet search for every running state, BEFORE the
+  later fill) -> enter the fill loop (compare.py:265). The transition
+  is therefore not confined to the wave whose preparation the warm
+  precedes.
+
+  probe 2 measured both entries at this base (all parts on isolated
+  fixtures with the suite's fake executor probes, no real processes):
+    A. direct entry (the red test's order), miss-capable ruleset:
+       need-wave false before and after the fill;
+       candidates-ready false — the red behavior reproduced.
+    B. production order with the explicit mode setting
+       (graph._search_compare_enable_shared_root_fast_paths = truth;
+       the flag defaults to false everywhere in machine code — dispatch
+       at compare.py:177-181: false sends _compare_all_modes to the
+       subprocess path, which never enters the fill machinery at all):
+       fast-path result "miss", phase packet-search after the fast
+       paths, need-wave TRUE before the fill, candidates-ready TRUE
+       after the fill, spawned seven, workers chain non-empty — the
+       warm branch IS reached through the intended entry.
+    C. the red test's own ruleset under the production order: fast-path
+       result "miss" as well at this base (no cached derivation, no
+       schema hit, no immediate hit measured), all states move to
+       packet phase — the direct call is the only distinguishing
+       factor between red and reachable.
+
+  Do not change the initializer, broaden the predicate, or enable the
+  default merely to satisfy the direct-call test. The entry-coverage
+  question (how the test should drive the intended sequence) belongs
+  to INT; the ruling now on record parks it (section 5).
 
 --------------------------------------------------------------------
-3. Verdict for the build brief (Step 1 evidence)
+3. Isolation boundary: rejection mutates the parent (new 2026-09-08)
 
-HALF-BUILT FRONTIER — not a dead experiment. All surrounding machinery
-  exists and is internally coherent: the checkpoint/resume pipeline
-  end-to-end minus its match gate's equality primitive; the resident
-  executor pool, packet queues, root-wave fanout and retry/replace
-  paths (their sibling tests pass at baseline — only these two are
-  red). Two named seams, both narrow and both already furnished with
-  in-tree ingredients on at least one side:
-    seam 1 (cross-process resume): match gate needs value-level
-      problem identity — the rendered-text manifest mechanism already
-      exists beside every checkpoint and is unwired; alternatively an
-      identity-preserving codec. Plus the heuristic reconstruction
-      axis (worker-mode heuristic must be derivable to a TermEqual
-      match on the parent side).
-    seam 2 (warm-before-wave): the phase conjunct in the need-wave
-      gate makes the pool warm unreachable from fresh states; the
-      transition it waits for is produced by the wave it precedes.
+At this base _search_worker_snapshot_matches_current_problem calls
+_load_search_worker_snapshot BEFORE the compatibility compares
+(search/compare_subprocess.py:319-321), and the loader merges the
+decoded constructor registry into the parent and replaces the parent
+graph's constructor context (self.registry = self._merge_tree(...);
+self.graph._replace_context(constructors=self.registry)) — a
+subsequently rejected candidate has therefore already reached a
+parent-write path.
+
+probe 3 (a real checkpoint written from a distinct second runtime for
+a DIFFERENT problem — start and goal both differ; the matcher rejects
+it; identity checks on the parent's active state):
+
+  matcher accepted the foreign problem:       false
+  parent registry unchanged after rejection:  false
+  parent graph context unchanged:             false
+
+VERDICT: a rejection leaves the parent MUTATED at this base. This
+confirms the operator's source inspection empirically; it is a
+boundary finding, not a reproduced corruption scenario.
+
+Required ordering for Agents B/C:
+
+  decode privately
+  → validate task, snapshot and configuration compatibility
+  → replay the claimed result
+  → commit only the accepted effects
+
+A rejection must leave the parent's active state unchanged.
+
+--------------------------------------------------------------------
+4. Candidate repair comparison: 327a263 (new 2026-09-08)
+
+A published candidate repair exists at 327a263 on branch
+arena/01a05d5d-cat-theo-machine (2026-09-07, "Layer D milestone 1:
+bounded worker-execution driver on the resident-executor protocol;
+snapshot-reuse equality fix (Compare, not TermEqual, across decode
+boundary); red-test diagnosis with 62-test regression").
+
+integration status: NOT integrated — 327a263 is an ancestor of neither
+  b812db9 nor the current authoritative tip a3aeff4 (verified both
+  ways). Its existence is not evidence of integration; this lane
+  compared against it rather than authoring another repair.
+
+what it changes (read from its diff):
+  - _search_worker_snapshot_matches_current_problem: TermEqual ->
+    M.Compare on start/goal (value semantics across the decode
+    boundary), with in-code reasons matching this report's finding
+    1(a);
+  - the heuristic compare narrowed to singleton-label fields (search
+    mode, rule order), reasoning that the numeric fields decode as
+    placeholder atoms the codec cannot re-materialize and that a
+    resumed wave re-reads them from the live baseline;
+  - the reuse fixture checkpoints probe._heuristic_for_mode(BFSLabel)
+    instead of a second runtime's worker heuristic — repairing this
+    report's finding 1(b) on the fixture side.
+
+its own records claim re-verification at their tip (both brief-named
+  tests green, driver 18/18 checks, exit 0) and carry a fill_warms
+  design-conflict diagnosis for INT rather than a machinery change on
+  that seam.
+
+what it does NOT address:
+  - the loader-before-validation ordering of section 3 — the load line
+    is unchanged in its diff, so parent mutation on rejection stands;
+  - the fill phase-gate / entry-coverage question of section 2.
+
+comparison verdict: the repair is consistent with this report's seam-1
+  mechanism and demonstrates the M.Compare direction on both axes. The
+  rejection-isolation ordering remains open for Agents B/C regardless
+  of that repair. No repair is authored by this lane.
+
+--------------------------------------------------------------------
+5. INT ruling context (new 2026-09-08)
+
+Off the integration line, tag shared-7cf6394 (tag object a7223d2,
+peeled 7cf6394, 2026-09-06 21:35:57 UTC) records, in order:
+  - 6216ce3 "[SHARED] C1 findings: fill phase-gate, reusable
+    TermEqual, ruling request" — an independent lane's findings on the
+    two reds, converging with this lane's diagnosis (fill stays
+    SearchRootFastPathPhase so candidates_ready never sets; reusable
+    load accepts resume-ready then fails TermEqual on the restored
+    start);
+  - 513f883 "[SHARED] record INT ruling REVIVE-LATER on
+    compare_search_modes": "workers.py is the active process-worker
+    line. compare_search_modes resident pool and snapshot reuse stay
+    parked. The two compare reds remain known-red pending CONVERGE."
+  - 7cf6394 "[SHARED] two-shard suite matches preflight; compare reds
+    unchanged": both shards exit 0, combined failure set is the
+    preflight seven, the two compare reds keep the same names and
+    shape, wave 1 not spawned.
+
+This report's verdict coexists with REVIVE-LATER: the parked
+subsystem is a half-built frontier, not a dead experiment, and
+revival, rewrite, or test surgery outside INT's CONVERGE decision is
+not warranted.
+
+--------------------------------------------------------------------
+6. Verdict for the build brief (Step 1 evidence; revised 2026-09-08)
+
+HALF-BUILT FRONTIER — not a dead experiment (unchanged). All
+surrounding machinery exists and is internally coherent: the
+checkpoint/resume pipeline end-to-end minus its match gate's equality
+primitive; the resident executor pool, packet queues, root-wave fanout
+and retry/replace paths (their sibling tests pass at baseline — only
+these two are red). Three named seams, each narrow:
+
+  seam 1 (cross-process resume): the match gate needs stable value
+    semantics for the supported term family or a canonical,
+    constructor-kind-preserving encoding. Debug/manifest text is NOT
+    an identity key (probe 1: empty renders with tracing off). Heuristic
+    compatibility is a separate check that must survive any start/goal
+    repair. Candidate repair 327a263 demonstrates the M.Compare
+    direction on both axes.
+  seam 2 (warm-before-wave): NOT a proven circular dependency. The
+    production order reaches the warm branch (probe 2B); the red test's
+    direct-call entry does not (probe 2A). The open question is
+    entry/fixture coverage, now parked by INT's REVIVE-LATER ruling
+    pending CONVERGE.
+  seam 3 (rejection isolation): decode-then-validate ordering is
+    required (section 3) — a rejection must leave the parent's active
+    state unchanged; at this base it does not.
+
 No re-implementation is warranted; nothing here justifies replacing
-  the partial machinery. Agent B's two-class journal and Agent C's
-  serial admission must treat TermEqual's identity semantics as a
-  hard boundary: only labels and structurally-shared singletons
-  survive reconstruction — evidence-class mergeability across
-  processes requires text-level or manifest-level identity, exactly
-  the lesson of seam 1.
+the partial machinery. Agent B's two-class journal and Agent C's
+serial admission must treat TermEqual's identity semantics as a hard
+boundary: only labels and structurally-shared singletons survive
+reconstruction — evidence-class mergeability across processes requires
+stable value semantics or a canonical encoding, exactly the lesson of
+seam 1, and the decode-privately ordering of seam 3 is the isolation
+contract for any cross-process acceptance.
 
 --------------------------------------------------------------------
-4. §0 hygiene
+7. §0 hygiene (updated 2026-09-08)
 
-banned-phrase grep over this artifact: 0 matches (checked before
-  push: the standard machine-code ban vocabulary).
+probes published alongside this report (all executable against a
+  checkout: python3 <probe> /path/to/cat_theo_machine; all four ran
+  green at b812db9 for this amendment):
+    verification/probes/2026-09-08-csm-probe-0-original-observations.py
+      — consolidated reproduction of sections 1 and 2 (TermEqual
+        identity semantics; gate chain; per-state conjuncts)
+    verification/probes/2026-09-08-csm-probe-1-manifest-collapse.py
+      — focused check 1 (manifest text collapse)
+    verification/probes/2026-09-08-csm-probe-2-entry-sequence.py
+      — focused check 2 (direct entry vs production order)
+    verification/probes/2026-09-08-csm-probe-3-reject-isolation.py
+      — focused check 3 (rejection parent mutation)
+
+banned-phrase grep over this artifact and all four probe files: 0
+  matches (the standard machine-code ban vocabulary).
 no machine files were modified; no tags, no merges, no release
-  actions; write authority used: this verification artifact only.
+  actions; write authority used: verification artifacts only.
