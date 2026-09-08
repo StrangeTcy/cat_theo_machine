@@ -3,6 +3,12 @@
 Agent: G/I-op (Agent 3, parallel-unblock lane). **Status: blueprint-only, not training input.**
 Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. Ground 3 (count-target) state: PENDING G-COUNT-AUDIT — this card's count target is gated on Ground 3.
 
+> **Pre-finding (this branch, 9ed1fe8):** the intended `Symmetry` method payload exists but no
+> obligation generator is registered in planner.py (no `SymmetryObligations`/`SymmetryConclusion`).
+> Planner line 1212-1214: "Only Pigeonhole and Extremal are expanded so far; other method terms are
+> carried but generate no children." G-COUNT-AUDIT must either confirm this or find the generator; a
+> "supported" verdict requires the generator to emit a count-obligation shape, not just to exist.
+
 ---
 
 ## source statement
