@@ -1,18 +1,28 @@
-START utc 2026-09-07T03:33:55Z
+START utc 2026-09-08T00:03:04Z
 CHECK observations-nonempty: ok
 CHECK failed-attempt-keeps-residual: ok
 CHECK episode-recorded: ok
 CHECK candidates-mined: ok
+CHECK candidate-count-pinned: ok
+  [stall scan] invented-lemma refs=False uninspected=0
+CHECK stall-residual-lemma-free: ok
   [inertness detail] policies-hit=False provenance-empty=False
 CHECK proposal-absent-from-active-stores: ok
 CHECK duplicate-mining-stable: ok
 CHECK journals-isolated-files: ok
 CHECK observations-file-lacks-candidate-root: ok
 CHECK proposals-file-lacks-episode-root: ok
+CHECK restore-audit-was-live: ok
+CHECK proposals-never-opened-during-restore: ok
+CHECK restore-input-is-observations-only: ok
+CHECK proposals-file-intact-after-audit: ok
+CHECK restored-state-lacks-candidate-root: ok
+  [stall scan, restored] invented-lemma refs=False uninspected=0
+CHECK stall-residual-lemma-free-after-restore: ok
   [restore detail] policy entries fresh=nonempty orig=nonempty; fresh resid type=Pair
   [counts] traces orig=2 fresh=2
   [eq detail] traces orig=2 fresh=2 shapes orig=2 fresh=2
-  [eq detail] episode fields orig=<cat_theo_machine.gmprep.GMPRep object at 0x7ff936a22290> fresh=<cat_theo_machine.gmprep.GMPRep object at 0x7ff936a23290>
+  [eq detail] episode fields orig=1 fresh=1
 CHECK restore-equivalence-traces: ok
 CHECK restore-equivalence-episodes-by-replay: ok
 CHECK restore-equivalence-counterfactuals: ok
@@ -24,15 +34,17 @@ CHECK duplicate-delivery-no-effect: ok
 CHECK restore-is-one-way: ok
   [support] values orig=2 fresh=2
 CHECK support-measurement-equal-after-restore: ok
-aggregate work recorded: attempts+evaluations=4; wall time 20.24s
+aggregate work recorded: attempts+evaluations=4; wall time 20.64s
 ALL CHECKS: ok
-END utc 2026-09-07T03:34:15Z
+END utc 2026-09-08T00:03:25Z
 
 milestone-2 land notes (journal split) — run above, driver:
-tools/agent_workers/journal_driver.py, exit 0, 19/19 checks ok, wall ~20s,
+tools/agent_workers/journal_driver.py, exit 0, 27/27 checks ok, wall ~20s,
 aggregate host-side work counter: 4 (two closed attempts, one failed attempt,
 one counterfactual evaluation; each attempt is itself a bounded search per
-the production fuel).
+the production fuel). The 19-check milestone run was ratified at bb9fdb7;
+the 8 checks added below are the ratifier's pre-merge verification items and
+were run against the SAME scenario — every previously ratified check remains.
 
 Semantics proven by THIS run, per check:
   observations-nonempty / failed-attempt-keeps-residual — the OBSERVATIONS
@@ -42,16 +54,39 @@ Semantics proven by THIS run, per check:
   episode-recorded — one InterventionEpisode built EXACTLY as production does
     (EpisodeFeatures over the taught formal + the residual it discharged),
     recorded via graph.record_intervention_episode.
-  candidates-mined / proposal-absent-from-active-stores — PROPOSALS =
-    mine_compressed_laws output; it appears in NO active root (policies chain
-    un-hit, InventedLemma provenance empty) because mining never installs
-    anything — the existing production property, demonstrated per land.
+  candidates-mined / candidate-count-pinned — PROPOSALS =
+    mine_compressed_laws output; exactly 1 candidate for the scenario's two
+    shared-motif traces, PINNED: drift here is a finding about mining, not a
+    silent relaxation. proposal-absent-from-active-stores holds because
+    mining never installs anything — the existing production property,
+    demonstrated per land.
+  stall-residual-lemma-free (and -after-restore) — INT verification item 3:
+    the stall record is observation-side, so its residual terms must carry no
+    InventedLemma atoms AT THE TERM LEVEL, not just at the store level. A
+    structural walk of the whole residual chain (both before capture and
+    after the codec round-trip) finds zero identity-hits against the label and
+    zero uninspected nodes — a leaf the walk could not probe fails the check
+    (fail-closed), it never counts as clean.
   duplicate-mining-stable / duplicate-delivery-no-effect — re-delivering the
     same evidence changes nothing derived: candidate counts and alpha-shapes
     identical after double-append of the same episode term.
   journals-isolated-files / observations-file-lacks-candidate-root /
     proposals-file-lacks-episode-root — two files, two root sets, disjoint;
     the proposals file is data, never a snapshot root the codec would consume.
+  restore-audit-was-live / proposals-never-opened-during-restore /
+    restore-input-is-observations-only / proposals-file-intact-after-audit /
+    restored-state-lacks-candidate-root — INT verification item 1 (file
+    access): during the whole load+activate window every open() and os.open()
+    was recorded (persistence.py never mmaps) and NO path containing
+    "proposals" appears; stronger still, the proposals file was RENAMED AWAY
+    for the entire window, so any read — parent or spawned worker — would
+    raise rather than be merely recorded (the rename-back check confirms the
+    file came through untouched, sha256-equal). state.snapshot_path is the
+    observations path, and the loaded root set has no journal_candidates
+    entry. The spawned restore workers receive ONLY the observations path as
+    their file argument; parent-side hooking cannot see their opens, so the
+    rename-away is what covers them — an attempt by a child to open the
+    proposals path fails hard, it cannot succeed quietly.
   restore-equivalence-* — NOT hash-checked: the observations journal was
     activated into a fresh graph (production SnapshotCodec path) and the
     PRODUCTION computations were re-run over the restored data — traces
@@ -68,16 +103,20 @@ Semantics proven by THIS run, per check:
     claimed beyond what any consumer reads.
   proposals-rederive-from-restored-evidence — re-mining the restored graph
     (which was never handed the proposals file) re-derives alpha-equal
-    candidates: a proposal is a function of evidence, so restore equivalence
-    needs NO proposals import; conversely importing the file would be the
-    forbidden act, which the next check confirms never happens automatically.
+    candidates with the PINNED count (1): a proposal is a function of
+    evidence, so restore equivalence needs NO proposals import; conversely
+    importing the file would be the forbidden act, which the audit checks
+    above show never happens automatically.
   proposals-never-imported-into-restored — the restored graph shows no
     policies hit, no InventedLemma provenance, all_rules equal to a cold
     store. Activation of OBSERVATIONS cannot smuggle PROPOSALS in.
   restore-is-one-way / support-measurement-equal-after-restore — restoring
     left the original graph's trace stream byte-identical (one-way traffic),
     and candidate support over restored evidence equals the original
-    measurement (2 traces), > 0.
+    measurement — INT verification item 2, now PINNED at exactly 2 (the two
+    shared-motif traces) on BOTH sides, not merely "> 0"; the alpha-shape
+    equality already pinned candidate structure. Drift in any pinned number
+    fails the run loudly.
 
 No new labels were minted (no labels.py/persistence.py table change was
 needed); no production file edited by this land; core.py untouched; no tag
@@ -86,3 +125,17 @@ machinery both ride the SAME equality finding — structural comparison across
 the snapshot boundary must use M.Compare on pure terms and must never be
 asked of raw host edges; if that deserves a machine-side rule-equality term,
 that is a separate ruling, not assumed here.
+
+MILESTONE 3 FRAMING (answered with the structure already measured here):
+  - a TOTAL ORDER on admission decisions is provable inside this design:
+    every decision enters through ONE gate that appends to an ordered
+    admission chain, so "before/after" is chain position — the driver above
+    already relies on exactly this (duplicate delivery re-derives the same
+    candidate because the ORDER of the evidence chain is all mining reads).
+    Supersede/withdraw therefore have to be modeled as later decisions in
+    the same chain, never as removals.
+  - supersede MUST preserve the superseded record: the observations stream
+    is append-only evidence (this milestone's stalled residual survives
+    despite erasure-prone machinery, by design), so a superseded law stays
+    readable with its supersession recorded as a new decision. Nothing in
+    this repo deletes an observation record; milestone 3 must not start.

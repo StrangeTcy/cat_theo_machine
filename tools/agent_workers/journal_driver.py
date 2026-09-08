@@ -33,6 +33,12 @@ import time
 sys.path.insert(0, "/home/user")
 
 ARTIFACT = sys.argv[1] if len(sys.argv) > 1 else ""
+
+# scenario pins: two closed traces over one shared motif yield exactly one
+# mined candidate, supported by both traces. A drift in either number is a
+# finding about the mining/support machinery, never a silent pass.
+PIN_CANDIDATE_COUNT = 1
+PIN_SUPPORT = 2
 _lines = []
 _results = {}
 
@@ -144,6 +150,47 @@ def main():
     check("candidates-mined", candidates is not empty and M.IsPair(candidates)() is M.truth_value)
     candidate = M.Head(candidates)()
 
+    def term_refs_invented_lemma(term):
+        # structural walk over the machine skeleton of a term; host edge
+        # leaves are terminals here (their labels cannot hide in a slot the
+        # residual can carry). Returns (found, uninspected): a pass needs
+        # found=False AND uninspected=0, so no crash ever reads as clean.
+        found = False
+        uninspected = 0
+        stack = [term]
+        while stack:
+            cur = stack.pop()
+            if cur is None or cur is empty:
+                continue
+            is_pair = None
+            try:
+                is_pair = M.IsPair(cur)() is M.truth_value
+            except Exception:
+                uninspected += 1
+                continue
+            if is_pair:
+                try:
+                    stack.append(M.Head(cur)())
+                    stack.append(M.Tail(cur)())
+                except Exception:
+                    uninspected += 1
+                continue
+            try:
+                if M.IdentityCompare(cur, PROPOSAL_LABEL)() is M.truth_value:
+                    found = True
+            except Exception:
+                uninspected += 1
+        return found, uninspected
+
+    cand_pin_count = int(M.CountRep(candidates)().value)
+    check("candidate-count-pinned", cand_pin_count == PIN_CANDIDATE_COUNT)
+    # INT verification item 3: the stall record is observation-side; its
+    # residual must not carry invented-lemma atoms (the split must hold at
+    # the term level, not just at the store level)
+    lemma_hit, lemma_skip = term_refs_invented_lemma(graph.research_residuals)
+    log("  [stall scan] invented-lemma refs=%s uninspected=%s" % (lemma_hit, lemma_skip))
+    check("stall-residual-lemma-free", lemma_hit is False and lemma_skip == 0)
+
     def composed_shapes(traces):
         out = empty
         cur = traces
@@ -219,9 +266,65 @@ def main():
         check("proposals-file-lacks-episode-root", "intervention_episodes" not in prop_text)
 
         # ---- full-restore equivalence PROVEN by replay, not hashed ----
-        state = codec.load(obs_path)
-        fresh = make_fresh_runtime().graph
-        codec.activate(state, fresh, debug=M.false_value, save_upgraded_snapshot=M.false_value)
+        # INT verification item 1: the proposals journal must be UNREACHABLE
+        # during observation restore. Two independent guarantees, held at
+        # once: (a) every open()/os.open() in the window is recorded and no
+        # path containing "proposals" may appear; (b) the proposals file is
+        # physically renamed away for the whole window, so any read of it
+        # raises instead of merely being recorded. persistence.py never
+        # mmaps, so the open hooks cover the full read surface.
+        import builtins
+        opened_paths = set()
+        real_open = builtins.open
+        real_os_open = os.open
+
+        def _record_path(file):
+            if isinstance(file, str):
+                opened_paths.add(file)
+            elif isinstance(file, bytes):
+                try:
+                    opened_paths.add(file.decode())
+                except Exception:
+                    pass
+
+        def _audit_open(file, *args, **kwargs):
+            _record_path(file)
+            return real_open(file, *args, **kwargs)
+
+        def _audit_os_open(path, *args, **kwargs):
+            _record_path(path)
+            return real_os_open(path, *args, **kwargs)
+
+        import hashlib
+        with open(prop_path, "rb") as fhash:
+            prop_digest_before = hashlib.sha256(fhash.read()).hexdigest()
+        hidden_path = prop_path + ".withheld"
+        os.replace(prop_path, hidden_path)
+        builtins.open = _audit_open
+        os.open = _audit_os_open
+        try:
+            state = codec.load(obs_path)
+            fresh = make_fresh_runtime().graph
+            codec.activate(state, fresh, debug=M.false_value, save_upgraded_snapshot=M.false_value)
+        finally:
+            builtins.open = real_open
+            os.open = real_os_open
+            os.replace(hidden_path, prop_path)
+        check("restore-audit-was-live", obs_path in opened_paths)
+        check("proposals-never-opened-during-restore",
+              all("proposals" not in p for p in opened_paths))
+        check("restore-input-is-observations-only",
+              os.path.abspath(state.snapshot_path) == os.path.abspath(obs_path))
+        with open(prop_path, "rb") as fhash:
+            check("proposals-file-intact-after-audit",
+              hashlib.sha256(fhash.read()).hexdigest() == prop_digest_before)
+        check("restored-state-lacks-candidate-root", "journal_candidates" not in state.roots)
+        # the restored observations root must ALSO be lemma-free — the scan
+        # has to survive the codec round-trip, not just the pre-write check
+        lemma_hit_r, lemma_skip_r = term_refs_invented_lemma(fresh.research_residuals)
+        log("  [stall scan, restored] invented-lemma refs=%s uninspected=%s" % (lemma_hit_r, lemma_skip_r))
+        check("stall-residual-lemma-free-after-restore", lemma_hit_r is False and lemma_skip_r == 0)
+
         log("  [restore detail] policy entries fresh=%s orig=%s; fresh resid type=%s" % (
             "empty" if fresh.generator_policy is empty else "nonempty",
             "empty" if graph.generator_policy is empty else "nonempty",
@@ -256,10 +359,12 @@ def main():
                 cur = M.Tail(cur)()
             return M.Reverse(out)()
         try:
-            eq_eps = M.Compare(eps_fields(a_eps), eps_fields(b_eps))() is M.truth_value
+            ea_fields = eps_fields(a_eps)
+            eb_fields = eps_fields(b_eps)
+            eq_eps = M.Compare(ea_fields, eb_fields)() is M.truth_value
             log("  [eq detail] episode fields orig=%s fresh=%s" % (
-                "empty" if eps_fields(a_eps) is empty else M.CountRep(eps_fields(a_eps))(),
-                "empty" if eps_fields(b_eps) is empty else M.CountRep(eps_fields(b_eps))()))
+                "empty" if ea_fields is empty else M.CountRep(ea_fields)().value,
+                "empty" if eb_fields is empty else M.CountRep(eb_fields)().value))
         except Exception as e:
             log("  [eq detail] episodes compare raised: %r" % (e,))
             eq_eps = False
@@ -319,7 +424,8 @@ def main():
                 cur = M.Tail(cur)()
             return M.Reverse(out)()
         check("proposals-rederive-from-restored-evidence",
-              M.Compare(shapes(candidates), shapes(re_mined))() is M.truth_value)
+              M.Compare(shapes(candidates), shapes(re_mined))() is M.truth_value
+              and int(M.CountRep(re_mined)().value) == PIN_CANDIDATE_COUNT)
         check("proposals-never-imported-into-restored",
               term_in_root(fresh.dependency_policies, candidate) is False
               and Rmod.ProvenanceEntriesFor(fresh.provenance_map, PROPOSAL_LABEL)() is empty
@@ -347,7 +453,8 @@ def main():
         re_cand = M.Head(re_mined)()
         sup_b = M.CountRep(Rmod.candidate_support(fresh, re_cand))()
         log("  [support] values orig=%s fresh=%s" % (sup_a.value, sup_b.value))
-        check("support-measurement-equal-after-restore", sup_a.value == sup_b.value and sup_a.value > 0)
+        check("support-measurement-equal-after-restore",
+              sup_a.value == sup_b.value and int(sup_a.value) == PIN_SUPPORT and int(sup_b.value) == PIN_SUPPORT)
     finally:
         try:
             import shutil as sh
