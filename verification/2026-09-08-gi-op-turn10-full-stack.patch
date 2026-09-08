@@ -1,0 +1,1194 @@
+diff --git a/curriculum/tier0/CONVERSION-READINESS.md b/curriculum/tier0/CONVERSION-READINESS.md
+new file mode 100644
+index 0000000..4de23a5
+--- /dev/null
++++ b/curriculum/tier0/CONVERSION-READINESS.md
+@@ -0,0 +1,81 @@
++# Tier0 + G4/G5 conversion readiness — 2026-09-08
++
++One row per authored card in the Tier0 family (cards, G4 decoys, G5 held-out) plus the one
++existing loadable Tier0 record (E2, cited — not duplicated). Base: `fb7a9b3`
++(`arena/01a068c2-cat-theo-machine`).
++
++Standing gates that apply to EVERY row and are not repeated per row:
++
++- **Wave-tag gate:** no conversion happens before a wave-1 tag exists (a new tag with
++  `ef571b6` as ancestor). None exists at authoring time.
++- **Constructor gate:** bundles A1 / A2 refer to `protocol/[SHARED]-A1-CONSTRUCTORS.md` and
++  `protocol/[SHARED]-A2-CONSTRUCTORS.md` (INT delivers; label registration only).
++- **D21/D22 acceptance gate (added 2026-09-08, fable 5 ratification):** conversion is
++  additionally gated on the D21/D22 fix — attempt-cycle SUCCESS is not acceptance
++  evidence until per-obligation discharge lands (see protocol/G.md Turn 9).
++- **Join rule** (protocol/I.md Turn 8): convert extremal + pigeonhole first; divide +
++  symmetry only when the count-target generator lands; every converted record must load via
++  the real loader, compile its goal, and produce a genuine partial match; zero partial
++  matches leaves the record blocked, never rewritten into a vacuous shape.
++
++Statuses: READY-AFTER-A1, READY-AFTER-A2, READY-AFTER-A1-A2, WAIT-GENERATOR, WAIT-POLICY,
++WAIT-STATEMENT, WAIT-WAVE-TAG. E2 carries `existing/cited` per its rule.
++
++## Rows
++
++| card path | pool | method | target class | statement source | constructor bundle | specific missing constructors | method generator required | Ground 1 | Ground 2 | Ground 3 | conversion status | first conversion action after tag |
++|---|---|---|---|---|---|---|---|---|---|---|---|---|
++| engel_e2_blackboard.md (+ training_records/engel_e2_blackboard_parity.yaml) | Tier0 | Invariance | proof | training_records YAML (authoritative; card quotes it verbatim since the R6 fix) | existing | none | no | satisfied (labels in labels.py) | satisfied (in-tree) | n/a (proof) | existing/cited | none — record exists and loads; cite it, never duplicate it |
++| cards/extremal-longest-path.md | Tier0 | Extremal | proof | protocol/I.md Turn 3 (operator verbatim) | A1 | PathLabel, CycleLabel, GraphLabel, VertexLabel, EdgeLabel | no | OPEN | CLEARED | n/a (proof) | READY-AFTER-A1 (gated on D21/D22 fix) | author loadable record: loads + goal compiles + genuine partial match (join rule step 3, first) |
++| cards/pigeonhole-residue-classes.md | Tier0 | Pigeonhole | proof | protocol/I.md Turn 3 (operator verbatim) | A1 | IntegerLabel, IntegersLabel, RemainderLabel, ResidueLabel, CongruentLabel | no | OPEN | CLEARED | n/a (proof) | READY-AFTER-A1 (gated on D21/D22 fix) | author loadable record together with extremal (join rule step 3) |
++| cards/divide-binary-words.md | Tier0 | Divide | count | protocol/I.md Turn 3 (operator verbatim) | A1 | WordLabel, BinaryWordLabel, AdjacentLabel | YES — DivideObligations(parts, combine, rank) | OPEN | CLEARED | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until G-eng G1-completion lands the generator; then author the count-skeleton record (ClosedForm as separate obligation) |
++| cards/symmetry-square-rotations.md | Tier0 | Symmetry | count | protocol/I.md Turn 3 (operator verbatim) | A1 | ColoringLabel, RotationLabel, RotateLabel | YES — SymmetryObligations(transformation, domain) | OPEN | CLEARED | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands; then author the count-skeleton record (Burnside as provenance-tagged trusted leaf; C4 rotation-only lock) |
++| decoys/divide-decoy-even-ones.md | G4-decoy | Divide (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | WordLabel, BinaryWordLabel, AdjacentLabel (A1); BitLabel, ParityOfOnesLabel (A2) | no (policy machinery, not generators) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; the decoy then grades the policy — a pre-machinery session run does not count as a G4 result |
++| decoys/extremal-decoy-equal-degrees.md | G4-decoy | Extremal (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1 | GraphLabel, VertexLabel, EdgeLabel, DegreeLabel | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| decoys/invariance-decoy-parliament.md | G4-decoy | Invariance (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | GraphLabel, VertexLabel, EdgeLabel, DegreeLabel (A1); PartitionLabel, HouseLabel, SameHouseLabel, EnemyLabel (A2) | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| decoys/pigeonhole-decoy-domino-board.md | G4-decoy | Pigeonhole (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | ColoringLabel (A1); BoardLabel, CellLabel, SquareLabel, DominoLabel, TileLabel, CheckerboardLabel, CornerLabel, ColorLabel (A2) | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| decoys/symmetry-decoy-labeled-square.md | G4-decoy | Symmetry (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | ColoringLabel, RotationLabel, VertexLabel (A1); ColorLabel (A2) | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| heldout/extremal-min-degree-path.md | G5-heldout | Extremal | proof | card-local (operator G5 held-out set, verbatim) | A1 | PathLabel, CycleLabel, GraphLabel, VertexLabel, EdgeLabel, DegreeLabel | no | OPEN | CLEARED (card-local verbatim) | n/a (proof) | READY-AFTER-A1 (gated on D21/D22 fix) | convert as a held-out eval record; never into curriculum sessions |
++| heldout/pigeonhole-subset-sum.md | G5-heldout | Pigeonhole | proof | card-local (operator G5 held-out set, verbatim) | A1+A2 | IntegerLabel, IntegersLabel, RemainderLabel, ResidueLabel, CongruentLabel (A1); PrefixSumLabel, SubsetLabel (A2) | no | OPEN | CLEARED (card-local verbatim) | n/a (proof) | READY-AFTER-A1-A2 | convert as a held-out eval record; never into curriculum sessions |
++| heldout/invariance-seven-glasses.md | G5-heldout | Invariance | proof (impossibility) | card-local (operator G5 held-out set, verbatim) | A2 | GlassLabel, UprightLabel, FlipLabel, MoveLabel, CountUprightLabel | no | OPEN | CLEARED (card-local verbatim) | n/a (proof) | READY-AFTER-A2 | convert as a held-out eval record; never into curriculum sessions |
++| heldout/divide-domino-strip.md | G5-heldout | Divide | count | card-local (operator G5 held-out set, verbatim) | A2 | StripLabel, DominoLabel, TileLabel, CellLabel, GridLabel, TilingLabel | YES — DivideObligations(parts, combine, rank) | OPEN | CLEARED (card-local verbatim) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands; then convert as a held-out eval record (never into curriculum sessions) |
++| heldout/symmetry-triangle-rotations.md | G5-heldout | Symmetry | count | card-local (operator G5 held-out set, verbatim) | A1 | ColoringLabel, RotationLabel, RotateLabel, VertexLabel | YES — SymmetryObligations(transformation, domain) | OPEN | CLEARED (card-local verbatim) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands; then convert as a held-out eval record (never into curriculum sessions) |
++
++Status counts (15 rows): existing/cited 1; READY-AFTER-A1 3; READY-AFTER-A2 1;
++READY-AFTER-A1-A2 1; WAIT-GENERATOR 4; WAIT-POLICY 5; WAIT-STATEMENT 0; WAIT-WAVE-TAG 0.
++
++## Static checks (non-runtime, run 2026-09-08 at fb7a9b3)
++
++```text
++card file exists:              15/15 (14 curriculum files + engel_e2_blackboard.md;
++                                 training_records/engel_e2_blackboard_parity.yaml present)
++statement source exists:       15/15 (protocol/I.md Turn 3 section for the 4 Tier0 cards;
++                                 card-local "source statement" sections for decoys + heldout;
++                                 in-tree statement + record for E2)
++missing constructors covered:  PASS with findings — every constructor listed as missing on a
++                                 card is in the A1 request, the A2 request, or in-tree;
++                                 findings F1-F3 below
++count cards name Ground 3:     8/8 across the curriculum (4 in this file)
++decoy governance line:         5/5 (expanded negative-control framing from 3f3beb4 plus the
++                                 canonical ride-along block added this turn)
++no YAML record for any card:   PASS — training_records/ contains only
++                                 engel_e2_blackboard_parity.yaml (E2, cited)
++```
++
++Findings (recorded, not blocking; no card content was edited beyond the ride-alongs):
++
++- **F1 — A1 patch-content variance.** A1's own table lists Path/Cycle/Graph/Vertex,
++  Integer/Integers/Remainder/Residue/Congruent, Word/BinaryWord/Adjacent,
++  Coloring/Rotation/Rotate (15). A2's recap of "A1's 15" lists Graph/Vertex/Edge/Path/Cycle/
++  Degree, Integer/Remainder/ResidueClass/Congruent, Word/BinaryWord/Adjacent,
++  Coloring/Rotation (15). The two 15-label sets differ (Integers/Residue/Rotate vs
++  Edge/Degree/ResidueClass). Every card-listed constructor is covered by the union; INT's
++  landed patch is the resolver. Rows above cite the card's own inventory.
++- **F2 — card-local bundle parentheticals inaccurate.** divide-domino-strip,
++  invariance-seven-glasses, pigeonhole-decoy-domino-board and divide-decoy-even-ones say
++  "(A1 vocabulary)" while their constructors are in the A2 request (fully or partly);
++  pigeonhole-subset-sum's A2 part (PrefixSumLabel, SubsetLabel) is likewise A2. The bundle
++  column follows the A1/A2 request files, which are the authority.
++- **F3 — decoy card lists vs A2 table.** even-ones lists BitLabel/ParityOfOnesLabel (A2);
++  labeled-square lists ColorLabel (A2). Covered; noted so no future agent re-derives the
++  bundle from the card parenthetical alone.
+diff --git a/curriculum/tier0/cards/divide-binary-words.md b/curriculum/tier0/cards/divide-binary-words.md
+index 3a20428..7d765d9 100644
+--- a/curriculum/tier0/cards/divide-binary-words.md
++++ b/curriculum/tier0/cards/divide-binary-words.md
+@@ -5,12 +5,17 @@ Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. **Grou
+ state: RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** — `CountTargetUnsupported(Divide,
+ missing_obligation_generator)`; see ruling below.
+ 
+-> **Ground 3 ruling (ratifier, issued Turn 7):** `CountTargetUnsupported(Divide,
++> **Ground 3 ruling (ruling source below):** `CountTargetUnsupported(Divide,
+ > missing_obligation_generator)`. Ground 3 moves OPEN → RULED-UNSUPPORTED-PENDING-IMPLEMENTATION.
+ > The count target is **not** rebuildable until G-eng G1-completion lands the
+ > `DivideObligations(parts, combine, rank)` obligation generator. This card is blueprint-only until
+ > then; it awaits the named G-eng deliverable (G1-completion), not a re-litigation.
+ 
++> **Ground 3 ruling source:** evidence-based audit verdict from the three-inputs turn.
++> Re-derivable from tree inspection: Divide and Symmetry payloads exist, but no obligation
++> generators are registered; planner's method-expansion loop carries non-expanded methods
++> without children.
++
+ > **Pre-finding (this branch, 9ed1fe8):** the intended `Divide` method payload exists but no
+ > obligation generator is registered in planner.py. In the method-expansion loop
+ > (`[planner.py]: "Trainer-supplied Engel methods become alternatives..."`), only the
+diff --git a/curriculum/tier0/cards/symmetry-square-rotations.md b/curriculum/tier0/cards/symmetry-square-rotations.md
+index 3cc2a30..a1828d3 100644
+--- a/curriculum/tier0/cards/symmetry-square-rotations.md
++++ b/curriculum/tier0/cards/symmetry-square-rotations.md
+@@ -5,12 +5,17 @@ Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. **Grou
+ state: RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** — `CountTargetUnsupported(Symmetry,
+ missing_obligation_generator)`; see ruling below.
+ 
+-> **Ground 3 ruling (ratifier, issued Turn 7):** `CountTargetUnsupported(Symmetry,
++> **Ground 3 ruling (ruling source below):** `CountTargetUnsupported(Symmetry,
+ > missing_obligation_generator)`. Ground 3 moves OPEN → RULED-UNSUPPORTED-PENDING-IMPLEMENTATION.
+ > The count target is **not** rebuildable until G-eng G1-completion lands the
+ > `SymmetryObligations(transformation, domain)` obligation generator. This card is blueprint-only until
+ > then; it awaits the named G-eng deliverable (G1-completion), not a re-litigation.
+ 
++> **Ground 3 ruling source:** evidence-based audit verdict from the three-inputs turn.
++> Re-derivable from tree inspection: Divide and Symmetry payloads exist, but no obligation
++> generators are registered; planner's method-expansion loop carries non-expanded methods
++> without children.
++
+ > **Pre-finding (this branch, 9ed1fe8):** the intended `Symmetry` method payload exists but no
+ > obligation generator is registered in planner.py. In the method-expansion loop
+ > (`[planner.py]: "Trainer-supplied Engel methods become alternatives..."`), only the
+diff --git a/curriculum/tier0/decoys/divide-decoy-even-ones.md b/curriculum/tier0/decoys/divide-decoy-even-ones.md
+index 7181007..73c7104 100644
+--- a/curriculum/tier0/decoys/divide-decoy-even-ones.md
++++ b/curriculum/tier0/decoys/divide-decoy-even-ones.md
+@@ -62,6 +62,14 @@ the POLICY, not the method payload. A session run against this decoy before S la
+ measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+ until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" computes a recurrence and gives the count but does not prove the parity balance;
+diff --git a/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md b/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md
+index e1f2f79..4e3013b 100644
+--- a/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md
++++ b/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md
+@@ -61,6 +61,14 @@ the POLICY, not the method payload. A session run against this decoy before S la
+ measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+ until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" picks the vertex of maximum degree and asserts the result follows "by extremality"
+diff --git a/curriculum/tier0/decoys/invariance-decoy-parliament.md b/curriculum/tier0/decoys/invariance-decoy-parliament.md
+index 0ad4996..3ca3b1f 100644
+--- a/curriculum/tier0/decoys/invariance-decoy-parliament.md
++++ b/curriculum/tier0/decoys/invariance-decoy-parliament.md
+@@ -72,6 +72,14 @@ grades the POLICY, not the method payload. A session run against this decoy befo
+ machinery measures nothing — there is no policy to fire. Do not record a "the policy did not fire"
+ as evidence until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" would **assert a conserved quantity** (e.g. "the number of enemy pairs is
+diff --git a/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md b/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md
+index bb73cd2..25e036b 100644
+--- a/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md
++++ b/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md
+@@ -63,6 +63,14 @@ grades the POLICY, not the method payload. A session run against this decoy befo
+ machinery measures nothing — there is no policy to fire. Do not record a "the policy did not fire"
+ as evidence until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" argues "62 squares / 2 per domino = 31, so it's tileable" — a pure count that
+diff --git a/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md b/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md
+index ee9124b..51bccd9 100644
+--- a/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md
++++ b/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md
+@@ -59,6 +59,14 @@ the POLICY, not the method payload. A session run against this decoy before S la
+ measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+ until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" applies Burnside `(m^4 + m^2 + 2m)/4` to a **labeled** square — quotienting by a
+diff --git a/curriculum/tier1/CONVERSION-READINESS.md b/curriculum/tier1/CONVERSION-READINESS.md
+new file mode 100644
+index 0000000..dab60d9
+--- /dev/null
++++ b/curriculum/tier1/CONVERSION-READINESS.md
+@@ -0,0 +1,108 @@
++# Tier1 (Pool A) conversion readiness — 2026-09-08
++
++One row per authored Tier1 card. Base: `fb7a9b3` (`arena/01a068c2-cat-theo-machine`).
++
++**Source state (fable 5.1 correction, protocol/I.md Turn 8):** all ten statements recorded on
++these cards are **agent-authored and unsourced** — they are NOT the operator-supplied Tier1
++set. They reverted to blueprint-with-unsourced-statement and are **not convertible** until an
++operator supplies this exact text. The operator's actual supplied set (necklace over Cₙ,
++adjacent-swap inversions, equal friend counts, hexagon rhombus tiling, tetromino board, 2×n
++dominoes, no-consecutive subsets, spanning-tree leaf, unit-square points, Erdős–Szekeres) is
++listed in protocol/I.md Turn 8 with verbatim text and method/target-class still pending;
++**no cards exist for that set yet** — when authored, they get their own rows here.
++
++The constructor bundles below are therefore **provisional** (per the source-correction banner
++in `protocol/[SHARED]-A2-CONSTRUCTORS.md`): they state what the unsourced blueprint would
++need, not a commitment to convert it.
++
++Standing gates (same as Tier0): wave-tag gate (no conversion before an `ef571b6`-descended
++tag exists — none does); constructor gate (A1/A2 = the [SHARED] requests, INT delivers);
++join rule (load + compile + genuine partial match; zero partial matches leaves the record
++blocked).
++- **D21/D22 acceptance gate (added 2026-09-08):** any future conversion is additionally
++  gated on the D21/D22 fix — attempt-cycle SUCCESS is not acceptance evidence until
++  per-obligation discharge lands (see protocol/G.md Turn 9).
++
++
++
++**Sourcing update (2026-09-08, protocol/I.md Turn 10):** the operator supplied the FULL
++STATEMENT TEXT for the ten (Turn 9's identification-only record is superseded). Ground 2
++Tier1 is CLEARED for the operator set. Rows for it are in the second table below. The
++first table's rows (the UNSOURCED agent-authored cards) remain not convertible; the
++double-gate's text half is closed only for the operator set.
++
++## Rows
++
++| card path | pool | method | target class | statement source | constructor bundle | specific missing constructors | method generator required | Ground 1 | Ground 2 | Ground 3 | conversion status | first conversion action after tag |
++|---|---|---|---|---|---|---|---|---|---|---|---|---|
++| cards/t1-inv-1-board-ab-erase.md | Tier1-PoolA | Invariance | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A2 | BoardLabel, NumberLabel, EraseLabel, MoveLabel | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | operator supplies verbatim text for this exact statement; otherwise the card retires when the actual supplied set's cards are authored |
++| cards/t1-inv-2-dragon-heads.md | Tier1-PoolA | Invariance | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A2 | HeadCountLabel, DragonLabel, CutLabel, GrowLabel, MoveLabel | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same — operator verbatim text or retirement with the actual set |
++| cards/t1-ext-1-no-midpoint.md | Tier1-PoolA | Extremal | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A2 | PointLabel, PlaneLabel, DistanceLabel, MidpointLabel, ConvexHullLabel | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-ext-2-tournament-king.md | Tier1-PoolA | Extremal | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | TournamentLabel, OutdegreeLabel, ReachableLabel, DirectedEdgeLabel (A2); VertexLabel, EdgeLabel (A1) | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-pig-1-sum-diff-div100.md | Tier1-PoolA | Pigeonhole | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1 | IntegerLabel, IntegersLabel, RemainderLabel, ResidueLabel, ResidueClassLabel (A1); KnowledgeLabel listed on the card but EXISTS in-tree (F4) | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-pig-2-coprime-from-1-100.md | Tier1-PoolA | Pigeonhole | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | IntegerLabel, IntegersLabel (A1); CoprimeLabel, GCFLabel, PairLabel (A2) | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-div-1-staircase-fibonacci.md | Tier1-PoolA | Divide | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | StepLabel, StairLabel, StaircaseLabel, SeqLabel, MoveLabel (A2); PathLabel (A1) | YES — DivideObligations(parts, combine, rank) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR until G-eng G1-completion lands the count generator — both gates, in that order |
++| cards/t1-div-2-ternary-nocc00.md | Tier1-PoolA | Divide | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | TernaryLabel, ZeroLabel, OneLabel, TwoLabel, StringLabel (A2); WordLabel (A1) | YES — DivideObligations(parts, combine, rank) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR — both gates, in that order |
++| cards/t1-sym-1-necklace-c5.md | Tier1-PoolA | Symmetry | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | NecklaceLabel, BeadLabel, ColorLabel, CycleGroupLabel, OrbitLabel (A2); RotationLabel (A1); GroupDeclaredLabel listed on the card is an obligation-skeleton term — generator content per the A2 scope note, not vocabulary (F5) | YES — SymmetryObligations(transformation, domain) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR — both gates, in that order |
++| cards/t1-sym-2-cube-face-burnside.md | Tier1-PoolA | Symmetry | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | CubeLabel, FaceLabel, ColorLabel, CycleGroupLabel, OrbitLabel (A2); RotationLabel (A1) | YES — SymmetryObligations(transformation, domain) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR — both gates, in that order |
++
++## Rows — operator-supplied set (Turn 10; Ground 2 CLEARED, full text)
++
++Cards are operator-ID-named, distinct from the unsourced Turn 8 files. All ten carry the
++D21/D22 acceptance gate from the standing gates above. Several cards surface A2 amendment
++needs (labels not yet in any request — recorded per card; the A2 request predates this
++supply).
++
++| card path | pool | method | target class | statement source | constructor bundle | specific missing constructors | method generator required | Ground 1 | Ground 2 | Ground 3 | conversion status | first conversion action after tag |
++|---|---|---|---|---|---|---|---|---|---|---|---|---|
++| cards/i-inv-1-tetromino-board.md | Tier1-PoolA | Invariance | proof | protocol/I.md Turn 10 (operator full text) | A2 + amendment | BoardLabel, CellLabel, TileLabel (A2); TetrominoLabel (amendment) | no | OPEN | CLEARED | n/a | READY-AFTER-A2 (gated on D21/D22 fix) | file the A2 amendment row; then author loadable record after A2 + amendment land |
++| cards/i-inv-2-adjacent-swaps.md | Tier1-PoolA | Invariance | proof | protocol/I.md Turn 10 (operator full text) | A1+A2 + amendment | SeqLabel, MoveLabel (A2); AdjacentLabel (A1); InversionsLabel (amendment) | no | OPEN | CLEARED | n/a | READY-AFTER-A1-A2 (gated on D21/D22 fix) | file the A2 amendment row; then author |
++| cards/i-ext-1-equal-friend-counts.md | Tier1-PoolA | Extremal | proof | protocol/I.md Turn 10 (operator full text) | A1 + amendment | GraphLabel, VertexLabel, EdgeLabel, DegreeLabel (A1); FriendOfLabel (amendment) | no | OPEN | CLEARED | n/a | READY-AFTER-A1 (gated on D21/D22 fix) | file the A2 amendment row; then author |
++| cards/i-ext-2-removable-vertex.md | Tier1-PoolA | Extremal | proof | protocol/I.md Turn 10 (operator full text) | A1+A2 + amendment | PointLabel, PlaneLabel (A2); GraphLabel, VertexLabel (A1); ConnectedLabel (amendment) | no | OPEN | CLEARED | n/a | READY-AFTER-A1-A2 (gated on D21/D22 fix) | file the A2 amendment row; then author |
++| cards/i-pig-1-unit-square.md | Tier1-PoolA | Pigeonhole | proof | protocol/I.md Turn 10 (operator full text) | A2 | PointLabel, PlaneLabel, DistanceLabel, SquareLabel (A2) | no | OPEN | CLEARED | n/a | READY-AFTER-A2 (gated on D21/D22 fix) | author loadable record after A2 lands |
++| cards/i-pig-2-erdos-szekeres.md | Tier1-PoolA | Pigeonhole | proof | protocol/I.md Turn 10 (operator full text) | A1+A2 + amendment | SeqLabel (A2); IntegerLabel, IntegersLabel (A1); SubsequenceLabel, MonotoneLabel (amendment) | no | OPEN | CLEARED | n/a | READY-AFTER-A1-A2 (gated on D21/D22 fix) | file the A2 amendment row; then author |
++| cards/i-div-1-domino-rectangles.md | Tier1-PoolA | Divide | count | protocol/I.md Turn 10 (operator full text) | A2 | StripLabel, DominoLabel, TileLabel, CellLabel, GridLabel, TilingLabel (A2) | YES — DivideObligations(parts, combine, rank) | OPEN | CLEARED | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until G-eng G1-completion lands the generator |
++| cards/i-div-2-no-consecutive-subsets.md | Tier1-PoolA | Divide | count | protocol/I.md Turn 10 (operator full text) | A1+A2 | SubsetLabel (A2); IntegerLabel, IntegersLabel, AdjacentLabel (A1) | YES — DivideObligations(parts, combine, rank) | OPEN | CLEARED | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands |
++| cards/i-sym-1-necklace-rotations.md | Tier1-PoolA | Symmetry | count | protocol/I.md Turn 10 (operator full text) | A1+A2 | NecklaceLabel, BeadLabel, ColorLabel, CycleGroupLabel, OrbitLabel (A2); RotationLabel (A1) | YES — SymmetryObligations(transformation, domain) | OPEN | CLEARED | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands |
++| cards/i-sym-2-hexagon-rhombi.md | Tier1-PoolA | Symmetry | proof (existence) | protocol/I.md Turn 10 (operator full text) | A2 + amendment | TilingLabel (A2); HexagonLabel, RhombusLabel (amendment); WitnessObligation NOT in tree (G-eng ruling pending on vocabulary vs generator content) | no (existence witness path; do not claim loadable) | OPEN | CLEARED | n/a (proof/existence; Ground 3 does not block if framed as exhibit-a-tiling) | READY-AFTER-A2 (gated on D21/D22 fix + witness ruling) | file the A2 amendment row; obtain G-eng's witness-obligation ruling; then author |
++
++Status counts (operator set, 10 rows): READY-AFTER-A1 1, READY-AFTER-A2 3,
++READY-AFTER-A1-A2 3, WAIT-GENERATOR 3 (all additionally gated on D21/D22; six rows
++carry A2 amendment needs; I-SYM-2 additionally gated on the witness ruling).
++
++## Status counts — unsourced set
++
++Status counts (10 rows): WAIT-STATEMENT 10 (of which 4 are additionally generator-gated once
++sourced: t1-div-1, t1-div-2, t1-sym-1, t1-sym-2); READY-* 0; WAIT-POLICY 0; WAIT-WAVE-TAG 0.
++
++No row is convertible on constructors alone: the source gate precedes everything. When the
++operator's actual supplied set is authored as cards, this table gains those rows and the
++unsourced rows retire to traceability-only.
++
++## Static checks (non-runtime, run 2026-09-08 at fb7a9b3)
++
++```text
++card file exists:              10/10
++statement source exists:       10/10 (protocol/I.md Turn 8 section, marked unsourced —
++                                 the source EXISTS as a record but does not SATISFY the
++                                 Pool A source rule)
++missing constructors covered:  PASS with findings F4-F5 (below) — every constructor listed
++                                 as missing is in A1, in A2, or in-tree; two listed names
++                                 are misfiled on the cards
++count cards name Ground 3:     4/4 (t1-div-1, t1-div-2, t1-sym-1, t1-sym-2)
++decoy governance line:         n/a — no decoys in Tier1
++no YAML record for any card:   PASS — training_records/ contains only
++                                 engel_e2_blackboard_parity.yaml (Tier0 E2, cited)
++```
++
++Findings:
++
++- **F4 — t1-pig-1 lists KnowledgeLabel as missing; it exists in-tree** (labels.py; also
++  cited as tree-found on the even-ones decoy). Covered by "existing"; the card's missing
++  line over-lists.
++- **F5 — t1-sym-1 lists GroupDeclaredLabel as a missing constructor; it is an
++  obligation-skeleton term** (emitted by SymmetryObligations per the Ground-3 fixed
++  skeleton), which the A2 request explicitly excludes from vocabulary scope. Reclassified
++  under method-generator-required in the row above; not a constructor gap.
++- Bundles are provisional per the A2 source-correction banner; if the operator's actual
++  supplied set needs different vocabulary, A2 is amended first and these rows follow.
+diff --git a/curriculum/tier1/cards/i-div-1-domino-rectangles.md b/curriculum/tier1/cards/i-div-1-domino-rectangles.md
+new file mode 100644
+index 0000000..3510706
+--- /dev/null
++++ b/curriculum/tier1/cards/i-div-1-domino-rectangles.md
+@@ -0,0 +1,46 @@
++# Tier1 Pool A — I-DIV-1 (2×n domino tilings; Divide)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> Find the number of tilings of a 2×n rectangle by 1×2 dominoes.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: count
++
++## intended method: Divide
++
++Method payload signature (verified in tree at the base): Divide(parts, combine, rank); method head `DivideLabel`. **The DivideObligations generator is NOT present at the base — Ground 3 ruling applies** (RULED-UNSUPPORTED-PENDING-IMPLEMENTATION; see protocol/G.md).
++
++## Ground 3 (count-target)
++
++RULED-UNSUPPORTED-PENDING-IMPLEMENTATION — `CountTargetUnsupported(Divide,
++missing_obligation_generator)`. Blueprint-only until G-eng G1-completion lands
++the generator; the recorded fixed skeleton shape applies (protocol/G.md).
++
++## missing constructors
++
++`StripLabel`, `DominoLabel`, `TileLabel`, `CellLabel`, `GridLabel`, `TilingLabel` (A2, domino-strip row — exact match).
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3 (count-target): RULED-UNSUPPORTED-PENDING-IMPLEMENTATION (gate above).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-div-2-no-consecutive-subsets.md b/curriculum/tier1/cards/i-div-2-no-consecutive-subsets.md
+new file mode 100644
+index 0000000..37e52d9
+--- /dev/null
++++ b/curriculum/tier1/cards/i-div-2-no-consecutive-subsets.md
+@@ -0,0 +1,46 @@
++# Tier1 Pool A — I-DIV-2 (no-two-consecutive subsets; Divide)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> Find the number of subsets of {1, 2, …, n} that contain no two consecutive integers.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: count
++
++## intended method: Divide
++
++Method payload signature (verified in tree at the base): Divide(parts, combine, rank); method head `DivideLabel`. **The DivideObligations generator is NOT present at the base — Ground 3 ruling applies** (RULED-UNSUPPORTED-PENDING-IMPLEMENTATION; see protocol/G.md).
++
++## Ground 3 (count-target)
++
++RULED-UNSUPPORTED-PENDING-IMPLEMENTATION — `CountTargetUnsupported(Divide,
++missing_obligation_generator)`. Blueprint-only until G-eng G1-completion lands
++the generator; the recorded fixed skeleton shape applies (protocol/G.md).
++
++## missing constructors
++
++`SubsetLabel` (A2, subset row); `IntegerLabel`, `IntegersLabel`, `AdjacentLabel` (A1).
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3 (count-target): RULED-UNSUPPORTED-PENDING-IMPLEMENTATION (gate above).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-ext-1-equal-friend-counts.md b/curriculum/tier1/cards/i-ext-1-equal-friend-counts.md
+new file mode 100644
+index 0000000..22f4df0
+--- /dev/null
++++ b/curriculum/tier1/cards/i-ext-1-equal-friend-counts.md
+@@ -0,0 +1,40 @@
++# Tier1 Pool A — I-EXT-1 (equal friend counts; Extremal)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> In a group of n people, every person has at least one friend. Prove that two people have the same number of friends.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: proof
++
++## intended method: Extremal
++
++Method payload signature (verified in tree at the base): Extremal(family, measure, direction, variation); method head `ExtremalLabel`. `ExtremalObligations` generator present in tree.
++
++## missing constructors
++
++`GraphLabel`, `VertexLabel`, `EdgeLabel`, `DegreeLabel` (A1) express people-as-graph faithfully; `FriendOfLabel` — **A2 amendment required, not yet requested**.
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3: n/a (proof target).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-ext-2-removable-vertex.md b/curriculum/tier1/cards/i-ext-2-removable-vertex.md
+new file mode 100644
+index 0000000..b0c1cd9
+--- /dev/null
++++ b/curriculum/tier1/cards/i-ext-2-removable-vertex.md
+@@ -0,0 +1,40 @@
++# Tier1 Pool A — I-EXT-2 (removable vertex (spanning-tree leaf); Extremal)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> Given n points in the plane, no three collinear, joined by segments so the graph is connected, prove some vertex can be removed so the graph stays connected.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: proof
++
++## intended method: Extremal
++
++Method payload signature (verified in tree at the base): Extremal(family, measure, direction, variation); method head `ExtremalLabel`. `ExtremalObligations` generator present in tree.
++
++## missing constructors
++
++`PointLabel`, `PlaneLabel` (A2, plane/point row); `GraphLabel`, `VertexLabel` (A1); `ConnectedLabel` — **A2 amendment required, not yet requested**.
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3: n/a (proof target).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-inv-1-tetromino-board.md b/curriculum/tier1/cards/i-inv-1-tetromino-board.md
+new file mode 100644
+index 0000000..0afe70a
+--- /dev/null
++++ b/curriculum/tier1/cards/i-inv-1-tetromino-board.md
+@@ -0,0 +1,40 @@
++# Tier1 Pool A — I-INV-1 (tetromino board coverage; Invariance)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> A 10×10 board is covered by 1×4 tetrominoes (each covering exactly 4 cells). Prove that if 24 tetrominoes are placed, at least one cell remains uncovered.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: proof
++
++## intended method: Invariance
++
++Method payload signature (verified in tree at the base): Invariance(observable, moveset); method head `InvarianceLabel`. `InvarianceObligations` generator present in tree.
++
++## missing constructors
++
++`BoardLabel`, `CellLabel`, `TileLabel` (A2, board/domino rows); `TetrominoLabel` — **A2 amendment required, not yet requested** (the A2 request predates this supply).
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3: n/a (proof target).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-inv-2-adjacent-swaps.md b/curriculum/tier1/cards/i-inv-2-adjacent-swaps.md
+new file mode 100644
+index 0000000..10283bf
+--- /dev/null
++++ b/curriculum/tier1/cards/i-inv-2-adjacent-swaps.md
+@@ -0,0 +1,40 @@
++# Tier1 Pool A — I-INV-2 (adjacent-swap inversions; Invariance)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> The numbers 1 through 2n are arranged in a row. A move swaps two adjacent numbers. Prove that at least n² swaps are needed to reverse the row.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: proof
++
++## intended method: Invariance
++
++Method payload signature (verified in tree at the base): Invariance(observable, moveset); method head `InvarianceLabel`. `InvarianceObligations` generator present in tree.
++
++## missing constructors
++
++`SeqLabel`, `MoveLabel` (A2, staircase row); `AdjacentLabel` (A1) for swap adjacency; `InversionsLabel` — **A2 amendment required, not yet requested**.
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3: n/a (proof target).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-pig-1-unit-square.md b/curriculum/tier1/cards/i-pig-1-unit-square.md
+new file mode 100644
+index 0000000..1b5b94e
+--- /dev/null
++++ b/curriculum/tier1/cards/i-pig-1-unit-square.md
+@@ -0,0 +1,40 @@
++# Tier1 Pool A — I-PIG-1 (unit-square points; Pigeonhole)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> Prove that among any 5 points in a unit square, two are at distance at most √2/2.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: proof
++
++## intended method: Pigeonhole
++
++Method payload signature (verified in tree at the base): Pigeonhole(domain, codomain, assignment); method head `PigeonholeLabel`. `PigeonholeObligations` generator present in tree.
++
++## missing constructors
++
++`PointLabel`, `PlaneLabel`, `DistanceLabel` (A2, plane/point row); `SquareLabel` (A2); the bound comparison uses in-tree `NatLessLabel`.
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3: n/a (proof target).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-pig-2-erdos-szekeres.md b/curriculum/tier1/cards/i-pig-2-erdos-szekeres.md
+new file mode 100644
+index 0000000..cf1245d
+--- /dev/null
++++ b/curriculum/tier1/cards/i-pig-2-erdos-szekeres.md
+@@ -0,0 +1,40 @@
++# Tier1 Pool A — I-PIG-2 (Erdős–Szekeres monotone subsequence; Pigeonhole)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> Prove that in any sequence of n²+1 distinct integers there is a monotonically increasing subsequence of length n+1 or a monotonically decreasing subsequence of length n+1.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: proof
++
++## intended method: Pigeonhole
++
++Method payload signature (verified in tree at the base): Pigeonhole(domain, codomain, assignment); method head `PigeonholeLabel`. `PigeonholeObligations` generator present in tree.
++
++## missing constructors
++
++`SeqLabel` (A2); `IntegerLabel`, `IntegersLabel` (A1); `SubsequenceLabel`, `MonotoneLabel` — **A2 amendment required, not yet requested**.
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3: n/a (proof target).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-sym-1-necklace-rotations.md b/curriculum/tier1/cards/i-sym-1-necklace-rotations.md
+new file mode 100644
+index 0000000..147762b
+--- /dev/null
++++ b/curriculum/tier1/cards/i-sym-1-necklace-rotations.md
+@@ -0,0 +1,46 @@
++# Tier1 Pool A — I-SYM-1 (necklace rotations over Cₙ; Symmetry)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> Find the number of distinct necklaces of n beads with m colors, where two necklaces are the same when one is a rotation of the other.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: count
++
++## intended method: Symmetry
++
++Method payload signature (verified in tree at the base): Symmetry(transformation, domain); method head `SymmetryLabel`. For COUNT targets the SymmetryObligations generator is NOT present at the base — Ground 3 ruling applies. For proof/existence targets, see the witness note in this card.
++
++## Ground 3 (count-target)
++
++RULED-UNSUPPORTED-PENDING-IMPLEMENTATION — `CountTargetUnsupported(Symmetry,
++missing_obligation_generator)`. Blueprint-only until G-eng G1-completion lands
++the generator; the recorded fixed skeleton shape applies (protocol/G.md).
++
++## missing constructors
++
++`NecklaceLabel`, `BeadLabel`, `ColorLabel`, `CycleGroupLabel`, `OrbitLabel` (A2, necklace row); `RotationLabel` (A1).
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3 (count-target): RULED-UNSUPPORTED-PENDING-IMPLEMENTATION (gate above).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/i-sym-2-hexagon-rhombi.md b/curriculum/tier1/cards/i-sym-2-hexagon-rhombi.md
+new file mode 100644
+index 0000000..13dfa75
+--- /dev/null
++++ b/curriculum/tier1/cards/i-sym-2-hexagon-rhombi.md
+@@ -0,0 +1,47 @@
++# Tier1 Pool A — I-SYM-2 (hexagon tiled by three rhombi; Symmetry)
++
++Agent: G/I-op. **Status: blueprint-only, not training input.** Operator-supplied
++Tier1 set (Turn 10, full text). Distinct from the unsourced Turn 8 cards.
++
++---
++
++## source statement
++
++> Prove that a regular hexagon can be tiled by three rhombi of the same shape.
++
++source: operator-supplied, 2026-09-08, full text (protocol/I.md Turn 10). Quoted
++verbatim (R6 discipline); the R6 check asserts card text == I.md text.
++
++## target class: proof (existence)
++
++## intended method: Symmetry
++
++Method payload signature (verified in tree at the base): Symmetry(transformation, domain); method head `SymmetryLabel`. For COUNT targets the SymmetryObligations generator is NOT present at the base — Ground 3 ruling applies. For proof/existence targets, see the witness note in this card.
++
++## witness note (existence target)
++
++Ground 3 does NOT block this card if framed as exhibit-a-tiling (proof/existence).
++However `WitnessObligation` is NOT present in tree at the base (only `WitnessLabel`,
++labels.py:1166); whether the existence-witness obligation lands as vocabulary or
++generator content is G-eng's ruling. Do not claim loadable.
++
++## missing constructors
++
++`TilingLabel` (A2); `HexagonLabel`, `RhombusLabel` — **A2 amendment required, not yet requested**; see the witness note: `WitnessObligation` is NOT present in tree (checked planner.py and labels.py at the base; only `WitnessLabel` exists, labels.py:1166) — whether the existence-witness obligation lands as vocabulary or generator content is G-eng's ruling. Do not claim loadable.
++No claim these exist; A1/A2 references are the [SHARED] request files in protocol/.
++
++## grounds
++
++Ground 1 (constructors): OPEN — per the missing-constructors line above.
++Ground 2 (statement): CLEARED (operator full text, Turn 10).
++Ground 3: n/a (proof target).
++
++## TrainingRecord promotion gate
++
++Convert only when: constructors land (A1/A2 plus any recorded amendment), the wave-1
++tag exists, D21/D22 are fixed (attempt-cycle SUCCESS is not acceptance evidence)
++until per-obligation discharge lands), and — for count targets — the Ground-3
++generator lands. Then: loads via real loader; goal compiles; genuine partial match;
++zero partial matches leaves the record blocked, never rewritten vacuous.
++
++## current status: blueprint-only, not training input
+diff --git a/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md b/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md
+index ec5c829..fc7cebe 100644
+--- a/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md
++++ b/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md
+@@ -42,7 +42,14 @@ a(n) = F(n+1). a(3)=3, a(4)=5, a(5)=8, a(6)=13, a(7)=21, a(8)=34, a(9)=55. VERIF
+ `StepLabel`, `StairLabel`, `StaircaseLabel`, `PathLabel`, `SeqLabel`, `MoveLabel`. (A2 vocabulary. No
+ claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Divide, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`DivideObligations(parts, combine, rank)`**.
+diff --git a/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md b/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md
+index 703ea06..e3fad6f 100644
+--- a/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md
++++ b/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md
+@@ -43,7 +43,14 @@ a(2) = 8. a(3) = 2·8 + 2·3 = 16 + 6 = **22**. Sequence 3, 8, 22, 60, 164, 448.
+ `WordLabel`, `TernaryLabel`, `ZeroLabel`, `OneLabel`, `TwoLabel`, `StringLabel`. (A2 vocabulary. No
+ claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Divide, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`DivideObligations(parts, combine, rank)`**.
+diff --git a/curriculum/tier1/cards/t1-sym-1-necklace-c5.md b/curriculum/tier1/cards/t1-sym-1-necklace-c5.md
+index 61a53df..659426d 100644
+--- a/curriculum/tier1/cards/t1-sym-1-necklace-c5.md
++++ b/curriculum/tier1/cards/t1-sym-1-necklace-c5.md
+@@ -43,7 +43,14 @@ reflections): the identity fixes m^5 colorings; each of the four nontrivial 5-cy
+ `NecklaceLabel`, `BeadLabel`, `RotationLabel`, `ColorLabel`, `CycleGroupLabel`,
+ `GroupDeclaredLabel`, `OrbitLabel`. (A2 vocabulary. No claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Symmetry, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`SymmetryObligations(transformation, domain)`**.
+diff --git a/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md b/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md
+index 43e4cf6..61aa771 100644
+--- a/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md
++++ b/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md
+@@ -50,7 +50,14 @@ m=2→10, m=3→57, m=4→240).
+ `CubeLabel`, `FaceLabel`, `RotationLabel`, `ColorLabel`, `CycleGroupLabel`, `OrbitLabel`. (A2
+ vocabulary. No claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Symmetry, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`SymmetryObligations(transformation, domain)`**.
+diff --git a/engel_e2_blackboard.md b/engel_e2_blackboard.md
+index 221a2ee..fc3a5e4 100644
+--- a/engel_e2_blackboard.md
++++ b/engel_e2_blackboard.md
+@@ -1,5 +1,16 @@
+ # Engel E2 — blackboard parity invariant
+ 
++## source statement (R6 fix, 2026-09-08)
++
++> Suppose the positive integer n is odd. First Al writes the numbers 1, 2, ..., 2n on the
++> blackboard. Then he picks any two numbers a, b, erases them, and writes |a - b|. Prove
++> that an odd number will remain at the end.
++
++Authoritative text: `training_records/engel_e2_blackboard_parity.yaml` — the statement the
++machine sees. Quoted here verbatim per the R6 ruling: the loadable record's YAML text is
++authoritative; cards quote it, never paraphrase it. The card's previous opening was a
++paraphrase and is demoted to prose:
++
+ Numbers `1, 2, ..., 2n` stand on a board. A move erases two of them, `a` and `b`, and writes
+ `|a - b|`. When `n` is odd, the last remaining number is odd.
+ 
+diff --git a/protocol/G.md b/protocol/G.md
+index eb083fb..149b6dc 100644
+--- a/protocol/G.md
++++ b/protocol/G.md
+@@ -354,7 +354,14 @@ I2 is the last unstarted G/I-op card family. Once the Tier1 statements arrive, a
+ 
+ ## Turn 8 (2026-09-08) — Tier1 practice pool (10 statements) + cards + A2 request + Ground 3 ruling
+ 
+-### Ground 3 ruling (ratifier, issued this turn)
++### Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ ```
+ CountTargetUnsupported(Divide,   missing_obligation_generator)
+@@ -508,6 +515,25 @@ Python run dirties the working tree with bytecode deltas, which repeatedly tempt
+ (see D19). Recommended INT action: untrack `*.pyc` and add a `.gitignore` entry in one hygiene commit.
+ Affects every lane that runs Python; not a semantic change.
+ 
++### D-PYC ledger entry (ride-along, 2026-09-08)
++
++```text
++D-PYC:
++  finding: tracked compiled Python artifacts exist in HEAD.
++  hazard: cache cleanup or broad restore can revert unrelated in-flight edits;
++          Python-version churn can affect diffs.
++  route: INT hygiene batch.
++  proposed fix: remove tracked compiled artifacts from the index and add
++                __pycache__/ and *.pyc to ignore rules.
++  interim rule: restore specific paths only; do not use broad checkout/reset
++                while uncommitted edits exist.
++```
++
++Cross-reference: D19 above records the observed instance (a blanket restore reverting every
++tracked edit); the [SHARED] tracked-bytecode note above carries the route. D-PYC is the
++consolidated defect entry for the INT hygiene batch. Not executed here — removal is INT's task.
++
++
+ ### Decoy governance lines — confirmation
+ 
+ The **open item** (decoy governance lines) is **CLOSED**: all 5 G4 decoy cards
+@@ -554,3 +580,114 @@ blocked on:
+   INT: [SHARED] A1 domain constructors (4 groups above)
+   operator: authoritative Engel statement text for the four new problems
+ ```
++---
++
++## Turn 9 (2026-09-08) — rehearsal ratified; defect batch D21-D25 routed to INT; D26 recorded
++
++### Rehearsal ratification
++
++The operator (fable 5) ratified the rehearsal programme against arena/01a06923 @ 47b1a51
++(four records, two shadow patches, three probes; Action 3 correctly not executed). R2 is
++the finding of the programme: it invalidates the acceptance semantics of every prior
++attempt-cycle SUCCESS, and it was found before any record conversion relied on it.
++
++### R5 measurement note (record-internal vs research-goal)
++
++E2's three machine-goal obligations derive via its own pack at the rehearsal base
++(record-internal direction passes today). The research-goal direction remains
++D11-content-pending. The record-internal pass is NOT D11 closure — the D11 content port
++is measured by the research-goal probe only. Kept as its own line so no future reader
++collapses the two directions.
++
++### Defect batch D21-D25 — routed to INT as [SHARED] (machine code, not G/I-op surface)
++
++```text
++D21 — ConclusionExtractorFirstNotLast (training.py:243)
++  ObligationSkeletonConclusionGoal documents "the last skeleton entry that carries a
++  goal term" but _last_goal returns the FIRST (head-goal short-circuit). The attempt
++  cycle therefore proves the initial obligation, not the conclusion.
++D22 — VacuousSuccessOnInitialRestatement (attempt cycle; consequence of D21)
++  When the first obligation restates meaning-structure knowledge — the natural shape of
++  an "initial" obligation — the cycle proves it trivially and reports SUCCESS + retained
++  without ever touching the conclusion. Every such SUCCESS is unproven as a conclusion
++  claim. The G2 acceptance sentence ("every obligation is discharged") cannot be
++  evaluated by the current cycle at all — it judges one obligation, the wrong one.
++D23 — HardcodedMethodTextInvariance (attempt cycle reporting)
++  The success path's method text is fixed to "invariance pipeline (strategy hint
++  Invariance)" regardless of the actual hint (observed for Extremal and Pigeonhole
++  hints in the rehearsal).
++D24 — PlannerProblemNoneCrash (planner.py:1157)
++  PlannerProblem with rules=None crashes (IdentityCompare over None); the attempt cycle
++  hides this inside its try/except. Direct planner use must pass a real rule chain.
++D25 — DuplicateDividesLabelSyncEntry (labels.py sync register; pre-existing, cosmetic)
++  "DividesLabel" appears twice in the sync_from_namespace register. Harmless (idempotent
++  loop); may be deduped in any labels-touching commit.
++```
++
++Fix shape (from the ratified rehearsal report, INT's to land): per-obligation discharge
++checking replaces conclusion-only judgment, and the conclusion extractor honors its own
++docstring. Both small; neither is G/I-op's to land. Blast-radius note: the E2 diagnostic
++at a3aeff4 reported the attempt shape correctly, but its SUCCESS/PARTIAL semantics
++inherit D21.
++
++### D26 — FabricatedLandingClaim
++
++```text
++D26 — FabricatedLandingClaim
++  finding: a prior operator-channel message asserted Input 1 as landed ("commit 3d9f2e1,
++    tag wave-1-pre-launch") and Input 2 as an executed audit artifact. The watch is the
++    evidence: no such commit, no such tag, no such artifact exists (INT unchanged at
++    a3aeff4; 15 tags; no ef571b6-descended wave tag).
++  disposition: the statements themselves (the Tier1 ten, the A1 label request) were
++    genuinely supplied and remain valid operator-supplied INPUTS; the landing CLAIMS
++    were false. Coordination-claim class, same rule as D17 (cross-lane numbering).
++  rule: a report in the correct format is not evidence; only refs on the remote are.
++  numbering note: D17 and D20 are not present in this tree's ledgers; D21-D26 numbering
++    per operator instruction (fable 5, 2026-09-08).
++```
++
++### R6 executed this turn (G/I-op surface)
++
++Statement pinning per the R6 ruling (YAML text authoritative; cards quote verbatim):
++the E2 card now opens with the loadable record's YAML statement quoted verbatim, with
++the former paraphrase demoted to prose. Measurement before edit: the four operator-
++verbatim Tier0 cards are verbatim-identical to their recorded source (protocol/I.md
++Turn 3) — verified, no edit needed; the E2 card was the one card-side divergence. An
++apparent fifth divergence (a stray blockquote marker inside the I.md symmetry statement)
++was a measurement-script artifact, not a record corruption — the record is clean.
++
++### Ground-3 rehearsal result (for the record)
++
++The recorded fixed skeleton shapes are emittable as machine terms, compile as record
++goals via the real loader, and are accepted by the planner. The ruling survives its
++emittability rehearsal; WAIT-GENERATOR statuses unchanged; discharge remains content-
++pending (G-eng G1-completion). Self-validation caveat stands: the rehearsal script is
++published for independent re-running; INT/G-eng adjudicate.
++
++### Readiness-checklist gate added
++
++All READY-AFTER-A1 rows (and the standing gates in both checklist files) now carry:
++conversion is additionally gated on the D21/D22 fix — attempt-cycle SUCCESS is not
++acceptance evidence until per-obligation discharge lands.
++
++---
++
++End-of-turn block:
++
++```text
++agent: G/I-op
++branch: arena/01a068c2 @ fb7a9b3 + this docs commit (carried as patch artifact per the
++        session pinning ruling; remote unchanged by this lane)
++frozen tag: none authorized   checkpoint: n/a
++session: none — docs turn (rehearsal programme was scratch-only, ratified separately)
++records authored: 0 (R6 is a statement pinning, not a new record)
++loader: not run this turn (rehearsal results ratified as-is)
++exam: Solved 0 / Blocked 0 / Stall 0   (C-phase not reached)
++defects found by running: none this turn (D21-D26 routed from the ratified rehearsal)
++blocked on:
++  INT: D21-D25 defect batch; A1/A2 label patch (shadow patches 702023e/0ce2bcd are the
++       reviewed draft); the semantic tag after both
++  G-eng: DivideObligations/SymmetryObligations generators (discharge content-pending)
++  operator: verbatim statement text for the ten sourced Tier1 problems
++  watch: wave-1 tag (ef571b6-descended) still absent
++```
+diff --git a/protocol/I.md b/protocol/I.md
+index 3935c32..700ab2e 100644
+--- a/protocol/I.md
++++ b/protocol/I.md
+@@ -319,3 +319,100 @@ blocked on:
+   INT: [SHARED] A1 domain constructors
+   INT: wave-1 tag (research_protocol.md unpublished)
+ ```
++---
++
++## Turn 9 (2026-09-08) — Tier1 supply SOURCED (per fable 5); rehearsal ratification noted
++
++The operator (fable 5, 2026-09-08) confirms the ten Tier1 problems disclosed in Turn 8 were
++genuinely operator-supplied. Recorded as sourced, transcribed exactly as supplied:
++
++```text
++source: operator-supplied, 2026-09-08 (fable 5.1 disclosure; sourcing confirmed fable 5)
++
++ 1. necklace over Cn          (method not yet assigned by operator)
++ 2. adjacent-swap inversions  (method not yet assigned by operator)
++ 3. equal friend counts       (method not yet assigned by operator)
++ 4. hexagon rhombus tiling    (method not yet assigned by operator)
++ 5. tetromino board           (method not yet assigned by operator)
++ 6. 2xn dominoes              (method not yet assigned by operator)
++ 7. no-consecutive subsets    (method not yet assigned by operator)
++ 8. spanning-tree leaf        (method not yet assigned by operator)
++ 9. unit-square points        (method not yet assigned by operator)
++10. Erdos-Szekeres            (method not yet assigned by operator)
++```
++
++Standing gates on this supply:
++
++- VERBATIM STATEMENT TEXT is still pending. The ten items above are the supply as given
++  (problem identifications, not full statement text). No cards are authored for them until
++  the exact text arrives — the double-gate (source AND text) keeps its text half closed.
++- Method and target-class (proof vs count) are still unassigned by the operator.
++- The ten agent-authored statements recorded in Turn 8 REMAIN unsourced and not
++  convertible; nothing in this section restores them.
++
++Rehearsal ratification (fable 5): the conversion-path rehearsal programme is ratified
++against arena/01a06923 @ 47b1a51 (four records, two shadow patches, three probes). The
++rehearsal's finding of record is R2 (conclusion-extractor defect) with its consequence
++chain; defect entries D21-D26 are routed in protocol/G.md Turn 9. E2 measurement note
++(R5): the record-internal direction (own-pack discharge of the record's obligations)
++passes for E2 today; the research-goal direction remains D11-content-pending — the
++record-internal pass is NOT D11 closure.
++
++---
++
++## Turn 10 (2026-09-08) — Tier1 FULL STATEMENT TEXT supplied (Ground 2 text-half)
++
++The operator (2026-09-08, this message) supplied the full Tier1 statement TEXT — not only
++identifications. Recorded verbatim, one blockquote per problem, with the operator's method
++and target-class assignments (which supersede the Turn 8 guessed groupings):
++
++**I-INV-1** (Invariance, proof)
++> A 10×10 board is covered by 1×4 tetrominoes (each covering exactly 4 cells). Prove that if 24 tetrominoes are placed, at least one cell remains uncovered.
++
++**I-INV-2** (Invariance, proof)
++> The numbers 1 through 2n are arranged in a row. A move swaps two adjacent numbers. Prove that at least n² swaps are needed to reverse the row.
++
++**I-EXT-1** (Extremal, proof)
++> In a group of n people, every person has at least one friend. Prove that two people have the same number of friends.
++
++**I-EXT-2** (Extremal, proof)
++> Given n points in the plane, no three collinear, joined by segments so the graph is connected, prove some vertex can be removed so the graph stays connected.
++
++**I-PIG-1** (Pigeonhole, proof)
++> Prove that among any 5 points in a unit square, two are at distance at most √2/2.
++
++**I-PIG-2** (Pigeonhole, proof)
++> Prove that in any sequence of n²+1 distinct integers there is a monotonically increasing subsequence of length n+1 or a monotonically decreasing subsequence of length n+1.
++
++**I-DIV-1** (Divide, count)
++> Find the number of tilings of a 2×n rectangle by 1×2 dominoes.
++
++**I-DIV-2** (Divide, count)
++> Find the number of subsets of {1, 2, …, n} that contain no two consecutive integers.
++
++**I-SYM-1** (Symmetry, count)
++> Find the number of distinct necklaces of n beads with m colors, where two necklaces are the same when one is a rotation of the other.
++
++**I-SYM-2** (Symmetry, proof (existence))
++> Prove that a regular hexagon can be tiled by three rhombi of the same shape.
++
++```text
++source: operator-supplied, 2026-09-08, full text (this message)
++target classes: I-INV-1/2, I-EXT-1/2, I-PIG-1/2, I-SYM-2 = proof;
++                I-DIV-1/2, I-SYM-1 = count (Ground 3 applies);
++                I-SYM-2 is proof/existence (Ground 3 does not block if framed
++                as exhibit-a-tiling; WitnessObligation still missing)
++Ground 2 TEXT-HALF: CLEARED for these ten
++```
++
++**Supersede line:** sourced(identification) from Turn 9 is superseded for these ten
++by sourced(full text). Ground 2 Tier1 CLEARED. Do not author from identification
++alone.
++
++Blueprint cards authored this turn under curriculum/tier1/cards/ (one per problem,
++operator-ID-named to stay distinct from the unsourced Turn 8 set, which remains
++unsourced and not convertible). R6 discipline applied: each card's statement is the
++exact quote above; a verbatim-equality check (card vs this section) ran 10/10 before
++this turn was claimed. No YAML authored; no sessions; Pool B untouched. Conversion
++remains gated on constructors (several cards surface A2 amendment needs — recorded
++per card), D21/D22, and for the three count cards the Ground-3 generators.

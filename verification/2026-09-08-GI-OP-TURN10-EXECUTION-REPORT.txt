@@ -1,0 +1,123 @@
+G/I-op Turn 10 execution report — 2026-09-08
+instruction: operator Tier1 full-text supply (grok 4.5 channel) + the
+  paste-block "execute this turn" items 1-5.
+
+BRANCH DEVIATION FLAG (standing pattern): the G/I-op branch
+arena/01a068c2 is not pushable by this session. Work executed in an
+isolated clone on the recorded base fb7a9b3 (re-verified unchanged
+before work; INT a3aeff4 unchanged; tags 15). Commit stack in the
+clone (never pushed as branches):
+  4c23daf  conversion readiness for authored cards   (facilitation,
+           re-applied from its patch artifact after a sandbox reset)
+  47f1901  Turn 9 (R6 pinning, D21-D26, sourcing record, gates)
+           (re-applied from the turn9 incremental patch; content-
+           identical to the previously reported 08ee5db + 1abbe16)
+  2fb272e  Turn 10 (this turn)
+patches exported (durable forms):
+  verification/2026-09-08-gi-op-turn10-incremental.patch (47f1901..2fb272e)
+  verification/2026-09-08-gi-op-turn10-full-stack.patch    (fb7a9b3..2fb272e)
+
+--------------------------------------------------------------------
+item 1 — protocol/I.md Turn 10 (operator full text recorded)
+
+The ten statements recorded VERBATIM as blockquotes, one per problem,
+with the operator's method + target-class assignments (which supersede
+the Turn 8 guessed groupings — the operator's IDs assign methods now:
+tetromino -> Invariance, hexagon-rhombi -> Symmetry proof/existence,
+etc.). Source line: operator-supplied, 2026-09-08, full text. Target
+classes: I-INV-1/2, I-EXT-1/2, I-PIG-1/2, I-SYM-2 proof; I-DIV-1/2,
+I-SYM-1 count (Ground 3); I-SYM-2 proof/existence (Ground 3 does not
+block if framed as exhibit-a-tiling; WitnessObligation still missing).
+Ground 2 TEXT-HALF: CLEARED for these ten. The explicit supersede line
+recorded: "sourced(identification) from Turn 9 is superseded for these
+ten by sourced(full text). Ground 2 Tier1 CLEARED. Do not author from
+identification alone."
+
+--------------------------------------------------------------------
+item 2 — ten blueprint cards (curriculum/tier1/cards/)
+
+Operator-ID-named, distinct from the unsourced Turn 8 set (which
+remains unsourced and not convertible): i-inv-1-tetromino-board,
+i-inv-2-adjacent-swaps, i-ext-1-equal-friend-counts,
+i-ext-2-removable-vertex, i-pig-1-unit-square, i-pig-2-erdos-szekeres,
+i-div-1-domino-rectangles, i-div-2-no-consecutive-subsets,
+i-sym-1-necklace-rotations, i-sym-2-hexagon-rhombi.
+
+Field discipline as Tier0: source statement (exact quote + source
+line), target class, intended method with verified payload signature,
+missing constructors, grounds, promotion gate, current status.
+- Count cards (I-DIV-1/2, I-SYM-1): Ground 3 gate + pre-finding,
+  RULED-UNSUPPORTED-PENDING-IMPLEMENTATION, fixed skeleton cite.
+- I-SYM-2: witness note — WitnessObligation NOT present in tree at the
+  base (checked planner.py and labels.py; only WitnessLabel exists,
+  labels.py:1166); G-eng ruling pending on vocabulary vs generator
+  content; do not claim loadable.
+- A2 amendment needs surfaced honestly per card (labels the A2 request
+  predates and does not cover): TetrominoLabel, InversionsLabel,
+  FriendOfLabel, ConnectedLabel, SubsequenceLabel, MonotoneLabel,
+  HexagonLabel, RhombusLabel. Recorded as "A2 amendment required, not
+  yet requested" — NOT silently assumed covered.
+- No YAML in training_records/ (still only the E2 record); no
+  sessions; Pool B untouched.
+
+--------------------------------------------------------------------
+item 3 — readiness tier1 rows
+
+Operator-set table added (10 rows, Ground 2 CLEARED, full text source):
+  READY-AFTER-A1 1 (i-ext-1), READY-AFTER-A2 3 (i-inv-1, i-pig-1,
+  i-sym-2), READY-AFTER-A1-A2 3 (i-inv-2, i-ext-2, i-pig-2),
+  WAIT-GENERATOR 3 (i-div-1, i-div-2, i-sym-1). Every READY row
+  carries the D21/D22 gate ("attempt-cycle SUCCESS is not acceptance
+  evidence until per-obligation discharge lands"); six rows carry A2
+  amendment needs; i-sym-2 additionally gated on the witness ruling.
+  Conversion still gated on: A1/A2 constructors + D21/D22 + (for the
+  three counts) generators. Sourcing note updated (Turn 10 supersedes
+  Turn 9 identification-only).
+
+--------------------------------------------------------------------
+item 4 — optional ride-along
+
+D19 cross-references and canonical decoy governance blocks: ALREADY
+PRESENT from the facilitation commit (governance 5/5; D19 + D-PYC in
+protocol/G.md). No edit needed; verified.
+
+--------------------------------------------------------------------
+item 5 — R6 measure before claim
+
+Verbatim-equality check (card statement vs the I.md Turn 10 blockquote,
+strict string equality after strip): 10/10 PASS, run BEFORE the commit
+was claimed. Honest instrument note: the check needed two corrections
+of its own first (a pairing bug — alphabetical zip against document
+order — and a regex that broke on I-SYM-2's nested-parenthesis header);
+both were check-script defects, not content defects; the corrected
+instrument passes all ten. Content was generated from a single
+statements source shared by I.md and the cards, then independently
+re-verified by the check.
+
+--------------------------------------------------------------------
+end block (instructed format)
+
+agent: G/I-op
+Tier1 Ground 2: CLEARED (full text)
+cards authored/updated: 10 blueprints
+loadable YAML: 0
+R6 recheck: 10/10 verbatim match
+still blocked: constructors, D21/D22, count generators
+
+(plus, per the standing state: the wave-1 tag; the A2 amendment rows
+for the eight surfaced labels; G-eng's witness ruling for I-SYM-2.)
+
+--------------------------------------------------------------------
+hygiene and watch
+
+docs-only: 2 .md modified + 10 .md created (plus the re-applied stack
+below them). Phrase scan: added lines of the commit and the commit
+subject 0; both exported patches 0 on added lines. Records authored: 0.
+Sessions run: 0. Pool B untouched. No machine code touched.
+
+watch through this turn: INT arena/01a06542 @ a3aeff4 (unchanged);
+G/I-op base arena/01a068c2 @ fb7a9b3 (unchanged); session branch
+702719c -> this push; tags 15 (unchanged). No hold-trigger fired.
+Ground 1 OPEN; Ground 3 RULED-UNSUPPORTED for pure count records;
+D21/D22 still block attempt-cycle SUCCESS as acceptance; no
+training_records/*.yaml until constructors + tag + gates.
