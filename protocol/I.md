@@ -116,6 +116,50 @@ problems 3, 4: author when Ground 1 clears AND count-target skeleton confirmed e
 
 ---
 
+## Turn 5 (2026-09-08) — Agent 3: four source-pinned record blueprints
+
+### Tier0 blueprint cards (curriculum/tier0/cards/)
+
+```text
+extremal-longest-path.md          (Extremal, proof-target)
+pigeonhole-residue-classes.md     (Pigeonhole, proof-target)
+divide-binary-words.md            (Divide, count-target)
+symmetry-square-rotations.md      (Symmetry, count-target)
+```
+
+All four are **blueprint-only, not training input**. No loadable TrainingRecord YAML authored; no
+session run; no Pool B touched.
+
+### Promotable record count
+
+```text
+currently loadable Tier0: 1 (engel_e2_blackboard_parity — cited, loads OK)
+blueprint cards:          4 (Extremal, Pigeonhole, Divide, Symmetry)
+Tier1 practice:           not started (awaits Tier0 method fixtures + count-shape resolution)
+```
+
+### Ground status (unchanged, recorded here for the join rule)
+
+```text
+Ground 1 (constructors): OPEN — INT-SHARED-A1
+Ground 2 (statements):   CLEARED
+Ground 3 (count-target): OPEN/PENDING — G-COUNT-AUDIT (Divide + Symmetry cards only)
+```
+
+### Join / conversion rule (from the parallel-unblock plan)
+
+```text
+1. INT reviews + merges the A1 vocabulary patch into a semantic candidate.
+2. INT runs both complete shards and cuts a new immutable tag.
+3. G/I-op converts extremal + pigeonhole cards first.
+4. divide + symmetry convert only when G-COUNT-AUDIT clears their count-target shapes.
+5. Each converted record: loads via real loader; goal compiles; genuine partial match;
+   source + method certificate preserved.
+6. Zero partial matches leaves that record blocked (never rewritten into a vacuous shape).
+```
+
+---
+
 End-of-turn block:
 
 ```text

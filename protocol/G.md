@@ -198,6 +198,58 @@ pass mistakes it for unique content. Working tree now has no untracked non-pycac
 
 ---
 
+## Turn 5 (2026-09-08) — Agent 3: four source-pinned record blueprints produced
+
+Per the parallel-unblock plan, G/I-op (this lane) produced **four blueprint cards** while INT-SHARED-A1
+(Ground 1) and G-COUNT-AUDIT (Ground 3) resolve in parallel. **No loadable TrainingRecord YAML was
+authored; no session run; no Pool B touched; no machine code edited.**
+
+### Blueprint card paths (curriculum/tier0/cards/)
+
+```text
+curriculum/tier0/cards/extremal-longest-path.md          (Extremal, proof-target)
+curriculum/tier0/cards/pigeonhole-residue-classes.md     (Pigeonhole, proof-target)
+curriculum/tier0/cards/divide-binary-words.md            (Divide, count-target, gated on Ground 3)
+curriculum/tier0/cards/symmetry-square-rotations.md      (Symmetry, count-target, gated on Ground 3)
+```
+
+Each card carries: source statement; target class (proposition | count); intended method (with the
+verified payload signature); exact mathematical target; required domain roles; constructor mapping
+found in tree (real, cited); missing constructors; intended obligation sequence; required theorem
+leaves; negative controls; proof-checker evidence required; TrainingRecord promotion gate; current
+status = blueprint-only.
+
+### Method-payload facts verified from tree (relevant to Ground 3, recorded for G-COUNT-AUDIT)
+
+`Extremal` and `Pigeonhole` have obligation generators (`ExtremalObligations`,
+`PigeonholeObligations`). `Divide` and `Symmetry` have **payload terms only — no obligation generator**
+(no `DivideObligations`/`DivideConclusion`/`SymmetryObligations`/`SymmetryConclusion`; planner note
+line 1213: "Pigeonhole and Extremal are expanded so far"). Whether Divide/Symmetry can carry count
+skeletons is **Ground 3**, delegated to G-COUNT-AUDIT — the cards do NOT assert expressibility.
+
+### Statement divergence preserved (Symmetry card)
+
+The supplied C4 counting statement and the charter warm-up "one coloring fixed by a declared rotation"
+are different tasks; the card uses the supplied C4 counting statement. Any switch to the existence
+warm-up needs an operator ruling + new source statement. Locked: C4 (identity, 90/180/270 rotations, no
+reflections), count `(m^4 + m^2 + 2m)/4`.
+
+### Grounds / promotion conditions
+
+```text
+Ground 1 (constructors): OPEN — INT-SHARED-A1
+Ground 2 (statements):   CLEARED
+Ground 3 (count-target): OPEN/PENDING — G-COUNT-AUDIT (affects Divide & Symmetry cards only)
+
+promotion:
+  extremal + pigeonhole cards -> TrainingRecord when Ground 1 clears (constructors present)
+  divide + symmetry cards     -> when Ground 1 clears AND Ground 3 clears (count skeleton expressible)
+Each converted record must: load via real loader; goal compiles; genuine partial match; source +
+method certificate preserved. Zero partial matches leaves that record blocked (not rewritten vacuous).
+```
+
+---
+
 End-of-turn block:
 
 ```text
