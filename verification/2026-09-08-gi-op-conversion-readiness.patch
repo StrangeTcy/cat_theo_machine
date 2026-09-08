@@ -1,0 +1,479 @@
+From 08ee5db89d5cd8715799b14e716f0c47767dfb5d Mon Sep 17 00:00:00 2001
+From: arena-lane <arena-lane@local>
+Date: Tue, 8 Sep 2026 12:11:21 +0000
+Subject: [PATCH] [G/I-op] conversion readiness for authored cards
+
+Ride-alongs (docs-only, base fb7a9b3):
+- A: canonical governance block added to all 5 G4 decoy cards (inert
+  until LearnedMethodPolicy; grades the policy, not the payload; a
+  pre-machinery session run does not count as a G4 result). The expanded
+  negative-control framing from 3f3beb4 stays.
+- B: D-PYC ledger entry added to protocol/G.md (tracked compiled Python
+  artifacts; INT hygiene batch; interim restore rule), cross-referencing
+  D19 and the existing [SHARED] tracked-bytecode route.
+- C: Ground-3 provenance reworded from 'ratifier issued' at all 7 sites
+  (protocol/G.md + 2 Tier0 count cards + 4 Tier1 count cards): evidence-
+  based audit verdict from the three-inputs turn, re-derivable from tree
+  inspection.
+
+Conversion readiness:
+- curriculum/tier0/CONVERSION-READINESS.md: 15 rows (E2 existing/cited,
+  4 cards, 5 decoys, 5 held-out) with bundles, grounds, statuses, first
+  actions; static checks + findings F1-F3.
+- curriculum/tier1/CONVERSION-READINESS.md: 10 rows, all WAIT-STATEMENT
+  (unsourced per fable 5.1), 4 additionally generator-gated; static
+  checks + findings F4-F5.
+
+Hygiene: docs-only (.md only); no .py, no TrainingRecord YAML, no packs,
+no labels.py/testsuite.py/planner.py changes; phrase scan on added lines
+and commit subject: 0; no sessions run; Pool B untouched.
+---
+ curriculum/tier0/CONVERSION-READINESS.md      | 78 +++++++++++++++++++
+ curriculum/tier0/cards/divide-binary-words.md |  7 +-
+ .../tier0/cards/symmetry-square-rotations.md  |  7 +-
+ .../tier0/decoys/divide-decoy-even-ones.md    |  8 ++
+ .../decoys/extremal-decoy-equal-degrees.md    |  8 ++
+ .../decoys/invariance-decoy-parliament.md     |  8 ++
+ .../decoys/pigeonhole-decoy-domino-board.md   |  8 ++
+ .../decoys/symmetry-decoy-labeled-square.md   |  8 ++
+ curriculum/tier1/CONVERSION-READINESS.md      | 71 +++++++++++++++++
+ .../cards/t1-div-1-staircase-fibonacci.md     |  9 ++-
+ .../tier1/cards/t1-div-2-ternary-nocc00.md    |  9 ++-
+ .../tier1/cards/t1-sym-1-necklace-c5.md       |  9 ++-
+ .../cards/t1-sym-2-cube-face-burnside.md      |  9 ++-
+ protocol/G.md                                 | 28 ++++++-
+ 14 files changed, 260 insertions(+), 7 deletions(-)
+ create mode 100644 curriculum/tier0/CONVERSION-READINESS.md
+ create mode 100644 curriculum/tier1/CONVERSION-READINESS.md
+
+diff --git a/curriculum/tier0/CONVERSION-READINESS.md b/curriculum/tier0/CONVERSION-READINESS.md
+new file mode 100644
+index 0000000..d02b191
+--- /dev/null
++++ b/curriculum/tier0/CONVERSION-READINESS.md
+@@ -0,0 +1,78 @@
++# Tier0 + G4/G5 conversion readiness — 2026-09-08
++
++One row per authored card in the Tier0 family (cards, G4 decoys, G5 held-out) plus the one
++existing loadable Tier0 record (E2, cited — not duplicated). Base: `fb7a9b3`
++(`arena/01a068c2-cat-theo-machine`).
++
++Standing gates that apply to EVERY row and are not repeated per row:
++
++- **Wave-tag gate:** no conversion happens before a wave-1 tag exists (a new tag with
++  `ef571b6` as ancestor). None exists at authoring time.
++- **Constructor gate:** bundles A1 / A2 refer to `protocol/[SHARED]-A1-CONSTRUCTORS.md` and
++  `protocol/[SHARED]-A2-CONSTRUCTORS.md` (INT delivers; label registration only).
++- **Join rule** (protocol/I.md Turn 8): convert extremal + pigeonhole first; divide +
++  symmetry only when the count-target generator lands; every converted record must load via
++  the real loader, compile its goal, and produce a genuine partial match; zero partial
++  matches leaves the record blocked, never rewritten into a vacuous shape.
++
++Statuses: READY-AFTER-A1, READY-AFTER-A2, READY-AFTER-A1-A2, WAIT-GENERATOR, WAIT-POLICY,
++WAIT-STATEMENT, WAIT-WAVE-TAG. E2 carries `existing/cited` per its rule.
++
++## Rows
++
++| card path | pool | method | target class | statement source | constructor bundle | specific missing constructors | method generator required | Ground 1 | Ground 2 | Ground 3 | conversion status | first conversion action after tag |
++|---|---|---|---|---|---|---|---|---|---|---|---|---|
++| engel_e2_blackboard.md (+ training_records/engel_e2_blackboard_parity.yaml) | Tier0 | Invariance | proof | card-local (authoritative statement + loadable record in-tree) | existing | none | no | satisfied (labels in labels.py) | satisfied (in-tree) | n/a (proof) | existing/cited | none — record exists and loads; cite it, never duplicate it |
++| cards/extremal-longest-path.md | Tier0 | Extremal | proof | protocol/I.md Turn 3 (operator verbatim) | A1 | PathLabel, CycleLabel, GraphLabel, VertexLabel, EdgeLabel | no | OPEN | CLEARED | n/a (proof) | READY-AFTER-A1 | author loadable record: loads + goal compiles + genuine partial match (join rule step 3, first) |
++| cards/pigeonhole-residue-classes.md | Tier0 | Pigeonhole | proof | protocol/I.md Turn 3 (operator verbatim) | A1 | IntegerLabel, IntegersLabel, RemainderLabel, ResidueLabel, CongruentLabel | no | OPEN | CLEARED | n/a (proof) | READY-AFTER-A1 | author loadable record together with extremal (join rule step 3) |
++| cards/divide-binary-words.md | Tier0 | Divide | count | protocol/I.md Turn 3 (operator verbatim) | A1 | WordLabel, BinaryWordLabel, AdjacentLabel | YES — DivideObligations(parts, combine, rank) | OPEN | CLEARED | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until G-eng G1-completion lands the generator; then author the count-skeleton record (ClosedForm as separate obligation) |
++| cards/symmetry-square-rotations.md | Tier0 | Symmetry | count | protocol/I.md Turn 3 (operator verbatim) | A1 | ColoringLabel, RotationLabel, RotateLabel | YES — SymmetryObligations(transformation, domain) | OPEN | CLEARED | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands; then author the count-skeleton record (Burnside as provenance-tagged trusted leaf; C4 rotation-only lock) |
++| decoys/divide-decoy-even-ones.md | G4-decoy | Divide (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | WordLabel, BinaryWordLabel, AdjacentLabel (A1); BitLabel, ParityOfOnesLabel (A2) | no (policy machinery, not generators) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; the decoy then grades the policy — a pre-machinery session run does not count as a G4 result |
++| decoys/extremal-decoy-equal-degrees.md | G4-decoy | Extremal (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1 | GraphLabel, VertexLabel, EdgeLabel, DegreeLabel | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| decoys/invariance-decoy-parliament.md | G4-decoy | Invariance (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | GraphLabel, VertexLabel, EdgeLabel, DegreeLabel (A1); PartitionLabel, HouseLabel, SameHouseLabel, EnemyLabel (A2) | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| decoys/pigeonhole-decoy-domino-board.md | G4-decoy | Pigeonhole (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | ColoringLabel (A1); BoardLabel, CellLabel, SquareLabel, DominoLabel, TileLabel, CheckerboardLabel, CornerLabel, ColorLabel (A2) | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| decoys/symmetry-decoy-labeled-square.md | G4-decoy | Symmetry (trap) | policy-decoy | card-local (operator G4 decoy set, verbatim) | A1+A2 | ColoringLabel, RotationLabel, VertexLabel (A1); ColorLabel (A2) | no (policy machinery) | OPEN | CLEARED (card-local verbatim) | n/a | WAIT-POLICY | none until S lands LearnedMethodPolicy; then grades the policy only |
++| heldout/extremal-min-degree-path.md | G5-heldout | Extremal | proof | card-local (operator G5 held-out set, verbatim) | A1 | PathLabel, CycleLabel, GraphLabel, VertexLabel, EdgeLabel, DegreeLabel | no | OPEN | CLEARED (card-local verbatim) | n/a (proof) | READY-AFTER-A1 | convert as a held-out eval record; never into curriculum sessions |
++| heldout/pigeonhole-subset-sum.md | G5-heldout | Pigeonhole | proof | card-local (operator G5 held-out set, verbatim) | A1+A2 | IntegerLabel, IntegersLabel, RemainderLabel, ResidueLabel, CongruentLabel (A1); PrefixSumLabel, SubsetLabel (A2) | no | OPEN | CLEARED (card-local verbatim) | n/a (proof) | READY-AFTER-A1-A2 | convert as a held-out eval record; never into curriculum sessions |
++| heldout/invariance-seven-glasses.md | G5-heldout | Invariance | proof (impossibility) | card-local (operator G5 held-out set, verbatim) | A2 | GlassLabel, UprightLabel, FlipLabel, MoveLabel, CountUprightLabel | no | OPEN | CLEARED (card-local verbatim) | n/a (proof) | READY-AFTER-A2 | convert as a held-out eval record; never into curriculum sessions |
++| heldout/divide-domino-strip.md | G5-heldout | Divide | count | card-local (operator G5 held-out set, verbatim) | A2 | StripLabel, DominoLabel, TileLabel, CellLabel, GridLabel, TilingLabel | YES — DivideObligations(parts, combine, rank) | OPEN | CLEARED (card-local verbatim) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands; then convert as a held-out eval record (never into curriculum sessions) |
++| heldout/symmetry-triangle-rotations.md | G5-heldout | Symmetry | count | card-local (operator G5 held-out set, verbatim) | A1 | ColoringLabel, RotationLabel, RotateLabel, VertexLabel | YES — SymmetryObligations(transformation, domain) | OPEN | CLEARED (card-local verbatim) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-GENERATOR | none until the generator lands; then convert as a held-out eval record (never into curriculum sessions) |
++
++Status counts (15 rows): existing/cited 1; READY-AFTER-A1 3; READY-AFTER-A2 1;
++READY-AFTER-A1-A2 1; WAIT-GENERATOR 4; WAIT-POLICY 5; WAIT-STATEMENT 0; WAIT-WAVE-TAG 0.
++
++## Static checks (non-runtime, run 2026-09-08 at fb7a9b3)
++
++```text
++card file exists:              15/15 (14 curriculum files + engel_e2_blackboard.md;
++                                 training_records/engel_e2_blackboard_parity.yaml present)
++statement source exists:       15/15 (protocol/I.md Turn 3 section for the 4 Tier0 cards;
++                                 card-local "source statement" sections for decoys + heldout;
++                                 in-tree statement + record for E2)
++missing constructors covered:  PASS with findings — every constructor listed as missing on a
++                                 card is in the A1 request, the A2 request, or in-tree;
++                                 findings F1-F3 below
++count cards name Ground 3:     8/8 across the curriculum (4 in this file)
++decoy governance line:         5/5 (expanded negative-control framing from 3f3beb4 plus the
++                                 canonical ride-along block added this turn)
++no YAML record for any card:   PASS — training_records/ contains only
++                                 engel_e2_blackboard_parity.yaml (E2, cited)
++```
++
++Findings (recorded, not blocking; no card content was edited beyond the ride-alongs):
++
++- **F1 — A1 patch-content variance.** A1's own table lists Path/Cycle/Graph/Vertex,
++  Integer/Integers/Remainder/Residue/Congruent, Word/BinaryWord/Adjacent,
++  Coloring/Rotation/Rotate (15). A2's recap of "A1's 15" lists Graph/Vertex/Edge/Path/Cycle/
++  Degree, Integer/Remainder/ResidueClass/Congruent, Word/BinaryWord/Adjacent,
++  Coloring/Rotation (15). The two 15-label sets differ (Integers/Residue/Rotate vs
++  Edge/Degree/ResidueClass). Every card-listed constructor is covered by the union; INT's
++  landed patch is the resolver. Rows above cite the card's own inventory.
++- **F2 — card-local bundle parentheticals inaccurate.** divide-domino-strip,
++  invariance-seven-glasses, pigeonhole-decoy-domino-board and divide-decoy-even-ones say
++  "(A1 vocabulary)" while their constructors are in the A2 request (fully or partly);
++  pigeonhole-subset-sum's A2 part (PrefixSumLabel, SubsetLabel) is likewise A2. The bundle
++  column follows the A1/A2 request files, which are the authority.
++- **F3 — decoy card lists vs A2 table.** even-ones lists BitLabel/ParityOfOnesLabel (A2);
++  labeled-square lists ColorLabel (A2). Covered; noted so no future agent re-derives the
++  bundle from the card parenthetical alone.
+diff --git a/curriculum/tier0/cards/divide-binary-words.md b/curriculum/tier0/cards/divide-binary-words.md
+index 3a20428..7d765d9 100644
+--- a/curriculum/tier0/cards/divide-binary-words.md
++++ b/curriculum/tier0/cards/divide-binary-words.md
+@@ -5,12 +5,17 @@ Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. **Grou
+ state: RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** — `CountTargetUnsupported(Divide,
+ missing_obligation_generator)`; see ruling below.
+ 
+-> **Ground 3 ruling (ratifier, issued Turn 7):** `CountTargetUnsupported(Divide,
++> **Ground 3 ruling (ruling source below):** `CountTargetUnsupported(Divide,
+ > missing_obligation_generator)`. Ground 3 moves OPEN → RULED-UNSUPPORTED-PENDING-IMPLEMENTATION.
+ > The count target is **not** rebuildable until G-eng G1-completion lands the
+ > `DivideObligations(parts, combine, rank)` obligation generator. This card is blueprint-only until
+ > then; it awaits the named G-eng deliverable (G1-completion), not a re-litigation.
+ 
++> **Ground 3 ruling source:** evidence-based audit verdict from the three-inputs turn.
++> Re-derivable from tree inspection: Divide and Symmetry payloads exist, but no obligation
++> generators are registered; planner's method-expansion loop carries non-expanded methods
++> without children.
++
+ > **Pre-finding (this branch, 9ed1fe8):** the intended `Divide` method payload exists but no
+ > obligation generator is registered in planner.py. In the method-expansion loop
+ > (`[planner.py]: "Trainer-supplied Engel methods become alternatives..."`), only the
+diff --git a/curriculum/tier0/cards/symmetry-square-rotations.md b/curriculum/tier0/cards/symmetry-square-rotations.md
+index 3cc2a30..a1828d3 100644
+--- a/curriculum/tier0/cards/symmetry-square-rotations.md
++++ b/curriculum/tier0/cards/symmetry-square-rotations.md
+@@ -5,12 +5,17 @@ Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. **Grou
+ state: RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** — `CountTargetUnsupported(Symmetry,
+ missing_obligation_generator)`; see ruling below.
+ 
+-> **Ground 3 ruling (ratifier, issued Turn 7):** `CountTargetUnsupported(Symmetry,
++> **Ground 3 ruling (ruling source below):** `CountTargetUnsupported(Symmetry,
+ > missing_obligation_generator)`. Ground 3 moves OPEN → RULED-UNSUPPORTED-PENDING-IMPLEMENTATION.
+ > The count target is **not** rebuildable until G-eng G1-completion lands the
+ > `SymmetryObligations(transformation, domain)` obligation generator. This card is blueprint-only until
+ > then; it awaits the named G-eng deliverable (G1-completion), not a re-litigation.
+ 
++> **Ground 3 ruling source:** evidence-based audit verdict from the three-inputs turn.
++> Re-derivable from tree inspection: Divide and Symmetry payloads exist, but no obligation
++> generators are registered; planner's method-expansion loop carries non-expanded methods
++> without children.
++
+ > **Pre-finding (this branch, 9ed1fe8):** the intended `Symmetry` method payload exists but no
+ > obligation generator is registered in planner.py. In the method-expansion loop
+ > (`[planner.py]: "Trainer-supplied Engel methods become alternatives..."`), only the
+diff --git a/curriculum/tier0/decoys/divide-decoy-even-ones.md b/curriculum/tier0/decoys/divide-decoy-even-ones.md
+index 7181007..73c7104 100644
+--- a/curriculum/tier0/decoys/divide-decoy-even-ones.md
++++ b/curriculum/tier0/decoys/divide-decoy-even-ones.md
+@@ -62,6 +62,14 @@ the POLICY, not the method payload. A session run against this decoy before S la
+ measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+ until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" computes a recurrence and gives the count but does not prove the parity balance;
+diff --git a/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md b/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md
+index e1f2f79..4e3013b 100644
+--- a/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md
++++ b/curriculum/tier0/decoys/extremal-decoy-equal-degrees.md
+@@ -61,6 +61,14 @@ the POLICY, not the method payload. A session run against this decoy before S la
+ measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+ until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" picks the vertex of maximum degree and asserts the result follows "by extremality"
+diff --git a/curriculum/tier0/decoys/invariance-decoy-parliament.md b/curriculum/tier0/decoys/invariance-decoy-parliament.md
+index 0ad4996..3ca3b1f 100644
+--- a/curriculum/tier0/decoys/invariance-decoy-parliament.md
++++ b/curriculum/tier0/decoys/invariance-decoy-parliament.md
+@@ -72,6 +72,14 @@ grades the POLICY, not the method payload. A session run against this decoy befo
+ machinery measures nothing — there is no policy to fire. Do not record a "the policy did not fire"
+ as evidence until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" would **assert a conserved quantity** (e.g. "the number of enemy pairs is
+diff --git a/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md b/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md
+index bb73cd2..25e036b 100644
+--- a/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md
++++ b/curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md
+@@ -63,6 +63,14 @@ grades the POLICY, not the method payload. A session run against this decoy befo
+ machinery measures nothing — there is no policy to fire. Do not record a "the policy did not fire"
+ as evidence until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" argues "62 squares / 2 per domino = 31, so it's tileable" — a pure count that
+diff --git a/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md b/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md
+index ee9124b..51bccd9 100644
+--- a/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md
++++ b/curriculum/tier0/decoys/symmetry-decoy-labeled-square.md
+@@ -59,6 +59,14 @@ the POLICY, not the method payload. A session run against this decoy before S la
+ measures nothing — there is no policy to fire. Do not record a "the policy did not fire" as evidence
+ until the policy machinery is landed.
+ 
++Canonical form (ride-along, 2026-09-08):
++
++governance:
++  This decoy is inert until a LearnedMethodPolicy exists for its target
++  method. It grades the policy, not the method payload. A session run
++  before S lands policy machinery does not count as a G4 result.
++
++
+ ## unsound-derivation risk
+ 
+ A wrong "solve" applies Burnside `(m^4 + m^2 + 2m)/4` to a **labeled** square — quotienting by a
+diff --git a/curriculum/tier1/CONVERSION-READINESS.md b/curriculum/tier1/CONVERSION-READINESS.md
+new file mode 100644
+index 0000000..d5740f9
+--- /dev/null
++++ b/curriculum/tier1/CONVERSION-READINESS.md
+@@ -0,0 +1,71 @@
++# Tier1 (Pool A) conversion readiness — 2026-09-08
++
++One row per authored Tier1 card. Base: `fb7a9b3` (`arena/01a068c2-cat-theo-machine`).
++
++**Source state (fable 5.1 correction, protocol/I.md Turn 8):** all ten statements recorded on
++these cards are **agent-authored and unsourced** — they are NOT the operator-supplied Tier1
++set. They reverted to blueprint-with-unsourced-statement and are **not convertible** until an
++operator supplies this exact text. The operator's actual supplied set (necklace over Cₙ,
++adjacent-swap inversions, equal friend counts, hexagon rhombus tiling, tetromino board, 2×n
++dominoes, no-consecutive subsets, spanning-tree leaf, unit-square points, Erdős–Szekeres) is
++listed in protocol/I.md Turn 8 with verbatim text and method/target-class still pending;
++**no cards exist for that set yet** — when authored, they get their own rows here.
++
++The constructor bundles below are therefore **provisional** (per the source-correction banner
++in `protocol/[SHARED]-A2-CONSTRUCTORS.md`): they state what the unsourced blueprint would
++need, not a commitment to convert it.
++
++Standing gates (same as Tier0): wave-tag gate (no conversion before an `ef571b6`-descended
++tag exists — none does); constructor gate (A1/A2 = the [SHARED] requests, INT delivers);
++join rule (load + compile + genuine partial match; zero partial matches leaves the record
++blocked).
++
++## Rows
++
++| card path | pool | method | target class | statement source | constructor bundle | specific missing constructors | method generator required | Ground 1 | Ground 2 | Ground 3 | conversion status | first conversion action after tag |
++|---|---|---|---|---|---|---|---|---|---|---|---|---|
++| cards/t1-inv-1-board-ab-erase.md | Tier1-PoolA | Invariance | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A2 | BoardLabel, NumberLabel, EraseLabel, MoveLabel | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | operator supplies verbatim text for this exact statement; otherwise the card retires when the actual supplied set's cards are authored |
++| cards/t1-inv-2-dragon-heads.md | Tier1-PoolA | Invariance | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A2 | HeadCountLabel, DragonLabel, CutLabel, GrowLabel, MoveLabel | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same — operator verbatim text or retirement with the actual set |
++| cards/t1-ext-1-no-midpoint.md | Tier1-PoolA | Extremal | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A2 | PointLabel, PlaneLabel, DistanceLabel, MidpointLabel, ConvexHullLabel | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-ext-2-tournament-king.md | Tier1-PoolA | Extremal | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | TournamentLabel, OutdegreeLabel, ReachableLabel, DirectedEdgeLabel (A2); VertexLabel, EdgeLabel (A1) | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-pig-1-sum-diff-div100.md | Tier1-PoolA | Pigeonhole | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1 | IntegerLabel, IntegersLabel, RemainderLabel, ResidueLabel, ResidueClassLabel (A1); KnowledgeLabel listed on the card but EXISTS in-tree (F4) | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-pig-2-coprime-from-1-100.md | Tier1-PoolA | Pigeonhole | proof | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | IntegerLabel, IntegersLabel (A1); CoprimeLabel, GCFLabel, PairLabel (A2) | no | OPEN | NOT CLEARED (unsourced) | n/a (proof) | WAIT-STATEMENT | same |
++| cards/t1-div-1-staircase-fibonacci.md | Tier1-PoolA | Divide | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | StepLabel, StairLabel, StaircaseLabel, SeqLabel, MoveLabel (A2); PathLabel (A1) | YES — DivideObligations(parts, combine, rank) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR until G-eng G1-completion lands the count generator — both gates, in that order |
++| cards/t1-div-2-ternary-nocc00.md | Tier1-PoolA | Divide | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | TernaryLabel, ZeroLabel, OneLabel, TwoLabel, StringLabel (A2); WordLabel (A1) | YES — DivideObligations(parts, combine, rank) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR — both gates, in that order |
++| cards/t1-sym-1-necklace-c5.md | Tier1-PoolA | Symmetry | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | NecklaceLabel, BeadLabel, ColorLabel, CycleGroupLabel, OrbitLabel (A2); RotationLabel (A1); GroupDeclaredLabel listed on the card is an obligation-skeleton term — generator content per the A2 scope note, not vocabulary (F5) | YES — SymmetryObligations(transformation, domain) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR — both gates, in that order |
++| cards/t1-sym-2-cube-face-burnside.md | Tier1-PoolA | Symmetry | count | protocol/I.md Turn 8 (agent-authored, UNSOURCED) | A1+A2 | CubeLabel, FaceLabel, ColorLabel, CycleGroupLabel, OrbitLabel (A2); RotationLabel (A1) | YES — SymmetryObligations(transformation, domain) | OPEN | NOT CLEARED (unsourced) | RULED-UNSUPPORTED-PENDING-IMPLEMENTATION | WAIT-STATEMENT | operator verbatim text first; then also WAIT-GENERATOR — both gates, in that order |
++
++Status counts (10 rows): WAIT-STATEMENT 10 (of which 4 are additionally generator-gated once
++sourced: t1-div-1, t1-div-2, t1-sym-1, t1-sym-2); READY-* 0; WAIT-POLICY 0; WAIT-WAVE-TAG 0.
++
++No row is convertible on constructors alone: the source gate precedes everything. When the
++operator's actual supplied set is authored as cards, this table gains those rows and the
++unsourced rows retire to traceability-only.
++
++## Static checks (non-runtime, run 2026-09-08 at fb7a9b3)
++
++```text
++card file exists:              10/10
++statement source exists:       10/10 (protocol/I.md Turn 8 section, marked unsourced —
++                                 the source EXISTS as a record but does not SATISFY the
++                                 Pool A source rule)
++missing constructors covered:  PASS with findings F4-F5 (below) — every constructor listed
++                                 as missing is in A1, in A2, or in-tree; two listed names
++                                 are misfiled on the cards
++count cards name Ground 3:     4/4 (t1-div-1, t1-div-2, t1-sym-1, t1-sym-2)
++decoy governance line:         n/a — no decoys in Tier1
++no YAML record for any card:   PASS — training_records/ contains only
++                                 engel_e2_blackboard_parity.yaml (Tier0 E2, cited)
++```
++
++Findings:
++
++- **F4 — t1-pig-1 lists KnowledgeLabel as missing; it exists in-tree** (labels.py; also
++  cited as tree-found on the even-ones decoy). Covered by "existing"; the card's missing
++  line over-lists.
++- **F5 — t1-sym-1 lists GroupDeclaredLabel as a missing constructor; it is an
++  obligation-skeleton term** (emitted by SymmetryObligations per the Ground-3 fixed
++  skeleton), which the A2 request explicitly excludes from vocabulary scope. Reclassified
++  under method-generator-required in the row above; not a constructor gap.
++- Bundles are provisional per the A2 source-correction banner; if the operator's actual
++  supplied set needs different vocabulary, A2 is amended first and these rows follow.
+diff --git a/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md b/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md
+index ec5c829..fc7cebe 100644
+--- a/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md
++++ b/curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md
+@@ -42,7 +42,14 @@ a(n) = F(n+1). a(3)=3, a(4)=5, a(5)=8, a(6)=13, a(7)=21, a(8)=34, a(9)=55. VERIF
+ `StepLabel`, `StairLabel`, `StaircaseLabel`, `PathLabel`, `SeqLabel`, `MoveLabel`. (A2 vocabulary. No
+ claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Divide, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`DivideObligations(parts, combine, rank)`**.
+diff --git a/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md b/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md
+index 703ea06..e3fad6f 100644
+--- a/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md
++++ b/curriculum/tier1/cards/t1-div-2-ternary-nocc00.md
+@@ -43,7 +43,14 @@ a(2) = 8. a(3) = 2·8 + 2·3 = 16 + 6 = **22**. Sequence 3, 8, 22, 60, 164, 448.
+ `WordLabel`, `TernaryLabel`, `ZeroLabel`, `OneLabel`, `TwoLabel`, `StringLabel`. (A2 vocabulary. No
+ claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Divide, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`DivideObligations(parts, combine, rank)`**.
+diff --git a/curriculum/tier1/cards/t1-sym-1-necklace-c5.md b/curriculum/tier1/cards/t1-sym-1-necklace-c5.md
+index 61a53df..659426d 100644
+--- a/curriculum/tier1/cards/t1-sym-1-necklace-c5.md
++++ b/curriculum/tier1/cards/t1-sym-1-necklace-c5.md
+@@ -43,7 +43,14 @@ reflections): the identity fixes m^5 colorings; each of the four nontrivial 5-cy
+ `NecklaceLabel`, `BeadLabel`, `RotationLabel`, `ColorLabel`, `CycleGroupLabel`,
+ `GroupDeclaredLabel`, `OrbitLabel`. (A2 vocabulary. No claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Symmetry, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`SymmetryObligations(transformation, domain)`**.
+diff --git a/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md b/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md
+index 43e4cf6..61aa771 100644
+--- a/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md
++++ b/curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md
+@@ -50,7 +50,14 @@ m=2→10, m=3→57, m=4→240).
+ `CubeLabel`, `FaceLabel`, `RotationLabel`, `ColorLabel`, `CycleGroupLabel`, `OrbitLabel`. (A2
+ vocabulary. No claim exist.)
+ 
+-## Ground 3 ruling (ratifier issued)
++## Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ `CountTargetUnsupported(Symmetry, missing_obligation_generator)`. This card is **blueprint-only** until
+ G1-completion lands **`SymmetryObligations(transformation, domain)`**.
+diff --git a/protocol/G.md b/protocol/G.md
+index eb083fb..b8fe7d6 100644
+--- a/protocol/G.md
++++ b/protocol/G.md
+@@ -354,7 +354,14 @@ I2 is the last unstarted G/I-op card family. Once the Tier1 statements arrive, a
+ 
+ ## Turn 8 (2026-09-08) — Tier1 practice pool (10 statements) + cards + A2 request + Ground 3 ruling
+ 
+-### Ground 3 ruling (ratifier, issued this turn)
++### Ground 3 ruling — ruling source (provenance)
++
++
++Ground 3 ruling source:
++  evidence-based audit verdict from the three-inputs turn.
++  Re-derivable from tree inspection: Divide and Symmetry payloads exist,
++  but no obligation generators are registered; planner's method-expansion
++  loop carries non-expanded methods without children.
+ 
+ ```
+ CountTargetUnsupported(Divide,   missing_obligation_generator)
+@@ -508,6 +515,25 @@ Python run dirties the working tree with bytecode deltas, which repeatedly tempt
+ (see D19). Recommended INT action: untrack `*.pyc` and add a `.gitignore` entry in one hygiene commit.
+ Affects every lane that runs Python; not a semantic change.
+ 
++### D-PYC ledger entry (ride-along, 2026-09-08)
++
++```text
++D-PYC:
++  finding: tracked compiled Python artifacts exist in HEAD.
++  hazard: cache cleanup or broad restore can revert unrelated in-flight edits;
++          Python-version churn can affect diffs.
++  route: INT hygiene batch.
++  proposed fix: remove tracked compiled artifacts from the index and add
++                __pycache__/ and *.pyc to ignore rules.
++  interim rule: restore specific paths only; do not use broad checkout/reset
++                while uncommitted edits exist.
++```
++
++Cross-reference: D19 above records the observed instance (a blanket restore reverting every
++tracked edit); the [SHARED] tracked-bytecode note above carries the route. D-PYC is the
++consolidated defect entry for the INT hygiene batch. Not executed here — removal is INT's task.
++
++
+ ### Decoy governance lines — confirmation
+ 
+ The **open item** (decoy governance lines) is **CLOSED**: all 5 G4 decoy cards
+-- 
+2.39.5
+

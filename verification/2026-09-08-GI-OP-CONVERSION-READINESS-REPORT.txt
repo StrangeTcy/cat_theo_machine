@@ -1,0 +1,126 @@
+G/I-op conversion facilitation — execution record — 2026-09-08
+
+BRANCH DEVIATION FLAG (per the ratified branch-pinning ruling):
+  The facilitation instruction targets the G/I-op branch
+  arena/01a068c2-cat-theo-machine. This session is pinned to
+  arena/01a06923-cat-theo-machine and may not push to any other branch.
+  The work was therefore EXECUTED IN FULL against the instructed base
+  (fb7a9b3, recorded before work) in an isolated single-branch clone,
+  as one docs-only commit:
+      08ee5db  [G/I-op] conversion readiness for authored cards
+      (parent fb7a9b3; 14 files, +260/-7; subject exactly as instructed)
+  It is NOT pushed to arena/01a068c2. The durable portable form is the
+  accompanying patch artifact:
+      verification/2026-09-08-gi-op-conversion-readiness.patch
+  (git am on arena/01a068c2 @ fb7a9b3 reproduces the commit exactly;
+  the temp clone carrying 08ee5db is discarded with this sandbox).
+
+--------------------------------------------------------------------
+report (instructed format)
+
+agent: G/I-op (executed by the INT-AUDIT compose-support lane, deviation
+       flagged above)
+branch: arena/01a068c2 @ 08ee5db (prepared; see deviation)
+remote tip before: fb7a9b3   after: fb7a9b3 (unchanged — not pushed;
+                   deviation flag above; session branch after: see below)
+ride-alongs:
+  decoy governance: 5/5 — all five G4 decoys already carried the expanded
+    negative-control framing (landed 3f3beb4); the canonical block from
+    the instruction was ADDED verbatim to each card ("inert until a
+    LearnedMethodPolicy exists for its target method. It grades the
+    policy, not the method payload. A session run before S lands policy
+    machinery does not count as a G4 result.")
+  D-PYC ledger: yes — added to protocol/G.md, cross-referencing D19 and
+    the existing [SHARED] tracked-bytecode hygiene route (89 tracked
+    __pycache__/*.pyc at this tip); removal NOT executed — INT's task.
+  Ground-3 provenance: yes — "ratifier issued" wording replaced at all
+    7 recorded sites (protocol/G.md heading + 2 Tier0 count cards + 4
+    Tier1 count cards) with the instructed source block (evidence-based
+    audit verdict from the three-inputs turn; re-derivable from tree
+    inspection: Divide and Symmetry payloads exist, no obligation
+    generators registered, planner's method-expansion loop carries
+    non-expanded methods without children). The substantive ruling text
+    (CountTargetUnsupported, fixed skeleton shapes) is unchanged.
+readiness:
+  tier0 rows: 15 (E2 existing/cited + 4 cards + 5 G4 decoys + 5 G5 heldout)
+  tier1 rows: 10 (all Pool A blueprint cards)
+  statuses: READY-AFTER-A1 3, READY-AFTER-A2 1, READY-AFTER-A1-A2 1,
+            WAIT-GENERATOR 4, WAIT-POLICY 5, WAIT-STATEMENT 10,
+            WAIT-WAVE-TAG 0, existing/cited 1 (E2, outside the status
+            vocabulary per its rule). Tier1's 10 WAIT-STATEMENT rows
+            include 4 that are additionally generator-gated once sourced
+            (t1-div-1, t1-div-2, t1-sym-1, t1-sym-2).
+static checks: PASS with recorded findings — results written INTO both
+  readiness files (as instructed). Checks: card files 15/15 + 10/10;
+  statement sources exist (Tier0: protocol/I.md Turn 3 operator verbatim
+  + card-local operator sets; Tier1: protocol/I.md Turn 8, marked
+  UNSOURCED — exists but does not satisfy the Pool A source rule);
+  missing constructors covered by A1/A2/in-tree with findings F1-F5
+  (A1-table vs A2-recap variance; inaccurate card-local "(A1 vocabulary)"
+  parentheticals; KnowledgeLabel over-listed on t1-pig-1 (exists
+  in-tree); GroupDeclaredLabel on t1-sym-1 is an obligation-skeleton
+  term per the A2 scope note, reclassified as generator content);
+  count cards name Ground 3: 8/8; decoy governance: 5/5; no YAML record
+  for any card (training_records/ = engel_e2_blackboard_parity.yaml only,
+  E2, cited).
+  artifact paths: curriculum/tier0/CONVERSION-READINESS.md,
+  curriculum/tier1/CONVERSION-READINESS.md (both in the patch artifact
+  and in commit 08ee5db).
+loadable records authored: 0
+sessions run: 0
+machine code changed: no (docs-only: 12 .md modified + 2 .md created; no
+  .py, no .yaml, no packs, no labels.py/testsuite.py/planner.py changes)
+hygiene: phrase scan on ADDED lines of every changed file and on the
+  commit subject: 0 matches. Pre-existing occurrences in changed files,
+  verified identical at HEAD and untouched by this commit: the joined
+  "decoy-listing" phrasing on the five decoy statement-source lines (the
+  operator's own wording); one banned-vocabulary token inside quotes in
+  explanatory prose at protocol/G.md:21.
+blocked on: INT A1/A2 constructor patch + ef571b6-descended tag;
+            G-eng Divide/Symmetry generators; S learned-policy machinery
+            for decoys; operator verbatim text for the Tier1 set
+next conversion: first READY row after constructor patch lands —
+  extremal-longest-path + pigeonhole-residue-classes (READY-AFTER-A1,
+  join rule step 3: load + goal compiles + genuine partial match)
+
+--------------------------------------------------------------------
+§0 state verification (run before work, at fb7a9b3)
+
+Ground 1 (A1/A2 constructors): STILL OPEN — every requested constructor
+  verified ABSENT from labels.py at fb7a9b3 (grep; the WordLabel probe
+  matched only inside ReasonUnknownWordLabel). No change.
+Ground 2 (statements): persisted — the Tier0 operator-verbatim texts are
+  in protocol/I.md Turn 3; decoy/heldout statements are card-local
+  operator-verbatim; the Tier1 set is recorded as agent-authored
+  UNSOURCED (fable 5.1) with the operator's actual set listed, verbatim
+  pending.
+Ground 3 (count-target): RULED-UNSUPPORTED-PENDING-IMPLEMENTATION —
+  unchanged; ruling present on all 8 count cards + protocol/G.md;
+  provenance wording corrected this turn (ride-along C).
+No wave-1 tag: tag set unchanged at 15 (no new tag since watch cycle 4).
+  ef571b6-ancestry scan over all 15 tags: exactly one ef571b6-descended
+  tag exists — experiment-5-frozen-r1 (peeled 5ebcd920), a historical
+  frozen-experiment tag that predates the launch programme, not a new
+  wave-1 tag. No NEW ef571b6-descended tag exists; the wave-tag gate
+  stays closed. (ef571b6 full SHA for future scans:
+  ef571b688bcfb581bd3e65ec28a18f438ca32595.)
+Reconciliation: the shared local checkout carries foreign later-session
+  state and was not touched; all work happened in the isolated clone
+  (inventory-first rule respected; nothing unique was at risk).
+
+--------------------------------------------------------------------
+watch fold-in (cycle 5, same working day)
+
+authoritative INT ref arena/01a06542-cat-theo-machine: a3aeff4 —
+  unchanged since watch cycle 4 (verification/
+  2026-09-08-AUTHORITATIVE-LAUNCH-WATCH-3.txt). Amendment still not
+  landed; compose 74bb3e7 still unmerged; no pre-launch tag; no
+  authorized preflight.
+G/I-op branch arena/01a068c2: fb7a9b3 (moved from b1e9675 since the
+  last enumeration; fable 5.1 corrections were its own work, prior to
+  and independent of this facilitation instruction).
+tags: 15, unchanged. No watch trigger fired during this turn beyond the
+  01a068c2 movement recorded above.
+
+session branch push (this artifact + the patch):
+  arena/01a06923-cat-theo-machine — remote = HEAD verified after push.
