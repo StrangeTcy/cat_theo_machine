@@ -324,3 +324,13 @@ CORRECTION (orchestrator, 2026-09-07): two routing lines amended.
    decode boundary) plus fixture/heuristic alignment; fill-warms stays
    red there. That is candidate evidence only until merged, suite-gated,
    and tagged on the authoritative ef571b6 line.
+
+   Remote-reachability correction (re-fetch this turn): the cited chain
+   327a263 -> 120e316 -> 3b60602 -> bb9fdb7 is fully reachable from
+   pushed ref origin/arena/01a05d5d-cat-theo-machine (tip 3c4382b), so
+   the earlier "not on any remote ref" flag dissolves — it was a local
+   fetch-state artifact, not a remote condition. The chain is durable on
+   a pushed ref (still the divergent line). It also carries 3b60602, the
+   Layer-D lane's own one-page ruling request to INT on the shared-root
+   fast-path lane (parked fill_warms locus), recommendation C with A
+   interim.

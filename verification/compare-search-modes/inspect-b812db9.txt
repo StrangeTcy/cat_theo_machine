@@ -145,8 +145,24 @@ Cross-lineage repair evidence:
   41e8078 (the divergent Layer-D line, NOT ef571b6), touches
   search/compare_subprocess.py (+25, the Compare-not-TermEqual decode
   boundary) and testsuite.py (+6, fixture/heuristic alignment), and adds
-  tools/agent_workers/driver.py + focused_repro.py. It is not present on
-  any current remote ref.
+  tools/agent_workers/driver.py + focused_repro.py.
+
+  Remote-reachability correction (2026-09-07, re-fetch): the full cited
+  chain — 327a263, 120e316, 3b60602, bb9fdb7 — IS reachable from the
+  pushed remote ref origin/arena/01a05d5d-cat-theo-machine (tip
+  3c4382b, "Layer D milestone 2 verification items"). Each is an ancestor
+  of that tip. The earlier "not on any current remote ref" line was a
+  local fetch-state artifact after a sandbox reset, not a remote
+  condition; it is withdrawn. No dangling pointer. The chain also
+  includes 3b60602, a one-page ruling request to INT on the shared-root
+  fast-path lane (the parked fill_warms locus), recommendation C with A
+  interim — the fill_warms parking ruling is thus already routed to INT
+  by the Layer-D lane itself.
+
+  The preservation flag is therefore dissolved: the candidate repair
+  evidence is durably reachable on a pushed ref, though still on the
+  divergent 41e8078 line, so its classification (candidate evidence
+  only) is unchanged.
 
 The fill-warms failure remains unchanged:
   worker spawning succeeds;
