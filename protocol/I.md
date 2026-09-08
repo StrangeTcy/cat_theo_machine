@@ -174,6 +174,40 @@ pigeonhole-subset-sum, invariance-seven-glasses) are gated only on Ground 1.
 Ten Tier1 statements supplied by the operator, **all re-verified** (curation: computed the math, not
 blind-recorded). All are **Pool A** (curriculum, never held out); none are exam / Pool B.
 
+### Statement text (verbatim, as supplied)
+
+```text
+T1-INV-1: The integers 1 through 10 are written on a board. A move erases two numbers a, b and writes
+          |a - b|. Prove the last remaining number is odd.
+
+T1-INV-2: A dragon has 100 heads. A knight may cut off 15, 17, 20 or 5 heads, after which 24, 2, 14 or
+          17 heads respectively grow back. The dragon dies only if all heads are cut. Prove it cannot die.
+
+T1-EXT-1: A finite set of at least two points in the plane cannot have the property that every point is
+          the midpoint of two other points of the set.
+
+T1-EXT-2: In a finite tournament, prove there is a vertex from which every other vertex is reachable by
+          a path of at most two edges.
+
+T1-PIG-1: Among any 52 integers there exist two whose sum or difference is divisible by 100.
+
+T1-PIG-2: Among any 51 numbers chosen from {1, 2, ..., 100} there are two that are coprime.
+
+T1-DIV-1: A staircase has n steps. A person can climb 1 or 2 steps at a time. In how many ways can the
+          staircase be climbed to the top? (Count the sequences of 1/2-steps that sum to n.)
+
+T1-DIV-2: Let a(n) be the number of ternary strings of length n with no two consecutive zeros.
+          Determine a(3).
+
+T1-SYM-1: A necklace has 5 beads, each to be colored one of m colors. Two colorings are the same if one
+          is a rotation of the other (rotations of the 5-bead necklace are considered equivalent).
+          How many distinct necklaces are there?
+
+T1-SYM-2: A cube's six faces are to be colored, each face one of m colors. Two colorings are the same if
+          one is obtained from the other by a rotation of the cube (the 24-element rotation group).
+          How many distinct colorings are there?
+```
+
 ### Grouping by method
 
 ```text
