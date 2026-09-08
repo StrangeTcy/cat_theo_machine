@@ -4,10 +4,12 @@ Agent: G/I-op (Agent 3, parallel-unblock lane). **Status: blueprint-only, not tr
 Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. Ground 3 (count-target) state: PENDING G-COUNT-AUDIT — this card's count target is gated on Ground 3.
 
 > **Pre-finding (this branch, 9ed1fe8):** the intended `Divide` method payload exists but no
-> obligation generator is registered in planner.py (no `DivideObligations`/`DivideConclusion`).
-> Planner line 1212-1214: "Only Pigeonhole and Extremal are expanded so far; other method terms are
-> carried but generate no children." G-COUNT-AUDIT must either confirm this or find the generator; a
-> "supported" verdict requires the generator to emit a count-obligation shape, not just to exist.
+> obligation generator is registered in planner.py. In `planner.py`, method-expansion loop
+> ("Trainer-supplied Engel methods become alternatives..."), only the `PigeonholeLabel` and
+> `ExtremalLabel` branches follow — `Divide` is carried but generates no obligation children
+> (verified at the current tip, comment at planner.py ~1211–1214). G-COUNT-AUDIT must either confirm
+> this or find the generator; a "supported" verdict requires the generator to emit a
+> count-obligation shape, not just to exist.
 
 ---
 

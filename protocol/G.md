@@ -250,6 +250,75 @@ method certificate preserved. Zero partial matches leaves that record blocked (n
 
 ---
 
+## Turn 6 (2026-09-08) — G4 decoys + G5 held-out cards + E2 readiness diagnostic
+
+The queue was NOT exhausted (a gate on conversion is not a gate on authoring). G4, G5, and I2 are
+charter G/I-op work. This turn: 10 blueprint cards + the E2 readiness diagnostic (diagnostic on an
+untagged tip, not a measurement).
+
+### G4 negative-control decoy cards (curriculum/tier0/decoys/)
+
+```text
+invariance-decoy-parliament.md        (Invariance decoy — correct method is Descent/Extremal)
+extremal-decoy-equal-degrees.md       (Extremal decoy — correct method is Pigeonhole)
+pigeonhole-decoy-domino-board.md      (Pigeonhole decoy — correct method is Invariance/coloring)
+divide-decoy-even-ones.md             (Divide decoy — correct method is direct bijection, 2^(n-1))
+symmetry-decoy-labeled-square.md      (Symmetry decoy — correct answer is trivial m^4, no quotient)
+```
+
+Each decoy card carries `expected policy behavior` (must not fire, or fire and fail rent) and
+`unsound-derivation risk` (what a wrong "solve" looks like).
+
+### G5 held-out second-example cards (curriculum/tier0/heldout/)
+
+```text
+extremal-min-degree-path.md           (Extremal held-out — path with k edges)
+pigeonhole-subset-sum.md              (Pigeonhole held-out — subset sum divisible by n)
+divide-domino-strip.md                (Divide held-out — 2×n domino tilings, F(n+1), count-target)
+symmetry-triangle-rotations.md        (Symmetry held-out — C3 triangle, (m^3+2m)/3, count-target)
+invariance-seven-glasses.md           (Invariance held-out — seven glasses, parity invariant)
+```
+
+The four count-target held-outs (divide-domino-strip, symmetry-triangle-rotations) inherit
+**Ground 3 + the pre-finding** (no Divide/Symmetry obligation generator). The two Tier0 proof-target
+cards (extremal, pigeonhole) are the same method as their count counterparts; the two count-target
+Tier0 cards are the same method as their proof counterparts but gated on Ground 3.
+
+### E2 readiness diagnostic (verification/2026-09-08-E2-readiness-diagnostic.txt)
+
+Run against the integration tip `a3aeff4` (untagged — diagnostic, NOT a measurement):
+- strategy_hint.method = **Invariance** (G2-compliant, confirmed via TrainingRecordStrategyHint);
+- obligation skeleton = 4 entries (initial, preserves, invariant, conclusion) — Invariance shape;
+- record loads via the real loader (records=1);
+- selection = **PARTIAL**, method_text = none, planner root Failed, retained False;
+- failure_reason: obligation [invariant] `Invariant(BlackboardProblem, Parity(BoardSum,Odd))` is NOT
+  discharged — not derivable from the meaning structure (D11-content-pending signature);
+- E2 partial matches: **0** (D11-content-pending) at `a3aeff4` (diagnostic, not measurement).
+
+### Anchor fix (ride-along)
+
+Replaced the numeric planner citation on the two count-target Tier0 cards (divide-binary-words,
+symmetry-square-rotations) with the semantic anchor: "method-expansion loop (Trainer-supplied Engel
+methods...), only PigeonholeLabel and ExtremalLabel branches follow." Note the comment is verified at
+planner.py ~1211–1214 at the current tip (not 1155–1158).
+
+### Missing constructors (deduplicated, across all cards)
+
+```text
+graph path/cycle vocabulary: PathLabel, CycleLabel, GraphLabel, VertexLabel, EdgeLabel, DegreeLabel
+integer/residue:             IntegerLabel, IntegersLabel, RemainderLabel, ResidueLabel, CongruentLabel,
+                             PrefixSumLabel, SubsetLabel
+word/adjacency:              WordLabel, BinaryWordLabel, AdjacentLabel, BitLabel
+coloring/rotation:           ColoringLabel, RotationLabel, ColorLabel, ColoringLabel
+board/domino/glass:          BoardLabel, CellLabel, SquareLabel, DominoLabel, TileLabel, GridLabel,
+                             TilingLabel, StripLabel, GlassLabel, UprightLabel, FlipLabel, MoveLabel
+partition/house/enemy:       PartitionLabel, HouseLabel, SameHouseLabel, EnemyLabel
+```
+All filed to `protocol/[SHARED]-A1-CONSTRUCTORS.md` (graph / integer / word / coloring rows) or the
+A1 extended rows. No claim these exist in the tree.
+
+---
+
 End-of-turn block:
 
 ```text

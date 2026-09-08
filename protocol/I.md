@@ -146,6 +146,27 @@ Ground 2 (statements):   CLEARED
 Ground 3 (count-target): OPEN/PENDING — G-COUNT-AUDIT (Divide + Symmetry cards only)
 ```
 
+---
+
+## Turn 6 (2026-09-08) — G4 decoys + G5 held-out: pool assignment
+
+All ten cards written this turn are **Pool A** (curriculum, never held out); **none are Pool B /
+exam**. Pool B (the sealed exam) remains untouched.
+
+```text
+Pool A G4 decoys (5):  invariance-decoy-parliament, extremal-decoy-equal-degrees,
+                       pigeonhole-decoy-domino-board, divide-decoy-even-ones,
+                       symmetry-decoy-labeled-square
+Pool A G5 held-out (5): extremal-min-degree-path, pigeonhole-subset-sum,
+                       divide-domino-strip, symmetry-triangle-rotations,
+                       invariance-seven-glasses
+exam (Pool B):          none — untouched
+```
+
+The four held-out cards that are **count-targets** (divide-domino-strip, symmetry-triangle-rotations)
+inherit Ground 3 + the pre-finding; the held-out proof-targets (extremal-min-degree-path,
+pigeonhole-subset-sum, invariance-seven-glasses) are gated only on Ground 1.
+
 ### Join / conversion rule (from the parallel-unblock plan)
 
 ```text

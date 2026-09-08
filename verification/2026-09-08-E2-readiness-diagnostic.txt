@@ -1,0 +1,64 @@
+E2 readiness diagnostic (NOT a measurement — untagged integration tip a3aeff4)
+Date: 2026-09-08
+Agent: G/I-op
+Mode: diagnostic on an untagged tip. No curriculum session. No Pool B. No code change.
+
+## 1. strategy_hint + obligation skeleton audit
+
+Strategy hint inspected via TrainingRecordStrategyHint accessor:
+  strategy_hint.method head = InvarianceLabel  -> strategy_hint.method = Invariance  (matches G2)
+  method = Invariance(observable, moveset) shape; observable = Parity(BoardSumObservable, ?p)
+  rules_pack = engel-blackboard
+  obligation_skeleton = 4 entries (initial, preserves, invariant, conclusion)
+
+Skeleton matches the Invariance payload shape (initial reading, preservation, invariant, conclusion).
+
+## 2. Load + compile + candidate selection (cold, library packs loaded)
+
+Command: attempt_training_record(runtime, packs, record, rules_pack) via boot_from_packs over PACK_PATHS
+  (order-sign, sqrt-real, algebra-distribute, sequence-order, real-closure, arithmetic,
+   geometry-ontology, trigonometry, geometry, engel-coins, engel-means, engel-blackboard,
+   number-theory).
+
+Result (decoded from runtime summary):
+  record_id: engel_e2_blackboard_parity
+  status_text: PARTIAL
+  method_text: none
+  planner_root_status: Failed
+  alternative_status: Failed
+  retained: False
+  failure_reason: obligation [invariant], (Invariant(BlackboardProblem, Parity(BoardSum, Odd)),
+    not discharged: Knowledge([Invariant(BlackboardProblem, Parity(BoardSumObservable))]),
+    not derivable from the meaning structure)
+
+Interpretation:
+  - The record LOADS through the real loader (records=1).
+  - The goal does NOT fully compile/close via selection: the 'invariant' obligation
+    (Invariant(BlackboardProblem, Parity(BoardSum,Odd))) is NOT discharged — it is not derivable
+    from the meaning structure by any library law.
+  - method_text = none: the Invariance strategy_hint did not yield a recognized, closable
+    planner alternative on this run (the invariant obligation it names is not closed by a
+    library rule).
+  - This is the D11-content-pending signature: the library rules do not yet reach the
+    invariant obligation (D11 open). Recorded as PartialMatchZero / obligation-gap pending
+    the D11 content port.
+
+## 3. Partial-match count
+
+The runtime summary exposes status_text=PARTIAL but not a numeric partial-match count directly;
+the failure_reason encodes the single decisive gap: the invariant obligation is not derivable.
+For the readiness check the datum is:  strategy_hint = Invariance (present, G2-correct);
+skeleton = present (4 entries, Invariance shape); selection = PARTIAL / not closed; the
+D11-content-pending gap is the reason.
+
+## Outcome
+
+  E2 strategy_hint: Invariance        -> G2-compliant
+  E2 obligation skeleton: present, 4 entries, Invariance shape
+  E2 load: OK (records=1)
+  E2 selection: PARTIAL, invariant obligation NOT discharged (not derivable from meaning structure)
+  E2 partial matches: 0 (D11-content-pending)  [diagnostic on untagged tip, not a measurement]
+
+This is a DIAGNOSTIC result on an untagged tip. It is not counted as a measurement; it meets the
+G2 hand-off shape check ("does the goal compile, does at least one existing rule partially match")
+for the one record that exists, and records the D11-content-pending gap rather than a pass/fail.
