@@ -153,14 +153,25 @@ reflection). If an operator later intends the dihedral count `(m^4 + 2m^3 + 3m^2
 ### Reset handling (recurring refspec reversion)
 
 A sandbox reset reverts `remote.origin.fetch` to the default single-branch refspec and drops fetched
-objects; that fetch leaves only `FETCH_HEAD` updated. Recovery ritual (same sub-mode F-tools recorded
-in its runbook):
+objects; that fetch leaves only `FETCH_HEAD` updated. **Single-branch refspec reversion is the
+surface; the deeper failure is losing uncommitted unique tree content.** Corrected ritual (per the
+F-tools lane's finding 3, ratified on that lane; supersedes any `--hard`-after-ancestry form):
+
+```text
+1. inventory the working tree BEFORE any reset (tracked / staged / untracked)
+2. if anything unique exists: stage it or copy it out first
+3. only then reset to the verified remote tip
+4. never --hard while the tree holds anything unpushed and unique
+```
+
+The bare `git reset --hard origin/...` form protects committed history but still destroys
+uncommitted working-tree content — which is exactly what exists after a sandbox reset. Apply the
+inventory-first form before any reset. Refspec re-establish step:
 
 ```text
 git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
 git fetch --all --tags
-# then reconcile: git reset --hard origin/arena/01a068c2-cat-theo-machine
-#   only after confirming HEAD is an ancestor (fast-forward) — never a force-push
+# then the corrected ritual (inventory -> preserve -> reset to verified remote tip)
 ```
 
 ---
