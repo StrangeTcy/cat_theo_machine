@@ -1,0 +1,81 @@
+Count-target generator rehearsal — Action 2 — 2026-09-08
+operator-sanctioned (D1 "all four actions", D2 "this lane, scratch
+  pattern"; see verification/2026-09-08-HOLD-BREAK-DECISIONS.txt)
+
+question this rehearsal answers: are the RECORDED Ground-3 fixed
+skeleton shapes (protocol/G.md ruling) actually generatable —
+emittable as machine terms, compilable as record goals, acceptable to
+the planner — or did the ruling specify something the machine cannot
+express? A failure here would revise the ruling from evidence.
+
+environment: base arena/01a068c2 @ fb7a9b3; shadow patch B (rehearsal
+  commit 0ce2bcd) registers the 9 obligation-shape labels the ruling
+  names that are absent in-tree (BaseCaseLabel exists):
+  PartitionExhaustive, PartitionDisjoint, PartCount, Recurrence,
+  ClosedForm, GroupDeclared, ActionWellDefined, FixedPointCount,
+  OrbitCountByAveraging. The generator LOGIC lives in the runner
+  script (scratch), not in any repo file; G-eng G1-completion owns the
+  real generators. Runner: verification/probes/2026-09-08-rehearsal-
+  action2-generators.py.
+
+NOTE on names: the emission names used are the RECORDED ones. The
+  hold-break proposal's CountEqualsObligation /
+  RecurrenceEvaluationObligation / GroupActionObligation appear
+  nowhere in the record (adjudication finding FC1) and were not used.
+
+--------------------------------------------------------------------
+results
+
+label resolution: 10/10 (9 shadow + in-tree BaseCaseLabel).
+
+Divide emission (binary words, no adjacent ones) — emitted order:
+  PartitionExhaustive, PartitionDisjoint, PartCount, PartCount
+  (one per part), Recurrence, BaseCase, ClosedForm — chain length 7.
+  MATCHES the recorded Divide skeleton order exactly.
+
+Symmetry emission (square vertex colorings under C4) — emitted order:
+  GroupDeclared, ActionWellDefined, FixedPointCount x4 (one per group
+  element: identity m^4, rot90 m, rot180 m^2, rot270 m),
+  OrbitCountByAveraging ((m^4+m^2+2m)/4), ClosedForm.
+  MATCHES the recorded Symmetry skeleton order exactly.
+
+loader compile: a count-target rehearsal record (divide-binary-words
+  shape) whose obligation goals reference the emission labels
+  (PartitionExhaustive, Recurrence, ClosedForm under KnowledgeLabel)
+  compiles via the real loader: accepted 1 record.
+
+planner acceptance: the emitted ClosedForm obligation as a goal is
+  accepted by the planner without crash when given a real rule chain
+  (the runtime's ordered library chain — the same substitution
+  runtime.prove performs for rules=None). Cross-ref R4:
+  PlannerProblem with rules=None crashes (planner.py:1157,
+  IdentityCompare over None); the attempt cycle hides this in its
+  try/except.
+
+discharge-in-principle: NOT TESTED, deliberately — discharging a count
+  obligation needs pack content (the G-eng G1-completion deliverable;
+  D11-content-pending). The rehearsal covers emittability, loader
+  compile, and planner acceptance only, which is what the ruling's
+  "generatable" claim asserts.
+
+--------------------------------------------------------------------
+verdict on the Ground-3 ruling
+
+The recorded fixed skeleton shapes ARE emittable as machine terms and
+compile as record goals; the planner accepts the emitted ClosedForm
+goal. No paper-analysis error was found on emittability — the ruling
+survives its rehearsal. The count cards' WAIT-GENERATOR status is
+unchanged and correctly aimed: what remains is the real generator
+implementation plus content (pack rules to discharge), exactly what
+G-eng G1-completion owns. The self-validation caveat stands (the
+ruling's author proposed this rehearsal; INT/G-eng adjudicate), and
+the rehearsal script is published for independent re-running.
+
+hygiene: patch B banned-phrase scan: 0 (all-lines and added-lines).
+Probe scan: 4 matches, ALL the codec's own YAML chained-args schema
+key inside the embedded count-record (lines 118, 136,
+144, 152) — required by the in-tree record format; no banned
+construct in probe code. No YAML lands in the repo; no machine code
+pushed; the generator logic exists only in the published probe.
+Watch refs unchanged through execution (INT a3aeff4, base fb7a9b3,
+tags 15).

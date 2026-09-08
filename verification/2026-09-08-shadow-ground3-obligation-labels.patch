@@ -1,0 +1,100 @@
+diff --git a/labels.py b/labels.py
+index d93ccd2..0132303 100644
+--- a/labels.py
++++ b/labels.py
+@@ -1746,6 +1746,41 @@ WitnessLabel = WitnessLabel()
+ DividesLabel = DividesLabel()
+ 
+ # [SHADOW-A1-REHEARSAL] instances (scratch)
++
++
++# [SHADOW-GROUND3-REHEARSAL] obligation-shape labels per the recorded
++# Ground-3 fixed skeletons (protocol/G.md): Divide emits PartitionExhaustive,
++# PartitionDisjoint, PartCount per part, Recurrence, BaseCase, ClosedForm;
++# Symmetry emits GroupDeclared, ActionWellDefined, FixedPointCount per g,
++# OrbitCountByAveraging, ClosedForm. BaseCaseLabel exists in-tree. G-eng
++# G1-completion owns the real generators; these labels only rehearse
++# emittability. NEVER LANDS.
++class PartitionExhaustiveLabel(ConstructorLabel):
++    pass
++
++class PartitionDisjointLabel(ConstructorLabel):
++    pass
++
++class PartCountLabel(ConstructorLabel):
++    pass
++
++class RecurrenceLabel(ConstructorLabel):
++    pass
++
++class ClosedFormLabel(ConstructorLabel):
++    pass
++
++class GroupDeclaredLabel(ConstructorLabel):
++    pass
++
++class ActionWellDefinedLabel(ConstructorLabel):
++    pass
++
++class FixedPointCountLabel(ConstructorLabel):
++    pass
++
++class OrbitCountByAveragingLabel(ConstructorLabel):
++    pass
+ GraphLabel = GraphLabel()
+ VertexLabel = VertexLabel()
+ EdgeLabel = EdgeLabel()
+@@ -1765,6 +1800,17 @@ ColoringLabel = ColoringLabel()
+ RotationLabel = RotationLabel()
+ RotateLabel = RotateLabel()
+ InductionLabel = InductionLabel()
++
++# [SHADOW-GROUND3-REHEARSAL] instances (scratch)
++PartitionExhaustiveLabel = PartitionExhaustiveLabel()
++PartitionDisjointLabel = PartitionDisjointLabel()
++PartCountLabel = PartCountLabel()
++RecurrenceLabel = RecurrenceLabel()
++ClosedFormLabel = ClosedFormLabel()
++GroupDeclaredLabel = GroupDeclaredLabel()
++ActionWellDefinedLabel = ActionWellDefinedLabel()
++FixedPointCountLabel = FixedPointCountLabel()
++OrbitCountByAveragingLabel = OrbitCountByAveragingLabel()
+ BaseCaseLabel = BaseCaseLabel()
+ StepCaseLabel = StepCaseLabel()
+ ModuloLabel = ModuloLabel()
+@@ -2319,6 +2365,15 @@ def sync_from_namespace(namespace):
+         "ColoringLabel",
+         "RotationLabel",
+         "RotateLabel",
++        "PartitionExhaustiveLabel",
++        "PartitionDisjointLabel",
++        "PartCountLabel",
++        "RecurrenceLabel",
++        "ClosedFormLabel",
++        "GroupDeclaredLabel",
++        "ActionWellDefinedLabel",
++        "FixedPointCountLabel",
++        "OrbitCountByAveragingLabel",
+         "BaseCaseLabel",
+         "StepCaseLabel",
+         "ModuloLabel",
+diff --git a/persistence.py b/persistence.py
+index e983a6a..b10df1a 100644
+--- a/persistence.py
++++ b/persistence.py
+@@ -382,6 +382,15 @@ SNAPSHOT_SYMBOL_NAMES = [
+     "ColoringLabel",
+     "RotationLabel",
+     "RotateLabel",
++    "PartitionExhaustiveLabel",
++    "PartitionDisjointLabel",
++    "PartCountLabel",
++    "RecurrenceLabel",
++    "ClosedFormLabel",
++    "GroupDeclaredLabel",
++    "ActionWellDefinedLabel",
++    "FixedPointCountLabel",
++    "OrbitCountByAveragingLabel",
+     "OddLabel",
+     "EvenLabel",
+     "FractionLabel",

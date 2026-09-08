@@ -1,0 +1,95 @@
+E2 conversion-path round-trip — Action 4 — 2026-09-08
+operator-sanctioned (D1 "all four actions", D2 "this lane, scratch
+  pattern"; see verification/2026-09-08-HOLD-BREAK-DECISIONS.txt)
+
+question this rehearsal answers: what does the ONE real loadable
+record (engel_e2_blackboard_parity) actually do through the full
+conversion path — loader, conclusion extraction, attempt cycle,
+per-obligation derivability, codec round-trip, card-shape fidelity —
+and does the recorded prediction (PartialMatchZero, D11-open) hold in
+the record-internal direction?
+
+environment: base arena/01a068c2 @ fb7a9b3 with the two rehearsal
+  patches applied (702023e, 0ce2bcd — the E2 labels themselves are
+  in-tree; the patches are inert for this action); runner
+  verification/probes/2026-09-08-rehearsal-action4-e2-roundtrip.py;
+  scratch only.
+
+--------------------------------------------------------------------
+results
+
+loader: accepted 1 record; rules_pack field "engel-blackboard".
+
+conclusion extraction (R2 confirmed on the real record):
+  extracted "conclusion" pretty: Knowledge([Parity((n * ((2 * n) +
+  1)), Odd)]) — this is the INITIAL obligation's goal, not the
+  conclusion entry's goal. Obligations: initial (goal), preserves
+  (text-only), invariant (goal), conclusion (goal). The attempt cycle
+  proves the initial fact.
+
+attempt cycle (with E2's own pack):
+  status SUCCESS; method text "invariance pipeline (strategy hint
+  Invariance)" — for E2 the method text happens to match the hint
+  (Invariance), unlike the Action 1 records; planner root status
+  Failed; alternative status Failed; retained True. Given R2, this
+  SUCCESS certifies the initial obligation, not the conclusion.
+
+per-obligation derivability (the operational "genuine partial match"):
+  initial    -> own-pack derivation: YES
+  preserves  -> no machine goal (text-only)
+  invariant  -> own-pack derivation: YES
+  conclusion -> own-pack derivation: YES
+  All three machine-goal obligations of the real E2 record ARE
+  derivable from its meaning structure via its own pack at the
+  rehearsal base.
+
+R5 — MEASUREMENT vs THE RECORDED PREDICTION (directions differ):
+  protocol/G.md:295-296 records "E2 partial matches: 0 (D11-content-
+  pending) at a3aeff4 (diagnostic, not measurement)". That diagnostic
+  concerns the RESEARCH-GOAL direction (D11: library rules unreachable
+  from research goals). This rehearsal measures the RECORD-INTERNAL
+  direction (meaning structure -> obligation goals via the record's
+  own pack): 3/3 derive. Both results stand; neither supersedes the
+  other. What this measurement establishes: the record-internal
+  conversion gate (goals compile + derive) is PASSED by E2 today, so
+  the join rule's blocker for E2-shaped records is the research-goal
+  direction and R2, not the record's own obligations.
+
+codec round-trip of E2's meaning term:
+  ParityLabel and BlackboardProblemLabel singletons survive by
+  identity; the meaning term re-extracted after reload is Compare-
+  equal; snapshot 6815037 bytes (R8: cold-restore snapshots of the
+  booted graph are multi-megabyte — size note for any future
+  checkpoint workflow).
+
+card-shape round-trip:
+  hint head label InvarianceLabel — matches the card's method field.
+  obligation skeleton (4 entries, 3 with machine goals) — matches the
+  card's skeleton description.
+  R6 — STATEMENT DIVERGENCE (card-format ambiguity): the YAML record's
+  authoritative statement text ("Suppose the positive integer n is
+  odd. First Al writes the numbers 1, 2, ..., 2n on the blackboard.
+  Then he picks any two numbers a, b, erases them, and writes |a - b|.
+  Prove that an odd number will remain at the end.") does NOT appear
+  verbatim in engel_e2_blackboard.md — the card carries a PARAPHRASE
+  ("Numbers 1, 2, ..., 2n stand on a board. A move erases two of
+  them, a and b, and writes |a - b|. When n is odd, the last
+  remaining number is odd."). Conversion must pin ONE text per card;
+  recommendation: the loadable record's YAML statement is the
+  authoritative one (it is what the machine sees), and the card should
+  quote it verbatim with the paraphrase demoted to prose.
+
+--------------------------------------------------------------------
+disposition for the conversion checklist
+
+E2's row (existing/cited) gains two measured facts: record-internal
+derivability 3/3 via own pack; conclusion-extractor defect R2 applies
+to it (attempt-cycle SUCCESS certifies the initial obligation). No
+change to its conversion status. R2 and R6 route to INT/track owners:
+R2 is an instrument fix in training.py (first-vs-last) — the same
+class as the [SHARED] instrument repairs; R6 is a docs alignment on
+the E2 card.
+
+hygiene: probe banned-phrase scan: 0 matches. No files written into
+the repository by the probe (scratch dir removed). Watch refs
+unchanged through execution (INT a3aeff4, base fb7a9b3, tags 15).

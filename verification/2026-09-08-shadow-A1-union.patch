@@ -1,0 +1,149 @@
+diff --git a/labels.py b/labels.py
+index fec8fdc..d93ccd2 100644
+--- a/labels.py
++++ b/labels.py
+@@ -175,6 +175,63 @@ class BlackboardProblemLabel(ConstructorLabel):
+     pass
+ 
+ 
++# [SHADOW-A1-REHEARSAL] scratch rehearsal vocabulary -- NEVER LANDS.
++# Corrected union of the A1 request table and the A2 recap; INT's real
++# A1 patch is the authority; this block only rehearses the conversion path.
++class GraphLabel(ConstructorLabel):
++    pass
++
++class VertexLabel(ConstructorLabel):
++    pass
++
++class EdgeLabel(ConstructorLabel):
++    pass
++
++class PathLabel(ConstructorLabel):
++    pass
++
++class CycleLabel(ConstructorLabel):
++    pass
++
++class DegreeLabel(ConstructorLabel):
++    pass
++
++class IntegerLabel(ConstructorLabel):
++    pass
++
++class IntegersLabel(ConstructorLabel):
++    pass
++
++class RemainderLabel(ConstructorLabel):
++    pass
++
++class ResidueLabel(ConstructorLabel):
++    pass
++
++class ResidueClassLabel(ConstructorLabel):
++    pass
++
++class CongruentLabel(ConstructorLabel):
++    pass
++
++class WordLabel(ConstructorLabel):
++    pass
++
++class BinaryWordLabel(ConstructorLabel):
++    pass
++
++class AdjacentLabel(ConstructorLabel):
++    pass
++
++class ColoringLabel(ConstructorLabel):
++    pass
++
++class RotationLabel(ConstructorLabel):
++    pass
++
++class RotateLabel(ConstructorLabel):
++    pass
++
+ class OddLabel(ConstructorLabel):
+     pass
+ 
+@@ -1687,6 +1744,26 @@ ConfirmedLabel = ConfirmedLabel()
+ RefutedLabel = RefutedLabel()
+ WitnessLabel = WitnessLabel()
+ DividesLabel = DividesLabel()
++
++# [SHADOW-A1-REHEARSAL] instances (scratch)
++GraphLabel = GraphLabel()
++VertexLabel = VertexLabel()
++EdgeLabel = EdgeLabel()
++PathLabel = PathLabel()
++CycleLabel = CycleLabel()
++DegreeLabel = DegreeLabel()
++IntegerLabel = IntegerLabel()
++IntegersLabel = IntegersLabel()
++RemainderLabel = RemainderLabel()
++ResidueLabel = ResidueLabel()
++ResidueClassLabel = ResidueClassLabel()
++CongruentLabel = CongruentLabel()
++WordLabel = WordLabel()
++BinaryWordLabel = BinaryWordLabel()
++AdjacentLabel = AdjacentLabel()
++ColoringLabel = ColoringLabel()
++RotationLabel = RotationLabel()
++RotateLabel = RotateLabel()
+ InductionLabel = InductionLabel()
+ BaseCaseLabel = BaseCaseLabel()
+ StepCaseLabel = StepCaseLabel()
+@@ -2224,6 +2301,24 @@ def sync_from_namespace(namespace):
+         "WitnessLabel",
+         "DividesLabel",
+         "InductionLabel",
++        "GraphLabel",
++        "VertexLabel",
++        "EdgeLabel",
++        "PathLabel",
++        "CycleLabel",
++        "DegreeLabel",
++        "IntegerLabel",
++        "IntegersLabel",
++        "RemainderLabel",
++        "ResidueLabel",
++        "ResidueClassLabel",
++        "CongruentLabel",
++        "WordLabel",
++        "BinaryWordLabel",
++        "AdjacentLabel",
++        "ColoringLabel",
++        "RotationLabel",
++        "RotateLabel",
+         "BaseCaseLabel",
+         "StepCaseLabel",
+         "ModuloLabel",
+diff --git a/persistence.py b/persistence.py
+index d55f421..e983a6a 100644
+--- a/persistence.py
++++ b/persistence.py
+@@ -364,6 +364,24 @@ SNAPSHOT_SYMBOL_NAMES = [
+     "InitialBoardLabel",
+     "FinalNumberLabel",
+     "BlackboardProblemLabel",
++    "GraphLabel",
++    "VertexLabel",
++    "EdgeLabel",
++    "PathLabel",
++    "CycleLabel",
++    "DegreeLabel",
++    "IntegerLabel",
++    "IntegersLabel",
++    "RemainderLabel",
++    "ResidueLabel",
++    "ResidueClassLabel",
++    "CongruentLabel",
++    "WordLabel",
++    "BinaryWordLabel",
++    "AdjacentLabel",
++    "ColoringLabel",
++    "RotationLabel",
++    "RotateLabel",
+     "OddLabel",
+     "EvenLabel",
+     "FractionLabel",

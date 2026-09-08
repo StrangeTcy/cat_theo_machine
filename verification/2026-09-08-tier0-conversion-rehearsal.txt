@@ -1,0 +1,120 @@
+Tier0 conversion rehearsal — Action 1 — 2026-09-08
+operator-sanctioned (D1 "all four actions", D2 "this lane, scratch
+  pattern"; see verification/2026-09-08-HOLD-BREAK-DECISIONS.txt)
+
+question this rehearsal answers: when INT lands the real A1
+constructors, does the conversion path for the two first-convert Tier0
+cards (extremal-longest-path, pigeonhole-residue-classes) actually
+work end-to-end — loader, term compile, attempt cycle, codec
+round-trip — and what does it surface BEFORE the real patch lands?
+
+environment:
+  base            arena/01a068c2 @ fb7a9b3 (G/I-op branch of record)
+  shadow patch A  rehearsal commit 702023e — the 18-label CORRECTED
+                  UNION of the A1 request table and the A2 recap
+                  (operator resolution directive), full scope-ruling
+                  pattern (classes, singleton instances,
+                  sync_from_namespace, SNAPSHOT_SYMBOL_NAMES), exported
+                  as verification/2026-09-08-shadow-A1-union.patch
+  runner          verification/probes/2026-09-08-rehearsal-action1-
+                  conversion.py (embeds both rehearsal records; YAML
+                  written under /tmp only; nothing lands in
+                  training_records/)
+  discipline      the rehearsal clone is never pushed; no machine code
+                  on any branch; INT remains sole implementer of the
+                  real A1
+
+--------------------------------------------------------------------
+results
+
+namespace: 18/18 A1-union labels resolve in the runtime namespace.
+
+record 1 — extremal-longest-path (Extremal, proof-target):
+  loader accepted: 1 record; meaning structure compiles (head
+  KnowledgeLabel); strategy hint compiles (head ExtremalLabel);
+  obligation skeleton: 4 entries, all goals compile.
+  attempt cycle: status SUCCESS; method text "invariance pipeline
+  (strategy hint Invariance)"; planner root status Failed;
+  alternative status Failed; retained True.
+
+record 2 — pigeonhole-residue-classes (Pigeonhole, proof-target):
+  loader accepted: 1 record; meaning compiles; hint compiles (head
+  PigeonholeLabel); skeleton: 3 entries, all goals compile.
+  attempt cycle: status SUCCESS; same hardcoded method text; planner
+  root Failed; alternative Failed; retained True.
+
+codec round-trip (terms built from the shadow vocabulary):
+  GraphLabel singleton survives SnapshotCodec save/load by IDENTITY;
+  rebuilt term value-equal via M.Compare (not TermEqual — the
+  2026-09-06 compare inspection lesson applied); snapshot 864202
+  bytes.
+
+--------------------------------------------------------------------
+findings (defects surfaced — the rehearsal's purpose)
+
+R2 — CONCLUSION EXTRACTOR: FIRST-vs-LAST (HIGH).
+  training.py:243 ObligationSkeletonConclusionGoal documents "the last
+  skeleton entry that carries a goal term" but _last_goal returns the
+  FIRST entry carrying a goal (head goal short-circuits the
+  recursion). The attempt cycle therefore "proves" the initial
+  obligation, not the conclusion. Confirmed by direct extraction on
+  both rehearsal records and on E2 (Action 4). Any conversion judged
+  by the attempt cycle today judges the wrong obligation.
+
+R3 — VACUOUS-SUCCESS TRAP (HIGH).
+  With R2, when the first obligation's goal restates meaning-structure
+  knowledge (natural for "initial" obligations), attempt_training_
+  record reports SUCCESS and retained=True while never touching the
+  real conclusion — observed for BOTH rehearsal records. The success
+  path's method text is hardcoded "invariance pipeline (strategy hint
+  Invariance)" regardless of the actual hint (Extremal and Pigeonhole
+  hints both produced it). The join rule's "genuine partial match"
+  gate is load-bearing: per-obligation checking must replace
+  conclusion-only judgment, and R2 must be fixed, before any converted
+  record's SUCCESS is meaningful.
+
+R4 — RULES-SUBSTITUTION SEMANTICS (behavior note).
+  attempt_training_record with rules_pack_name=None is NOT the
+  empty-library path: runtime.prove substitutes ordered_rules() — the
+  FULL 13-pack library. Separately, PlannerProblem with rules=None
+  crashes (IdentityCompare over None at planner.py:1157); the attempt
+  cycle hides this in its try/except (planner root status Failed).
+  Direct planner use must pass a real rule chain.
+
+R1 — TREE BLEMISH (pre-existing, cosmetic).
+  labels.py carries "DividesLabel" TWICE in the sync_from_namespace
+  register (lines 2025 and 2225 at fb7a9b3). Harmless (idempotent
+  loop) but real; INT may dedupe in any labels-touching commit.
+
+controls run: absurd goals (BinaryWord "exists", Coloring "exists"
+  under the graph meaning structure) return EMPTY derivations on both
+  phi and brute paths — prove is not generally vacuous; the vacuity is
+  specifically the goal-restates-start shape plus R2.
+
+--------------------------------------------------------------------
+comparison instructions for INT (when the real A1 lands)
+
+  1. diff the landed label set against the 18-label union in patch A
+     (the A1-table vs A2-recap discrepancy is recorded as finding F1
+     in the readiness checklists; the union is the operator-directed
+     resolution to review, not a mandate).
+  2. re-run the Action 1 probe against the landed tree (it takes the
+     repo root as its argument); compare verdicts line-by-line.
+  3. fix R2 before judging any conversion by the attempt cycle; until
+     then use the Action 4 probe's per-obligation derivability section
+     as the operational "genuine partial match" measurement.
+
+limitations (honest scope): the rehearsal records are pipeline
+  exercises, not curated content — obligation goals are structural
+  shapes over the A1 vocabulary, not math-faithful encodings; no
+  session was run; no Knowledge-store effects persist (scratch
+  runtime, scratch dir removed by the probe).
+
+hygiene: banned-phrase scan — patch A: 0 (all lines and added-lines
+  scans); probe: 9 matches, ALL of them the codec's own YAML
+  chained-args schema key inside the embedded rehearsal
+  records (lines 57, 80, 92, 100, 108, 131, 150, 158, 166) — the
+  in-tree format requires that key (packs.py _compile_term); no
+  banned construct appears in probe code. No .yaml lands in the repo;
+  no machine code is pushed; watch refs unchanged through execution
+  (INT a3aeff4, base fb7a9b3, tags 15).

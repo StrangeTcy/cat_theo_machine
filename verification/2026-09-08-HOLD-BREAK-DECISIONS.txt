@@ -1,0 +1,62 @@
+Hold-break decisions — operator answers — 2026-09-08
+context: verification/2026-09-08-HOLD-BREAK-PROPOSAL-ADJUDICATION.txt
+  (@ b18f9d8) posed D1-D3 after opus 4.7's rehearsal proposal.
+
+operator answers (returned through the decision interface, verbatim
+  selections):
+  D1 (sanction scope):      "All four actions" — the rehearsal programme
+                            is sanctioned during the hold.
+  D2 (executor):            "This lane, scratch pattern" — shadow patches
+                            only in a throwaway clone; patch + loader
+                            verdicts published as verification artifacts;
+                            no machine code pushed on any branch; INT
+                            stays sole implementer of the real A1/A2.
+  D3 (Action 3):            "Bar it" — agent-authored provisional Tier1
+                            statements are NOT authored. The operator's
+                            actual set (disclosed by nickname in
+                            protocol/I.md Turn 8) stays the only Tier1
+                            source; the anchoring risk stands as the
+                            reason.
+
+executed scope this session (in the sanctioned order 1 -> 4 -> 2):
+  Action 1 — Tier0 conversion rehearsal against the shadow A1 union:
+    verification/2026-09-08-tier0-conversion-rehearsal.txt
+  Action 4 — E2 conversion-path round-trip:
+    verification/2026-09-08-e2-roundtrip.txt
+  Action 2 — Ground-3 generator rehearsal (recorded emission names):
+    verification/2026-09-08-count-target-generator-rehearsal.txt
+
+supporting artifacts:
+  verification/2026-09-08-shadow-A1-union.patch
+    (rehearsal commit 702023e on a scratch branch of fb7a9b3; 18-label
+    corrected union, full scope-ruling pattern; NEVER LANDS)
+  verification/2026-09-08-shadow-ground3-obligation-labels.patch
+    (rehearsal commit 0ce2bcd; 9 obligation-shape labels; NEVER LANDS)
+  verification/probes/2026-09-08-rehearsal-action1-conversion.py
+  verification/probes/2026-09-08-rehearsal-action4-e2-roundtrip.py
+  verification/probes/2026-09-08-rehearsal-action2-generators.py
+
+rehearsal base: arena/01a068c2 @ fb7a9b3 (the G/I-op branch of record
+  for the cards and the E2 record). The rehearsal clone was never
+  pushed; its branch carries only the two shadow commits above.
+
+watch state through execution (unchanged): INT a3aeff4; G/I-op base
+fb7a9b3; session branch b18f9d8 -> this push; tags 15. No hold-trigger
+fired during the rehearsals; the hold itself remains in force for
+CONVERSION — nothing here converts a card, clears a ground, authors a
+record, or authorizes a run.
+
+headline rehearsal findings (full detail in the three artifacts):
+  R2/R3 — the attempt cycle's conclusion extractor returns the FIRST
+    obligation goal, not the last (training.py:243, docstring says
+    last); with an initial obligation that restates given knowledge the
+    cycle reports SUCCESS + retained with a hardcoded "invariance
+    pipeline" method text regardless of the actual hint — a vacuous-
+    success trap for the join rule's "genuine partial match" gate.
+  R5 — E2 measured: all three machine-goal obligations derive via its
+    own pack at the rehearsal base (record-internal direction); the
+    a3aeff4 "partial matches 0" diagnostic measured the research-goal
+    direction (D11) — both stand, neither supersedes.
+  R7 — the Ground-3 recorded skeleton shapes are emittable as machine
+    terms and compile as record goals; the ruling survives its
+    rehearsal on emittability.
