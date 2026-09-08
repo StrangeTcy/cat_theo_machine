@@ -51,10 +51,29 @@ count, not load, was the variable.
 **Guard restored.** The harness reverted `testsuite.py:14957` on exit; the
 tree carries no re-raise.
 
-**Outstanding, in order:** fix lands in a separate commit after `preflight`;
-then the suite reruns clean. Attempts 2 and 3 exist in the ruling to
-establish non-reproduction; the exception appeared on attempt 1, so the
-"exception appears" branch is taken and they are not required for closure.
+**Fix: partial, committed as partial.** A guard was applied at
+`persistence.py:806` — probe `target.id`, on AttributeError return
+`M.EmptyList`, the index's existing not-found signal. Necessary and correct,
+but **it does not close the defect**. One confirming exact-109 run
+(2026-09-08T19:47:44Z → 19:59:45Z, exit 1) shows the crash moved one frame
+along: the Hypergraph is now queued for interning and reaches the *insert*
+door of the same identity index, `persistence.py:1423` → `trees.py:425`
+`self.key_id = key.id`, with the same `AttributeError`. Full traceback in
+`protocol/preflight/exception-traceback.txt`.
+
+The index has two doors. Guarding the lookup alone moves the failure from
+the read door to the write door. Three repairs are available and are not
+equivalent: skip the object at the queue/loop boundary (stops the crash,
+silently omits it from the snapshot); encode it as an opaque scalar
+(preserves it, needs a type discriminator §0 forbids); fix upstream so a
+live Hypergraph never enters machine state (addresses the cause). **A ruling
+is requested; this is not an engineering default.**
+
+**Outstanding, in order:** ruling on the repair; land the complete fix in
+its own commit; then the suite reruns clean. Attempts 2 and 3 exist in the
+ruling to establish non-reproduction; the exception appeared on attempt 1,
+so the "exception appears" branch is taken and they are not required for
+closure.
 
 ---
 
