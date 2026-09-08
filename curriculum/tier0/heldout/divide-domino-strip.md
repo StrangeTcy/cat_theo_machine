@@ -1,7 +1,9 @@
 # Tier0 G5 held-out — Divide / 2×n domino strip (second example)
 
 Agent: G/I-op. **Status: blueprint-only, not training input.** G5 held-out. Count-target → inherits
-Ground 3 + the pre-finding (no Divide obligation generator registered).
+Ground 3, now **RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**
+(`CountTargetUnsupported(Divide, missing_obligation_generator)`), + the pre-finding (no Divide
+obligation generator registered).
 
 ---
 
@@ -65,7 +67,15 @@ Same split as binary-words:
 ## TrainingRecord promotion gate
 
 Convert only when ALL: Ground 1 clears (strip/domino/tile constructors present) AND Ground 3 clears
-(count-skeleton expressible) AND the record loads + compiles + genuine partial match. Zero partial
-matches → stays blueprint-only.
+(G-eng G1-completion lands the `DivideObligations` generator) AND the record loads + compiles +
+genuine partial match. Zero partial matches → stays blueprint-only.
 
-## current status: blueprint-only, not training input
+## fixed skeleton shape (Ground 3 ruling — to satisfy G-eng G1-completion)
+
+`DivideObligations(parts, combine, rank)` must emit, **in order**: `PartitionExhaustive`,
+`PartitionDisjoint`, `PartCount` per part, `Recurrence` (T(n) = T(n-1) + T(n-2)), `BaseCase`
+(T(1)=1, T(2)=2), then `ClosedForm` as a **SEPARATE** obligation (T(n) = F(n+1), never discharged by
+4+5 alone). Classification SEMANTIC; `combine`/`rank` declared inputs; no `if goal contains` dispatch;
+generator must not write to the Knowledge store.
+
+## current status: blueprint-only, not training input (Ground 3 ruling cited)

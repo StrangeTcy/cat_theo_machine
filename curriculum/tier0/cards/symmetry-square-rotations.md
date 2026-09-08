@@ -1,15 +1,23 @@
 # Tier0 card — Symmetry / square colorings up to rotation (blueprint)
 
 Agent: G/I-op (Agent 3, parallel-unblock lane). **Status: blueprint-only, not training input.**
-Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. Ground 3 (count-target) state: PENDING G-COUNT-AUDIT — this card's count target is gated on Ground 3.
+Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. **Ground 3 (count-target)
+state: RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** — `CountTargetUnsupported(Symmetry,
+missing_obligation_generator)`; see ruling below.
+
+> **Ground 3 ruling (ratifier, issued Turn 7):** `CountTargetUnsupported(Symmetry,
+> missing_obligation_generator)`. Ground 3 moves OPEN → RULED-UNSUPPORTED-PENDING-IMPLEMENTATION.
+> The count target is **not** rebuildable until G-eng G1-completion lands the
+> `SymmetryObligations(transformation, domain)` obligation generator. This card is blueprint-only until
+> then; it awaits the named G-eng deliverable (G1-completion), not a re-litigation.
 
 > **Pre-finding (this branch, 9ed1fe8):** the intended `Symmetry` method payload exists but no
-> obligation generator is registered in planner.py. In `planner.py`, method-expansion loop
-> ("Trainer-supplied Engel methods become alternatives..."), only the `PigeonholeLabel` and
-> `ExtremalLabel` branches follow — `Symmetry` is carried but generates no obligation children
-> (verified at the current tip, comment at planner.py ~1211–1214). G-COUNT-AUDIT must either confirm
-> this or find the generator; a "supported" verdict requires the generator to emit a
-> count-obligation shape, not just to exist.
+> obligation generator is registered in planner.py. In the method-expansion loop
+> (`[planner.py]: "Trainer-supplied Engel methods become alternatives..."`), only the
+> `PigeonholeLabel` and `ExtremalLabel` branches follow — `Symmetry` is carried but generates no
+> obligation children. G-COUNT-AUDIT must either confirm this or find the generator; a "supported"
+> verdict requires the generator to emit a count-obligation shape, not just to exist.
+> (Semantic-anchor location verified at `0702575`, lines 1211–1214; NOT 1155–1158.)
 
 ---
 
@@ -110,9 +118,25 @@ an operator ruling and a new source statement. The divergence is preserved, not 
 
 Convert card → TrainingRecord only when ALL of:
 - Ground 1 clears (INT-SHARED-A1 lands `ColoringLabel`, `RotationLabel`);
-- Ground 3 clears (G-COUNT-AUDIT confirms the Symmetry skeleton can carry a Burnside/count target); AND
+- Ground 3 clears (G-eng G1-completion lands the `SymmetryObligations` generator); AND
 - the record loads through the real `TrainingRecordLoader`, its count goal compiles, and it obtains a
   genuine partial match (not a vacuous label touchdown).
 If any gate fails, the record stays blueprint-only.
 
-## current status: blueprint-only, not training input
+## fixed skeleton shape (Ground 3 ruling — to satisfy G-eng G1-completion)
+
+`SymmetryObligations(transformation, domain)` must emit, **in order**:
+1. `GroupDeclared` — declare C4 as the acting group;
+2. `ActionWellDefined` — the rotation action on colorings is well-defined;
+3. `FixedPointCount` per group element g (identity m^4, 90/270 m, 180 m^2);
+4. `OrbitCountByAveraging` — Burnside enters as a **`HUMAN_SUPPLIED_TRUSTED_THEOREM`** leaf,
+   provenance-tagged, machine does **not** derive it;
+5. then `ClosedForm` as a **SEPARATE** obligation — `(m^4 + m^2 + 2m)/4`, not discharged by
+   averaging alone.
+
+Classification SEMANTIC; no automorphism computation; `G`/`transformation` declared inputs; no `if
+goal contains` dispatch; the generator must not write to the Knowledge store; ablating it restores the
+pre-ruling "carried, no children" behavior. The existence variant (`SymmetryFixedExists`) is a
+**distinct** problem, not a substitute for the count form.
+
+## current status: blueprint-only, not training input (Ground 3 ruling cited)

@@ -1,7 +1,9 @@
 # Tier0 G5 held-out — Symmetry / triangle colorings up to rotation (second example)
 
 Agent: G/I-op. **Status: blueprint-only, not training input.** G5 held-out. Count-target → inherits
-Ground 3 + the pre-finding (no Symmetry obligation generator registered).
+Ground 3, now **RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**
+(`CountTargetUnsupported(Symmetry, missing_obligation_generator)`), + the pre-finding (no Symmetry
+obligation generator registered).
 
 ---
 
@@ -77,7 +79,16 @@ Same count/Burnside shape as the symmetry-square card:
 ## TrainingRecord promotion gate
 
 Convert only when ALL: Ground 1 clears (coloring/rotation constructors present) AND Ground 3 clears
-(count-skeleton expressible) AND the record loads + compiles + genuine partial match. Zero partial
-matches → stays blueprint-only.
+(G-eng G1-completion lands the `SymmetryObligations` generator) AND the record loads + compiles +
+genuine partial match. Zero partial matches → stays blueprint-only.
 
-## current status: blueprint-only, not training input
+## fixed skeleton shape (Ground 3 ruling — to satisfy G-eng G1-completion)
+
+`SymmetryObligations(transformation, domain)` must emit, **in order**: `GroupDeclared` (C3),
+`ActionWellDefined`, `FixedPointCount` per group element g, `OrbitCountByAveraging` (Burnside as
+`HUMAN_SUPPLIED_TRUSTED_THEOREM` leaf, provenance-tagged, machine does not derive), then `ClosedForm`
+as a **SEPARATE** obligation — `(m^3 + 2m)/3`. Classification SEMANTIC; no automorphism computation;
+`G`/`transformation` declared inputs; no `if goal contains` dispatch; generator must not write to the
+Knowledge store. The existence variant (`SymmetryFixedExists`) is a distinct problem.
+
+## current status: blueprint-only, not training input (Ground 3 ruling cited)

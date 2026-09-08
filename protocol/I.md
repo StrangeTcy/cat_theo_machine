@@ -167,6 +167,47 @@ The four held-out cards that are **count-targets** (divide-domino-strip, symmetr
 inherit Ground 3 + the pre-finding; the held-out proof-targets (extremal-min-degree-path,
 pigeonhole-subset-sum, invariance-seven-glasses) are gated only on Ground 1.
 
+---
+
+## Turn 8 (2026-09-08) — Tier1 practice-pool statements (Pool A, verified)
+
+Ten Tier1 statements supplied by the operator, **all re-verified** (curation: computed the math, not
+blind-recorded). All are **Pool A** (curriculum, never held out); none are exam / Pool B.
+
+### Grouping by method
+
+```text
+INVARIANCE   T1-INV-1  board 1..10, |a-b| erasure -> last odd.        proof-target.  sum=55 odd; |a-b| ≡ a+b mod 2. VERIFIED
+             T1-INV-2  dragon 100 heads, cut15/17/20/5, grow24/2/14/17.proof-target.  net +9,-15,-6,+12 ≡ 0 mod 3; 100≡1. VERIFIED
+EXTREMAL     T1-EXT-1  finite set >=2 pts, no point is midpoint of two. proof-target.  max-distance pair argument. VERIFIED
+             T1-EXT-2  finite tournament, vertex reachable from all <=2. proof-target.  max out-degree 'king'. VERIFIED
+PIGEONHOLE   T1-PIG-1  any 52 ints, two sum/diff divisible by 100.      proof-target.  51 boxes {0},{50},{r,100-r}; 52 ints. VERIFIED
+             T1-PIG-2  any 51 from {1..100}, two coprime.                proof-target.  50 adjacent-pair boxes. VERIFIED
+DIVIDE       T1-DIV-1  staircase n steps, 1 or 2 at a time -> F(n+1).   count-target.  a(n)=a(n-1)+a(n-2), a(1)=1,a(2)=2. VERIFIED
+             T1-DIV-2  ternary strings len n, no two consecutive zeros. count-target.  a(n)=2a(n-1)+2a(n-2), a(1)=3,a(2)=8. VERIFIED
+SYMMETRY     T1-SYM-1  necklace 5 beads m colors up to C5 rotation.     count-target.  (m^5+4m)/5. VERIFIED
+             T1-SYM-2  cube 6 faces m colors up to rotation group.      count-target.  (m^6+3m^4+12m^3+8m^2)/24. VERIFIED (group enumerated)
+```
+
+### Verification notes (computed this turn)
+
+- T1-DIV-1: a(n)=1,2,3,5,8,13,21,34,55 = F(n+1) for n=1..9. Match confirmed.
+- T1-DIV-2: a(3)=2*8+2*3=22; sequence 3,8,22,60,164,448.
+- T1-SYM-1: C5 Burnside = (m^5+4m)/5 (identity m^5 + 4 rotations each m).
+- T1-SYM-2: enumerated the full 24-element rotation group; cycle structures
+  (1×m^6, 3×m^4, 6×m^3 @ (1,1,4), 6×m^3 @ (2,2,2), 8×m^2) give (m^6+3m^4+12m^3+8m^2)/24. m=2→10, 3→57, 4→240.
+
+### Ground 3 inheritance
+
+The four count-target Tier1 entries (T1-DIV-1, T1-DIV-2, T1-SYM-1, T1-SYM-2) inherit **Ground 3**,
+now **RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** (G1-completion must land
+`DivideObligations`/`SymmetryObligations`). Blueprint-only until then.
+
+### Locks
+
+Rotation-only groups: C5 for the necklace; the cube's 24-element rotation group (no reflections).
+Any reflection variant is a different problem needing a restated statement.
+
 ### Join / conversion rule (from the parallel-unblock plan)
 
 ```text

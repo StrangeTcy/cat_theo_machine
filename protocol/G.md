@@ -352,6 +352,122 @@ I2 is the last unstarted G/I-op card family. Once the Tier1 statements arrive, a
 
 ---
 
+## Turn 8 (2026-09-08) — Tier1 practice pool (10 statements) + cards + A2 request + Ground 3 ruling
+
+### Ground 3 ruling (ratifier, issued this turn)
+
+```
+CountTargetUnsupported(Divide,   missing_obligation_generator)
+CountTargetUnsupported(Symmetry, missing_obligation_generator)
+```
+
+Ground 3 moves **OPEN → RULED-UNSUPPORTED-PENDING-IMPLEMENTATION**. Determinate; G/I-op no longer
+waits on a question — it waits on the named G-eng deliverable **G1-completion**.
+
+**Fixed skeleton shapes (per the ruling):**
+```text
+DivideObligations(parts, combine, rank) emits, in order:
+  PartitionExhaustive, PartitionDisjoint, PartCount per part, Recurrence, BaseCase,
+  then ClosedForm as a SEPARATE obligation (never discharged by 4+5 alone).
+SymmetryObligations(transformation, domain) emits, in order:
+  GroupDeclared, ActionWellDefined, FixedPointCount per g, OrbitCountByAveraging
+  (Burnside enters as HUMAN_SUPPLIED_TRUSTED_THEOREM leaf, provenance-tagged, machine does not derive),
+  then ClosedForm as a SEPARATE obligation.
+Existence variant SymmetryFixedExists(g, domain) is a DISTINCT problem — not a substitute for the count form.
+Constraints: no automorphism computation; combine/G are declared inputs; no `if goal contains`
+dispatch; a test proves neither generator writes to the Knowledge store; ablating each generator
+restores the pre-ruling "carried, no children" behavior. Classification SEMANTIC. Lands with or after
+wave-1 tag; requires re-baseline.
+```
+
+### 10 Tier1 statements received + verified (all true)
+
+Two per method, all **Pool A** (practice, never the sealed exam set). Statement text recorded verbatim
+in `protocol/I.md` (Turn 8 section). G/I-op re-verified the math on receipt (all true — computed, not
+blind-recorded). Four are count-targets (T1-DIV-1, T1-DIV-2, T1-SYM-1, T1-SYM-2) and inherit Ground 3.
+
+```text
+T1-INV-1 board 1..10 |a-b|                  parity invariant (sum 55 odd)     proof  VERIFIED
+T1-INV-2 dragon 100 heads                    mod-3 invariant (net changes)    proof  VERIFIED
+T1-EXT-1 finite set no midpoint               max-distance pair                proof  VERIFIED
+T1-EXT-2 tournament <=2 reachability          max out-degree "king"            proof  VERIFIED
+T1-PIG-1 52 ints sum/diff div100              51 boxes                          proof  VERIFIED
+T1-PIG-2 51 from 1..100 coprime               50 adjacent boxes                proof  VERIFIED
+T1-DIV-1 staircase F(n+1)                     DivideObligations (Ground 3)     count  VERIFIED
+T1-DIV-2 ternary no 00, a(3)=22               DivideObligations (Ground 3)     count  VERIFIED
+T1-SYM-1 5-bead necklace C5                   (m^5+4m)/5                       count  VERIFIED
+T1-SYM-2 cube 6 faces rotation group 24       (m^6+3m^4+12m^3+8m^2)/24         count  VERIFIED
+```
+
+T1-SYM-2 verified by **enumerating the actual 24-element rotation group** (cycle structures
+1×m^6, 3×m^4, 6×m^3 @ (1,1,4), 6×m^3 @ (2,2,2), 8×m^2); m=2→10, 3→57, 4→240.
+
+### 10 Tier1 blueprint cards authored (curriculum/tier1/cards/)
+
+```text
+t1-inv-1-board-ab-erase.md           (Invariance, proof)
+t1-inv-2-dragon-heads.md             (Invariance, proof)
+t1-ext-1-no-midpoint.md              (Extremal, proof)
+t1-ext-2-tournament-king.md          (Extremal, proof)
+t1-pig-1-sum-diff-div100.md          (Pigeonhole, proof)
+t1-pig-2-coprime-from-1-100.md       (Pigeonhole, proof)
+t1-div-1-staircase-fibonacci.md      (Divide, count, Ground 3)
+t1-div-2-ternary-nocc00.md           (Divide, count, Ground 3)
+t1-sym-1-necklace-c5.md              (Symmetry, count, Ground 3)
+t1-sym-2-cube-face-burnside.md       (Symmetry, count, Ground 3)
+```
+
+Same card discipline as Tier0: blueprint-only, real constructor mapping (missing constructors named),
+no YAML, no sessions, no Pool B. The four count-target cards carry the Ground-3 ruling citation + the
+fixed skeleton shapes.
+
+### Ground 3 citation applied to the existing count-target cards
+
+The 8 count-target cards (Tier0×2: divide-binary-words, symmetry-square-rotations; G5×2:
+divide-domino-strip, symmetry-triangle-rotations; Tier1×4) now cite the Ground-3 ruling + fixed
+skeleton shapes. Promotion gates updated from "G-COUNT-AUDIT confirms count skeleton" to "G-eng
+G1-completion lands the obligation generator."
+
+### Semantic-anchor directive applied
+
+On this substantive card update the bare numeric planner citation was replaced with the semantic anchor
+on both Tier0 count-target cards and the G5 count-target cards:
+`[planner.py], method-expansion loop: "Trainer-supplied Engel methods become alternatives..."`.
+Location verified at `0702575`, lines 1211–1214 (NOT 1155–1158).
+
+### `[SHARED]-A2` vocabulary request filed
+
+`protocol/[SHARED]-A2-CONSTRUCTORS.md` — separate from A1. New-card domains (board, domino, glass,
+house, enemy, tournament, necklace, cube face) plus remaining Tier1/G5/G4 vocab not in A1's 15.
+Same label-registration-only scope ruling as A1; no obligation-skeleton terms (those are G1-completion,
+Ground-3 content, not vocabulary).
+
+### `[SHARED]-A1` status
+
+A1 patch spec (15 constructors, label-registration-only, INT applies on `ef571b6` line) delivered to
+INT. **Not landed by this lane** — it is INT's deliverable. This lane files A2, applies A1 vocabulary
+to its own cards when INT lands it.
+
+### Grounds at end of Turn 8
+
+```text
+G1 (constructors): OPEN   — A1 patch delivered to INT; lands with INT preflight candidate + wave-1 tag
+G2 (statements):   CLEARED — Tier0 + Tier1 statements both verified
+G3 (count-target): RULED-UNSUPPORTED-PENDING-IMPLEMENTATION — G1-completion deliverable; skeleton shapes fixed
+```
+
+### I2 charter remaining
+
+Statements done (10, verified). Cards done (10). A2 filed. Next I2 advance is C-phase
+measurement **only on the authorized tag**; no loadable Tier1 record authored (blueprint-only).
+
+### Watch target
+
+Integration tip `origin/arena/01a06542` = `a3aeff4`. `protocol/research_protocol.md` STILL ABSENT; no
+wave-1 base tag. Trigger = new tag with `ef571b6` ancestor.
+
+---
+
 End-of-turn block:
 
 ```text

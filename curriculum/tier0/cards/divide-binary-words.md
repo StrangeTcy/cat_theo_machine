@@ -1,15 +1,23 @@
 # Tier0 card — Divide / binary words no adjacent ones (blueprint)
 
 Agent: G/I-op (Agent 3, parallel-unblock lane). **Status: blueprint-only, not training input.**
-Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. Ground 3 (count-target) state: PENDING G-COUNT-AUDIT — this card's count target is gated on Ground 3.
+Ground 2 (statement) state: CLEARED. Ground 1 (constructors) state: OPEN. **Ground 3 (count-target)
+state: RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** — `CountTargetUnsupported(Divide,
+missing_obligation_generator)`; see ruling below.
+
+> **Ground 3 ruling (ratifier, issued Turn 7):** `CountTargetUnsupported(Divide,
+> missing_obligation_generator)`. Ground 3 moves OPEN → RULED-UNSUPPORTED-PENDING-IMPLEMENTATION.
+> The count target is **not** rebuildable until G-eng G1-completion lands the
+> `DivideObligations(parts, combine, rank)` obligation generator. This card is blueprint-only until
+> then; it awaits the named G-eng deliverable (G1-completion), not a re-litigation.
 
 > **Pre-finding (this branch, 9ed1fe8):** the intended `Divide` method payload exists but no
-> obligation generator is registered in planner.py. In `planner.py`, method-expansion loop
-> ("Trainer-supplied Engel methods become alternatives..."), only the `PigeonholeLabel` and
-> `ExtremalLabel` branches follow — `Divide` is carried but generates no obligation children
-> (verified at the current tip, comment at planner.py ~1211–1214). G-COUNT-AUDIT must either confirm
-> this or find the generator; a "supported" verdict requires the generator to emit a
-> count-obligation shape, not just to exist.
+> obligation generator is registered in planner.py. In the method-expansion loop
+> (`[planner.py]: "Trainer-supplied Engel methods become alternatives..."`), only the
+> `PigeonholeLabel` and `ExtremalLabel` branches follow — `Divide` is carried but generates no
+> obligation children. G-COUNT-AUDIT must either confirm this or find the generator; a "supported"
+> verdict requires the generator to emit a count-obligation shape, not just to exist.
+> (Semantic-anchor location verified at `0702575`, lines 1211–1214; NOT 1155–1158.)
 
 ---
 
@@ -91,9 +99,24 @@ count-skeleton, which Ground 3 decides):
 
 Convert card → TrainingRecord only when ALL of:
 - Ground 1 clears (INT-SHARED-A1 lands `WordLabel`, `BinaryWordLabel`, `AdjacentLabel`);
-- Ground 3 clears (G-COUNT-AUDIT confirms the Divide skeleton can carry a count target); AND
+- Ground 3 clears (G-eng G1-completion lands the `DivideObligations` generator); AND
 - the record loads through the real `TrainingRecordLoader`, its count goal compiles, and it obtains a
   genuine partial match (not a vacuous label touchdown).
 If any gate fails, the record stays blueprint-only.
 
-## current status: blueprint-only, not training input
+## fixed skeleton shape (Ground 3 ruling — to satisfy G-eng G1-completion)
+
+`DivideObligations(parts, combine, rank)` must emit, **in order**:
+1. `PartitionExhaustive` — the parts cover all binary words of length n;
+2. `PartitionDisjoint` — the parts are pairwise disjoint;
+3. `PartCount` per part — counts of words ending in 0 and in 01;
+4. `Recurrence` — a_n = a_{n-1} + a_{n-2};
+5. `BaseCase` — a_1 = 2, a_2 = 3;
+6. then `ClosedForm` as a **SEPARATE** obligation — never discharged by (4)+(5) alone (here
+   `a_n = F(n+2)`, a distinct sequence-identification discharge).
+
+Classification SEMANTIC; `combine`/`rank` declared inputs; no `if goal contains` dispatch; the
+generator must not write to the Knowledge store; ablating it restores the pre-ruling "carried, no
+children" behavior.
+
+## current status: blueprint-only, not training input (Ground 3 ruling cited)
