@@ -1,5 +1,5 @@
 {
-  "id": "PASS-E7",
+  "id": "AMB-E7",
   "schema_version": 1,
   "ruleset_id": "e3e4e7-grader-v1-7ae056945c93e3d8",
   "contract_ref": "CUR-ENGEL-E7-GRADER-CONTRACT.md",
@@ -11,12 +11,12 @@
       "invented_without_move_set": false
     },
     "C2": {
-      "shows_even_window_delta": true,
-      "preservation_no_even_argument": false
+      "shows_even_window_delta": false,
+      "preservation_no_even_argument": true
     },
     "C3": {
-      "start_residue_differs": true,
-      "cannot_separate_4_divides": false
+      "start_residue_differs": false,
+      "cannot_separate_4_divides": true
     },
     "C4": {
       "emits_odd_width_control": true,

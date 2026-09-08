@@ -16,6 +16,14 @@
   "CD-E3": {"final": "CANNOT_DETERMINE", "discrepancy": "none", "exit": 3},
   "CD-E4": {"final": "CANNOT_DETERMINE", "discrepancy": "none", "exit": 3},
   "CD-E7": {"final": "CANNOT_DETERMINE", "discrepancy": "none", "exit": 3},
+  "AMB-E4": {"final": "AMBIGUOUS_DISCREPANCY", "discrepancy": "ambiguous", "exit": 2},
+  "AMB-E7": {"final": "AMBIGUOUS_DISCREPANCY", "discrepancy": "ambiguous", "exit": 2},
+  "BAD-BOOL-STR": {"final": "MALFORMED", "discrepancy": "none", "exit": 2},
+  "BAD-NUM": {"final": "MALFORMED", "discrepancy": "none", "exit": 2},
+  "BAD-ARR": {"final": "MALFORMED", "discrepancy": "none", "exit": 2},
+  "BAD-OBJ": {"final": "MALFORMED", "discrepancy": "none", "exit": 2},
+  "UNKNOWN-KEY": {"final": "MALFORMED", "discrepancy": "none", "exit": 2},
+  "RULESET-MISMATCH": {"final": "MALFORMED", "discrepancy": "none", "exit": 2},
   "malformed_1": {"final": "MALFORMED", "discrepancy": "none", "exit": 2},
   "contradictory_1": {"final": "MALFORMED", "discrepancy": "none", "exit": 2}
 }

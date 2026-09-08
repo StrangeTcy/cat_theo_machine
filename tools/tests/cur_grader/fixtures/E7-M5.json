@@ -1,5 +1,9 @@
 {
   "id": "E7-M5",
+  "schema_version": 1,
+  "ruleset_id": "e3e4e7-grader-v1-7ae056945c93e3d8",
+  "contract_ref": "CUR-ENGEL-E7-GRADER-CONTRACT.md",
+  "rubric_ref": "CUR-GRADER-RUBRIC.md",
   "contract": "E7",
   "evidence": {
     "C1": {
