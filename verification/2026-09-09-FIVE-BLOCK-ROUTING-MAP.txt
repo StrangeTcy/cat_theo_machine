@@ -1,0 +1,130 @@
+Five-block engineering programme — verified routing map — 2026-09-09
+instruction: gpt 6 astra max — four engineering assignments + INT,
+  "give each block to a separate agent".
+this lane: INT-AUDIT compose-support + launch watch, session-pinned to
+  arena/01a06923. This artifact verifies every existence claim against
+  remote refs (D26 rule: refs on the remote are the only evidence),
+  pins each block's source, and states the capacity fact for routing.
+
+CAPACITY FACT (routing constraint): this is ONE session pinned to ONE
+  branch. It cannot spawn separate arena sessions. The four engineering
+  blocks CAN be executed here sequentially in the established
+  scratch/patch-artifact pattern (work on a pinned clean checkout of
+  each block's source branch; commit; export the patch to the session
+  branch; never push the foreign branch; never tag). The INT block
+  CANNOT be executed here at all: merges and tags on INT's line are
+  barred for this lane (standing charter constraints; engineers never
+  cut release tags). INT's block routes to INT's own session.
+
+--------------------------------------------------------------------
+watch cycle 6 (recorded before routing)
+
+INT arena/01a06542: a3aeff4 -> bfd4bd2 (ONE commit, "[SHARED]
+  Preflight item 1: partial guard committed, defect NOT closed".
+  Diff: protocol/preflight/ ledger + traceback + a run log — docs and
+  artifacts only, no machine code. Sequence-consistent: item-1 harness
+  work continues; its own message says the defect is NOT closed.)
+amendment: still not landed. compose 74bb3e7: still not in line.
+pre-launch tag: none. authorized preflight: none. tags: 15, unchanged.
+CUR branch activity: arena/01a066cf tip 789b79e is dated 2026-09-09
+  01:17 UTC ("F-LIVE start gate: record NoAdmissibleFTag for F
+  measurement") — the tools-batch lane is live today.
+
+--------------------------------------------------------------------
+block-by-block verification (D26 discipline)
+
+BLOCK 1 — D11-eng: VERIFIED, source pinned.
+  - The authorized arithmetic port IS on the INT line: 768ea6f
+    "[SHARED] D11-PORT: surface: for arithmetic (1 label) — probe
+    (eq (pow t 6) (pow (pow t 2) 3)) 0->1->0" is in the ancestry of
+    bfd4bd2 (the standing ancestry note held). Header verified in
+    packs/arithmetic.pack.yaml @ bfd4bd2: "surface: ExprEqLabel: eq",
+    pack-local, opt-in, constructor-head scoped, with in-file reasons.
+  - tools/d11_gate.py verified on the INT line: five gated conditions
+    (shipped-167 digest unchanged; no-header fixture -> 0; header
+    fixture -> 1 with LIBRARY_THEOREM provenance + audit line; 
+    unrelated goal -> 0; char-form diagnostic explicitly NOT cited),
+    plus the P2 ablation (surface: stripped -> matches return to 0).
+  - Additional D11 source branches: arena/01a05cb0 @ 32d1d0b ("[SHARED]
+    D11 scope control: degenerate probes, stale-log fix, brief note")
+    and arena/01a072d5 @ 957fb4b (G-eng session; carries the port and
+    the gate; G0 cold-E2 blocker work). D11-eng's "extend or repair
+    the existing gate, do not reapply the arithmetic port" is
+    executable against pinned bfd4bd2 + 32d1d0b.
+
+BLOCK 2 — SCHEMA-eng: PARTIALLY VERIFIED, one path correction.
+  - Extractor and grader EXIST: tools/cur_extract_evidence.py and
+    tools/cur_grade_artifact.py on arena/01a066cf @ 789b79e, with a
+    fixture corpus (tools/tests/cur_extractor/fixtures/: E3 x11, E4 x5,
+    E7 x2+ covering pass/negative-control/rejection shapes).
+  - PATH CORRECTION: the spec doc exists at protocol/G-ENG-ARTIFACT-
+    SCHEMA.md (protocol/, NOT tools/ as the instruction stated).
+  - DO NOT EXIST anywhere (to-create, correctly per the assignment):
+    tools/cur_artifact_schema.py (machine-readable schema + checker)
+    and tools/tests/cur_schema/. A verification/2026-09-09-PIPELINE-
+    SCHEMA-TRANSCRIPT.txt exists on the branch — today's lane output;
+    SCHEMA-eng must read it before authoring (avoid duplicating or
+    clobbering fresh same-lane work).
+  - "The extractor and grader already define contract-specific payload
+    handling": TRUE (verified by fixture names and grader presence).
+
+BLOCK 3 — PIPELINE-eng: VERIFIED, hardening targets real.
+  - tools/cur_pipeline.py on arena/01a066cf @ 789b79e. Confirmed
+    current shape: exit 2 = extractor rejection ("meaningful
+    downstream"); manifest goes to a temp dir ONLY when --out is
+    absent; extractor invoked via subprocess with --out. The
+    instruction's named failure paths (pre-existing output file,
+    accepting undocumented statuses, stale manifest consumption) are
+    real properties of the current code, not hypotheticals.
+
+BLOCK 4 — WORKERS-M3: VERIFIED, foundation pinned.
+  - Layer-D line arena/01a05d5d @ 3c4382b: tools/agent_workers/
+    driver.py (M1, from 327a263) + journal_driver.py (M2 @ bb9fdb7:
+    OBSERVATIONS vs PROPOSALS journal split, replay-proven restore
+    equivalence, inert proposals, duplicate-delivery no-op) + M2
+    verification (3c4382b: file-access audit, pinned mining counts,
+    invented-lemma scan; driver 27/27 ok).
+  - PENDING WITH INT: 3b60602 "Layer D -> INT: one-page ruling request
+    on the shared-root fast-path lane (parked locus of fill_warms):
+    keep off / enable under explicit compare mode / converge into
+    workers line; recommendation C with A interim". This sits exactly
+    on this lane's compare_search_modes inspection ground and beside
+    INT's recorded REVIVE-LATER ruling (tag shared-7cf6394). M3's "do
+    not enable shared-root fast paths" boundary is consistent with the
+    current standing state; the convergence question is INT's.
+
+BLOCK 5 — INT: NOT EXECUTABLE HERE (see capacity fact). Current INT
+  state for its own session: bfd4bd2; item-1 partial; amendment still
+  the first unmet step; compose 74bb3e7 still unmerged; no pre-launch
+  tag. The INT block's instructions (pin the declared arena line, not
+  origin/HEAD; inventory before applying; rehearse imports; tools
+  batch need not wait for M3; classify host-tool vs runtime-semantic
+  changes; operator re-baseline on semantic change) are consistent
+  with this lane's standing watch record and require no correction.
+
+--------------------------------------------------------------------
+execution feasibility (if routed here, scratch pattern, per block)
+
+  SCHEMA-eng:  tools-only + docs; source 01a066cf @ 789b79e; medium
+               size; to-create checker + drift tests; no dependency on
+               D11/M3. NOTE: read the branch's same-day transcript and
+               coordinate — the tools lane is LIVE; collision risk.
+  PIPELINE-eng: tools-only; source 01a066cf @ 789b79e; bounded; the
+               ten-case test matrix is concrete; no dependency.
+  D11-eng:     machine-adjacent (pack headers + gate tool); source
+               INT line @ bfd4bd2 + 01a05cb0 @ 32d1d0b; needs the
+               approved-mappings inventory step first; second-pack
+               pause boundary applies.
+  WORKERS-M3:  the largest block; source 01a05d5d @ 3c4382b; real
+               process workers, joins, serial admission; multi-turn
+               effort; depends on nothing else but is the long pole.
+
+recommended order for a single session (matches the instruction's own
+dependency graph — tools batch feeds INT first, and the tools lane is
+live so coordination matters most there):
+  SCHEMA-eng -> PIPELINE-eng -> D11-eng -> WORKERS-M3 (multi-turn),
+  with the INT block's instructions routed to INT's own session now.
+
+hygiene: this artifact records refs only; no code executed, no
+checkouts modified, nothing converted, no tags. Banned-phrase scan:
+0 matches.
