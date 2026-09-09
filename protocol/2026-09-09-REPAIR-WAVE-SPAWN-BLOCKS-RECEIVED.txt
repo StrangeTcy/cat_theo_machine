@@ -1,0 +1,660 @@
+F-PROVER protocol receipt record — Repair Wave spawn blocks (six engineers) and operator sequencing
+session: FPS-20260905-A1
+date: 2026-09-09
+document: "opus 4.7" — final spawn blocks for the six engineering agents, operator sequencing, do-nots, and watch pattern
+channel: protocol owner, direct paste
+
+EXECUTION STATUS — none of the six blocks is executed by this lane. Each
+block is pasted by the human operator into its own fresh arena session on
+its own worktree; this lane archives them so they survive sandbox resets
+and are citable by hash (charter lane separation; established spawn
+discipline of sections 17-18).
+
+RELATIONSHIP TO PRIOR ARCHIVES — these spawn blocks are the REFINED,
+AUTHORITATIVE versions of the Repair Wave briefs (receipt
+protocol/2026-09-09-FLT-REPAIR-WAVE-RECEIVED.txt), adding exact base-pinning
+instructions, read lists, deliverable paths, END REPORT formats, and
+per-deliverable classifications. The single-agent D11-SHELL-ENG brief
+(section 17 archive) remains superseded; the wave briefs remain as
+history behind these blocks.
+
+IDENTITY CHECKS EXECUTED BY THIS LANE AT RECEIPT (identity level only,
+no content read):
+- Agent 5's cited evidence arena/01a068c2@9ac8e10 resolves:
+  9ac8e103ca08b7b45f6d7092a0afc221e2dc000d, "docs: fable 5.1 correction —
+  empirical D21/D22 probe, relabel BLOCKED-D21-D22 ->
+  BLOCKED-PER-OBLIGATION-AUDIT"; confirmed on refs/heads/arena/01a068c2-
+  cat-theo-machine (merge-base --is-ancestor exit 0).
+- Agent 6's discovery-fetch ref refs/heads/arena/01a066cf-cat-theo-machine
+  exists (tip e904cfaf3a4f6ae159889eebb33b144b1b22e6be at receipt).
+- Base ref for all six: refs/heads/arena/01a06542-cat-theo-machine, still
+  bfd4bd28de5765adbdabd1d152200fa67f11e5a2 at receipt; every block
+  instructs the engineer to re-fetch and pin the live SHA, not inherit
+  bfd4bd2 (section 13 discipline, engineer-side).
+
+===== RECEIVED TEXT BEGINS =====
+
+# FLT Live-Session Repair Wave — spawn blocks
+
+Each block goes into its own arena session, its own worktree, on the ref named. Do not paste more than one into any single session.
+
+---
+
+## Spawn 1 — SNAPSHOT-PREFLIGHT-ENG
+
+```text
+You are SNAPSHOT-PREFLIGHT-ENG.
+
+Base:
+  refs/heads/arena/01a06542-cat-theo-machine
+  last observed SHA: bfd4bd2 — re-fetch and pin the current full SHA.
+  Verify experiment-5-frozen-r1@ef571b6 is an ancestor.
+
+Read first, then act:
+  protocol/preflight/ledger.md
+  protocol/preflight/exception-traceback.txt
+  logs/incident-misattributed-teaching.log  (context only, not this task)
+  tools/preflight_item1_repro.sh
+  persistence.py (capture / index paths)
+  trees.py (identity red-black insert/lookup)
+
+Operator ruling in force:
+  UPSTREAM-BOUNDARY
+  host runtime objects (e.g. Hypergraph) must not enter the
+  machine-term object-id index. No invented .id. No silent omission.
+  No broad except. Unsupported snapshot content returns an explicit
+  machine refusal term; destination state remains unchanged.
+
+TASK
+
+1. Reproduce the exact-109 ordered failure using the committed harness.
+   Save the pre-fix traceback under
+   verification/<date>-snapshot-boundary-fix/pre-fix-traceback.txt
+
+2. Locate the first boundary that inserts a host runtime object into the
+   machine-term capture/index path.
+
+3. Repair that boundary:
+   - index machine terms and explicitly supported scalar payloads only;
+   - unsupported host object → machine refusal term, no state change;
+   - do not add id/type-name discriminators forbidden by §0;
+   - do not silently skip a snapshot root required for restore.
+
+4. Guarantee atomicity: rejected capture leaves no partial snapshot;
+   index and graph state unchanged on failure.
+
+TESTS
+
+  exact_109_checkpoint_repro_test
+  host_hypergraph_not_indexed_as_term_test
+  unsupported_snapshot_root_refuses_test
+  failed_capture_leaves_no_partial_snapshot_test
+  supported_term_roundtrip_test
+  cold_restore_equivalence_test
+
+RUN
+
+  exact-109 before and after
+  the six tests above
+  both suite shards if time; INT reruns them on integration
+
+DELIVER
+
+  production fix (persistence.py boundary)
+  tests
+  verification/<date>-snapshot-boundary-fix/
+    pre-fix-traceback.txt
+    post-fix-repro.txt
+    test-output.txt
+  exact pushed SHA
+
+END REPORT
+
+agent: SNAPSHOT-PREFLIGHT-ENG
+base: <full sha>
+files changed: <list>
+exact-109 before: FAIL <mechanism>
+exact-109 after: PASS
+tests: <n>/<n>
+suite shards run: yes | no
+ready for INT: yes/no
+tag or force-push performed: none
+```
+
+---
+
+## Spawn 2 — D11-SHELL-ENG
+
+```text
+You are D11-SHELL-ENG.
+
+Base:
+  refs/heads/arena/01a06542-cat-theo-machine
+  re-fetch and pin the current full SHA; do not inherit bfd4bd2.
+  Verify ef571b6 is an ancestor.
+
+Read:
+  protocol/D11-PORT.md
+  protocol/F-SHELL-FRONTIER-REQUEST.md
+  logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log (evidence)
+  tools/d11_gate.py
+  planner.py (method-expansion loop; note "caller owns freshness")
+  packs.py, shipped pack surface layer
+
+Scope:
+  Characterization-only shell visibility. NOT proof-producing.
+  You do not implement checker calculus. Agent 3 owns that.
+
+TOY GOALS (non-FLT)
+
+  Goal A:
+    (nosolutions positive-integers (unknowns x)
+      (eq (plus x 1) x))
+
+  Goal B:
+    (forall n
+      (implies (greater n 1)
+        (eq (plus a a) (plus a a))))
+
+TASK
+
+Implement two shell-decomposition rules:
+  NosolutionsIntroduction
+  ForallImpliesDecomposition
+
+Each rule:
+  - matches its outer shell head structurally (heads compare by value);
+  - produces >= 1 genuine partial match on its toy goal;
+  - emits at least one concrete unmatched premise naming the missing
+    binder-safe / contradiction capability (use existing terms if any;
+    otherwise add narrow capability terms with clear names — do NOT
+    call them a proof);
+  - never closes the goal;
+  - unrelated shell with a DIFFERENT HEAD SYMBOL (not arity-only) stays
+    at 0 partial matches;
+  - ablation restores 0/0 on Goals A/B.
+
+Extend tools/d11_gate.py with new conditions:
+  shell-A live: partial > 0, unmatched premise concrete, unclosed
+  shell-B live: partial > 0, unmatched premise concrete, unclosed
+  shell negative control: partial == 0
+  ablation: A and B revert to 0
+  arithmetic ExprEq→eq port: unchanged (regression guard)
+
+CONSTRAINTS
+
+  no FLT-adjacent vocabulary
+  no new pack ports beyond the two shell rules
+  do not modify checker semantics
+  do not touch the ExprEq→eq mapping
+  no core.py
+
+DELIVER
+
+  pack additions (shell rules)
+  d11_gate.py extension
+  verification/<date>-d11-shell-characterization/
+    before.txt (matrix rerun: 1/0/0 baseline)
+    after.txt  (matrix rerun: 1/positive/positive)
+    ablation.txt (back to 1/0/0)
+    gate-transcript.txt
+  exact pushed SHA
+  classification: SEMANTIC (adds reachable rules)
+
+END REPORT
+
+agent: D11-SHELL-ENG
+base: <full sha>
+rules added: NosolutionsIntroduction, ForallImpliesDecomposition
+Goal A partial matches: <before>/<after>/<ablated>
+Goal B partial matches: <before>/<after>/<ablated>
+control: <count>
+concrete unmatched premises: <terms>
+goals remain unclosed: yes/no
+d11_gate exit: 0
+classification: SEMANTIC
+ready for INT: yes/no
+tag or force-push performed: none
+```
+
+---
+
+## Spawn 3 — LOGIC-CHECKER-ENG
+
+```text
+You are LOGIC-CHECKER-ENG.
+
+Base:
+  refs/heads/arena/01a06542-cat-theo-machine
+  re-fetch, pin full SHA, verify ef571b6 ancestry.
+
+Read:
+  planner.py (search for "the caller owns freshness")
+  the existing rule/certificate representation
+  the proof-checker validation path
+
+You OWN sound proof construction for the outer logical shell.
+
+ADD checked calculus:
+
+  ForallIntroduction(variable, body, freshness_evidence)
+  ImpliesIntroduction(assumption, derivation)
+  ContradictionIntroduction(assumption, contradiction)
+  NoSolutionsIntroduction(domain, unknowns, assumed_solution, contradiction)
+
+REQUIREMENTS (each is a test):
+
+  eigenvariable freshness enforced at check time
+  assumption scoping enforced; sibling assumptions cannot leak
+  capture-safe substitution
+  antecedent added inside child scope only; discharged at join
+  no-solutions requires derived contradiction from arbitrary in-domain
+    assumed solution; all solution assumptions discharged
+  certificate replays against the same declared base
+  missing freshness or scope evidence → certificate rejected
+  corrupted certificate → certificate rejected
+  generic rewriter cannot close these shells without the checked rule
+
+END-TO-END NON-FLT TOY (must close and cold-replay):
+
+  (forall n
+    (implies (greater n 1)
+      (eq (plus n 0) n)))
+
+TESTS
+
+  forall_reflexivity_closes_test
+  forall_missing_freshness_rejected_test
+  implication_identity_closes_test
+  implication_assumption_leak_rejected_test
+  contradiction_certificate_required_test
+  nosolutions_scoped_assumption_test
+  sibling_assumption_leak_rejected_test
+  corrupted_quantified_certificate_rejected_test
+  cold_replay_quantified_toy_test
+  generic_rewriter_cannot_close_shell_test
+
+DO NOT
+
+  weaken the checker to make shell rules "close"
+  treat partial matching as proof
+  add FLT-shaped goals or leaves
+  edit core.py
+
+DELIVER
+
+  checker implementation
+  certificate term representation
+  tests
+  verification/<date>-logic-checker/
+    tests.txt
+    quantified-toy-close.txt
+    cold-replay.txt
+    corrupted-certificate.txt
+  exact pushed SHA
+  classification: SEMANTIC (extends what the checker admits)
+
+END REPORT
+
+agent: LOGIC-CHECKER-ENG
+base: <full sha>
+rules added: ForallIntroduction, ImpliesIntroduction,
+             ContradictionIntroduction, NoSolutionsIntroduction
+freshness enforcement: yes
+scope isolation: yes
+end-to-end toy closes: yes/no
+cold replay: pass/fail
+corrupted certificate rejected: yes/no
+tests: <n>/<n>
+classification: SEMANTIC
+ready for INT: yes/no
+tag or force-push performed: none
+```
+
+---
+
+## Spawn 4 — TEACH-BINDING-ENG
+
+```text
+You are TEACH-BINDING-ENG.
+
+Base:
+  refs/heads/arena/01a06542-cat-theo-machine
+  re-fetch, pin full SHA, verify ef571b6 ancestry.
+
+Regression fixture: use logs/incident-misattributed-teaching.log verbatim.
+
+Read:
+  research.py — teach_dependency, request/Need representation, attribution
+  provenance.py — theorem provenance classes, INVENTED_LEMMA lifecycle
+  the existing intervention-episode machinery
+
+TASK
+
+Separate three previously conflated events:
+
+  A. trusted theorem accepted (may still be recorded as a theorem)
+  B. theorem application DISCHARGES this request's EXACT Need,
+     producing a replayable discharge certificate
+  C. that discharge produces measurable parent progress
+     (counterfactual, retry-based)
+
+An intervention episode is created only when A + B + C all hold for the
+same request. B requires exact Need semantic equality — NOT approximate
+match, NOT parent-improvement inference.
+
+TESTS
+
+  correct_dependency_teach_credited_test
+  wrong_request_theorem_not_credited_test
+  parent_progress_via_other_route_not_attributed_test
+  theorem_acceptance_distinct_from_discharge_test
+  request_scope_mismatch_rejected_test
+  exact_need_semantic_equality_test
+  misattributed_teaching_incident_regression_test    (uses the incident log)
+
+DO NOT
+
+  suppress the theorem itself when discharge fails —
+    it may still be accepted per policy, but earns no credit for the
+    unmet request and produces no episode
+  attribute credit to a theorem that discharged a DIFFERENT request
+  add target-specific vocabulary
+  edit core.py
+
+DELIVER
+
+  research.py fix at the teach path
+  discharge-certificate term
+  attribution tests
+  verification/<date>-teach-binding/
+    incident-regression.txt
+    scope-mismatch.txt
+    exact-need-equality.txt
+    tests.txt
+  exact pushed SHA
+  classification: SEMANTIC (changes when episodes form)
+
+END REPORT
+
+agent: TEACH-BINDING-ENG
+base: <full sha>
+teach path fix locus: <file:line>
+discharge certificate present: yes/no
+incident regression: PASS
+wrong-request credit: prevented
+parent-route inference: prevented
+tests: <n>/<n>
+classification: SEMANTIC
+ready for INT: yes/no
+tag or force-push performed: none
+```
+
+---
+
+## Spawn 5 — TRAINING-ACCEPTANCE-ENG
+
+```text
+You are TRAINING-ACCEPTANCE-ENG.
+
+Base:
+  refs/heads/arena/01a06542-cat-theo-machine
+  re-fetch, pin full SHA, verify ef571b6 ancestry.
+
+Read:
+  training.py — attempt_training_record, ObligationSkeletonConclusionGoal,
+    _first_undischarged_obligation
+  the G/I-op empirical D21/D22 probes on arena/01a068c2@9ac8e10 (evidence)
+  logs/incident-misattributed-teaching.log (context)
+
+DEFECTS TO FIX
+
+D21: ObligationSkeletonConclusionGoal returns FIRST goal-bearing entry
+     instead of the last one it documents.
+D22: success path skips the obligation audit; SUCCESS on the conclusion
+     alone silently accepts unproven mandatory intermediates.
+D23: hardcoded "invariance pipeline (strategy hint Invariance)" method
+     text is emitted regardless of the real hint.
+
+TASK
+
+1. Select the FINAL goal-bearing skeleton entry as conclusion goal.
+2. Audit every mandatory goal-bearing obligation on both success and
+   failure paths.
+3. Retain SUCCESS only when:
+     final conclusion proved
+     AND every mandatory intermediate obligation proved
+     AND every certificate replays
+     AND no unresolved required obligation.
+4. Report per-obligation results:
+     obligation id, goal, result, certificate, replay status.
+5. Remove hardcoded Invariance text — report the actual strategy hint
+   or planner method, or "none".
+
+TESTS
+
+  skeleton_final_goal_selected_test
+  initial_restatement_not_conclusion_test
+  success_requires_all_obligations_test
+  failed_intermediate_blocks_retention_test
+  success_path_runs_obligation_audit_test
+  per_obligation_summary_complete_test
+  real_method_name_reported_test
+  corrupted_intermediate_certificate_rejected_test
+  vacuous_two_obligation_fixture_test
+    (entry 1 restates a given; entry 2 not derivable → never SUCCESS)
+
+DELIVER
+
+  training.py fix
+  regression tests including the vacuous-two-obligation fixture
+  verification/<date>-training-acceptance/
+    d21-selector.txt
+    d22-success-path-audit.txt
+    d23-method-text.txt
+    tests.txt
+  exact pushed SHA
+  classification: SEMANTIC (changes what SUCCESS means)
+
+END REPORT
+
+agent: TRAINING-ACCEPTANCE-ENG
+base: <full sha>
+D21 fixed: yes/no
+D22 fixed: yes/no
+D23 fixed: yes/no
+vacuous-two-obligation retained SUCCESS: no
+tests: <n>/<n>
+classification: SEMANTIC
+ready for INT: yes/no
+tag or force-push performed: none
+```
+
+---
+
+## Spawn 6 — F-TOOLS-REPLAY-ENG
+
+```text
+You are F-TOOLS-REPLAY-ENG.
+
+Base:
+  refs/heads/arena/01a06542-cat-theo-machine
+  re-fetch, pin full SHA, verify ef571b6 ancestry.
+
+Also discovery-fetch (read only, do not merge here):
+  refs/heads/arena/01a06eb9-cat-theo-machine (F-tools battery)
+  refs/heads/arena/01a066cf-cat-theo-machine (schema/pipeline)
+
+Read on the INT base:
+  main.py auto-restore path around research_snapshot.json
+  the audit header emitted at "research mode on"
+
+You OWN:
+  F1 (save/load checkpoint), D12 (audit header), and F2/F3/F4 corrections.
+
+TASK A — F1
+
+Add operator verbs to main.py dispatch:
+  save checkpoint <name>
+  load checkpoint <name>
+
+Checkpoint record includes:
+  content-addressed id
+  parent checkpoint id
+  runtime commit
+  frozen tag or "untagged"
+  loaded provenance class list
+  learned-memory profile
+  session profile
+
+Requirements:
+  load never mutates the stored checkpoint
+  session output identifies its parent checkpoint id
+  undeclared auto-restore of research_snapshot.json is either disabled
+    or PRINTED to the audit header BEFORE use
+  tampered payload → machine refusal, no state change
+  cold replay verifies the recorded derivation, not a fresh search result
+
+TASK B — D12 header
+
+Every research-mode session header prints, even when values are "none"
+or "untagged":
+
+  runtime commit
+  frozen tag
+  checkpoint id
+  parent checkpoint id
+  loaded classes
+  theorem provenance classes
+  profile
+
+Repair DEF-2026-09-09-10.
+
+TASK C — F2/F3/F4
+
+F2 must count:
+  teach dependency
+  teach trusted theorem
+  rejected teach
+  discharge certificate present
+  attribution accepted
+  computable request
+  circular request
+
+Do not infer circularity from an empty premise list alone.
+
+F3 keeps the four-way exit taxonomy:
+  identical / silence-class / distinct / incomparable
+
+F4 audits:
+  every teach preceded by a concrete Need
+  supplied theorem discharges that exact Need (certificate present)
+  attribution references the discharge certificate
+  full session identity header present
+
+TESTS
+
+  checkpoint_content_addressed_roundtrip_test
+  checkpoint_parent_identity_test
+  checkpoint_tamper_rejected_test
+  undeclared_restore_reported_test
+  audit_header_complete_with_none_values_test
+  cold_certificate_replay_test
+  corrupted_certificate_rejected_test
+  f2_teach_dependency_count_test
+  f4_wrong_request_attribution_detected_test
+
+DO NOT
+
+  run a target session
+  teach any theorem
+  merge foreign branches into INT here
+  cut any tag
+
+DELIVER
+
+  checkpoint module + dispatch (INT-owned files: request in your commit
+    message that INT reviews the main.py hunks specifically)
+  header change
+  F2/F3/F4 corrections
+  verification/<date>-f-tools-replay/
+    f1-roundtrip.txt
+    d12-header.txt
+    f2-counts.txt
+    f4-attribution.txt
+    tests.txt
+  exact pushed SHA
+  classification:
+    F1 + auto-restore behavior change = SEMANTIC
+    D12 header additions alone = NON-SEMANTIC
+
+END REPORT
+
+agent: F-TOOLS-REPLAY-ENG
+base: <full sha>
+F1 verbs: implemented
+D12 header: complete
+undeclared restore: printed | disabled
+tamper detection: yes
+cold certificate replay: yes
+F2/F3/F4 corrections: <summary>
+tests: <n>/<n>
+classification: SEMANTIC (F1) + NON-SEMANTIC (header)
+ready for INT: yes/no
+tag or force-push performed: none
+```
+
+---
+
+# Sequencing you (operator) perform
+
+```text
+1. Spawn all six. Give each block to its own arena session on the ref named.
+   Do not paste more than one block into one session.
+
+2. Collect the six status blocks. Each carries an exact pushed SHA.
+
+3. Give INT the wave's integration block with those six SHAs substituted
+   in the merge list. Add the dual-schema resolution instruction from the
+   original wave (9ba2f43 vs c24b0f0) as an independent tools-only
+   decision.
+
+4. INT does: merge in order, run all focused tests + preflight items 2-4
+   + the non-FLT quantified-toy milestone + both full shards, then cut a
+   new immutable semantic tag on the exact admitted commit and publish
+   its allowed profiles, checkpoints, and blank-control requirement.
+
+5. Notify F-PROVER with the tag, peeled commit, profiles, checkpoints,
+   and blank-control requirement. F-PROVER's reopen condition then fires.
+```
+
+# What you (operator) do not do
+
+```text
+- Do not run the FLT target before the tag exists.
+- Do not consolidate two engineer roles into one session.
+- Do not merge INT-line branches yourself; INT owns that path.
+- Do not skip the non-FLT quantified toy milestone. That toy is the
+  proof-of-life for the entire wave: without it closing and cold-replaying,
+  the tag is not admitted.
+```
+
+# Watch pattern for you between now and the tag
+
+```text
+Between spawn and tag:
+  each engineer returns exactly one status block with a pushed SHA
+  INT returns one integration block with the tag name and peeled commit
+  F-PROVER stays parked; it does not act until INT's notification
+
+If an engineer reports "ready for INT: no", they must name the specific
+blocker. Do not accept "no" without a blocker.
+
+If INT reports the milestone toy did not close or did not cold-replay,
+the tag is not cut. The offending agent's work goes back to that agent
+with the failing verification transcript.
+```
+
+The wave is now spawnable. Six blocks, one paste each, six sessions, one INT session after they report, one tag, then the live session.
+
+===== RECEIVED TEXT ENDS =====

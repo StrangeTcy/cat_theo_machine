@@ -769,3 +769,31 @@ if it recurs in the live session, the lane stops on it literally.
 Until INT's tag + notification, the lane remains parked. The six
 engineers and INT are the owner's to spawn and run; exact SHAs flow from
 them to INT, never through this lane.
+
+## 20. Spawn blocks received; wave spawnable (2026-09-09)
+
+The owner published the six REFINED spawn blocks (one per engineer, with
+exact base-pinning, read lists, deliverable trees, END REPORT formats,
+and classifications), the operator sequencing (spawn six in separate
+sessions; collect status blocks with exact SHAs; hand INT the
+integration block with those SHAs plus the independent tools-only dual-
+schema resolution 9ba2f43 vs c24b0f0; INT merges, runs focused tests +
+preflight items 2-4 + the non-FLT quantified-toy milestone + both
+shards, cuts the new immutable semantic tag, publishes profiles/
+checkpoints/blank-control requirement; notification fires this lane's
+reopen condition), the operator do-nots (no target before the tag; no
+role consolidation; INT owns merges; the quantified toy is the
+proof-of-life — without close + cold replay, no tag), and the watch
+pattern ("ready for INT: no" requires a named blocker; milestone failure
+returns the work to the offending agent with the failing transcript).
+Archived verbatim at
+protocol/2026-09-09-REPAIR-WAVE-SPAWN-BLOCKS-RECEIVED.txt.
+
+Identity checks at receipt: Agent 5's evidence ref
+arena/01a068c2@9ac8e10 resolves (9ac8e103ca08b7b45f6d7092a0afc221e2dc000d,
+"empirical D21/D22 probe" correction commit; ancestor check exit 0);
+Agent 6's discovery refs 01a06eb9 and 01a066cf exist; base ref 01a06542
+still bfd4bd2 at receipt — every block pins the live SHA at spawn.
+
+This lane performs no spawn. Lane state: parked under the watch pattern;
+reopens only on INT's tag + notification per section 19.
