@@ -1,13 +1,14 @@
 {
   "schema": "geng-bundle/v2",
-  "contract": "E7",
+  "contract": "E4",
   "candidate": {
     "id": "cand",
     "role": "candidate",
     "cites": [
-      "params"
+      "params",
+      "moves"
     ],
-    "text": "e7 params only"
+    "text": "no bound"
   },
   "claims": [
     {
@@ -25,13 +26,24 @@
         "cl1"
       ],
       "payload": {
-        "window_width": 4,
-        "modulus": 4
+        "houses": 2
+      }
+    },
+    {
+      "id": "moves",
+      "role": "moves",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ],
+      "payload": {
+        "moves": [
+          {
+            "e_in": 2,
+            "e_out": 1
+          }
+        ]
       }
     }
-  ],
-  "parameters": {
-    "window_width": 4,
-    "modulus": 4
-  }
+  ]
 }

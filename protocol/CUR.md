@@ -121,3 +121,32 @@ This batch replaces role-to-bool with checked evidence handlers that actually de
 - Timezone: everything records real UTC (Etc/UTC, +0000); the render must not trust a filename date.
 
 Remote tip recorded before work (checked-evidence extractor): `b26bf8accc1119aea5555a9b9224b336addbc5d4`.
+
+---
+
+## Note (2026-09-09) — E4/E7 checked handlers (CUR-GRADER-ENG)
+
+Following the E3 checked-handler ratification, the extractor now has checked handlers for E4
+(descent) and E7 (mod-4 invariance) with the same discipline: a role selects a handler; it never
+supplies a verdict. Each handler computes from cited numeric payloads against the pinned problem.
+
+- E4 C1: houses==2 and degree_bound<=3 (descent bound load-bearing). A FAIL bit is set only when a
+  descent argument is present but the degree bound is absent; pure absence stays CD.
+- E4 C2/C3: for every legal move (e_in>=2, e_in+e_out<=3) ΔH = e_out - e_in <= -1. A move violating
+  the degree bound (e.g. (d,s)=(4,2)) is rejected as descent proof.
+- E4 C4/C5: H bounded below -> well-founded; terminal "no_legal_move" (not global min) -> PASS,
+  "global_min" -> overclaim FAIL.
+- E4 C6: measure provenance "derived" vs "supplied".
+- E7 C1: BOTH the width-4 structure AND a derived-observable node; a bare window_width tag alone is
+  NOT a derivation (closes the "tag establishes evidence" hole).
+- E7 C2: ΔS ≡ 0 (mod 4) for every single flip in the provided samples; a width-3 sample (or sample
+  with a residue change) is rejected. No samples -> CD, never PASS.
+- E7 C3: start residue differs from target when 4 ∤ n.
+- E7 C4: width-3 negative control emits ΔS ≡ 2 (mod 4).
+- E7 C5/C6: rejected-candidate classification; observable provenance.
+
+Adversarial fixtures per family (missing bound / degree-4 move / global-min overclaim / role-only;
+width-tag-only / preservation-fails / no-samples / role-only) all verified NOT silent-PASS. Selftest
+now 30 assertions, exit 0 (3 full-PASS paths: e3-pass, e4-pass, e7-pass). Grader selftest still exit 0.
+
+Remote tip recorded before work (E4/E7 handlers): `f978c69977bad35399017e078c9319b8b5dec5d8`.

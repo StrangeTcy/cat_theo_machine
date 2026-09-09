@@ -22,19 +22,11 @@ computation against the pinned problem, and only then sets a bit. If the require
 absent, empty, unrelated, or its support chain fails, the bit is NOT set and the check is
 CANNOT_DETERMINE. No prose keywords or candidate-authored assurances become proof.
 
-The bounded implementation here is E3 (six-sector alternating sum, invariance, adjacent-increment
-moves). Its handlers compute:
-  C1 kernel        : the candidate weight w is in the kernel of the move matrix (w_i + w_j = 0 cyclically).
-  C2 preservation  : every declared move changes the reading by 0 (ΔR = w_i + w_j = 0 for each pair).
-  C3 separation    : R(start) != R(all-equal target); needs sum(w) = 0 and w . start != 0.
-  C4 odd control   : the 5-sector odd cycle admits NO nonzero exact linear observable (rank check).
-  C5 removal       : with the weighted generator disabled the candidate is absent; the on-run
-                     candidate reproduces the derived kernel vector.
-  C6 no injection  : the weight's provenance is explicitly 'derived' and it reproduces the kernel basis.
-
-E4 and E7 have NO checked handler in this batch. A bundled role name therefore never establishes
-PASS there; those checks stay CANNOT_DETERMINE (with a diagnostic). This is the correct, bounded
-state: only validated support becomes PASS.
+E3, E4 and E7 all have checked handlers. A bundled role name never establishes PASS; each
+handler reads the cited node's structured payload and derives the verdict by actual computation
+against the pinned problem. If the required payload is absent, empty, unrelated, or its support
+chain fails, the bit stays unset (CANNOT_DETERMINE). E4 descent and E7 mod-4 residue are checked
+in this batch the same way E3 was.
 
 PROOF-SUPPORT DEPENDENCY CHAIN
 ------------------------------
@@ -71,7 +63,7 @@ PINNED_RUBRIC_REF = _GRADER_MOD.PINNED_RUBRIC_REF
 PINNED_CONTRACT_REFS = _GRADER_MOD.PINNED_CONTRACT_REFS
 
 BUNDLE_SCHEMA = "geng-bundle/v2"
-EXTRACTOR_VERSION = "2.0.0"
+EXTRACTOR_VERSION = "3.0.0"
 
 CHECKS = ("C1", "C2", "C3", "C4", "C5", "C6")
 
@@ -630,6 +622,369 @@ def _checked_e3(bundle, status):
     return evidence, citations, diagnostics
 
 
+# --------------------------------------------------------------------- E4 descent
+E4_TWO_HOUSES = 2
+E4_MAX_DEGREE = 3
+
+
+def _parse_e4_move(mv):
+    """Parse one E4 move record -> (e_in, e_out) or None.
+
+    Supported record shapes (the contract uses e_in = enemies in own house, e_out = enemies in
+    the other house):
+      {e_in: int, e_out: int}
+      {d: degree, s: same-house}  where degree = e_in + e_out (so e_in = s, e_out = d - s)
+    """
+    if not _is_mapping(mv):
+        return None
+    if "e_in" in mv and "e_out" in mv and _is_number(mv["e_in"]) and _is_number(mv["e_out"]):
+        return (int(mv["e_in"]), int(mv["e_out"]))
+    if "d" in mv and "s" in mv and _is_number(mv["d"]) and _is_number(mv["s"]):
+        d = int(mv["d"])
+        s = int(mv["s"])
+        return (s, d - s)
+    return None
+
+
+def _read_int_field(payload, field, default=None):
+    if not _is_mapping(payload):
+        return default
+    if field not in payload:
+        return default
+    if not _is_number(payload[field]):
+        return default
+    return int(payload[field])
+
+
+def _checked_e4(bundle, status):
+    """Derive E4 evidence: two-house partition, max degree <= 3, descent ΔH <= -1, bounded below."""
+    evidence = {c: {} for c in CHECKS}
+    citations = {}
+    diagnostics = []
+    by_role = _support_by_role(bundle, status)
+
+    # --- family-level facts from a "params"/"hypothesis" record.
+    houses = None
+    degree_bound = None
+    for nd in by_role.get("params", []) + by_role.get("hypothesis", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        if houses is None:
+            houses = _read_int_field(p, "houses")
+        if degree_bound is None:
+            degree_bound = _read_int_field(p, "degree_bound")
+    if houses is None:
+        diagnostics.append("E4: no houses parameter")
+    if degree_bound is None:
+        diagnostics.append("E4: no degree_bound parameter")
+
+    # --- C1 hypothesis: max degree <= 3 (load-bearing).
+    # A FAIL bit (argues_from_e_in_alone) is set ONLY when a descent argument is present but the
+    # degree bound is absent. Pure absence (no degree bound AND no descent argument) stays CD.
+    pass_c1, fail_c1 = [], []
+    descent_argued = any(True for nd in by_role.get("moves", [])
+                         if _is_mapping(nd.get("payload")))
+    if degree_bound is not None:
+        if degree_bound <= E4_MAX_DEGREE:
+            pass_c1.append({"field": "degree_bound", "value": degree_bound})
+        else:
+            fail_c1.append({"field": "degree_bound", "value": degree_bound})
+    elif descent_argued:
+        # descent argued from e_in >= 2 alone, no degree bound
+        fail_c1.append({"field": "degree_bound", "value": None})
+    _combine_set(evidence, citations, "C1", "cites_max_degree_le_3",
+                 "argues_from_e_in_alone", pass_c1, fail_c1)
+
+    # --- C2 exactly two houses.
+    pass_c2, fail_c2 = [], []
+    if houses is not None:
+        if houses == E4_TWO_HOUSES:
+            pass_c2.append({"field": "houses", "value": houses})
+        else:
+            fail_c2.append({"field": "houses", "value": houses})
+    _combine_set(evidence, citations, "C2", "states_exactly_two_houses",
+                 "house_target_ambiguous", pass_c2, fail_c2)
+
+    # --- C3 descent: for every legal move, ΔH = e_out - e_in <= -1.
+    pass_c3, fail_c3 = [], []
+    seen_move = False
+    for nd in by_role.get("moves", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        mvs = p.get("moves")
+        if not _is_array(mvs):
+            continue
+        seen_move = True
+        bad = False
+        for mv in mvs:
+            parsed = _parse_e4_move(mv)
+            if parsed is None:
+                continue
+            e_in, e_out = parsed
+            # legality condition: e_in >= 2 (member has >= 2 enemies in own house)
+            if not (e_in >= 2):
+                continue
+            delta = e_out - e_in
+            # A move is only "descent" if the user is in own-house >= 2 AND degree bound holds.
+            # The pinned bound e_in + e_out <= 3, so the legal descent gives delta <= -1.
+            if (e_in + e_out) > E4_MAX_DEGREE:
+                # violates degree bound: not a legal descent move -> reject as descent proof
+                fail_c3.append({"node": nd.get("id"), "e_in": e_in, "e_out": e_out,
+                                "reason": "degree-bound-violated"})
+                bad = True
+                break
+            if delta > -1:
+                fail_c3.append({"node": nd.get("id"), "e_in": e_in, "e_out": e_out,
+                                "delta": delta})
+                bad = True
+                break
+        if not bad:
+            pass_c3.append({"node": nd.get("id")})
+    if not seen_move:
+        diagnostics.append("E4: no move record to check descent")
+    _combine_set(evidence, citations, "C3", "derives_delta_h_le_minus1",
+                 "asserts_unbounded_descent", pass_c3, fail_c3)
+
+    # --- C4 well-founded: H bounded below by 0.
+    pass_c4, fail_c4 = [], []
+    for nd in by_role.get("bound", []) + by_role.get("wellfounded", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        lb = _read_int_field(p, "lower_bound")
+        if lb is not None and lb >= 0:
+            pass_c4.append({"node": nd.get("id"), "lower_bound": lb})
+        else:
+            fail_c4.append({"node": nd.get("id")})
+    _combine_set(evidence, citations, "C4", "notes_h_bounded_below",
+                 "termination_no_lower_bound", pass_c4, fail_c4)
+
+    # --- C5 termination != global min.
+    pass_c5, fail_c5 = [], []
+    for nd in by_role.get("terminal", []) + by_role.get("terminus", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        claim = p.get("claim")
+        if claim == "no_legal_move":
+            pass_c5.append({"node": nd.get("id"), "claim": claim})
+        elif claim == "global_min":
+            fail_c5.append({"node": nd.get("id"), "claim": claim})
+        else:
+            # if only the bound was claimed, no statement about min -> CD (no bit)
+            pass
+    _combine_set(evidence, citations, "C5", "termination_not_global_min",
+                 "concludes_global_minimum", pass_c5, fail_c5)
+
+    # --- C6 no constant injection: measure derived, not supplied.
+    pass_c6, fail_c6 = [], []
+    for nd in by_role.get("measure", []) + by_role.get("monovariant", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        prov = p.get("provenance")
+        if prov == "derived":
+            pass_c6.append({"node": nd.get("id"), "provenance": prov})
+        elif prov == "supplied":
+            fail_c6.append({"node": nd.get("id"), "provenance": prov})
+    _combine_set(evidence, citations, "C6", "measure_derived",
+                 "measure_injected", pass_c6, fail_c6)
+
+    return evidence, citations, diagnostics
+
+
+# --------------------------------------------------------------------- E7 modular invariance
+E7_WINDOW = 4
+E7_MODULUS = 4
+E7_ODD_WINDOW = 3
+
+
+def _window_product(w, n, start, width):
+    prod = 1
+    for k in range(width):
+        prod *= w[(start + k) % n]
+    return prod
+
+
+def _sum_products_mod(w, n, width, modulus):
+    total = 0
+    for start in range(n):
+        total += _window_product(w, n, start, width)
+    return total % modulus
+
+
+def _flip_delta_mod(w, n, pos, width, modulus):
+    """Change in the sum-of-products mod modulus when sign of w[pos] is flipped."""
+    before = _sum_products_mod(w, n, width, modulus)
+    b = list(w)
+    b[pos] = -b[pos]
+    after = _sum_products_mod(b, n, width, modulus)
+    return (after - before) % modulus
+
+
+def _checked_e7(bundle, status):
+    """Derive E7 evidence: width-4 mod-4 preservation, separation, width-3 negative control."""
+    evidence = {c: {} for c in CHECKS}
+    citations = {}
+    diagnostics = []
+    by_role = _support_by_role(bundle, status)
+
+    # --- family params.
+    window_width = None
+    modulus = None
+    for nd in by_role.get("params", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        if window_width is None:
+            window_width = _read_int_field(p, "window_width")
+        if modulus is None:
+            modulus = _read_int_field(p, "modulus")
+    if window_width is None:
+        diagnostics.append("E7: no window_width parameter")
+    if modulus is None:
+        diagnostics.append("E7: no modulus parameter")
+
+    # --- C1 derived from flip-sign move set: a width-4 observable actually derived.
+    # PASS requires BOTH the width-4 structure AND a derived-observable node (an explicit
+    # derivation record). A bare window_width tag alone is not a derivation — that is the
+    # "tag never establishes evidence" discipline, same as E3/E4. A FAIL bit is set only when an
+    # observable is present but the width-4 move set / derivation is absent. Pure absence stays CD.
+    pass_c1, fail_c1 = [], []
+    obs_nodes = by_role.get("observable", []) + by_role.get("measure", [])
+    observable_present = any(_is_mapping(nd.get("payload")) for nd in obs_nodes)
+    derived_obs = any(_is_mapping(nd.get("payload")) and nd.get("payload").get("provenance") == "derived"
+                      for nd in obs_nodes)
+    if window_width == E7_WINDOW and derived_obs:
+        pass_c1.append({"field": "window_width", "value": window_width, "derived": True})
+    elif window_width is not None and window_width != E7_WINDOW:
+        fail_c1.append({"field": "window_width", "value": window_width})
+    elif observable_present:
+        fail_c1.append({"field": "derived_observable", "value": derived_obs})
+    _combine_set(evidence, citations, "C1", "derived_from_flip_sign",
+                 "invented_without_move_set", pass_c1, fail_c1)
+
+    # --- C2 preservation: ΔS ≡ 0 (mod 4) for every single flip in the samples.
+    pass_c2, fail_c2 = [], []
+    seen_sample = False
+    for nd in by_role.get("samples", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        seqs = p.get("sequences")
+        if not _is_array(seqs):
+            continue
+        for seq in seqs:
+            if not _is_array(seq):
+                continue
+            if not all(_is_number(x) for x in seq):
+                continue
+            n = len(seq)
+            wf = _read_int_field(p, "window_width")
+            width = wf if wf is not None else window_width
+            if width is None:
+                diagnostics.append("E7: sample has no resolvable window_width")
+                continue
+            if width != E7_WINDOW:
+                # sample width mismatch -> reject as preservation proof
+                fail_c2.append({"node": nd.get("id"), "width": width, "reason": "width-not-4"})
+                continue
+            seen_sample = True
+            all_ok = True
+            for pos in range(n):
+                if _flip_delta_mod(list(seq), n, pos, width, E7_MODULUS) != 0:
+                    all_ok = False
+                    break
+            if all_ok:
+                pass_c2.append({"node": nd.get("id")})
+            else:
+                fail_c2.append({"node": nd.get("id"), "reason": "residue-changed"})
+    if not seen_sample:
+        diagnostics.append("E7: no valid width-4 sample sequence to check preservation")
+    _combine_set(evidence, citations, "C2", "shows_even_window_delta",
+                 "preservation_no_even_argument", pass_c2, fail_c2)
+
+    # --- C3 separation: start residue differs from target whenever 4 does not divide n.
+    pass_c3, fail_c3 = [], []
+    for nd in by_role.get("separate", []) + by_role.get("separation", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        start_res = _read_int_field(p, "start_residue")
+        target_res = _read_int_field(p, "target_residue")
+        n = _read_int_field(p, "n")
+        if target_res is not None and n is not None and (n % E7_MODULUS) != 0:
+            # 4 ∤ n -> residues differ => separation holds
+            if target_res != 0:
+                pass_c3.append({"node": nd.get("id"), "n": n, "target_residue": target_res})
+            else:
+                fail_c3.append({"node": nd.get("id"), "n": n, "target_residue": target_res})
+    _combine_set(evidence, citations, "C3", "start_residue_differs",
+                 "cannot_separate_4_divides", pass_c3, fail_c3)
+
+    # --- C4 negative control: width-3 emits ΔS ≡ 2 (mod 4).
+    pass_c4, fail_c4 = [], []
+    for nd in by_role.get("control", []) + by_role.get("odd-control", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        seq = p.get("sample")
+        if not _is_array(seq) or not all(_is_number(x) for x in seq):
+            continue
+        n = len(seq)
+        deltas = set()
+        for pos in range(n):
+            deltas.add(_flip_delta_mod(list(seq), n, pos, E7_ODD_WINDOW, E7_MODULUS))
+        if deltas == {2}:
+            pass_c4.append({"node": nd.get("id"), "width": E7_ODD_WINDOW, "deltas": sorted(deltas)})
+        else:
+            fail_c4.append({"node": nd.get("id"), "width": E7_ODD_WINDOW, "deltas": sorted(deltas)})
+    _combine_set(evidence, citations, "C4", "emits_odd_width_control",
+                 "omits_odd_width_control", pass_c4, fail_c4)
+
+    # --- C5 rejected candidates classified.
+    pass_c5, fail_c5 = [], []
+    for nd in by_role.get("rejected", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        candidates = p.get("candidates")
+        if not _is_array(candidates):
+            continue
+        bad = False
+        for cand in candidates:
+            if not _is_mapping(cand):
+                continue
+            name = cand.get("name")
+            cls = cand.get("class")
+            if cls == "not_invariant" or cls == "preserved_but_non_separating":
+                pass_c5.append({"node": nd.get("id"), "name": name, "class": cls})
+            elif cls == "invariant" or cls == "separating":
+                fail_c5.append({"node": nd.get("id"), "name": name, "class": cls})
+                bad = True
+                break
+    _combine_set(evidence, citations, "C5", "classifies_rejected",
+                 "misclassifies_rejected", pass_c5, fail_c5)
+
+    # --- C6 no constant injection: observables derived, not supplied.
+    pass_c6, fail_c6 = [], []
+    for nd in by_role.get("observable", []) + by_role.get("measure", []):
+        p = nd.get("payload")
+        if not _is_mapping(p):
+            continue
+        prov = p.get("provenance")
+        if prov == "derived":
+            pass_c6.append({"node": nd.get("id"), "provenance": prov})
+        elif prov == "supplied":
+            fail_c6.append({"node": nd.get("id"), "provenance": prov})
+    _combine_set(evidence, citations, "C6", "observable_derived",
+                 "weights_injected", pass_c6, fail_c6)
+
+    return evidence, citations, diagnostics
+
+
 # --------------------------------------------------------------------- identity
 def _sha256_text(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -679,6 +1034,10 @@ def extract_bundle(bundle):
 
     if contract == "E3":
         evidence, citations, handler_diags = _checked_e3(bundle, status)
+    elif contract == "E4":
+        evidence, citations, handler_diags = _checked_e4(bundle, status)
+    elif contract == "E7":
+        evidence, citations, handler_diags = _checked_e7(bundle, status)
     else:
         evidence = {c: {} for c in CHECKS}
         citations = {}

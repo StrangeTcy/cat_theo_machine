@@ -224,6 +224,86 @@ def main(argv):
     print("  grc=%s final=%s (%s)" % (grc, _final(gparsed), "OK" if ok11 else "FAIL"))
     print("")
 
+    # ---- CHECK 11b: E4 full-PASS path (descent).
+    print("CHECK 11b — E4 PASS end-to-end")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e4-pass.json"), scratch)
+    ok11b = (xrc == 0) and (grc == 0) and (_final(gparsed) == "PASS")
+    record("check11b e4-pass full PASS", ok11b, "xrc=%s grc=%s final=%s" % (xrc, grc, _final(gparsed)))
+    print("  xrc=%s grc=%s final=%s (%s)" % (xrc, grc, _final(gparsed), "OK" if ok11b else "FAIL"))
+    print("")
+
+    # ---- CHECK 11c: E4 missing degree bound -> hypothesis-omitted FAIL (not PASS).
+    print("CHECK 11c — E4 missing degree bound is NOT a silent PASS")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e4-missing-degree-bound.json"), scratch)
+    ok11c = (_final(gparsed) != "PASS")
+    record("check11c e4 missing bound not PASS", ok11c, "final=%s disc=%s" % (_final(gparsed), _disc(gparsed)))
+    print("  final=%s disc=%s (%s)" % (_final(gparsed), _disc(gparsed), "OK" if ok11c else "FAIL"))
+    print("")
+
+    # ---- CHECK 11d: E4 (d,s)=(4,2) as "legal descent" -> descent FAIL.
+    print("CHECK 11d — E4 degree-4 move (illegal descent) is NOT a silent PASS")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e4-degree4-move.json"), scratch)
+    ok11d = (_final(gparsed) != "PASS")
+    record("check11d e4 deg4 move not PASS", ok11d, "final=%s disc=%s" % (_final(gparsed), _disc(gparsed)))
+    print("  final=%s disc=%s (%s)" % (_final(gparsed), _disc(gparsed), "OK" if ok11d else "FAIL"))
+    print("")
+
+    # ---- CHECK 11e: E4 claims terminal => unique min -> overclaim FAIL.
+    print("CHECK 11e — E4 terminal-global-min overclaim is rejected")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e4-terminal-global-min.json"), scratch)
+    ok11e = (_final(gparsed) != "PASS")
+    record("check11e e4 overclaim not PASS", ok11e, "final=%s disc=%s" % (_final(gparsed), _disc(gparsed)))
+    print("  final=%s disc=%s (%s)" % (_final(gparsed), _disc(gparsed), "OK" if ok11e else "FAIL"))
+    print("")
+
+    # ---- CHECK 11f: E4 role-only negative control -> CANNOT_DETERMINE.
+    print("CHECK 11f — E4 role-only negative control is NOT a PASS")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e4-role-only-negative-control.json"), scratch)
+    ok11f = (_final(gparsed) != "PASS")
+    record("check11f e4 role-only not PASS", ok11f, "final=%s" % (_final(gparsed)))
+    print("  final=%s (%s)" % (_final(gparsed), "OK" if ok11f else "FAIL"))
+    print("")
+
+    # ---- CHECK 11g: E7 full-PASS path (mod-4 invariance).
+    print("CHECK 11g — E7 PASS end-to-end")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e7-pass.json"), scratch)
+    ok11g = (xrc == 0) and (grc == 0) and (_final(gparsed) == "PASS")
+    record("check11g e7-pass full PASS", ok11g, "xrc=%s grc=%s final=%s" % (xrc, grc, _final(gparsed)))
+    print("  xrc=%s grc=%s final=%s (%s)" % (xrc, grc, _final(gparsed), "OK" if ok11g else "FAIL"))
+    print("")
+
+    # ---- CHECK 11h: E7 width tag 4 but samples width 3 -> preservation FAIL.
+    print("CHECK 11h — E7 width-tag-only (width 4 tag, width-3 sample) is NOT a PASS")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e7-width-tag-only.json"), scratch)
+    ok11h = (_final(gparsed) != "PASS")
+    record("check11h e7 width tag not PASS", ok11h, "final=%s" % (_final(gparsed)))
+    print("  final=%s (%s)" % (_final(gparsed), "OK" if ok11h else "FAIL"))
+    print("")
+
+    # ---- CHECK 11i: E7 preservation claimed but sample changes residue -> FAIL.
+    print("CHECK 11i — E7 preservation-fails is NOT a PASS")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e7-preservation-fails.json"), scratch)
+    ok11i = (_final(gparsed) != "PASS")
+    record("check11i e7 preservation fails not PASS", ok11i, "final=%s" % (_final(gparsed)))
+    print("  final=%s (%s)" % (_final(gparsed), "OK" if ok11i else "FAIL"))
+    print("")
+
+    # ---- CHECK 11j: E7 no samples at all -> CANNOT_DETERMINE (not PASS).
+    print("CHECK 11j — E7 no samples at all is CANNOT_DETERMINE (not PASS)")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e7-no-samples.json"), scratch)
+    ok11j = (_final(gparsed) == "CANNOT_DETERMINE")
+    record("check11j e7 no samples CD", ok11j, "final=%s" % (_final(gparsed)))
+    print("  final=%s (%s)" % (_final(gparsed), "OK" if ok11j else "FAIL"))
+    print("")
+
+    # ---- CHECK 11k: E7 role-only negative control -> CANNOT_DETERMINE.
+    print("CHECK 11k — E7 role-only negative control is NOT a PASS")
+    xrc, grc, gparsed, manifest = extract_and_grade(os.path.join(FIXDIR, "e7-role-only-negative-control.json"), scratch)
+    ok11k = (_final(gparsed) != "PASS")
+    record("check11k e7 role-only not PASS", ok11k, "final=%s" % (_final(gparsed)))
+    print("  final=%s (%s)" % (_final(gparsed), "OK" if ok11k else "FAIL"))
+    print("")
+
     # ---- CHECK 12: malformed bundles -> structured exit-2 (no traceback).
     print("CHECK 12 — malformed bundles yield structured exit-2 errors")
     for fname in ["malformed-duplicate-id.json", "malformed-nonarray-cites.json", "unsupported-contract.json"]:
@@ -300,19 +380,27 @@ def main(argv):
     print("  xrc=%s grc=%s final=%s (%s)" % (xrc, grc, _final(gparsed), "OK" if ok17 else "FAIL"))
     print("")
 
-    # ---- CHECK 18: two COMPLETE selftests run concurrently (level 0, only from top process).
+    # ---- CHECK 18: two COMPLETE selftests run concurrently (unique scratch each).
+    # Spawn exactly two children; each child runs with --child so it does NOT recurse into
+    # CHECK 18 again (each child runs checks 1..17 only, which is the concurrent-load probe).
     if not child:
         print("CHECK 18 — two complete selftests run concurrently (unique scratch each)")
+        env = dict(os.environ)
+        # Mark grandchildren as no-concurrency so they terminate.
+        env["CUR_EXTRACTOR_NO_CONC"] = "1"
         con = []
         for _ in range(2):
             con.append(subprocess.Popen([sys.executable, os.path.abspath(__file__), "--child"],
                                         cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        env=dict(os.environ)))
+                                        env=env))
         codes = [p.wait() for p in con]
         ok18 = all(c == 0 for c in codes)
         record("check18 two concurrent selftests", ok18, "codes=%s" % codes)
         print("  exit codes=%s (%s)" % (codes, "OK" if ok18 else "FAIL"))
         print("")
+    elif os.environ.get("CUR_EXTRACTOR_NO_CONC") != "1":
+        # A --child used as part of CHECK 18; it should never recurse (it already ran 1..17 above).
+        pass
 
     # ---- summary
     shutil.rmtree(scratch, ignore_errors=True)

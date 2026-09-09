@@ -1,0 +1,248 @@
+CUR-GRADER-ENG — checked-evidence extractor E4/E7 (bundle -> evidence -> verdict) raw transcript
+start_utc=2026-09-09T00:34:24Z
+end_utc=2026-09-09T00:34:30Z
+timezone: Etc/UTC (offset +0000); renderer local Europe/Moscow (UTC+3); UTC clock used throughout
+branch: arena/01a066cf; extractor tools/cur_extract_evidence.py; grader tools/cur_grade_artifact.py
+==============================================================================
+FIXTURE e3-circular-support
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=["circular support involving cand", "circular support involving moves", "circular support involving weights"]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-contradictory
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true, "stated_without_move_family": true}, "C2": {"preserved_all_moves": true, "a_move_changes_reading": true}, "C3": {}, "C4": {}, "C5": {}, "C6": {"weights_derived": true, "weights_injected": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=2  {"error": "check C1 contradictory evidence (both pass and fail)", "final": "MALFORMED", "discrepancy": "none"}
+FIXTURE e3-empty-support
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-not-in-kernel
+  extractor_exit=0
+  evidence={"C1": {"stated_without_move_family": true}, "C2": {"a_move_changes_reading": true}, "C3": {"start_equals_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"candidate_survives_removal": true}, "C6": {"weights_injected": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=2  {"error": "AMBIGUOUS_DISCREPANCY: constant-injection,derivation-absent,overclaim,preservation-unsupported", "final": "AMBIGUOUS_DISCREPANCY", "discrepancy": "ambiguous"}
+FIXTURE e3-partial-missing-odd-gen
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {}, "C5": {}, "C6": {"weights_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-pass-decorative-label
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"generation_disabled_removes_candidate": true}, "C6": {"weights_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=0  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+FIXTURE e3-pass
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"generation_disabled_removes_candidate": true}, "C6": {"weights_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=0  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+FIXTURE e3-role-only-negative-control
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-self-citation
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=["self-citation in cand", "self-citation in weights"]
+  handler_diags=[]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-unrelated-support
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=["unresolved support cand (upstream)", "unresolved upstream from weights: unknown id nope"]
+  handler_diags=[]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-unresolved-upstream
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {"start_differs_from_target": true}, "C4": {}, "C5": {}, "C6": {"weights_derived": true}}
+  proof_diags=["unresolved support cand (upstream)", "unresolved upstream from moves: unknown id ghost"]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e4-degree4-move
+  extractor_exit=0
+  evidence={"C1": {"cites_max_degree_le_3": true}, "C2": {"states_exactly_two_houses": true}, "C3": {"asserts_unbounded_descent": true}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=1  {"schema_version": 1, "contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "FAIL", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "descent-unsupported"}
+FIXTURE e4-missing-degree-bound
+  extractor_exit=0
+  evidence={"C1": {"argues_from_e_in_alone": true}, "C2": {"states_exactly_two_houses": true}, "C3": {"derives_delta_h_le_minus1": true}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["E4: no degree_bound parameter"]
+  grader_exit=1  {"schema_version": 1, "contract": "E4", "checks": {"C1": "FAIL", "C2": "PASS", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "hypothesis-omitted"}
+FIXTURE e4-pass
+  extractor_exit=0
+  evidence={"C1": {"cites_max_degree_le_3": true}, "C2": {"states_exactly_two_houses": true}, "C3": {"derives_delta_h_le_minus1": true}, "C4": {"notes_h_bounded_below": true}, "C5": {"termination_not_global_min": true}, "C6": {"measure_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=0  {"schema_version": 1, "contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+FIXTURE e4-role-only-negative-control
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["E4: no houses parameter", "E4: no degree_bound parameter", "E4: no move record to check descent"]
+  grader_exit=3  {"schema_version": 1, "contract": "E4", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e4-terminal-global-min
+  extractor_exit=0
+  evidence={"C1": {"cites_max_degree_le_3": true}, "C2": {"states_exactly_two_houses": true}, "C3": {"derives_delta_h_le_minus1": true}, "C4": {"notes_h_bounded_below": true}, "C5": {"concludes_global_minimum": true}, "C6": {"measure_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=1  {"schema_version": 1, "contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "FAIL", "C6": "PASS"}, "final": "FAIL", "discrepancy": "overclaim"}
+FIXTURE e7-no-samples
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["E7: no valid width-4 sample sequence to check preservation"]
+  grader_exit=3  {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e7-params-negative-control
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["E7: no valid width-4 sample sequence to check preservation"]
+  grader_exit=3  {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e7-pass
+  extractor_exit=0
+  evidence={"C1": {"derived_from_flip_sign": true}, "C2": {"shows_even_window_delta": true}, "C3": {"start_residue_differs": true}, "C4": {"emits_odd_width_control": true}, "C5": {"classifies_rejected": true}, "C6": {"observable_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=0  {"schema_version": 1, "contract": "E7", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+FIXTURE e7-preservation-fails
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {"preservation_no_even_argument": true}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["E7: no valid width-4 sample sequence to check preservation"]
+  grader_exit=1  {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "FAIL", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "preservation-unsupported"}
+FIXTURE e7-role-only-negative-control
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=["unresolved upstream from cand: unknown id odd-control"]
+  handler_diags=["E7: no window_width parameter", "E7: no modulus parameter", "E7: no valid width-4 sample sequence to check preservation"]
+  grader_exit=3  {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e7-width-tag-only
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {"preservation_no_even_argument": true}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["E7: no valid width-4 sample sequence to check preservation"]
+  grader_exit=1  {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "FAIL", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "preservation-unsupported"}
+FIXTURE malformed-duplicate-id
+  extractor_exit=2
+  {"error": "duplicate id 'weights'", "final": "MALFORMED", "discrepancy": "none"}
+FIXTURE malformed-nonarray-cites
+  extractor_exit=2
+  {"error": "node weights cites must be an array", "final": "MALFORMED", "discrepancy": "none"}
+FIXTURE unsupported-contract
+  extractor_exit=2
+  {"error": "unsupported contract: 'E9' (expected E3/E4/E7)", "final": "MALFORMED", "discrepancy": "none"}
+==============================================================================
+EXTRACTOR SELFTEST (python3 tools/tests/cur_extractor/run.py):
+==============================================================================
+EXTRACTOR SELFTEST (checked evidence) — tools/tests/cur_extractor/run.py
+scratch=/tmp/cur_extractor_selftest_c1cqa0nb
+==============================================================================
+CHECK 1 — e3-pass end-to-end yields full PASS (all six checks PASS)
+  xrc=0 grc=0 final=PASS (OK)
+
+CHECK 2 — role-only negative control is NOT a silent PASS
+  final=CANNOT_DETERMINE evidence={} (OK)
+
+CHECK 3 — recognized role + empty support is NOT a PASS (all CD)
+  final=CANNOT_DETERMINE evidence={} (OK)
+
+CHECK 4 — recognized role + unrelated/unresolved support is NOT a PASS
+  xrc=1 final=CANNOT_DETERMINE (OK)
+
+CHECK 5 — self-citation cannot justify a claim (all CD + proof diagnostic)
+  xrc=1 final=CANNOT_DETERMINE self_diag=True (OK)
+
+CHECK 6 — circular support cannot justify a claim (all CD + proof diagnostic)
+  xrc=1 final=CANNOT_DETERMINE cycle_diag=True (OK)
+
+CHECK 7 — unresolved upstream support blocks dependent evidence
+  xrc=1 c1_cd=True c2_cd=True (OK)
+
+CHECK 8 — E7 params do NOT establish preservation/separation (all CD)
+  final=CANNOT_DETERMINE (OK)
+
+CHECK 9 — decorative expected-label field is ignored
+  evidence+citations identical: OK
+
+CHECK 10 — a weight not in the kernel is NOT a silent PASS
+  final=AMBIGUOUS_DISCREPANCY (OK)
+
+CHECK 11 — contradictory cited records rejected by grader (exit 2)
+  grc=2 final=MALFORMED (OK)
+
+CHECK 11b — E4 PASS end-to-end
+  xrc=0 grc=0 final=PASS (OK)
+
+CHECK 11c — E4 missing degree bound is NOT a silent PASS
+  final=FAIL disc=hypothesis-omitted (OK)
+
+CHECK 11d — E4 degree-4 move (illegal descent) is NOT a silent PASS
+  final=FAIL disc=descent-unsupported (OK)
+
+CHECK 11e — E4 terminal-global-min overclaim is rejected
+  final=FAIL disc=overclaim (OK)
+
+CHECK 11f — E4 role-only negative control is NOT a PASS
+  final=CANNOT_DETERMINE (OK)
+
+CHECK 11g — E7 PASS end-to-end
+  xrc=0 grc=0 final=PASS (OK)
+
+CHECK 11h — E7 width-tag-only (width 4 tag, width-3 sample) is NOT a PASS
+  final=FAIL (OK)
+
+CHECK 11i — E7 preservation-fails is NOT a PASS
+  final=FAIL (OK)
+
+CHECK 11j — E7 no samples at all is CANNOT_DETERMINE (not PASS)
+  final=CANNOT_DETERMINE (OK)
+
+CHECK 11k — E7 role-only negative control is NOT a PASS
+  final=CANNOT_DETERMINE (OK)
+
+CHECK 12 — malformed bundles yield structured exit-2 errors
+  malformed-duplicate-id.json      xrc=2 traceback=False (OK)
+  malformed-nonarray-cites.json    xrc=2 traceback=False (OK)
+  unsupported-contract.json        xrc=2 traceback=False (OK)
+
+CHECK 13 — manifest binds to immutable identities (digests + pinned commits)
+  OK
+
+CHECK 14 — extractor source does not reference oracle/expected-label
+  oracle=False expected_label=False (OK)
+
+CHECK 15 — production pipeline runs with the sealed expected-results table unavailable
+  oracle_absent=True pipeline_ok=True (OK)
+
+CHECK 16 — concurrent extractions isolate outputs
+  isolated: OK
+
+CHECK 17 — end-to-end from a working directory outside the repository
+  xrc=0 grc=0 final=PASS (OK)
+
+CHECK 18 — two complete selftests run concurrently (unique scratch each)
+  exit codes=[0, 0] (OK)
+
+==============================================================================
+SUMMARY
+  assertions run: 30
+  ok             : 30
+  fail           : 0
+==============================================================================
+
+SELFTEST_EXIT=0
+end_utc_actual=2026-09-09T00:34:30Z

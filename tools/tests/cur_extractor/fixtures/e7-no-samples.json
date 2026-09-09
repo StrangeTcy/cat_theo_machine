@@ -7,7 +7,7 @@
     "cites": [
       "params"
     ],
-    "text": "e7 params only"
+    "text": "no samples"
   },
   "claims": [
     {
@@ -29,9 +29,5 @@
         "modulus": 4
       }
     }
-  ],
-  "parameters": {
-    "window_width": 4,
-    "modulus": 4
-  }
+  ]
 }
