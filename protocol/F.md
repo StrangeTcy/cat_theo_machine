@@ -663,3 +663,32 @@ which is the only place new content can change the reading.
 
 Lane state: verified hold. On a declared tag: start gate first, then
 decoy, then target, per protocol.
+
+## 17. D11-SHELL-ENG brief and INT trigger received (2026-09-09)
+
+The owner published the implementation handoff for the shell frontier:
+a D11-SHELL-ENG engineering brief (phases: reproduce baseline, inspect
+soundness, build minimum general shell support — preferred capability
+names ForallImpliesDecomposition / NosolutionsIntroduction — executable
+tests including negative control and ablation, separate NON-SEMANTIC
+commit repairing the D12 header per DEF-2026-09-09-10, verification
+artifacts, no tag cut by the engineer) and an INT merge trigger (exact-
+SHA fetch, component tests, D11 gate, both shards, checker-validated
+rules only, then a new immutable SEMANTIC tag, blank controls, and
+notification of this lane). Archived verbatim at
+protocol/2026-09-09-D11-SHELL-ENG-brief-and-INT-trigger-RECEIVED.txt.
+
+This lane executed neither text: the brief belongs to an engineering
+agent on its own authorized branch, the trigger belongs to INT, and the
+owner's message states F-PROVER is kept untouched. Inputs cited from
+this lane were verified at receipt: the F request IS this branch's HEAD
+d224b2c; the matrix commit 9b75349 is a hash-pinned ancestor; the
+authoritative INT line still resolved to bfd4bd2 at receipt time.
+
+REOPEN CONDITION (from the trigger, recorded as this lane's defined
+hold-end): on INT's notification that the semantic tag is cut, this
+lane's sequence is — rerun the reachability matrix on the new tag; then
+the start gate; then decoy; then target, only when the shell frontier
+has moved. The hold until that notification is earned: every blind-safe
+F-scope deliverable on this lineage is on a pushed ref (request d224b2c,
+matrix 9b75349, diagnostic, ledgers).

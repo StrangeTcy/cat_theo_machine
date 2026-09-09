@@ -1,0 +1,268 @@
+F-PROVER protocol receipt record — D11-SHELL-ENG engineering brief and INT merge trigger
+session: FPS-20260905-A1
+date: 2026-09-09
+document: "gpt 5.6 sol xhigh" handoff — (1) D11-SHELL-ENG spawn text, (2) INT merge trigger
+channel: protocol owner, direct paste
+
+EXECUTION STATUS — neither text is executed by this lane. The engineering
+brief belongs to a D11-SHELL-ENG agent on its own authorized branch (this
+lane is F-PROVER: prohibited from code, tools, packs, and parser work by
+its standing brief; the owner's message states "This keeps F-PROVER
+untouched"). The merge trigger belongs to INT. Agent spawning is the
+owner's act. Both texts are archived verbatim below so they survive
+sandbox resets and are citable by hash at a pushed ref.
+
+INPUTS CITED THAT CONCERN THIS LANE — verified as this branch's pushed
+commits at receipt time:
+- F request: arena/01a06e7b-cat-theo-machine @
+  d224b2c67e6fb0fc71b0774b02bfa57df836c24c,
+  protocol/F-SHELL-FRONTIER-REQUEST.md — is this branch's HEAD.
+- Reachability evidence: 9b753498c97515ce20b090047238d33ff40fa473,
+  logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log — an ancestor
+  of this branch's HEAD, hash-pinned in manifest rev 10.
+- Runtime: the owner-designated authoritative INT line
+  refs/heads/arena/01a06542-cat-theo-machine still resolves to
+  bfd4bd28de5765adbdabd1d152200fa67f11e5a2 at receipt time; the brief's
+  "do not inherit bfd4bd2 without verifying the live ref" instruction is
+  the section 13 discipline already standing on this lane.
+
+REOPEN CONDITION FOR THIS LANE (recorded from the INT merge trigger):
+when INT lands the shell-frontier work — cuts a new immutable semantic
+tag, publishes the tag and peeled commit, requires fresh blank controls —
+and notifies F-PROVER, this lane's sequence is: rerun the reachability
+matrix on the new tag; then the start gate; then decoy; then target, and
+the target only when the shell frontier has moved. Until that
+notification, the lane holds, earned.
+
+===== RECEIVED TEXT BEGINS: (1) D11-SHELL-ENG =====
+
+Paste this into a new arena agent:
+
+You are D11-SHELL-ENG.
+
+Mission:
+Move the measured reachability frontier from bare equality to the first
+enclosing goal shell, using sound, general logic machinery only.
+
+This is implementation work. Produce code, executable tests, raw results,
+and a pushed commit. Do not produce another planning-only artifact.
+
+INPUTS
+
+Fetch and pin:
+
+  F request:
+    arena/01a06e7b-cat-theo-machine
+    commit d224b2c67e6fb0fc71b0774b02bfa57df836c24c
+    file protocol/F-SHELL-FRONTIER-REQUEST.md
+
+  Reachability evidence:
+    commit 9b753498c97515ce20b090047238d33ff40fa473
+    file logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log
+
+  Runtime:
+    current authoritative arena/01a06542-cat-theo-machine tip
+    Record its full SHA at the start. Do not inherit bfd4bd2 without
+    verifying the live ref.
+
+Read:
+  tools/d11_gate.py
+  packs.py and shipped pack declarations
+  search candidate-selection and residual-generation paths
+  proof-checker connective semantics
+  existing quantifier, implication, negation and contradiction rules
+
+Do not use an F transcript as theorem content. It is diagnostic evidence only.
+
+BASELINE TO REPRODUCE
+
+Run each in a fresh process:
+
+  A:
+    (eq (plus a a) (plus a a))
+    expected on current base:
+      genuine partial matches = 1
+
+  B:
+    (nosolutions
+      positive-integers
+      (unknowns x)
+      (eq (plus x 1) x))
+    expected:
+      genuine partial matches = 0
+      zero-successor-root
+
+  C:
+    (forall n
+      (implies
+        (greater n 1)
+        (eq (plus a a) (plus a a))))
+    expected:
+      genuine partial matches = 0
+      zero-successor-root
+
+Store the pre-change raw results.
+
+PHASE 1 — INSPECT SOUNDNESS
+
+Determine whether the current proof checker already supports sound introduction
+or decomposition semantics for:
+
+  forall
+  implies
+  nosolutions
+
+For each shell, record:
+
+  parsed term shape
+  existing rule representation
+  proof-checker support
+  candidate-selection path
+  residual representation
+  whether the inner goal can be exposed without claiming the outer goal solved
+
+A surface mapping alone is insufficient. A mapped head with no sound rule must
+not be reported as shell support.
+
+PHASE 2 — BUILD
+
+Implement the minimum general shell support justified by Phase 1.
+
+Preferred capability names:
+
+  ForallImpliesDecomposition
+  NosolutionsIntroduction
+
+Requirements:
+
+1. Rules are generic logic rules. No exponent theorem, named target theorem,
+   target-specific constant, target-specific variable set or famous-problem
+   vocabulary.
+
+2. A rule may expose child obligations or a concrete unmatched premise.
+   It must not close B or C merely by matching.
+
+3. Any proof-producing rule must correspond to an existing checker-validated
+   inference. If the checker lacks the required connective semantics:
+     - do not add an unchecked proof rule;
+     - add only candidate/residual characterization machinery;
+     - emit a machine failure identifying the missing checker capability.
+
+4. No rule is installed through a private path. Use the existing rule compiler,
+   rule store, provenance and proof-checker path.
+
+5. Keep the arithmetic ExprEqLabel → eq port unchanged.
+
+6. Do not port another shipped pack unless the current D11 scope explicitly
+   permits it. A new content port is a separate semantic commit.
+
+PHASE 3 — TEST
+
+Add executable tests for:
+
+  1. Bare equality remains reachable:
+       A partial matches >= 1.
+
+  2. Forall/implies shell moves:
+       C partial matches >= 1;
+       concrete unmatched premise present;
+       goal remains unclosed.
+
+  3. Nosolutions shell moves:
+       B partial matches >= 1;
+       concrete unmatched premise present;
+       goal remains unclosed.
+
+  4. Negative control:
+       an unrelated, unsupported shell remains at zero partial matches.
+
+  5. Soundness:
+       removing a required child obligation prevents closure.
+
+  6. No private activation:
+       new shell terms enter only through the established compiler/store path.
+
+  7. No target vocabulary:
+       scan changed code and rule content for forbidden domain-specific names.
+
+  8. Ablation:
+       disabling the new shell support restores the prior B/C
+       zero-successor-root result.
+
+PHASE 4 — HEADER DEFECT
+
+In a separate non-semantic commit, repair the audit header so every process
+prints:
+
+  build: <tag-or-untagged>@<commit>
+  checkpoint: <content-id-or-none>
+
+Do not infer a tag from branch names. An untagged build prints `untagged`.
+
+PHASE 5 — DELIVER
+
+Publish:
+
+  verification/2026-09-09-SHELL-FRONTIER-BEFORE.txt
+  verification/2026-09-09-SHELL-FRONTIER-AFTER.txt
+  verification/2026-09-09-SHELL-FRONTIER-ABLATION.txt
+
+Report:
+
+  base ref and full SHA
+  files changed
+  proof-checker support found per shell
+  A/B/C candidate counts before, after and ablated
+  concrete unmatched premises after
+  whether B and C remained unclosed
+  negative-control result
+  D12 header result
+  exact pushed commit SHAs
+
+Do not cut a tag. Push to your authorized branch only. No force-push.
+
+CLASSIFICATION
+
+  shell support: SEMANTIC
+  audit-header repair: NON-SEMANTIC
+
+INT must run both complete shards and cut a new immutable tag before F uses
+the result.
+
+END REPORT
+
+agent: D11-SHELL-ENG
+base: <ref>@<sha>
+shell support:
+  forall/implies: implemented | checker-blocked
+  nosolutions: implemented | checker-blocked
+reachability:
+  A: <before>/<after>/<ablated>
+  B: <before>/<after>/<ablated>
+  C: <before>/<after>/<ablated>
+unmatched premises: <terms>
+goals remain unclosed: yes/no
+negative control: <result>
+D12 header: <result>
+tests: <passed>/<total>
+commits pushed: <shas>
+ready for INT merge: yes/no
+
+===== RECEIVED TEXT BEGINS: (2) INT merge trigger =====
+
+Then give INT this merge trigger:
+
+Fetch D11-SHELL-ENG by exact SHA. Run its component tests, existing D11 gate,
+and both complete suite shards on one candidate. Reject any shell rule not
+validated by the proof checker.
+
+On success:
+  cut a new immutable semantic tag;
+  publish the tag and peeled commit;
+  require fresh blank controls;
+  notify F-PROVER to rerun the reachability matrix, then decoy, then target
+  only when the shell frontier has moved.
+
+This keeps F-PROVER untouched and puts implementation on the owning engineering lane immediately.
+
+===== RECEIVED TEXT ENDS =====
