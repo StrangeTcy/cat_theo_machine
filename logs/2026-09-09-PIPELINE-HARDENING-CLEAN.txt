@@ -1,10 +1,11 @@
 CUR-GRADER-ENG PIPELINE HARDENING — clean-checkout transcript
-Date (UTC): 2026-09-09T01:30:16Z
-Branch: arena/01a066cf-cat-theo-machine
-Target tree HEAD before: 789b79e806a0e1c55d26478ea0d0bf37711443f4
-Remote branch: 789b79e806a0e1c55d26478ea0d0bf37711443f4
+Date (UTC): 2026-09-09T01:30:55Z
+Branch pinned: arena/01a066cf-cat-theo-machine
+Commit under test: cd7f75c1d9763e8075c38f3d7f978e5ad13325c0
+Provenance: fresh detached worktree at that exact commit (git worktree add --detach).
+Running topic: commit "PIPELINE-eng: harden cur_pipeline gate; only documented statuses grade"
 
-=== tools/tests/cur_pipeline/hardening.py ===
+=== tools/tests/cur_pipeline/hardening.py (hardening) exit=0 ===
 ==============================================================================
 PIPELINE HARDENING — tools/tests/cur_pipeline/hardening.py
 ==============================================================================
@@ -24,7 +25,7 @@ PIPELINE HARDENING — tools/tests/cur_pipeline/hardening.py
 SUMMARY: 12/12 pass, 0 fail
 ==============================================================================
 
-=== tools/tests/cur_pipeline/run.py (baseline selftest) ===
+=== tools/tests/cur_pipeline/run.py (baseline selftest) exit=0 ===
 ==============================================================================
 PIPELINE SELFTEST — tools/tests/cur_pipeline/run.py
 ==============================================================================
