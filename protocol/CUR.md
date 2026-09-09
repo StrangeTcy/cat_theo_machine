@@ -93,3 +93,31 @@ python3 tools/cur_grade_artifact.py <manifest.json>
   fixtures, and asserts the extractor never reads the grader's sealed expected-results table.
 
 Remote tip recorded before work (extractor): `863a34a180789efba3674ac509bbe21897c51561`.
+
+---
+
+## Note (2026-09-09) — checked-evidence extractor (CUR-GRADER-ENG, hardening)
+
+Prior reviewer criticism was accepted: the role-name→bool extractor authenticated a recognized role
+plus a resolved citation, but never checked the cited *contents*. That is still self-certification.
+This batch replaces role-to-bool with checked evidence handlers that actually derive the verdict.
+
+- `tools/cur_extract_evidence.py` now computes E3 evidence from structured payloads against the
+  pinned problem (six-sector alternating sum, adjacent-increment moves): C1 kernel
+  (`w_i + w_j = 0` cyclically), C2 per-move reading change, C3 start/target separation,
+  C4 5-sector odd-cycle control (no nonzero exact linear observable), C5 generator-removal,
+  C6 derivation-provenance. A role selects a handler; it never supplies the verdict.
+- Proof-support dependency chain resolves cited *contents*, not just IDs: self-citation, circular
+  support, and unresolved upstream support all block the dependent evidence bit (diagnostic kept).
+- Malformed bundles (duplicate IDs, non-array citations, unsupported contract) yield structured
+  exit-2 errors, no traceback.
+- Manifest binds to immutable inputs: bundle content digest, extractor identity+version, grader
+  ruleset identity, and pinned contract/rubric commits + content digests (with the in-tree
+  reconstruction path named separately from the grader-pinned authoritative path).
+- `tools/tests/cur_extractor/run.py` proves the PATH (bundle→extractor→manifest→grader) over a full
+  PASS case, and that role-only/empty/unrelated/self/circular/unresolved support and E7 params never
+  become a silent PASS. Uses a unique scratch dir per invocation and runs two complete selftests
+  concurrently. Production path is probed with the sealed expected-results table unavailable.
+- Timezone: everything records real UTC (Etc/UTC, +0000); the render must not trust a filename date.
+
+Remote tip recorded before work (checked-evidence extractor): `b26bf8accc1119aea5555a9b9224b336addbc5d4`.

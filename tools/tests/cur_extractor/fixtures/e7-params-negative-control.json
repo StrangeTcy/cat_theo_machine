@@ -1,0 +1,45 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E7",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "weights"
+    ],
+    "text": "e7 role-only"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned problem"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "weights",
+      "role": "weights",
+      "kind": "derived",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "vector": [
+          1,
+          0,
+          1,
+          0,
+          1,
+          0
+        ],
+        "provenance": "derived",
+        "n": 6
+      }
+    }
+  ],
+  "parameters": {
+    "window_width": 4,
+    "modulus": 4
+  }
+}

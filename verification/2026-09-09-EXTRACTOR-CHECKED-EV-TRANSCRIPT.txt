@@ -1,0 +1,159 @@
+CUR-GRADER-ENG — checked-evidence extractor (frozen artifact -> evidence -> verdict) raw transcript
+start_utc=2026-09-09T00:14:41Z
+end_utc=2026-09-09T00:14:41Z
+timezone: Etc/UTC (offset +0000); renderer local Europe/Moscow (UTC+3)
+branch: arena/01a066cf; extractor tools/cur_extract_evidence.py; grader tools/cur_grade_artifact.py
+Note: contract/rubric docs are in-tree reconstructions (CUR-ENGEL-<family>.md); authoritative paths pinned separately.
+==============================================================================
+FIXTURE e3-circular-support
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=["circular support involving cand", "circular support involving moves", "circular support involving weights"]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-contradictory
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true, "stated_without_move_family": true}, "C2": {"preserved_all_moves": true, "a_move_changes_reading": true}, "C3": {}, "C4": {}, "C5": {}, "C6": {"weights_derived": true, "weights_injected": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=2  {"error": "check C1 contradictory evidence (both pass and fail)", "final": "MALFORMED", "discrepancy": "none"}
+FIXTURE e3-empty-support
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-not-in-kernel
+  extractor_exit=0
+  evidence={"C1": {"stated_without_move_family": true}, "C2": {"a_move_changes_reading": true}, "C3": {"start_equals_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"candidate_survives_removal": true}, "C6": {"weights_injected": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=2  {"error": "AMBIGUOUS_DISCREPANCY: constant-injection,derivation-absent,overclaim,preservation-unsupported", "final": "AMBIGUOUS_DISCREPANCY", "discrepancy": "ambiguous"}
+FIXTURE e3-partial-missing-odd-gen
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {}, "C5": {}, "C6": {"weights_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-pass-decorative-label
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"generation_disabled_removes_candidate": true}, "C6": {"weights_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=0  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+FIXTURE e3-pass
+  extractor_exit=0
+  evidence={"C1": {"derived_from_move_constraints": true}, "C2": {"preserved_all_moves": true}, "C3": {"start_differs_from_target": true}, "C4": {"emits_no_nonzero_observable": true}, "C5": {"generation_disabled_removes_candidate": true}, "C6": {"weights_derived": true}}
+  proof_diags=[]
+  handler_diags=[]
+  grader_exit=0  {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+  identity={"bundle_digest": "e62953612ba246340717bfd6c65df5a818aa167835a4ceded8dad221e5f2c0c9", "contract_in_tree_content_digest": "98d700321bd58e1ed43fabcde8c044ff87673ea97d34e6b3a04a4b9a24ec1809", "contract_in_tree_path": "CUR-ENGEL-E3.md", "contract_ref": "CUR-ENGEL-E3-EVALUATOR-CONTRACT.md", "contract_ref_commit": "c10011bfabc73b55c7a3de80c4ff14a78234f17b", "contract_ref_content_digest": "98d700321bd58e1ed43fabcde8c044ff87673ea97d34e6b3a04a4b9a24ec1809", "extractor": "cur_extract_evidence.py", "extractor_digest": "4a83c46a3cad988488cd23ef26dd6abc7d8d1e146c5412b52976ab4fb613e76f", "extractor_version": "2.0.0", "grader_ruleset_id": "e3e4e7-grader-v1-7ae056945c93e3d8", "grader_schema_version": 1, "rubric_ref": "CUR-GRADER-RUBRIC.md", "rubric_ref_commit": "70271007ba5292e782c223bca1474dce8ced8168", "rubric_ref_content_digest": "c4c420bd55f019fcd7c2f3ee468dfbe10fad937d5009d1cdc6cb5d374b04518e"}
+FIXTURE e3-role-only-negative-control
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-self-citation
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=["self-citation in cand", "self-citation in weights"]
+  handler_diags=[]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-unrelated-support
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=["unresolved support cand (upstream)", "unresolved upstream from weights: unknown id nope"]
+  handler_diags=[]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e3-unresolved-upstream
+  extractor_exit=1
+  evidence={"C1": {}, "C2": {}, "C3": {"start_differs_from_target": true}, "C4": {}, "C5": {}, "C6": {"weights_derived": true}}
+  proof_diags=["unresolved support cand (upstream)", "unresolved upstream from moves: unknown id ghost"]
+  handler_diags=["supplied move family does not match pinned E3 problem (incomplete/extra)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE e7-params-negative-control
+  extractor_exit=0
+  evidence={"C1": {}, "C2": {}, "C3": {}, "C4": {}, "C5": {}, "C6": {}}
+  proof_diags=[]
+  handler_diags=["no checked evidence handler for contract E7; all checks CANNOT_DETERMINE (role names do not establish PASS)"]
+  grader_exit=3  {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+FIXTURE malformed-duplicate-id
+  extractor_exit=2
+  {"error": "duplicate id 'weights'", "final": "MALFORMED", "discrepancy": "none"}
+FIXTURE malformed-nonarray-cites
+  extractor_exit=2
+  {"error": "node weights cites must be an array", "final": "MALFORMED", "discrepancy": "none"}
+FIXTURE unsupported-contract
+  extractor_exit=2
+  {"error": "unsupported contract: 'E9' (expected E3/E4/E7)", "final": "MALFORMED", "discrepancy": "none"}
+==============================================================================
+EXTRACTOR SELFTEST (python3 tools/tests/cur_extractor/run.py):
+==============================================================================
+EXTRACTOR SELFTEST (checked evidence) — tools/tests/cur_extractor/run.py
+scratch=/tmp/cur_extractor_selftest_if8rll__
+==============================================================================
+CHECK 1 — e3-pass end-to-end yields full PASS (all six checks PASS)
+  xrc=0 grc=0 final=PASS (OK)
+
+CHECK 2 — role-only negative control is NOT a silent PASS
+  final=CANNOT_DETERMINE evidence={} (OK)
+
+CHECK 3 — recognized role + empty support is NOT a PASS (all CD)
+  final=CANNOT_DETERMINE evidence={} (OK)
+
+CHECK 4 — recognized role + unrelated/unresolved support is NOT a PASS
+  xrc=1 final=CANNOT_DETERMINE (OK)
+
+CHECK 5 — self-citation cannot justify a claim (all CD + proof diagnostic)
+  xrc=1 final=CANNOT_DETERMINE self_diag=True (OK)
+
+CHECK 6 — circular support cannot justify a claim (all CD + proof diagnostic)
+  xrc=1 final=CANNOT_DETERMINE cycle_diag=True (OK)
+
+CHECK 7 — unresolved upstream support blocks dependent evidence
+  xrc=1 c1_cd=True c2_cd=True (OK)
+
+CHECK 8 — E7 params do NOT establish preservation/separation (all CD)
+  final=CANNOT_DETERMINE (OK)
+
+CHECK 9 — decorative expected-label field is ignored
+  evidence+citations identical: OK
+
+CHECK 10 — a weight not in the kernel is NOT a silent PASS
+  final=AMBIGUOUS_DISCREPANCY (OK)
+
+CHECK 11 — contradictory cited records rejected by grader (exit 2)
+  grc=2 final=MALFORMED (OK)
+
+CHECK 12 — malformed bundles yield structured exit-2 errors
+  malformed-duplicate-id.json      xrc=2 traceback=False (OK)
+  malformed-nonarray-cites.json    xrc=2 traceback=False (OK)
+  unsupported-contract.json        xrc=2 traceback=False (OK)
+
+CHECK 13 — manifest binds to immutable identities (digests + pinned commits)
+  OK
+
+CHECK 14 — extractor source does not reference oracle/expected-label
+  oracle=False expected_label=False (OK)
+
+CHECK 15 — production pipeline runs with the sealed expected-results table unavailable
+  oracle_absent=True pipeline_ok=True (OK)
+
+CHECK 16 — concurrent extractions isolate outputs
+  isolated: OK
+
+CHECK 17 — end-to-end from a working directory outside the repository
+  xrc=0 grc=0 final=PASS (OK)
+
+CHECK 18 — two complete selftests run concurrently (unique scratch each)
+  exit codes=[0, 0] (OK)
+
+==============================================================================
+SUMMARY
+  assertions run: 20
+  ok             : 20
+  fail           : 0
+==============================================================================
+
+SELFTEST_EXIT=0

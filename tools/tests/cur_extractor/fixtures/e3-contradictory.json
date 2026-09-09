@@ -1,0 +1,100 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "weights",
+      "weights2",
+      "moves"
+    ],
+    "text": "contradictory"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned problem"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "weights",
+      "role": "weights",
+      "kind": "derived",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "vector": [
+          1,
+          -1,
+          1,
+          -1,
+          1,
+          -1
+        ],
+        "provenance": "derived",
+        "n": 6
+      }
+    },
+    {
+      "id": "weights2",
+      "role": "weights",
+      "kind": "derived",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "vector": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "provenance": "supplied",
+        "n": 6
+      }
+    },
+    {
+      "id": "moves",
+      "role": "moves",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "pairs": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            5,
+            0
+          ]
+        ],
+        "n": 6
+      }
+    }
+  ]
+}
