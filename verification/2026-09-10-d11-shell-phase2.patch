@@ -1,0 +1,1390 @@
+diff --git a/labels.py b/labels.py
+index de04508..f21fe6f 100644
+--- a/labels.py
++++ b/labels.py
+@@ -1335,6 +1335,22 @@ class ContradictionLabel(ConstructorLabel):
+     pass
+ 
+ 
++class ImpliesLabel(ConstructorLabel):
++    pass
++
++
++class NoSolutionsLabel(ConstructorLabel):
++    pass
++
++
++class NeedBinderSafeImplicationLabel(ConstructorLabel):
++    pass
++
++
++class NeedContradictionFromArbitrarySolutionLabel(ConstructorLabel):
++    pass
++
++
+ class CollisionLabel(ConstructorLabel):
+     pass
+ 
+@@ -2109,6 +2125,10 @@ ExistsLabel = ExistsLabel()
+ ForAllLabel = ForAllLabel()
+ NotLabel = NotLabel()
+ ContradictionLabel = ContradictionLabel()
++ImpliesLabel = ImpliesLabel()
++NoSolutionsLabel = NoSolutionsLabel()
++NeedBinderSafeImplicationLabel = NeedBinderSafeImplicationLabel()
++NeedContradictionFromArbitrarySolutionLabel = NeedContradictionFromArbitrarySolutionLabel()
+ CollisionLabel = CollisionLabel()
+ ExtremalLabel = ExtremalLabel()
+ SymmetryLabel = SymmetryLabel()
+@@ -2831,6 +2851,10 @@ def sync_from_namespace(namespace):
+         "ForAllLabel",
+         "NotLabel",
+         "ContradictionLabel",
++        "ImpliesLabel",
++        "NoSolutionsLabel",
++        "NeedBinderSafeImplicationLabel",
++        "NeedContradictionFromArbitrarySolutionLabel",
+         "CollisionLabel",
+         "ExtremalLabel",
+         "SymmetryLabel",
+diff --git a/main.py b/main.py
+index ba21cef..e254827 100644
+--- a/main.py
++++ b/main.py
+@@ -69,6 +69,7 @@ PACK_PATHS = [
+     os.path.join(PACK_DIR, "engel-means.pack.yaml"),
+     os.path.join(PACK_DIR, "engel-blackboard.pack.yaml"),
+     os.path.join(PACK_DIR, "number-theory.pack.yaml"),
++    os.path.join(PACK_DIR, "shell-characterization.pack.yaml"),
+ ]
+ 
+ def _latest_snapshot_path():
+diff --git a/packs/shell-characterization.pack.yaml b/packs/shell-characterization.pack.yaml
+new file mode 100644
+index 0000000..2db22db
+--- /dev/null
++++ b/packs/shell-characterization.pack.yaml
+@@ -0,0 +1,77 @@
++format: hyge-pack
++version: 1
++
++name: shell-characterization
++description: >-
++  D11-SHELL characterization-only outer-shell rules. These rules make the
++  research surface NAME what the machine lacks on nosolutions and
++  forall/implies goals; they are not proof rules and can never fire.
++
++# D11-SHELL port. Pack-local, opt-in, constructor-head scoped, exactly the
++# D11-PORT mechanism. Within this pack only, these symbols compile to the
++# research-surface atom when used as a constructor head. Nothing outside
++# this pack is affected and no rule body outside this pack is rewritten.
++#
++# Vocabulary provenance (inspected before adding, 2026-09-10):
++#   ForAllLabel, ContradictionLabel, ExistsLabel, NotLabel already exist in
++#   labels.py (logical family); ForAllLabel is reused here with its exact
++#   denotation, the way D11-PORT reused ExprEqLabel for eq. ImpliesLabel,
++#   NoSolutionsLabel and the two Need* capability labels are new: no
++#   existing label denotes them.
++#
++# Designed never to fire: each rule's single premise is a capability term
++# (NeedContradictionFromArbitrarySolution / NeedBinderSafeImplication).
++# No shipped pack rule concludes either head, no library axiom carries
++# either head, and no fact of a library-only cold start can produce them,
++# so the premises are undischargeable by the generic rewrite calculus.
++# The rules therefore yield candidate partial matches and concrete
++# unmatched-premise residuals ONLY. A goal matched by these rules stays
++# unclosed. Sound closure requires the binder/contradiction checker
++# discipline the substrate does not have (planner.py:189); promoting these
++# rules to proof-producing rules is out of scope by construction.
++surface:
++  NoSolutionsLabel: nosolutions
++  ForAllLabel: forall
++  ImpliesLabel: implies
++  NeedContradictionFromArbitrarySolutionLabel: NeedContradictionFromArbitrarySolution
++  NeedBinderSafeImplicationLabel: NeedBinderSafeImplication
++
++phi:
++  list: []
++
++rules:
++  # Characterization rule 1: a nosolutions goal becomes a candidate
++  # partial match whose unmatched premise names the missing capability --
++  # a checked contradiction from an arbitrary assumed solution over the
++  # same domain, unknowns and equation. The premise pattern shares the
++  # goal's variables, so the residual is fully concrete.
++  - id: nosolutions_introduction_characterization
++    premises:
++      - call:
++          head: {sym: NeedContradictionFromArbitrarySolutionLabel}
++          args: [{var: d}, {var: u}, {var: q}]
++    replacement:
++      call:
++        head: {sym: NoSolutionsLabel}
++        args: [{var: d}, {var: u}, {var: q}]
++
++  # Characterization rule 2: a forall n (implies p q) goal becomes a
++  # candidate partial match whose unmatched premise names the missing
++  # capability -- a binder-safe implication introduction for the same
++  # variable, antecedent and consequent. NOTE the reading per the repair
++  # wave: the capability is to assume the antecedent in a scoped context,
++  # derive the consequent, and discharge the assumption -- never to prove
++  # the antecedent itself.
++  - id: forall_implies_decomposition_characterization
++    premises:
++      - call:
++          head: {sym: NeedBinderSafeImplicationLabel}
++          args: [{var: n}, {var: p}, {var: q}]
++    replacement:
++      call:
++        head: {sym: ForAllLabel}
++        args:
++          - {var: n}
++          - call:
++              head: {sym: ImpliesLabel}
++              args: [{var: p}, {var: q}]
+diff --git a/protocol/D11-SHELL.md b/protocol/D11-SHELL.md
+new file mode 100644
+index 0000000..c89a574
+--- /dev/null
++++ b/protocol/D11-SHELL.md
+@@ -0,0 +1,158 @@
++# D11-SHELL — characterization-only outer-shell rules
++
++The D11-SHELL-ENG repair-wave ticket (Agent 2). Phase 1 (this lane,
++ratified at `b55d66e`) established the frontier: bare `eq` matches, the
++`nosolutions` and `forall`/`implies` shells are silent, and the blocker
++for sound closure is the checker's missing binder discipline
++(`planner.py:189`). This is the characterization half: the machine must
++NAME what it lacks on those shells. It is not proof support.
++
++```text
++pack:         packs/shell-characterization.pack.yaml
++surface map:  NoSolutionsLabel -> nosolutions
++              ForAllLabel -> forall
++              ImpliesLabel -> implies
++              NeedContradictionFromArbitrarySolutionLabel ->
++                  NeedContradictionFromArbitrarySolution
++              NeedBinderSafeImplicationLabel ->
++                  NeedBinderSafeImplication
++              (constructor heads only; pack-local, opt-in)
++rules:        2, both single-premise, both designed never to fire
++probes:       Goal A  (nosolutions positive-integers (unknowns x)
++                        (eq (plus x 1) x))            non-FLT
++              Goal B  (forall n (implies (greater n 1)
++                        (eq (plus a a) (plus a a))))  non-FLT
++matches:      A: before 0, after 1, ablation 0
++              B: before 0, after 1, ablation 0
++```
++
++## Acceptance sentence, met
++
++> Goal A and Goal B, previously silent (0 genuine partial matches,
++> zero-successor-root residual) under library-only cold start, each get
++> >= 1 genuine partial match with a concrete unmatched premise naming the
++> missing checker capability, remain unclosed, and return to 0 when the
++> shell rules are disabled; a shell goal with a different head symbol
++> stays at 0 throughout.
++
++## Numbers
++
++| run | state | cost | partials | residual |
++| --- | --- | --- | --- | --- |
++| A before | `bfd4bd2`, no shell pack | 334 | **0** | zero-successor-root |
++| A after | shell pack shipped | 338 | **1** | missing `(NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x))` |
++| A ablation | committed tree, pack's `surface:` header stripped | 338 | **0** | zero-successor-root |
++| B before | `bfd4bd2`, no shell pack | 334 | **0** | zero-successor-root |
++| B after | shell pack shipped | 338 | **1** | missing `(NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))` |
++| B ablation | committed tree, pack's `surface:` header stripped | 338 | **0** | zero-successor-root |
++
++Negative controls (both states, shipped): an `implies`-headed goal and
++an `over`-wrapped goal — head symbols no shipped rule concludes — stay
++at 0 partials with zero-successor-root. An arity-only variation would
++not count: head compatibility is compared by value, so the control
++differs in head symbol.
++
++Fresh process and cold boot each time; one worktree per state. Logs:
++`verification/probes/2026-09-10-shell-phase2/`. Ablation is the D11-PORT
++mechanism: the pack's `surface:` header stripped, so its rules still
++compile (169 library rules) but with label heads that match nothing --
++the rules are present and disabled, not deleted. The gate's S1/S5 prove
++the same silence with the pack excluded from the load path entirely.
++
++## The two rules
++
++```text
++nosolutions_introduction_characterization
++  premises     NeedContradictionFromArbitrarySolution(?d ?u ?q)
++  conclusion   nosolutions(?d ?u ?q)
++
++forall_implies_decomposition_characterization
++  premises     NeedBinderSafeImplication(?n ?p ?q)
++  conclusion   forall(?n implies(?p ?q))
++```
++
++Reading (per the repair-wave brief): the nosolutions capability is a
++checked contradiction from an arbitrary assumed in-domain solution; the
++forall/implies capability is to assume the antecedent in a scoped
++context, derive the consequent, and discharge the assumption — never to
++prove the antecedent itself.
++
++## Designed never to fire
++
++Each rule's single premise is a capability term. No shipped pack rule
++concludes either capability head, no library axiom carries either head,
++and no fact of a library-only cold start can produce them, so the
++premises are undischargeable by the generic rewrite calculus. The gate
++proves it mechanically (S6): probing each capability term as a goal
++finds zero candidate rules anywhere in the shipped packs. The rules
++therefore produce candidate partial matches and concrete residuals only;
++a matched goal stays unclosed. Promoting either rule to a
++proof-producing rule requires the binder/contradiction checker
++discipline the substrate does not have (`planner.py:189`) and is out of
++scope by construction.
++
++## Vocabulary provenance (inspected before adding)
++
++Existing: `ForAllLabel`, `ContradictionLabel`, `ExistsLabel`, `NotLabel`
++(the logical family, `labels.py`), plus `NeedLabel` (dependency
++requests) and `FreshenedLabel`/`BinderLabel` (the planner's side
++conditions). `ForAllLabel` is reused here with its exact denotation, the
++way D11-PORT reused `ExprEqLabel` for `eq`. New: `ImpliesLabel` and
++`NoSolutionsLabel` (the missing members of the logical family's surface
++spelling) and the two `Need*` capability labels — no existing label
++denotes them. `NeedLabel` itself was NOT reused for the capability
++premises: it is the dependency-request term, and overloading it would
++make a capability residual indistinguishable from a theorem request.
++
++## Scope held
++
++```text
++shipped:       shell-characterization only (1 new pack, 2 rules, 5 labels)
++not ported:    the other 13 packs — reference digests byte-identical
++rewritten:     no existing rule body; only a new pack + PACK_PATHS entry
++search:        untouched
++matcher:       untouched
++checker:       untouched (no rewrite calculus change, no weakening)
++planner:       untouched
++parser:        untouched (the shells already parsed; they were silent)
++arithmetic:    ExprEqLabel -> eq port untouched (gate P1/P2 unchanged)
++machine-wide:  none; the mapping is pack-local and opt-in
++FLT words:     zero occurrences of fermat/flt/wiles/frey/pow/times/
++               exponent/minus/divides/solutionmap in the shell pack (gate S7)
++```
++
++`nosolutions` appears in the shell pack as the generic logical
++constructor the repair wave itself names (the toy goals and the parser
++use it); it is not FLT vocabulary. The FLT-specific words are banned
++outright by S7, and the arithmetic port's stricter P4 scan (which bans
++`nosolutions` for THAT port) is unchanged.
++
++## Baselines
++
++The `surface:`-stripped reference state moved from 167 to 169 compiled
++rules (the two new rules compile with label heads when their header is
++stripped). `protocol/d11-spike/shipped-rules.sha256` (renamed from
++`shipped-167-rules.sha256`) records count 169 and the reference digest;
++`shipped-pack-digests.txt` gains exactly one line (the shell pack's
++no-headers compilation); the 13 pre-shell reference lines are
++byte-identical. Shipped-state digests of `arithmetic` and
++`shell-characterization` drift from the reference by design (gate
++condition 1 expects exactly that drift and no other).
++
++## Gate
++
++`tools/d11_gate.py` extended with S1–S8 (see its docstring): shell pack
++absent -> silence; Goal A/B -> >=1 partial, concrete capability premise,
++attributed, unclosed; controls -> 0; ablation -> silence; capability
++goals -> 0 (never fires); vocabulary scan; surface-audit provenance.
++16/16 conditions pass on the committed tree; full output at
++`verification/2026-09-10-d11-shell-gate-16of16.txt`.
++
++## Explicitly not claimed
++
++No quantified proof support. No forall-introduction, implication-
++introduction, or refutation checking. The rules expose child obligations
++as concrete unmatched premises; sound closure of the shells is
++LOGIC-CHECKER-ENG's ticket (Agent 3) and must not ride through these
++rules. A mapped head is not shell support: only the checker-validated
++calculus would be.
+diff --git a/protocol/d11-spike/shipped-167-rules.sha256 b/protocol/d11-spike/shipped-167-rules.sha256
+deleted file mode 100644
+index 452fa73..0000000
+--- a/protocol/d11-spike/shipped-167-rules.sha256
++++ /dev/null
+@@ -1 +0,0 @@
+-167 786cff5cc33a58471ab6ca1a38d5a996f3b7d44d5c71e7120480ea7c9a62c7bb
+diff --git a/protocol/d11-spike/shipped-pack-digests.txt b/protocol/d11-spike/shipped-pack-digests.txt
+index 64ec175..2bb5b5f 100644
+--- a/protocol/d11-spike/shipped-pack-digests.txt
++++ b/protocol/d11-spike/shipped-pack-digests.txt
+@@ -11,3 +11,4 @@ engel-coins 4 98ecb61e9828cb7967b59524d504e7f83f214d3e07867d0a20eb4edb39009d17
+ engel-means 0 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+ engel-blackboard 13 67b63fa9d99ad8893ca08dc7769b96d21f99bc7c842728641407f5ff71707d30
+ number-theory 8 5b2f72d3eb1a36c0072b027e98ae4a473b0176abe806e64d7287227bd45cf635
++shell-characterization 2 3637df015aa5cbdd3de5c954f907ee08d48333caafd402c7cd7e5f7edcf2a370
+diff --git a/protocol/d11-spike/shipped-rules.sha256 b/protocol/d11-spike/shipped-rules.sha256
+new file mode 100644
+index 0000000..2926ea0
+--- /dev/null
++++ b/protocol/d11-spike/shipped-rules.sha256
+@@ -0,0 +1 @@
++169 46cfae9231978d40cc3c0a1e9e28bb525310b46cf993a3bb124ed0f78890e24f
+diff --git a/tools/d11_gate.py b/tools/d11_gate.py
+index bc226ed..00fab26 100644
+--- a/tools/d11_gate.py
++++ b/tools/d11_gate.py
+@@ -4,7 +4,7 @@
+ Re-runnable from a fresh clone:
+ 
+     python3 tools/d11_gate.py              # all conditions
+-    python3 tools/d11_gate.py --baseline   # (re)record the shipped-167 digest
++    python3 tools/d11_gate.py --baseline   # (re)record the shipped-rules digest
+ 
+ What it proves, in the terms of the §8 ruling:
+ 
+@@ -19,6 +19,32 @@ What it proves, in the terms of the §8 ruling:
+   5. char-form fixture                         -> diagnostic only, printed
+      and explicitly NOT cited as D11 fixed
+ 
++  S1..S8 (D11-SHELL): the characterization-only shell rules --
++  S1. shell pack absent          -> Goal A 0 partials, Goal B 0 partials
++  S2. shipped                    -> Goal A >=1 partial, concrete
++                                    capability premise, unclosed
++  S3. shipped                    -> Goal B >=1 partial, same standard
++  S4. negative controls          -> implies/over heads stay at 0 partials
++  S5. shell pack absent again    -> ablation returns both goals to 0
++  S6. capability goals           -> 0 partials: no shipped rule concludes
++                                    either capability head, so the shell
++                                    rules can never fire
++  S7. shell pack vocabulary      -> no FLT-specific words; the only
++                                    constructor symbols are the five
++                                    mapped shell/capability labels
++  S8. surface audit              -> five pack-local mappings recorded,
++                                    both rules attributed, the arithmetic
++                                    port still exactly one
++
++The baselines record the NO-SURFACE-HEADERS reference state (every
++surface: header stripped): shipped-rules.sha256 holds its rule count and
++compiled-rule digest, shipped-pack-digests.txt its per-pack digests. The
++count moved from 167 to 169 when the D11-SHELL pack (2 rules) shipped; the
++pre-shell 13 per-pack reference digests are unchanged, with one new line
++for the shell pack's no-headers compilation. The shipped-state digests of
++arithmetic and shell-characterization drift from the reference BY DESIGN
++(condition 1 expects exactly that drift and no other).
++
+ Exit status is 0 only if every gated condition passes.
+ """
+ 
+@@ -52,17 +78,35 @@ from cat_theo_machine.main import (  # noqa: E402
+ from cat_theo_machine.proof import CollectRules  # noqa: E402
+ 
+ SPIKE_DIR = os.path.join(ROOT, "protocol", "d11-spike")
+-DIGEST_PATH = os.path.join(SPIKE_DIR, "shipped-167-rules.sha256")
++DIGEST_PATH = os.path.join(SPIKE_DIR, "shipped-rules.sha256")
+ PACK_DIGEST_PATH = os.path.join(SPIKE_DIR, "shipped-pack-digests.txt")
+ 
+ # The D11 content port: which shipped packs declare a surface: header, and
+ # the probe the port is meant to win.
+ PORTED_PACKS = ("arithmetic",)
++# Every shipped pack that declares a surface: header. Their shipped-state
++# compiled digests drift from the no-headers baseline BY DESIGN; the
++# per-pack manifest records the no-headers reference state.
++SURFACE_PACKS = ("arithmetic", "shell-characterization")
+ PORT_PROBE = "(eq (pow t 6) (pow (pow t 2) 3))"
+ 
+ PROBE_GOAL = "(divides k (plus p q))"
+ UNRELATED_GOAL = "(cornersum t whole)"
+ 
++# The D11-SHELL characterization port: the pack that carries the shell
++# rules, the two toy goals, and the negative controls. The controls use
++# shell heads (implies, over) that no shipped rule concludes, so they must
++# stay silent; an arity-only variation proves nothing because head
++# compatibility is compared by value.
++SHELL_PACK_FILE = "shell-characterization.pack.yaml"
++SHELL_PACK_NAME = "shell-characterization"
++SHELL_GOAL_A = "(nosolutions positive-integers (unknowns x) (eq (plus x 1) x))"
++SHELL_GOAL_B = "(forall n (implies (greater n 1) (eq (plus a a) (plus a a))))"
++SHELL_CONTROL_IMPLIES = "(implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))"
++SHELL_CONTROL_OVER = "(over positive-integers (vars a b) (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))"
++SHELL_CAPABILITY_A = "NeedContradictionFromArbitrarySolution"
++SHELL_CAPABILITY_B = "NeedBinderSafeImplication"
++
+ LABEL_FIXTURE = os.path.join(SPIKE_DIR, "d11-spike-label.pack.yaml")
+ MAPPED_FIXTURE = os.path.join(SPIKE_DIR, "d11-spike-mapped.pack.yaml")
+ CHAR_FIXTURE = os.path.join(SPIKE_DIR, "d11-spike-char.pack.yaml")
+@@ -203,6 +247,13 @@ def probe(runtime, goal_text, packs=()):
+             origins = origins + (_term_text(Rmod.AttemptedRuleOrigin(attempt)(), graph),)
+         except Exception:
+             origins = origins + ("<unreadable>",)
++    residuals = ()
++    for attempt in attempts:
++        try:
++            residuals = residuals + (
++                _term_text(Rmod.AttemptedRuleUnmatched(attempt)(), graph),)
++        except Exception:
++            residuals = residuals + ("<unreadable>",)
+     closed = Rmod.ForwardSearchClosed(outcome)()
+     return {
+         "count": len(attempts),
+@@ -210,6 +261,7 @@ def probe(runtime, goal_text, packs=()):
+         "closed": M.IdentityCompare(closed, M.truth_value)() is M.truth_value,
+         "origins": origins,
+         "rule_ids": rule_ids,
++        "residuals": residuals,
+     }
+ 
+ 
+@@ -238,7 +290,7 @@ def ablated_paths():
+     out = []
+     for path in PACK_PATHS:
+         doc = yaml.safe_load(open(path, encoding="utf-8"))
+-        if doc.get("name") in PORTED_PACKS and "surface" in doc:
++        if doc.get("name") in SURFACE_PACKS and "surface" in doc:
+             del doc["surface"]
+             target = os.path.join(tmpdir, os.path.basename(path))
+             with open(target, "w", encoding="utf-8") as handle:
+@@ -272,7 +324,11 @@ def main(argv):
+ 
+     # ---- baseline ----------------------------------------------------
+     if baseline_mode:
+-        runtime, packs = boot(PACK_PATHS)
++        # The baseline is the no-surface-headers reference state: the same
++        # shipped packs with every surface: header stripped, so the ported
++        # and shell packs' shipped digests drift from it by design and any
++        # OTHER pack's drift is a regression.
++        runtime, packs = boot(ablated_paths())
+         rules = walk(rules_of(runtime.graph))
+         body = "\n".join(render(r, runtime.graph) for r in rules)
+         digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+@@ -304,7 +360,7 @@ def main(argv):
+     drifted, expected_drift = [], []
+     for name, count, pdigest in per_pack:
+         if name in pack_base and pack_base[name][1] != pdigest:
+-            (expected_drift if name in PORTED_PACKS else drifted).append(name)
++            (expected_drift if name in SURFACE_PACKS else drifted).append(name)
+ 
+     detail = (
+         "rules compiled: %d\ncompiled-rule sha256: %s\n"
+@@ -317,12 +373,20 @@ def main(argv):
+         detail += "NO PER-PACK BASELINE at %s" % PACK_DIGEST_PATH
+     else:
+         detail += "unported packs drifting: %s\n" % (", ".join(drifted) or "none")
+-        detail += "ported packs (drift expected): %s" % (
++        detail += "surface packs (drift expected): %s" % (
+             ", ".join("%s -> %s" % (n, "drifted" if n in expected_drift else "no change")
+-                      for n in PORTED_PACKS) or "none")
+-    ok = (len(rules) == 167 and result["count"] == 0 and not drifted
+-          and pack_base and all(n in expected_drift for n in PORTED_PACKS))
+-    record("1. unported packs unchanged; ported pack drifted as intended", ok, detail)
++                      for n in SURFACE_PACKS) or "none")
++    base_count = None
++    if os.path.exists(DIGEST_PATH):
++        parts = open(DIGEST_PATH, encoding="utf-8").read().split()
++        if len(parts) == 2:
++            base_count = int(parts[0])
++    ok = (base_count is not None and len(rules) == base_count
++          and result["count"] == 0 and not drifted
++          and pack_base and all(n in expected_drift for n in SURFACE_PACKS))
++    record("1. unported packs unchanged; ported pack drifted as intended", ok,
++           detail + "baseline expects: %s rules\n"
++           % (base_count if base_count is not None else "NO BASELINE"))
+ 
+     # ---- condition 2: {sym:} heads, no header ------------------------
+     print("\n== condition 2: fixture with {sym:} heads, no surface header ==")
+@@ -393,20 +457,174 @@ def main(argv):
+            "drifted: %s\nported (expected): %s"
+            % (", ".join(drifted) or "none", ", ".join(PORTED_PACKS) or "none"))
+ 
+-    # ---- P4: no FLT vocabulary ---------------------------------------
+-    print("\n== P4: no FLT vocabulary in the ported packs ==")
++    # ---- P4: no FLT vocabulary in the arithmetic port -----------------
++    print("\n== P4: no FLT vocabulary in the arithmetic port ==")
++    import yaml as _yaml_port
+     hits = []
+     for path in PACK_PATHS:
+         try:
++            doc = _yaml_port.safe_load(open(path, encoding="utf-8"))
+             text = open(path, encoding="utf-8").read().lower()
+         except OSError:
+             continue
++        if not (doc and doc.get("name") in PORTED_PACKS):
++            continue
+         if ("surface:" in text) and any(w in text for w in FLT_WORDS):
+             hits.append((os.path.basename(path),
+                          ", ".join(w for w in FLT_WORDS if w in text)))
+     ok = not hits
+-    record("P4. no fermat/flt/nosolutions/wiles/frey in any ported pack", ok,
+-           "hits: %s" % ("; ".join("%s: %s" % h for h in hits) or "none"))
++    record("P4. no fermat/flt/nosolutions/wiles/frey in the arithmetic port", ok,
++           "hits: %s\n(the shell pack is scanned separately in S7, where"
++           " 'nosolutions' is the sanctioned generic constructor)"
++           % ("; ".join("%s: %s" % h for h in hits) or "none"))
++
++    # ---- D11-SHELL: characterization-only outer-shell rules ----------
++    print("\n== D11-SHELL: characterization-only outer-shell rules ==")
++    shell_paths = [p for p in PACK_PATHS
++                   if os.path.basename(p) != SHELL_PACK_FILE]
++
++    # S1: without the shell pack both shell goals are silent (the base
++    # state the ratified reachability matrix measured)
++    runtime, packs = boot(shell_paths)
++    ra = probe(runtime, SHELL_GOAL_A, packs)
++    rb = probe(runtime, SHELL_GOAL_B, packs)
++    ok = ra["count"] == 0 and rb["count"] == 0
++    record("S1. shell pack absent -> Goal A 0 partials, Goal B 0 partials", ok,
++           "A %s\n   -> partial matches %d (cost %s)\n"
++           "B %s\n   -> partial matches %d (cost %s)"
++           % (SHELL_GOAL_A, ra["count"], ra["cost"],
++              SHELL_GOAL_B, rb["count"], rb["cost"]))
++
++    # S2: shipped state, Goal A: candidate partial, concrete capability
++    # premise in the residual, attributed to the shell pack, unclosed
++    runtime, packs = boot(PACK_PATHS)
++    ra = probe(runtime, SHELL_GOAL_A, packs)
++    concrete = tuple(t for t in ra["residuals"]
++                     if t.startswith("[" + SHELL_CAPABILITY_A + ","))
++    attributed = tuple(rid for rid in ra["rule_ids"]
++                       if rid.startswith(SHELL_PACK_NAME + "/"))
++    ok = (ra["count"] >= 1 and not ra["closed"]
++          and concrete and attributed)
++    record("S2. Goal A -> >=1 partial, concrete capability premise, unclosed",
++           ok,
++           "probe %s -> partial matches %d (cost %s)\nclosed: %s\n"
++           "rule ids: %s\nresiduals:\n   %s"
++           % (SHELL_GOAL_A, ra["count"], ra["cost"], ra["closed"],
++              ", ".join(ra["rule_ids"]) or "none",
++              "\n   ".join(ra["residuals"]) or "none"))
++
++    # S3: shipped state, Goal B, the same standard
++    rb = probe(runtime, SHELL_GOAL_B, packs)
++    concrete = tuple(t for t in rb["residuals"]
++                     if t.startswith("[" + SHELL_CAPABILITY_B + ","))
++    attributed = tuple(rid for rid in rb["rule_ids"]
++                       if rid.startswith(SHELL_PACK_NAME + "/"))
++    ok = (rb["count"] >= 1 and not rb["closed"]
++          and concrete and attributed)
++    record("S3. Goal B -> >=1 partial, concrete capability premise, unclosed",
++           ok,
++           "probe %s -> partial matches %d (cost %s)\nclosed: %s\n"
++           "rule ids: %s\nresiduals:\n   %s"
++           % (SHELL_GOAL_B, rb["count"], rb["cost"], rb["closed"],
++              ", ".join(rb["rule_ids"]) or "none",
++              "\n   ".join(rb["residuals"]) or "none"))
++
++    # S4: negative controls: shell heads no shipped rule concludes
++    rc1 = probe(runtime, SHELL_CONTROL_IMPLIES, packs)
++    rc2 = probe(runtime, SHELL_CONTROL_OVER, packs)
++    ok = rc1["count"] == 0 and rc2["count"] == 0
++    record("S4. negative controls (implies, over heads) -> 0 partials", ok,
++           "control %s\n   -> partial matches %d (cost %s)\n"
++           "control %s\n   -> partial matches %d (cost %s)"
++           % (SHELL_CONTROL_IMPLIES, rc1["count"], rc1["cost"],
++              SHELL_CONTROL_OVER, rc2["count"], rc2["cost"]))
++
++    # S5: ablation: with the shell pack removed the goals fall back to
++    # silence (0 -> positive -> 0 for both)
++    runtime, packs = boot(shell_paths)
++    ra = probe(runtime, SHELL_GOAL_A, packs)
++    rb = probe(runtime, SHELL_GOAL_B, packs)
++    ok = ra["count"] == 0 and rb["count"] == 0
++    record("S5. ablation -> Goal A 0 partials, Goal B 0 partials", ok,
++           "A -> partial matches %d (cost %s)\nB -> partial matches %d (cost %s)"
++           % (ra["count"], ra["cost"], rb["count"], rb["cost"]))
++
++    # S6: nothing can discharge the capability premises: probing each
++    # capability term as a goal finds no candidate rule anywhere in the
++    # shipped packs, so the two shell rules can never fire and can never
++    # close a goal
++    runtime, packs = boot(PACK_PATHS)
++    cap_goal_a = "(" + SHELL_CAPABILITY_A + " positive-integers (unknowns x)" \
++                  + " (eq (plus x 1) x))"
++    cap_goal_b = "(" + SHELL_CAPABILITY_B + " n (greater n 1)" \
++                  + " (eq (plus a a) (plus a a)))"
++    r6a = probe(runtime, cap_goal_a, packs)
++    r6b = probe(runtime, cap_goal_b, packs)
++    ok = r6a["count"] == 0 and r6b["count"] == 0
++    record("S6. capability goals -> 0 partials (premises undischargeable)", ok,
++           "%s\n   -> partial matches %d (cost %s)\n"
++           "%s\n   -> partial matches %d (cost %s)"
++           % (cap_goal_a, r6a["count"], r6a["cost"],
++              cap_goal_b, r6b["count"], r6b["cost"]))
++
++    # S7: shell pack vocabulary: no FLT-specific words and no arithmetic
++    # constructor heads; the pack is pattern variables plus the five
++    # mapped shell/capability symbols only. 'nosolutions' here is the
++    # generic logical constructor named by the repair wave, not FLT
++    # vocabulary; the FLT-specific words are banned outright.
++    shell_path = os.path.join(os.path.dirname(PACK_PATHS[0]), SHELL_PACK_FILE)
++    shell_text = open(shell_path, encoding="utf-8").read().lower()
++    banned = ("fermat", "flt", "wiles", "frey", "pow", "times", "exponent",
++              "minus", "divides", "solutionmap")
++    word_hits = tuple(w for w in banned if w in shell_text)
++    import yaml as _yaml_shell
++    shell_doc = _yaml_shell.safe_load(open(shell_path, encoding="utf-8"))
++
++    syms_seen = set()
++
++    def _collect_syms(node):
++        if isinstance(node, list):
++            for item in node:
++                _collect_syms(item)
++            return
++        if not isinstance(node, dict):
++            return
++        if "sym" in node:
++            syms_seen.add(node["sym"])
++        for value in node.values():
++            _collect_syms(value)
++
++    _collect_syms(shell_doc.get("rules", []))
++    allowed = {"NoSolutionsLabel", "ForAllLabel", "ImpliesLabel",
++               "NeedContradictionFromArbitrarySolutionLabel",
++               "NeedBinderSafeImplicationLabel"}
++    ok = not word_hits and syms_seen == allowed
++    record("S7. shell pack: no FLT words, only the five mapped symbols", ok,
++           "word hits: %s\nconstructor symbols used: %s\nallowed: %s"
++           % (", ".join(word_hits) or "none",
++              ", ".join(sorted(syms_seen)) or "none",
++              ", ".join(sorted(allowed))))
++
++    # S8: provenance: the loader recorded the five pack-local mappings and
++    # attributed both rules through the mapping; the arithmetic port's
++    # single mapping is still exactly one
++    runtime, packs = boot(PACK_PATHS)
++    mapping_lines, rule_lines = surface_records(packs)
++    shell_mappings = tuple(l for l in mapping_lines
++                           if "pack=%s," % SHELL_PACK_NAME in l)
++    arith_mappings = tuple(l for l in mapping_lines
++                           if "pack=arithmetic," in l)
++    shell_attributed = tuple(
++        rid for rid in ("nosolutions_introduction_characterization",
++                        "forall_implies_decomposition_characterization")
++        if any(("rule=%s," % rid) in l for l in rule_lines))
++    ok = (len(shell_mappings) == 5 and len(arith_mappings) == 1
++          and len(shell_attributed) == 2)
++    record("S8. surface audit: 5 shell mappings, both rules attributed", ok,
++           "shell mappings:\n   %s\narithmetic mappings: %d\n"
++           "rules attributed through the mapping: %s"
++           % ("\n   ".join(shell_mappings) or "none", len(arith_mappings),
++              ", ".join(shell_attributed) or "none"))
+ 
+     # ---- condition 5: char form, diagnostic only ---------------------
+     print("\n== condition 5: char-form fixture (DIAGNOSTIC, NOT A GATE) ==")
+diff --git a/verification/2026-09-10-d11-shell-characterization.txt b/verification/2026-09-10-d11-shell-characterization.txt
+new file mode 100644
+index 0000000..780bf5e
+--- /dev/null
++++ b/verification/2026-09-10-d11-shell-characterization.txt
+@@ -0,0 +1,244 @@
++D11-SHELL-ENG PHASE 2 — CHARACTERIZATION-ONLY SHELL RULES
++Repair-wave ticket Agent 2, executed
++=======================================================
++date:         2026-09-10 (local); machine runs 2026-09-09 23:0x UTC
++lane:         tools/execution (D11-SHELL-ENG), session branch
++              arena/01a06923-cat-theo-machine
++ticket:       FLT Live-Session Repair Wave, Agent 2 (D11-SHELL-ENG);
++              supersedes the single-agent D11-SHELL-ENG brief for this
++              lane (Agent 3 owns the sound calculus; Agent 6 Task B owns
++              the D12 header)
++operator ruling recorded before work (applies to Agent 1's lane, noted
++here for the record): snapshot defect UPSTREAM-BOUNDARY.
++
++----------------------------------------------------------------------
++PINS (five-block common instruction, recorded before work)
++----------------------------------------------------------------------
++runtime source:      arena/01a06542-cat-theo-machine, fetched fresh
++                     2026-09-09T23:04:51Z
++base commit:         bfd4bd28de5765adbdabd1d152200fa67f11e5a2 (INT tip,
++                     verified fresh, not inherited)
++ancestor check:      experiment-5-frozen-r1 peeled commit ef571b688bcf
++                     b581bd3e65ec28a18f438ca32595 IS an ancestor of the
++                     base (verified)
++work branch:         shell-phase2, in a separate clean clone at /tmp/shell2
++                     (cloned from origin, branch cut from the recorded
++                     base SHA; no shared checkout)
++work commits:        6b258fe (the port) + this evidence commit
++environment:         python 3.11.2, gmpy2 2.3.1, pyyaml 6.0.3
++tags:                15 on origin, none cut by this lane; INT line not
++                     pushed by this lane; artifacts ship as a patch on
++                     the session branch
++watch at fetch:      INT bfd4bd2 unchanged; tools e904cfa; shell lane
++                     moved aa4be12 -> f093a7f (wave archived + ruling
++                     recorded there); 01a068c2 9ac8e10; 01a06da9 3e1a2e0
++
++----------------------------------------------------------------------
++WHAT SHIPPED
++----------------------------------------------------------------------
++packs/shell-characterization.pack.yaml — two single-premise rules:
++
++  nosolutions_introduction_characterization
++    premise     (NeedContradictionFromArbitrarySolution ?d ?u ?q)
++    conclusion  (nosolutions ?d ?u ?q)
++
++  forall_implies_decomposition_characterization
++    premise     (NeedBinderSafeImplication ?n ?p ?q)
++    conclusion  (forall ?n (implies ?p ?q))
++
++Compiled through the D11-PORT surface mechanism: pack-local, opt-in,
++constructor-heads-only mappings
++  NoSolutionsLabel -> nosolutions
++  ForAllLabel -> forall
++  ImpliesLabel -> implies
++  NeedContradictionFromArbitrarySolutionLabel ->
++      NeedContradictionFromArbitrarySolution
++  NeedBinderSafeImplicationLabel -> NeedBinderSafeImplication
++
++Code changes: labels.py (4 new labels: ImpliesLabel, NoSolutionsLabel,
++the two Need* capability labels; ForAllLabel reused, not added);
++main.py (one PACK_PATHS entry); tools/d11_gate.py (S1-S8 extension +
++baseline semantics made explicit). No changes to the checker, matcher,
++search, planner, parser, or any existing pack (the arithmetic
++ExprEqLabel -> eq port byte-identical; per-pack reference digests of all
++13 pre-shell packs byte-identical).
++
++Reading of the capability premises (per the wave brief): nosolutions
++needs a checked contradiction from an arbitrary assumed in-domain
++solution; forall/implies needs the antecedent assumed in a scoped
++context, the consequent derived, the assumption discharged at the join —
++never a proof of the antecedent itself.
++
++----------------------------------------------------------------------
++DESIGNED NEVER TO FIRE — WHY THIS CANNOT CLOSE A GOAL
++----------------------------------------------------------------------
++Each rule's single premise is a capability term. Discharging it would
++require a fact or rule conclusion with that head. Gate S6 proves
++mechanically that probing each capability term as a goal against ALL
++shipped packs yields zero candidate rules; no library axiom carries
++either head; a library-only cold start (taught rules 0, axioms 0) has no
++other fact source. Therefore both rules can produce candidate partial
++matches and concrete unmatched-premise residuals ONLY — a matched goal
++stays unclosed. The transcripts show FAILED on every after-state probe.
++
++----------------------------------------------------------------------
++RAW RESULTS (verbatim machine lines; one fresh cold process per probe,
++one worktree per state; probe-isolation rule honored — no checkpoint
++restore lines in any transcript)
++----------------------------------------------------------------------
++Goal A sentence: "prove that x + 1 = x has no solutions in positive
++  integers" -> parsed goal: (nosolutions positive-integers (unknowns x)
++  (eq (plus x 1) x))
++Goal B sentence: "prove that for all n > 1 a + a = a + a" (the ratified
++  matrix C sentence, byte-identical) -> parsed goal: (forall n (implies
++  (greater n 1) (eq (plus a a) (plus a a))))
++Control 1 sentence: "prove that a + a = a + a implies b + b = b + b"
++  -> (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))
++Control 2 sentence: "prove that a + a = a + a implies b + b = b + b
++  over positive integers" -> (over positive-integers (vars a b)
++  (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))
++
++BEFORE (base bfd4bd2, wt-base, 4 probes):
++  A:       FAILED. cost=334; rules with a genuine partial match: 0
++           residual record: (zero-successor-root (...))
++  B:       FAILED. cost=334; genuine partial match: 0; zero-successor-root
++  Ctrl 1:  FAILED. cost=334; genuine partial match: 0; zero-successor-root
++  Ctrl 2:  FAILED. cost=334; genuine partial match: 0; zero-successor-root
++
++AFTER (shell-phase2, library rules 169, provenance LIBRARY_THEOREM):
++  A:       FAILED. cost=338; rules with a genuine partial match: 1
++           residual: missing (NeedContradictionFromArbitrarySolution
++             positive-integers (unknowns x) (eq (plus x 1) x))
++             (rule origin primitive)
++  B:       FAILED. cost=338; rules with a genuine partial match: 1
++           residual: missing (NeedBinderSafeImplication n (greater n 1)
++             (eq (plus a a) (plus a a))) (rule origin primitive)
++  Ctrl 1:  FAILED. cost=338; genuine partial match: 0; zero-successor-root
++  Ctrl 2:  FAILED. cost=338; genuine partial match: 0; zero-successor-root
++
++ABLATION (committed tree 6b258fe, the pack's surface: header stripped —
++the D11-PORT ablation mechanism; rules still compile, 169 library
++rules, label-headed conclusions match nothing):
++  A:       FAILED. cost=338; rules with a genuine partial match: 0
++           residual record: (zero-successor-root (...))
++  B:       FAILED. cost=338; genuine partial match: 0; zero-successor-root
++
++TRANSITION: A 0 -> 1 -> 0. B 0 -> 1 -> 0. Controls 0 throughout.
++Both goals remain unclosed in every state. Cost 334 -> 338 with the two
++extra rules in the pool; 338 persists in ablation because the disabled
++rules still compile.
++
++The negative controls differ in HEAD SYMBOL (implies, over), not arity:
++head compatibility is compared by value, so an arity-only variant could
++have matched. Both controls are shells of the same structural depth
++family as Goal B, and no shipped rule concludes either head.
++
++Note for the F residual standard: after this port, a nosolutions or
++forall/implies goal on a tagged build reports a characterized residual
++(a named missing capability) instead of zero-successor-root. The
++FLT-shaped decoy is nosolutions-headed, so it would now also report the
++NeedContradictionFromArbitrarySolution residual — generic shell
++exposure, no FLT-specific vocabulary anywhere, and no closure: the
++decoy still cannot close.
++
++----------------------------------------------------------------------
++GATE (tools/d11_gate.py, extended; full output at
++verification/2026-09-10-d11-shell-gate-16of16.txt)
++----------------------------------------------------------------------
++16/16 conditions pass on the committed tree:
++  1  unported packs unchanged; surface packs drifted as intended
++  2  no header -> 0 candidates (spike fixture)
++  3  surface: header -> 1 candidate, pack-rule provenance (spike fixture)
++  4  unrelated goal -> 0 candidates
++  P1 arithmetic port probe -> >=1 candidate, attributed (unchanged)
++  P2 arithmetic ablation -> 0 (unchanged)
++  P3 no unported pack digest drift
++  P4 no FLT words in the arithmetic port (scoping corrected: the check
++     now reads only the arithmetic port, where 'nosolutions' is banned;
++     the shell pack is scanned by S7 under the wave's vocabulary rule)
++  S1 shell pack absent -> A 0, B 0
++  S2 A -> 1 partial, concrete capability premise, attributed, unclosed
++  S3 B -> 1 partial, concrete capability premise, attributed, unclosed
++  S4 controls (implies, over heads) -> 0
++  S5 ablation (pack excluded from the load path) -> A 0, B 0
++  S6 capability goals -> 0 partials (premises undischargeable)
++  S7 shell pack: no FLT-specific words (fermat/flt/wiles/frey/pow/
++     times/exponent/minus/divides/solutionmap all 0); constructor
++     symbols are exactly the five mapped labels
++  S8 surface audit: 5 shell mappings recorded, both rules attributed,
++     the arithmetic port still exactly one mapping
++
++Baselines: the no-surface-headers reference state moved 167 -> 169
++(the two rules compile with label heads when the header is stripped);
++shipped-167-rules.sha256 renamed to shipped-rules.sha256 (records
++"169 <digest>"); shipped-pack-digests.txt gains exactly one line (the
++shell pack's no-headers compilation, digest 3637df01...); the 13
++pre-shell reference lines are byte-identical (verified by diff).
++
++Gate-side fixes during development (recorded for the lane ledger): the
++first S2/S3 assertions expected s-expr rendering and the gate's renderer
++emits bracket-comma form — the machine results were correct on the
++first run; S7's symbol walker did not descend the top-level rules
++roster — fixed; one baseline-design correction: --baseline originally
++re-recorded the shipped state, which would have made the ported drift
++undetectable — restructured to record the no-headers reference state
++(the state the per-pack manifest has always represented), verified by
++reproducing all 13 committed manifest lines byte-exact before
++re-recording.
++
++----------------------------------------------------------------------
++VOCABULARY INSPECTION (before adding terms)
++----------------------------------------------------------------------
++Existing in labels.py: ForAllLabel, ExistsLabel, NotLabel,
++ContradictionLabel (logical family), NeedLabel (dependency requests),
++FreshenedLabel / BinderLabel (planner side conditions), NeededForLabel.
++Reused: ForAllLabel (exact denotation; the ExprEqLabel -> eq precedent).
++Added: ImpliesLabel, NoSolutionsLabel (missing members of the logical
++family's surface spelling), NeedBinderSafeImplicationLabel,
++NeedContradictionFromArbitrarySolutionLabel (no existing denotation).
++Deliberately NOT reused: NeedLabel — it is the dependency-request term;
++overloading it would make a capability residual indistinguishable from
++a theorem request.
++
++----------------------------------------------------------------------
++SCOPE HELD / NOT CLAIMED
++----------------------------------------------------------------------
++- Characterization only. No quantified proof support; no forall-
++  introduction, implication-introduction, or refutation checking; the
++  checker is untouched and not weakened.
++- The rules expose concrete child obligations; they never close Goal A,
++  Goal B, the controls, or any FLT-shaped goal (S6 + all transcripts).
++- A mapped head is not shell support: sound shell closure belongs to
++  LOGIC-CHECKER-ENG (Agent 3) and must never ride through these rules.
++- No FLT vocabulary: S7 word scan 0; the pack's only constructor
++  symbols are the five mapped labels; no exponent/target vocabulary.
++- The arithmetic ExprEqLabel -> eq port untouched (P1/P2 byte-identical
++  behavior; per-pack reference digests unchanged).
++- The D12 header (old brief Phase 4) is NOT in this change — the wave
++  assigns it to F-TOOLS-REPLAY-ENG (Agent 6 Task B).
++- The two-shard suite rerun is INT's integration step (wave INT block,
++  steps 5-6); this lane's focused evidence is the 16-condition gate plus
++  ten REPL transcripts. The earlier single-agent brief's Phase 3 "tests
++  (8)" is satisfied by S1-S8 (eight machine-gated shell conditions).
++- Supersession note: the old brief's "no new pack port" constraint is
++  superseded by the wave ticket, which instructs implementing these
++  rules; the D11-PORT surface mechanism is the established path used.
++
++----------------------------------------------------------------------
++FILES
++----------------------------------------------------------------------
++  packs/shell-characterization.pack.yaml     the two rules + surface
++  labels.py                                  4 new labels, family-registered
++  main.py                                    one PACK_PATHS entry
++  tools/d11_gate.py                          S1-S8 + baseline semantics
++  protocol/D11-SHELL.md                      scope document
++  protocol/d11-spike/shipped-rules.sha256    renamed, 169 reference
++  protocol/d11-spike/shipped-pack-digests.txt +1 line, 13 unchanged
++  verification/2026-09-10-d11-shell-gate-16of16.txt
++  verification/probes/2026-09-10-shell-phase2/*.log   10 raw transcripts
++  verification/2026-09-10-d11-shell-characterization.txt   this file
++
++Work commits: 6b258fe + the evidence commit carrying this file.
++Patch artifact (cumulative, base bfd4bd2 -> branch tip) pushed to the
++session branch arena/01a06923-cat-theo-machine. No tags cut. INT line
++untouched by this lane.
+diff --git a/verification/2026-09-10-d11-shell-gate-16of16.txt b/verification/2026-09-10-d11-shell-gate-16of16.txt
+new file mode 100644
+index 0000000..4ca5a5e
+--- /dev/null
++++ b/verification/2026-09-10-d11-shell-gate-16of16.txt
+@@ -0,0 +1,194 @@
++== condition 1: shipped packs, unported ones byte-identical ==
++PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
++PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
++PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++[PASS] 1. unported packs unchanged; ported pack drifted as intended
++       rules compiled: 169
++       compiled-rule sha256: d8a7934fa9e1bc447d8c98fd9c627e87c267cedd25618bcd3c8003e3467bebd4
++       probe (divides k (plus p q)) -> partial matches 0 (cost 338)
++       mappings emitted: 6; rules attributed: 9
++       unported packs drifting: none
++       surface packs (drift expected): arithmetic -> drifted, shell-characterization -> driftedbaseline expects: 169 rules
++
++== condition 2: fixture with {sym:} heads, no surface header ==
++[PASS] 2. no header -> 0 candidates
++       probe (divides k (plus p q)) -> partial matches 0 (cost 2)
++       surface mappings emitted: 0
++
++== condition 3: same fixture plus pack-local surface: header ==
++PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++[PASS] 3. surface: header -> 1 candidate, pack-rule provenance, audit emitted
++       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
++       rule origins: primitive
++       provenance: a pack rule reached through the mapping, not a taught law
++
++== condition 4: unrelated goal, mapped fixture loaded ==
++PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
++[PASS] 4. unrelated goal -> 0 candidates
++       probe (cornersum t whole) -> partial matches 0 (cost 2)
++
++== P1: ported probe ==
++PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
++PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
++PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++[PASS] P1. ported probe -> >=1 candidate, attributed to the port
++       probe (eq (pow t 6) (pow (pow t 2) 3)) -> partial matches 1 (cost 338)
++       matched rule ids: arithmetic/arithmetic_equation_is_symmetric
++       attributed to the surface mapping: arithmetic/arithmetic_equation_is_symmetric
++       origins: primitive
++
++== P2: ablation, surface: stripped from the ported pack ==
++[PASS] P2. ablation -> matches return to 0
++       probe (eq (pow t 6) (pow (pow t 2) 3)) -> partial matches 0 (cost 338)
++       rule ids: none
++
++== P3: unported packs untouched ==
++[PASS] P3. no unported pack digest drift
++       drifted: none
++       ported (expected): arithmetic
++
++== P4: no FLT vocabulary in the arithmetic port ==
++[PASS] P4. no fermat/flt/nosolutions/wiles/frey in the arithmetic port
++       hits: none
++       (the shell pack is scanned separately in S7, where 'nosolutions' is the sanctioned generic constructor)
++
++== D11-SHELL: characterization-only outer-shell rules ==
++PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++[PASS] S1. shell pack absent -> Goal A 0 partials, Goal B 0 partials
++       A (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
++          -> partial matches 0 (cost 334)
++       B (forall n (implies (greater n 1) (eq (plus a a) (plus a a))))
++          -> partial matches 0 (cost 334)
++PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
++PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
++PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++[PASS] S2. Goal A -> >=1 partial, concrete capability premise, unclosed
++       probe (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)) -> partial matches 1 (cost 338)
++       closed: False
++       rule ids: shell-characterization/nosolutions_introduction_characterization
++       residuals:
++          [NeedContradictionFromArbitrarySolution, positive-integers, [unknowns, x], [eq, [plus, x, 1], x]]
++[PASS] S3. Goal B -> >=1 partial, concrete capability premise, unclosed
++       probe (forall n (implies (greater n 1) (eq (plus a a) (plus a a)))) -> partial matches 1 (cost 338)
++       closed: False
++       rule ids: shell-characterization/forall_implies_decomposition_characterization
++       residuals:
++          [NeedBinderSafeImplication, n, [greater, n, 1], [eq, [plus, a, a], [plus, a, a]]]
++[PASS] S4. negative controls (implies, over heads) -> 0 partials
++       control (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))
++          -> partial matches 0 (cost 338)
++       control (over positive-integers (vars a b) (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))
++          -> partial matches 0 (cost 338)
++PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++[PASS] S5. ablation -> Goal A 0 partials, Goal B 0 partials
++       A -> partial matches 0 (cost 334)
++       B -> partial matches 0 (cost 334)
++PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
++PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
++PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++[PASS] S6. capability goals -> 0 partials (premises undischargeable)
++       (NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x))
++          -> partial matches 0 (cost 338)
++       (NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))
++          -> partial matches 0 (cost 338)
++[PASS] S7. shell pack: no FLT words, only the five mapped symbols
++       word hits: none
++       constructor symbols used: ForAllLabel, ImpliesLabel, NeedBinderSafeImplicationLabel, NeedContradictionFromArbitrarySolutionLabel, NoSolutionsLabel
++       allowed: ForAllLabel, ImpliesLabel, NeedBinderSafeImplicationLabel, NeedContradictionFromArbitrarySolutionLabel, NoSolutionsLabel
++PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
++PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
++PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
++PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
++LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++[PASS] S8. surface audit: 5 shell mappings, both rules attributed
++       shell mappings:
++          PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
++          PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
++          PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
++          PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
++          PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
++       arithmetic mappings: 1
++       rules attributed through the mapping: nosolutions_introduction_characterization, forall_implies_decomposition_characterization
++
++== condition 5: char-form fixture (DIAGNOSTIC, NOT A GATE) ==
++       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
++       This is the char shorthand. It worked before the D11 fix and
++       proves nothing about it. It is never cited as D11 fixed.
++
++16/16 gated conditions passed.
+diff --git a/verification/probes/2026-09-10-shell-phase2/ablate-goal-A-shell-phase2.log b/verification/probes/2026-09-10-shell-phase2/ablate-goal-A-shell-phase2.log
+new file mode 100644
+index 0000000..b9cab32
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/ablate-goal-A-shell-phase2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 169; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that x + 1 = x has no solutions in positive integers
++hyge> parsed goal: (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
++FAILED. cost=338; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((nosolutions positive-integers (unknowns x) (eq (plus x 1) x))))
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/ablate-goal-B-shell-phase2.log b/verification/probes/2026-09-10-shell-phase2/ablate-goal-B-shell-phase2.log
+new file mode 100644
+index 0000000..e12a64f
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/ablate-goal-B-shell-phase2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 169; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that for all n > 1 a + a = a + a
++hyge> parsed goal: (forall n (implies (greater n 1) (eq (plus a a) (plus a a))))
++FAILED. cost=338; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((forall n (implies (greater n 1) (eq (plus a a) (plus a a))))))
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/after-goal-A-shell-phase2.log b/verification/probes/2026-09-10-shell-phase2/after-goal-A-shell-phase2.log
+new file mode 100644
+index 0000000..160d0f3
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/after-goal-A-shell-phase2.log
+@@ -0,0 +1,20 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 169; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that x + 1 = x has no solutions in positive integers
++hyge> parsed goal: (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
++FAILED. cost=338; rules with a genuine partial match: 1
++residual: missing (NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x)) (rule origin primitive)
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/after-goal-B-shell-phase2.log b/verification/probes/2026-09-10-shell-phase2/after-goal-B-shell-phase2.log
+new file mode 100644
+index 0000000..cab1eab
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/after-goal-B-shell-phase2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 169; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that for all n > 1 a + a = a + a
++hyge> parsed goal: (forall n (implies (greater n 1) (eq (plus a a) (plus a a))))
++FAILED. cost=338; rules with a genuine partial match: 1
++residual: missing (NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a))) (rule origin primitive)
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/after-goal-CTRL-IMPLIES-shell-phase2.log b/verification/probes/2026-09-10-shell-phase2/after-goal-CTRL-IMPLIES-shell-phase2.log
+new file mode 100644
+index 0000000..9efb000
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/after-goal-CTRL-IMPLIES-shell-phase2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 169; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that a + a = a + a implies b + b = b + b
++hyge> parsed goal: (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))
++FAILED. cost=338; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))))
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/after-goal-CTRL-OVER-shell-phase2.log b/verification/probes/2026-09-10-shell-phase2/after-goal-CTRL-OVER-shell-phase2.log
+new file mode 100644
+index 0000000..a0c3d7a
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/after-goal-CTRL-OVER-shell-phase2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 169; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that a + a = a + a implies b + b = b + b over positive integers
++hyge> parsed goal: (over positive-integers (vars a b) (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))
++FAILED. cost=338; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((over positive-integers (vars a b) (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))))
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/before-goal-A-bfd4bd2.log b/verification/probes/2026-09-10-shell-phase2/before-goal-A-bfd4bd2.log
+new file mode 100644
+index 0000000..a4bf94a
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/before-goal-A-bfd4bd2.log
+@@ -0,0 +1,20 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that x + 1 = x has no solutions in positive integers
++hyge> parsed goal: (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
++FAILED. cost=334; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((nosolutions positive-integers (unknowns x) (eq (plus x 1) x))))
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/before-goal-B-bfd4bd2.log b/verification/probes/2026-09-10-shell-phase2/before-goal-B-bfd4bd2.log
+new file mode 100644
+index 0000000..ca6b772
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/before-goal-B-bfd4bd2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that for all n > 1 a + a = a + a
++hyge> parsed goal: (forall n (implies (greater n 1) (eq (plus a a) (plus a a))))
++FAILED. cost=334; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((forall n (implies (greater n 1) (eq (plus a a) (plus a a))))))
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/before-goal-CTRL-IMPLIES-bfd4bd2.log b/verification/probes/2026-09-10-shell-phase2/before-goal-CTRL-IMPLIES-bfd4bd2.log
+new file mode 100644
+index 0000000..ef4a28b
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/before-goal-CTRL-IMPLIES-bfd4bd2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that a + a = a + a implies b + b = b + b
++hyge> parsed goal: (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))
++FAILED. cost=334; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))))
++you> goodbye
++hyge> goodbye
+diff --git a/verification/probes/2026-09-10-shell-phase2/before-goal-CTRL-OVER-bfd4bd2.log b/verification/probes/2026-09-10-shell-phase2/before-goal-CTRL-OVER-bfd4bd2.log
+new file mode 100644
+index 0000000..909609e
+--- /dev/null
++++ b/verification/probes/2026-09-10-shell-phase2/before-goal-CTRL-OVER-bfd4bd2.log
+@@ -0,0 +1,21 @@
++HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
++Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
++'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
++Parentheses group subexpressions: 'two times (two plus two)'.
++Teach me: 'training example: double two <-> mul ( two , two )'.
++Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
++'solve engel e1', 'solve engel e2', 'solve the coin problem',
++'prove square roots are real'.
++you> research mode on
++hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
++hyge> research mode ON
++state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
++you> load theorem packs
++hyge> loading the theorem packs
++hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
++you> prove that a + a = a + a implies b + b = b + b over positive integers
++hyge> parsed goal: (over positive-integers (vars a b) (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))
++FAILED. cost=334; rules with a genuine partial match: 0
++residual record: (zero-successor-root ((over positive-integers (vars a b) (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))))
++you> goodbye
++hyge> goodbye

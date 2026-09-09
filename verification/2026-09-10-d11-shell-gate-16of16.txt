@@ -1,0 +1,194 @@
+== condition 1: shipped packs, unported ones byte-identical ==
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+[PASS] 1. unported packs unchanged; ported pack drifted as intended
+       rules compiled: 169
+       compiled-rule sha256: d8a7934fa9e1bc447d8c98fd9c627e87c267cedd25618bcd3c8003e3467bebd4
+       probe (divides k (plus p q)) -> partial matches 0 (cost 338)
+       mappings emitted: 6; rules attributed: 9
+       unported packs drifting: none
+       surface packs (drift expected): arithmetic -> drifted, shell-characterization -> driftedbaseline expects: 169 rules
+
+== condition 2: fixture with {sym:} heads, no surface header ==
+[PASS] 2. no header -> 0 candidates
+       probe (divides k (plus p q)) -> partial matches 0 (cost 2)
+       surface mappings emitted: 0
+
+== condition 3: same fixture plus pack-local surface: header ==
+PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+[PASS] 3. surface: header -> 1 candidate, pack-rule provenance, audit emitted
+       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
+       rule origins: primitive
+       provenance: a pack rule reached through the mapping, not a taught law
+
+== condition 4: unrelated goal, mapped fixture loaded ==
+PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+[PASS] 4. unrelated goal -> 0 candidates
+       probe (cornersum t whole) -> partial matches 0 (cost 2)
+
+== P1: ported probe ==
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+[PASS] P1. ported probe -> >=1 candidate, attributed to the port
+       probe (eq (pow t 6) (pow (pow t 2) 3)) -> partial matches 1 (cost 338)
+       matched rule ids: arithmetic/arithmetic_equation_is_symmetric
+       attributed to the surface mapping: arithmetic/arithmetic_equation_is_symmetric
+       origins: primitive
+
+== P2: ablation, surface: stripped from the ported pack ==
+[PASS] P2. ablation -> matches return to 0
+       probe (eq (pow t 6) (pow (pow t 2) 3)) -> partial matches 0 (cost 338)
+       rule ids: none
+
+== P3: unported packs untouched ==
+[PASS] P3. no unported pack digest drift
+       drifted: none
+       ported (expected): arithmetic
+
+== P4: no FLT vocabulary in the arithmetic port ==
+[PASS] P4. no fermat/flt/nosolutions/wiles/frey in the arithmetic port
+       hits: none
+       (the shell pack is scanned separately in S7, where 'nosolutions' is the sanctioned generic constructor)
+
+== D11-SHELL: characterization-only outer-shell rules ==
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+[PASS] S1. shell pack absent -> Goal A 0 partials, Goal B 0 partials
+       A (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
+          -> partial matches 0 (cost 334)
+       B (forall n (implies (greater n 1) (eq (plus a a) (plus a a))))
+          -> partial matches 0 (cost 334)
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+[PASS] S2. Goal A -> >=1 partial, concrete capability premise, unclosed
+       probe (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)) -> partial matches 1 (cost 338)
+       closed: False
+       rule ids: shell-characterization/nosolutions_introduction_characterization
+       residuals:
+          [NeedContradictionFromArbitrarySolution, positive-integers, [unknowns, x], [eq, [plus, x, 1], x]]
+[PASS] S3. Goal B -> >=1 partial, concrete capability premise, unclosed
+       probe (forall n (implies (greater n 1) (eq (plus a a) (plus a a)))) -> partial matches 1 (cost 338)
+       closed: False
+       rule ids: shell-characterization/forall_implies_decomposition_characterization
+       residuals:
+          [NeedBinderSafeImplication, n, [greater, n, 1], [eq, [plus, a, a], [plus, a, a]]]
+[PASS] S4. negative controls (implies, over heads) -> 0 partials
+       control (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))
+          -> partial matches 0 (cost 338)
+       control (over positive-integers (vars a b) (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))
+          -> partial matches 0 (cost 338)
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+[PASS] S5. ablation -> Goal A 0 partials, Goal B 0 partials
+       A -> partial matches 0 (cost 334)
+       B -> partial matches 0 (cost 334)
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+[PASS] S6. capability goals -> 0 partials (premises undischargeable)
+       (NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x))
+          -> partial matches 0 (cost 338)
+       (NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))
+          -> partial matches 0 (cost 338)
+[PASS] S7. shell pack: no FLT words, only the five mapped symbols
+       word hits: none
+       constructor symbols used: ForAllLabel, ImpliesLabel, NeedBinderSafeImplicationLabel, NeedContradictionFromArbitrarySolutionLabel, NoSolutionsLabel
+       allowed: ForAllLabel, ImpliesLabel, NeedBinderSafeImplicationLabel, NeedContradictionFromArbitrarySolutionLabel, NoSolutionsLabel
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction_characterization, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ForAllLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=ImpliesLabel, surface=implies)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition_characterization, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+[PASS] S8. surface audit: 5 shell mappings, both rules attributed
+       shell mappings:
+          PackSurfaceMapping(pack=shell-characterization, label=NoSolutionsLabel, surface=nosolutions)
+          PackSurfaceMapping(pack=shell-characterization, label=ForAllLabel, surface=forall)
+          PackSurfaceMapping(pack=shell-characterization, label=ImpliesLabel, surface=implies)
+          PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+          PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+       arithmetic mappings: 1
+       rules attributed through the mapping: nosolutions_introduction_characterization, forall_implies_decomposition_characterization
+
+== condition 5: char-form fixture (DIAGNOSTIC, NOT A GATE) ==
+       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
+       This is the char shorthand. It worked before the D11 fix and
+       proves nothing about it. It is never cited as D11 fixed.
+
+16/16 gated conditions passed.

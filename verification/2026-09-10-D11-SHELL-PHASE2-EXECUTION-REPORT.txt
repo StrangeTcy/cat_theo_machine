@@ -1,0 +1,62 @@
+D11-SHELL-ENG PHASE 2 EXECUTED — repair-wave Agent 2
+====================================================
+date:    2026-09-10 (local)
+lane:    tools/execution (D11-SHELL-ENG), session branch
+         arena/01a06923-cat-theo-machine
+
+EXACT SHAs (for INT, per the wave's integration block)
+  base:          bfd4bd28de5765adbdabd1d152200fa67f11e5a2
+                 (arena/01a06542, fetched fresh 2026-09-09T23:04:51Z,
+                 ancestor ef571b6 verified)
+  work branch:   shell-phase2 (scratch clone, not pushed as a branch)
+  commit 1:      6b258fe — the port (pack + labels + PACK_PATHS + gate
+                 S1-S8 + protocol doc + baselines + before/after
+                 transcripts)
+  commit 2:      a884c2b — evidence (ablation transcripts + verification
+                 document)
+  patch:         verification/2026-09-10-d11-shell-phase2.patch
+                 (cumulative bfd4bd2..a884c2b, 1390 lines)
+  INT recomputes against the live tip at import; merge order per the
+  wave: snapshot boundary, logic checker, THEN this shell
+  characterization; both complete shards on the composed candidate.
+
+ACCEPTANCE (wave Agent-2 criteria, all met on the committed tree)
+  Goal A: 0 -> 1 -> 0 (partial matches; cost 334 -> 338 -> 338)
+  Goal B: 0 -> 1 -> 0
+  concrete unmatched premises present and naming the missing checker
+    capability: (NeedContradictionFromArbitrarySolution ...) and
+    (NeedBinderSafeImplication ...)
+  both goals remain unclosed in every state (designed never to fire —
+    gate S6 proves no shipped rule can discharge either premise)
+  negative controls with different head symbols (implies, over) at 0
+    in every state
+  extended D11 gate 16/16 (conditions 1-5, P1-P4 unchanged in behavior,
+    S1-S8 new; full output: 2026-09-10-d11-shell-gate-16of16.txt)
+  no FLT vocabulary (S7: fermat/flt/wiles/frey/pow/times/exponent/
+    minus/divides/solutionmap all 0; constructor symbols are exactly
+    the five mapped labels)
+  arithmetic ExprEqLabel -> eq port untouched (P1/P2 unchanged; the 13
+    pre-shell per-pack reference digests byte-identical)
+  checker untouched; no proof-producing claim; sound shell closure
+    remains LOGIC-CHECKER-ENG's (Agent 3) ticket
+
+BASELINE NOTES FOR INT
+  The no-surface-headers reference moved 167 -> 169 compiled rules;
+  shipped-167-rules.sha256 renamed shipped-rules.sha256 ("169 <digest>");
+  shipped-pack-digests.txt gains exactly one line (shell pack's
+  no-headers compilation); all 13 pre-shell lines byte-identical
+  (verified by diff before re-recording). Gate condition 1 now reads
+  the expected count from the baseline file and expects surface-pack
+  drift for arithmetic AND shell-characterization only.
+
+HYGIENE
+  charter six-phrase scan: 0 (prose, code comments, commits);
+  lane implementation-vocab scan: 0 in prose; one classified hit —
+  the hyge-pack format key 'list:' (established machine syntax, every
+  shipped pack carries it; same classification as the verbatim fixture
+  name e4-terminal-global-min). No tags cut; INT line untouched;
+  foreign branches untouched; no force-push; scratch clone committed
+  with lane identity.
+
+  The D12 header is NOT here (Agent 6 Task B owns it). The two-shard
+  suite rerun is INT's integration step per the wave block.

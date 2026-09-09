@@ -1,0 +1,244 @@
+D11-SHELL-ENG PHASE 2 — CHARACTERIZATION-ONLY SHELL RULES
+Repair-wave ticket Agent 2, executed
+=======================================================
+date:         2026-09-10 (local); machine runs 2026-09-09 23:0x UTC
+lane:         tools/execution (D11-SHELL-ENG), session branch
+              arena/01a06923-cat-theo-machine
+ticket:       FLT Live-Session Repair Wave, Agent 2 (D11-SHELL-ENG);
+              supersedes the single-agent D11-SHELL-ENG brief for this
+              lane (Agent 3 owns the sound calculus; Agent 6 Task B owns
+              the D12 header)
+operator ruling recorded before work (applies to Agent 1's lane, noted
+here for the record): snapshot defect UPSTREAM-BOUNDARY.
+
+----------------------------------------------------------------------
+PINS (five-block common instruction, recorded before work)
+----------------------------------------------------------------------
+runtime source:      arena/01a06542-cat-theo-machine, fetched fresh
+                     2026-09-09T23:04:51Z
+base commit:         bfd4bd28de5765adbdabd1d152200fa67f11e5a2 (INT tip,
+                     verified fresh, not inherited)
+ancestor check:      experiment-5-frozen-r1 peeled commit ef571b688bcf
+                     b581bd3e65ec28a18f438ca32595 IS an ancestor of the
+                     base (verified)
+work branch:         shell-phase2, in a separate clean clone at /tmp/shell2
+                     (cloned from origin, branch cut from the recorded
+                     base SHA; no shared checkout)
+work commits:        6b258fe (the port) + this evidence commit
+environment:         python 3.11.2, gmpy2 2.3.1, pyyaml 6.0.3
+tags:                15 on origin, none cut by this lane; INT line not
+                     pushed by this lane; artifacts ship as a patch on
+                     the session branch
+watch at fetch:      INT bfd4bd2 unchanged; tools e904cfa; shell lane
+                     moved aa4be12 -> f093a7f (wave archived + ruling
+                     recorded there); 01a068c2 9ac8e10; 01a06da9 3e1a2e0
+
+----------------------------------------------------------------------
+WHAT SHIPPED
+----------------------------------------------------------------------
+packs/shell-characterization.pack.yaml — two single-premise rules:
+
+  nosolutions_introduction_characterization
+    premise     (NeedContradictionFromArbitrarySolution ?d ?u ?q)
+    conclusion  (nosolutions ?d ?u ?q)
+
+  forall_implies_decomposition_characterization
+    premise     (NeedBinderSafeImplication ?n ?p ?q)
+    conclusion  (forall ?n (implies ?p ?q))
+
+Compiled through the D11-PORT surface mechanism: pack-local, opt-in,
+constructor-heads-only mappings
+  NoSolutionsLabel -> nosolutions
+  ForAllLabel -> forall
+  ImpliesLabel -> implies
+  NeedContradictionFromArbitrarySolutionLabel ->
+      NeedContradictionFromArbitrarySolution
+  NeedBinderSafeImplicationLabel -> NeedBinderSafeImplication
+
+Code changes: labels.py (4 new labels: ImpliesLabel, NoSolutionsLabel,
+the two Need* capability labels; ForAllLabel reused, not added);
+main.py (one PACK_PATHS entry); tools/d11_gate.py (S1-S8 extension +
+baseline semantics made explicit). No changes to the checker, matcher,
+search, planner, parser, or any existing pack (the arithmetic
+ExprEqLabel -> eq port byte-identical; per-pack reference digests of all
+13 pre-shell packs byte-identical).
+
+Reading of the capability premises (per the wave brief): nosolutions
+needs a checked contradiction from an arbitrary assumed in-domain
+solution; forall/implies needs the antecedent assumed in a scoped
+context, the consequent derived, the assumption discharged at the join —
+never a proof of the antecedent itself.
+
+----------------------------------------------------------------------
+DESIGNED NEVER TO FIRE — WHY THIS CANNOT CLOSE A GOAL
+----------------------------------------------------------------------
+Each rule's single premise is a capability term. Discharging it would
+require a fact or rule conclusion with that head. Gate S6 proves
+mechanically that probing each capability term as a goal against ALL
+shipped packs yields zero candidate rules; no library axiom carries
+either head; a library-only cold start (taught rules 0, axioms 0) has no
+other fact source. Therefore both rules can produce candidate partial
+matches and concrete unmatched-premise residuals ONLY — a matched goal
+stays unclosed. The transcripts show FAILED on every after-state probe.
+
+----------------------------------------------------------------------
+RAW RESULTS (verbatim machine lines; one fresh cold process per probe,
+one worktree per state; probe-isolation rule honored — no checkpoint
+restore lines in any transcript)
+----------------------------------------------------------------------
+Goal A sentence: "prove that x + 1 = x has no solutions in positive
+  integers" -> parsed goal: (nosolutions positive-integers (unknowns x)
+  (eq (plus x 1) x))
+Goal B sentence: "prove that for all n > 1 a + a = a + a" (the ratified
+  matrix C sentence, byte-identical) -> parsed goal: (forall n (implies
+  (greater n 1) (eq (plus a a) (plus a a))))
+Control 1 sentence: "prove that a + a = a + a implies b + b = b + b"
+  -> (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b)))
+Control 2 sentence: "prove that a + a = a + a implies b + b = b + b
+  over positive integers" -> (over positive-integers (vars a b)
+  (implies (eq (plus a a) (plus a a)) (eq (plus b b) (plus b b))))
+
+BEFORE (base bfd4bd2, wt-base, 4 probes):
+  A:       FAILED. cost=334; rules with a genuine partial match: 0
+           residual record: (zero-successor-root (...))
+  B:       FAILED. cost=334; genuine partial match: 0; zero-successor-root
+  Ctrl 1:  FAILED. cost=334; genuine partial match: 0; zero-successor-root
+  Ctrl 2:  FAILED. cost=334; genuine partial match: 0; zero-successor-root
+
+AFTER (shell-phase2, library rules 169, provenance LIBRARY_THEOREM):
+  A:       FAILED. cost=338; rules with a genuine partial match: 1
+           residual: missing (NeedContradictionFromArbitrarySolution
+             positive-integers (unknowns x) (eq (plus x 1) x))
+             (rule origin primitive)
+  B:       FAILED. cost=338; rules with a genuine partial match: 1
+           residual: missing (NeedBinderSafeImplication n (greater n 1)
+             (eq (plus a a) (plus a a))) (rule origin primitive)
+  Ctrl 1:  FAILED. cost=338; genuine partial match: 0; zero-successor-root
+  Ctrl 2:  FAILED. cost=338; genuine partial match: 0; zero-successor-root
+
+ABLATION (committed tree 6b258fe, the pack's surface: header stripped —
+the D11-PORT ablation mechanism; rules still compile, 169 library
+rules, label-headed conclusions match nothing):
+  A:       FAILED. cost=338; rules with a genuine partial match: 0
+           residual record: (zero-successor-root (...))
+  B:       FAILED. cost=338; genuine partial match: 0; zero-successor-root
+
+TRANSITION: A 0 -> 1 -> 0. B 0 -> 1 -> 0. Controls 0 throughout.
+Both goals remain unclosed in every state. Cost 334 -> 338 with the two
+extra rules in the pool; 338 persists in ablation because the disabled
+rules still compile.
+
+The negative controls differ in HEAD SYMBOL (implies, over), not arity:
+head compatibility is compared by value, so an arity-only variant could
+have matched. Both controls are shells of the same structural depth
+family as Goal B, and no shipped rule concludes either head.
+
+Note for the F residual standard: after this port, a nosolutions or
+forall/implies goal on a tagged build reports a characterized residual
+(a named missing capability) instead of zero-successor-root. The
+FLT-shaped decoy is nosolutions-headed, so it would now also report the
+NeedContradictionFromArbitrarySolution residual — generic shell
+exposure, no FLT-specific vocabulary anywhere, and no closure: the
+decoy still cannot close.
+
+----------------------------------------------------------------------
+GATE (tools/d11_gate.py, extended; full output at
+verification/2026-09-10-d11-shell-gate-16of16.txt)
+----------------------------------------------------------------------
+16/16 conditions pass on the committed tree:
+  1  unported packs unchanged; surface packs drifted as intended
+  2  no header -> 0 candidates (spike fixture)
+  3  surface: header -> 1 candidate, pack-rule provenance (spike fixture)
+  4  unrelated goal -> 0 candidates
+  P1 arithmetic port probe -> >=1 candidate, attributed (unchanged)
+  P2 arithmetic ablation -> 0 (unchanged)
+  P3 no unported pack digest drift
+  P4 no FLT words in the arithmetic port (scoping corrected: the check
+     now reads only the arithmetic port, where 'nosolutions' is banned;
+     the shell pack is scanned by S7 under the wave's vocabulary rule)
+  S1 shell pack absent -> A 0, B 0
+  S2 A -> 1 partial, concrete capability premise, attributed, unclosed
+  S3 B -> 1 partial, concrete capability premise, attributed, unclosed
+  S4 controls (implies, over heads) -> 0
+  S5 ablation (pack excluded from the load path) -> A 0, B 0
+  S6 capability goals -> 0 partials (premises undischargeable)
+  S7 shell pack: no FLT-specific words (fermat/flt/wiles/frey/pow/
+     times/exponent/minus/divides/solutionmap all 0); constructor
+     symbols are exactly the five mapped labels
+  S8 surface audit: 5 shell mappings recorded, both rules attributed,
+     the arithmetic port still exactly one mapping
+
+Baselines: the no-surface-headers reference state moved 167 -> 169
+(the two rules compile with label heads when the header is stripped);
+shipped-167-rules.sha256 renamed to shipped-rules.sha256 (records
+"169 <digest>"); shipped-pack-digests.txt gains exactly one line (the
+shell pack's no-headers compilation, digest 3637df01...); the 13
+pre-shell reference lines are byte-identical (verified by diff).
+
+Gate-side fixes during development (recorded for the lane ledger): the
+first S2/S3 assertions expected s-expr rendering and the gate's renderer
+emits bracket-comma form — the machine results were correct on the
+first run; S7's symbol walker did not descend the top-level rules
+roster — fixed; one baseline-design correction: --baseline originally
+re-recorded the shipped state, which would have made the ported drift
+undetectable — restructured to record the no-headers reference state
+(the state the per-pack manifest has always represented), verified by
+reproducing all 13 committed manifest lines byte-exact before
+re-recording.
+
+----------------------------------------------------------------------
+VOCABULARY INSPECTION (before adding terms)
+----------------------------------------------------------------------
+Existing in labels.py: ForAllLabel, ExistsLabel, NotLabel,
+ContradictionLabel (logical family), NeedLabel (dependency requests),
+FreshenedLabel / BinderLabel (planner side conditions), NeededForLabel.
+Reused: ForAllLabel (exact denotation; the ExprEqLabel -> eq precedent).
+Added: ImpliesLabel, NoSolutionsLabel (missing members of the logical
+family's surface spelling), NeedBinderSafeImplicationLabel,
+NeedContradictionFromArbitrarySolutionLabel (no existing denotation).
+Deliberately NOT reused: NeedLabel — it is the dependency-request term;
+overloading it would make a capability residual indistinguishable from
+a theorem request.
+
+----------------------------------------------------------------------
+SCOPE HELD / NOT CLAIMED
+----------------------------------------------------------------------
+- Characterization only. No quantified proof support; no forall-
+  introduction, implication-introduction, or refutation checking; the
+  checker is untouched and not weakened.
+- The rules expose concrete child obligations; they never close Goal A,
+  Goal B, the controls, or any FLT-shaped goal (S6 + all transcripts).
+- A mapped head is not shell support: sound shell closure belongs to
+  LOGIC-CHECKER-ENG (Agent 3) and must never ride through these rules.
+- No FLT vocabulary: S7 word scan 0; the pack's only constructor
+  symbols are the five mapped labels; no exponent/target vocabulary.
+- The arithmetic ExprEqLabel -> eq port untouched (P1/P2 byte-identical
+  behavior; per-pack reference digests unchanged).
+- The D12 header (old brief Phase 4) is NOT in this change — the wave
+  assigns it to F-TOOLS-REPLAY-ENG (Agent 6 Task B).
+- The two-shard suite rerun is INT's integration step (wave INT block,
+  steps 5-6); this lane's focused evidence is the 16-condition gate plus
+  ten REPL transcripts. The earlier single-agent brief's Phase 3 "tests
+  (8)" is satisfied by S1-S8 (eight machine-gated shell conditions).
+- Supersession note: the old brief's "no new pack port" constraint is
+  superseded by the wave ticket, which instructs implementing these
+  rules; the D11-PORT surface mechanism is the established path used.
+
+----------------------------------------------------------------------
+FILES
+----------------------------------------------------------------------
+  packs/shell-characterization.pack.yaml     the two rules + surface
+  labels.py                                  4 new labels, family-registered
+  main.py                                    one PACK_PATHS entry
+  tools/d11_gate.py                          S1-S8 + baseline semantics
+  protocol/D11-SHELL.md                      scope document
+  protocol/d11-spike/shipped-rules.sha256    renamed, 169 reference
+  protocol/d11-spike/shipped-pack-digests.txt +1 line, 13 unchanged
+  verification/2026-09-10-d11-shell-gate-16of16.txt
+  verification/probes/2026-09-10-shell-phase2/*.log   10 raw transcripts
+  verification/2026-09-10-d11-shell-characterization.txt   this file
+
+Work commits: 6b258fe + the evidence commit carrying this file.
+Patch artifact (cumulative, base bfd4bd2 -> branch tip) pushed to the
+session branch arena/01a06923-cat-theo-machine. No tags cut. INT line
+untouched by this lane.
