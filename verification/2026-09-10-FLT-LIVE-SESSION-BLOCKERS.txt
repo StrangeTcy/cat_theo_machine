@@ -1,0 +1,452 @@
+FLT IN A LIVE SESSION — BLOCKERS AND FIXES, DEPENDENCY-ORDERED
+Option C executed: the INT-facing one-pager, extended to the full question
+=======================================================================
+date:        2026-09-10 (local); remote state fetched 2026-09-09T22:41Z
+lane:        tools/execution (D11-SHELL-ENG), session branch
+             arena/01a06923-cat-theo-machine
+prepared per the operator instruction of this turn: pull the latest
+commits, answer "what are the blockers of proving FLT in a live session
+and what needs to be done to fix them", improving on two prior answers
+dated 2026-09-09 (gpt 5.6 sol xhigh; gpt 6 astra max).
+permitted branch (push target): arena/01a06923-cat-theo-machine only.
+session tip at start: b55d66e. No tags cut by this lane; INT line never
+pushed by this lane; no code changes this turn (verification artifact).
+method: fresh fetch of all branches + tags into a discovery clone; every
+load-bearing claim re-verified against the named commit, file, or line.
+No machine runs this turn — the Phase-0 probes were run 2026-09-09 on
+bfd4bd2 (2026-09-09-SHELL-FRONTIER-PHASE1.txt, ratified at b55d66e).
+
+----------------------------------------------------------------------
+A. WHAT "PROVING FLT IN A LIVE SESSION" MEANS IN THIS PROGRAMME
+----------------------------------------------------------------------
+Three separable claims. Conflating them is the main structural defect of
+prior answer 1.
+
+  A1 ATTEMPTABILITY — the machine parses the goal, runs, and NAMES
+     concrete unmatched premises (residuals) instead of stalling silent.
+  A2 PROOF — a checked derivation of the exact full goal from explicitly
+     trusted, disclosed leaves (HUMAN_SUPPLIED_TRUSTED_THEOREM), closed
+     only by checker-validated inference, checkpointed, cold-replayable
+     by certificate, provenance-audited. Not rediscovery; not
+     formalizing the internals of the taught leaves (charter routing:
+     theorem gap -> live teaching, provenance-tagged, residual-justified).
+  A3 DISCOVERY — the blind-protocol acceptance sentence (CHARTER-v2 §8:
+     "a blind session yields a discovery-eligible request with measured
+     unlock, zero computable requests, residuals distinct from the decoy").
+
+Verified standing: A1 is blocked at the outer shells (B-3). A2 is blocked
+by the B-1..B-7 chain. A3 is WITHDRAWN by the F lane itself — F-RUNNER
+null at n=3 (1aed8e4) and null at n=4 (f58eec6), "reading withdrawn".
+Consequence: the session that can actually be attempted once the chain
+clears is NON-BLIND, residual-guided teaching with leaves disclosed and
+no independent-discovery claim. Decoy specificity is a discovery
+criterion, not a proof-validity criterion (prior answer 2 has this
+right); preflight item 3 keeps a structural decoy shape check as a
+parsing/structure control regardless.
+
+----------------------------------------------------------------------
+B. VERIFIED CURRENT STATE (fresh fetch; movement vs the 09-09 watch)
+----------------------------------------------------------------------
+branch (role)                              tip      movement
+arena/01a06542  INT / runtime of record    bfd4bd2  UNCHANGED (frozen 09-08)
+arena/01a066cf  tools / CUR                e904cfa  unchanged (parallel
+                                                    SCHEMA-eng landed there)
+arena/01a06e7b  shell / F-PROVER           aa4be12  unchanged (holds until
+                                                    INT tags + notifies)
+arena/01a06da9  workers/admission, F-tools
+                origin                     3e1a2e0  moved (RetireLaw sibling
+                                                    independence, 3e1a2e0)
+arena/01a06eb9  F-RUNNER / F-tools         fa0f33a  unchanged (fifth reset
+                                                    recovered; selftest 12/12)
+arena/01a068c2  G/I-op                     9ac8e10  MOVED fb7a9b3 -> 9ac8e10
+                                                    (empirical D21/D22 probes)
+arena/01a05d5d  Layer-D                    3c4382b  unchanged (pinned)
+arena/01a05cb0 / arena/01a072d5  D11 lanes 32d1d0b / 957fb4b  unchanged
+arena/01a06923  THIS session branch        b55d66e  mine (Phase 0+1 + this)
+
+tags: 15 (enumerated in H). Newest: cut-1-bf9da23 — reclassified SEMANTIC
+(a0b2bf0) but it predates the runtime line and carries no research.py,
+which is why F1 stays parked against it (2c1b253) — and shared-7cf6394.
+ZERO tags contain bfd4bd2 (verified). No tag freezes the needed union.
+amendment/compose 74bb3e7: contained ONLY by this session branch —
+still unmerged (verified).
+F start gate: NoAdmissibleFTag recorded (789b79e) — no F measurement
+without an admissible tag. Correct behavior, not a defect.
+
+----------------------------------------------------------------------
+C. BLOCKERS IN DEPENDENCY ORDER
+----------------------------------------------------------------------
+Each entry: evidence / what it blocks / the fix / owner / status.
+
+R-0. OPERATOR RULING PENDING — preflight item-1 repair choice.
+  Evidence (protocol/preflight/ledger.md at bfd4bd2): defect named
+  OBJECT_ID_INDEX_ASSUMES_TERM_ID_ON_HOST_OBJECT — locus
+  persistence.py:806 (_captured_object_id) reaching trees.py:176
+  (self.key_id = key.id). The object-id index reads key.id
+  unconditionally; machine terms carry .id, a host Hypergraph does not.
+  A partial guard WAS tested as a digest-pinned experiment (probe
+  target.id at :806, return the not-found signal on AttributeError;
+  guard diff digest 519b225...): the confirming exact-109 run
+  (2026-09-08T19:47:44Z -> 19:59:45Z, exit 1) shows the crash moved one
+  frame along to the WRITE door — persistence.py:1423
+  (IdentityRedBlackNatInsertMissing) -> trees.py:425/506
+  (self.key_id = key.id). "The index has two doors." The ledger
+  enumerates three repairs and rejects none by default: skip the object
+  at the queue/loop boundary (stops the crash, silently omits it from
+  the snapshot); encode as an opaque scalar (needs a type discriminator
+  §0 forbids); fix upstream so a live Hypergraph never enters machine
+  state (addresses the cause). Verbatim: "A ruling is requested; this is
+  not an engineering default."
+  Also verified: at bfd4bd2 the production tree carries NO guard —
+  _captured_object_id is the bare lookup (persistence.py:805-806); its
+  last change was bf5a2c7 (D3). The guard exists only as the recorded
+  experiment. And the ledger's mechanism note: "the count was never the
+  mechanism — the configuration was" (runs with 0, 16 and 32
+  predecessors all passed; the exact-109 ordered set is the first tried
+  configuration that places a Hypergraph at that position).
+  Blocks: everything in preflight (items 2-4, the preflight tag) and
+  therefore the reliable checkpoint base for any live session.
+  Status: waiting on the operator. NEITHER prior answer reports this —
+  both prescribe the upstream repair as if it were an open engineering
+  choice. The immediate blocker is a decision, not code.
+
+B-1. Snapshot codec boundary (after the ruling).
+  Fix: land the complete repair in its own commit — upstream
+  representation boundary: machine snapshot roots/index accept machine
+  terms and explicitly supported scalar payloads; host runtime objects
+  (Hypergraph) are rejected explicitly with an audit result. Not: an
+  arbitrary .id on Hypergraph; not: silent omission; not:
+  catch-the-exception-and-return-success. Then: rerun the exact-109
+  reproduction from the committed tree; suite reruns clean; item 2 (A1
+  producer/consumer selection probe — fully specified in the ledger:
+  goal (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)),
+  marker terms, real rule compiler, goal must stay unclosed); item 3
+  (structural decoy shape check — replacement decoy differs from the
+  target ONLY in the bound constant, n > 2 vs n > 1; parsing and
+  structural comparison only, no search, no teaching, no target
+  session); item 4 (full two-shard suite on a pinned candidate SHA).
+  Then the immutable preflight tag.
+  Owner: INT.
+
+B-2. No admitted, tagged build — and two import decisions pending.
+  Evidence: zero tags contain bfd4bd2; the needed union spans the INT
+  runtime + item-1 fix, D11 shell characterization (Phase 2), binder
+  checker rules, the teach-binding fix, D21/D22, the D12 header, F1
+  checkpoint tooling (specced, parked), F2-F4 tools (landed on
+  01a06eb9), and schema tooling.
+  Pending INT decision (missed by BOTH prior answers): the import queue
+  holds TWO SCHEMA-eng implementations — 9ba2f43 (this lane's, ratified,
+  patch artifact on this session branch) and c24b0f0 (the live tools
+  lane's parallel implementation). Per the operator's note this turn:
+  INT must diff both, pick one or merge by path, no silent dual-land.
+  Fix: INT composes by exact SHA (never branch tip), runs component
+  gates and both complete shards on the composed candidate, classifies
+  all failures, cuts the immutable semantic tag, publishes its allowed
+  measurement scope, requires blank controls on that tag. SEMANTIC
+  shell-support gate: INT must run both complete shards and cut a new
+  immutable tag BEFORE F-PROVER uses shell support.
+  Owner: INT.
+
+B-3. Outer-shell blindness (D11) — Phase 2 now authorized
+     characterization-only.
+  Evidence (ratified matrix 9b75349; reproduced byte-exact by this lane,
+  b55d66e): bare eq -> 1 genuine partial, residual verbatim
+  "missing (eq (plus a a) (plus a a)) (rule origin primitive)" — the
+  missing premise IS the goal's own equality: vocabulary alignment, not
+  mathematical progress. nosolutions shell -> 0. forall/implies shell
+  -> 0. FLT-shaped decoy -> 0 (f2da204: cost 334, 0 partials,
+  UncharacterizedStall at the outer shape). The stall is at the shell
+  layer; arithmetic-level surface mappings move this wall by zero (the
+  D11-PORT probe itself, 768ea6f, is the 0 -> 1 -> 0
+  before/after/ablation evidence; its scope-held section: arithmetic
+  only, one pack, one label; bulk port of the 167 declined; zero FLT
+  words).
+  NEW EVIDENCE both prior answers missed: the blindness is a default
+  rule-coverage gap, NOT a compiler impossibility. The frozen incident
+  transcript (logs/incident-misattributed-teaching.log, kept verbatim
+  at experiment-4-frozen / 99fa78a) shows a TAUGHT nosolutions-transport
+  rule — (rule (premises (nosolutions ?d ?u ?p) (solutionmap ?d ?q ?p
+  ?t)) (conclusion (nosolutions ?d ?u ?q))) — compiling, firing, and
+  yielding 2 genuine partial matches with concrete residuals (missing
+  eq; missing solutionmap) on a nosolutions goal at cost 20. The teach
+  path already mechanically supports shell-shaped rules. Separately,
+  Set B calibrated content (reflexivity, transport, no-solutions
+  transport — 848fe1f, on the INT line, as session snapshots) does not
+  reach the research surface on a library-only cold start
+  (LibraryRuleMatchedViaSurfaceMapping 0 everywhere in the matrix).
+  Fix (authorized THIS turn, characterization-only): implement
+  NosolutionsIntroduction and ForallImpliesDecomposition as
+  residual-exposure / candidate-partial rules only, under the
+  operator's hard constraints: (1) designed-never-fires conclusion or
+  an equivalent side condition the existing checker cannot discharge;
+  (2) on Goal A and Goal B: partial matches > 0, a concrete unmatched
+  premise in the residual, goal remains unclosed; (3) negative control
+  differing in HEAD SYMBOL (not arity-only — head compatibility is
+  compared by value, this lane's ratified Phase-1 finding) stays at 0
+  partials; (4) no FLT vocabulary; (5) arithmetic ExprEq -> eq port
+  untouched; (6) no claim of proof-producing completeness. Acceptance
+  artifact verification/<date>-D11-SHELL-PHASE2-CHARACTERIZATION.txt
+  with the gate transcript for Goal A / Goal B / control and an
+  explicit machine failure naming the missing binder capability. Patch
+  artifact only — no INT-line push, no tag. If exposure cannot be done
+  without risking closure: stop and report; never weaken the checker.
+  Spec-precision note for the build (prior answer 2's correction,
+  adopted): ImpliesIntroduction means assume the antecedent in a scoped
+  context, derive the consequent, discharge the assumption — "strips
+  the wrapper and discharges the antecedent" in the F request
+  (protocol/F-SHELL-FRONTIER-REQUEST.md, d224b2c) must NOT be
+  implemented as proving the antecedent.
+  Owner: this lane (build) -> INT (semantic gate).
+
+B-4. Checker binder/contradiction discipline — the proof-critical gap.
+  Evidence: planner.py:189 (verified): "the caller owns freshness,
+  because this substrate has no binder [discipline]". This lane's
+  ratified Phase 1: the checker validates generic rewrites only; no
+  eigenvariable machinery; the in-tree induction precedent records side
+  conditions as terms for a GATE, never as checker-validated inference.
+  Needed (both prior answers converge; requirements as stated by prior
+  answer 2, adopted): checker-native rules —
+  ForallIntroduction(variable, body, freshness_evidence);
+  ImpliesIntroduction(assumption, derivation);
+  ContradictionIntroduction(assumption, contradiction);
+  NoSolutionsIntroduction(domain, unknowns, assumed_solution,
+  contradiction). Properties: eigenvariable/freshness enforced at check
+  time; assumptions scoped with no sibling leakage; capture-safe
+  substitution; proof replay rejects a missing freshness certificate;
+  generic rewrite rules cannot close these shells without the
+  appropriate checker rule. A characterization-only shell rule must not
+  be promoted into a proof-producing rule until this lands.
+  Status: not started on any branch (no lane claims it). This is the
+  main gap between A1 (naming the residual) and A2 (closing the proof).
+  Owner: INT / logic lane.
+
+B-5. Teaching is not premise-bound (misattribution incident).
+  Evidence (logs/incident-misattributed-teaching.log, verbatim frozen
+  transcript): the operator approved request [2] (side-obligation Need
+  (eq (plus p q) _0)) while supplying the solutionmap theorem that
+  addresses request [3]; the counterfactual unlock was REAL (cost 20 ->
+  8; goal closed), so the machine promoted the WRONG node and recorded
+  an episode pairing request 2's residual with request 3's rule. "The
+  instrument permitted it: teach_dependency does not require the taught
+  conclusion to address the request's Need." The record itself scopes
+  the future cut: "a warning when the taught conclusion does not unify
+  with the Need term."
+  Code (verified, research.py:3245): teach_dependency checks the
+  request exists, validates the taught rule against the PARENT GOAL,
+  counterfactual-measures, gates the STATUS on unlock evidence — it
+  never unifies the taught conclusion with the request's Need.
+  Fix: refuse or warn on non-unifying taught conclusions; attribution
+  requires discharge evidence for THAT premise. Keep three questions
+  separate — trusted? discharges this premise? helped the parent? —
+  counterfactual improvement answers only the third. Regression
+  coverage: a theorem that improves the parent through another route
+  must NOT receive credit for the wrong premise (existing testsuite
+  coverage exercises unknown-request and unrelated-term paths; the
+  mis-BINDING case — valid rule, wrong Need, real unlock — is the
+  uncovered one).
+  Owner: INT / research lane.
+
+B-6. Checkpoint identity + certificate replay.
+  Evidence: main.py:2976-2981 auto-saves/restores
+  research_snapshot.json (gitignored; every blind log opens with
+  "cold start: research_snapshot.json removed before this session").
+  D12 header defect DEF-2026-09-09-10 (9b75349): untagged cold start
+  omits tag/commit and checkpoint-id fields. F1 (save/load checkpoint
+  commands, content-addressed ids, parent ids) is specced and PARKED —
+  cut-1-bf9da23 examined, no research.py, F1 stays parked (2c1b253).
+  Fix: land F1 once the line carries the needed structure; the D12
+  header fix as already scoped (build: <tag-or-untagged>@<commit>,
+  checkpoint: <content-id-or-none>, NON-SEMANTIC separate commit);
+  atomic save + tamper rejection; cold replay that CHECKS the recorded
+  applications (certificate replay) — never a fresh search treated as
+  verification of the original derivation; the final checker
+  establishes the exact full goal (exponent domain, positive-integer
+  solution domain, all cases, no escaping assumptions, no unresolved
+  placeholders); explicit checkpoint selection — no unnoticed
+  auto-restore in a control session (probe-isolation rule already
+  adopted: fresh worktree or cold reset per probe, F-PROVER @ 5237605).
+  Owner: F lane + INT.
+
+B-7. Per-obligation acceptance (D21/D22) — conditional, now
+     empirically pinned.
+  Evidence (G/I-op probes at bfd4bd2, 9ac8e10 — both prior answers'
+  code readings now have probe backing): D21 REPRODUCES —
+  ObligationSkeletonConclusionGoal (training.py:243) returns the FIRST
+  goal-bearing entry (entry0 "initial"), not the last (entry3
+  "conclusion"); the docstring is inverted versus behavior. D22
+  CONFIRMED — a fixture with an underivable intermediate obligation
+  returns status SUCCESS, retained True, because SUCCESS is gated on
+  the (mis-selected) conclusion goal only and the per-obligation audit
+  runs ONLY on the failure path (training.py:654). Relabeled by G/I-op:
+  BLOCKED-PER-OBLIGATION-AUDIT.
+  Scope (prior answer 2's narrowing, confirmed by the probes): this
+  blocks only paths that use TrainingRecord SUCCESS as acceptance
+  evidence. The live research path is separate (main.py:3076 calls
+  Rmod.attempt_goal, not attempt_training_record). A valid proof of a
+  conclusion need not follow every suggested strategy step; theorem
+  closure and method-certificate completion are separate claims.
+  Fix: select the final goal-bearing entry; run the obligation audit on
+  success AND failure paths; retain SUCCESS only when the conclusion is
+  proved AND all mandatory intermediate obligations are proved AND
+  every certificate replays; report per-obligation status.
+  Owner: INT ([SHARED] defects are INT's to land, per fable 5).
+
+B-8. F-grader coverage of the dependency protocol.
+  Evidence (verified, tools/f2_grader.sh on 01a06eb9, ported from
+  01a06da9 at 452dd2a): the grader counts "teach law" and "teach
+  trusted theorem" transcript lines; the dependency protocol's command
+  is "teach dependency" (incident transcript: "teach dependency 2:
+  ..."). Its circularity check counts empty-premises teaches whose
+  conclusion matches the last attempt/prove goal, rather than
+  establishing circularity against the target. F2/F3/F4 are landed with
+  an acceptance battery (four-fixture oracle, batch matrix, fixture
+  sheets; hardened fail-closed; selftest 12/12).
+  Fix: audit coverage against structured request/discharge/provenance
+  events — accepted and rejected teach-dependency; the recorded
+  misattribution incident; computable requests in the machine's emitted
+  representation; declared checkpoint restoration versus undeclared
+  contamination; missing and malformed evidence. External pinned tools
+  are acceptable per the charter (F touches checkpoint tooling, grading
+  script, protocol — not the runtime).
+  Owner: F lane.
+
+B-9. Session mode must be chosen explicitly.
+  A3 (blind discovery) is withdrawn (null at n=3 and n=4). The session
+  that CAN be run once B-1..B-8 clear: non-blind, residual-guided
+  teaching, leaves disclosed, provenance-tagged, residual-justified, no
+  discovery claim. Run the decoy comparison on the new tag and assess
+  specificity AFTER the comparison, not as a precondition for running
+  the target (prior answer 2 right; prior answer 1's "target runs only
+  if residual differs from decoy" gates the proof session on a
+  discovery criterion).
+  Owner: operator + F-PROVER.
+
+B-10. Process gates on the way to the session.
+  The exam seal is an operator pre-launch obligation (the exam-seal gap
+  is recorded, 246162a). Engineers never cut tags — INT cuts the
+  semantic tag after composition + shards. FLT-shaped content is
+  quarantined from G/I until Experiment 4 has been spent (CHARTER-v2
+  §2) — which is why Phase 2 carries no FLT vocabulary. WORKERS-M3
+  stays pinned after D11 (the workers lane's own finding: learned-memory
+  mask absent, sibling independence blocked, a41406c — not on the FLT
+  critical path).
+
+----------------------------------------------------------------------
+D. CORRECTIONS LEDGER VERSUS THE TWO PRIOR ANSWERS
+----------------------------------------------------------------------
+Prior answer 1 (gpt 5.6 sol xhigh). Correct core: dependency ordering;
+snapshot defect gating; characterization-first shells; binder rules
+needed; D21/D22; header/checkpoint identity; integration + tag; decoy
+sequence; the teaching chain. Wrong or missing:
+  1. Presents the item-1 repair as an engineering to-do; the ledger
+     states a ruling was requested and names the three options (R-0).
+  2. "Exact-109" framing without the ledger's mechanism note: the count
+     was never the mechanism — the configuration was (0/16/32-
+     predecessor runs passed).
+  3. Implies the guard moved the crash in the tree; the guard was a
+     digest-pinned experiment — production persistence.py at bfd4bd2 is
+     unguarded (prior answer 2 caught this).
+  4. Misses the teaching misattribution defect entirely — the incident
+     log sits on the INT line it inspected (prior answer 2 found it).
+  5. Misses the dual-SCHEMA import queue.
+  6. Misses the empirical D21/D22 probes; misses that F1 is
+     specced-and-parked, not unimplemented.
+  7. Tag evidence under-enumerated (15 tags exist; zero contain
+     bfd4bd2 — right conclusion, thin evidence).
+  8. States the D21/D22 fix unconditionally; the blocking scope is
+     TrainingRecord-success-as-evidence only.
+  9. Requires target-vs-decoy residual difference BEFORE running the
+     target — gates the proof session on a discovery criterion.
+
+Prior answer 2 (gpt 6 astra max). Correct core: the three-question
+separation; the persistence.py-not-landed finding; the misattribution
+incident; replay-versus-rerun; the D21/D22 narrowing; decoy-versus-
+validity; the not-on-path roster; the milestone. Wrong or missing:
+  1. Inspection-only; several verifiable claims left unverified — this
+     document verifies them (persistence body; incident log; grader
+     counting; attempt paths; tag containment).
+  2. Same miss of the pending item-1 RULING — prescribes the upstream
+     fix without noting INT enumerated exactly those options and is
+     holding for a decision.
+  3. Same miss of the dual-SCHEMA import queue.
+  4. "The one bare-equality match is equation symmetry" — the artifacts
+     record rule origin primitive with the missing premise being the
+     goal's own equality; the symmetry naming is a gloss, not in the
+     record (the substantive point stands).
+  5. The misattribution fix it proposes misses that the incident record
+     itself already scopes the minimal cut (warning when the taught
+     conclusion does not unify with the Need).
+  6. No fresh state: no tag enumeration, no movement watch (01a068c2
+     moved; INT frozen; 74bb3e7 unmerged), no knowledge that Phase 2 is
+     now authorized characterization-only — the constraints BIND the
+     build it proposes.
+
+Both answers: dated 2026-09-09; neither pulled fresh state; neither ran
+the machine; neither enumerated the tag set.
+
+----------------------------------------------------------------------
+E. MINIMAL CRITICAL PATH
+----------------------------------------------------------------------
+ 1. OPERATOR rules the item-1 repair (the upstream boundary is the only
+    option consistent with the ledger's own analysis: no silent
+    omission, no type discriminator, no catch-to-success).
+ 2. INT lands the complete fix in its own commit -> exact-109 confirm
+    from the committed tree -> preflight items 2-4 -> preflight tag.
+ 3. In parallel, on pinned candidates: D11-SHELL Phase 2
+    characterization-only (this lane, authorized); binder-safe
+    forall/implies/nosolutions/contradiction checker rules; the
+    premise-bound teach_dependency cut; the D21/D22 per-obligation
+    audit fix; the D12 header; F1 landing once structural parity
+    exists; F-grader teach-dependency coverage.
+ 4. INT: dual-SCHEMA import decision; compose by exact SHA; component
+    gates + both complete shards; classify failures; cut the immutable
+    semantic tag; publish measurement scope; blank controls.
+ 5. F-op reruns on the tag: reachability matrix -> blank controls ->
+    structural decoy. The start gate flips from NoAdmissibleFTag.
+ 6. Live teaching session (non-blind, residual-guided, leaves
+    disclosed): one residual at a time — approve, teach (binding
+    checked), counterfactual, checkpoint each accepted teach, discard
+    no-unlock teaches.
+ 7. Cold certificate replay from the final checkpoint + F2/F3/F4
+    audit + provenance + exam seal (operator pre-launch obligation).
+
+----------------------------------------------------------------------
+F. NOT ON THE CRITICAL PATH
+----------------------------------------------------------------------
+WORKERS-M3 / multiprocessing (pinned; learned-memory mask absent);
+S2 relation schemas; the full IMO curriculum (operator-owed Tier1
+curation proceeds in parallel); CUR explanation graders and
+visualization; bulk port of the 167 library rules (declined per
+D11-PORT §3.1 — targeted shell rules suffice); a general-purpose
+proof-assistant kernel — a small checked calculus for the four shell
+rules suffices, or explicit logical bridges in the trusted base.
+
+----------------------------------------------------------------------
+G. FIRST END-TO-END MILESTONE (before any FLT attempt)
+----------------------------------------------------------------------
+non-FLT quantified toy (Goal-A shape, or a Set-B-calibrated
+nosolutions toy) -> genuine unmatched premise -> one premise-bound
+approved teach -> checked closure (needs B-4 for shell closure;
+bare-eq toys close without it) -> checkpoint -> cold certificate
+replay -> deliberately corrupted certificate rejected. THEN the FLT
+teaching attempt on the admitted tag, preserving every residual,
+supplied theorem, state transition, and replay result.
+
+----------------------------------------------------------------------
+H. LANE BOOKKEEPING
+----------------------------------------------------------------------
+Option C executed (this document is the deliverable). Phase 2 (Option
+A) remains authorized characterization-only and is this lane's next
+action unless redirected; Option B (WORKERS-M3) stays pinned per the
+routed order.
+
+Tags (15, complete enumeration): experiment-4-frozen,
+preflight-shard-cursor-gate, experiment-5-frozen,
+experiment-5-frozen-r1, preflight-converse-outcome-guard,
+d2-equality-subject-template, s1-relation-contracts, eng-base-0,
+eng-base-0@1374464, partition-32bc569, preflight-e73d748,
+preflight-6a132f6, preflight-412b215, shared-7cf6394, cut-1-bf9da23.
+
+Banned-phrase scan run before push; result recorded in the push
+commit. No code changes; verification artifact only; no tags cut; INT
+line untouched; foreign branches untouched.
