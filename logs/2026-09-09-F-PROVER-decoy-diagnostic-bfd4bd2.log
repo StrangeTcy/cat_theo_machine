@@ -1,0 +1,53 @@
+# F-PROVER decoy-only diagnostic (UNTAGGED — diagnostic only, not admissible as F measurement)
+# session: FPS-20260905-A1
+# run date (UTC): 2026-09-09
+# authorized by: protocol owner, direct instruction (decoy only, no target, no teaching)
+# subject build: INT tip bfd4bd28de5765adbdabd1d152200fa67f11e5a2
+#   re-verified this turn (not inherited): refs/remotes/origin/arena/01a06542-cat-theo-machine
+#   subject: "[SHARED] Preflight item 1: partial guard committed, defect NOT closed" (2026-09-08T20:01:41+00:00)
+#   ancestry: ef571b688bcfb581bd3e65ec28a18f438ca32595 IS an ancestor (merge-base --is-ancestor, exit 0)
+#   tag status: no tag contains the tip — UNTAGGED
+# environment: isolated detached worktree (removed after the run; session checkout untouched);
+#   venv python 3.11.2; gmpy2 2.3.1 (GMP 6.3.0); pyyaml 6.0.3; no conda
+# process: fresh, cold start; six commands verbatim below; stdout+stderr captured whole; exit 0
+# checks:
+#   LibraryRuleMatchedViaSurfaceMapping occurrences in capture: 0
+#   D12 (audit header lists loaded classes): PARTIAL — see protocol/F.md section 14
+# boundary: the target sentence was NOT submitted; teaching: none; machine code: unmodified
+
+===== VERBATIM MACHINE CAPTURE BEGINS =====
+
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> prove that for all n > 1 a^n + b^n = c^n has no solutions in positive integers
+hyge> parsed goal: (forall n (implies (greater n 1) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((forall n (implies (greater n 1) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (forall n (implies (greater n 1) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye
+
+===== VERBATIM MACHINE CAPTURE ENDS =====

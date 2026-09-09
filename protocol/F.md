@@ -139,6 +139,14 @@ identification is recorded there as a scope fact, NOT as Contamination;
 the separate unseen list (reference proof, dependency graph, prior target
 transcript, curriculum answers, pack sources, decoy statement) is
 certified unseen as of 2026-09-07. Contamination count: still zero.
+SCOPED UPDATE 2026-09-09: a decoy-only diagnostic was authorized and
+executed on INT tip bfd4bd2; the decoy statement was received through the
+owner channel for that run and exercised once. Surfaces observed are
+decoy residuals only (cost, partial-match count, residual root — recorded
+in logs/2026-09-09-F-PROVER-decoy-diagnostic-bfd4bd2.log). The unseen
+list otherwise stands: reference proof, dependency graph, prior target
+transcript, curriculum answers, pack sources — all still unseen.
+Contamination count: unchanged, zero.
 
 ## 6. Artifacts registered this session
 
@@ -448,3 +456,74 @@ protocol/2026-09-07-F-PROVER-park-confirmation-RECEIVED.txt.
 Reset-ledger entry 4 (2026-09-07): fourth sandbox reset before this
 entry; recovery repeated the verified procedure against pushed tip
 6732c21; all artifacts byte-identical; zero loss.
+
+## 14. Decoy-only diagnostic on INT tip bfd4bd2 (2026-09-09, UNTAGGED)
+
+Authorization: protocol owner, direct instruction — "Diagnostic run, not
+measurement. Decoy only. No target. No teaching." No tag contains the
+subject tip, so this run is recorded as: UNTAGGED — diagnostic only, not
+admissible as F measurement.
+
+Refs (step 1, recorded):
+- subject tip: bfd4bd28de5765adbdabd1d152200fa67f11e5a2 =
+  refs/remotes/origin/arena/01a06542-cat-theo-machine, re-verified this
+  turn, not inherited. Subject line: "[SHARED] Preflight item 1: partial
+  guard committed, defect NOT closed" (2026-09-08T20:01:41+00:00).
+- ancestry: ef571b688bcfb581bd3e65ec28a18f438ca32595 IS an ancestor of
+  the tip (merge-base --is-ancestor, exit 0) — the general ancestor-check
+  form of section 13, first operational use.
+- tag status: none contains the tip.
+
+Environment (step 2): isolated detached worktree at bfd4bd2 (removed
+after the run; this session's checkout untouched); venv python 3.11.2,
+gmpy2 2.3.1 (GMP 6.3.0), pyyaml 6.0.3; no conda; no machine file read or
+modified; packs loaded only through the machine's own loader.
+
+Run (steps 3-4): fresh cold process, six commands verbatim; full capture
+with header at logs/2026-09-09-F-PROVER-decoy-diagnostic-bfd4bd2.log
+(verbatim section). Machine-recorded results:
+- research mode ON; state: taught rules 0; axioms 0; library rules 0
+  pre-load; dependency requests 0; intervention episodes 0; learned
+  policies 0; residual generator enabled.
+- packs: loaded; library rules 167; provenance LIBRARY_THEOREM.
+- parsed goal (machine term):
+  (forall n (implies (greater n 1) (nosolutions positive-integers
+  (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+- outcome: FAILED. cost=334; rules with a genuine partial match: 0.
+- residual record (machine term): (zero-successor-root ((forall n
+  (implies (greater n 1) (nosolutions positive-integers (unknowns a b c)
+  (eq (plus (pow a n) (pow b n)) (pow c n)))))))
+- suggest dependencies: search stalled; attempted operational rules: 0;
+  concrete unmatched formal premises: none; dependency characterized: no.
+- LibraryRuleMatchedViaSurfaceMapping in the capture: 0 occurrences.
+
+Comparison vs the r1 decoy record (owner-supplied baseline: cost 334,
+partial 0, zero-successor-root) — step 5:
+- cost: 334 vs 334 — identical.
+- genuine partial matches: 0 vs 0 — identical.
+- residual root: zero-successor-root vs zero-successor-root — identical.
+Classification per the owner's dichotomy: IDENTICAL. Finding: the D11
+arithmetic port (ExprEqLabel -> eq, landed on this tip per the owner)
+does NOT reach the decoy's eq position. Why-note, from machine output
+only: the eq head sits as an argument of nosolutions inside forall/
+implies; the machine attempted zero operational rules and found zero
+genuine partial matches, so the stall is produced at the outer goal
+shape before any eq-position matching could occur — none of the 167
+loaded LIBRARY_THEOREM rules partially matches that outer structure on
+this build. Second independent blind-lane confirmation of the narrow-
+reachability reading (D-G3), as the owner framed it.
+
+D12 check (audit header lists loaded classes): PARTIAL. Present: loaded
+classes (library rules 167, LIBRARY_THEOREM), intervention episodes 0,
+learned policies none, taught rules 0 (research-mode state line).
+Absent: tag/commit line; checkpoint id (cold start, none declared).
+The header instrument exists on this lineage (progress vs the 41e8078
+inspection where it was wholly absent) but lacks two protocol fields.
+
+Terminal classification (protocol vocabulary): UncharacterizedStall(goal,
+residual). A concrete residual record exists, but the machine states it
+cannot characterize the missing theorem; naming a capability would be a
+fabricated capability name, which the protocol classes as a defect.
+
+Boundary: the target sentence was NOT submitted; nothing was taught; no
+checkpoint was loaded (none declared); machine code unmodified.
