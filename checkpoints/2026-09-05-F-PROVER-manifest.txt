@@ -14,6 +14,7 @@ f1e94f42269998badd2b8f51c1e7a58b2e301ead7241b9ac8fbbcbca549887f5  protocol/2026-
 c10152b82f92ae88b87ce7fe61a86a4af35591534cbff59be75fa719da3f2325  protocol/2026-09-07-F-PROVER-park-confirmation-RECEIVED.txt
 bf9b78272d0974e4d434d51b49fa037b30324984ae2e19d9c9fdf3e89419760e  protocol/2026-09-07-F-PROVER-clarifications-queued-RECEIVED.txt
 3d247d125f59db80bb24e9c217efe807f526aecb85a30b15d9047f93cbc7ab2f  logs/2026-09-09-F-PROVER-decoy-diagnostic-bfd4bd2.log
-1b7672492e35ede5e261280e5f0999309918bc1796bf99b59e284ddb471c4d47  protocol/F.md
+1eef4df907ccc1dcb2f8fbc54e2e6adc034691f0f6bd7ddfb185ab441eb28d3c  logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log
+dc7442c874525cfd77616e71ef66d70206ab3793a5aad2573bc0619638ef9588  protocol/F.md
 
-# rev 9 (2026-09-09): decoy-only diagnostic on INT tip bfd4bd2 (UNTAGGED - not admissible as F measurement); result IDENTICAL to r1 (cost 334, partial 0, zero-successor-root) - D11 port does not reach the decoy eq position; D12 PARTIAL; queued section 13 refinements folded at first operational use; exposure scoped update, contamination 0
+# rev 10 (2026-09-09): reachability matrix on bfd4bd2 (UNTAGGED diagnostic) — frontier measured: bare eq partial=1 (rule origin primitive); +1 enclosing constructor (nosolutions | forall/implies) -> partial=0 zero-successor-root; parser-surface finding (word-form + '=' refused); DEF-2026-09-09-10 D12-HEADER-INCOMPLETE filed; D-G3-FPROBE INT-facing note filed

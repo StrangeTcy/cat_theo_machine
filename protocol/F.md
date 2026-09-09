@@ -527,3 +527,83 @@ fabricated capability name, which the protocol classes as a defect.
 
 Boundary: the target sentence was NOT submitted; nothing was taught; no
 checkpoint was loaded (none declared); machine code unmodified.
+
+## 15. Reachability matrix on INT tip bfd4bd2 (2026-09-09, UNTAGGED)
+
+Authorization: protocol owner review channel (next-work item 1, highest
+value: "locate the first constructor boundary where partial matches
+become nonzero... still blind-safe, still no target"). Same untagged tip
+as section 14; diagnostic only, not admissible as F measurement. Full
+verbatim captures: logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log.
+
+Matrix (machine values verbatim):
+
+    probe | parsed goal                                     | outcome | cost | genuine partials | residual
+    ------+-------------------------------------------------+---------+------+------------------+----------
+    A     | compile refused ("cannot read the sentence
+          | past 'plus'"; word-form arithmetic with '=')    | REFUSED | -    | -                | -
+    A1    | (eq (plus a a) (plus a a))                      | FAILED  | 334  | 1                | missing (eq (plus a a) (plus a a)) (rule origin primitive)
+    B     | (nosolutions positive-integers (unknowns a b)
+          | (eq (plus a b) (plus b a)))                     | FAILED  | 334  | 0                | (zero-successor-root (...))
+    C     | compile refused (same refusal as A)             | REFUSED | -    | -                | -
+    C1    | (forall n (implies (greater n 1)
+          | (eq (plus a a) (plus a a))))                    | FAILED  | 334  | 0                | (zero-successor-root (...))
+    D     | the decoy (section 14 goal)                     | FAILED  | 334  | 0                | (zero-successor-root (...))
+
+    LibraryRuleMatchedViaSurfaceMapping: 0 occurrences in every capture.
+    cost observation: 334 on every FAILED probe on this tip (constant
+    machine value; recorded, not interpreted).
+
+Frontier finding (measured): the first constructor boundary where
+genuine partial matches become nonzero is the bare eq goal itself (A1:
+partial = 1, "rule origin primitive"). Adding ONE enclosing constructor
+- the nosolutions shell (B) or the forall/implies shell (C1) - drops
+genuine partial matches to 0 and switches the residual to the
+zero-successor-root form. The wall sits at the shell boundary:
+eq-position matching is live exactly when eq is the whole goal, and
+goes silent under the first wrapper. Two independent shell constructors
+show the same transition; "narrow reachability" is now a measured
+frontier, not a single-point failure.
+
+Parser-surface finding (machine-reported, recorded blind-safe):
+word-form arithmetic followed by '=' is refused by the goal compiler;
+symbolic-atom equations compile. Refusal precedes any attempt (no cost,
+no residual).
+
+Worktree-state note: probe C's boot restored a research checkpoint left
+by probe A's process in the shared worktree; all state lines still
+showed taught rules 0 / axioms 0 / library rules 0 pre-load, and probes
+B and D reproduced the pristine-worktree diagnostic values exactly; A1
+and C1 were re-run on freshly re-created worktrees to remove the
+variable entirely.
+
+DEFECT (instrument class, routed to INT; filed per the review channel's
+instruction):
+
+    DEF-2026-09-09-10  D12-HEADER-INCOMPLETE on untagged cold start
+      missing: freeze-tag/commit identity in the research-mode header
+      missing: checkpoint identity field (cold start may legitimately be
+               "none", but the field must still be printed)
+      evidence: logs/2026-09-09-F-PROVER-decoy-diagnostic-bfd4bd2.log;
+                logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log
+      consequence: a future admissible measurement requires those fields
+               present even when the values are none / untagged
+
+INT-FACING NOTE (D-G3-FPROBE, filed per the review channel's item 2;
+the matrix above is its evidence):
+
+    D-G3-FPROBE:
+      D11 ExprEq->eq does not affect FLT-shaped decoy residual on bfd4bd2
+      mechanism: outer nosolutions goal gets 0 partial matches
+      measured frontier: bare eq -> 1 genuine partial match; +1 enclosing
+        constructor (nosolutions | forall/implies) -> 0 partials,
+        zero-successor-root residual
+      consequence: content port must create rules that partially match
+        the outer goal shape, not only bare eq
+      evidence: logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log
+
+Boundary: the target sentence was NOT submitted; no teaching; no
+"suggest dependencies" submitted by any probe; machine code unmodified;
+all probes constructed within the machine's own parse surface as
+exhibited by machine output (banner forms and the ratified decoy
+sentence's symbolic syntax).
