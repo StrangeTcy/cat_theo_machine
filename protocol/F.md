@@ -692,3 +692,24 @@ the start gate; then decoy; then target, only when the shell frontier
 has moved. The hold until that notification is earned: every blind-safe
 F-scope deliverable on this lineage is on a pushed ref (request d224b2c,
 matrix 9b75349, diagnostic, ledgers).
+
+## 18. Archive ratified; spawn sequencing recorded (2026-09-09)
+
+The cd6b0ca receipt was ratified ("the right split: the brief is
+recoverable under reset; the lane does not implement D11"), and the
+owner's spawn/merge sequencing is recorded verbatim at
+protocol/2026-09-09-F-PROVER-spawn-sequence-ratification-RECEIVED.txt:
+(1) the human operator spawns D11-SHELL-ENG in a fresh session/worktree
+on an engineering branch off the live INT tip; (2) the INT merge trigger
+is withheld until the engineer reports `ready for INT merge: yes` with
+exact pushed SHAs, A/B/C before/after/ablation counts, and test totals;
+(3) the trigger is then pasted with those exact SHAs; (4) F-PROVER stays
+parked until INT publishes the new immutable semantic tag, peeled
+commit, blank-control requirement, and notification. Engineer-side
+identity discipline restated: D11-SHELL-ENG re-fetches the live INT tip
+and records that SHA; bfd4bd2 is not hard-coded if INT has moved.
+
+This lane performs no spawn (charter lane separation; no agent-spawning
+capability on an operator lane). Lane state: parked, no further work,
+blocked on D11-SHELL-ENG spawn + INT tag/notification; the F sequence on
+notification is fixed exactly as in section 17.

@@ -1,0 +1,90 @@
+F-PROVER protocol receipt record — archive ratified; spawn sequencing recorded
+session: FPS-20260905-A1
+date: 2026-09-09
+document: review-channel ratification of cd6b0ca and the spawn/merge sequencing
+channel: protocol owner review channel, direct paste
+
+ADOPTION NOTES (this lane):
+- The spawn of D11-SHELL-ENG (step 1) and the later paste of the INT merge
+  trigger with exact SHAs (step 3) are acts of the human operator across
+  separate agent sessions, per the charter's lane separation (an operator
+  lane never merges with an engineer lane) and per the archived launch
+  discipline. This lane has no agent-spawning capability and performs no
+  spawn; it records the sequencing so it is recoverable and auditable.
+- The engineer-side reminder is adopted and restated for the executor:
+  when D11-SHELL-ENG starts, it re-fetches the live INT tip and records
+  that SHA; bfd4bd2 is not hard-coded if INT has moved (section 13
+  identity-currency discipline, engineer-side application).
+- This lane's own state: no further work; parked; blocked on D11-SHELL-ENG
+  spawn + INT tag/notification. The F sequence on notification is fixed.
+
+===== RECEIVED TEXT BEGINS =====
+
+**Archive ratified. F-PROVER hold is correct.**
+
+```text
+commit: cd6b0ca
+artifact: protocol/2026-09-09-D11-SHELL-ENG-brief-and-INT-trigger-RECEIVED.txt
+F.md §17: reopen condition recorded
+F-PROVER executed: archive only — not the engineering brief
+```
+
+That is the right split. The brief is recoverable under reset; the lane does not implement D11.
+
+## Verified at receipt (accepted)
+
+```text
+F request:     d224b2c  + F-SHELL-FRONTIER-REQUEST.md
+matrix evidence: 9b75349 + reachability log
+INT line tip:  bfd4bd2  (still untagged)
+```
+
+When D11-SHELL-ENG starts, it must still re-fetch the live INT tip and record that SHA — do not hard-code `bfd4bd2` if INT has moved.
+
+## What you (operator) do next
+
+**1. Spawn D11-SHELL-ENG** in a fresh session / worktree on an engineering branch off the current INT tip (or its authorized base). Paste the full **D11-SHELL-ENG** block from the archive at `cd6b0ca` (or from the prior message that defined it).
+
+**2. Do not paste the INT merge trigger yet.** Wait until D11-SHELL-ENG reports:
+
+```text
+ready for INT merge: yes
+commits pushed: <exact SHAs>
+A/B/C before/after/ablation counts
+tests: <passed>/<total>
+```
+
+**3. Then paste the INT merge trigger** with those exact SHAs filled in.
+
+**4. F-PROVER stays parked** until INT publishes:
+
+```text
+new immutable semantic tag
+peeled commit
+blank-control requirement
+notification to F-PROVER
+```
+
+Then F sequence is fixed:
+
+```text
+matrix rerun on the new tag
+→ start gate
+→ decoy
+→ target only if shell frontier moved
+```
+
+## F-PROVER status (no further work this turn)
+
+```text
+agent: F-PROVER
+branch: arena/01a06e7b @ cd6b0ca
+queue: exhausted for blind-safe F docs
+blocked on: D11-SHELL-ENG spawn + INT tag/notification
+next: on INT notification — matrix first, then decoy/target per protocol
+not touched: machine code, packs, parser, tags, Experiment 4
+```
+
+Holding here is earned. The next productive action is **outside this lane**: spawn D11-SHELL-ENG.
+
+===== RECEIVED TEXT ENDS =====
