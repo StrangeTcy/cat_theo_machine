@@ -1,0 +1,131 @@
+F-LIVE-RUNNER  STEP 0  START GATE  (agent session, branch arena/01a066cf-cat-theo-machine)
+=========================================================================================
+Date (UTC):        2026-09-09
+Local date (user): 2026-09-09 (Europe/Moscow)
+
+RESULT: START GATE FAILED.  No admissible F-measurement tag exists.
+        Therefore no decoy session and no target session was run.
+        Per STEP 0, the prescribed output is the start-gate defect artifact
+        (InstrumentDefect(NoAdmissibleFTag, tag_set, evidence)) below, plus
+        tooling defects.  There are no F-LIVE decoy/target transcripts and
+        there never will be from this agent.
+
+-----------------------------------------------------------------------------------------
+1. REFERENCES RECORDED BEFORE WORK
+-----------------------------------------------------------------------------------------
+remote HEAD (refs/heads/arena/01a066cf-cat-theo-machine) BEFORE: a12c13d9f7b91a85877d43cd4b9c313b6e9b3bfd
+local HEAD (worktree branch):                              a12c13d9f7b91a85877d43cd4b9c313b6e9b3bfd
+working tree at write time:                                clean (no tracked modifications)
+
+Tag       tag-object SHA           peeled commit SHA
+--------  -----------------------  ----------------------------
+cut-1-bf9da23        21b4fc173960459bab56c017854e198b9f3dab0c  bf9da23f71b9b178b7c42983fd053b8c2d50f605
+shared-7cf6394       a7223d26b036ccbd1a2b33afb3fe81de3abc5bc2  7cf6394359455a002eb1df901d882ae719abe302
+
+Tag ordering: cut-1-bf9da23 is the newest tag by creator date among the fetched
+set; shared-7cf6394 is the next newest.  No tag carries any INT admissibility
+marker for F measurement.  (See evidence in section 3.)
+
+-----------------------------------------------------------------------------------------
+2. INSTRUMENT DEFECT
+-----------------------------------------------------------------------------------------
+InstrumentDefect(
+  NoAdmissibleFTag,
+  tag_set = {
+    "cut-1-bf9da23"                     -> peeled bf9da23f71b9b178b7c42983fd053b8c2d50f605,
+    "shared-7cf6394"                    -> peeled 7cf6394359455a002eb1df901d882ae719abe302,
+    "preflight-*", "experiment-4-frozen", "experiment-5-frozen", "eng-base-0",
+    "s1-relation-contracts", "d2-equality-subject-template", "partition-32bc569",
+    "preflight-converse-outcome-guard", "preflight-shard-cursor-gate"
+  },
+  evidence = {
+    "no-admissibility-marker": "No INT 'admissible for F measurement' marker,
+                                and no NoAdmissibleFTag-related admissibility
+                                marker, exists in any tracked tree reachable from
+                                any tag (git grep across all tag peeled SHAs for
+                                'admissible for F measurement' / 'F-measurement tag'
+                                / 'admissible.*F measurement' returned nothing).",
+    "newest-cut-has-no-f-tools": "On cut-1-bf9da23 (peeled bf9da23), the F
+                                tools F2/F3/F4 are ABSENT. Present tools are only
+                                tools/repro_compose_stall.py, tools/rung1_gate.py,
+                                tools/rung2_gate.py, tools/shard_suite.py.
+                                f2_grader.sh ABSENT, f3-residual-diff.sh ABSENT,
+                                f4_auditor.sh ABSENT on bf9da23.",
+    "f-tools-only-on-non-newest-tag": "tools/f1_checkpoint.sh, f2_grader.sh,
+                                f3-residual-diff.sh, f4_auditor.sh are PRESENT on
+                                shared-7cf6394 (peeled 7cf6394) ONLY.  But
+                                shared-7cf6394 is not the newest tag and carries no
+                                INT admissibility marker, so it cannot be selected.",
+    "branch-tree-f-tools": "On the branch tip a12c13d, f2_grader.sh / f3-residual-diff.sh
+                                / f4_auditor.sh are ABSENT.",
+    "authoritative-gate-text": "protocol/LAUNCH-PLAN.md (read at peeled bf9da23):
+                                'OPERATORS run sessions on the current frozen tag and
+                                never edit code.' Roster reserves F-op (decoy session,
+                                one-shot, A1-A3, residual-justified teaching) for the
+                                human operator: 'F-op ... stays with the human and is not
+                                done in the agent session'; 'No spawned agent receives
+                                FLT content beyond INT's preflight shape check.'",
+    "protocol-F-op-gate": "protocol/F.md (at peeled bf9da23) is titled 'F-op gate
+                                (not an engineering gate)'. Its 'Current terms' block:
+                                FLT goal term ABSENT on this tip; decoy goal term ABSENT
+                                on this tip; predicate arity incomparable (both missing);
+                                case-split shape incomparable (both missing); exponent
+                                position incomparable (both missing);
+                                'DECOY REDESIGN REQUIRED for F-op only. Do not start an
+                                F-op session until both terms exist and match on arity,
+                                case-split shape, and exponent position.'"
+  }
+)
+
+-----------------------------------------------------------------------------------------
+3. TOOLING DEFECTS (F2 / F3 / F4 absence on the selected candidate tag)
+-----------------------------------------------------------------------------------------
+Candidate tag that would have been selected (newest, if it had been admissible):
+  cut-1-bf9da23 -> peeled bf9da23f71b9b178b7c42983fd053b8c2d50f605
+
+  F3-residual-diff (tools/f3-residual-diff.sh):  ABSENT on bf9da23
+  F2 grader        (tools/f2_grader.sh):         ABSENT on bf9da23
+  F4 auditor       (tools/f4_auditor.sh):        ABSENT on bf9da23
+
+The presence of these F tools on shared-7cf6394 (but not on the newest cut) further
+confirms that the current frozen/cut line has not yet received an F-measurement-capable
+instrument set.  Selecting cut-1-bf9da23 for F measurement would be impossible without
+these tools; selecting a non-admissible, non-newest tag is prohibited by the plan
+('A session on a stale or spanning tag -> inadmissible, rerun or discard').
+
+-----------------------------------------------------------------------------------------
+4. WHAT WAS NOT RUN (and why)
+-----------------------------------------------------------------------------------------
+No decoy session was run.  No target session was run.  No ProjectBlind transcript
+was produced.  No f3-residual-diff comparison occurred.  No reading was taught.
+
+Run condition required by the live-FLT instruction (STEP 0 gate): select the newest
+frozen/cut/shared tag that INT marked admissible for F measurement.  That condition
+is unsatisfied: no tag is INT-marked admissible, and the newest cut lacks F2/F3/F4.
+Per the same instruction, when no tag is marked admissible, the target must NOT be
+run; instead produce InstrumentDefect(NoAdmissibleFTag, tag_set, evidence) and push
+the start-gate artifact.  That is exactly what this file records.
+
+Additionally, the in-tree protocol/LAUNCH-PLAN.md (at bf9da23) explicitly forbids a
+spawned agent from running the F decoy/target sessions, so STEP 2-3 (decoy then
+target, residual comparison, conditional teaching) is not executable by this agent
+even if the component tags were instrument-complete.  The plan reserves F-op for the
+human operator.
+
+-----------------------------------------------------------------------------------------
+5. MACHINE-TERM RECORD OF THE FAILURE
+-----------------------------------------------------------------------------------------
+Failure (machine term):  NoAdmissibleFTag
+Failure (machine term):  F3ResidualDiffAbsent
+Failure (machine term):  F2GraderAbsent
+Failure (machine term):  F4AuditorAbsent
+Failure (machine term):  SpawnedAgentFLTForbiddenByLaunchPlan
+
+Every failure above is recorded as a machine term (section 2 / section 3).  No
+failure was dismissed, and no capture was discounted.
+
+Goal status after this gate:  goal closed: no.
+  Reason: STEP 0 gate did not admit an F-measurement tag.  No decoy/target
+  transcripts exist, so no residual comparison, no conditional-teaching eligibility,
+  no cold replay, and no provenance could be produced.  The branch remains on the
+  start-gate artifact, not on a live F-LIVE run.
