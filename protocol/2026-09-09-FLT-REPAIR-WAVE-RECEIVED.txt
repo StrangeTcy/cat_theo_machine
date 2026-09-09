@@ -1,0 +1,632 @@
+F-PROVER protocol receipt record — FLT Live-Session Repair Wave (six engineers + INT + live-session plan)
+session: FPS-20260905-A1
+date: 2026-09-09 (channel receipt; execution dates belong to the addressed lanes)
+document: "gpt 5.6 sol xhigh" — FLT Live-Session Repair Wave
+channel: protocol owner, direct paste
+
+EXECUTION STATUS — none of the six engineering briefs nor the INT block is
+executed by this lane. They belong to six engineering agents on their own
+authorized branches and to INT; the spawn is the human operator's act
+(established lane separation). This lane's relationship to the wave:
+  (a) the OPERATOR RULING (snapshot defect class UPSTREAM-BOUNDARY) is
+      recorded in protocol/F.md section 19 as received;
+  (b) the single-agent D11-SHELL-ENG brief of protocol/
+      2026-09-09-D11-SHELL-ENG-brief-and-INT-trigger-RECEIVED.txt is
+      SUPERSEDED by Agent 2 of this wave (D11-SHELL-ENG, characterization-
+      only scope) + Agent 3 (LOGIC-CHECKER-ENG, sound proof construction) +
+      Agent 6 Task B (D12 header, repairing DEF-2026-09-09-10); the older
+      archive remains as history;
+  (c) the AFTER-THE-TAGGED-BUILD LIVE SESSION section is this lane's
+      future work and is adopted as the defined reopen condition,
+      superseding the section 17/18 reopen text: on INT's new immutable
+      semantic tag + published profiles/checkpoints/blank-control
+      requirement, this lane runs the wave's sequence — cold matrix
+      rerun, blank controls, structural decoy, target — under the
+      declared profile full-audited-trusted-leaf-teaching;
+  (d) EXPOSURE NOTE: the wave discloses the live-session DESIGN (checked,
+      non-blind, residual-guided, trusted-leaf teaching; per-Need one
+      theorem; stop conditions; F2/F3/F4; corrupted-certificate rejection).
+      Protocol design disclosed through the owner channel is not
+      prohibited exposure; the reference proof, dependency graph, prior
+      target transcript, curriculum answers, and pack sources remain
+      unseen; contamination count unchanged, zero. The DISCOVERY claim
+      remains a separate protocol not exercised by this wave.
+  (e) STOP-CONDITION FIDELITY: the wave's stop condition "zero-successor-
+      root" is the residual root this lane measured at the wall
+      (logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log); the
+      wave's stop conditions bind this lane literally if they recur.
+
+===== RECEIVED TEXT BEGINS =====
+
+# FLT Live-Session Repair Wave
+
+Run **six engineering agents in parallel**, then give their exact SHAs to INT. The runtime target is a **checked, non-blind, residual-guided proof from disclosed trusted leaves**. It does not claim independent discovery.
+
+## Operator ruling — record before spawning
+
+```text
+Snapshot defect ruling:
+  UPSTREAM-BOUNDARY
+
+Host runtime objects must not enter the machine-term object-id index.
+Do not add an arbitrary id to Hypergraph.
+Do not convert the failure into silent omission.
+Unsupported snapshot content returns an explicit machine refusal and leaves
+the destination state unchanged.
+```
+
+## Common instructions for every engineer
+
+```text
+1. Fetch the current authoritative INT ref:
+     refs/heads/arena/01a06542-cat-theo-machine
+   Record its full SHA. The last observed SHA was bfd4bd2; do not inherit it.
+
+2. Verify experiment-5-frozen-r1@ef571b6 is an ancestor.
+
+3. Use a separate clean checkout and a new work branch. No shared checkout.
+   Inventory local content before reset. Never force-push.
+
+4. Apply charter §0. No core.py edits, no Experiment 4, no FLT theorem
+   content in code or packs.
+
+5. Push every green commit. Engineers do not cut tags.
+
+6. Deliver code, focused tests, dated raw output, and the exact pushed SHA.
+   Do not return a status-only report.
+```
+
+---
+
+# Agent 1 — `SNAPSHOT-PREFLIGHT-ENG`
+
+```text
+You own the open preflight snapshot defect.
+
+Defect:
+  OBJECT_ID_INDEX_ASSUMES_TERM_ID_ON_HOST_OBJECT
+
+Observed path:
+  persistence object capture/index
+  → red-black identity index
+  → key.id
+  → host Hypergraph has no machine-term id
+
+TASK
+
+1. Reproduce the exact ordered-109 failure using the committed harness.
+   Save the pre-fix traceback.
+
+2. Locate the first boundary that inserts a host runtime object into the
+   machine-term capture/index path.
+
+3. Repair that boundary:
+   - index machine terms and explicitly supported scalar payloads;
+   - reject unsupported host objects with a machine refusal term;
+   - do not invent an id;
+   - do not silently skip an object that is required for restore;
+   - do not use a broad exception handler.
+
+4. Guarantee atomicity:
+   - rejected capture leaves no partial snapshot;
+   - destination index and graph state remain unchanged.
+
+TESTS
+
+  exact_109_checkpoint_repro_test
+  host_hypergraph_not_indexed_as_term_test
+  unsupported_snapshot_root_refuses_test
+  failed_capture_leaves_no_partial_snapshot_test
+  supported_term_roundtrip_test
+  cold_restore_equivalence_test
+
+RUN
+
+  exact-109 before and after
+  checkpoint save and cold restore
+  relevant persistence tests
+  both suite shards if time permits; INT reruns them on integration
+
+DELIVER
+
+  production fix
+  tests
+  verification/<date>-snapshot-boundary-fix.txt
+  exact pushed SHA
+```
+
+Acceptance:
+
+```text
+exact-109 no longer raises
+unsupported host root produces a machine refusal
+no silent omission
+supported checkpoint round-trip remains green
+```
+
+---
+
+# Agent 2 — `D11-SHELL-ENG`
+
+```text
+You own shell visibility, not logical proof checking.
+
+Existing state:
+  bare eq → one genuine partial match
+  nosolutions shell → zero
+  forall/implies shell → zero
+
+TASK
+
+Implement characterization-only support for:
+
+  NosolutionsIntroduction
+  ForallImpliesDecomposition
+
+Use non-FLT toy goals only:
+
+  Goal A:
+    nosolutions positive-integers
+      (unknowns x)
+      (eq (plus x 1) x)
+
+  Goal B:
+    forall n:
+      greater(n,1) implies eq(plus(a,a), plus(a,a))
+
+Required result:
+  candidate partial matches > 0
+  concrete unmatched premise appears
+  goal remains unclosed
+
+Use capability premises that cannot be discharged by the current generic
+rewriter, such as the existing equivalent of:
+
+  NeedBinderSafeImplication(...)
+  NeedContradictionFromArbitrarySolution(...)
+
+Inspect existing vocabulary before adding terms.
+
+NEGATIVE CONTROL
+
+Use a shell with a different head symbol. It must remain at zero partial
+matches. An arity-only variation is insufficient because head compatibility
+is value-based.
+
+ABLATION
+
+Disable or remove the new shell rules:
+  Goal A returns to zero partial matches
+  Goal B returns to zero partial matches
+
+DO NOT
+
+  close either toy goal
+  add target-specific vocabulary
+  touch the arithmetic ExprEq→eq port
+  weaken the checker
+  claim quantified proof support
+
+DELIVER
+
+  shell rule patch
+  extended D11 gate
+  before / after / ablation transcripts
+  verification/<date>-d11-shell-characterization.txt
+  exact pushed SHA
+```
+
+Acceptance:
+
+```text
+Goal A: 0 → positive → 0
+Goal B: 0 → positive → 0
+concrete unmatched premises present
+both goals remain unclosed
+negative control stays zero
+```
+
+---
+
+# Agent 3 — `LOGIC-CHECKER-ENG`
+
+```text
+You own sound proof construction for the outer logical shell.
+
+TASK
+
+Add a minimal checked calculus for:
+
+  ForallIntroduction(variable, body, freshness_evidence)
+  ImpliesIntroduction(assumption, derivation)
+  ContradictionIntroduction(assumption, contradiction)
+  NoSolutionsIntroduction(domain, unknowns, assumed_solution, contradiction)
+
+REQUIREMENTS
+
+1. Universal introduction:
+   - eigenvariable is fresh;
+   - result does not depend on an undisclosed assumption;
+   - substitution is capture-safe.
+
+2. Implication introduction:
+   - antecedent is added only inside the child scope;
+   - consequent is proved under that scope;
+   - antecedent is discharged at the join.
+
+3. No-solutions introduction:
+   - assumes an arbitrary in-domain solution;
+   - derives a checked contradiction;
+   - discharges all solution assumptions.
+
+4. Branch isolation:
+   - sibling assumptions cannot leak;
+   - a proof from one branch cannot close another branch’s goal.
+
+5. Replay:
+   - returned certificate checks against the same declared base;
+   - missing freshness or scope evidence rejects the certificate.
+
+TESTS
+
+  forall_reflexivity_closes_test
+  forall_missing_freshness_rejected_test
+  implication_identity_closes_test
+  implication_assumption_leak_rejected_test
+  contradiction_certificate_required_test
+  nosolutions_scoped_assumption_test
+  sibling_assumption_leak_rejected_test
+  corrupted_quantified_certificate_rejected_test
+  cold_replay_quantified_toy_test
+
+NON-FLT END-TO-END TOY
+
+  forall n:
+    greater(n,1) implies eq(plus(n,0), n)
+
+This toy must close through checked introduction rules and replay cold.
+
+DO NOT
+
+  implement unchecked wrapper removal
+  treat shell partial matching as proof
+  alter core.py
+  add theorem-specific shortcuts
+
+DELIVER
+
+  checked logic implementation
+  certificate representation
+  tests and cold-replay transcript
+  exact pushed SHA
+```
+
+---
+
+# Agent 4 — `TEACH-BINDING-ENG`
+
+```text
+You own premise-bound live teaching and attribution.
+
+Known failure:
+  a theorem supplied for one request can improve the parent through another
+  route and receive credit for the wrong dependency.
+
+TASK
+
+Repair teach_dependency so these are separate checked events:
+
+  A. trusted theorem accepted
+  B. theorem application discharges this request's exact Need
+  C. that discharge produces measurable parent progress
+
+Required flow:
+
+  request
+  → supplied formal theorem
+  → prove/apply theorem against exact Need under request scope
+  → discharge certificate
+  → retry parent
+  → counterfactual progress
+  → attributed intervention episode
+
+No discharge certificate:
+  theorem may remain accepted as a trusted theorem if policy permits,
+  but it receives no credit for that request and creates no intervention
+  episode tied to it.
+
+TESTS
+
+  correct_dependency_teach_credited_test
+  wrong_request_theorem_not_credited_test
+  parent_progress_via_other_route_not_attributed_test
+  theorem_acceptance_distinct_from_discharge_test
+  request_scope_mismatch_rejected_test
+  exact_need_semantic_equality_test
+  misattributed_teaching_incident_regression_test
+
+Use the existing incident transcript as a regression fixture.
+
+DELIVER
+
+  research teaching-path fix
+  discharge evidence term
+  attribution tests
+  verification/<date>-premise-bound-teaching.txt
+  exact pushed SHA
+```
+
+Acceptance:
+
+```text
+wrong-request teaching cannot create a credited episode
+correct request receives a replayable discharge certificate
+parent improvement alone never proves attribution
+```
+
+---
+
+# Agent 5 — `TRAINING-ACCEPTANCE-ENG`
+
+```text
+You own D21/D22 and the method-report defect.
+
+TASK
+
+1. Fix ObligationSkeletonConclusionGoal:
+   return the final goal-bearing entry, matching its documented contract.
+
+2. Audit every mandatory obligation on both success and failure paths.
+
+3. SUCCESS requires:
+   - final conclusion proved;
+   - every mandatory goal-bearing obligation proved;
+   - every certificate replayed;
+   - no unresolved required obligation.
+
+4. Emit per-obligation results:
+   obligation id, goal, result, certificate, replay status.
+
+5. Remove the hardcoded Invariance method text.
+   Report the real strategy hint / planner method used, or `none`.
+
+TESTS
+
+  skeleton_final_goal_selected_test
+  initial_restatement_not_conclusion_test
+  success_requires_all_obligations_test
+  failed_intermediate_blocks_retention_test
+  success_path_runs_obligation_audit_test
+  per_obligation_summary_complete_test
+  real_method_name_reported_test
+  corrupted_intermediate_certificate_rejected_test
+
+Include the previously vacuous two-obligation fixture:
+
+  entry 1: already present in meaning structure
+  entry 2: not derivable
+
+Expected:
+  never SUCCESS
+
+DELIVER
+
+  training.py repair
+  regression tests
+  verification/<date>-training-acceptance-d21-d22.txt
+  exact pushed SHA
+```
+
+---
+
+# Agent 6 — `F-TOOLS-REPLAY-ENG`
+
+```text
+You own explicit session identity, checkpoint replay, and F audit coverage.
+
+TASK A — F1
+
+Implement:
+
+  save checkpoint <name>
+  load checkpoint <name>
+
+Checkpoint record includes:
+
+  content-addressed id
+  parent checkpoint id
+  runtime commit
+  frozen tag or `untagged`
+  loaded class list
+  theorem origins
+  learned-memory profile
+  session profile
+
+Requirements:
+
+  load never mutates stored checkpoint
+  output state names parent checkpoint
+  undeclared auto-restore is disabled or printed before use
+  tamper produces a machine refusal
+  cold replay checks the recorded derivation, not a new search result
+
+TASK B — D12 header
+
+Every session header prints:
+
+  runtime commit
+  frozen tag or `untagged`
+  checkpoint id or `none`
+  parent checkpoint id or `none`
+  loaded classes
+  theorem provenance classes
+  profile
+
+TASK C — F2/F3/F4
+
+Correct F2 to count:
+
+  teach dependency
+  teach trusted theorem
+  rejected teach
+  discharge certificate
+  accepted attribution
+  computable request
+  circular request
+
+Do not infer circularity merely from an empty premise list.
+
+F3 keeps:
+  identical
+  silence-class
+  distinct
+  incomparable
+
+F4 checks:
+  every teach has a prior concrete Need
+  supplied theorem discharges that Need
+  attribution references the discharge certificate
+  full session identity header exists
+
+TESTS
+
+  checkpoint_content_addressed_roundtrip_test
+  checkpoint_parent_identity_test
+  checkpoint_tamper_rejected_test
+  undeclared_restore_reported_test
+  audit_header_complete_with_none_values_test
+  cold_certificate_replay_test
+  corrupted_certificate_rejected_test
+  f2_teach_dependency_count_test
+  f4_wrong_request_attribution_detected_test
+
+DELIVER
+
+  checkpoint module
+  INT-facing dispatch request for main.py
+  hardened F tools
+  dated full battery
+  exact pushed SHA
+```
+
+No target session runs in this ticket.
+
+---
+
+# INT — integration and release instructions
+
+Give this block to INT after the six engineers report exact SHAs.
+
+```text
+You are INT.
+
+1. Fetch each exact submitted SHA. Never merge branch tips.
+
+2. Rehearse imports onto the current authoritative INT line.
+
+3. Merge order:
+     snapshot boundary
+     logic checker
+     shell characterization
+     premise-bound teaching
+     training acceptance
+     checkpoint/audit tooling
+
+4. Resolve the dual schema import separately:
+     compare 9ba2f43 and c24b0f0
+     choose one implementation or merge by explicit path
+     do not land two competing schema authorities
+   This tools-only decision must not delay runtime repairs unless F audit
+   directly depends on it.
+
+5. Run all focused tests.
+
+6. Complete charter preflight:
+     item 1 exact-109
+     item 2 direct A1 producer/consumer selection
+     item 3 structural decoy comparison
+     item 4 both complete suite shards
+
+7. Run the non-FLT end-to-end milestone:
+     quantified toy
+     → concrete unmatched premise
+     → one premise-bound trusted teach
+     → checked closure
+     → content-addressed checkpoint
+     → cold certificate replay
+     → deliberately corrupted certificate rejected
+
+8. Record complete baseline:
+     constructed / executed / skipped counts
+     full failure and OPEN names
+     no installation abort
+     exact commit/tree and environment
+
+9. Cut a new immutable semantic tag on the exact admitted commit.
+   Publish the tag, peeled commit, allowed session profiles, checkpoints,
+   and blank-control requirement.
+
+10. No FLT target is run by INT.
+```
+
+---
+
+# After the tagged build — live session
+
+Run under an explicitly declared profile:
+
+```text
+profile: full-audited-trusted-leaf-teaching
+claim permitted:
+  checked derivation from disclosed HUMAN_SUPPLIED_TRUSTED_THEOREM leaves
+
+claim not permitted:
+  blind discovery of the dependency chain
+```
+
+Sequence:
+
+```text
+1. Cold matrix rerun.
+2. Blank controls.
+3. Structural decoy.
+4. Target.
+5. For each concrete target Need:
+     supply one theorem that discharges that exact Need;
+     verify discharge certificate;
+     retry;
+     require measurable residual movement;
+     checkpoint.
+6. Stop on:
+     zero-successor-root;
+     no concrete Need;
+     wrong-request theorem;
+     no measured movement;
+     failed replay.
+7. On closure:
+     cold certificate replay;
+     trusted-leaf inventory;
+     F2/F3/F4;
+     corrupted-certificate rejection.
+```
+
+## Release acceptance
+
+```text
+ATTEMPTABLE:
+  outer shell produces concrete unmatched premises.
+
+PROVED-ON-INSTRUMENT:
+  exact full goal closes;
+  all logical shells checker-validated;
+  all required obligations checked;
+  every trusted leaf disclosed and premise-bound;
+  cold certificate replay succeeds.
+
+DISCOVERY:
+  separate claim, requiring the blind protocol and decoy specificity.
+```
+
+This repair wave attacks the real critical path: **snapshot integrity, sound logical composition, premise-bound teaching, full obligation checking, and reproducible replay**. Process workers, S2 schemas, IMO curriculum, and bulk library ports continue separately and do not block the first trusted-leaf FLT attempt.
+
+===== RECEIVED TEXT ENDS =====

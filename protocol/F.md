@@ -713,3 +713,59 @@ This lane performs no spawn (charter lane separation; no agent-spawning
 capability on an operator lane). Lane state: parked, no further work,
 blocked on D11-SHELL-ENG spawn + INT tag/notification; the F sequence on
 notification is fixed exactly as in section 17.
+
+## 19. FLT Live-Session Repair Wave received (2026-09-09)
+
+The owner published the full repair wave: an operator ruling (snapshot
+defect class UPSTREAM-BOUNDARY — host runtime objects never enter the
+machine-term object-id index; no invented ids; no silent omission;
+explicit machine refusal leaving destination state unchanged), six
+parallel engineering briefs (SNAPSHOT-PREFLIGHT-ENG; D11-SHELL-ENG,
+now characterization-only; LOGIC-CHECKER-ENG, sound checked calculus
+with certificates and branch isolation; TEACH-BINDING-ENG, premise-bound
+teaching and attribution; TRAINING-ACCEPTANCE-ENG, D21/D22 and method
+report; F-TOOLS-REPLAY-ENG, F1 checkpoints, D12 header, F2/F3/F4
+hardening), and INT integration/release instructions (merge order,
+dual-schema resolution 9ba2f43 vs c24b0f0, charter preflight, non-FLT
+end-to-end milestone, complete baseline, new immutable semantic tag).
+Archived verbatim at protocol/2026-09-09-FLT-REPAIR-WAVE-RECEIVED.txt.
+
+Relationship to prior records:
+- SUPERSEDES the single-agent D11-SHELL-ENG brief of section 17
+  (Agent 2 = characterization-only shell visibility; Agent 3 = sound
+  proof construction; Agent 6 Task B = D12 header, repairing
+  DEF-2026-09-09-10). The section 17 archive remains as history.
+- The section 17/18 reopen condition is SUPERSEDED by the wave's
+  AFTER-THE-TAGGED-BUILD live session, which is this lane's defined
+  future work: on INT's new immutable semantic tag + published
+  tag/peeled commit/profiles/checkpoints/blank-control requirement —
+  cold matrix rerun; blank controls; structural decoy; target; per
+  concrete target Need one supplied theorem discharging that exact Need,
+  discharge certificate verified, retry, measurable residual movement
+  required, checkpoint; stop on zero-successor-root / no concrete Need /
+  wrong-request theorem / no measured movement / failed replay; on
+  closure — cold certificate replay, trusted-leaf inventory, F2/F3/F4,
+  corrupted-certificate rejection.
+
+Session character and claims (recorded for every future report): the
+live session runs under the declared profile
+full-audited-trusted-leaf-teaching. Permitted claim: checked derivation
+from disclosed HUMAN_SUPPLIED_TRUSTED_THEOREM leaves. NOT permitted:
+blind discovery of the dependency chain — that is a separate claim
+requiring the blind protocol and decoy specificity. Release acceptance
+taxonomy: ATTEMPTABLE (outer shell produces concrete unmatched premises)
+/ PROVED-ON-INSTRUMENT (exact full goal closes; all shells
+checker-validated; all obligations checked; every trusted leaf disclosed
+and premise-bound; cold replay succeeds) / DISCOVERY (separate).
+
+Exposure note: the wave discloses the live-session DESIGN through the
+owner channel — protocol design, not prohibited exposure. Reference
+proof, dependency graph, prior target transcript, curriculum answers,
+pack sources: still unseen. Contamination count: zero, unchanged.
+Stop-condition fidelity: the wave's stop term zero-successor-root is
+this lane's measured residual root at the wall (manifest rev 10 log);
+if it recurs in the live session, the lane stops on it literally.
+
+Until INT's tag + notification, the lane remains parked. The six
+engineers and INT are the owner's to spawn and run; exact SHAs flow from
+them to INT, never through this lane.

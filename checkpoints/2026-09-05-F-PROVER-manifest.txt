@@ -16,9 +16,10 @@ bf9b78272d0974e4d434d51b49fa037b30324984ae2e19d9c9fdf3e89419760e  protocol/2026-
 c090305a483c43410623b04a77be6afa740a692a62e6cae1ea32b2e4177c7fe8  protocol/2026-09-09-F-PROVER-matrix-ratification-RECEIVED.txt
 b0aa39ec06b2d4677ba2e7dff0b42e0ddf356b59eb96db5655c0c8be1e24bc0f  protocol/2026-09-09-D11-SHELL-ENG-brief-and-INT-trigger-RECEIVED.txt
 dceda7de0c15e00d93c9e88e41af2f4b73697d5fb33b69b8c551e629b9495ede  protocol/2026-09-09-F-PROVER-spawn-sequence-ratification-RECEIVED.txt
+ffeeb759919a1532aab06e4a014da5e1a7ba8fb1ef6a3fbea60b6ae608429d55  protocol/2026-09-09-FLT-REPAIR-WAVE-RECEIVED.txt
 3d247d125f59db80bb24e9c217efe807f526aecb85a30b15d9047f93cbc7ab2f  logs/2026-09-09-F-PROVER-decoy-diagnostic-bfd4bd2.log
 1eef4df907ccc1dcb2f8fbc54e2e6adc034691f0f6bd7ddfb185ab441eb28d3c  logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log
 12f95a9b133cb2e8d56d6c73c06104d48f977b7508755b99c699ed1d2933a26e  protocol/F-SHELL-FRONTIER-REQUEST.md
-96a27a750ad300987ef420d58e87a6ea663cf217660deacf36afa95a4ab0daab  protocol/F.md
+e939c19bce5cc709454d8d23e8a8013fcc1ed56ea043384699afdfb0f3bf4d01  protocol/F.md
 
-# rev 14 (2026-09-09): cd6b0ca archive ratified; spawn/merge sequencing recorded verbatim (spawn = human operator across separate sessions; INT trigger withheld until engineer reports with exact SHAs; F-PROVER parked until INT tag + notification); lane performs no spawn (charter lane separation); F.md section 18
+# rev 15 (2026-09-09): FLT Live-Session Repair Wave archived verbatim — operator ruling UPSTREAM-BOUNDARY recorded; six engineering briefs + INT block NOT executed by this lane; single-agent D11-SHELL-ENG brief superseded; live-session sequence adopted as the reopen condition under profile full-audited-trusted-leaf-teaching; claims ATTEMPTABLE/PROVED-ON-INSTRUMENT/DISCOVERY recorded; discovery separate; contamination 0; reset entry 6, zero loss
