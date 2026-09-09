@@ -1,0 +1,768 @@
+diff --git a/protocol/G-ENG-ARTIFACT-SCHEMA.md b/protocol/G-ENG-ARTIFACT-SCHEMA.md
+index 154ed1d..c94d08e 100644
+--- a/protocol/G-ENG-ARTIFACT-SCHEMA.md
++++ b/protocol/G-ENG-ARTIFACT-SCHEMA.md
+@@ -220,3 +220,182 @@ date is never mistaken for the clock.
+ ---
+ 
+ *End of schema.* Author against it; the checked handlers reject anything the schema does not fix.
++
++<!-- CUR-SCHEMA:GENERATED:BEGIN -->
++
++## 9. Machine-readable schema (generated — do not edit by hand)
++
++Generated from the single field-definition source in
++`tools/cur_artifact_schema.py` (`FIELD_DEFINITIONS`). Regenerate with
++`python3 tools/cur_artifact_schema.py --check-doc` (fails on drift).
++The checker validates STRUCTURE ONLY; the pinned mathematical facts
++remain the checked handlers' and grader's business (section 0).
++
++```json
++{
++  "global": {
++    "candidate_fields": {
++      "cites": "str_array",
++      "id": "str",
++      "role": "str",
++      "text": "str_opt"
++    },
++    "contracts": [
++      "E3",
++      "E4",
++      "E7"
++    ],
++    "id_uniqueness_scope": "claims + candidate + nodes + records entries",
++    "node_fields": {
++      "cites": "str_array_opt",
++      "id": "str",
++      "kind": "enum:derived|assumption",
++      "payload": "obj_opt",
++      "role": "str",
++      "text": "str_opt"
++    },
++    "optional_top": [
++      "claims",
++      "records",
++      "parameters"
++    ],
++    "required_top": [
++      "schema",
++      "contract",
++      "candidate",
++      "nodes"
++    ],
++    "schema_tag": "geng-bundle/v2"
++  },
++  "roles": {
++    "bound": [
++      "E4",
++      {
++        "lower_bound": "int:lower_bound_opt"
++      }
++    ],
++    "control": [
++      "E7",
++      {
++        "sample": "pm1_array"
++      }
++    ],
++    "generation": [
++      "E3",
++      {
++        "off_candidate": "int_array_opt",
++        "on_candidate": "int_array"
++      }
++    ],
++    "hypothesis": [
++      "E4",
++      {
++        "degree_bound": "int:degree_bound_opt",
++        "houses": "int:houses_opt"
++      }
++    ],
++    "measure": [
++      "E4,E7",
++      {
++        "provenance": "enum:derived|supplied"
++      }
++    ],
++    "monovariant": [
++      "E4,E7",
++      {
++        "provenance": "enum:derived|supplied"
++      }
++    ],
++    "moves": [
++      "E3,E4",
++      {
++        "moves": "move_array_opt",
++        "pairs": "pair_array_opt"
++      }
++    ],
++    "observable": [
++      "E7",
++      {
++        "provenance": "enum:derived|supplied"
++      }
++    ],
++    "odd-control": [
++      "E3,E7",
++      {
++        "sample": "pm1_array_opt",
++        "target_n": "int:target_n_opt"
++      }
++    ],
++    "params": [
++      "E4,E7",
++      {
++        "degree_bound": "int:degree_bound_opt",
++        "houses": "int:houses_opt",
++        "modulus": "int:modulus_opt",
++        "window_width": "int:window_width_opt"
++      }
++    ],
++    "rejected": [
++      "E7",
++      {
++        "candidates": "rejected_array"
++      }
++    ],
++    "samples": [
++      "E7",
++      {
++        "sequences": "pm1_matrix"
++      }
++    ],
++    "separate": [
++      "E7",
++      {
++        "n": "int:n_opt",
++        "start_residue": "int:residue_opt",
++        "target_residue": "int:residue_opt"
++      }
++    ],
++    "separation": [
++      "E7",
++      {
++        "n": "int:n_opt",
++        "start_residue": "int:residue_opt",
++        "target_residue": "int:residue_opt"
++      }
++    ],
++    "start": [
++      "E3",
++      {
++        "vector": "int_array"
++      }
++    ],
++    "terminal": [
++      "E4",
++      {
++        "claim": "enum:no_legal_move|global_min_opt"
++      }
++    ],
++    "terminus": [
++      "E4",
++      {
++        "claim": "enum:no_legal_move|global_min_opt"
++      }
++    ],
++    "weights": [
++      "E3",
++      {
++        "provenance": "enum:derived|supplied",
++        "vector": "int_array"
++      }
++    ],
++    "wellfounded": [
++      "E4",
++      {
++        "lower_bound": "int:lower_bound_opt"
++      }
++    ]
++  }
++}
++```
++
++<!-- CUR-SCHEMA:GENERATED:END -->
+diff --git a/tools/cur_artifact_schema.py b/tools/cur_artifact_schema.py
+new file mode 100644
+index 0000000..47d6ec2
+--- /dev/null
++++ b/tools/cur_artifact_schema.py
+@@ -0,0 +1,359 @@
++#!/usr/bin/env python3
++"""G-ENG artifact schema — machine-readable definitions, checker, doc generator.
++
++Single field-definition source (FIELD_DEFINITIONS below) for:
++  - the machine-readable schema (``--emit-schema``);
++  - the generated Markdown section embedded in
++    protocol/G-ENG-ARTIFACT-SCHEMA.md between the CUR-SCHEMA markers
++    (``--check-doc`` regenerates and diffs it — the drift test).
++
++The checker (``--check <bundle.json|bundle_dir>``) validates STRUCTURE
++ONLY: field presence, string/array/object shapes, enumerations, and
++declared numeric domains. It deliberately does NOT evaluate the pinned
++mathematical facts (kernel membership, descent bounds, residue
++arithmetic) — those belong to the extractor's checked handlers and the
++grader. Keeping these separate is the assignment's core requirement:
++
++  schema-valid                      -> this tool, exit 0
++  supported calculation checked     -> extractor handlers + grader
++  universal mathematical claim      -> NOT established by either
++  proof replayed                    -> NOT performed (tier 2.5 ceiling)
++  provenance/ablation by execution  -> only via real runs + digests
++
++Exit codes (aligned with the pipeline conventions):
++  0  bundle is schema-valid
++  2  bundle is malformed (structured error on stderr)
++  3  usage error / unreadable input
++
++Base: arena/01a066cf @ e72755a (extractor SCHEMA_VERSION 1).
++"""
++
++import json
++import os
++import sys
++
++SCHEMA_TAG = "geng-bundle/v2"
++DOC_PATH = os.path.join("protocol", "G-ENG-ARTIFACT-SCHEMA.md")
++DOC_BEGIN = "<!-- CUR-SCHEMA:GENERATED:BEGIN -->"
++DOC_END = "<!-- CUR-SCHEMA:GENERATED:END -->"
++
++CONTRACTS = ("E3", "E4", "E7")
++
++# Numeric domains are SHAPE constraints (type + range), not pinned math
++# facts: degree_bound<=3 as a *pinned fact* is C1's business; the schema
++# only constrains it to a sane integer domain.
++INT_DOMAINS = {
++    "degree_bound": (0, 10),
++    "houses": (1, 4),
++    "window_width": (2, 8),
++    "modulus": (2, 8),
++    "target_n": (3, 9),
++    "n": (1, 4096),
++    "lower_bound": (-16, 4096),
++    "residue": (-1024, 1024),
++}
++
++# role -> (contracts, payload fields with kinds). "alt" lists alternate
++# payload shapes; "moves_or_text" fields accept per-family shapes.
++FIELD_DEFINITIONS = {
++    "global": {
++        "schema_tag": SCHEMA_TAG,
++        "contracts": CONTRACTS,
++        "required_top": ("schema", "contract", "candidate", "nodes"),
++        "optional_top": ("claims", "records", "parameters"),
++        "candidate_fields": {"id": "str", "role": "str", "cites": "str_array", "text": "str_opt"},
++        "node_fields": {"id": "str", "role": "str", "kind": "enum:derived|assumption",
++                        "cites": "str_array_opt", "payload": "obj_opt", "text": "str_opt"},
++        "id_uniqueness_scope": "claims + candidate + nodes + records entries",
++    },
++    "roles": {
++        "weights":       ("E3", {"vector": "int_array", "provenance": "enum:derived|supplied"}),
++        "moves":         ("E3,E4", {"pairs": "pair_array_opt", "moves": "move_array_opt"}),
++        "start":         ("E3", {"vector": "int_array"}),
++        "odd-control":   ("E3,E7", {"target_n": "int:target_n_opt", "sample": "pm1_array_opt"}),
++        "generation":    ("E3", {"on_candidate": "int_array", "off_candidate": "int_array_opt"}),
++        "params":        ("E4,E7", {"houses": "int:houses_opt", "degree_bound": "int:degree_bound_opt",
++                                     "window_width": "int:window_width_opt", "modulus": "int:modulus_opt"}),
++        "hypothesis":    ("E4", {"houses": "int:houses_opt", "degree_bound": "int:degree_bound_opt"}),
++        "bound":         ("E4", {"lower_bound": "int:lower_bound_opt"}),
++        "wellfounded":   ("E4", {"lower_bound": "int:lower_bound_opt"}),
++        "terminal":      ("E4", {"claim": "enum:no_legal_move|global_min_opt"}),
++        "terminus":      ("E4", {"claim": "enum:no_legal_move|global_min_opt"}),
++        "measure":       ("E4,E7", {"provenance": "enum:derived|supplied"}),
++        "monovariant":   ("E4,E7", {"provenance": "enum:derived|supplied"}),
++        "samples":       ("E7", {"sequences": "pm1_matrix"}),
++        "separate":      ("E7", {"start_residue": "int:residue_opt", "target_residue": "int:residue_opt", "n": "int:n_opt"}),
++        "separation":    ("E7", {"start_residue": "int:residue_opt", "target_residue": "int:residue_opt", "n": "int:n_opt"}),
++        "control":       ("E7", {"sample": "pm1_array"}),
++        "rejected":      ("E7", {"candidates": "rejected_array"}),
++        "observable":    ("E7", {"provenance": "enum:derived|supplied"}),
++    },
++}
++
++
++class SchemaError(Exception):
++    pass
++
++
++def _check_kind(where, value, kind):
++    if kind.endswith("_opt"):
++        if value is None:
++            return
++        kind = kind[:-4]
++    if kind == "str":
++        if not isinstance(value, str) or not value:
++            raise SchemaError("%s: expected non-empty string" % where)
++    elif kind == "str_array":
++        if not isinstance(value, list) or any(not isinstance(x, str) or not x for x in value):
++            raise SchemaError("%s: expected array of non-empty strings" % where)
++    elif kind == "obj":
++        if not isinstance(value, dict):
++            raise SchemaError("%s: expected object" % where)
++    elif kind == "obj_opt":
++        if value is not None and not isinstance(value, dict):
++            raise SchemaError("%s: expected object or null" % where)
++    elif kind == "int_array":
++        if not isinstance(value, list) or not value or any(not isinstance(x, int) or isinstance(x, bool) for x in value):
++            raise SchemaError("%s: expected non-empty array of integers" % where)
++    elif kind == "pair_array":
++        if value is not None:
++            if not isinstance(value, list) or not value:
++                raise SchemaError("%s: expected non-empty array or null" % where)
++            for item in value:
++                if not isinstance(item, list) or len(item) != 2 or any(not isinstance(x, int) for x in item):
++                    raise SchemaError("%s: pairs items must be 2-integer arrays" % where)
++    elif kind == "move_array":
++        if value is not None:
++            if not isinstance(value, list) or not value:
++                raise SchemaError("%s: expected non-empty array or null" % where)
++            for item in value:
++                if not isinstance(item, dict):
++                    raise SchemaError("%s: moves items must be objects" % where)
++                has_e = ("e_in" in item) or ("e_out" in item)
++                has_d = ("d" in item) or ("s" in item)
++                if has_e and has_d:
++                    raise SchemaError(
++                        "%s: contradictory alternate move representations "
++                        "(e_in/e_out and d/s keys mixed in one record)" % where)
++                if not has_e and not has_d:
++                    raise SchemaError("%s: move record carries neither e_in/e_out nor d/s shape" % where)
++                for key in ("e_in", "e_out", "d", "s"):
++                    if key in item and (not isinstance(item[key], int) or isinstance(item[key], bool)):
++                        raise SchemaError("%s: move field %s must be an integer" % (where, key))
++    elif kind == "pm1_array":
++        if not isinstance(value, list) or not value or any(x not in (1, -1) for x in value):
++            raise SchemaError("%s: expected non-empty array of +1/-1" % where)
++    elif kind == "pm1_matrix":
++        if not isinstance(value, list) or not value:
++            raise SchemaError("%s: expected non-empty array of samples" % where)
++        for i, sample in enumerate(value):
++            _check_kind("%s[%d]" % (where, i), sample, "pm1_array")
++    elif kind == "rejected_array":
++        if not isinstance(value, list) or not value:
++            raise SchemaError("%s: expected non-empty array of rejected candidates" % where)
++        for i, item in enumerate(value):
++            if not isinstance(item, dict):
++                raise SchemaError("%s[%d]: expected object" % (where, i))
++            name = item.get("name")
++            klass = item.get("class")
++            if not isinstance(name, str) or not name:
++                raise SchemaError("%s[%d].name: expected non-empty string" % (where, i))
++            if klass not in ("not_invariant", "preserved_but_non_separating"):
++                raise SchemaError("%s[%d].class: expected a recognized rejection class" % (where, i))
++    elif kind.startswith("enum:"):
++        allowed = tuple(kind[5:].split("|"))
++        if value not in allowed:
++            raise SchemaError("%s: expected one of %s" % (where, "/".join(allowed)))
++    elif kind.startswith("int"):
++        if not isinstance(value, int) or isinstance(value, bool):
++            raise SchemaError("%s: expected an integer" % where)
++        name = kind[4:] if kind.startswith("int:") else ""
++        if name:
++            low, high = INT_DOMAINS[name]
++            if not (low <= value <= high):
++                raise SchemaError("%s: %s=%d outside declared domain [%d,%d]"
++                                  % (where, name, value, low, high))
++    else:
++        raise SchemaError("%s: unknown kind %s (definitions bug)" % (where, kind))
++
++
++def check_bundle(bundle):
++    """Validate one parsed bundle dict. Raises SchemaError with a reason."""
++    if not isinstance(bundle, dict):
++        raise SchemaError("bundle: expected a JSON object")
++    tag = bundle.get("schema")
++    if tag != SCHEMA_TAG:
++        raise SchemaError("schema: expected %r, got %r (incompatible schema version)"
++                          % (SCHEMA_TAG, tag))
++    contract = bundle.get("contract")
++    if contract not in CONTRACTS:
++        raise SchemaError("contract: expected one of %s, got %r" % ("/".join(CONTRACTS), contract))
++
++    candidate = bundle.get("candidate")
++    if not isinstance(candidate, dict):
++        raise SchemaError("candidate: expected an object")
++    for field, kind in FIELD_DEFINITIONS["global"]["candidate_fields"].items():
++        if field in candidate:
++            _check_kind("candidate.%s" % field, candidate[field], kind)
++    if not isinstance(candidate.get("id"), str) or not candidate["id"]:
++        raise SchemaError("candidate.id: expected non-empty string")
++
++    seen_ids = {}
++
++    def note_id(where, item_id):
++        if item_id in seen_ids:
++            raise SchemaError("duplicate id %r (%s and %s)" % (item_id, seen_ids[item_id], where))
++        seen_ids[item_id] = where
++
++    note_id("candidate", candidate.get("id"))
++
++    claims = bundle.get("claims", [])
++    if not isinstance(claims, list):
++        raise SchemaError("claims: expected an array")
++    for i, claim in enumerate(claims):
++        if not isinstance(claim, dict):
++            raise SchemaError("claims[%d]: expected an object" % i)
++        cid = claim.get("id")
++        if not isinstance(cid, str) or not cid:
++            raise SchemaError("claims[%d].id: expected non-empty string" % i)
++        note_id("claims[%d]" % i, cid)
++
++    nodes = bundle.get("nodes")
++    if not isinstance(nodes, list):
++        raise SchemaError("nodes: expected an array")
++    roles = FIELD_DEFINITIONS["roles"]
++    for i, node in enumerate(nodes):
++        where = "nodes[%d]" % i
++        if not isinstance(node, dict):
++            raise SchemaError("%s: expected an object" % where)
++        nid = node.get("id")
++        if not isinstance(nid, str) or not nid:
++            raise SchemaError("%s.id: expected non-empty string" % where)
++        note_id(where, nid)
++        role = node.get("role")
++        if not isinstance(role, str) or not role:
++            raise SchemaError("%s.role: expected non-empty string" % where)
++        if role in roles:
++            contracts, payload_fields = roles[role]
++            if contract not in contracts.split(","):
++                raise SchemaError("%s: role %r is not used by contract %s" % (where, role, contract))
++        for field, kind in FIELD_DEFINITIONS["global"]["node_fields"].items():
++            if field in node:
++                _check_kind("%s.%s" % (where, field), node[field], kind)
++        payload = node.get("payload")
++        if payload is not None:
++            if not isinstance(payload, dict):
++                raise SchemaError("%s.payload: expected an object" % where)
++            if role in roles:
++                _, payload_fields = roles[role]
++                for field, kind in payload_fields.items():
++                    if field in payload:
++                        _check_kind("%s.payload.%s" % (where, field), payload[field], kind)
++
++    records = bundle.get("records")
++    if records is not None:
++        if not isinstance(records, dict):
++            raise SchemaError("records: expected an object of arrays")
++        for name, entries in records.items():
++            if not isinstance(entries, list):
++                raise SchemaError("records.%s: expected an array" % name)
++            for i, entry in enumerate(entries):
++                where = "records.%s[%d]" % (name, i)
++                if not isinstance(entry, dict):
++                    raise SchemaError("%s: expected an object" % where)
++                eid = entry.get("id")
++                if not isinstance(eid, str) or not eid:
++                    raise SchemaError("%s.id: expected non-empty string" % where)
++                note_id(where, eid)
++                if "cites" in entry:
++                    _check_kind("%s.cites" % where, entry["cites"], "str_array")
++
++    parameters = bundle.get("parameters")
++    if parameters is not None and not isinstance(parameters, dict):
++        raise SchemaError("parameters: expected an object")
++    return True
++
++
++def emit_schema():
++    return json.dumps(FIELD_DEFINITIONS, indent=2, sort_keys=True)
++
++
++def generate_doc_section():
++    lines = []
++    lines.append(DOC_BEGIN)
++    lines.append("")
++    lines.append("## 9. Machine-readable schema (generated — do not edit by hand)")
++    lines.append("")
++    lines.append("Generated from the single field-definition source in")
++    lines.append("`tools/cur_artifact_schema.py` (`FIELD_DEFINITIONS`). Regenerate with")
++    lines.append("`python3 tools/cur_artifact_schema.py --check-doc` (fails on drift).")
++    lines.append("The checker validates STRUCTURE ONLY; the pinned mathematical facts")
++    lines.append("remain the checked handlers' and grader's business (section 0).")
++    lines.append("")
++    lines.append("```json")
++    lines.append(emit_schema())
++    lines.append("```")
++    lines.append("")
++    lines.append(DOC_END)
++    return "\n".join(lines)
++
++
++def check_doc(root):
++    path = os.path.join(root, DOC_PATH)
++    with open(path, "r", encoding="utf-8") as handle:
++        doc = handle.read()
++    if DOC_BEGIN not in doc or DOC_END not in doc:
++        return False, "documented schema section markers missing from " + DOC_PATH
++    start = doc.index(DOC_BEGIN)
++    end = doc.index(DOC_END) + len(DOC_END)
++    current = doc[start:end].rstrip("\n")
++    expected = generate_doc_section().rstrip("\n")
++    if current != expected:
++        return False, ("documented schema DRIFTED from the field definitions; "
++                       "regenerate the marked section in " + DOC_PATH)
++    return True, "documented schema matches the field definitions"
++
++
++def main(argv):
++    if len(argv) < 2:
++        sys.stderr.write("usage: cur_artifact_schema.py --check <bundle...> | --emit-schema | --check-doc\n")
++        return 3
++    if argv[1] == "--emit-schema":
++        print(emit_schema())
++        return 0
++    if argv[1] == "--check-doc":
++        ok, message = check_doc(os.getcwd())
++        print(("DOC-OK: " if ok else "DOC-DRIFT: ") + message)
++        return 0 if ok else 2
++    if argv[1] == "--check":
++        if len(argv) < 3:
++            sys.stderr.write("usage: cur_artifact_schema.py --check <bundle.json|bundle_dir>...\n")
++            return 3
++        failures = 0
++        for target in argv[2:]:
++            paths = []
++            if os.path.isdir(target):
++                for name in sorted(os.listdir(target)):
++                    if name.endswith(".json"):
++                        paths.append(os.path.join(target, name))
++            else:
++                paths.append(target)
++            for path in paths:
++                try:
++                    with open(path, "r", encoding="utf-8") as handle:
++                        bundle = json.load(handle)
++                    check_bundle(bundle)
++                    print("SCHEMA-VALID: %s" % path)
++                except SchemaError as error:
++                    failures += 1
++                    print("SCHEMA-INVALID: %s: %s" % (path, error))
++                except (OSError, ValueError) as error:
++                    failures += 1
++                    print("SCHEMA-INVALID: %s: unreadable (%s)" % (path, error))
++        return 0 if failures == 0 else 2
++    sys.stderr.write("unknown option %r\n" % argv[1])
++    return 3
++
++
++if __name__ == "__main__":
++    sys.exit(main(sys.argv))
+diff --git a/tools/tests/cur_schema/run.py b/tools/tests/cur_schema/run.py
+new file mode 100644
+index 0000000..2e95d31
+--- /dev/null
++++ b/tools/tests/cur_schema/run.py
+@@ -0,0 +1,148 @@
++#!/usr/bin/env python3
++"""cur_schema test suite — rejection cases, implementation coupling, drift.
++
++Three layers (per the SCHEMA-eng assignment):
++  1. REJECTION: malformed inputs must exit 2 — malformed collections,
++     duplicate identifiers, invalid numeric domains, contradictory
++     alternate move representations, incompatible schema versions,
++     unknown contracts, role/contract mismatches.
++  2. IMPLEMENTATION COUPLING: every existing extractor fixture
++     (tools/tests/cur_extractor/fixtures/) must be SCHEMA-VALID. The
++     definitions DESCRIBE the pinned implementation; a failure here is
++     a definitions bug (or a real mismatch to report with the fixture).
++  3. DRIFT: the generated section in protocol/G-ENG-ARTIFACT-SCHEMA.md
++     must match the field definitions exactly (--check-doc).
++
++Exit 0 only if every layer passes.
++"""
++
++import copy
++import json
++import os
++import subprocess
++import sys
++import tempfile
++
++HERE = os.path.dirname(os.path.abspath(__file__))
++ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
++TOOL = os.path.join(ROOT, "tools", "cur_artifact_schema.py")
++FIXTURES = os.path.join(ROOT, "tools", "tests", "cur_extractor", "fixtures")
++
++PASS_BUNDLE = {
++    "schema": "geng-bundle/v2",
++    "contract": "E4",
++    "candidate": {"id": "cand", "role": "candidate", "cites": ["params", "moves"], "text": "t"},
++    "claims": [{"id": "cl1", "kind": "assumption", "text": "pinned"}],
++    "nodes": [
++        {"id": "params", "role": "params", "kind": "assumption", "cites": ["cl1"],
++         "payload": {"houses": 2, "degree_bound": 3}},
++        {"id": "moves", "role": "moves", "kind": "derived", "cites": ["cl1"],
++         "payload": {"moves": [{"e_in": 2, "e_out": 1}]}},
++    ],
++}
++
++
++def mutate(**changes):
++    bundle = copy.deepcopy(PASS_BUNDLE)
++    for path, value in changes.items():
++        node = bundle
++        keys = path.split(".")
++        for key in keys[:-1]:
++            node = node[int(key)] if key.isdigit() else node[key]
++        last = keys[-1]
++        if value is None:
++            node.pop(last, None)
++        else:
++            node[last] = value
++    return bundle
++
++
++REJECTIONS = {
++    "malformed-cites-nonarray": mutate(**{"nodes.0.cites": "cl1"}),
++    "malformed-payload-nonobject": mutate(**{"nodes.0.payload": [1, 2]}),
++    "malformed-nodes-nonarray": mutate(**{"nodes": {"id": "x"}}),
++    "duplicate-id": mutate(**{"nodes.1.id": "params"}),
++    "invalid-numeric-domain": mutate(**{"nodes.0.payload.degree_bound": 11}),
++    "invalid-numeric-type": mutate(**{"nodes.0.payload.houses": "two"}),
++    "contradictory-move-representation": mutate(
++        **{"nodes.1.payload.moves": [{"e_in": 2, "e_out": 1, "d": 4, "s": 2}]}),
++    "incompatible-schema-version": mutate(**{"schema": "geng-bundle/v1"}),
++    "unknown-contract": mutate(**{"contract": "E5"}),
++    "role-contract-mismatch": mutate(**{"contract": "E3"}),
++    "bad-provenance-enum": mutate(**{"nodes.1.payload.moves": None, "nodes.1.role": "measure",
++                                     "nodes.1.payload": {"provenance": "guessed"}}),
++    "bad-rejection-class": mutate(**{"contract": "E7", "nodes.1.role": "rejected",
++                                     "nodes.1.payload": {"candidates": [{"name": "x", "class": "invariant"}]}}),
++}
++
++EXPECT_VALID = {
++    "alt-move-ds-shape": mutate(**{"nodes.1.payload.moves": [{"d": 3, "s": 1}]}),
++    "optional-fields-absent": mutate(**{"claims": None, "nodes.0.cites": None}),
++}
++
++
++def run_checker(path):
++    proc = subprocess.run([sys.executable, TOOL, "--check", path],
++                          capture_output=True, text=True)
++    return proc.returncode, proc.stdout.strip()
++
++
++def main():
++    failures = []
++    work = tempfile.mkdtemp(prefix="cur-schema-test-")
++    print("== layer 1: rejection cases ==")
++    for name, bundle in REJECTIONS.items():
++        path = os.path.join(work, name + ".json")
++        with open(path, "w", encoding="utf-8") as handle:
++            json.dump(bundle, handle)
++        code, out = run_checker(path)
++        ok = code == 2
++        print("  %-38s exit=%d %s" % (name, code, "OK (rejected)" if ok else "FAIL (not rejected)"))
++        if not ok:
++            failures.append(name)
++    for name, bundle in EXPECT_VALID.items():
++        path = os.path.join(work, name + ".json")
++        with open(path, "w", encoding="utf-8") as handle:
++            json.dump(bundle, handle)
++        code, out = run_checker(path)
++        ok = code == 0
++        print("  %-38s exit=%d %s" % (name, code, "OK (valid)" if ok else "FAIL (rejected: " + out + ")"))
++        if not ok:
++            failures.append(name)
++
++    print("== layer 2: implementation coupling (existing fixtures) ==")
++    count = 0
++    for name in sorted(os.listdir(FIXTURES)):
++        if not name.endswith(".json"):
++            continue
++        count += 1
++        path = os.path.join(FIXTURES, name)
++        code, out = run_checker(path)
++        # the extractor's own negative fixtures must ALSO be rejected (the
++        # checker agreeing with the pinned implementation is the coupling)
++        expect_reject = name.startswith("malformed-") or name.startswith("unsupported-")
++        ok = (code == 2) if expect_reject else (code == 0)
++        want = "OK (rejected like the extractor)" if expect_reject else "OK"
++        print("  %-38s exit=%d %s" % (name[:-5], code, want if ok else "FAIL " + out))
++        if not ok:
++            failures.append("fixture:" + name)
++
++    print("== layer 3: documented-schema drift ==")
++    proc = subprocess.run([sys.executable, TOOL, "--check-doc"],
++                          capture_output=True, text=True, cwd=ROOT)
++    print("  check-doc exit=%d %s" % (proc.returncode, proc.stdout.strip()))
++    if proc.returncode != 0:
++        failures.append("doc-drift")
++
++    print()
++    print("checked: %d rejection/valid cases, %d existing fixtures, 1 drift check" %
++          (len(REJECTIONS) + len(EXPECT_VALID), count))
++    if failures:
++        print("FAILURES: %s" % ", ".join(failures))
++        return 1
++    print("ALL LAYERS PASS")
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/verification/2026-09-09-SCHEMA-ENG-TRANSCRIPT.txt b/verification/2026-09-09-SCHEMA-ENG-TRANSCRIPT.txt
+new file mode 100644
+index 0000000..03ee0da
+--- /dev/null
++++ b/verification/2026-09-09-SCHEMA-ENG-TRANSCRIPT.txt
+@@ -0,0 +1,56 @@
++SCHEMA-ENG — artifact schema checker + drift tests — clean transcript
++Date (UTC): 2026-09-09T12:03:10Z
++Branch pinned: arena/01a066cf-cat-theo-machine @ e72755a (recorded before work; remote checked again at commit time)
++Provenance: fresh single-branch clone at e72755a; additions only — no extractor/grader/pipeline semantics changed
++
++== layer 1: rejection cases ==
++  malformed-cites-nonarray               exit=2 OK (rejected)
++  malformed-payload-nonobject            exit=2 OK (rejected)
++  malformed-nodes-nonarray               exit=2 OK (rejected)
++  duplicate-id                           exit=2 OK (rejected)
++  invalid-numeric-domain                 exit=2 OK (rejected)
++  invalid-numeric-type                   exit=2 OK (rejected)
++  contradictory-move-representation      exit=2 OK (rejected)
++  incompatible-schema-version            exit=2 OK (rejected)
++  unknown-contract                       exit=2 OK (rejected)
++  role-contract-mismatch                 exit=2 OK (rejected)
++  bad-provenance-enum                    exit=2 OK (rejected)
++  bad-rejection-class                    exit=2 OK (rejected)
++  alt-move-ds-shape                      exit=0 OK (valid)
++  optional-fields-absent                 exit=0 OK (valid)
++== layer 2: implementation coupling (existing fixtures) ==
++  e3-circular-support                    exit=0 OK
++  e3-contradictory                       exit=0 OK
++  e3-empty-support                       exit=0 OK
++  e3-not-in-kernel                       exit=0 OK
++  e3-partial-missing-odd-gen             exit=0 OK
++  e3-pass-decorative-label               exit=0 OK
++  e3-pass                                exit=0 OK
++  e3-role-only-negative-control          exit=0 OK
++  e3-self-citation                       exit=0 OK
++  e3-unrelated-support                   exit=0 OK
++  e3-unresolved-upstream                 exit=0 OK
++  e4-degree4-move                        exit=0 OK
++  e4-missing-degree-bound                exit=0 OK
++  e4-pass                                exit=0 OK
++  e4-role-only-negative-control          exit=0 OK
++  e4-terminal-global-min                 exit=0 OK
++  e7-no-samples                          exit=0 OK
++  e7-params-negative-control             exit=0 OK
++  e7-pass                                exit=0 OK
++  e7-preservation-fails                  exit=0 OK
++  e7-role-only-negative-control          exit=0 OK
++  e7-width-tag-only                      exit=0 OK
++  malformed-duplicate-id                 exit=2 OK (rejected like the extractor)
++  malformed-nonarray-cites               exit=2 OK (rejected like the extractor)
++  unsupported-contract                   exit=2 OK (rejected like the extractor)
++== layer 3: documented-schema drift ==
++  check-doc exit=0 DOC-OK: documented schema matches the field definitions
++
++checked: 14 rejection/valid cases, 25 existing fixtures, 1 drift check
++ALL LAYERS PASS
++
++SCHEMA_SUITE_EXIT=0
++
++regression: extractor/grader/pipeline selftests (untouched by this work):
++  pipeline selftest exit=0

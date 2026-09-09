@@ -1,0 +1,56 @@
+SCHEMA-ENG — artifact schema checker + drift tests — clean transcript
+Date (UTC): 2026-09-09T12:03:10Z
+Branch pinned: arena/01a066cf-cat-theo-machine @ e72755a (recorded before work; remote checked again at commit time)
+Provenance: fresh single-branch clone at e72755a; additions only — no extractor/grader/pipeline semantics changed
+
+== layer 1: rejection cases ==
+  malformed-cites-nonarray               exit=2 OK (rejected)
+  malformed-payload-nonobject            exit=2 OK (rejected)
+  malformed-nodes-nonarray               exit=2 OK (rejected)
+  duplicate-id                           exit=2 OK (rejected)
+  invalid-numeric-domain                 exit=2 OK (rejected)
+  invalid-numeric-type                   exit=2 OK (rejected)
+  contradictory-move-representation      exit=2 OK (rejected)
+  incompatible-schema-version            exit=2 OK (rejected)
+  unknown-contract                       exit=2 OK (rejected)
+  role-contract-mismatch                 exit=2 OK (rejected)
+  bad-provenance-enum                    exit=2 OK (rejected)
+  bad-rejection-class                    exit=2 OK (rejected)
+  alt-move-ds-shape                      exit=0 OK (valid)
+  optional-fields-absent                 exit=0 OK (valid)
+== layer 2: implementation coupling (existing fixtures) ==
+  e3-circular-support                    exit=0 OK
+  e3-contradictory                       exit=0 OK
+  e3-empty-support                       exit=0 OK
+  e3-not-in-kernel                       exit=0 OK
+  e3-partial-missing-odd-gen             exit=0 OK
+  e3-pass-decorative-label               exit=0 OK
+  e3-pass                                exit=0 OK
+  e3-role-only-negative-control          exit=0 OK
+  e3-self-citation                       exit=0 OK
+  e3-unrelated-support                   exit=0 OK
+  e3-unresolved-upstream                 exit=0 OK
+  e4-degree4-move                        exit=0 OK
+  e4-missing-degree-bound                exit=0 OK
+  e4-pass                                exit=0 OK
+  e4-role-only-negative-control          exit=0 OK
+  e4-terminal-global-min                 exit=0 OK
+  e7-no-samples                          exit=0 OK
+  e7-params-negative-control             exit=0 OK
+  e7-pass                                exit=0 OK
+  e7-preservation-fails                  exit=0 OK
+  e7-role-only-negative-control          exit=0 OK
+  e7-width-tag-only                      exit=0 OK
+  malformed-duplicate-id                 exit=2 OK (rejected like the extractor)
+  malformed-nonarray-cites               exit=2 OK (rejected like the extractor)
+  unsupported-contract                   exit=2 OK (rejected like the extractor)
+== layer 3: documented-schema drift ==
+  check-doc exit=0 DOC-OK: documented schema matches the field definitions
+
+checked: 14 rejection/valid cases, 25 existing fixtures, 1 drift check
+ALL LAYERS PASS
+
+SCHEMA_SUITE_EXIT=0
+
+regression: extractor/grader/pipeline selftests (untouched by this work):
+  pipeline selftest exit=0

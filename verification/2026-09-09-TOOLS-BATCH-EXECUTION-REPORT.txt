@@ -1,0 +1,78 @@
+Tools-batch execution report (routed: tools-first, scratch pattern) — 2026-09-09
+
+operator routing decisions: SCHEMA -> PIPELINE -> D11 -> WORKERS; scratch +
+patch artifacts (never push the source branch; never tag).
+
+======================================================================
+SCHEMA-eng — EXECUTED AND COMPLETE
+
+base:            arena/01a066cf @ e72755a (recorded before work; the
+                branch moved 789b79e -> e72755a DURING discovery — the
+                live lane landed PIPELINE-eng work; see below)
+commit:          9ba2f43 (scratch clone; NOT pushed to 01a066cf)
+patch artifact:  verification/2026-09-09-schema-eng.patch (git apply on
+                e72755a reproduces it)
+transcript:      verification/2026-09-09-SCHEMA-ENG-TRANSCRIPT.txt
+
+delivered:
+  - tools/cur_artifact_schema.py — single FIELD_DEFINITIONS source;
+    --emit-schema (machine-readable JSON); --check (structure-only
+    validation; exits 0/2/3 aligned with pipeline conventions);
+    --check-doc (drift: documented schema vs definitions, fails on
+    divergence)
+  - protocol/G-ENG-ARTIFACT-SCHEMA.md — generated section 9 between
+    CUR-SCHEMA markers; hand-written sections 0-8 unchanged
+  - tools/tests/cur_schema/run.py — three layers, ALL PASS:
+      layer 1: 12 rejection cases (malformed collections, duplicate
+        ids, invalid numeric domains/types, contradictory alternate
+        move representations, incompatible schema version, unknown
+        contract, role/contract mismatch, bad enums) + 2 must-valid
+        alternates
+      layer 2: implementation coupling — all 25 existing extractor
+        fixtures: 22 schema-valid, 3 negative fixtures rejected IN
+        AGREEMENT with the pinned extractor
+      layer 3: drift check DOC-OK
+  - dated transcript with provenance; pipeline selftest re-run exit 0
+    (no regression; extractor/grader untouched)
+
+honesty notes: the coupling layer caught two bugs in MY definitions
+during development (missing base kinds; generation.on_candidate is an
+int vector in reality, not an object) — definitions were corrected to
+DESCRIBE the pinned implementation, which is the assignment's rule.
+Capability separation (schema-valid != calculation-checked != universal
+claim != proof replay != execution provenance) is stated in the tool
+docstring, the generated section, and the doc's section 0.
+
+======================================================================
+PIPELINE-eng — COMPLETE BY THE LIVE LANE (not duplicated)
+
+During my discovery pass the branch moved: cd7f75c "PIPELINE-eng:
+harden cur_pipeline gate; only documented statuses grade" + e72755a
+transcript provenance commit. Verified against the assignment's test
+matrix via logs/2026-09-09-PIPELINE-HARDENING-CLEAN.txt (fresh detached
+worktree at cd7f75c): 12/12 — successful fixture; valid FAIL and
+CANNOT_DETERMINE; extractor exits 7 -> EXECUTION_ERROR; stale --out
+replaced by validated manifest; extractor timeout; extractor killed;
+grader no verdict; unwritable transcript; malformed input; foreign
+cwd; two concurrent invocations. This covers the assignment's matrix
+in full. No duplicate authored by this lane.
+
+======================================================================
+D11-eng and WORKERS-M3 — routed next (subsequent turns)
+
+D11 source pinned: INT line @ bfd4bd2 (port 768ea6f in ancestry, gate
+  tools/d11_gate.py with 5 conditions + P2 ablation) + arena/01a05cb0
+  @ 32d1d0b (scope control) + arena/01a072d5 @ 957fb4b (G-eng session).
+WORKERS-M3 source pinned: arena/01a05d5d @ 3c4382b (M1 driver 27/27,
+  M2 journal_driver, OBSERVATIONS vs PROPOSALS, replay-proven restore).
+
+======================================================================
+watch (cycle 6, recorded in the routing map @ 384ab5e)
+
+INT a3aeff4 -> bfd4bd2 (one [SHARED] item-1 commit, docs-only, "defect
+NOT closed" per its own record). Tags 15 unchanged. Amendment still the
+first unmet step; compose 74bb3e7 still out; no pre-launch tag.
+
+hygiene: session branch pushes only; the 01a066cf branch was never
+pushed by this lane; no tags; extractor/grader/pipeline semantics
+unchanged; artifact banned-phrase scans 0.
