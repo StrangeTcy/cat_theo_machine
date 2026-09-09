@@ -217,9 +217,11 @@ class OrJoin(M.Edge):
 class SerialAdmitProposal(M.Edge):
     def __init__(self, admitted, proposal, baseline=M.EmptyList):
         self.result = admitted
+        self.status = L.AdmissionRejectedLabel
         if M.IdentityCompare(M.Head(proposal)(), L.ProposalJournalLabel)() is M.truth_value:
             record = M.Pair(proposal, M.Pair(baseline, M.EmptyList))
             self.result = M.Pair(record, admitted)
+            self.status = L.ProposalJournalLabel
         super().__init__(
             inputs=M.Pair(admitted, M.Pair(proposal, M.Pair(baseline, M.EmptyList))),
             results=M.Pair(self.result, M.EmptyList),

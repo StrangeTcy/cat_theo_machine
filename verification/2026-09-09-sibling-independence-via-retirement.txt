@@ -1,0 +1,36 @@
+date: 2026-09-09
+line: arena/01a06da9-cat-theo-machine
+base: d5917947ea8ccb85183e5637094d2cc9b3758ddb
+ruling: RETIRE-IS-ENOUGH
+subject: sibling independence via RetireLaw / UnretireLaw; observation-queue boundary
+
+invocation:
+  /tmp/hyge-venv/bin/python isolated constructors on cat_theo_machine.testsuite
+
+results:
+  SharedSerialAdmissionAndStaleAttemptTest True
+  SharedSerialAdmitProposalAblationTest True
+  SharedSerialAdmitProposalCitesBaselineTest True
+  SharedCheckedAdmitProposalLoggingTest True
+  SharedSiblingIndependenceViaRetirementTest True
+  SharedObservationJournalBoundaryTest True
+
+sibling independence:
+  Worker A retired, B still active: yes
+  Worker A unretired, both active: yes
+  never-admitted retire leaves A and B active, C absent: yes
+  retire both then unretire B: only B active: yes
+  admission log unchanged by retirement: yes
+  base GraphVersion unchanged by retirement: yes
+
+observation boundary:
+  SerialAdmitProposal status AdmissionRejectedLabel, queued EmptyList: yes
+  CheckedAdmitProposal status AdmissionRejectedLabel, no install: yes
+  journal traces and residuals intact after rejection: yes
+
+not claimed:
+  learned-memory mask implemented
+  RetireLaw / UnretireLaw semantics changed
+  CONVERGE opened
+  tag cut
+  evidence-class neutrality

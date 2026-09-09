@@ -177,6 +177,17 @@ Compare is semantic (`M.Compare` on reconstructed Char identities), not `Identit
 
 Hold: INT two-shard suite + successor tag to `shared-7cf6394` before measurements count. No CONVERGE this cut.
 
+## INT ruling — RETIRE-IS-ENOUGH (recorded)
+
+```text
+ruling: RETIRE-IS-ENOUGH
+mechanism: RetireLaw / UnretireLaw (Step 33)
+test: shared_sibling_independence_via_retirement_test
+authority: this file
+```
+
+RetireLaw / UnretireLaw are the covering selective ablation for concurrency-sourced laws. The learned-memory mask remains absent; it was not implemented. Sibling independence is tested by retiring Worker A's law while Worker B stays active, then unretiring A.
+
 ## Finding — learned-memory mask does not cover SerialAdmitProposal laws
 
 Inspected 2026-09-07 on `56a5fc6` (base `shared-7cf6394`). No code change for a workaround.
@@ -213,13 +224,11 @@ Adjacent machinery that is not the mask:
 
 - `RetireLaw` / `UnretireLaw` (Step 33) append a `Retired` mark on one
   installed law and leave other installed laws active. That is
-  retirement, not mask disable/enable/reset. Using it as sibling
-  ablation would be a workaround. Not built this cut.
+  retirement, not mask disable/enable/reset.
 
-Verdict: lifecycle gap against invariant 3 for concurrency-sourced
-laws. Admission is serial and gated; ablation is version-level only.
-Sibling independence stays owed until a `[SHARED]` proposal lands the
-mask (or INT rules that RetireLaw is the covering disable).
+INT later ruled RETIRE-IS-ENOUGH. Sibling independence is covered by
+that mechanism (`shared_sibling_independence_via_retirement_test`).
+The mask remains absent; it is not required for this item.
 
 CONVERGE is unrelated and still waits on pool warming / snapshot reuse.
 

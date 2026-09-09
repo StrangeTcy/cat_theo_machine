@@ -13937,6 +13937,156 @@ class SharedCheckedAdmitProposalLoggingTest(M.Edge):
         return self.result
 
 
+class SharedSiblingIndependenceViaRetirementTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        work_dir = tempfile.mkdtemp(prefix="hyge-sibling-retire-")
+        snap_path = os.path.join(work_dir, "coordinator.snapshot.json")
+        Wmod.WriteMinimalSnapshot(snap_path)()
+        origin = Wmod.SnapshotIdentity(snap_path)()
+        reconstructed = Wmod.SnapshotIdentity(snap_path)()
+        left_a = M.Pair(Lmod.ZeroLabel, empty)
+        right_a = M.Pair(Lmod.SuccLabel, M.Pair(left_a, empty))
+        law_a = Gmod.CompileRuleToLaw(Pmod.Rule(left_a, right_a))()
+        left_b = M.Pair(Lmod.SuccLabel, M.Pair(left_a, empty))
+        right_b = M.Pair(Lmod.SuccLabel, M.Pair(left_b, empty))
+        law_b = Gmod.CompileRuleToLaw(Pmod.Rule(left_b, right_b))()
+        left_c = M.Pair(Lmod.SuccLabel, M.Pair(left_b, empty))
+        right_c = M.Pair(Lmod.SuccLabel, M.Pair(left_c, empty))
+        law_c = Gmod.CompileRuleToLaw(Pmod.Rule(left_c, right_c))()
+        journal_a = Wmod.ProposalJournal(
+            M.Pair(Gmod.Proposal(law_a, M.Char("worker-a"))(), empty)
+        )()
+        journal_b = Wmod.ProposalJournal(
+            M.Pair(Gmod.Proposal(law_b, M.Char("worker-b"))(), empty)
+        )()
+        encoded = Gmod.EncodeTermAsGraph(left_a)()
+        base = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(),
+            Gmod.GraphEdges(encoded)(),
+            empty,
+        )()
+        saved_base = base
+        authority = M.Char("shared-curator")
+        admit_a = Wmod.CheckedAdmitProposal(base, journal_a, reconstructed, snap_path, authority)
+        admit_a()
+        log_a = admit_a.result
+        admit_b = Wmod.CheckedAdmitProposal(admit_a.version, journal_b, origin, snap_path, authority)
+        admit_b()
+        log_b = admit_b.result
+        both = admit_b.version
+        retired_a = Gmod.RetireLaw(both, law_a)()
+        unretired_a = Gmod.UnretireLaw(retired_a, law_a)()
+        never_admitted = Gmod.RetireLaw(both, law_c)()
+        retired_both = Gmod.RetireLaw(retired_a, law_b)()
+        only_b = Gmod.UnretireLaw(retired_both, law_b)()
+        self.result = M.truth_value
+        if M.IdentityCompare(admit_a.status, Lmod.AdmissionSucceededLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(admit_b.status, Lmod.AdmissionSucceededLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(both)(), law_a)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(both)(), law_b)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(retired_a)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(retired_a)(), law_b)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(unretired_a)(), law_a)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(unretired_a)(), law_b)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(never_admitted)(), law_a)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(never_admitted)(), law_b)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(never_admitted)(), law_c)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(retired_both)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(retired_both)(), law_b)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(only_b)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(only_b)(), law_b)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(base, saved_base)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(base)(), law_a)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(admit_a.result, log_a)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(admit_b.result, log_b)() is M.false_value:
+            self.result = M.false_value
+        shutil.rmtree(work_dir, ignore_errors=True)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
+class SharedObservationJournalBoundaryTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        work_dir = tempfile.mkdtemp(prefix="hyge-observation-boundary-")
+        snap_path = os.path.join(work_dir, "coordinator.snapshot.json")
+        Wmod.WriteMinimalSnapshot(snap_path)()
+        origin = Wmod.SnapshotIdentity(snap_path)()
+        reconstructed = Wmod.SnapshotIdentity(snap_path)()
+        trace = M.Char("worker-trace")
+        residual = M.Char("worker-residual")
+        entries = M.Pair(trace, M.Pair(residual, empty))
+        observation = Wmod.ObservationJournal(entries)()
+        saved = observation
+        left = M.Pair(Lmod.ZeroLabel, empty)
+        right = M.Pair(Lmod.SuccLabel, M.Pair(left, empty))
+        law = Gmod.CompileRuleToLaw(Pmod.Rule(left, right))()
+        encoded = Gmod.EncodeTermAsGraph(left)()
+        base = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(),
+            Gmod.GraphEdges(encoded)(),
+            empty,
+        )()
+        serial = Wmod.SerialAdmitProposal(empty, observation)
+        serial()
+        checked = Wmod.CheckedAdmitProposal(
+            base,
+            observation,
+            reconstructed,
+            snap_path,
+            M.Char("shared-curator"),
+        )
+        checked()
+        self.result = M.truth_value
+        if M.IdentityCompare(serial.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial.result, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(checked.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(checked.queued, empty)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(checked.version)(), law)() is M.truth_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(base)(), law)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(observation, saved)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(M.Head(M.Head(M.Tail(observation)())())(), trace)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(
+            M.Head(M.Tail(M.Head(M.Tail(observation)())())())(),
+            residual,
+        )() is M.false_value:
+            self.result = M.false_value
+        shutil.rmtree(work_dir, ignore_errors=True)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class InvarianceFlipOneRefutesParityTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -16211,6 +16361,22 @@ def install_default_tests(graph):
             "shared_checked_admit_proposal_logging_test",
             empty,
             SharedCheckedAdmitProposalLoggingTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_sibling_independence_via_retirement_test",
+            empty,
+            SharedSiblingIndependenceViaRetirementTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_observation_journal_boundary_test",
+            empty,
+            SharedObservationJournalBoundaryTest(graph),
             M.truth_value,
         )
 
