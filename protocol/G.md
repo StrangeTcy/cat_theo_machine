@@ -525,8 +525,91 @@ Tier1 record exists (blueprint-only, unsourced → not convertible).
 
 ### Watch target
 
-Integration tip `origin/arena/01a06542` = `a3aeff4`. `protocol/research_protocol.md` STILL ABSENT; no
-wave-1 base tag. Trigger = new tag with `ef571b6` ancestor.
+Integration tip `origin/arena/01a06542` = **`bfd4bd2`** (moved from `a3aeff4` since Turn 8).
+`protocol/research_protocol.md` STILL ABSENT; no wave-1 base tag. Trigger = new tag with `ef571b6`
+ancestor.
+
+---
+
+## Turn 9 (2026-09-09) — blueprint runtime-readiness census (diagnostic, NOT a measurement)
+
+Executed the operator's 5-gate census against the authoritative integration tip. **Diagnostic run on
+the integration tip, not a frozen measurement.** No machine code / packs / labels / planner /
+TrainingRecord YAML changed. Run from a clean worktree; probe preserved at
+`verification/tools/gi_blueprint_readiness.py`.
+
+### Pinned inputs
+
+```text
+runtime source:   arena/01a06542-cat-theo-machine @ bfd4bd2
+blueprint source: arena/01a068c2-cat-theo-machine @ fb7a9b3
+python 3.11.2 / gmpy2 2.3.1 / PyYAML 6.0.3
+```
+
+### Gate results
+
+- **Gate A (constructors, exact-name):** A1 = 15/15 ABSENT; A2 = 57/57 genuinely-new ABSENT
+  (the only "present" names — `StepLabel`, `ZeroLabel`, `PairLabel` — are pre-existing core labels,
+  not the requested vocabulary; ruled out by exact-name check, no substring).
+- **Gate B (planner generators):** `ExtremalObligations` + `PigeonholeObligations` defined AND
+  dispatched in the production method-expansion loop (planner.py L1211-1290). `InvarianceObligations`,
+  `DivideObligations`, `SymmetryObligations` NOT defined and NOT dispatched. Confirms Ground-3
+  pre-finding against the actual runtime source.
+- **Gate C (D11):** `tools/d11_gate.py` exit 0 — all gated conditions PASS. Ported surface = ONLY
+  `ExprEqLabel -> eq` (arithmetic). Reachability is NARROW: no Divide/Symmetry count-goal head mapped.
+- **Gate D (D21/D22):** conclusion-goal selector correct (last goal-bearing entry). But
+  `attempt_training_record` gates SUCCESS on the CONCLUSION goal only; the per-obligation audit runs
+  only on the failure path and skips the conclusion => **BLOCKED-PER-OBLIGATION-AUDIT**, NOT
+  ACCEPTANCE-INSTRUMENT-READY.
+- **Gate E (E2 control):** loads (count=1, 4 obligations), **PARTIAL**, planner root Failed,
+  alternative Failed, method_text none, retained False — invariant obligation not derivable
+  (D11-content-pending signature). Matches the 2026-09-08 diagnostic at a3aeff4.
+
+### Readiness counts
+
+```text
+cards inspected 24
+BLOCKED-CONSTRUCTORS 24   (every card)
+BLOCKED-WAVE-TAG     24   (research_protocol.md absent)
+BLOCKED-D21-D22      24   (per-obligation audit not on the success path)
+BLOCKED-SOURCE       10   (the 10 unsourced Tier1 statements)
+BLOCKED-GENERATOR    10   (the 10 count-target Divide/Symmetry cards)
+BLOCKED-D11          10   (the 10 count-target Divide/Symmetry cards)
+BLOCKED-POLICY        5   (the 5 G4 decoys)
+READY-FOR-CONVERSION  0
+EXISTING-RECORD-CONTROL 0 (E2 is a canonical record, not a blueprint row)
+```
+
+ZERO cards are READY-FOR-CONVERSION today. Multiple blockers per card listed, never collapsed.
+
+### Defects / loci
+
+```text
+D-G1  all A1 (15) + A2 (57) constructors ABSENT at runtime tip (exact-name gate)
+D-G2  Divide/Symmetry have no obligation generator + not dispatched in the loop
+D-G3  D11 reachability NARROW (only ExprEq->eq ported); no count-goal head mapped
+D-G4  D21/D22: acceptance gates SUCCESS on conclusion only; per-obligation audit is
+      failure-path-only => BLOCKED-PER-OBLIGATION-AUDIT
+D-G5  no wave-1 base tag (research_protocol.md absent) => all BLOCKED-WAVE-TAG
+```
+
+### Reproducibility
+
+Ran twice from fresh processes (run4, run5). Normalized JSON byte-identical after excluding UTC
+metadata, run-variant elapsed, and the pack-load timing text in the D11-gate captured stdout.
+Deterministic rerun: YES. No ReadinessCensusNonDeterministic event.
+
+### First conversion candidates
+
+ZERO READY. The two cards with the fewest distinct blockers (already have a generator) are
+`curriculum/tier0/cards/extremal-longest-path.md` and `curriculum/tier0/cards/pigeonhole-residue-classes.md`
+(Tier0 proof-targets). They are the first to become un-blockable once (a) INT lands A1 constructors on
+an ef571b6-descended tag, (b) D21/D22 per-obligation audit is satisfied, (c) a wave-1 tag exists. The
+10 count-target Divide/Symmetry cards additionally wait on G-eng G1-completion; the 10 Tier1 cards on
+operator-supplied verbatim text.
+
+Artifacts: `verification/2026-09-09-GI-BLUEPRINT-RUNTIME-READINESS.txt` / `.json`; probe
+`verification/tools/gi_blueprint_readiness.py`.
 
 ---
 

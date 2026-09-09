@@ -1,0 +1,229 @@
+G/I-op blueprint runtime-readiness census (diagnostic, NOT a measurement)
+Date: 2026-09-09
+Agent: G/I-op
+Mode: diagnostic on the authoritative integration tip. No curriculum session.
+      No machine code / packs / labels / planner / TrainingRecord YAML changed.
+
+====================================================================
+INPUTS (pinned, verified)
+====================================================================
+runtime source:  arena/01a06542-cat-theo-machine
+runtime commit:  bfd4bd28de5765adbdabd1d152200fa67f11e5a2
+blueprint source: arena/01a068c2-cat-theo-machine
+blueprint commit: fb7a9b3303a32f3de6f19715701f839212a09601
+python: 3.11.2  gmpy2: 2.3.1  pyyaml: 6.0.3
+UTC start: 2026-09-09T01:57:27.148263+00:00
+
+WAVE TAG: ABSENT. protocol/research_protocol.md STILL ABSENT at the runtime tip
+          (verified via git cat-file -e). No wave-1 base tag. => every candidate
+          carries BLOCKED-WAVE-TAG. This is a measurement-gate block, not a card defect.
+
+====================================================================
+GATE A — CONSTRUCTOR CENSUS (exact-name; no substring)
+====================================================================
+Universe searched: the labels + machine module *Label names, resolved to the
+real object (class OR module-level instance). Exact name match only; e.g.
+`WordLabel` never counts because `ReasonUnknownWordLabel` etc. exist.
+
+requested set: A1 (15) + A2 (new-card) = 75 constructors.
+  present (3):  StepLabel, ZeroLabel, PairLabel   <- pre-existing core labels,
+                 NOT the A1/A2 vocabulary; no substring false-positives.
+                 (StepLabel is a real pre-existing label, relevant to the
+                  staircase card; PairLabel/ZeroLabel are core constructors.)
+  absent (72):  GraphLabel, VertexLabel, EdgeLabel, PathLabel, CycleLabel,
+                 DegreeLabel, IntegerLabel, RemainderLabel, ResidueClassLabel,
+                 CongruentLabel, WordLabel, BinaryWordLabel, AdjacentLabel,
+                 ColoringLabel, RotationLabel, BoardLabel, NumberLabel,
+                 EraseLabel, MoveLabel, CellLabel, SquareLabel, DominoLabel,
+                 TileLabel, CheckerboardLabel, CornerLabel, ColorLabel,
+                 StripLabel, GridLabel, TilingLabel, GlassLabel, UprightLabel,
+                 FlipLabel, CountUprightLabel, PartitionLabel, HouseLabel,
+                 SameHouseLabel, EnemyLabel, BitLabel, ParityOfOnesLabel,
+                 TournamentLabel, OutdegreeLabel, ReachableLabel,
+                 DirectedEdgeLabel, StairLabel, StaircaseLabel, SeqLabel,
+                 TernaryLabel, OneLabel, TwoLabel, StringLabel, NecklaceLabel,
+                 BeadLabel, CycleGroupLabel, OrbitLabel, CubeLabel, FaceLabel,
+                 HeadCountLabel, DragonLabel, CutLabel, GrowLabel, PointLabel,
+                 PlaneLabel, DistanceLabel, MidpointLabel, ConvexHullLabel,
+                 CoprimeLabel, GCFLabel, PrefixSumLabel, SubsetLabel,
+                 IntegersLabel, ResidueLabel, RotateLabel
+
+=> NO A1 constructor is present at the runtime tip. A2 is empty except for the
+   three pre-existing core labels. BLOCKED-CONSTRUCTORS for all 24 cards.
+
+====================================================================
+GATE B — PLANNER-GENERATOR CENSUS (source + structure, via planner.py)
+====================================================================
+method                  payload   obligation-gen defined   runs-in-loop
+  Invariance            yes       no                      no
+  Extremal              yes       yes (ExtremalObligations) yes
+  Pigeonhole            yes       yes (PigeonholeObligations) yes
+  Divide                yes       no                      no
+  Symmetry              yes       no                      no
+
+Production method-expansion loop (planner.py L1211-1290): only the
+`PigeonholeLabel` and `ExtremalLabel` branches call an obligation generator;
+`Invariance`, `Divide`, `Symmetry` are carried but emit NO children. This is
+the Ground-3 pre-finding, confirmed against the actual runtime source.
+
+=> Divide/Symmetry KEEP/0 generators (BLOCKED-GENERATOR on the 10 count-target
+   cards that need a count generator). Pigeonhole/Extremal HAVE generators.
+   Invariance has no obligation-generator class (proof-targets rely on the
+   method payload + existing rules, not a generator).
+
+====================================================================
+GATE C — D11 REACHABILITY (existing gate run on the runtime tree)
+====================================================================
+Ran: tools/d11_gate.py in the runtime worktree. Exit status 0.
+All gated conditions PASS:
+  1 shipped packs, ported arithmetic drifted as intended, unported unchanged
+  2 {sym:} no header -> 0 candidates
+  3 surface header -> 1 candidate, pack-rule provenance, audit emitted
+  4 unrelated goal -> 0 candidates
+  P1 ported probe -> >=1 candidate attributed to the port
+  P2 ablation -> matches back to 0
+  P3 no unported pack digest drift
+  P4 no fermat/flt/nosolutions/wiles/frey vocabulary
+  5 char-form fixture (diagnostic only, never cited as D11 fixed)
+
+Ported surface today: ONLY ExprEqLabel -> eq (arithmetic pack). Provenance
+LIBRARY_THEOREM; ablation restores 0. The D11 gate is GREEN for what it tests.
+
+BUT: reachability is NARROW. The only mapped goal head is `eq`. No Divide /
+Symmetry count-goal head has a surface mapping, and no constructor vocabulary
+exists to state them. So for the 10 count-target Divide/Symmetry cards the
+goal head is UNREACHABLE under the current port (BLOCKED-D11).
+
+====================================================================
+GATE D — D21/D22 ACCEPTANCE INTEGRITY (empirical probe)
+====================================================================
+Built a two-goal-bearing skeleton in-memory and inspected the real
+attempt_training_record path:
+  ObligationSkeletonConclusionGoal returns the LAST goal-bearing entry: yes
+  goal-bearing entries in the probe skeleton: 1 (the two-entry probe)
+  per-obligation discharge checked on the path: PARTIAL
+
+Determination: the conclusion-goal selector is correct. But attempt_training_record
+gates SUCCESS purely on the CONCLUSION goal being proved (the invariance
+pipeline, then the brute-search fallback). The per-obligation audit
+(_first_undischarged_obligation) runs ONLY on the FAILURE path and skips the
+conclusion goal. So an acceptance cycle that proves the conclusion can report
+SUCCESS without independently discharging every intermediate required
+obligation.
+
+Verdict: BLOCKED-PER-OBLIGATION-AUDIT (i.e. BLOCKED-D21-D22), not
+ACCEPTANCE-INSTRUMENT-READY. The instrument does not yet check EVERY required
+obligation on the success path.
+
+====================================================================
+GATE E — E2 CONTROL (existing record via real loader + attempt cycle)
+====================================================================
+record loads:  yes (count=1)
+method hint head:  Invariance (strategy_hint.matches G2)
+obligation count:  4 (initial, preserves, invariant, conclusion)
+status_text:  PARTIAL
+planner_root_status:  Failed
+alternative_status:  Failed
+method_text:  none
+retained:  False
+failure_reason:  obligation [invariant] Invariant(BlackboardProblem,
+  Parity(BoardSum,Odd)) not discharged: Knowledge([Invariant(...)]) not
+  derivable from the meaning structure   <- D11-content-pending signature,
+  consistent with the 2026-09-08 E2 diagnostic at a3aeff4.
+
+Classification: diagnostic on the integration tip (bfd4bd2), NOT a frozen
+measurement. E2 is an EXISTING-RECORD-CONTROL row.
+
+====================================================================
+READINESS MATRIX (24 rows) — multiple blockers listed, never collapsed
+====================================================================
+curriculum/tier0/cards/divide-binary-words.md              tier0    Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/cards/extremal-longest-path.md            tier0    Extremal    proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/cards/pigeonhole-residue-classes.md       tier0    Pigeonhole  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/cards/symmetry-square-rotations.md        tier0    Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/divide-decoy-even-ones.md          decoy    Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/extremal-decoy-equal-degrees.md    decoy    Extremal    policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/invariance-decoy-parliament.md     decoy    Invariance  policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md   decoy    Pigeonhole  policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/symmetry-decoy-labeled-square.md   decoy    Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/divide-domino-strip.md            heldout  Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/extremal-min-degree-path.md       heldout  Extremal    proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/invariance-seven-glasses.md       heldout  Invariance  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/pigeonhole-subset-sum.md          heldout  Pigeonhole  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/symmetry-triangle-rotations.md    heldout  Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md     tier1    Divide      count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-div-2-ternary-nocc00.md          tier1    Divide      count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-ext-1-no-midpoint.md             tier1    Extremal    proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-ext-2-tournament-king.md         tier1    Extremal    proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-inv-1-board-ab-erase.md          tier1    Invariance  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-inv-2-dragon-heads.md            tier1    Invariance  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-pig-1-sum-diff-div100.md         tier1    Pigeonhole  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-pig-2-coprime-from-1-100.md      tier1    Pigeonhole  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-sym-1-necklace-c5.md             tier1    Symmetry    count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md      tier1    Symmetry    count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+
+====================================================================
+READINESS COUNTS BY SINGLE BLOCKER (cards containing at least one)
+====================================================================
+EXISTING-RECORD-CONTROL 0
+BLOCKED-SOURCE           10
+BLOCKED-CONSTRUCTORS     24
+BLOCKED-GENERATOR        10
+BLOCKED-D11              10
+BLOCKED-D21-D22          24
+BLOCKED-POLICY           5
+READY-FOR-CONVERSION     0
+
+ZERO cards are READY-FOR-CONVERSION today. No card is a single-blocker case.
+
+====================================================================
+REPRODUCIBILITY
+====================================================================
+Ran the census twice from fresh processes (run4, run5) against the same pinned
+runtime commit bfd4bd2 and blueprint commit fb7a9b3. After excluding the UTC
+metadata, run-variant `elapsed`, and the pack-load timing text in the D11-gate
+captured stdout ("done in Xs"), the normalized JSON is BYTE-IDENTICAL
+(deterministic rerun: YES). No ReadinessCensusNonDeterministic event.
+
+====================================================================
+DEFECTS FOUND (new loci)
+====================================================================
+D-G1  All 15 A1 constructors (Graph/Vertex/Edge/Path/Cycle/Degree/Integer/
+      Remainder/ResidueClass/Congruent/Word/BinaryWord/Adjacent/Coloring/
+      Rotation) ABSENT at runtime tip. Same for the 57 genuine A2 new-card
+      constructors. No surface mapping makes them reachable. Enforced by Gate A
+      (exact name check, no substring).
+D-G2  Divide and Symmetry have NO obligation-generator class and are NOT
+      dispatched in the production method-expansion loop (only Pigeonhole and
+      Extremal are). Confirms Ground 0 (Ground-3 pre-finding) against the
+      actual runtime source, not a grep of a comment.
+D-G3  D11 reachability is NARROW: only ExprEqLabel->eq ported. No Divide/
+      Symmetry count-goal head is mapped, and no constructor vocabulary exists
+      to state those problems. The D11 gate itself is GREEN but does not cover
+      the count-target goal heads.
+D-G4  D21/D22: acceptance instrument gates SUCCESS on the conclusion goal only;
+      the per-obligation audit runs only on the failure path and skips the
+      conclusion. => BLOCKED-PER-OBLIGATION-AUDIT (not ACCEPTANCE-INSTRUMENT-READY).
+D-G5  No authorized wave-1 base tag (research_protocol.md absent) => all cards
+      BLOCKED-WAVE-TAG. A measurement-gate block, not a card defect.
+
+====================================================================
+FIRST CONVERSION CANDIDATES
+====================================================================
+None are conversion-ready (0 READY). The two cards with the FEWEST distinct
+blockers are the Tier0/Heldout proof-targets that already have a generator:
+  curriculum/tier0/cards/extremal-longest-path.md  (Extremal, proof)   [constructors + d21/d22 + wave]
+  curriculum/tier0/cards/pigeonhole-residue-classes.md (Pigeonhole, proof) [constructors + d21/d22 + wave]
+They need (a) INT to land the A1 constructor patch on an ef571b6-descended tag,
+(b) the D21/D22 per-obligation audit to be satisfied, (c) a wave-1 tag. They are
+NOT "first to convert" in the sense of ready; they are "first unblock-able"
+once those three gates close.
+
+The 10 count-target Divide/Symmetry cards additionally wait on G-eng
+G1-completion (DivideObligations / SymmetryObligations) AND the Ground-3
+ruling's fixed skeleton shapes. The 10 Tier1 cards additionally wait on the
+operator supplying verbatim statement text + method/target-class (unsourced).
+
+====================================================================
+END
+====================================================================

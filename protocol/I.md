@@ -319,3 +319,18 @@ blocked on:
   INT: [SHARED] A1 domain constructors
   INT: wave-1 tag (research_protocol.md unpublished)
 ```
+
+---
+
+## Turn 9 (2026-09-09) — blueprint runtime-readiness census (diagnostic)
+
+Ran the operator's 5-gate census against the authoritative integration tip
+`arena/01a06542` @ `bfd4bd2`; blueprint source `arena/01a068c2` @ `fb7a9b3`.
+Diagnostic run, not a frozen measurement; no machine code / packs / labels /
+planner / TrainingRecord YAML changed.
+
+- **Runtime tip moved**: `origin/arena/01a06542` is now `bfd4bd2` (was `a3aeff4` at Turn 8). `protocol/research_protocol.md` still ABSENT; no wave-1 base tag.
+- **Statement source status unchanged, now measured:** the 10 Tier1 statements remain **UNSOURCED** (fable 5.1); the census confirms they are BLOCKED-SOURCE (and carry additional constructors/generator/D21-D22 blockers). The operator's actual supplied set is still pending verbatim text + method/target-class.
+- **First un-block-able cards after the census:** the two Tier0 proof-targets that already have a generator — `extremal-longest-path` (Extremal) and `pigeonhole-residue-classes` (Pigeonhole). They wait on INT landing A1 constructors on an ef571b6-descended tag, D21/D22 per-obligation audit satisfaction, and a wave-1 tag. The 10 count-target Divide/Symmetry cards remain gated on G-eng G1-completion (`DivideObligations`/`SymmetryObligations`).
+
+Artifacts: `verification/2026-09-09-GI-BLUEPRINT-RUNTIME-READINESS.txt` / `.json`; probe `verification/tools/gi_blueprint_readiness.py`. Deterministic rerun confirmed (byte-identical normalized). Full results in the G.md Turn 9 block.
