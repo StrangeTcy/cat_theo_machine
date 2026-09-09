@@ -1,0 +1,47 @@
+CUR-GRADER-ENG PIPELINE HARDENING — clean-checkout transcript
+Date (UTC): 2026-09-09T01:30:16Z
+Branch: arena/01a066cf-cat-theo-machine
+Target tree HEAD before: 789b79e806a0e1c55d26478ea0d0bf37711443f4
+Remote branch: 789b79e806a0e1c55d26478ea0d0bf37711443f4
+
+=== tools/tests/cur_pipeline/hardening.py ===
+==============================================================================
+PIPELINE HARDENING — tools/tests/cur_pipeline/hardening.py
+==============================================================================
+  successful fixture -> 0                        OK
+  valid FAIL -> 1                                OK
+  valid CANNOT_DETERMINE -> 3                    OK
+  extractor exits 7 -> 2 EXECUTION_ERROR         OK
+  stale --out replaced by validated manifest     OK
+  extractor timeout -> 2 EXECUTION_ERROR         OK
+  extractor killed -> 2 EXECUTION_ERROR          OK
+  grader no verdict -> 2 EXECUTION_ERROR         OK
+  unwritable transcript -> 2 (no partial verdict) OK
+  malformed input -> 2 REJECTED                  OK
+  foreign working directory                      OK
+  two concurrent invocations                     OK
+==============================================================================
+SUMMARY: 12/12 pass, 0 fail
+==============================================================================
+
+=== tools/tests/cur_pipeline/run.py (baseline selftest) ===
+==============================================================================
+PIPELINE SELFTEST — tools/tests/cur_pipeline/run.py
+==============================================================================
+  e3-pass                          exit=0 expected=0 (OK)
+  e4-pass                          exit=0 expected=0 (OK)
+  e7-pass                          exit=0 expected=0 (OK)
+  e3-role-only-negative-control    exit=3 expected=3 (OK)
+  e7-no-samples                    exit=3 expected=3 (OK)
+  e4-degree4-move                  exit=1 expected=1 (OK)
+  e7-preservation-fails            exit=1 expected=1 (OK)
+  e3-not-in-kernel                 exit=2 expected=2 (OK)
+  malformed-duplicate-id           exit=2 expected=2 (OK)
+  unsupported-contract             exit=2 expected=2 (OK)
+  reject-path                      exit=2 expect 2, not-grading note present (OK)
+  foreign-cwd                      exit=0 (foreign cwd) (OK)
+==============================================================================
+SUMMARY: 12/12 pass, 0 fail
+==============================================================================
+
+SUMMARY: hardening=12/12 pass baseline=12/12 pass
