@@ -607,3 +607,59 @@ Boundary: the target sentence was NOT submitted; no teaching; no
 all probes constructed within the machine's own parse surface as
 exhibited by machine output (banner forms and the ratified decoy
 sentence's symbolic syntax).
+
+## 16. Matrix ratification and standing adoptions (2026-09-09)
+
+The reachability matrix was RATIFIED by the review channel (acceptance
+basis: this lane's report at 9b75349 and its verification chain). The
+ratification is archived verbatim at
+protocol/2026-09-09-F-PROVER-matrix-ratification-RECEIVED.txt. Three
+items are adopted as standing:
+
+1. D-G3-FPROBE — routing confirmed to INT/SHARED-D11, shell-level
+   consequence framing explicit, and the INT-facing note gains the
+   parser-surface line:
+
+       D-G3-FPROBE (complete form):
+         D11 ExprEq->eq does not affect FLT-shaped decoy residual on
+         bfd4bd2
+         mechanism: outer nosolutions goal gets 0 partial matches
+         measured frontier: bare eq -> 1 genuine partial match; +1
+           enclosing constructor (nosolutions | forall/implies) -> 0
+           partials, zero-successor-root residual
+         consequence: content port must create rules that partially
+           match the OUTER goal shape (nosolutions / forall / implies),
+           not only bare eq; arithmetic-level surface mappings move
+           this wall by exactly zero
+         phrasing constraint: symbolic atoms compile; word-form
+           arithmetic with '=' is refused at compile ("cannot read the
+           sentence past 'plus'"); any future decoy or target sentence
+           must be phrased with symbolic atoms
+         evidence: logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log
+
+2. Probe-isolation rule (instrument/procedure, same class as the
+   sandbox-reset discipline):
+
+       each probe gets a fresh worktree OR a cold checkpoint reset
+       between probes; a research checkpoint written by probe N must
+       not survive into probe N+1's boot.
+
+3. Conditional classification for future tagged builds:
+
+       on a TAGGED build, AFTER INT lands shell-level content, a stall
+       identical to the decoy wall (cost 334 / partial 0 /
+       zero-successor-root) routes as Blocked(outer-shape-unmatched)
+       rather than UncharacterizedStall. On the current untagged build
+       it remains diagnostic.
+       gating facts: (a) the build is owner-tagged; (b) shell-level
+       content has landed on it. Both must hold; neither is true of
+       bfd4bd2 today.
+
+The two-part baseline for any future tagged target session is recorded:
+the FLT-shaped goal stalls at 334/0/zero-successor-root, AND the stall
+is at the outer shell (proven by bare-eq liveness at the same tip);
+partial>0 at a target can therefore arise only from shell matching,
+which is the only place new content can change the reading.
+
+Lane state: verified hold. On a declared tag: start gate first, then
+decoy, then target, per protocol.

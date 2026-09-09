@@ -1,0 +1,110 @@
+F-PROVER protocol receipt record — reachability-matrix ratification and three adoptions
+session: FPS-20260905-A1
+date: 2026-09-09
+document: "opus 4.8" review of the reachability-matrix push (9b75349)
+channel: protocol owner review channel, direct paste
+acceptance basis (per the document): against this lane's report at 9b75349
+and its verification chain; the reviewer cannot independently resolve the
+arena SHAs from the public tip.
+
+ADOPTIONS BY THIS LANE (recorded in protocol/F.md section 16):
+1. D-G3-FPROBE routing confirmed to INT/SHARED-D11 with the shell-level
+   consequence framing explicit, plus the parser-surface phrasing line
+   added to the INT-facing note (symbolic atoms compile; word-form with
+   '=' refused; future decoy/target phrasing is constrained accordingly).
+2. Probe-isolation rule adopted as standing procedure: each probe gets a
+   fresh worktree OR a cold checkpoint reset between probes; a research
+   checkpoint written by probe N must not survive into probe N+1's boot.
+3. Conditional classification adopted: on a TAGGED build, AFTER INT lands
+   shell-level content, a stall at cost/partial/residual identical to the
+   decoy wall routes as Blocked(outer-shape-unmatched) rather than
+   UncharacterizedStall; on the current untagged build it remains
+   diagnostic. The conditional's two premises (tagged build; shell-level
+   content landed) are recorded as explicit gating facts.
+
+===== RECEIVED TEXT BEGINS =====
+
+**Reachability matrix ratified. The frontier is located, and it is not where the D11 port operates.** Acceptance is against your report at `9b75349` and your verification chain; I cannot independently resolve the arena SHAs from the public tip.
+
+## The measured frontier
+
+```text
+bare eq                          → partial 1, origin primitive   LIVE
++ nosolutions shell (B)          → partial 0, zero-successor-root SILENT
++ forall/implies shell (C1)      → partial 0, zero-successor-root SILENT
+full decoy stack (D)             → partial 0, zero-successor-root SILENT (= r1)
+```
+
+Two independent enclosing constructors produce the identical transition from live to silent. That is the load-bearing result: the wall is at the **first enclosing constructor**, not at `eq`. The D11 arithmetic port makes bare `eq` matchable and that reaches nothing at the FLT-shaped goal, because no rule partially matches the outer shape that stalls first.
+
+This converts "narrow reachability" from an assertion into a two-point measurement with a located boundary. D-G3-FPROBE now has direct evidence, not inference.
+
+## The consequence line is the one INT must act on
+
+```text
+content port must create rules that partially match the OUTER goal shape
+(nosolutions / forall / implies), not only bare eq
+```
+
+A future D11 content port that adds more arithmetic-level surface mappings will move this wall by exactly zero, because the stall precedes any arithmetic-position match. INT's D11 lane needs this: the missing rules are shell-level, not leaf-level. Route D-G3-FPROBE to INT/SHARED-D11 with that framing explicit.
+
+## Secondary findings accepted
+
+**Parser surface** — word-form arithmetic with `=` refused at compile ("cannot read the sentence past 'plus'"); symbolic-atom equations compile. Refusal precedes any attempt. This is a real parser-surface fact worth its own line in the INT-facing note, because it constrains how any future decoy or target must be phrased: symbolic atoms, not word-form-plus-equals.
+
+**Worktree-state contamination** — probe C's boot restored a leftover research checkpoint from probe A's process. You caught it, re-ran A1/C1 on fresh worktrees, and confirmed B/D still reproduced the ratified baseline. That is the correct handling: the contamination is named, isolated, and the affected probes re-run clean. One rule to carry forward:
+
+```text
+each probe gets a fresh worktree OR a cold-checkpoint reset between probes;
+a research checkpoint written by probe N must not survive into probe N+1's boot
+```
+
+File that as an instrument/procedure note — it is the same class as the sandbox-reset discipline, applied to intra-session probe isolation.
+
+**DEF-2026-09-09-10 (D12-HEADER-INCOMPLETE)** — accepted, correctly routed to INT as instrument class. The requirement stands: tag/commit and checkpoint identity fields must print even when values are `none`/`untagged`, so a future admissible measurement has a complete header.
+
+## Classification discipline held throughout
+
+```text
+no target run
+no teaching
+no suggest dependencies in any probe
+no proof language
+no fabricated capability
+all runs UNTAGGED-diagnostic, not F measurements
+```
+
+Every probe stayed within the machine's exhibited parse surface. No probe was constructed by guessing syntax the machine had not already shown it accepts.
+
+## The baseline this establishes
+
+Any future tagged target session must now beat a **two-part** wall, not one:
+
+```text
+1. the FLT-shaped goal stalls at cost 334 / partial 0 / zero-successor-root
+2. AND the stall is at the outer shell, proven by bare-eq being live at the
+   same tip — so a target that produces partial>0 must do so by matching the
+   shell, which is the only place new content can change the reading
+```
+
+A target session that produces the same 334/0/zero-successor-root is not merely "identical to decoy" — it is now known to be identical *because the shell has no matching rule*, and that is a characterized-enough stall to route as `Blocked(outer-shape-unmatched)` rather than `UncharacterizedStall`, **if and only if** it occurs on a tagged build after INT lands shell-level content. On the current untagged build it remains diagnostic.
+
+## Status
+
+```text
+agent: F-PROVER
+branch: arena/01a06e7b @ 9b75349
+reachability matrix: COMPLETE, frontier at first enclosing constructor
+D-G3-FPROBE: evidenced, routed to INT/SHARED-D11 with shell-level consequence
+parser-surface finding: recorded (symbolic atoms compile, word-form+= refused)
+probe-isolation rule: filed (fresh worktree / cold reset per probe)
+DEF-10: filed, INT-routed
+measurement authority: none
+next: hold — frontier is the baseline; on a declared tag, start gate then
+      decoy then target per protocol
+not touched: code, packs, parser, tags, Experiment 4
+```
+
+The instrument was run four ways at one wall, and it told you exactly where the wall begins. That is the difference between "it failed" and "it fails at the shell, and here is the proof the leaf is live." Route the shell-level consequence to INT; that is the finding that changes what the D11 content port must contain.
+
+===== RECEIVED TEXT ENDS =====
