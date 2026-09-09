@@ -1,0 +1,35 @@
+INT import-queue routing — 2026-09-09 (per operator instruction, fable 5.1)
+
+ITEM 1 — schema patch (SCHEMA-eng, ratified)
+  source: arena/01a06923-cat-theo-machine @ edaab56, patch 9ba2f43
+  base:   arena/01a066cf @ e72755a
+  rebase risk: 01a066cf is active; INT recomputes against the live tip
+               at import.
+  live-tip note (recorded after the routing instruction was issued):
+               01a066cf has since moved again — e72755a -> e904cfa via
+               c24b0f0 "SCHEMA-eng: raw-artifact schema checker +
+               generated G-ENG spec" (a SECOND, parallel SCHEMA-eng
+               implementation by the live lane) + e904cfa transcript
+               provenance. INT's import decision therefore has BOTH
+               implementations in evidence: mine (9ba2f43, ratified at
+               edaab56, three-layer suite 40/40, coupling layer
+               fixture-verified) and the live lane's (c24b0f0, on the
+               branch of record). This lane does not land on 01a066cf
+               and takes no position on which INT imports; the
+               ratification of 9ba2f43 by the operator stands as
+               recorded either way.
+
+ITEM 2 — D11-SHELL-ENG Phase 0+1 (this turn; informational for INT)
+  source: arena/01a06923 (this push), artifacts:
+    verification/2026-09-09-SHELL-FRONTIER-PHASE1.txt
+    verification/2026-09-09-shell-phase1.patch (commit fb09031 on
+      bfd4bd2, verification-only)
+  content: A/B/C baselines reproduced byte-exact (1/0/0, cost 334);
+    per-shell checker inspection; verdicts: both shells implementable
+    as candidate/residual exposure, CHECKER-BLOCKED for sound
+    proof-producing closure (no binder discipline in the substrate,
+    planner.py:186-190). Phase 2 (build) is characterization-only per
+    brief requirement 3 and waits on these verdicts' acceptance.
+
+watch fold: INT bfd4bd2 unchanged through this turn; tags 15;
+  01a066cf moved as above.

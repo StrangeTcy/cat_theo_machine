@@ -1,0 +1,179 @@
+D11-SHELL-ENG — Phase 0 + Phase 1 — 2026-09-09
+brief: protocol/2026-09-09-D11-SHELL-ENG-brief-and-INT-trigger-RECEIVED.txt
+  @ cd6b0ca (arena/01a06e7b), executed per operator routing (fable 5.1):
+  PHASE 0 + PHASE 1 ONLY this turn. No code changes (verified: this
+  commit touches only verification/ artifacts). Phase 2 waits on these
+  verdicts.
+
+runtime base (pinned, live ref verified): arena/01a06542-cat-theo-machine
+  @ bfd4bd28de5765adbdabd1d152200fa67f11e5a2 (unchanged at execution).
+inputs:
+  F request: d224b2c — protocol/F-SHELL-FRONTIER-REQUEST.md
+    (NosolutionsIntroduction, ForallImpliesDecomposition; acceptance on
+    a tagged build: shell partials > 0 with concrete unmatched premises,
+    goal unclosed; negative control same depth stays 0)
+  reachability evidence: 9b75349 —
+    logs/2026-09-09-F-PROVER-reachability-matrix-bfd4bd2.log
+environment: clean single-branch clone at bfd4bd2; THREE fresh detached
+  worktrees (A/B/C — one per probe, the probe-isolation rule F-PROVER
+  adopted at 5237605); gmpy2+pyyaml; each probe a fresh process.
+
+--------------------------------------------------------------------
+PHASE 0 — baselines reproduced (1 / 0 / 0), byte-exact vs the matrix
+
+Runner: verification/probes/2026-09-09-shell-phase0-probes.sh
+Raw captures: verification/probes/probe-{A,B,C}-raw.log
+
+  A  "prove that a + a = a + a"
+     parsed goal: (eq (plus a a) (plus a a))
+     FAILED. cost=334; rules with a genuine partial match: 1
+     residual: missing (eq (plus a a) (plus a a)) (rule origin primitive)
+  B  "prove that a + b = b + a has no solutions in positive integers"
+     parsed goal: (nosolutions positive-integers (unknowns a b)
+                   (eq (plus a b) (plus b a)))
+     FAILED. cost=334; rules with a genuine partial match: 0
+     residual record: (zero-successor-root ((nosolutions positive-integers
+       (unknowns a b) (eq (plus a b) (plus b a)))))
+  C  "prove that for all n > 1 a + a = a + a"
+     parsed goal: (forall n (implies (greater n 1) (eq (plus a a) (plus a a))))
+     FAILED. cost=334; rules with a genuine partial match: 0
+     residual record: (zero-successor-root ((forall n (implies (greater n 1)
+       (eq (plus a a) (plus a a))))))
+
+All three reproduce the ratified matrix exactly (parsed shapes, cost
+constant 334, counts 1/0/0, residual forms). No checkpoint-restore lines
+appear (fresh worktrees), matching the A1/C1 pristine re-run shape.
+
+--------------------------------------------------------------------
+PHASE 1 — inspection (all citations from the tree at bfd4bd2)
+
+SUBSTRATE FACTS (shared by all three shells)
+
+S1. parsed term shape: research goals are SYMBOL-ATOM-headed application
+    terms. The parser (main.py:4445-4460 sym/app; parse_statement
+    4532-4580; parse_sentence 4590-4610) builds `forall`, `implies`,
+    `nosolutions`, `unknowns`, `greater`, `eq`, `plus` as char atoms in
+    the research symbol table — NOT constructor labels. ForAllLabel
+    (labels.py:1326) exists but the research surface never uses it.
+S2. existing rule representation: compiled library rules are label-headed
+    terms; a pack `surface:` header swaps ONLY the head-position label
+    atom for a research-vocabulary symbol atom at compile time
+    (packs.py:151-160; the sole approved mapping is arithmetic's
+    ExprEqLabel -> eq, 768ea6f). Taught research rules parse in the same
+    symbol language (`(rule (premises ...) (conclusion ...))`,
+    main.py _research_parse_rule) — shell-headed terms are EXPRESSIBLE
+    as rule premises/conclusions. No shipped pack, primitive, or
+    surface mapping carries a rule headed forall/implies/nosolutions
+    (verified: no surface entries beyond arithmetic; no such labels).
+S3. candidate-selection path: the genuine-partial machinery is
+    goal-seeded conclusion matching — research.py:1785
+    (RuleGenuinePartialMatch): each rule's CONCLUSION is matched against
+    the goal facts; HeadsCompatible (research.py:1489) is the cheap
+    pre-reject, and it compares atom heads BY VALUE (M.Compare), so a
+    symbol-headed conclusion pattern is head-compatible with B/C goals —
+    head compatibility is NOT the blocker. On conclusion match,
+    PartialPremiseMatch scores the premises against facts; the record
+    lands as an AttemptedRule with AttemptedRuleUnmatched -> the
+    "residual: missing <premise> (rule origin <o>)" line (main.py:3098+).
+S4. residual representation: count==0 -> graph.last_residuals renders
+    ZeroSuccessorResidualLabel as zero-successor-root (label table
+    main.py:4732); count>0 -> per-attempt missing-premise lines. Probe A
+    shows the exact target format the shells must produce.
+S5. proof-checker support: the checker validates GENERIC rewrite
+    inferences (pattern-match premises, instantiate replacement —
+    Match/Instantiate/PartialPremiseMatch; no connective-specific
+    semantics for forall/implies/nosolutions anywhere in proof.py or the
+    firing path). The substrate has NO binder discipline and no
+    checker-enforced freshness/eigenvariable conditions — stated in
+    tree at planner.py:186-190: "the caller owns freshness, because this
+    substrate has no binder discipline yet -- an Induction obligation is
+    honest only when its k appears nowhere in the surrounding problem.
+    Recorded as a term so the gate can check it, not silently assumed."
+    (The induction machinery is the in-tree precedent for the pattern:
+    side conditions recorded as terms for a gate, NOT validated by the
+    proof checker.)
+
+PER SHELL
+
+forall/implies (probe C):
+  parsed shape      (forall n (implies (greater n 1) <eq-body>)); n is a
+                    symbol-atom argument, not a bound variable in any
+                    checker sense (S1).
+  rule representation: expressible — a rule with conclusion pattern
+                    (forall ?n (implies ?c ?b)) compiles/teaches in the
+                    symbol language (S2); variable heads pass
+                    HeadsCompatible (S3).
+  checker support   NONE for sound closure: closing C soundly is a
+                    forall-INTRODUCTION needing the eigenvariable
+                    condition (the inner derivation must not depend on
+                    ?n); the checker cannot enforce it (S5).
+  candidate path    conclusion-vs-goal matching reaches the shell head
+                    by value (S3) — a genuine partial match recording
+                    the inner eq as the concrete unmatched premise is
+                    mechanically reachable, in exactly probe A's
+                    residual format.
+  residual repr.    today zero-successor-root (S4); after a shell rule,
+                    "missing (eq (plus a a) (plus a a)) (rule origin
+                    <shell>)".
+  inner exposure    YES without claiming the outer goal — PROVIDED the
+                    rule is designed not to fire to closure (premise
+                    set includes a condition the rewrite calculus
+                    cannot discharge; otherwise an UNSOUND closure
+                    becomes possible because nothing in the checker
+                    would stop it).
+  VERDICT:          implementable as candidate/residual exposure
+                    (characterization machinery); CHECKER-BLOCKED for
+                    sound proof-producing closure.
+
+nosolutions (probe B):
+  parsed shape      (nosolutions positive-integers (unknowns a b)
+                    <eq-body>) — domain and unknowns as symbol-atom
+                    arguments (S1).
+  rule representation: expressible, same symbol-language route (S2).
+  checker support   NONE for sound closure: closing a no-solutions
+                    claim needs refutation machinery (assume a witness,
+                    derive contradiction — negation/RAA semantics); the
+                    checker validates rewrites only, with no
+                    contradiction rule for this shape (S5).
+  candidate path    same as C: conclusion pattern matches the
+                    nosolutions head by value; the inner equation
+                    surfaces as the unmatched premise (S3).
+  residual repr.    same transition as C (S4).
+  inner exposure    YES, same design constraint as C (expose-only,
+                    never fire to closure).
+  VERDICT:          implementable as candidate/residual exposure;
+                    CHECKER-BLOCKED for sound proof-producing closure.
+
+eq (probe A, control): conclusion matching already works end-to-end —
+  the arithmetic surface mapping (ExprEqLabel -> eq, 768ea6f) puts one
+  primitive-origin rule's conclusion at the bare eq goal, yielding the
+  measured 1 genuine partial with its missing premise. This is the
+  template the shell rules generalize; requirement 5 of the brief
+  (arithmetic port unchanged) is respected by Phase 1 doing nothing.
+
+--------------------------------------------------------------------
+PHASE-2 SHAPE THIS SUPPORTS (for the record; not built this turn)
+
+Per brief requirement 3: since the checker lacks the connective
+semantics, Phase 2 may land ONLY candidate/residual characterization
+machinery — shell rules whose conclusion patterns match B/C heads and
+whose premise sets are designed NOT to be dischargeable by the rewrite
+calculus (a recorded general/witness condition in the induction
+precedent's style, planner.py:186-190), plus the machine failure naming
+the missing checker capability. Any proof-producing variant is
+checker-blocked until the substrate grows binder/side-condition
+validation — an INT/G-eng design decision, not a D11 patch.
+
+Negative-control note for Phase 3: an unrelated unsupported shell
+(e.g. a distinct unshelled constructor) must stay at 0 partials —
+head-compat by value (S3) means the negative control must differ in
+HEAD SYMBOL, not merely in arity.
+
+--------------------------------------------------------------------
+hygiene
+
+No code changes: this commit adds verification/ artifacts only (Phase-1
+report + probe runner + three raw logs). Base bfd4bd2 verified live at
+execution; watch through this turn: INT unchanged (bfd4bd2), tags 15,
+tools lane moved (e72755a -> e904cfa, recorded in the session report).
+Banned-phrase scan over this artifact and the probe script: 0 matches.
