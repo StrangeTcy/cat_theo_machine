@@ -2,7 +2,7 @@ CUR-SCHEMA TEST — tools/cur_artifact_schema.py (SCHEMA-eng)
 ===========================================================
 Date (UTC): 2026-09-09
 Branch: arena/01a066cf-cat-theo-machine (SCHEMA-eng)
-Base ref before work: 789b79e (recorded). Working tip after recover: e72755a.
+Base ref before work: 789b79e (recorded). Commit under test: c24b0f0 (fresh detached worktree).
 
 === schema selftest (tools/tests/cur_schema/run.py) ===
 See appended full output. Summary: 13/13 pass, 0 fail.
