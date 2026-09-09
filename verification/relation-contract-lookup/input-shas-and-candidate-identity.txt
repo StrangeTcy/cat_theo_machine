@@ -1,0 +1,85 @@
+Read-side relation-contract lookup bridge
+==========================================
+Record of inputs, resolved SHAs, and the reconstructed candidate identity.
+Two captures: 2026-09-09 (first reconstruction) and 2026-09-10 (fresh
+reconstruction rerun, performed after the sandbox reset destroyed the
+first worktree). Inputs are immutable; the 09-10 rerun rebuilt the
+candidate from the identical inputs and recipe.
+
+Inputs (recipe-pinned, immutable)
+---------------------------------
+Recipe-pinned replay base:
+  b812db904b44db72def705eb18a50bbe50c12cc2   (b812db9, pre-S; descends from
+                                             experiment-5-frozen-r1 ef571b6)
+
+Canonical S1 source:
+  897c07cdfbfec8866b2b0a0921012d13a646630a   (897c07c)
+
+Batch A - the five selected-source S commits (cherry-picked in order):
+  548c6f672de2de642b534b5c89a9a9ce6b65959e   [S] trace mining
+  8738bcf30660279b2ae5304924b1dc5a58e68503   [S] rent gate for compressions
+  1e451888aa24b7814c11711f9c2a7241cbd31d2f   [S] recursive turn
+  0e50bc179ca4aff8186a056db4f33e126461cca1   [S] invariant conjecture from fixed library
+  218a40f66d3aa1fb63c395f85db6202deb76f4c5   [S] learned-memory cycle for self-improvement
+
+Batch B - adapted replay diff:
+  verification/s1-replay/batch-b-897c07c-adapted.diff
+  sha256 5b2a298ff69cfad4f49afa0e81d9ad34b5dd250f5a3a55a0f6138add187f9f26
+
+Reconstruction commits - capture 2026-09-09 (destroyed by sandbox reset)
+------------------------------------------------------------------------
+The first reconstruction was performed in a detached worktree and
+destroyed when the sandbox was re-provisioned. Its recorded commit chain
+(post-A 4c7afbe, post-B fcf104a, post-C f2fcfa0) existed only in the
+local object store and is therefore no longer reachable. It was
+faithfully rebuilt on 2026-09-10 from the identical inputs (below).
+
+Reconstruction commits - capture 2026-09-10 (fresh rerun, authoritative)
+------------------------------------------------------------------------
+Cherry-picks of Batch A (one testsuite.py hunk each, resolved as in the
+port recipe: keep the r1 [S]-block and register in class form):
+  665610e...   <- 548c6f6  [S] trace mining
+  ee03432...   <- 8738bcf  [S] rent gate for compressions
+  8f237ce...   <- 1e45188  [S] recursive turn
+  08a500c...   <- 0e50bc1  [S] invariant conjecture from fixed library
+  f7ebfbf...   <- 218a40f  [S] learned-memory cycle for self-improvement
+
+post-A (Batch A + port deltas 3/4: five S labels registered in both
+tables, EXPECTED_GUARD_COUNT 305 -> 310):
+  b65d679be8136cccd8a59ecb16c64bf7b037a48a
+
+post-B (Batch B adapted diff applied: import kept, registrations moved to
+the [S] block in class form, four contract labels registered in both
+tables, EXPECTED_GUARD_COUNT 310 -> 312):
+  7c2625b8bc0830c6149a37852b855a18ce8d3b69
+
+post-C (read-side bridge: RelationContractsFor + RelationContractMeets +
+nine lookup tests, EXPECTED_GUARD_COUNT 312 -> 321):
+  082fc270e24545d581d48b72aab94fbe2020acc0
+  post-C tree: 67b0ac169aac45b8b3bfd78a64348d13318bbf84
+
+Reconstructed candidate identity
+--------------------------------
+The candidate tree for this ticket is post-C 082fc270..., whose parent
+chain is 7c2625b (post-B) -> b65d679 (post-A) -> f7ebfbf -> 08a500c ->
+8f237ce -> ee03432 -> 665610e -> b812db9. The bridge surface is exactly
+the diff b65d679..082fc27 restricted to research.py + testsuite.py,
+recorded as read-side-bridge.diff in this directory (applies cleanly to
+post-B; reproduces the post-C tree exactly).
+
+Test evidence (both captures)
+-----------------------------
+2026-09-09  test-output-2026-09-09.txt  nine lookup tests 9/9 PASS
+2026-09-10  test-output-2026-09-10.txt  nine lookup tests 9/9 PASS
+                                     (fresh reconstruction rerun)
+2026-09-10  combined 17/17 PASS: the nine lookup tests plus
+            test_shard_cursor_pin_test (hard 218/0 held, soft 321),
+            both Batch-B tests, and all five Batch-A tests.
+            EXPECTED_GUARD_COUNT 321, EXPECTED_CURSOR_INDEX 218,
+            EXPECTED_SHARD 0 all hold.
+
+Harness: run-tests (this directory). Invocation used:
+    ./run-tests --checkout <reconstructed checkout>
+No unrecorded scratch commit: every reconstruction step is a resolved,
+recorded commit; the bridge work is committed as post-C, distinct from
+the A/B replay commits.

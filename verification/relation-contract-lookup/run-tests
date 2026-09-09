@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Read-side bridge test harness (verification/relation-contract-lookup/).
+
+Runs the nine S-scoped lookup tests against a reconstructed checkout of the
+package. The checkout is the package directory itself (the one that contains
+research.py, testsuite.py, machine.py, ...). It may live under any name; the
+harness exposes it to the interpreter as the `cat_theo_machine` package via a
+temporary symlink, so no repository path is hard-coded.
+
+Usage:
+    ./run-tests [--checkout DIR] [--out FILE]
+    ./run-tests [--checkout DIR] [NAME ...]    # override the nine names
+    ./run-tests [--checkout DIR] --all         # whole suite, no filter
+
+The default NAME list is the nine relation-contract lookup tests. `--fresh`
+boots a bare runtime instead of the packs (much faster; only for tests that
+build their own state -- the lookup tests use the packs, so do not pass
+--fresh for them). `--out FILE` writes the full output to FILE in addition to
+stdout.
+"""
+import os
+import sys
+import tempfile
+import time
+
+NAMES = [
+    "relation_contract_lookup_matching_test",
+    "relation_contract_lookup_missing_extensionality_test",
+    "relation_contract_lookup_unrelated_test",
+    "relation_contract_lookup_reordered_duplicated_test",
+    "relation_contract_lookup_refusal_test",
+    "relation_contract_lookup_conflicting_arity_test",
+    "relation_contract_lookup_source_equality_test",
+    "relation_contract_lookup_codec_round_trip_test",
+    "relation_contract_lookup_non_activation_test",
+]
+
+
+def _m_list(names):
+    import cat_theo_machine.machine as M
+
+    chain = M.EmptyList
+    for name in reversed(names):
+        chain = M.Pair(M.Char(name), chain)
+    return chain
+
+
+def main(argv):
+    fresh = "--fresh" in argv
+    use_all = "--all" in argv
+    checkout = None
+    out_path = None
+    names = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--checkout", "--out") and i + 1 < len(argv):
+            if a == "--checkout":
+                checkout = argv[i + 1]
+            else:
+                out_path = argv[i + 1]
+            i += 2
+            continue
+        if a.startswith("--checkout="):
+            checkout = a.split("=", 1)[1]
+        elif a.startswith("--out="):
+            out_path = a.split("=", 1)[1]
+        elif not a.startswith("--"):
+            names.append(a)
+        i += 1
+
+    if checkout is None:
+        checkout = os.getcwd()
+    checkout = os.path.abspath(checkout)
+    if not use_all and not names:
+        names = NAMES
+
+    # Expose `checkout` as package `cat_theo_machine` without touching any
+    # repository path: if the checkout is not already named cat_theo_machine,
+    # point a temp dir symlink at it.
+    parent = os.path.dirname(checkout)
+    if os.path.basename(checkout) == "cat_theo_machine":
+        sys.path.insert(0, parent)
+    else:
+        tmp = tempfile.mkdtemp(prefix="bridge-harness-")
+        link = os.path.join(tmp, "cat_theo_machine")
+        os.symlink(checkout, link)
+        sys.path.insert(0, tmp)
+
+    import cat_theo_machine.machine as M
+    import cat_theo_machine.proof as P
+    import cat_theo_machine.graph as Gmod
+    from cat_theo_machine.testsuite import install_default_tests
+
+    P.SetDebugTrace(M.false_value)()
+    start = time.time()
+    if fresh:
+        from cat_theo_machine.runtime import make_fresh_runtime
+
+        graph = make_fresh_runtime().graph
+    else:
+        from cat_theo_machine.main import PACK_PATHS, _runtime_namespace
+        from cat_theo_machine.runtime import boot_from_packs
+
+        runtime, _packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+        graph = runtime.graph
+    graph._search_disable_console = M.truth_value
+    booted = time.time() - start
+
+    if not use_all:
+        Gmod.TestNameFilter(graph, _m_list(names))()
+
+    install_start = time.time()
+    install_default_tests(graph)
+    installed = time.time() - install_start
+
+    registered = 0
+    walker = M.FromContextGetTests(graph)()
+    while M.Compare(walker, M.EmptyList)() is M.false_value:
+        registered += 1
+        walker = M.Tail(walker)()
+
+    run_start = time.time()
+    Gmod.RunTests(graph)()
+    ran = time.time() - run_start
+
+    lines = [
+        "boot %.1fs   install %.1fs   run %.1fs   total %.1fs"
+        % (booted, installed, ran, time.time() - start),
+        "registered %d tests" % registered,
+    ]
+    if not use_all and registered != len(names):
+        lines.append(
+            "  WARNING: %d names were asked for and %d registered"
+            % (len(names), registered)
+        )
+    lines.append(str(Gmod.TestResultsSummary(graph)()))
+    lines.append(str(Gmod.TestResultsReport(graph)()))
+    report = "\n".join(lines)
+
+    print(report)
+    if out_path:
+        with open(out_path, "w", encoding="utf-8") as handle:
+            handle.write(report + "\n")
+    return 0 if "failed: 0" in report else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

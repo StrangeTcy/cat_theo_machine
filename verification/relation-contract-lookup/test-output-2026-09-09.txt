@@ -1,0 +1,35 @@
+Reading pack order-sign...
+Reading pack order-sign, done in 0.05s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.06s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.59s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.23s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.08s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.49s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.64s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.10s
+Reading pack geometry...
+Reading pack geometry, done in 2.79s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.43s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.01s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.88s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.54s
+boot 23.5s   install 94.5s   run 8.9s   total 126.8s
+registered 9 tests
+passed: 9   failed: 0   open: 0
+All the tests have passed.
