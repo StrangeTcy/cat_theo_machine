@@ -127,11 +127,22 @@
     "stderr": ""
   },
   "gateD": {
-    "conclusion_goal_is_entry2": true,
+    "conclusion_goal_is_entry2": null,
     "goal_bearing_entries": 1,
     "acceptance_instrument_ready": false,
     "verdict": "BLOCKED-PER-OBLIGATION-AUDIT",
-    "note": "ObligationSkeletonConclusionGoal returns the LAST goal-bearing entry (entry2), so the conclusion-goal selector is correct. But attempt_training_record gates SUCCESS on the CONCLUSION goal being proved (steps 2-3); the per-obligation audit (_first_undischarged_obligation, step 4) runs ONLY on the failure path and skips the CONCLUSION goal. A record whose intermediate required obligations are not individually discharged can therefore be reported SUCCESS. This is D21/D22 per-obligation-acceptance risk: the instrument checks the conclusion but does not independently discharge every required obligation. Verdict BLOCKED-PER-OBLIGATION-AUDIT, not ACCEPTANCE-INSTRUMENT-READY."
+    "note": "CORRECTED 2026-09-09 (appended, supersedes original Gate D): the original Gate D probe used an in-memory skeleton with a lead entry carrying an EMPTY goal, leaving 1 goal-bearing entry, so first==last was indistinguishable. A real multi-goal skeleton (E2 has 3 goal-bearing entries: initial, invariant, conclusion) shows ObligationSkeletonConclusionGoal returns the FIRST goal-bearing entry (initial), NOT the last (conclusion). D21 REPRODUCES at bfd4bd28. Separately, the D22 empirical probe confirms vacuous SUCCESS: a record whose intermediate obligation (entry C, Knowledge([Parity(3,Odd)])) is underivable still reports SUCCESS + retained=True because the per-obligation audit runs only on the failure path; control (remove C) also SUCCESS; fail-path (C only) PARTIAL. Verdict BLOCKED-PER-OBLIGATION-AUDIT (renamed from BLOCKED-D21-D22).",
+    "original": "RETAINED-FOR-HISTORY",
+    "conclusion_goal_is_entry0_initial": true,
+    "goal_bearing_entries_original_probe": 1,
+    "goal_bearing_entries_real_E2": 3,
+    "d21_reproduces": true,
+    "d21_loc": "training.py:250-257 (docstring line 244 inverted; returns FIRST goal-bearing entry, not last)",
+    "d22_vacuous_success_confirmed": true,
+    "d22_fixture": "verification/fixtures/d22-vacuous-success.yaml",
+    "d22_probe_report": "verification/2026-09-09-D22-EMPIRICAL-PROBE.txt",
+    "d21_probe_report": "verification/2026-09-09-D21-EMPIRICAL-PROBE.txt",
+    "original_note_retained": true
   },
   "gateE": {
     "record_loads": true,
@@ -161,9 +172,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/cards/extremal-longest-path.md",
@@ -182,9 +193,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/cards/pigeonhole-residue-classes.md",
@@ -203,9 +214,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/cards/symmetry-square-rotations.md",
@@ -222,9 +233,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/decoys/divide-decoy-even-ones.md",
@@ -243,9 +254,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/decoys/extremal-decoy-equal-degrees.md",
@@ -263,9 +274,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/decoys/invariance-decoy-parliament.md",
@@ -287,9 +298,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md",
@@ -312,9 +323,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/decoys/symmetry-decoy-labeled-square.md",
@@ -332,9 +343,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/heldout/divide-domino-strip.md",
@@ -354,9 +365,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/heldout/extremal-min-degree-path.md",
@@ -376,9 +387,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/heldout/invariance-seven-glasses.md",
@@ -397,9 +408,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/heldout/pigeonhole-subset-sum.md",
@@ -420,9 +431,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier0/heldout/symmetry-triangle-rotations.md",
@@ -440,9 +451,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md",
@@ -462,9 +473,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-div-2-ternary-nocc00.md",
@@ -484,9 +495,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-ext-1-no-midpoint.md",
@@ -505,9 +516,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-ext-2-tournament-king.md",
@@ -527,9 +538,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-inv-1-board-ab-erase.md",
@@ -547,9 +558,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-inv-2-dragon-heads.md",
@@ -568,9 +579,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-pig-1-sum-diff-div100.md",
@@ -589,9 +600,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-pig-2-coprime-from-1-100.md",
@@ -609,9 +620,9 @@
       "generator": true,
       "generated_children": 0,
       "d11_goal_head": "undetermined",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-sym-1-necklace-c5.md",
@@ -632,9 +643,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     },
     {
       "card": "curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md",
@@ -655,9 +666,9 @@
       "generator": false,
       "generated_children": null,
       "d11_goal_head": "unreachable",
-      "d21_d22": "blocked",
+      "d21_d22": "per_obligation_audit_blocked",
       "wave_tag": "absent",
-      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG"
+      "final_readiness": "BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG"
     }
   ],
   "deterministic_rerun": true,
@@ -667,5 +678,16 @@
     "D-G3",
     "D-G4",
     "D-G5"
+  ],
+  "corrections": [
+    {
+      "date": "2026-09-09",
+      "type": "D21/D22 empirical correction",
+      "summary": "D21 REPRODUCES (first-not-last, training.py:250-257); D22 vacuous SUCCESS empirically confirmed.",
+      "relabel": "BLOCKED-D21-D22 -> BLOCKED-PER-OBLIGATION-AUDIT",
+      "d21_status": "REPRODUCED",
+      "d22_status": "EMPIRICALLY-CONFIRMED",
+      "run4_run5": "UNTOUCHED"
+    }
   ]
 }

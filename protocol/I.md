@@ -334,3 +334,15 @@ planner / TrainingRecord YAML changed.
 - **First un-block-able cards after the census:** the two Tier0 proof-targets that already have a generator — `extremal-longest-path` (Extremal) and `pigeonhole-residue-classes` (Pigeonhole). They wait on INT landing A1 constructors on an ef571b6-descended tag, D21/D22 per-obligation audit satisfaction, and a wave-1 tag. The 10 count-target Divide/Symmetry cards remain gated on G-eng G1-completion (`DivideObligations`/`SymmetryObligations`).
 
 Artifacts: `verification/2026-09-09-GI-BLUEPRINT-RUNTIME-READINESS.txt` / `.json`; probe `verification/tools/gi_blueprint_readiness.py`. Deterministic rerun confirmed (byte-identical normalized). Full results in the G.md Turn 9 block.
+
+**ADDENDUM (2026-09-09): D21/D22 EMPIRICAL CORRECTION.** The census's Gate D "conclusion-goal
+selector is correct" was a fixture artifact and is RETRACTED. Two empirical probes on the same
+runtime tip `bfd4bd2`: **D21 REPRODUCES** — `ObligationSkeletonConclusionGoal._last_goal`
+(training.py:250-257) returns the FIRST goal-bearing entry, not the last (real E2 skeleton:
+initial/invariant/conclusion all carry goals; selector returns "initial", not "conclusion"). The
+census's Gate D probe had a lead entry with an EMPTY goal, leaving 1 goal-bearing entry so
+first==last. **D22 vacuous SUCCESS empirically confirmed** — fixture
+`verification/fixtures/d22-vacuous-success.yaml` (entry A present, entry B provable, entry C
+underivable) reports SUCCESS/retained=True with entry C never audited; control + fail-path isolate
+the audit-gap. D21 routed to INT as REPRODUCED, D22 fixture is the acceptance test for the
+per-obligation-audit fix.

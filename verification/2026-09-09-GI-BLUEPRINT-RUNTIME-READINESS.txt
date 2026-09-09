@@ -98,22 +98,32 @@ goal head is UNREACHABLE under the current port (BLOCKED-D11).
 GATE D — D21/D22 ACCEPTANCE INTEGRITY (empirical probe)
 ====================================================================
 Built a two-goal-bearing skeleton in-memory and inspected the real
-attempt_training_record path:
-  ObligationSkeletonConclusionGoal returns the LAST goal-bearing entry: yes
-  goal-bearing entries in the probe skeleton: 1 (the two-entry probe)
+attempt_training_record path. (SEE THE D21/D22 EMPIRICAL CORRECTION APPENDED
+AT THE END OF THIS FILE; the two lines below are the ORIGINAL finding and are
+RETRACTED by the correction.)
+  [ORIGINAL] ObligationSkeletonConclusionGoal returns the LAST goal-bearing entry: yes
+  [ORIGINAL] goal-bearing entries in the probe skeleton: 1 (the two-entry probe)
   per-obligation discharge checked on the path: PARTIAL
 
-Determination: the conclusion-goal selector is correct. But attempt_training_record
-gates SUCCESS purely on the CONCLUSION goal being proved (the invariance
-pipeline, then the brute-search fallback). The per-obligation audit
-(_first_undischarged_obligation) runs ONLY on the FAILURE path and skips the
-conclusion goal. So an acceptance cycle that proves the conclusion can report
-SUCCESS without independently discharging every intermediate required
-obligation.
+Determination: [ORIGINAL, RETRACTED] the conclusion-goal selector is correct.
+But attempt_training_record gates SUCCESS purely on the CONCLUSION goal being
+proved (the invariance pipeline, then the brute-search fallback). The
+per-obligation audit (_first_undischarged_obligation) runs ONLY on the FAILURE
+path and skips the conclusion goal. So an acceptance cycle that proves the
+conclusion can report SUCCESS without independently discharging every
+intermediate required obligation. (The per-obligation-audit half of this stands;
+the "selector is correct" half does NOT — D21 REPRODUCES, see the appended
+correction.)
 
-Verdict: BLOCKED-PER-OBLIGATION-AUDIT (i.e. BLOCKED-D21-D22), not
+Verdict: BLOCKED-PER-OBLIGATION-AUDIT (formerly conflated as BLOCKED-D21-D22), not
 ACCEPTANCE-INSTRUMENT-READY. The instrument does not yet check EVERY required
 obligation on the success path.
+
+NOTE (superseded below by the dated D21/D22 correction appended 2026-09-09): the
+first sentence above ("the conclusion-goal selector is correct") was WRONG. The
+empirical probes reproduced D21 (the selector returns the FIRST goal-bearing
+entry, not the last) and confirmed D22 (vacuous SUCCESS on a restated-initial).
+See "D21/D22 EMPIRICAL CORRECTION" appended at the end of this file.
 
 ====================================================================
 GATE E — E2 CONTROL (existing record via real loader + attempt cycle)
@@ -137,30 +147,30 @@ measurement. E2 is an EXISTING-RECORD-CONTROL row.
 ====================================================================
 READINESS MATRIX (24 rows) — multiple blockers listed, never collapsed
 ====================================================================
-curriculum/tier0/cards/divide-binary-words.md              tier0    Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/cards/extremal-longest-path.md            tier0    Extremal    proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/cards/pigeonhole-residue-classes.md       tier0    Pigeonhole  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/cards/symmetry-square-rotations.md        tier0    Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/decoys/divide-decoy-even-ones.md          decoy    Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
-curriculum/tier0/decoys/extremal-decoy-equal-degrees.md    decoy    Extremal    policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
-curriculum/tier0/decoys/invariance-decoy-parliament.md     decoy    Invariance  policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
-curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md   decoy    Pigeonhole  policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
-curriculum/tier0/decoys/symmetry-decoy-labeled-square.md   decoy    Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-POLICY;BLOCKED-WAVE-TAG
-curriculum/tier0/heldout/divide-domino-strip.md            heldout  Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/heldout/extremal-min-degree-path.md       heldout  Extremal    proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/heldout/invariance-seven-glasses.md       heldout  Invariance  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/heldout/pigeonhole-subset-sum.md          heldout  Pigeonhole  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier0/heldout/symmetry-triangle-rotations.md    heldout  Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md     tier1    Divide      count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-div-2-ternary-nocc00.md          tier1    Divide      count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-ext-1-no-midpoint.md             tier1    Extremal    proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-ext-2-tournament-king.md         tier1    Extremal    proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-inv-1-board-ab-erase.md          tier1    Invariance  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-inv-2-dragon-heads.md            tier1    Invariance  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-pig-1-sum-diff-div100.md         tier1    Pigeonhole  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-pig-2-coprime-from-1-100.md      tier1    Pigeonhole  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-sym-1-necklace-c5.md             tier1    Symmetry    count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
-curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md      tier1    Symmetry    count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-D21-D22;BLOCKED-WAVE-TAG
+curriculum/tier0/cards/divide-binary-words.md              tier0    Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/cards/extremal-longest-path.md            tier0    Extremal    proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/cards/pigeonhole-residue-classes.md       tier0    Pigeonhole  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/cards/symmetry-square-rotations.md        tier0    Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/divide-decoy-even-ones.md          decoy    Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/extremal-decoy-equal-degrees.md    decoy    Extremal    policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/invariance-decoy-parliament.md     decoy    Invariance  policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/pigeonhole-decoy-domino-board.md   decoy    Pigeonhole  policy-decoy src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/decoys/symmetry-decoy-labeled-square.md   decoy    Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-POLICY;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/divide-domino-strip.md            heldout  Divide      count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/extremal-min-degree-path.md       heldout  Extremal    proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/invariance-seven-glasses.md       heldout  Invariance  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/pigeonhole-subset-sum.md          heldout  Pigeonhole  proof        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier0/heldout/symmetry-triangle-rotations.md    heldout  Symmetry    count        src=full             BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-div-1-staircase-fibonacci.md     tier1    Divide      count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-div-2-ternary-nocc00.md          tier1    Divide      count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-ext-1-no-midpoint.md             tier1    Extremal    proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-ext-2-tournament-king.md         tier1    Extremal    proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-inv-1-board-ab-erase.md          tier1    Invariance  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-inv-2-dragon-heads.md            tier1    Invariance  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-pig-1-sum-diff-div100.md         tier1    Pigeonhole  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-pig-2-coprime-from-1-100.md      tier1    Pigeonhole  proof        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-sym-1-necklace-c5.md             tier1    Symmetry    count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
+curriculum/tier1/cards/t1-sym-2-cube-face-burnside.md      tier1    Symmetry    count        src=unsourced        BLOCKED-SOURCE;BLOCKED-CONSTRUCTORS;BLOCKED-GENERATOR;BLOCKED-D11;BLOCKED-PER-OBLIGATION-AUDIT;BLOCKED-WAVE-TAG
 
 ====================================================================
 READINESS COUNTS BY SINGLE BLOCKER (cards containing at least one)
@@ -170,7 +180,7 @@ BLOCKED-SOURCE           10
 BLOCKED-CONSTRUCTORS     24
 BLOCKED-GENERATOR        10
 BLOCKED-D11              10
-BLOCKED-D21-D22          24
+BLOCKED-PER-OBLIGATION-AUDIT          24
 BLOCKED-POLICY           5
 READY-FOR-CONVERSION     0
 
@@ -201,9 +211,15 @@ D-G3  D11 reachability is NARROW: only ExprEqLabel->eq ported. No Divide/
       Symmetry count-goal head is mapped, and no constructor vocabulary exists
       to state those problems. The D11 gate itself is GREEN but does not cover
       the count-target goal heads.
-D-G4  D21/D22: acceptance instrument gates SUCCESS on the conclusion goal only;
-      the per-obligation audit runs only on the failure path and skips the
-      conclusion. => BLOCKED-PER-OBLIGATION-AUDIT (not ACCEPTANCE-INSTRUMENT-READY).
+D-G4  D21/D22 per-obligation acceptance (CORRECTED 2026-09-09 — see the appended
+      D21/D22 EMPIRICAL CORRECTION): two distinct, reproduced defects.
+         D21: ObligationSkeletonConclusionGoal returns the FIRST goal-bearing
+              entry, not the last (training.py:250-257; docstring L244 inverted).
+              The census's "selector is correct" was a fixture artifact.
+         D22: attempt_training_record gates SUCCESS on the conclusion goal only;
+              the per-obligation audit runs only on the failure path and skips the
+              conclusion => vacuous SUCCESS (empirically confirmed).
+      => BLOCKED-PER-OBLIGATION-AUDIT (not ACCEPTANCE-INSTRUMENT-READY).
 D-G5  No authorized wave-1 base tag (research_protocol.md absent) => all cards
       BLOCKED-WAVE-TAG. A measurement-gate block, not a card defect.
 
@@ -223,6 +239,82 @@ The 10 count-target Divide/Symmetry cards additionally wait on G-eng
 G1-completion (DivideObligations / SymmetryObligations) AND the Ground-3
 ruling's fixed skeleton shapes. The 10 Tier1 cards additionally wait on the
 operator supplying verbatim statement text + method/target-class (unsourced).
+
+====================================================================
+D21/D22 EMPIRICAL CORRECTION (appended 2026-09-09, supersedes Gate D)
+====================================================================
+The Gate D determination above contended "the conclusion-goal selector is
+correct." That was a FIXTURE ARTIFACT, now corrected by two empirical probes on
+the SAME runtime tip bfd4bd2 (no code changed). Everything else in the census
+stands. This is an APPENDED dated correction; run4/run5 reproducibility, the
+readiness matrix, and counts are left as-is except for the token relabel
+BLOCKED-D21-D22 -> BLOCKED-PER-OBLIGATION-AUDIT.
+
+D21 — CONCLUSION-GOAL SELECTOR RETURNS FIRST, NOT LAST. REPRODUCES (LIVE).
+  Source (training.py):
+    class ObligationSkeletonConclusionGoal(M.Edge):
+        """The last skeleton entry that carries a goal term; that goal is the
+           conclusion."""                                    # docstring L244
+        def _last_goal(self, skeleton):                      # L250
+            if M.IdentityCompare(skeleton, M.EmptyList)() is M.truth_value:
+                return M.EmptyList
+            goal = ObligationSkeletonEntryGoal(M.Head(skeleton)())()  # L253
+            rest = self._last_goal(M.Tail(skeleton)())()     # L254
+            if M.IdentityCompare(goal, M.EmptyList)() is M.false_value:
+                return goal                                  # L256
+            return rest
+  Behaviour: recurses fully to build `rest`, then returns `goal` the first time
+  it is non-empty on the way back up. => the returned goal is the FIRST
+  goal-bearing entry in list order, NOT the last. Docstring L244 is INVERTED.
+  Empirical (real E2 record, real loader, 4 entries):
+    entry0 "initial"     goal         equals conclusion-goal = TRUE
+    entry1 "preserves"   no-goal      n/a
+    entry2 "invariant"   goal         equals conclusion-goal = FALSE
+    entry3 "conclusion"  goal         equals conclusion-goal = FALSE
+  => ObligationSkeletonConclusionGoal returns entry0 ("initial")'s goal, NOT
+     entry3 ("conclusion")'s. D21 = REPRODUCES at bfd4bd28. The census's Gate D
+     said "last goal-bearing entry: yes" only because its in-memory probe had a
+     leading entry with an EMPTY goal (1 goal-bearing entry), so first==last==trivial.
+  Implication: an acceptance cycle that proves the INITIAL goal can report SUCCESS
+  without ever `proving the actual conclusion entry`.
+
+D22 — VACUOUS SUCCESS ON A RESTATED-INITIAL. EMPIRICALLY CONFIRMED.
+  Fixture verification/fixtures/d22-vacuous-success.yaml:
+    id d22_vacuous_success
+    meaning_structure.start = Knowledge([Parity(2,Odd)])     (already present)
+    strategy_hint Invariance(Parity(2)) + rules_pack engel-blackboard
+    obligation_skeleton:
+      entry A "initial"       goal Knowledge([Parity(2,Odd)])
+      entry B "conclusion"    goal Knowledge([Parity(2,Odd)])   (provable)
+      entry C "intermediate"  goal Knowledge([Parity(3,Odd)])   (UNDERIVABLE)
+    test_instances: []
+  Result (fresh process, budget 20, real attempt_training_record):
+    status=SUCCESS  retained=True
+    method_text="invariance pipeline (strategy hint Invariance)"
+    planner_root=Failed  alternative=Failed
+    elapsed~3.7s  failure_reason=<empty>
+    conclusion-goal selector returned entry0+entry1 (both = conclusion goal);
+    entry C (underivable intermediate) was NEVER selected or audited.
+  CONTROL (entry C removed, A+B only): SUCCESS, retained=True  -> the fixture is
+    sound; SUCCESS is not a broken-record artifact, it is the audit-gap isolation.
+  FAIL-PATH (entry C only, conclusion underivable): PARTIAL, retained=False,
+    method=none, planner_root=Failed, alternative=Failed, elapsed~18-19s,
+    failure_reason "conclusion obligation not provable..."  -> the audit runs
+    ONLY on the failure path.
+
+  => A record whose intermediate required obligation is underivable can be
+     reported SUCCESS + retained=True. This is the vacuous-success defect.
+
+COMBINED ROUTING VERDICT (replaces Gate D):
+  BOTH D21 and D22 are REAL:
+    - D21 = conclusion-goal selector returns FIRST goal-bearing entry (LIVE,
+      training.py:250-257, docstring L244 inverted). Needs reconciliation.
+    - D22 = vacuous SUCCESS: per-obligation audit runs only on the failure path,
+      so the success path does not independently discharge every required
+      obligation. Confirmed empirically.
+  Readiness label: BLOCKED-PER-OBLIGATION-AUDIT (renamed from BLOCKED-D21-D22).
+  Self-contradiction is NOT resolved: the census's Gate D "selector is correct"
+  statement is retracted in favor of D21 REPRODUCES.
 
 ====================================================================
 END

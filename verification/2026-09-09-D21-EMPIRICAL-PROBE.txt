@@ -1,0 +1,78 @@
+D21 EMPIRICAL PROBE — conclusion-goal selector returns FIRST goal-bearing, not LAST
+Date: 2026-09-09
+Agent: G/I-op
+Mode: empirical probe against the real runtime source + real E2 record. No code
+      changed. Resolves the D21 "first-not-last" question left open by the census.
+
+====================================================================
+PINS
+====================================================================
+runtime source:  arena/01a06542-cat-theo-machine
+runtime commit:  bfd4bd28de5765adbdabd1d152200fa67f11e5a2
+python: 3.11.2  gmpy2: 2.3.1  pyyaml: 6.0.3
+UTC start: 2026-09-09T03:15:23.690740+00:00
+UTC end:   2026-09-09T03:16:27.167033+00:00
+
+====================================================================
+SOURCE (training.py)
+====================================================================
+class ObligationSkeletonConclusionGoal(M.Edge):
+    """The last skeleton entry that carries a goal term; that goal is the conclusion."""
+
+    def __init__(self, skeleton):
+        self.result = self._last_goal(skeleton)
+        super().__init__(inputs=M.Pair(skeleton, M.EmptyList), results=self.result)
+
+    def _last_goal(self, skeleton):                     # training.py:250
+        if M.IdentityCompare(skeleton, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        goal = ObligationSkeletonEntryGoal(M.Head(skeleton)())()   # :253
+        rest = self._last_goal(M.Tail(skeleton)())()  # :254
+        if M.IdentityCompare(goal, M.EmptyList)() is M.false_value:
+            return goal   # :256
+        return rest
+
+BEHAVIOUR: it recurses fully to build `rest`, then returns `goal` the moment it
+sees a non-empty goal on the way back up. Because the guard is checked INWARD
+from the head (after recursing to the tail), the RETURNED GOAL IS THE FIRST
+goal-bearing entry in list order — NOT the last. The docstring on line 244
+("The last skeleton entry that carries a goal term") is INVERTED vs actual
+behaviour. This is the D21 first-not-last defect.
+
+====================================================================
+EMPIRICAL RESULT (real E2 record, real loader)
+====================================================================
+record training_records/engel_e2_blackboard_parity.yaml -> 4 skeleton entries:
+  entry0 id="initial"     has_goal=True   equals_conclusion-goal=TRUE
+  entry1 id="preserves"   has_goal=False  equals_conclusion-goal=n/a
+  entry2 id="invariant"   has_goal=True   equals_conclusion-goal=FALSE
+  entry3 id="conclusion"  has_goal=True   equals_conclusion-goal=FALSE
+
+ObligationSkeletonConclusionGoal returns a goal EQUAL TO entry0 ("initial").
+It does NOT return the goal of entry3 ("conclusion").
+
+==> D21 VERDICT: REPRODUCES at bfd4bd28.
+    The selector returns the FIRST goal-bearing entry (initial), not the LAST
+    (conclusion). Its docstring (training.py:246) is inverted.
+
+====================================================================
+WHY THE CENSUS MISSED IT (Gate D fixture artifact)
+====================================================================
+The census's in-memory Gate D probe built its "two-entry" skeleton with entry A
+carrying M.EmptyList as its GOAL. That left exactly ONE goal-bearing entry, so
+_last_goal's first-nonempty could not be distinguished from the last-nonempty —
+the selector trivially returned entry B regardless. With a REAL multi-goal
+skeleton (E2 has 3 goal-bearing entries), the HEAD-most / FIRST goal-bearing
+entry wins. So the census's "conclusion-goal selector is correct" statement was
+a fixture artifact, and D21 must be recorded as REPRODUCES (LIVE), not "passes".
+
+====================================================================
+IMPLICATION
+====================================================================
+Because the conclusion goal is taken to be the FIRST goal-bearing entry, an
+acceptance cycle that PROVES the initial goal (which is usually the same as the
+meaning-structure start fact) can report SUCCESS without ever having proved the
+actual conclusion entry. Combined with D22 (per-obligation audit only on the
+failure path), this is the D21/D22 per-obligation-acceptance risk. Fix must
+(a) select the true last goal-bearing entry and (b) audit EVERY required
+obligation on the success path.

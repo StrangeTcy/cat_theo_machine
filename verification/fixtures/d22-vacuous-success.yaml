@@ -1,0 +1,79 @@
+format: hyge-training-records
+version: 1
+records:
+- id: d22_vacuous_success
+  problem_statement:
+    text: 'D22 vacuous-success probe: a record whose intermediate obligation is underivable
+      but whose conclusion is provable. attempt_training_record reports SUCCESS because
+      SUCCESS gates on the conclusion goal only; the per-obligation audit runs only
+      on the failure path.'
+  meaning_structure:
+    start:
+      call:
+        head:
+          sym: KnowledgeLabel
+        args:
+        - list:
+          - call:
+              head:
+                sym: ParityLabel
+              args:
+              - char: '2'
+              - sym: OddLabel
+  strategy_hint:
+    method:
+      call:
+        head:
+          sym: InvarianceLabel
+        args:
+        - call:
+            head:
+              sym: ParityLabel
+            args:
+            - char: '2'
+            - sym: OddLabel
+    rules_pack: engel-blackboard
+  obligation_skeleton:
+  - id: initial
+    text: Initial present fact
+    goal:
+      call:
+        head:
+          sym: KnowledgeLabel
+        args:
+        - list:
+          - call:
+              head:
+                sym: ParityLabel
+              args:
+              - char: '2'
+              - sym: OddLabel
+  - id: conclusion
+    text: Provable conclusion
+    goal:
+      call:
+        head:
+          sym: KnowledgeLabel
+        args:
+        - list:
+          - call:
+              head:
+                sym: ParityLabel
+              args:
+              - char: '2'
+              - sym: OddLabel
+  - id: intermediate
+    text: Underivable intermediate
+    goal:
+      call:
+        head:
+          sym: KnowledgeLabel
+        args:
+        - list:
+          - call:
+              head:
+                sym: ParityLabel
+              args:
+              - char: '3'
+              - sym: OddLabel
+  test_instances: []

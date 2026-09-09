@@ -1,0 +1,103 @@
+D22 EMPIRICAL PROBE — vacuous SUCCESS on restated-initial
+Date: 2026-09-09
+Agent: G/I-op
+Mode: empirical probe, NOT a code-read. Fresh process, full budget (20).
+      Runs the REAL `TrainingRecordLoader` + `attempt_training_record` against the
+      authoritative integration tip. No machine code / packs / labels / planner /
+      TrainingRecord YAML changed.
+
+====================================================================
+INPUTS (pinned, verified)
+====================================================================
+runtime source:  arena/01a06542-cat-theo-machine
+runtime commit:  bfd4bd28de5765adbdabd1d152200fa67f11e5a2
+blueprint source: arena/01a068c2-cat-theo-machine
+blueprint commit: fb7a9b3303a32f3de6f19715701f839212a09601
+python: 3.11.2  gmpy2: 2.3.1  pyyaml: 6.0.3
+UTC start: 2026-09-09T03:11:59.578305+00:00
+UTC end:   2026-09-09T03:12:15.896372+00:00
+
+Fixture: verification/fixtures/d22-vacuous-success.yaml
+  id: d22_vacuous_success
+  meaning_structure.start: Knowledge([Parity(2,Odd)])     <- fact already present
+  strategy_hint: Invariance(Parity(2)) + rules_pack engel-blackboard
+  obligation_skeleton:
+    entry A "initial"         goal Knowledge([Parity(2,Odd)])  <- present
+    entry B "conclusion"      goal Knowledge([Parity(2,Odd)])  <- provable
+    entry C "intermediate"    goal Knowledge([Parity(3,Odd)])  <- UNDERIVABLE
+  test_instances: []
+
+====================================================================
+D22 RESULT (MAIN record: A present, B provable, C underivable)
+====================================================================
+status:          SUCCESS
+retained:        True
+method_text:     "invariance pipeline (strategy hint Invariance)"
+planner_root:    Failed
+alternative:     Failed
+elapsed:         3.7s
+failure_reason:  <empty>
+
+conclusion-goal selector (real ObligationSkeletonConclusionGoal):
+  goal-bearing entries selected [(entry#, goal-equals-conclusion)]:
+    (0, True)   <- "initial"
+    (1, True)   <- "conclusion"          <- B
+    (2, False)  <- "intermediate"        <- C  (goal != conclusion-goal)
+  => the selector returns the FIRST goal-bearing entry (entry0), NOT the
+     conclusion entry. (D21 — see the D21 probe; documented separately.)
+
+Per the real path: entry C (the underivable intermediate, goal K(parity(3)))
+is NEVER audited. SUCCESS is gated on the conclusion-goal only. The
+per-obligation audit runs ONLY on the failure path.
+
+==> D22 VERDICT: EMPIRICALLY CONFIRMED vacuous-SUCCESS.
+
+====================================================================
+CONTROL (entry C removed — proves the fixture isolates the gap,
+         not a broken record)
+====================================================================
+Reshaped fixture to A + B only. Same runtime, fresh process, full budget.
+status:          SUCCESS
+retained:        True
+method_text:     "invariance pipeline (strategy hint Invariance)"
+planner_root:    Failed
+alternative:     Failed
+elapsed:         3.7s
+failure_reason:  <empty>
+
+=> The record is genuinely SUCCESS-capable, so the MAIN record's SUCCESS is
+   not an artifact of a broken record; it is the audit-gap isolation.
+
+====================================================================
+FAIL-PATH (C only — conclusion itself underivable)
+====================================================================
+Reshaped fixture to entry C only (goal K(parity(3)), underivable).
+status:          PARTIAL
+retained:        False
+method_text:     none
+planner_root:    Failed
+alternative:     Failed
+elapsed:         19.1s
+failure_reason:  "conclusion obligation not provable..."
+
+=> On the FAILURE path the audit DOES run (obligation text present). This
+   confirms the audit is present but gated to the failure path only.
+
+====================================================================
+INTERPRETATION
+====================================================================
+`attempt_training_record` reports SUCCESS + retained=true for a record whose
+intermediate required obligation (entry C, K(parity(3))) is not derivable.
+The acceptance cycle proves the conclusion goal only; it does NOT
+independently discharge every intermediate obligation on the success path.
+
+This is the per-obligation-audit defect (previously conflated with D21 in the
+census tag BLOCKED-D21-D22; now relabelled BLOCKED-PER-OBLIGATION-AUDIT, with
+D21 recorded separately as a reproducing first-not-last defect).
+
+ACCEPTANCE TEST for the fix (what must FLIP):
+  Under a corrected per-obligation audit, this fixture must NOT report
+  SUCCESS/retained=True while entry C is underivable. Either the cycle must
+  FAIL (audit the intermediate and reject), or it must genuinely discharge
+  entry C. After the fix, re-run this fixture with the same pinned runtime
+  and record the new status/retained/method_text.

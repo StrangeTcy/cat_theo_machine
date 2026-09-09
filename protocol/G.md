@@ -557,10 +557,11 @@ python 3.11.2 / gmpy2 2.3.1 / PyYAML 6.0.3
   pre-finding against the actual runtime source.
 - **Gate C (D11):** `tools/d11_gate.py` exit 0 — all gated conditions PASS. Ported surface = ONLY
   `ExprEqLabel -> eq` (arithmetic). Reachability is NARROW: no Divide/Symmetry count-goal head mapped.
-- **Gate D (D21/D22):** conclusion-goal selector correct (last goal-bearing entry). But
-  `attempt_training_record` gates SUCCESS on the CONCLUSION goal only; the per-obligation audit runs
-  only on the failure path and skips the conclusion => **BLOCKED-PER-OBLIGATION-AUDIT**, NOT
-  ACCEPTANCE-INSTRUMENT-READY.
+- **Gate D (D21/D22):** SEE THE DATED CORRECTION APPENDED TO THIS TURN. Original: "conclusion-goal
+  selector correct (last goal-bearing entry)." — RETRACTED. D21 REPRODUCES: `ObligationSkeletonConclusionGoal`
+  returns the FIRST goal-bearing entry (training.py:250-257; docstring L244 inverted), not the last.
+  D22 vacuous SUCCESS empirically confirmed (per-obligation audit only on the failure path). =>
+  **BLOCKED-PER-OBLIGATION-AUDIT** (renamed from BLOCKED-D21-D22), NOT ACCEPTANCE-INSTRUMENT-READY.
 - **Gate E (E2 control):** loads (count=1, 4 obligations), **PARTIAL**, planner root Failed,
   alternative Failed, method_text none, retained False — invariant obligation not derivable
   (D11-content-pending signature). Matches the 2026-09-08 diagnostic at a3aeff4.
@@ -571,7 +572,7 @@ python 3.11.2 / gmpy2 2.3.1 / PyYAML 6.0.3
 cards inspected 24
 BLOCKED-CONSTRUCTORS 24   (every card)
 BLOCKED-WAVE-TAG     24   (research_protocol.md absent)
-BLOCKED-D21-D22      24   (per-obligation audit not on the success path)
+BLOCKED-PER-OBLIGATION-AUDIT 24  (D21 first-not-last + D22 vacuous SUCCESS; see correction)
 BLOCKED-SOURCE       10   (the 10 unsourced Tier1 statements)
 BLOCKED-GENERATOR    10   (the 10 count-target Divide/Symmetry cards)
 BLOCKED-D11          10   (the 10 count-target Divide/Symmetry cards)
@@ -588,7 +589,8 @@ ZERO cards are READY-FOR-CONVERSION today. Multiple blockers per card listed, ne
 D-G1  all A1 (15) + A2 (57) constructors ABSENT at runtime tip (exact-name gate)
 D-G2  Divide/Symmetry have no obligation generator + not dispatched in the loop
 D-G3  D11 reachability NARROW (only ExprEq->eq ported); no count-goal head mapped
-D-G4  D21/D22: acceptance gates SUCCESS on conclusion only; per-obligation audit is
+D-G4  D21/D22 (CORRECTED): D21 = conclusion-goal selector returns FIRST goal-bearing,
+      not last (training.py:250-257); D22 = vacuous SUCCESS, per-obligation audit is
       failure-path-only => BLOCKED-PER-OBLIGATION-AUDIT
 D-G5  no wave-1 base tag (research_protocol.md absent) => all BLOCKED-WAVE-TAG
 ```
@@ -637,3 +639,45 @@ blocked on:
   INT: [SHARED] A1 domain constructors (4 groups above)
   operator: authoritative Engel statement text for the four new problems
 ```
+
+---
+
+## Turn 9 ADDENDUM — D21/D22 EMPIRICAL CORRECTION (2026-09-09, appended; does NOT
+rewrite the census run4/run5 outputs or the readiness matrix above, which only
+had its label renamed `BLOCKED-D21-D22` -> `BLOCKED-PER-OBLIGATION-AUDIT`)
+
+The operator asked for an empirical D21/D22 probe (not a code-read) and for the
+census Gate D verdict to be corrected if it was wrong. It was. Two probes on the
+SAME pinned runtime tip `bfd4bd2`:
+
+- **D21 —— REPRODUCES (LIVE), not "not reproduced".** `ObligationSkeletonConclusionGoal._last_goal`
+  (training.py:250-257) recurses fully to build `rest`, then returns `goal` the first
+  time it is non-empty on the way back up => it returns the FIRST goal-bearing entry,
+  NOT the last. Its docstring (L244, "The last skeleton entry that carries a goal term")
+  is INVERTED. Empirical (real E2 record, 4 entries: initial=goal, preserves=no-goal,
+  invariant=goal, conclusion=goal): the selector returns the goal of **entry0 "initial"**
+  (equals_conclusion=TRUE); entry2/entry3 (invariant/conclusion) are FALSE. The census's
+  Gate D said "returns the LAST: yes" only because its in-memory probe had a lead entry
+  with an EMPTY goal (=> exactly 1 goal-bearing entry, so first==last==trivial). D21 is a
+  genuine defect and must be routed to INT, NOT closed.
+- **D22 —— vacuous SUCCESS EMPIRICALLY CONFIRMED.** Fixture `verification/fixtures/d22-vacuous-success.yaml`
+  (id `d22_vacuous_success`): entry A = fact already present in the meaning structure
+  `Knowledge([Parity(2,Odd)])`; entry B = provable conclusion; entry C = underivable
+  intermediate `Knowledge([Parity(3,Odd)])`. Real `attempt_training_record`, full budget,
+  fresh process => **SUCCESS, retained=True**, method "invariance pipeline (strategy hint
+  Invariance)", planner_root Failed, alternative Failed, failure_reason empty; the
+  conclusion-goal selector returned entry0+entry1, and entry C was NEVER selected/audited.
+  CONTROL (entry C removed): SUCCESS, retained=True (proves the fixture isolates the gap,
+  not a broken record). FAIL-PATH (entry C only, conclusion underivable): **PARTIAL,
+  retained=False**, method=none, planner_root Failed, alternative Failed, failure_reason
+  "conclusion obligation not provable..." => the per-obligation audit runs ONLY on the
+  failure path. Combined verdict: the acceptance instrument reports SUCCESS for a record
+  whose required intermediate obligation is not derable.
+
+Routing: **D21 = REPRODUCED** (file:line training.py:250-257) needs reconciliation; the
+**D22 fixture** is the acceptance test the per-obligation-audit fix must FLIP (post-fix,
+this fixture must NOT be SUCCESS/retained=True while entry C is underivable).
+
+Artifacts appended: `verification/2026-09-09-D21-EMPIRICAL-PROBE.txt`,
+`verification/2026-09-09-D22-EMPIRICAL-PROBE.txt`,
+`verification/fixtures/d22-vacuous-success.yaml`.
