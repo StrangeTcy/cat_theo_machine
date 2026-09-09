@@ -1,0 +1,54 @@
+CUR-SCHEMA TEST — tools/cur_artifact_schema.py (SCHEMA-eng)
+===========================================================
+Date (UTC): 2026-09-09
+Branch: arena/01a066cf-cat-theo-machine (SCHEMA-eng)
+Base ref before work: 789b79e (recorded). Working tip after recover: e72755a.
+
+=== schema selftest (tools/tests/cur_schema/run.py) ===
+See appended full output. Summary: 13/13 pass, 0 fail.
+
+=== pipeline regression (unchanged entrypoint behavior) ===
+tools/tests/cur_pipeline/run.py        : 12/12 pass
+tools/tests/cur_pipeline/hardening.py  : 12/12 pass
+
+=== determinism ===
+emit-json      : byte-identical across two runs -> deterministic
+emit-markdown  : byte-identical across two runs -> deterministic; no timestamp/date literal
+
+=== extractor drift ===
+none. The schema module binds to the extractor/grader constants and identities and the
+drift test (re-import both in-process) reports match on SCHEMA_VERSION, RULESET_ID,
+BUNDLE_SCHEMA, E3_N/E3_ODD_N/E4_TWO_HOUSES/E4_MAX_DEGREE/E7_WINDOW/E7_MODULUS/
+E7_ODD_WINDOW, and all pinned contract/rubric refs or digests.
+
+=== capability ceiling honored (schema-valid != established) ===
+e7-params-only.json is SCHEMA_VALID (schema check exit 0) yet the grader returns
+CANNOT_DETERMINE (exit 3) because no evidence bit is derived. CHECK_ESTABLISHED and
+PROOF_REPLAYED are not claimed by this module.
+
+=== generated spec ===
+protocol/G-ENG-ARTIFACT-SCHEMA.md (regenerated from the module's single FIELD_TABLE,
+deterministic, no timestamp).
+
+-------------------------------------------------------------------------------
+FULL OUTPUT — tools/tests/cur_schema/run.py
+-------------------------------------------------------------------------------
+==============================================================================
+SCHEMA SELFTEST — tools/tests/cur_schema/run.py
+==============================================================================
+  all current valid fixture families schema-valid (22 accepted) OK
+  malformed set rejected by schema checker AND extractor OK
+  rejection fixtures each exit 2 (schema-invalid)      OK
+  missing optional evidence remains schema-valid       OK
+  E4 d/s alternate form (consistent) is schema-valid   OK
+  schema-valid payload still yields CANNOT_DETERMINE downstream OK
+  emit-json deterministic                              OK
+  emit-markdown deterministic                          OK
+  emit-markdown contains no timestamp/date literal     OK
+  foreign working directory                            OK
+  two concurrent schema checks                         OK
+  drift test: schema pins match extractor/grader       OK
+  unknown schema command rejected (exit 2)             OK
+==============================================================================
+SUMMARY: 13/13 pass, 0 fail
+==============================================================================

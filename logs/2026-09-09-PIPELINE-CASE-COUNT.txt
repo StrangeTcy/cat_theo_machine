@@ -1,0 +1,24 @@
+PIPELINE HARDENING — case-count reconciliation (SCHEMA-eng ride-along)
+=======================================================================
+The runner's actual count is 12 and it reports 12/12. The earlier chat prose listed
+13 scenario nouns because it separately named "grader killed" and "grader no verdict";
+in the shipped code those two are ONE check (case #8, the grader-verdict-substitute,
+checked via a subprocess that exits without a verdict). The executable tests are
+unchanged; only the prose count is corrected.
+
+Exact case IDs emitted by tools/tests/cur_pipeline/hardening.py (12):
+  1  successful fixture -> 0
+  2  valid FAIL -> 1
+  3  valid CANNOT_DETERMINE -> 3
+  4  extractor exits 7 -> 2 EXECUTION_ERROR
+  5  stale --out replaced by validated manifest
+  6  extractor timeout -> 2 EXECUTION_ERROR
+  7  extractor killed -> 2 EXECUTION_ERROR
+  8  grader no verdict -> 2 EXECUTION_ERROR
+  9  unwritable transcript -> 2 (no partial verdict)
+  10 malformed input -> 2 REJECTED
+  11 foreign working directory
+  12 two concurrent invocations
+
+Runner-reported count: 12 checks, SUMMARY 12/12 pass. No production test was deleted;
+the number 13 was never a runner count.

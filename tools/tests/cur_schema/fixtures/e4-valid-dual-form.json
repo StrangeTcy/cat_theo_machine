@@ -1,0 +1,6 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E4",
+  "candidate": {"id": "cand", "cites": ["moves"]},
+  "nodes": [{"id": "moves", "role": "moves", "cites": ["cand"], "payload": {"moves": [{"d": 3, "s": 2}]}}]
+}

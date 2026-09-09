@@ -1,222 +1,144 @@
 # G-ENG-ARTIFACT-SCHEMA
 
-Describes the frozen G-ENG-style evaluator bundle that `tools/cur_extract_evidence.py` accepts, and
-what its checked handlers require. This is **derived from the three checked handlers** (`_checked_e3`,
-`_checked_e4`, `_checked_e7`) — it does not invent fields. It is the contract an author must satisfy
-before submitting a frozen artifact to the grader lane.
+Generated from the single declarative field table in `tools/cur_artifact_schema.py`, which is derived from what `tools/cur_extract_evidence.py`'s checked handlers read. It is the contract an author must satisfy before submitting a frozen artifact to the grader lane. No timestamps are embedded in this generated output.
 
-- **Agent:** CUR-GRADER-ENG
-- **Docs-only, evaluator-side; training-visible: no.**
-- **Doc version:** pinned to the extractor `SCHEMA_VERSION` (currently **1**).
+- **Agent:** SCHEMA-eng
+- **Evaluator-side, training-visible: no.**
+- **Schema version:** `1` (pinned to the grader `SCHEMA_VERSION`).
+- **Ruleset id:** `e3e4e7-grader-v1-7ae056945c93e3d8`
+- **Bundle schema:** `geng-bundle/v2`
+- **Extractor version:** `3.0.0`
 
----
-
-## 0. Capability ceiling (stated plainly)
+## Capability ceiling (stated plainly)
 
 This lane validates **checked, fixed-contract math**:
 
 ```text
-frozen bundle → cur_extract_evidence.py → evidence manifest → cur_grade_artifact.py → C1..C6 verdicts
+frozen bundle -> cur_extract_evidence.py -> evidence manifest -> cur_grade_artifact.py
+             -> C1..C6 verdicts
 ```
+It is **tier-2.5**: it re-derives the pinned E3/E4/E7 facts (kernel, descent ΔH <= -1, mod-4 residue ΔS ≡ 0) by computation against the fixed problem. It does not read a bundle's self-declared verdict, and it does not tier-3 replay an arbitrary proof. A recognized role **never** establishes an evidence bit by itself — it only *selects* a handler.
 
-It is **tier-2.5**: it re-derives the pinned E3/E4/E7 facts (kernel, descent ΔH ≤ −1, mod-4 residue
-ΔS ≡ 0) by computation against the fixed problem. It does **not** do tier-3 full proof-checker
-replay of arbitrary cited nodes, and it does **not** read a bundle's self-declared verdict. A
-recognized role **never** establishes an evidence bit by itself — a role only *selects* a handler.
+The schema layer distinguishes four states and never conflates them:
 
----
+| State | Meaning | Established by |
+|---|---|---|
+| `SCHEMA_VALID` | top-level shape, id uniqueness, citation arrays, collection shapes, numeric domains, and declared canonical move forms all hold | this module |
+| `CHECKABLE_CONTENT_PRESENT` | the payload fields a check needs are present (metadata, never a verdict) | this module |
+| `CHECK_ESTABLISHED` | an evidence bit set by actual computation against the pinned problem | the extractor's checked handlers |
+| `PROOF_REPLAYED` | tier-3 full proof-checker replay of arbitrary cited nodes | **not supported** on this lane |
 
-## 1. Global bundle shape
+**Schema validity never implies mathematical validity.** A bundle can be `SCHEMA_VALID` yet yield `CANNOT_DETERMINE` (or `FAIL`) downstream when its required payload is absent, empty, or unrelated.
 
-Top-level object:
+## Global bundle shape
 
 ```json
-{
-  "schema": "geng-bundle/v2",
-  "contract": "E3 | E4 | E7",
-  "candidate": { "id": "...", "role": "candidate", "cites": [ "support-id", ... ] },
-  "claims":  [ { "id": "...", "kind": "assumption", ... } ],
-  "nodes":   [ { "id": "...", "role": "...", "kind": "derived|assumption",
-                 "cites": [ "support-id", ... ],
-                 "payload": { ... } } ],
-  "records": { "name": [ { "id": "...", "role": "...", "cites": [ ... ], "payload": { ... } } ] },
-  "parameters": { ... }
-}
+{ "schema": "geng-bundle/v2", "contract": "E3 | E4 | E7",
+  "candidate": { "id": "...", "role": "candidate", "cites": ["support-id", ...] },
+  "claims": [ { "id": "...", "kind": "assumption", ... } ],
+  "nodes": [ { "id": "...", "role": "...", "kind": "derived|assumption",
+              "cites": ["support-id", ...], "payload": { ... } } ],
+  "records": { "name": [ { "id": "...", "role": "...", "cites": [...], "payload": {...} } ] } }
 ```
+**Required:** `schema` == `geng-bundle/v2`; `contract` in `{E3, E4, E7}`; a `candidate` object with a string `id`; `nodes` an array whose nodes have string `id`s, and (if present) string-array `cites`/`refs` and an object `payload`. **IDs must be unique** across `claims` + `candidate` + `nodes` + `records`.
 
-**Required:**
-- `schema` must equal `geng-bundle/v2`.
-- `contract` must be a string in `{E3, E4, E7}`. Anything else → extractor exit 2.
-- `candidate` object with a string `id`.
-- `candidate.cites` lists the support ids the candidate draws on; a candidate whose support does not
-  resolve (unknown id, self-citation, cycle) is not trusted.
-- `nodes` must be an array; each node must have a string `id` and, if present, `cites` must be an
-  array of strings and `payload` (if present) an object.
-- **IDs must be unique** across `claims` + `candidate` + `nodes` + `records`.
+Global malformations => `exit 2` (no manifest): duplicate id, non-array `cites`/`nodes`, non-object `payload`, unsupported schema, unsupported contract.
 
-**Global failures (extractor exit 2, structured error, no manifest):**
-- duplicate id
-- non-array `cites` / non-array `nodes` / non-object `payload`
-- unsupported `schema`
-- unsupported `contract`
+## Field definitions
 
----
+Each record: field name (dotted), contract families, JSON shape, required/optional, numeric/domain constraint, checks fed, `CANNOT_DETERMINE`-when-absent effect, canonical representation, and the known validation limit of this schema layer.
 
-## 2. Proof-support dependency chain
+### FIELDS `E3` family
 
-The bundle's `claims` are **assumptions**. `nodes`/`records` are **derived conclusions** that cite
-their support (in `cites`). Resolution rules:
+| field | contract | shape | required | domain | checks fed | CD-when-absent | canonical | validation limit |
+|---|---|---|---|---|---|---|---|---|
+| `schema` | E3, E4, E7 | string | yes | must equal "geng-bundle/v2" | structural | extractor exit 2 (unsupported bundle schema); no manifest | BUNDLE_SCHEMA = "geng-bundle/v2" | equality to the fixed literal; no schema negotiation |
+| `contract` | E3, E4, E7 | string | yes | member of {E3, E4, E7} | structural | extractor exit 2 (unsupported contract); no manifest | one of E3 / E4 / E7 | family fixed to the three glued contracts |
+| `candidate.id` | E3, E4, E7 | string | yes | non-empty string | structural | extractor exit 2 (candidate must have a string id); no manifest | candidate id | must be unique across claims+candidate+nodes+records |
+| `candidate.cites` | E3, E4, E7 | array<id> | no | array of string ids | structural | candidate support not traced -> support-dependent checks stay CD | array of cites/refs ids | only string ids validated; an unresolved ref -> CD, not a schema reject |
+| `claims` | E3, E4, E7 | array<object> | no | array; each has a string 'id' and optional 'kind'/'text' | structural | assumptions absent -> no top-level support to resolve | array of assumption records | ids are pooled for uniqueness but absent claims are not a reject |
+| `nodes` | E3, E4, E7 | array<object> | yes | array; each node has a string 'id', optional 'role'/'kind'/'cites'/'payload' | structural | extractor exit 2 (nodes must be an array); no manifest | array of node records | a node with no payload is schema-valid (role-only) but not checkable |
+| `records` | E3, E4, E7 | object<name, array<object>> | no | mapping name -> array; each record has 'id'/'role'/'cites'/'payload' | structural | no named record collections; handler falls back to node roles | object of named record arrays | record ids pooled for uniqueness; absent records are not a reject |
+| `node.cites / node.refs` | E3, E4, E7 | array<id> | no | array of string ids ('cites' preferred, 'refs' accepted as alias) | structural | derived with no support -> upstream, CD for dependent bits | array of support ids | unresolved/self/circular refs are CD, not schema rejects |
+| `node.kind` | E3, E4, E7 | string | no | 'assumption' or 'derived'; absent defaults to derived | structural | treated as derived (assumption only if kind == assumption) | 'assumption' or 'derived' | controls resolution classification only; never sets an evidence bit |
+| `node.payload` | E3, E4, E7 | object | no | object if present | structural | role-only node -> all dependent checks CANNOT_DETERMINE | object of named payload fields | an empty/absent payload is schema-valid but not checkable |
+| `weights.vector` | E3 | array<number> | yes | length == E3_N (6); every element an integer | C1, C2, C3 | C1/C2/C3 CANNOT_DETERMINE (no vector to check) | length-6 integer vector | checker verifies shape/length/numeric; kernel membership is computed by the extractor |
+| `weights.provenance` | E3 | string | yes | 'derived' or 'supplied' | C6 | C6 CANNOT_DETERMINE (no provenance to classify) | 'derived' | string equality only; no semantic check of how it was derived |
+| `moves.pairs` | E3 | array<[integer, integer]> | yes | length == E3_N; pairs are adjacent sectors of the 6-cycle | C1, C2 | move family undetermined -> C1/C2 stay CD | E3_MOVE_PAIRS (the pinned 6-cycle) | checker validates shape; the extractor compares to the pinned family for family_ok |
+| `start.vector` | E3 | array<number> | yes | length == E3_N (6); every element an integer | C3 | C3 CANNOT_DETERMINE (no start vector) | length-6 integer start vector | checker validates shape, not the reading value |
+| `odd-control.target_n` | E3 | number | yes | == E3_ODD_N (5) | C4 | C4 CANNOT_DETERMINE (no odd-control size) | target_n = 5 | checker validates numeric equality to the pinned odd size; kernel dim is computed |
+| `generation.on_candidate` | E3 | array<number> | yes | length == E3_N (6) | C5 | C5 CANNOT_DETERMINE (no candidate-on reading) | length-6 integer reading | checker validates shape; same-line check is computed by the extractor |
+| `generation.off_candidate` | E3 | array<number> | null | no | null/empty (candidate removed) or array | C5 | defaults to candidate survives -> C5 can FAIL | null (removed) or empty array | checker validates shape; deciding removal is the extractor's job |
 
-- A derived item that cites **nothing** → `upstream` (unresolved) → the dependent evidence bit is
-  **not** set, and a diagnostic is emitted.
-- A derived item that cites itself → `self` → **not** set (diagnostic).
-- A derived item that cites an **unknown id** → `unresolved upstream` → **not** set (diagnostic).
-- A derived item that participates in a **support cycle** within the bundle → `cycle` → **not** set
-  (diagnostic).
-- Unrelated cycles in the machine's **general hypergraph** (outside the bundle) are **not** banned;
-  only cycles inside this bundle's proof-support chain are rejected.
-- Only support whose status is `assumption` or `ok` can be trusted as evidence source.
+### FIELDS `E4` family
 
-> Consequence: an author must cite *content-bearing* support, not just name the role.
+| field | contract | shape | required | domain | checks fed | CD-when-absent | canonical | validation limit |
+|---|---|---|---|---|---|---|---|---|
+| `schema` | E3, E4, E7 | string | yes | must equal "geng-bundle/v2" | structural | extractor exit 2 (unsupported bundle schema); no manifest | BUNDLE_SCHEMA = "geng-bundle/v2" | equality to the fixed literal; no schema negotiation |
+| `contract` | E3, E4, E7 | string | yes | member of {E3, E4, E7} | structural | extractor exit 2 (unsupported contract); no manifest | one of E3 / E4 / E7 | family fixed to the three glued contracts |
+| `candidate.id` | E3, E4, E7 | string | yes | non-empty string | structural | extractor exit 2 (candidate must have a string id); no manifest | candidate id | must be unique across claims+candidate+nodes+records |
+| `candidate.cites` | E3, E4, E7 | array<id> | no | array of string ids | structural | candidate support not traced -> support-dependent checks stay CD | array of cites/refs ids | only string ids validated; an unresolved ref -> CD, not a schema reject |
+| `claims` | E3, E4, E7 | array<object> | no | array; each has a string 'id' and optional 'kind'/'text' | structural | assumptions absent -> no top-level support to resolve | array of assumption records | ids are pooled for uniqueness but absent claims are not a reject |
+| `nodes` | E3, E4, E7 | array<object> | yes | array; each node has a string 'id', optional 'role'/'kind'/'cites'/'payload' | structural | extractor exit 2 (nodes must be an array); no manifest | array of node records | a node with no payload is schema-valid (role-only) but not checkable |
+| `records` | E3, E4, E7 | object<name, array<object>> | no | mapping name -> array; each record has 'id'/'role'/'cites'/'payload' | structural | no named record collections; handler falls back to node roles | object of named record arrays | record ids pooled for uniqueness; absent records are not a reject |
+| `node.cites / node.refs` | E3, E4, E7 | array<id> | no | array of string ids ('cites' preferred, 'refs' accepted as alias) | structural | derived with no support -> upstream, CD for dependent bits | array of support ids | unresolved/self/circular refs are CD, not schema rejects |
+| `node.kind` | E3, E4, E7 | string | no | 'assumption' or 'derived'; absent defaults to derived | structural | treated as derived (assumption only if kind == assumption) | 'assumption' or 'derived' | controls resolution classification only; never sets an evidence bit |
+| `node.payload` | E3, E4, E7 | object | no | object if present | structural | role-only node -> all dependent checks CANNOT_DETERMINE | object of named payload fields | an empty/absent payload is schema-valid but not checkable |
+| `params.houses` | E4 | integer | yes | == E4_TWO_HOUSES (2) | C2 | C2 CANNOT_DETERMINE (no house target) | houses = 2 | checker validates integer/equality; the partition claim is the extractor's |
+| `params.degree_bound` | E4 | integer | yes | <= E4_MAX_DEGREE (3) | C1 | C1 FAIL if a descent argument is present, else CANNOT_DETERMINE | degree_bound = 3 | checker validates integer/ordering; a descent-from-e_in-alone claim is graded by the extractor |
+| `moves.moves` | E4 | array<move> | yes | each move is a record; see canonical move forms below | C3 | C3 CANNOT_DETERMINE (no move record) | canonical form is {e_in, e_out}; {d, s} accepted as a documented alternate | checker validates shape and dual-form equivalence; descent delta computed by the extractor |
+| `move.e_in` | E4 | integer | yes | >= 0; legal move requires e_in >= 2 | C3 | move not parseable -> C3 may stay CD / FAIL | e_in (enemies in own house) | checker validates non-negative integer |
+| `move.e_out` | E4 | integer | yes | >= 0 | C3 | move not parseable -> C3 may stay CD / FAIL | e_out (enemies in the other house) | checker validates non-negative integer |
+| `move.d / move.s` | E4 | integer | no | d = e_in + e_out, s = e_in (documented alternate) | C3 | allowed; only the canonical e_in/e_out form is required | d = degree, s = same-house; e_in = s, e_out = d - s | if both forms appear and disagree -> contradiction (schema reject) |
+| `bound.lower_bound` | E4 | integer | yes | >= 0 | C4 | C4 CANNOT_DETERMINE (no lower bound claimed) | lower_bound = 0 | checker validates integer/ordering |
+| `terminal.claim` | E4 | string | yes | 'no_legal_move' or 'global_min' | C5 | C5 CANNOT_DETERMINE (no termination claim) | 'no_legal_move' | checker validates membership; the global-min overclaim is the extractor's |
+| `measure.provenance` | E4 | string | yes | 'derived' or 'supplied' | C6 | C6 CANNOT_DETERMINE (no measure provenance) | 'derived' | string equality only |
 
----
+### FIELDS `E7` family
 
-## 3. FAIL vs CANNOT_DETERMINE (the single most important rule)
+| field | contract | shape | required | domain | checks fed | CD-when-absent | canonical | validation limit |
+|---|---|---|---|---|---|---|---|---|
+| `schema` | E3, E4, E7 | string | yes | must equal "geng-bundle/v2" | structural | extractor exit 2 (unsupported bundle schema); no manifest | BUNDLE_SCHEMA = "geng-bundle/v2" | equality to the fixed literal; no schema negotiation |
+| `contract` | E3, E4, E7 | string | yes | member of {E3, E4, E7} | structural | extractor exit 2 (unsupported contract); no manifest | one of E3 / E4 / E7 | family fixed to the three glued contracts |
+| `candidate.id` | E3, E4, E7 | string | yes | non-empty string | structural | extractor exit 2 (candidate must have a string id); no manifest | candidate id | must be unique across claims+candidate+nodes+records |
+| `candidate.cites` | E3, E4, E7 | array<id> | no | array of string ids | structural | candidate support not traced -> support-dependent checks stay CD | array of cites/refs ids | only string ids validated; an unresolved ref -> CD, not a schema reject |
+| `claims` | E3, E4, E7 | array<object> | no | array; each has a string 'id' and optional 'kind'/'text' | structural | assumptions absent -> no top-level support to resolve | array of assumption records | ids are pooled for uniqueness but absent claims are not a reject |
+| `nodes` | E3, E4, E7 | array<object> | yes | array; each node has a string 'id', optional 'role'/'kind'/'cites'/'payload' | structural | extractor exit 2 (nodes must be an array); no manifest | array of node records | a node with no payload is schema-valid (role-only) but not checkable |
+| `records` | E3, E4, E7 | object<name, array<object>> | no | mapping name -> array; each record has 'id'/'role'/'cites'/'payload' | structural | no named record collections; handler falls back to node roles | object of named record arrays | record ids pooled for uniqueness; absent records are not a reject |
+| `node.cites / node.refs` | E3, E4, E7 | array<id> | no | array of string ids ('cites' preferred, 'refs' accepted as alias) | structural | derived with no support -> upstream, CD for dependent bits | array of support ids | unresolved/self/circular refs are CD, not schema rejects |
+| `node.kind` | E3, E4, E7 | string | no | 'assumption' or 'derived'; absent defaults to derived | structural | treated as derived (assumption only if kind == assumption) | 'assumption' or 'derived' | controls resolution classification only; never sets an evidence bit |
+| `node.payload` | E3, E4, E7 | object | no | object if present | structural | role-only node -> all dependent checks CANNOT_DETERMINE | object of named payload fields | an empty/absent payload is schema-valid but not checkable |
+| `params.window_width` | E7 | integer | yes | == E7_WINDOW (4) | C1 | C1 CANNOT_DETERMINE (no family width) | window_width = 4 | checker validates integer/equality; derivation is the extractor's |
+| `params.modulus` | E7 | integer | yes | == E7_MODULUS (4) | C1, C2, C4 | residue arithmetic undetermined -> dependent checks CD | modulus = 4 | checker validates integer/equality |
+| `samples.sequences` | E7 | array<array<number>> | yes | each sequence length >= declared window width (else window undefined) | C2 | C2 CANNOT_DETERMINE (no sample sequence) | array of numeric sequences of length >= window_width | checker validates sequence shape + length-vs-width; residue delta computed by the extractor |
+| `samples.window_width` | E7 | integer | no | >= 1; per-record override of the family width | C2 | falls back to params.window_width | per-record width, or the family width when absent | a non-canonical width is graded by the extractor (width-not-4 FAIL), not a schema reject |
+| `separation.target_residue` | E7 | integer | yes | integer residue | C3 | C3 CANNOT_DETERMINE (no separation target) | target_residue != 0 when 4 does not divide n | checker validates integer; the divide-4 separation is the extractor's |
+| `separation.start_residue` | E7 | integer | no | integer residue | C3 | C3 uses target residue + n when present | integer start residue | checker validates integer, not the residue relationship |
+| `separation.n` | E7 | integer | yes | integer length; separation requires n % 4 != 0 | C3 | C3 CANNOT_DETERMINE (no length to divide) | n not divisible by 4 | checker validates integer; divisibility is the extractor's |
+| `odd-control.sample` | E7 | array<number> | yes | numeric sequence; length >= E7_ODD_WINDOW (3) | C4 | C4 CANNOT_DETERMINE (no odd-width control sample) | length->=3 numeric sequence | checker validates shape; the width-3 delta == {2} is computed by the extractor |
+| `rejected.candidates` | E7 | array<object> | yes | each has 'name' and 'class' in the allowed set | C5 | C5 CANNOT_DETERMINE (no rejected-candidate classification) | class in {'not_invariant','preserved_but_non_separating','invariant','separating'} | checker validates membership; the misclassification is the extractor's |
+| `observable.provenance` | E7 | string | yes | 'derived' or 'supplied' | C1, C6 | C1/C6 CANNOT_DETERMINE (no derived observable) | 'derived' | string equality only |
 
-For every check the grader emits exactly one of PASS / FAIL / CANNOT_DETERMINE.
+## Canonical move forms
 
-- **PASS** — the handler computed the pinned fact from cited payloads (evidence bit set).
-- **FAIL** — the evidence is **present but wrong**: a payload exists but contradicts the pinned fact
-  (e.g. degree-bound-violating move, a preservation claim refuted by a sample).
-- **CANNOT_DETERMINE** — the evidence is **absent**: no valid payload, no cited count, no displayed
-  sample. This is **not** a PASS and **not** a lazy FAIL.
+- **E3:** exact integer weights (length `E3_N` = `6`), complete declared move family `E3_MOVE_PAIRS` = `[[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]]`.
 
-The extractor sets a **FAIL bit only from present-but-wrong** content. Pure absence stays
-CANNOT_DETERMINE. (This is why the role-only negative controls yield CANNOT_DETERMINE, not FAIL.)
+- **E4:** canonical move form is `{e_in, e_out}`; `{d, s}` (degree & same-house) is accepted only as a **documented alternate** (`e_in = s`, `e_out = d - s`). If both forms appear in one move and disagree, the schema is contradictory and rejected. Max degree `E4_MAX_DEGREE` = `3`; `E4_TWO_HOUSES` = `2`.
 
-If a single fixture produces two or more distinct discrepancy labels, the grader exits 2
-`AMBIGUOUS_DISCREPANCY` (never picks one by iteration order).
+- **E7:** explicit sequence, window width `E7_WINDOW` = `4`, modulus `E7_MODULUS` = `4`, and flip samples; a sample sequence must be long enough to realize its window width (a shorter sequence with a declared width is a structural contradiction). Odd-width control uses `E7_ODD_WINDOW` = `3`.
 
----
+## Pinned source identities
 
-## 4. Role vocabulary
-
-A node's `role` selects the handler path. Roles are **not** evidence: a role with an empty or
-unrelated `payload` produces no evidence bit.
-
-| role | used by | meaning |
-|---|---|---|
-| `weights` | E3 | the candidate weight vector + provenance |
-| `moves` | E3, E4 | the move family: E3 `pairs`, E4 `moves` records |
-| `start` | E3 | the start-sector vector (and target family) |
-| `odd-control` | E3, E7 | negative control record (E3 `target_n`, E7 `sample`) |
-| `generation` | E3 | on/off candidate for the generator-removal check |
-| `params` | E4, E7 | family parameters (houses/degree_bound; window_width/modulus) |
-| `hypothesis` | E4 | alternative home for E4 params |
-| `bound` / `wellfounded` | E4 | lower-bound / well-founded record |
-| `terminal` / `terminus` | E4 | terminal-state claim (`no_legal_move` vs `global_min`) |
-| `measure` / `monovariant` | E4, E7 | derived measure/observable provenance |
-| `samples` | E7 | list of sign sequences exercising the flip delta |
-| `separate` / `separation` | E7 | start/target residue separation |
-| `control` | E7 | width-3 negative-control sample |
-| `rejected` | E7 | rejected-candidate classification |
-| `observable` | E7 | the derived observable (provenance) |
-
----
-
-## 5. Per-family requirements (derived from the handlers)
-
-### 5.1 E3 — six-sector alternating sum, adjacent-increment moves
-
-Pinned facts: `w` in kernel of the move matrix; `R(start) = 2`; every all-equal reading is `0`;
-the 5-sector odd cycle admits no nonzero exact linear observable.
-
-| check | required payloads | bit true when | bit absent when | hard-fail |
-|---|---|---|---|---|
-| C1 kernel | `weights.vector`, `moves.pairs` | `w` in kernel (`w_i + w_j = 0` cyclically) and supplied move family == pinned 6-pair family | either field absent / family mismatch | `stated_without_move_family` if a weight present but not in kernel |
-| C2 preservation | `weights.vector`, `moves.pairs` | every declared move gives `ΔR = w_i + w_j = 0` | missing / family mismatch | `a_move_changes_reading` if any move changes the reading |
-| C3 separation | `weights.vector`, `start.vector` | `Σw = 0` and `R(start) ≠ 0` | either vector absent | `start_equals_target` if `Σw ≠ 0` or `R(start) = 0` |
-| C4 odd control | `odd-control.target_n` | `target_n == 5` and kernel dim of the 5-pair family is `0` | `target_n` absent/unsupported | `odd_cycle_false_invariant` if kernel dim `> 0` |
-| C5 removal | `generation.on_candidate` (+`off_candidate`) | on-run candidate reproduces the kernel line and off-run is empty | no generation payload | `candidate_survives_removal` if on-run not on kernel line or off-run nonempty |
-| C6 no injection | `weights.provenance` | provenance `derived` and `weights.vector` on the kernel line | no payload | `weights_injected` if provenance `supplied` or vector off-line |
-
-Adversarial cases that must **not** pass: role-only weights; empty `payload`; `weights` citing an
-unknown node; self-citing weights; circular `weights↔moves`; an unresolved upstream move; a weight
-not in the kernel; a contradictory pair of weight records.
-
-### 5.2 E4 — descent, two-house partition, max degree ≤ 3
-
-Pinned facts: exactly two houses; each member has ≤ 3 enemies; for a legal move (`e_in ≥ 2`,
-`e_in + e_out ≤ 3`) `ΔH = e_out − e_in ≤ −1`; `H ≥ 0`; termination is "no legal move", not a global
-minimum.
-
-| check | required payloads | bit true when | bit absent when | hard-fail |
-|---|---|---|---|---|
-| C1 hypothesis | `params.houses`, `params.degree_bound` | `houses == 2` and `degree_bound ≤ 3` | no degree_bound and no descent argument | `argues_from_e_in_alone` if a descent arg present but no degree bound; or `cites_max_degree_le_3` absent when bound > 3 |
-| C2 houses | `params.houses` | `houses == 2` | `houses` absent | `house_target_ambiguous` if `houses ≠ 2` |
-| C3 descent | `moves.moves` (`{e_in,e_out}` or `{d,s}`) | every legal move has `ΔH = e_out − e_in ≤ −1` | no move record | `asserts_unbounded_descent` if a move violates the degree bound (e.g. `(d,s) = (4,2)`) or has `ΔH > −1` |
-| C4 well-founded | `bound.lower_bound` (or `wellfounded`) | `lower_bound ≥ 0` | no bound record | `termination_no_lower_bound` if bound present but negative |
-| C5 terminal ≠ min | `terminal.claim` | `claim == "no_legal_move"` | no terminal claim → CD | `concludes_global_minimum` if `claim == "global_min"` |
-| C6 no injection | `measure.provenance` | provenance `derived` | no payload | `measure_injected` if provenance `supplied` |
-
-Adversarial cases that must **not** pass: missing degree bound with a descent arg; a `(4,2)` move
-treated as legal descent; a terminal-implies-unique-min overclaim; role-only E4.
-
-### 5.3 E7 — width-4, mod-4 residue, sign-flip move
-
-Pinned facts: observable = sum of cyclic 4-window products, taken mod 4; any single sign flip gives
-`ΔS ≡ 0 (mod 4)`; a width-3 control gives `ΔS ≡ 2 (mod 4)`; `4 | n` when the start residue `S ≡ 0`.
-
-| check | required payloads | bit true when | bit absent when | hard-fail |
-|---|---|---|---|---|
-| C1 derived | `params.window_width`, `observable.provenance` | `window_width == 4` **and** a derived observable (`provenance == "derived"`) | no observable node | `invented_without_move_set` if an observable present but not derived (a bare `window_width` tag alone is **not** a derivation) |
-| C2 preservation | `samples.sequences` (each a `±1` list) | every single flip leaves `ΔS ≡ 0 (mod 4)` at width 4 | no valid width-4 sample | `preservation_no_even_argument` if a width-3 sample or a sample whose residue changes |
-| C3 separation | `separation.start_residue`, `.target_residue`, `.n` | `4 ∤ n` and the residues differ | insufficient | `cannot_separate_4_divides` if residues coincide |
-| C4 odd control | `control.sample` (width-3) | `ΔS ≡ 2 (mod 4)` under a single flip at width 3 | no control sample | `omits_odd_width_control` if the width-3 control is absent or ΔS ≠ 2 |
-| C5 rejected | `rejected.candidates` (`name`, `class`) | candidates classified `not_invariant` / `preserved_but_non_separating` | no rejected-candidate record | `misclassifies_rejected` if a candidate is classed `invariant` / `separating` |
-| C6 no injection | `observable.provenance` | provenance `derived` | no payload | `weights_injected` if provenance `supplied` |
-
-Adversarial cases that must **not** pass: a bare `window_width: 4` tag with no derived observable;
-a `window_width` tag of 4 with a width-3 sample; a preservation sample that changes residue; no
-samples at all (→ CANNOT_DETERMINE, never PASS); role-only E7.
-
----
-
-## 6. Schema / ruleset binding
-
-The emitted evidence manifest validates against the grader's pinned identity:
-
-- `schema_version` = the grader's `SCHEMA_VERSION` (currently **1**).
-- `ruleset_id` = the grader's `RULESET_ID` (SHA-256 digest of the grader's rule tables).
-- `contract_ref` / `rubric_ref` = the grader-pinned authoritative contract/rubric paths, plus the
-  pinned source **commits** and **content digests** (the in-tree reconstruction path is recorded
-  separately from the grader-pinned authoritative path; they are different files).
-
-The extractor reads the grader's constants directly, so a manifest it emits always carries a matching
-`schema_version`/`ruleset_id`. A manifest that does not match is rejected by the grader (exit 2).
-
----
-
-## 7. Exit codes (extractor)
-
-| code | meaning |
+| identity | value |
 |---|---|
-| 0 | manifest written; no unresolved/broken refs |
-| 1 | manifest written; at least one unresolved/broken ref (partial extraction) |
-| 2 | malformed / unsupported / unsupported-contract input (no manifest written) |
+| contract refs | {"E3": "CUR-ENGEL-E3-EVALUATOR-CONTRACT.md", "E4": "CUR-ENGEL-E4-GRADER-CONTRACT.md", "E7": "CUR-ENGEL-E7-GRADER-CONTRACT.md"} |
+| contract commits | {"E3": "c10011bfabc73b55c7a3de80c4ff14a78234f17b", "E4": "c10011bfabc73b55c7a3de80c4ff14a78234f17b", "E7": "c10011bfabc73b55c7a3de80c4ff14a78234f17b"} |
+| contract content digests | {"E3": "98d700321bd58e1ed43fabcde8c044ff87673ea97d34e6b3a04a4b9a24ec1809", "E4": "94c5d80cca5c2c29edfa23b8ad55c068411a2c439de18c1ab4924be5ef2a34ab", "E7": "b06703d561e4d89232aeb76206d51d5f98be4838b1eb6b44b7a97336b0de4e17"} |
+| in-tree contract paths | {"E3": "CUR-ENGEL-E3.md", "E4": "CUR-ENGEL-E4.md", "E7": "CUR-ENGEL-E7.md"} |
+| rubric ref | `CUR-GRADER-RUBRIC.md` (commit `70271007ba5292e782c223bca1474dce8ced8168`, digest `c4c420bd55f019fcd7c2f3ee468dfbe10fad937d5009d1cdc6cb5d374b04518e`) |
 
-Downstream rule: extractor exit 0 or 1 → run `cur_grade_artifact.py`; exit 2 → do not grade.
+## Notes
 
----
-
-## 8. Identity & reproducibility
-
-The manifest carries an `identity` block: `bundle_digest` (SHA-256 of the canonical bundle), the
-extractor's implementation identity + version, the grader ruleset identity, and the pinned
-contract/rubric commits + content digests. Digests establish **identity**, not mathematical
-validity. The raw transcript records real UTC start/end and the renderer timezone, so a filename
-date is never mistaken for the clock.
-
----
-
-*End of schema.* Author against it; the checked handlers reject anything the schema does not fix.
+- A role only selects a handler; it does not itself assert a fact.
+- Unknown payload keys are tolerated (ignored by the extractor); this layer reports known-field validity rather than rejecting unknown keys, matching extractor semantics.
+- This generated output is deterministic: it embeds no timestamps and no run-specific state. Execution time and test results live in the separate verification artifact.

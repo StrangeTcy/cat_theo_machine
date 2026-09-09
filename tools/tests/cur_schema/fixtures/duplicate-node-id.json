@@ -1,0 +1,9 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "candidate": {"id": "cand", "cites": ["weights"]},
+  "nodes": [
+    {"id": "weights", "role": "weights", "cites": ["cand"], "payload": {"vector": [1,-1,1,-1,1,-1]}},
+    {"id": "weights", "role": "moves", "cites": ["cand"], "payload": {"pairs": [[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]]}}
+  ]
+}

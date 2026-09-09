@@ -1,0 +1,5 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "nodes": [{"id": "weights", "role": "weights"}]
+}
