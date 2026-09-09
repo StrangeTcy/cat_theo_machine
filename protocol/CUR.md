@@ -150,3 +150,34 @@ width-tag-only / preservation-fails / no-samples / role-only) all verified NOT s
 now 30 assertions, exit 0 (3 full-PASS paths: e3-pass, e4-pass, e7-pass). Grader selftest still exit 0.
 
 Remote tip recorded before work (E4/E7 handlers): `f978c69977bad35399017e078c9319b8b5dec5d8`.
+
+---
+
+## Note (2026-09-09) — schema doc + one-command pipeline (CUR-GRADER-ENG)
+
+The E3/E4/E7 batch is consumable rather than merely complete.
+
+- `protocol/G-ENG-ARTIFACT-SCHEMA.md` (docs-only, derived from the three checked handlers, NOT
+  invented): per-family required top-level fields, required C1–C6 payloads, what makes a bit true,
+  what leaves a bit absent, what hard-fails, and the adversarial cases authors must not expect to
+  pass. Plus the global schema/ruleset binding, role vocabulary, citation/cycle/unresolved-ref
+  rules, FAIL-vs-CANNOT_DETERMINE rule, and a plain tier-2.5 ceiling statement (checked payloads
+  for fixed contract math; NOT full proof replay). Doc version pinned to the extractor
+  `SCHEMA_VERSION`.
+- `tools/cur_pipeline.py` (one command, no new policy, pure glue over extractor+grader):
+  `bundle → extract → grade → single transcript → nonzero exit on fail/ambiguous/malformed`.
+  Exit: 0 PASS, 1 FAIL, 2 malformed/ambiguous/contradictory/schema/ruleset, 3 no-FAIL-but-CD.
+  Supports `--out <manifest>` and `--transcript <file>`. Extractor exit-2 bundles are NOT graded.
+- `tools/tests/cur_pipeline/run.py`: asserts the exit map over the full fixture set (0/0/0, 3/3, 1/1,
+  2/2/2) plus the reject-path and foreign-cwd. 12/12 assertions, exit 0.
+
+Regression: extractor selftest exit 0 (30 assertions), grader selftest exit 0.
+verification/2026-09-09-PIPELINE-SCHEMA-TRANSCRIPT.txt : dated transcript with real UTC start/end.
+
+Taxonomy precision (per review, verified on this touch): `e7-width-tag-only` reports
+`preservation-unsupported` (C2 FAIL) with C1 CANNOT_DETERMINE — which matches the review's own
+decision rule (C2 fails + C1 CD → preservation-unsupported). Its defect is a preservation claim at
+odd width (width-3 sample) — the rubric C2 FAIL case — not merely a missing derivation. No mismatch;
+kept as-is.
+
+Remote tip recorded before work (schema/pipeline): `ad3d77386ad919a36bf56b30a27f6f13562324cd`.

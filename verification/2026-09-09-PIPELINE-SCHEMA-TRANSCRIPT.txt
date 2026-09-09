@@ -1,0 +1,82 @@
+CUR-GRADER-ENG — one-command pipeline (cur_pipeline.py) + G-ENG-ARTIFACT-SCHEMA raw transcript
+start_utc=2026-09-09T00:50:29Z
+end_utc=2026-09-09T00:50:36Z
+timezone: Etc/UTC (offset +0000); renderer local Europe/Moscow (UTC+3); UTC clock used
+branch: arena/01a066cf; pipeline tools/cur_pipeline.py; extractor tools/cur_extract_evidence.py; grader tools/cur_grade_artifact.py
+==============================================================================
+PIPELINE per-fixture exit map (one-command, --transcript):
+  e3-circular-support              pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e3-contradictory                 pipeline_exit=2
+              [grader] {"error": "check C1 contradictory evidence (both pass and fail)", "final": "MALFORMED", "discrepancy": "none"}
+  e3-empty-support                 pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e3-not-in-kernel                 pipeline_exit=2
+              [grader] {"error": "AMBIGUOUS_DISCREPANCY: constant-injection,derivation-absent,overclaim,preservation-unsupported", "final": "AMBIGUOUS_DISCREPANCY", "discrepancy": "ambiguous"}
+  e3-partial-missing-odd-gen       pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e3-pass-decorative-label         pipeline_exit=0
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+  e3-pass                          pipeline_exit=0
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+  e3-role-only-negative-control    pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e3-self-citation                 pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e3-unrelated-support             pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e3-unresolved-upstream           pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E3", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "PASS"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e4-degree4-move                  pipeline_exit=1
+              [grader] {"schema_version": 1, "contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "FAIL", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "descent-unsupported"}
+  e4-missing-degree-bound          pipeline_exit=1
+              [grader] {"schema_version": 1, "contract": "E4", "checks": {"C1": "FAIL", "C2": "PASS", "C3": "PASS", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "hypothesis-omitted"}
+  e4-pass                          pipeline_exit=0
+              [grader] {"schema_version": 1, "contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+  e4-role-only-negative-control    pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E4", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e4-terminal-global-min           pipeline_exit=1
+              [grader] {"schema_version": 1, "contract": "E4", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "FAIL", "C6": "PASS"}, "final": "FAIL", "discrepancy": "overclaim"}
+  e7-no-samples                    pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e7-params-negative-control       pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e7-pass                          pipeline_exit=0
+              [grader] {"schema_version": 1, "contract": "E7", "checks": {"C1": "PASS", "C2": "PASS", "C3": "PASS", "C4": "PASS", "C5": "PASS", "C6": "PASS"}, "final": "PASS", "discrepancy": "none"}
+  e7-preservation-fails            pipeline_exit=1
+              [grader] {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "FAIL", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "preservation-unsupported"}
+  e7-role-only-negative-control    pipeline_exit=3
+              [grader] {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "CANNOT_DETERMINE", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "CANNOT_DETERMINE", "discrepancy": "none"}
+  e7-width-tag-only                pipeline_exit=1
+              [grader] {"schema_version": 1, "contract": "E7", "checks": {"C1": "CANNOT_DETERMINE", "C2": "FAIL", "C3": "CANNOT_DETERMINE", "C4": "CANNOT_DETERMINE", "C5": "CANNOT_DETERMINE", "C6": "CANNOT_DETERMINE"}, "final": "FAIL", "discrepancy": "preservation-unsupported"}
+  malformed-duplicate-id           pipeline_exit=2
+  malformed-nonarray-cites         pipeline_exit=2
+  unsupported-contract             pipeline_exit=2
+==============================================================================
+PIPELINE SELFTEST (python3 tools/tests/cur_pipeline/run.py):
+==============================================================================
+PIPELINE SELFTEST — tools/tests/cur_pipeline/run.py
+==============================================================================
+  e3-pass                          exit=0 expected=0 (OK)
+  e4-pass                          exit=0 expected=0 (OK)
+  e7-pass                          exit=0 expected=0 (OK)
+  e3-role-only-negative-control    exit=3 expected=3 (OK)
+  e7-no-samples                    exit=3 expected=3 (OK)
+  e4-degree4-move                  exit=1 expected=1 (OK)
+  e7-preservation-fails            exit=1 expected=1 (OK)
+  e3-not-in-kernel                 exit=2 expected=2 (OK)
+  malformed-duplicate-id           exit=2 expected=2 (OK)
+  unsupported-contract             exit=2 expected=2 (OK)
+  reject-path                      exit=2 expect 2, not-grading note present (OK)
+  foreign-cwd                      exit=0 (foreign cwd) (OK)
+==============================================================================
+SUMMARY: 12/12 pass, 0 fail
+==============================================================================
+
+PIPELINE_SELFTEST_EXIT=0
+
+EXTRACTOR SELFTEST (regression):
+EXTRACTOR_SELFTEST_EXIT=0
+
+GRADER SELFTEST (regression):
+GRADER_SELFTEST_EXIT=0
