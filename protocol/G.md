@@ -681,3 +681,34 @@ this fixture must NOT be SUCCESS/retained=True while entry C is underivable).
 Artifacts appended: `verification/2026-09-09-D21-EMPIRICAL-PROBE.txt`,
 `verification/2026-09-09-D22-EMPIRICAL-PROBE.txt`,
 `verification/fixtures/d22-vacuous-success.yaml`.
+
+---
+
+## Turn 9 ADDENDUM (2) — evidence handoff to the FLT Repair Wave (2026-09-09)
+
+The owner dispatched the six-engineer + INT FLT Live-Session Repair Wave. Those
+spawn blocks are archived verbatim on the F-PROVER lane `arena/01a06e7b` @
+`e18e31f` at `protocol/2026-09-09-REPAIR-WAVE-SPAWN-BLOCKS-RECEIVED.txt`
+(F.md §20). This lane (G/I-op, `arena/01a068c2`) is NOT an engineer in that wave
+and performs no engineering here; the dispatch itself is owner-side (six fresh
+sessions + one INT session).
+
+**Dependency on this lane (evidence only, NOT a result):** the
+TRAINING-ACCEPTANCE-ENG spawn block cites "the G/I-op empirical D21/D22 probes on
+arena/01a068c2@9ac8e10 (evidence)" as its reproduction-before source for D21
+(conclusion-selector first-not-last), D22 (vacuous SUCCESS), D23 (hardcoded
+Invariance method text). Those evidence artifacts are committed and resoluble on
+the remote tip:
+
+- `verification/2026-09-09-D21-EMPIRICAL-PROBE.txt` (blob 4,248 B)
+- `verification/2026-09-09-D22-EMPIRICAL-PROBE.txt` (blob 4,806 B)
+- `verification/fixtures/d22-vacuous-success.yaml` (blob 1,847 B)
+
+`origin/arena/01a068c2-cat-theo-machine` == `9ac8e10`; each file resolves via
+`git cat-file -e origin/arena/01a068c2-cat-theo-machine:<path>`.
+
+**Boundary recorded:** this is the *inputs/reproduction-before* evidence the engineer
+will use. Any later "reproduction after / result after / negative-control / dated
+raw-test artifact / ready-for-INT" fields are the TRAINING-ACCEPTANCE-ENG session's
+own outputs — these were NOT pre-filled and are NOT yet present. No tag or
+force-push was performed by this lane.

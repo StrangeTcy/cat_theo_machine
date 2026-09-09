@@ -346,3 +346,11 @@ first==last. **D22 vacuous SUCCESS empirically confirmed** — fixture
 underivable) reports SUCCESS/retained=True with entry C never audited; control + fail-path isolate
 the audit-gap. D21 routed to INT as REPRODUCED, D22 fixture is the acceptance test for the
 per-obligation-audit fix.
+
+**Evidence handoff (2026-09-09, FLT Repair Wave):** TRAINING-ACCEPTANCE-ENG's spawn block cites
+"the G/I-op empirical D21/D22 probes on arena/01a068c2@9ac8e10 (evidence)" for D21/D22/D23.
+Evidence artifacts are committed and resoluble on `origin/arena/01a068c2-cat-theo-machine` @
+`9ac8e10`: `verification/2026-09-09-D21-EMPIRICAL-PROBE.txt`,
+`verification/2026-09-09-D22-EMPIRICAL-PROBE.txt`, `verification/fixtures/d22-vacuous-success.yaml`.
+This is reproduction-before evidence only; the engineer's own results/negative-controls/ready-for-INT
+are NOT pre-filled. No tag/force-push performed by this lane.
