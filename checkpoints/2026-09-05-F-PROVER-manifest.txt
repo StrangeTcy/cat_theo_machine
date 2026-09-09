@@ -12,6 +12,7 @@ a5b7722014938619216cb64f911525052fb736bf9649000d1dee81ec6f8b08ae  protocol/2026-
 baf95c1089bc720f8f559cc8f6c3d3179dc676d82715c00d5991dffdba86a24c  protocol/2026-09-07-F-PROVER-owner-handoff-request.txt
 f1e94f42269998badd2b8f51c1e7a58b2e301ead7241b9ac8fbbcbca549887f5  protocol/2026-09-07-F-PROVER-ratification-and-ruling-RECEIVED.txt
 c10152b82f92ae88b87ce7fe61a86a4af35591534cbff59be75fa719da3f2325  protocol/2026-09-07-F-PROVER-park-confirmation-RECEIVED.txt
+bf9b78272d0974e4d434d51b49fa037b30324984ae2e19d9c9fdf3e89419760e  protocol/2026-09-07-F-PROVER-clarifications-queued-RECEIVED.txt
 aec448aff2ef51f6ebd1c98105dba21ad72c20ed927c45712bcfe83314aa4667  protocol/F.md
 
-# rev 7 (2026-09-07): park-state confirmed; identity-currency rule adopted (F.md section 13) — battery pin 704db5e marked historical by ancestor corroboration (704db5e -> 545d2ce), future integrations use the owner-supplied current SHA; reset entry 4, zero loss
+# rev 8 (2026-09-07): carry-forward ratified; receipt archived; TWO RULE REFINEMENTS QUEUED per the channel's explicit instruction — four-step identity acceptance (compatibility gate at step 4) and ancestor-check as general historical-pin form MUST ride the next real commit that acts on the first owner-supplied input; F.md untouched this commit; reset entry 5, zero loss
