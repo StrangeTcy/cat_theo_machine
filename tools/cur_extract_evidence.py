@@ -70,7 +70,7 @@ CHECKS = ("C1", "C2", "C3", "C4", "C5", "C6")
 # Pinned identities. contract_ref is the grader-pinned AUTHORITATIVE contract path (from the
 # sibling/integration ref, not present as a file in this branch). The in-tree contract document the
 # ruleset was reconstructed/checked against is CUR-ENGEL-<family>.md; we bind to BOTH so a later
-# reviewer can tell the authoritative name from the in-tree source that was actually hashed.
+# reviewer can tell the authoritative name from the in-tree source that was hashed.
 PINNED_CONTRACT_COMMITS = {
     "E3": "c10011bfabc73b55c7a3de80c4ff14a78234f17b",
     "E4": "c10011bfabc73b55c7a3de80c4ff14a78234f17b",
@@ -847,7 +847,7 @@ def _checked_e7(bundle, status):
     if modulus is None:
         diagnostics.append("E7: no modulus parameter")
 
-    # --- C1 derived from flip-sign move set: a width-4 observable actually derived.
+    # --- C1 derived from flip-sign move set: a width-4 observable derived.
     # PASS requires BOTH the width-4 structure AND a derived-observable node (an explicit
     # derivation record). A bare window_width tag alone is not a derivation — that is the
     # "tag never establishes evidence" discipline, same as E3/E4. A FAIL bit is set only when an

@@ -1,0 +1,60 @@
+F-5 EXTRACTOR COMMENT CLEANUP + IDENTITY RE-PIN — 2026-09-10 UTC
+================================================================
+Agent: CUR-GRADER-ENG / import support. Lane: arena/01a066cf-cat-theo-machine.
+Separate commit from the import rehearsal; the e904cfa-based import evidence
+(f1aa963) is untouched and stays valid for the bytes it records.
+
+SCOPE
+-----
+tools/cur_extract_evidence.py only: two comment lines reworded, zero code
+touched. Each of the two lines dropped a single banned adverb; nothing else
+on those lines changed. No test expectation, grade, fixture, or pinned
+commit constant was edited.
+
+Line 73 now reads:
+  # reviewer can tell the authoritative name from the in-tree source that was hashed.
+Line 850 now reads:
+  # --- C1 derived from flip-sign move set: a width-4 observable derived.
+
+Token occurrences of that adverb in tools/cur_extract_evidence.py after
+the edit: 0 (grep, 2026-09-10T02:17Z).
+Other banned literals ("If you want", "matters", "but wait", "Let me")
+in tools/cur_*.py + CUR suite runners: 0 each (git grep, same date).
+
+Out of scope, left untouched (not CUR host tooling): one docstring
+occurrence in daemon.py, several occurrences in project .md docs, and the
+historical occurrences inside dated verification/ evidence (which must
+keep recording the bytes they measured).
+
+DIGEST RE-PIN (live-computed, verified — not hand-filled)
+---------------------------------------------------------
+_extractor_identity() hashes the extractor's own bytes at runtime, and the
+pipeline re-hashes the file on receipt, so no hardcoded digest exists to
+edit (git grep: the old digest appears only in verification/ evidence).
+Old pinned value (e904cfa bytes, still recorded in f1aa963 evidence):
+  ef7f3183a6b877693d9ae49c4230b682224b5642cdebf005ec2193ead36eea3e
+New value (this commit's bytes, sha256sum):
+  edec65b8a26cd392008afdc19a21e83e20ac6689e26d4887b24c0662d7d9783e
+End-to-end check 2026-09-10T02:17Z:
+  python3 tools/cur_extract_evidence.py \
+    tools/tests/cur_extractor/fixtures/e3-pass.json --out /tmp/f5-manifest.json
+  exit=0; manifest identity.extractor_digest == sha256(file bytes) == the
+  new value above (MATCH). contract_ref_commit c10011bf... and
+  rubric_ref_commit 70271007... unchanged.
+
+SUITE GATE (2026-09-10T02:17:47Z, same tree as this commit)
+-----------------------------------------------------------
+  python3 tools/tests/cur_grader/run.py              exit=0  56/56 fail=0
+  python3 tools/tests/cur_extractor/run.py           exit=0  30/30 fail=0
+  python3 tools/tests/cur_schema/run.py              exit=0  13/13 pass, 0 fail
+  python3 tools/tests/cur_pipeline/run.py            exit=0  12/12 pass, 0 fail
+  python3 tools/tests/cur_pipeline/hardening.py      exit=0  12/12 pass, 0 fail
+Counts identical to the pre-edit baseline; no expected value was changed.
+
+NOTE FOR INT
+------------
+The ratified import (source e904cfa, evidence f1aa963) carries the old
+extractor bytes. This cleanup lands as a follow-up commit on the CUR lane;
+INT imports e904cfa first (unchanged procedure), then takes this cleanup
+as a normal follow-up (one file, comment-only diff, digest follows the
+bytes). Merge/tag performed by this commit: none.
