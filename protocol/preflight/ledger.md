@@ -3,8 +3,14 @@
 Per CHARTER-v1 §1. One entry per item. Every claim here cites an artifact in
 this directory or under `verification/`.
 
-Status: **item 1 surfaced and named; fix outstanding.** Items 2, 3, 4 not
-started. No `preflight` commit and no tag yet.
+Status: **item 1 surfaced and named; defect still open after three repair
+attempts.** Items 2, 3, 4 not started. No `preflight` commit and no tag yet.
+
+**Correction to the record.** Commit `bfd4bd2` is described in its own
+message as applying a codec-side guard at `persistence.py:806`. It does not.
+Only `protocol/preflight` and `verification/` were staged; the guard stayed
+unstaged and a later sandbox reset discarded it. The commit contains evidence
+and nothing else. It is not being rewritten — no force-push on this line.
 
 ---
 

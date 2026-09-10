@@ -173,6 +173,52 @@ Relevant facts for choosing the repair:
     choice is the operator's; it is not an engineering default.
 
 --------------------------------------------------------------------------
+Third traceback — after the index-level guard (ruling (c))
+--------------------------------------------------------------------------
+
+Ruling (c) was implemented at the index, not the codec: the codec-side guard
+was removed from persistence.py:806, and both doors of the identity index
+were guarded in trees.py — `IdentityRedBlackLookupValue.__init__` and
+`IdentityRedBlackInsertMissing.__init__` now probe `key.id` and, on
+AttributeError, answer with that edge's own not-found / not-inserted result
+instead of raising. One confirming exact-109 run was executed.
+
+    tree:               bfd4bd2 + uncommitted trees.py guards
+    trees.py diff:      160c6ea3ba7070e96c65c592ef3802061d649b8dd3c31d4d09e7f476df83d1f4
+    start_utc:          2026-09-10T00:02:25Z
+    end_utc:            2026-09-10T00:16:37Z
+    exit:               1
+    raw log:            verification/2026-09-08-preflight-item1-fix-c-confirm/run.log
+
+  File "persistence.py", line 1592, in _encode_captured_subtree
+    objects[oid - 1] = self._record_for(obj, oid)
+  File "persistence.py", line 1464, in _record_for
+    "head": self._encode_field(obj.head.value),
+  File "persistence.py", line 1317, in _encode_field
+    return {"tag": "scalar", "value": self._encode_scalar(x)}
+  File "persistence.py", line 1325, in _encode_scalar
+    value = gmpy2.mpz(x)
+TypeError: mpz() requires numeric or string argument
+
+**The index guard cannot close this defect.** Guarding the index stops the
+raise at both doors, but the Hypergraph is still *reachable*: it is the
+`head.value` of a term that is in the index. Skipping it from the index does
+not remove the reference — the parent pair still points at it, and the record
+encoding phase then has to encode that reference. `_encode_scalar` handles
+only JSON-serialisable values and mpz; a Hypergraph is neither, and
+`_encode_field` calls `_encode_scalar` directly rather than through the
+`_scalar_payload` wrapper that swallows TypeError, so it propagates.
+
+Three doors, one object:
+
+    1. lookup   persistence.py:806  -> guarded, moved on
+    2. insert   persistence.py:1423 -> guarded, moved on
+    3. encode   persistence.py:1317 -> raised
+
+The object is not reaching these doors by three separate accidents. It is in
+the object graph, and every consumer of that reference fails in turn.
+
+--------------------------------------------------------------------------
 Closure status
 --------------------------------------------------------------------------
 
