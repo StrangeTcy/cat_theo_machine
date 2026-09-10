@@ -719,6 +719,22 @@ class SnapshotState:
         self.canonical_nats = canonical_nats if canonical_nats is not None else {}
 
 
+class SnapshotCaptureRefused(Exception):
+    """A term slot holds a host runtime object with no machine identity.
+
+    Raised at the capture boundary so the failure names the offending slot
+    instead of surfacing later, at whichever door happens to touch the
+    object first. Three doors were tried in turn during preflight item 1 --
+    index read, index write, record encode -- and each one moved the crash
+    rather than naming it. The carried term is a machine term, per the
+    standing rule that every failure is one.
+    """
+
+    def __init__(self, term):
+        self.term = term
+        Exception.__init__(self, "snapshot capture refused")
+
+
 class SnapshotCodec:
     ROOT_NAMES = [
         "constructor_registry",
@@ -1357,11 +1373,23 @@ class SnapshotCodec:
             return ()
         return (obj.value,)
 
-    def _queue_uncaptured(self, candidate, queue, Pair):
+    def _queue_uncaptured(self, candidate, queue, Pair, slot="term"):
         if candidate is None:
             return queue
         if self._scalar_payload(candidate) is not None:
             return queue
+        try:
+            candidate.id
+        except AttributeError:
+            raise SnapshotCaptureRefused(
+                    M.Pair(
+                        M.Char("snapshot-refused"),
+                        M.Pair(
+                            M.Char("host-object-in-term-slot"),
+                            M.Pair(M.Char("slot"), M.EmptyList),
+                        ),
+                    )
+            )
         if self._captured_object_id(candidate) is not M.EmptyList:
             return queue
         if self.capture_free_queue is M.EmptyList:
@@ -1379,6 +1407,18 @@ class SnapshotCodec:
             return None
         if self._scalar_payload(obj) is not None:
             return None
+        try:
+            obj.id
+        except AttributeError:
+            raise SnapshotCaptureRefused(
+                    M.Pair(
+                        M.Char("snapshot-refused"),
+                        M.Pair(
+                            M.Char("host-object-in-term-slot"),
+                            M.Pair(M.Char("root"), M.EmptyList),
+                        ),
+                    )
+            )
 
         existing = self._captured_object_id(obj)
         if existing is not M.EmptyList:
@@ -1445,12 +1485,12 @@ class SnapshotCodec:
                     self.capture_last_progress_at = capture_now
 
             if self._is_pair_object(current) is M.truth_value:
-                queue = self._queue_uncaptured(current.head.value, queue, Pair)
+                queue = self._queue_uncaptured(current.head.value, queue, Pair, "head")
                 current = current.tail.value
                 continue
             if self._is_edge_object(current) is M.truth_value:
-                queue = self._queue_uncaptured(current.inputs, queue, Pair)
-                queue = self._queue_uncaptured(current.results, queue, Pair)
+                queue = self._queue_uncaptured(current.inputs, queue, Pair, "inputs")
+                queue = self._queue_uncaptured(current.results, queue, Pair, "results")
                 current = current.value
                 continue
             current = current.value

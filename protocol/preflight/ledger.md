@@ -106,7 +106,27 @@ both pre-existing members of the known failure set.
 **Index guards at `2a0a876` retained** as defense-in-depth with correct
 answer semantics.
 
-**Not landed: the capture-entry refusal test.** Designed, then held, because
+**Capture-entry refusal: LANDED, blast radius MEASURED.** The ruling was
+FAIL-CLOSED, and the open question was how far it reaches given the
+codebase-wide `inputs=M.Pair(graph, ...)` convention. Measured rather than
+argued: `SnapshotCaptureRefused` is raised at the capture boundary when a
+candidate in a term slot carries no machine identity, carrying a machine
+term naming the slot — `(snapshot-refused host-object-in-term-slot <slot>)`
+— with the slot labelled `head`, `inputs`, `results` or `root`.
+
+Blast radius, on 46 capture-adjacent tests (snapshot, checkpoint, daemon,
+worker, research, provenance, policy, autonomy, retirement, migration):
+**44 passed, 2 failed, zero refusals fired, no traceback.** The convention
+does not reach capture in any of them. The two failures produced no refusal
+term, so they are not refusal-induced; their names were not captured in
+that run and item 4 records them authoritatively.
+
+Minimal reproducer still green with the refusal active:
+`worker_protocol_test learned_memory_checkpoint_test` → 2/2.
+
+**Assertion-style test: NOT yet added.** The ruling requires one at the
+capture boundary. It is outstanding, and it must register after cursor 304
+so no existing cursor index (218 included) shifts. Designed, then held, because
 `inputs=M.Pair(graph, ...)` is a codebase-wide convention, not a two-site
 mistake: it appears in `graph.py` (many), `context.py` (~40 call sites),
 `planner.py`, `search/api.py`, `search/engine.py`, `proof.py`,
