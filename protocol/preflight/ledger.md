@@ -243,6 +243,59 @@ only: no search, no teaching, no target session.
 
 ## Item 4 — full two-shard suite
 
-Not started, and gated: the ruling sequences it after items 1–3, after the
-item-1 repair, on a pinned candidate SHA. Item 1's repair is outstanding, so
-item 4 cannot start yet.
+**RUN AND MEASURED on `ddc3d79`, both shards, 305 registered.**
+Started 23:10, both shards DONE by 23:43 (~33 min wall, run in parallel).
+
+```text
+shard 0:  passed 149   failed 2   open 2
+shard 1:  passed 146   failed 4   open 2
+total:    passed 295   failed 6   open 4   (of 305)
+```
+
+**The item-4 gate checks that matter are green.** `learned_memory_checkpoint_test`
+(index 218) PASSED, so the item-1 regression guard holds. The new refusal test
+(index 304) PASSED in full-shard context, not only solo.
+`nat_value_index_snapshot_roundtrip_test` (index 90) PASSED here — the
+previously flagged baseline red did not reproduce in shard context.
+
+**Failures, classified one by one:**
+
+| Test | Shard | On the expected list? | Classification |
+|---|---|---|---|
+| `tree_insert_deep_pair_lookup_avoids_recursion_test` | 0 | yes | known pre-existing |
+| `compare_search_modes_fill_warms_resident_pool_before_root_wave_test` | 0 | yes | known pre-existing |
+| `heuristic_canonical_knowledge_agreement_test` | 1 | yes | known pre-existing |
+| `curator_report_test` | 1 | yes | known pre-existing |
+| `compare_search_modes_finds_reusable_worker_snapshot_dir_test` | 1 | yes | known pre-existing |
+| `cold_e2_reaches_snapshot_save_test` | 1 | **no** | pre-existing, proven below |
+
+Two tests were on the expected list and **did not fail**:
+`converse_default_mode_test` (180, shard 0) and `converse_proposition_test`
+(181, shard 1) both passed.
+
+**`cold_e2_reaches_snapshot_save_test` — the one name not on the list.**
+It is snapshot-adjacent, so it was the first thing checked against this
+lane's own change. It is not a regression:
+
+```text
+solo, tip ddc3d79            failed   -> not a shard-context flake
+solo, 994a081 (pre-refusal)  failed   -> not caused by the refusal
+solo, 41e8078 (session base) failed   -> predates all of this line's work
+```
+
+Identical result at all three: 1 registered, 0 passed, 1 failed. It is a
+baseline red that the operator's enumeration had not captured. Five of the
+six failures were on the expected list; the sixth is pre-existing rather
+than new.
+
+**The four OPEN results are sentinels, not failures**: `test_milestone_m1_cycles_without_refusal`
+and `test_milestone_m3_meta_handle_reorders` (shard 0),
+`test_milestone_m2_handle_lifecycle` and `test_milestone_m4_policy_loosen_then_tighten`
+(shard 1). OPEN sentinels do not pass by construction.
+
+**Method note, for the next shard run.** The first attempt was lost to
+sandbox reset #24, and because it ran `shard_suite.py` directly under the
+process tool it lost the evidence along with the run — nothing on disk.
+`tools/run_shards_detached.sh` exists precisely to prevent that, and the
+second attempt used it: logs at `logs/shard-0.log` and `logs/shard-1.log`,
+surviving any process kill. Use the wrapper; do not run the suite bare.
