@@ -3,9 +3,10 @@
 Per CHARTER-v1 §1. One entry per item. Every claim here cites an artifact in
 this directory or under `verification/`.
 
-Status: **item 1 CLOSED, exact-109 green.** Item 3 complete and
-shape-matched. Item 2 not started. Item 4 gated on item 2. No `preflight`
-commit and no tag yet.
+Status: **item 1 CLOSED, exact-109 green. Item 2 COMPLETE: producer
+candidate count 1, unmatched premise P, goal unclosed. Item 3 complete and
+shape-matched.** Item 4 (both full shards) is the only item left. No
+`preflight` commit and no tag yet.
 
 **Correction to the record.** Commit `bfd4bd2` is described in its own
 message as applying a codec-side guard at `persistence.py:806`. It does not.
@@ -120,13 +121,57 @@ record whose message claims code it does not contain; superseded by
 
 ## Item 2 — A1 producer/consumer selection probe
 
-Not started. Constructed per the restored ruling: goal
-`(nosolutions positive-integers (unknowns x) (eq (plus x 1) x))`, marker
-terms `(a1-producer-premise G)` and `(a1-consumer-result G)`, producer and
-consumer compiled through the real rule compiler, both confirmed `MultiRule`,
-producer placed in an isolated session-only rule pool, candidate selection
-run against `G`. Artifact will be `protocol/preflight/a1-selection.txt`.
-The goal must stay unclosed; this is a selection probe, not a theorem.
+**Result: COMPLETE. Decisive evidence met on all three counts. No defect
+filed.** Artifact: `protocol/preflight/a1-selection.txt`. Raw log:
+`verification/2026-09-10-preflight-item2-a1-selection/run.log`. Tool:
+`tools/preflight_a1_selection.py`.
+
+    G = (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
+    P = (a1-producer-premise G)      C = (a1-consumer-result G)
+    producer: premises [P] -> conclusion G
+    consumer: premises [G] -> conclusion C
+
+Both compiled through `research.compile_formal_rule`, the only door to an
+executable rule, and both are `MultiRule`: inputs is
+`Pair(premises, Pair(replacement, EmptyList))`, results is `EmptyList`,
+checked structurally rather than by host type test, with the rendered object
+confirming `cat_theo_machine.proof.MultiRule`.
+
+Selection, in an isolated session-only pool of one rule (the producer), not
+installed into `FireAny`:
+
+```text
+candidate partial-match count: 1
+selected rule identity: producer     rule origin: primitive
+attempt record: (None <MultiRule> primitive () ()
+                (a1-producer-premise (nosolutions positive-integers
+                 (unknowns x) (eq (plus x 1) x))) None)
+goal closed: NO
+```
+
+| decisive evidence | required | observed | |
+|---|---|---|---|
+| producer candidate count | >= 1 | 1 | pass |
+| unmatched premise | P | P, as recorded | pass |
+| goal closed | no | NO | pass |
+
+**Reading caveat, recorded in the artifact:** P is an opaque session-local
+marker with no axiom, law or derivation behind it. The count of 1 reports
+that the machinery matched a premise shape — not that the machine needs P,
+that P is satisfiable, or that anything follows from it. A deliberately
+unsatisfiable diagnostic premise yields the same count as a real one.
+Selection evidence is not proof evidence; this is not a theorem request, a
+capability claim, or an unlock.
+
+The consumer was compiled but not selected against C; the ruling makes that
+second check optional.
+
+**Relation to D11:** unaffected and uncontradicted. D11 asked the shipped
+library for a nosolutions-headed rule and found none — pack-content
+absence, filed as such. Here the rule is supplied by the probe, so the
+vocabulary is present by construction. Together: the selection path handles
+nosolutions heads (this run), and the shipped library contains no rule with
+that head (D11).
 
 ## Item 3 — structural decoy shape check
 
