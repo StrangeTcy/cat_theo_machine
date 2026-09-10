@@ -1,0 +1,535 @@
+{
+  "allow_replace": [],
+  "allowlist": [
+    "tools/cur_artifact_schema.py",
+    "tools/cur_extract_evidence.py",
+    "tools/cur_grade_artifact.py",
+    "tools/cur_pipeline.py",
+    "tools/tests/cur_schema/",
+    "tools/tests/cur_extractor/",
+    "tools/tests/cur_grader/",
+    "tools/tests/cur_pipeline/",
+    "protocol/G-ENG-ARTIFACT-SCHEMA.md"
+  ],
+  "dependency_check": "imported tools import stdlib only; no machine modules; no additional paths required",
+  "destination_results": [
+    {
+      "_label": "destination",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 56,
+      "suite": "tools/tests/cur_grader/run.py",
+      "total": 56,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "destination",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 30,
+      "suite": "tools/tests/cur_extractor/run.py",
+      "total": 30,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "destination",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 13,
+      "suite": "tools/tests/cur_schema/run.py",
+      "total": 13,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "destination",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 12,
+      "suite": "tools/tests/cur_pipeline/run.py",
+      "total": 12,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "destination",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 12,
+      "suite": "tools/tests/cur_pipeline/hardening.py",
+      "total": 12,
+      "verdict": "PASS"
+    }
+  ],
+  "harness": "tools/tests/cur_import/run.py",
+  "identity_preservation": {
+    "contract_ref_commit": "c10011bfabc73b55c7a3de80c4ff14a78234f17b",
+    "extractor_digest": "ef7f3183a6b877693d9ae49c4230b682224b5642cdebf005ec2193ead36eea3e",
+    "ok": true,
+    "reason": "pinned identities preserved",
+    "rubric_ref_commit": "70271007ba5292e782c223bca1474dce8ced8168"
+  },
+  "imported": [
+    {
+      "mode": "100644",
+      "path": "protocol/G-ENG-ARTIFACT-SCHEMA.md",
+      "sha256": "dde254cd021ce410b6b9d7d5c561d80d6f3826175eb75e23eed913d2be46e211"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/cur_artifact_schema.py",
+      "sha256": "c1073d71c8b60b26797ec66331249a93682b5f4e004c58b0d4468b8602410f8f"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/cur_extract_evidence.py",
+      "sha256": "ef7f3183a6b877693d9ae49c4230b682224b5642cdebf005ec2193ead36eea3e"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/cur_grade_artifact.py",
+      "sha256": "5cfd25832172d7911057b6c8531cdba0cf0371a1fb4ac5abd138370a0d66f627"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/cur_pipeline.py",
+      "sha256": "5fce762e53c0a7d05a742c13755f5f635b349e663bdbf996a55da79e32bf011f"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-circular-support.json",
+      "sha256": "b2328066f7da830cabbba1a0a18d890a256a446a3134723e79200c9958fc5456"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-contradictory.json",
+      "sha256": "f5235f5715b562640ff68666ee2bb591bede419c737db76304474141ec421d35"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-empty-support.json",
+      "sha256": "04884fb646ff90ed85d65d37fcef6ec7fbc6e83cede05202f0584afb08f1df9b"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-not-in-kernel.json",
+      "sha256": "0baf8ded8d5f57f1665b43c6e2fa80c0a558e9b34db65296daca7d00f0cd4fde"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-partial-missing-odd-gen.json",
+      "sha256": "26f2a511de730ffd1bec20f75cf3b61fad59af2b0b13a5e85dc471c1243a3c49"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-pass-decorative-label.json",
+      "sha256": "02f4a20123d2400fa905084572b7b5d1dc82d6886d32066ba452f38021db471f"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-pass.json",
+      "sha256": "aee90f8e768efa2a8208c9e45a8c8924cef34dfaa882044ca2e60af9013c361c"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-role-only-negative-control.json",
+      "sha256": "11b5a4e75c865936887b9f0133e3c925eec924ef915abae3281632600b0af772"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-self-citation.json",
+      "sha256": "32bd7fc123b09bb57b65d7a1345e024f6bc40c522deea757637850c07e87e341"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-unrelated-support.json",
+      "sha256": "688e1a392fd0cb744a80c11d5084fe0827aac9b00c7b2f7ba4f4679fb176f3d0"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e3-unresolved-upstream.json",
+      "sha256": "aa57def54b0e3b3b4eb4860b757f958274a0c0971bd61d856ace0b47ccc68b77"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e4-degree4-move.json",
+      "sha256": "4361f3f75da93904360cca34a45022aa0f82cad1d40adb1396b619133fc0144a"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e4-missing-degree-bound.json",
+      "sha256": "c55f47218bc8f8a98bae90d45084dec4bb87fad20320f3cc0fb2a3bd730d2a2d"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e4-pass.json",
+      "sha256": "18c416cf4d2f69ab6f748ff0c749812e1de08ca1db2d243824cbfb4d2a81339c"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e4-role-only-negative-control.json",
+      "sha256": "8b71d9d6138c140274c2d4885eed55406acfd51789fb3053893df89526081e99"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e4-terminal-global-min.json",
+      "sha256": "ca27f98e63e928c3566a9f42370bb3295d316d1f4d7a432eb8ca1c5893aeaf1a"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e7-no-samples.json",
+      "sha256": "ee9f21e94ec3009849ed5d88a0fe24d08c3eeeee30cff000839a4cb187e71ff1"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e7-params-negative-control.json",
+      "sha256": "2a1e8268655bd1035f73efeec7b9b2e8a0eedf425bb3f2cc705ac2816b36a6c3"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e7-pass.json",
+      "sha256": "824c445986527bb7b51f9c508bb88928ab38351f964ef5b5bc54f44db1e572a1"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e7-preservation-fails.json",
+      "sha256": "8f7b8a64b272060cd5d8f3a60fdeb89f82b459d21e41a4c0515f6c27df698f84"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e7-role-only-negative-control.json",
+      "sha256": "7f60fb2bec482163cb617e1a1d65518500b06bb67b928a55bad8e0e7c9dfb474"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/e7-width-tag-only.json",
+      "sha256": "042460cff35cd5db8a0faeb3e2f47c3c2d50de51b3fb9431b0a5041effa679e6"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/malformed-duplicate-id.json",
+      "sha256": "bdcd5e56e2d70fdf94d551ea5103f9834d53c063b4754744e1bb98497dcf48c2"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/malformed-nonarray-cites.json",
+      "sha256": "312d3a5efaa5b47df0fc8b58d9e444217f60f7bbcdeda06a32d8adc9c2352c36"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/fixtures/unsupported-contract.json",
+      "sha256": "6347930a85e63e365d29dbafa6ca2762499e2398234f4576929059abdd2da5e9"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_extractor/run.py",
+      "sha256": "55ff96efb181a69b40e4544806c79f1175e297ac87b0af45f1998be09164e848"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/AMB-E4.json",
+      "sha256": "5e43e071067d0f5d3da946d85cf015e32a5fac239a9972f02482549dbb4e1859"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/AMB-E7.json",
+      "sha256": "9db7d1abf2ca2f95f4e8efa0b5de68da148f7aa4d4ecb91f49beedd029068b1e"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/BAD-ARR.json",
+      "sha256": "4f2bae8344c9e9668cf7f7e7ed83ecabc5f3dfe6818706000c03de7188dc2fd6"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/BAD-BOOL-STR.json",
+      "sha256": "9331a0cd197cb245ee3f5fe1c1f6f13655b560c676a9c51dd0f6c5a73057606f"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/BAD-NUM.json",
+      "sha256": "c7a8788fe1dffe5aeab1cdea80133eae0e9064cb71b848a1469d1d462fded12c"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/BAD-OBJ.json",
+      "sha256": "07f74706b7ae5e1118ea67678afe6da564220f81c9c782d753f20447627af445"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/CD-E3.json",
+      "sha256": "f712c20190b69220bfb005293cd020bbcaa49a0518ca1b56e87c0c9a28f4756c"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/CD-E4.json",
+      "sha256": "098344ef4889055fb5e7dee668998c231c616e3b2450f54d040fa546d7c20c6f"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/CD-E7.json",
+      "sha256": "66ba7da12edc07b951581fc7f287900abfe0c5b6b04b01bb3542b31bce7fb10d"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E3-M1.json",
+      "sha256": "42ad000d70c0eeca88ae48c1d872b1ccf0bf1d729aedcf59019940ef06f6625b"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E3-M2.json",
+      "sha256": "de29d9b1a9ef2af908a27c0334a914c77748325f60e60fc017e9c8b957831ec0"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E3-M3.json",
+      "sha256": "57c137518e9d3802295a0b29cf0e519353d752d44883abef2ca37af49178e6ff"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E3-M4.json",
+      "sha256": "8a070907117dac0153fcb39f37ea3b9120f3799d96a70f77b3cb87fa3a341b11"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E4-M1.json",
+      "sha256": "c191daede3fd370e85ff868192dcda9ec98a286627d5826b75edd0a07cb7489e"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E4-M2.json",
+      "sha256": "eae7a165b0f2e8177bc98915e8182bdd112f2350b8a682593fa881c8884f4898"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E4-M3.json",
+      "sha256": "e09c6d342f144e5b204e1061a76b5c2e59362fb58f5c37cb42d133bb12d16b77"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E7-M4.json",
+      "sha256": "570d995fc347266332b8023b4c3a5aa678fddf61b31828850513f7df74279693"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E7-M5.json",
+      "sha256": "aa921bb2653d753d285594f4357536d3d808bb7ee72249f9578c0b8e66bbdafc"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/E7-M6.json",
+      "sha256": "ebd04e6badc2e0315f9f8b96b8f488beeb52683c26597cf29817d77db0ffef2d"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/PASS-E3.json",
+      "sha256": "1a31b17e9a168f862c5051015ad40e8c9337e7d8cd08ef6b481937193c7bea65"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/PASS-E4.json",
+      "sha256": "e51f0f22cfa29d66bf02d521f33cbf2b269f6bbd40a81d8c9943ab529e1f8a36"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/PASS-E7.json",
+      "sha256": "206a5e68c41f541a46861a70769caab4d9a5cd99662757a83aebb60e1233c7d9"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/RULESET-MISMATCH.json",
+      "sha256": "48bb8c810ba8554bdc72ec2447638101653b33e5ba31cb0ea4d9a668ce5b92e6"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/UNKNOWN-KEY.json",
+      "sha256": "0835e501e447923fafc0c0603d4403ba58517ab2da4d44b76bd37c73292ecae3"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/contradictory_1.json",
+      "sha256": "0437c127e03112ded86fba07d8ccfe4886a850948372338b5715ab8d10a6da78"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/fixtures/malformed_1.json",
+      "sha256": "f24e60e09e36670abc214b5912ed9a34c7cbbf2e26e9139c0c7dede2a8311707"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/oracle.json",
+      "sha256": "3cf79205dbdc5c6851ad352243194de931d8c857e4370f1d5b95ab0c8cdb1514"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_grader/run.py",
+      "sha256": "0174e5d6cc37e42fdc8be950374cbfd83ae66995c1637c763b0b92771adafdca"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_pipeline/hardening.py",
+      "sha256": "08036443b3fcd648e3f8506818335f6ca59237c7ac277f7b2a0264f3d2a377a0"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_pipeline/run.py",
+      "sha256": "9c211d36985ade0f3a33d3d51f69a7fb145f42f089aba2abedc691dc0deee781"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/duplicate-node-id.json",
+      "sha256": "e61f735bf82f1373322bd58832345de83fd68923d85328af77cb29bf3eb00951"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/e4-dual-form-contradiction.json",
+      "sha256": "cbd8f7c8cadecfb7a4631b37c8363f18591f46ac5808a196e7a62d0ed9366f46"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/e4-valid-dual-form.json",
+      "sha256": "f5468ce4871d308811f9c54f9736c594ccb9de86001711c74e633d257f24e4b0"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/e7-params-only.json",
+      "sha256": "839b273710e1057e44e60b18f068c1cf2a60a2e9e583195cf7731d29e75002d9"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/e7-width-short-sequence.json",
+      "sha256": "e419f00ae2a843615d5cd14f6cc8ca95421b61f3c633d2de365ad08a9b88d540"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/invalid-numeric-domain.json",
+      "sha256": "52c75e6cbfcf21198ec6f77c098d278e238b4492b8e1a9221ac56ae5f702ca47"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/malformed-collections.json",
+      "sha256": "2f9bf9f5512c8715ad05539c79d68cf217345e83e4f5e585113583c1f25e8ef8"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/missing-optional-evidence.json",
+      "sha256": "839b273710e1057e44e60b18f068c1cf2a60a2e9e583195cf7731d29e75002d9"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/missing-required-structure.json",
+      "sha256": "a80011ecf9fe0bce462c024ba1fc27abe2640ae423662fa5858649cabdcecf40"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/nonarray-cites.json",
+      "sha256": "6bb837b266a984070abdd97c9316ead69c464ece938f351d2948a2e320ebad6a"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/fixtures/unknown-contract.json",
+      "sha256": "527c6604798280698b7f78370be6b5fcd76335f94eabece3cac54978b24d635a"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/tests/cur_schema/run.py",
+      "sha256": "eaeaf458032d09fc15db5f3a798fb97ffa7d250be75a61eb5a2cc962fa286434"
+    }
+  ],
+  "merge_or_tag_performed": "none",
+  "non_allowlisted_untouched_probe": [
+    {
+      "path": "main.py",
+      "sha256": "d377c28aa61c592d3d621ab57a48b2a058b6db09b0aadd540570d017a060f68a"
+    },
+    {
+      "path": "core.py",
+      "sha256": "bea26c780027a15c4d684a0d4bb9cd80916e53cab6274eb40311e33dbeb66106"
+    },
+    {
+      "path": "persistence.py",
+      "sha256": "187caa827357ac1e3bae2bc6e23087dcead3d64486a96e5614eaeed12e04016d"
+    },
+    {
+      "path": "training.py",
+      "sha256": "dcb911fc13dc86484222d0a75247f57fe32be40cd70c5af645b12783c0bf1670"
+    },
+    {
+      "path": "research.py",
+      "sha256": "2c4242ed2c8127e05d8e6d2a2f3966575b0f4938cd9c8335b948ee92c07d3075"
+    }
+  ],
+  "role": "CUR-GRADER-ENG / import support (disposable rehearsal)",
+  "runtime_base": {
+    "commit": "13cd338c2b0063c3cc2cdcb61231670361a31355",
+    "rev": "13cd338",
+    "tree": "d481494ccc15ffbac38579f0cd88462dbef86e9b"
+  },
+  "source_results": [
+    {
+      "_label": "source",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 56,
+      "suite": "tools/tests/cur_grader/run.py",
+      "total": 56,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "source",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 30,
+      "suite": "tools/tests/cur_extractor/run.py",
+      "total": 30,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "source",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 13,
+      "suite": "tools/tests/cur_schema/run.py",
+      "total": 13,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "source",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 12,
+      "suite": "tools/tests/cur_pipeline/run.py",
+      "total": 12,
+      "verdict": "PASS"
+    },
+    {
+      "_label": "source",
+      "exit": 0,
+      "fail": 0,
+      "missing_deps": [],
+      "ok": 12,
+      "suite": "tools/tests/cur_pipeline/hardening.py",
+      "total": 12,
+      "verdict": "PASS"
+    }
+  ],
+  "suites": [
+    "tools/tests/cur_grader/run.py",
+    "tools/tests/cur_extractor/run.py",
+    "tools/tests/cur_schema/run.py",
+    "tools/tests/cur_pipeline/run.py",
+    "tools/tests/cur_pipeline/hardening.py"
+  ],
+  "tool_source": {
+    "commit": "e356b90f07a7cbf6c18e6410c81627b2206b60d2",
+    "rev": "e356b90f07a7cbf6c18e6410c81627b2206b60d2",
+    "tree": "1f0139ccfd8d2558112b836ccd9ad6659d043e7a"
+  }
+}

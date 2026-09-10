@@ -1,0 +1,293 @@
+DESTINATION (runtime base bfd4bd28de5765adbdabd1d152200fa67f11e5a2) — suites executed against imported files
+
+suite:    tools/tests/cur_grader/run.py
+  exit:   0
+  counts: 56/56 pass, 0 fail
+  verdict: PASS
+
+suite:    tools/tests/cur_extractor/run.py
+  exit:   0
+  counts: 30/30 pass, 0 fail
+  verdict: PASS
+
+suite:    tools/tests/cur_schema/run.py
+  exit:   0
+  counts: 13/13 pass, 0 fail
+  verdict: PASS
+
+suite:    tools/tests/cur_pipeline/run.py
+  exit:   0
+  counts: 12/12 pass, 0 fail
+  verdict: PASS
+
+suite:    tools/tests/cur_pipeline/hardening.py
+  exit:   0
+  counts: 12/12 pass, 0 fail
+  verdict: PASS
+
+----------------------------------------------------------------------
+RAW COMMAND RECORDS
+----------------------------------------------------------------------
+[0] cwd=/tmp/cur_import_rehearsal_tv1cwiam/dest
+    cmd=/usr/bin/python3 /tmp/cur_import_rehearsal_tv1cwiam/dest/tools/tests/cur_grader/run.py
+    exit=0 started=1789003599.007 ended=1789003600.163
+    stdout| ==============================================================================
+    stdout| GRADER SELFTEST (hardened) — tools/tests/cur_grader/run.py
+    stdout| ==============================================================================
+    stdout| fixture             exit  final                   discrepancy             ok
+    stdout| ------------------------------------------------------------------------------
+    stdout| AMB-E4              2     AMBIGUOUS_DISCREPANCY   ambiguous               Y
+    stdout| AMB-E7              2     AMBIGUOUS_DISCREPANCY   ambiguous               Y
+    stdout| BAD-ARR             2     MALFORMED               none                    Y
+    stdout| BAD-BOOL-STR        2     MALFORMED               none                    Y
+    stdout| BAD-NUM             2     MALFORMED               none                    Y
+    stdout| BAD-OBJ             2     MALFORMED               none                    Y
+    stdout| CD-E3               3     CANNOT_DETERMINE        none                    Y
+    stdout| CD-E4               3     CANNOT_DETERMINE        none                    Y
+    stdout| CD-E7               3     CANNOT_DETERMINE        none                    Y
+    stdout| E3-M1               1     FAIL                    derivation-absent       Y
+    stdout| E3-M2               1     FAIL                    preservation-unsupportedY
+    stdout| E3-M3               1     FAIL                    overclaim               Y
+    stdout| E3-M4               1     FAIL                    constant-injection      Y
+    stdout| E4-M1               1     FAIL                    hypothesis-omitted      Y
+    stdout| E4-M2               1     FAIL                    descent-unsupported     Y
+    stdout| E4-M3               1     FAIL                    overclaim               Y
+    stdout| E7-M4               1     FAIL                    derivation-absent       Y
+    stdout| E7-M5               1     FAIL                    preservation-unsupportedY
+    stdout| E7-M6               1     FAIL                    constant-injection      Y
+    stdout| PASS-E3             0     PASS                    none                    Y
+    stdout| PASS-E4             0     PASS                    none                    Y
+    stdout| PASS-E7             0     PASS                    none                    Y
+    stdout| RULESET-MISMATCH    2     MALFORMED               none                    Y
+    stdout| UNKNOWN-KEY         2     MALFORMED               none                    Y
+    stdout| contradictory_1     2     MALFORMED               none                    Y
+    stdout| malformed_1         2     MALFORMED               none                    Y
+    stdout| ------------------------------------------------------------------------------
+    stdout| check1 fixtures graded: 26 ok, 0 fail
+    stdout| 
+    stdout| CHECK 2 — decorative expected-label field is ignored
+    stdout|   E4-M1.json: unchanged
+    stdout|   E7-M5.json: unchanged
+    stdout|   PASS-E3.json: unchanged
+    stdout| 
+    stdout| CHECK 3 — removing required evidence turns PASS to CANNOT_DETERMINE
+    stdout|   PASS-E3.json: final=CANNOT_DETERMINE OK
+    stdout|   PASS-E4.json: final=CANNOT_DETERMINE OK
+    stdout|   PASS-E7.json: final=CANNOT_DETERMINE OK
+    stdout| 
+    stdout| CHECK 4 — contradictory evidence exits 2
+    stdout|   contradictory_1: exit=2 OK
+    stdout| 
+    stdout| CHECK 5 — each failing fixture emits exactly one discrepancy label
+    stdout|   E3-M1: disc=derivation-absent OK
+    stdout|   E3-M2: disc=preservation-unsupported OK
+    stdout|   E3-M3: disc=overclaim OK
+    stdout|   E3-M4: disc=constant-injection OK
+    stdout|   E4-M1: disc=hypothesis-omitted OK
+    stdout|   E4-M2: disc=descent-unsupported OK
+    stdout|   E4-M3: disc=overclaim OK
+    stdout|   E7-M4: disc=derivation-absent OK
+    stdout|   E7-M5: disc=preservation-unsupported OK
+    stdout|   E7-M6: disc=constant-injection OK
+    stdout| 
+    stdout| CHECK 5b — multi-taxonomy failure is AMBIGUOUS (exit 2)
+    stdout|   AMB-E4: exit=2 final=AMBIGUOUS_DISCREPANCY OK
+    stdout|   AMB-E7: exit=2 final=AMBIGUOUS_DISCREPANCY OK
+    stdout| 
+    stdout| CHECK 6 — schema violations (non-boolean / unknown key / ruleset) exit 2
+    stdout|   BAD-BOOL-STR: exit=2 final=MALFORMED OK
+    stdout|   BAD-NUM: exit=2 final=MALFORMED OK
+    stdout|   BAD-ARR: exit=2 final=MALFORMED OK
+    stdout|   BAD-OBJ: exit=2 final=MALFORMED OK
+    stdout|   UNKNOWN-KEY: exit=2 final=MALFORMED OK
+    stdout|   RULESET-MISMATCH: exit=2 final=MALFORMED OK
+    stdout| 
+    stdout| CHECK 7 — missing evidence (CD) remains CANNOT_DETERMINE, exit 3
+    stdout|   CD-E3: exit=3 final=CANNOT_DETERMINE OK
+    stdout|   CD-E4: exit=3 final=CANNOT_DETERMINE OK
+    stdout|   CD-E7: exit=3 final=CANNOT_DETERMINE OK
+    stdout| 
+    stdout| CHECK 8 — concurrent grader processes -> identical complete JSON
+    stdout|   isolated+identical: OK
+    stdout| 
+    stdout| CHECK 9 — run from a working directory outside the repository
+    stdout|   cwd=/tmp/cur_import_rehearsal_tv1cwiam/grader_selftest_outside: exit=0 final=PASS OK
+    stdout| 
+    stdout| ==============================================================================
+    stdout| SUMMARY
+    stdout|   assertions run: 56
+    stdout|   ok             : 56
+    stdout|   fail           : 0
+    stdout| ==============================================================================
+
+[1] cwd=/tmp/cur_import_rehearsal_tv1cwiam/dest
+    cmd=/usr/bin/python3 /tmp/cur_import_rehearsal_tv1cwiam/dest/tools/tests/cur_extractor/run.py
+    exit=0 started=1789003600.163 ended=1789003603.147
+    stdout| ==============================================================================
+    stdout| EXTRACTOR SELFTEST (checked evidence) — tools/tests/cur_extractor/run.py
+    stdout| scratch=/tmp/cur_extractor_selftest_7xj5056m
+    stdout| ==============================================================================
+    stdout| CHECK 1 — e3-pass end-to-end yields full PASS (all six checks PASS)
+    stdout|   xrc=0 grc=0 final=PASS (OK)
+    stdout| 
+    stdout| CHECK 2 — role-only negative control is NOT a silent PASS
+    stdout|   final=CANNOT_DETERMINE evidence={} (OK)
+    stdout| 
+    stdout| CHECK 3 — recognized role + empty support is NOT a PASS (all CD)
+    stdout|   final=CANNOT_DETERMINE evidence={} (OK)
+    stdout| 
+    stdout| CHECK 4 — recognized role + unrelated/unresolved support is NOT a PASS
+    stdout|   xrc=1 final=CANNOT_DETERMINE (OK)
+    stdout| 
+    stdout| CHECK 5 — self-citation cannot justify a claim (all CD + proof diagnostic)
+    stdout|   xrc=1 final=CANNOT_DETERMINE self_diag=True (OK)
+    stdout| 
+    stdout| CHECK 6 — circular support cannot justify a claim (all CD + proof diagnostic)
+    stdout|   xrc=1 final=CANNOT_DETERMINE cycle_diag=True (OK)
+    stdout| 
+    stdout| CHECK 7 — unresolved upstream support blocks dependent evidence
+    stdout|   xrc=1 c1_cd=True c2_cd=True (OK)
+    stdout| 
+    stdout| CHECK 8 — E7 params do NOT establish preservation/separation (all CD)
+    stdout|   final=CANNOT_DETERMINE (OK)
+    stdout| 
+    stdout| CHECK 9 — decorative expected-label field is ignored
+    stdout|   evidence+citations identical: OK
+    stdout| 
+    stdout| CHECK 10 — a weight not in the kernel is NOT a silent PASS
+    stdout|   final=AMBIGUOUS_DISCREPANCY (OK)
+    stdout| 
+    stdout| CHECK 11 — contradictory cited records rejected by grader (exit 2)
+    stdout|   grc=2 final=MALFORMED (OK)
+    stdout| 
+    stdout| CHECK 11b — E4 PASS end-to-end
+    stdout|   xrc=0 grc=0 final=PASS (OK)
+    stdout| 
+    stdout| CHECK 11c — E4 missing degree bound is NOT a silent PASS
+    stdout|   final=FAIL disc=hypothesis-omitted (OK)
+    stdout| 
+    stdout| CHECK 11d — E4 degree-4 move (illegal descent) is NOT a silent PASS
+    stdout|   final=FAIL disc=descent-unsupported (OK)
+    stdout| 
+    stdout| CHECK 11e — E4 terminal-global-min overclaim is rejected
+    stdout|   final=FAIL disc=overclaim (OK)
+    stdout| 
+    stdout| CHECK 11f — E4 role-only negative control is NOT a PASS
+    stdout|   final=CANNOT_DETERMINE (OK)
+    stdout| 
+    stdout| CHECK 11g — E7 PASS end-to-end
+    stdout|   xrc=0 grc=0 final=PASS (OK)
+    stdout| 
+    stdout| CHECK 11h — E7 width-tag-only (width 4 tag, width-3 sample) is NOT a PASS
+    stdout|   final=FAIL (OK)
+    stdout| 
+    stdout| CHECK 11i — E7 preservation-fails is NOT a PASS
+    stdout|   final=FAIL (OK)
+    stdout| 
+    stdout| CHECK 11j — E7 no samples at all is CANNOT_DETERMINE (not PASS)
+    stdout|   final=CANNOT_DETERMINE (OK)
+    stdout| 
+    stdout| CHECK 11k — E7 role-only negative control is NOT a PASS
+    stdout|   final=CANNOT_DETERMINE (OK)
+    stdout| 
+    stdout| CHECK 12 — malformed bundles yield structured exit-2 errors
+    stdout|   malformed-duplicate-id.json      xrc=2 traceback=False (OK)
+    stdout|   malformed-nonarray-cites.json    xrc=2 traceback=False (OK)
+    stdout|   unsupported-contract.json        xrc=2 traceback=False (OK)
+    stdout| 
+    stdout| CHECK 13 — manifest binds to immutable identities (digests + pinned commits)
+    stdout|   OK
+    stdout| 
+    stdout| CHECK 14 — extractor source does not reference oracle/expected-label
+    stdout|   oracle=False expected_label=False (OK)
+    stdout| 
+    stdout| CHECK 15 — production pipeline runs with the sealed expected-results table unavailable
+    stdout|   oracle_absent=True pipeline_ok=True (OK)
+    stdout| 
+    stdout| CHECK 16 — concurrent extractions isolate outputs
+    stdout|   isolated: OK
+    stdout| 
+    stdout| CHECK 17 — end-to-end from a working directory outside the repository
+    stdout|   xrc=0 grc=0 final=PASS (OK)
+    stdout| 
+    stdout| CHECK 18 — two complete selftests run concurrently (unique scratch each)
+    stdout|   exit codes=[0, 0] (OK)
+    stdout| 
+    stdout| ==============================================================================
+    stdout| SUMMARY
+    stdout|   assertions run: 30
+    stdout|   ok             : 30
+    stdout|   fail           : 0
+    stdout| ==============================================================================
+
+[2] cwd=/tmp/cur_import_rehearsal_tv1cwiam/dest
+    cmd=/usr/bin/python3 /tmp/cur_import_rehearsal_tv1cwiam/dest/tools/tests/cur_schema/run.py
+    exit=0 started=1789003603.147 ended=1789003604.407
+    stdout| ==============================================================================
+    stdout| SCHEMA SELFTEST — tools/tests/cur_schema/run.py
+    stdout| ==============================================================================
+    stdout|   all current valid fixture families schema-valid (22 accepted) OK
+    stdout|   malformed set rejected by schema checker AND extractor OK
+    stdout|   rejection fixtures each exit 2 (schema-invalid)      OK
+    stdout|   missing optional evidence remains schema-valid       OK
+    stdout|   E4 d/s alternate form (consistent) is schema-valid   OK
+    stdout|   schema-valid payload still yields CANNOT_DETERMINE downstream OK
+    stdout|   emit-json deterministic                              OK
+    stdout|   emit-markdown deterministic                          OK
+    stdout|   emit-markdown contains no timestamp/date literal     OK
+    stdout|   foreign working directory                            OK
+    stdout|   two concurrent schema checks                         OK
+    stdout|   drift test: schema pins match extractor/grader       OK
+    stdout|   unknown schema command rejected (exit 2)             OK
+    stdout| ==============================================================================
+    stdout| SUMMARY: 13/13 pass, 0 fail
+    stdout| ==============================================================================
+
+[3] cwd=/tmp/cur_import_rehearsal_tv1cwiam/dest
+    cmd=/usr/bin/python3 /tmp/cur_import_rehearsal_tv1cwiam/dest/tools/tests/cur_pipeline/run.py
+    exit=0 started=1789003604.407 ended=1789003605.258
+    stdout| ==============================================================================
+    stdout| PIPELINE SELFTEST — tools/tests/cur_pipeline/run.py
+    stdout| ==============================================================================
+    stdout|   e3-pass                          exit=0 expected=0 (OK)
+    stdout|   e4-pass                          exit=0 expected=0 (OK)
+    stdout|   e7-pass                          exit=0 expected=0 (OK)
+    stdout|   e3-role-only-negative-control    exit=3 expected=3 (OK)
+    stdout|   e7-no-samples                    exit=3 expected=3 (OK)
+    stdout|   e4-degree4-move                  exit=1 expected=1 (OK)
+    stdout|   e7-preservation-fails            exit=1 expected=1 (OK)
+    stdout|   e3-not-in-kernel                 exit=2 expected=2 (OK)
+    stdout|   malformed-duplicate-id           exit=2 expected=2 (OK)
+    stdout|   unsupported-contract             exit=2 expected=2 (OK)
+    stdout|   reject-path                      exit=2 expect 2, not-grading note present (OK)
+    stdout|   foreign-cwd                      exit=0 (foreign cwd) (OK)
+    stdout| ==============================================================================
+    stdout| SUMMARY: 12/12 pass, 0 fail
+    stdout| ==============================================================================
+
+[4] cwd=/tmp/cur_import_rehearsal_tv1cwiam/dest
+    cmd=/usr/bin/python3 /tmp/cur_import_rehearsal_tv1cwiam/dest/tools/tests/cur_pipeline/hardening.py
+    exit=0 started=1789003605.258 ended=1789003607.097
+    stdout| ==============================================================================
+    stdout| PIPELINE HARDENING — tools/tests/cur_pipeline/hardening.py
+    stdout| ==============================================================================
+    stdout|   successful fixture -> 0                        OK
+    stdout|   valid FAIL -> 1                                OK
+    stdout|   valid CANNOT_DETERMINE -> 3                    OK
+    stdout|   extractor exits 7 -> 2 EXECUTION_ERROR         OK
+    stdout|   stale --out replaced by validated manifest     OK
+    stdout|   extractor timeout -> 2 EXECUTION_ERROR         OK
+    stdout|   extractor killed -> 2 EXECUTION_ERROR          OK
+    stdout|   grader no verdict -> 2 EXECUTION_ERROR         OK
+    stdout|   unwritable transcript -> 2 (no partial verdict) OK
+    stdout|   malformed input -> 2 REJECTED                  OK
+    stdout|   foreign working directory                      OK
+    stdout|   two concurrent invocations                     OK
+    stdout| ==============================================================================
+    stdout| SUMMARY: 12/12 pass, 0 fail
+    stdout| ==============================================================================
+
+[5] cwd=/tmp/cur_import_rehearsal_tv1cwiam/dest
+    cmd=/usr/bin/python3 /tmp/cur_import_rehearsal_tv1cwiam/dest/tools/cur_extract_evidence.py /tmp/cur_import_rehearsal_tv1cwiam/dest/tools/tests/cur_extractor/fixtures/e3-pass.json --out /tmp/cur_import_identity_f5p38vl9/m.json
+    exit=0 started=1789003607.097 ended=1789003607.129
+
