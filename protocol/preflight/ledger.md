@@ -126,10 +126,19 @@ Minimal reproducer still green with the refusal active:
 
 **Assertion-style test: ADDED AND PASSING (1/1).**
 `SnapshotRefusesHostObjectInTermSlotTest` is registered at the end of the
-`[SHARED]` block — index 305, past cursor 304 — so no existing cursor index
-shifts. `tools/check_pins.py` reports guards 306, **index 218**, shard 0,
-PASS. The guard pin was raised 305 → 306 to match the new registration; 218
-and 0 are untouched.
+`[SHARED]` block. It takes index **304** — the last position — so no
+existing cursor index shifts: `tools/shard_map.py`, the AST walk that
+actually assigns indices, puts `test_shard_cursor_pin_test` at 302,
+`snapshot_value_atom_identity_test` at 303, and the new test at 304, shard
+0. `tools/check_pins.py` reports guards 306, **index 218**, shard 0, PASS;
+its guard pin was raised 305 → 306, and 218 and 0 are untouched.
+
+The two tools count different things, and always have: `check_pins` counts
+source occurrences of the guard string, `shard_map` counts registrations
+`install_default_tests` actually makes, and the former exceeds the latter
+by one. That +1 offset predates this work — only `check_pins`' own number
+moved here. An earlier note in this ledger said index 305; 304 is what
+`shard_map` reports, and `shard_map` is the index authority.
 
 The test earned its place immediately: its **first run failed**, and both
 causes were real defects in this work rather than in the test.
