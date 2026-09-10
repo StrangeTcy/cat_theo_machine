@@ -25,7 +25,7 @@
 #
 # The swap. With `--no-swap` the run uses the tree as it stands. Without it
 # the script applies the preflight re-raise itself — replacing the
-# `self.result = M.false_value` at testsuite.py:14957 with `raise` — and
+# `self.result = M.false_value` at testsuite.py:14962 with `raise` — and
 # restores it on exit, including on SIGTERM/SIGINT. The point of doing the
 # edit inside the script is that a run killed mid-flight cannot leave the
 # re-raise behind: the tree is only ever dirty while this process is alive.
@@ -41,7 +41,7 @@ DO_SWAP=yes
 for arg in "$@"; do [ "$arg" = "--no-swap" ] && DO_SWAP=no; done
 
 TESTSUITE=testsuite.py
-LINE=14957
+LINE=14962
 ORIG='            self.result = M.false_value'
 NEW='            raise'
 

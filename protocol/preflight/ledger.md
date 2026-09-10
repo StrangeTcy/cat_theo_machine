@@ -124,16 +124,46 @@ that run and item 4 records them authoritatively.
 Minimal reproducer still green with the refusal active:
 `worker_protocol_test learned_memory_checkpoint_test` → 2/2.
 
-**Assertion-style test: NOT yet added.** The ruling requires one at the
-capture boundary. It is outstanding, and it must register after cursor 304
-so no existing cursor index (218 included) shifts. Designed, then held, because
-`inputs=M.Pair(graph, ...)` is a codebase-wide convention, not a two-site
-mistake: it appears in `graph.py` (many), `context.py` (~40 call sites),
-`planner.py`, `search/api.py`, `search/engine.py`, `proof.py`,
-`research.py`, `daemon.py`. A refusal at capture entry fires on all of them.
-Landing it converts one crash into an unknown number of refusals until
-someone rules whether the convention itself is wrong or only its retention is.
-Ruling requested.
+**Assertion-style test: ADDED AND PASSING (1/1).**
+`SnapshotRefusesHostObjectInTermSlotTest` is registered at the end of the
+`[SHARED]` block — index 305, past cursor 304 — so no existing cursor index
+shifts. `tools/check_pins.py` reports guards 306, **index 218**, shard 0,
+PASS. The guard pin was raised 305 → 306 to match the new registration; 218
+and 0 are untouched.
+
+The test earned its place immediately: its **first run failed**, and both
+causes were real defects in this work rather than in the test.
+
+1. The refusal named a slot that does not exist. The patch formatted a
+   literal string at patch time where the `slot` variable was meant to be
+   substituted at raise time, so every refusal reported `"slot"`. Fixed:
+   `M.Char("slot")` → `M.Char(slot)`. The term is now
+   `(snapshot-refused host-object-in-term-slot head)`.
+2. The assertions compared with `M.TermEqual`, which is **identity on
+   atoms** (`matching.py:41`, spelled out at `machine.py:238`), so a
+   freshly built `Char` never equals another. Structural comparison is
+   `M.Compare` (`constructors.py:245`). The test's three uses were swapped;
+   the other 77 `M.TermEqual` uses in `testsuite.py` were left alone.
+
+After both fixes: 1 registered, 1 passed. The refusal reproducer is green
+with the corrected slot: `worker_protocol_test
+learned_memory_checkpoint_test` → 2/2.
+
+**Tool drift found and repaired.** The multi-line import shifted
+`testsuite.py` by five lines, so `tools/preflight_item1_repro.sh`'s
+hard-coded `LINE=14957` no longer pointed at the swallowed site. Its
+loud-fail guard did its job: it asserts the preceding line is
+`except Exception:` and the target line's exact content, and refuses to
+edit on drift. Corrected to `LINE=14962`, and the swap path re-verified end
+to end — `sh tools/preflight_item1_repro.sh 1` → "swap applied at
+testsuite.py:14962 (re-raise)", 2/2 passed, exit 0, tree restored with zero
+stray `raise` left behind.
+
+The blast-radius question that motivated this test is answered: the
+`inputs=M.Pair(graph, ...)` convention does not reach capture in any of the
+46 capture-adjacent tests measured above. What remains is not a landing
+decision but an interpretation one, and it is not on this lane's critical
+path — see item 4.
 
 **Citation for the eventual preflight commit:** `bfd4bd2` is an experiment
 record whose message claims code it does not contain; superseded by

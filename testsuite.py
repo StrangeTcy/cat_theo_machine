@@ -24,7 +24,12 @@ from . import search as Smod
 from . import theorem_rules as Theoremmod
 from . import trees as Tmod
 from .graph import Test
-from .persistence import SnapshotCodec, SnapshotSaveDeadline, SnapshotSaveTimeout
+from .persistence import (
+    SnapshotCaptureRefused,
+    SnapshotCodec,
+    SnapshotSaveDeadline,
+    SnapshotSaveTimeout,
+)
 from .proof import BuildDerivation, CollectRules, Rule, RulePremises, RuleReplacement
 from .runtime import boot_from_packs, boot_from_snapshot, make_fresh_runtime, save_runtime
 from .search import (
@@ -16395,7 +16400,7 @@ class TestShardCursorPinTest(M.Edge):
     broken.
     """
 
-    EXPECTED_GUARD_COUNT = 305
+    EXPECTED_GUARD_COUNT = 306
     EXPECTED_CURSOR_INDEX = 218
     EXPECTED_SHARD = 0
 
@@ -16994,6 +16999,51 @@ class ExplanationPlanSnapshotRoundTripTest(M.Edge):
 
 # --- [I] -------------------------------------------------------------------
 # --- end [I] ---
+
+class SnapshotRefusesHostObjectInTermSlotTest(M.Edge):
+    """A host runtime object in a term slot is refused at capture, by name.
+
+    Preflight item 1 walked three doors -- index read, index write, record
+    encode -- because a host object with no machine identity was reachable
+    from machine state and each door died on it in turn. The fix removed
+    that object from the two fixtures that put it there. This pins the
+    boundary instead: the next one is refused at capture entry with a
+    machine term naming the slot, rather than surfacing three doors later
+    as an unrelated AttributeError or TypeError.
+
+    The probe is a term whose head slot holds the live graph -- the exact
+    shape that carried the defect -- and the assertion is that capture
+    refuses it and names "head" as the offending slot.
+    """
+
+    def __init__(self, graph):
+        from .main import _runtime_namespace
+
+        empty = M.EmptyList
+        self.result = M.false_value
+        term = empty
+        refused = M.false_value
+        codec = SnapshotCodec(_runtime_namespace())
+        carrying = M.Pair(graph, empty)
+        try:
+            codec._capture_from_roots({"probe": carrying}, progress=M.false_value)
+        except SnapshotCaptureRefused as refusal:
+            refused = M.truth_value
+            term = refusal.term
+        if M.IdentityCompare(refused, M.truth_value)() is M.truth_value:
+            head_ok = M.Compare(M.Head(term)(), M.Char("snapshot-refused"))()
+            kind_ok = M.Compare(
+                M.Head(M.Tail(term)())(), M.Char("host-object-in-term-slot")
+            )()
+            slot_ok = M.Compare(
+                M.Head(M.Tail(M.Tail(term)())())(), M.Char("head")
+            )()
+            self.result = M.AndAtom(head_ok, M.AndAtom(kind_ok, slot_ok)())()
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
 
 def install_default_tests(graph):
     if M.IdentityCompare(graph.default_tests_installed, M.truth_value)() is M.truth_value:
@@ -19168,6 +19218,14 @@ def install_default_tests(graph):
             "snapshot_value_atom_identity_test",
             empty,
             SnapshotValueAtomIdentityTest,
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_refuses_host_object_in_term_slot_test",
+            empty,
+            SnapshotRefusesHostObjectInTermSlotTest,
             M.truth_value,
         )
     # --- end [SHARED] ---

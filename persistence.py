@@ -1386,7 +1386,7 @@ class SnapshotCodec:
                         M.Char("snapshot-refused"),
                         M.Pair(
                             M.Char("host-object-in-term-slot"),
-                            M.Pair(M.Char("slot"), M.EmptyList),
+                            M.Pair(M.Char(slot), M.EmptyList),
                         ),
                     )
             )
