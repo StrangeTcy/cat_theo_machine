@@ -13,15 +13,26 @@ WHAT IT DOES
   2. Creates a unique, isolated destination checkout at the runtime commit.
   3. Extracts ONLY an explicit import allowlist from the tool-source commit.
   4. Refuses a destination file that differs, unless a resolution authorizes replacement.
-  5. Preserves blob contents and git modes byte-for-byte.
+  5. Recreates git entries with exact mode handling:
+       100644 -> regular file, mode 0644
+       100755 -> regular file, mode 0755
+       120000 -> symlink recreated from the blob target
+       anything else (including non-blob entries such as gitlinks) ->
+         explicit unsupported-mode failure, nothing written, never a silent conversion.
+     A post-import check confirms every entry is byte/mode equivalent to the source.
   6. Runs the suites using the imported files in the destination (no PYTHONPATH, no
      fallback to another checkout).
   7. Captures each command, exit status, full output, and start/end times.
-  8. Returns nonzero on execution failure, missing test output, or a failed assertion.
-  9. Leaves the original checkouts untouched (destinations are separate worktrees that
+  8. Stages artifacts in an invocation-owned temp dir, writes the completion manifest
+     last, then atomically renames the completed dir to the requested output path.
+     A nonempty output path is refused; a failed verdict is retained under a clearly
+     named incomplete sibling, never at the final path. Readers must use
+     verify_attempt(): a missing/unreadable completion manifest means refusal.
+  9. Returns nonzero on execution failure, missing test output, or a failed assertion.
+ 10. Leaves the original checkouts untouched (destinations are separate worktrees that
      are removed afterwards; the source repository's tracked state is compared before
      and after).
- 10. Preserves the source identities the tools already record: the import must not
+ 11. Preserves the source identities the tools already record: the import must not
      relabel the extractor's pinned contract/rubric identities as the runtime commit.
 
 This is a DISPOSABLE integration rehearsal. It does not merge into INT, authorize
@@ -40,6 +51,9 @@ USAGE
   --keep               keep the disposable worktrees (debugging)
   --selftest           exercise the harness's own failure paths (disposable copies)
 
+  python3 tools/tests/cur_import/run.py --verify <attempt-directory>
+    consumer gate: accept only a complete, intact attempt (exit 0/1).
+
 EXIT
   0  rehearsal complete: import blocked nothing, every selected suite ran and passed
   1  rehearsal failure (collision, missing path, suite failure, missing summary, ...)
@@ -51,6 +65,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -96,6 +111,28 @@ SUITE_REQUIREMENTS = {
 SUMMARY_RE_A = re.compile(r"SUMMARY:\s*(\d+)/(\d+)\s*pass,\s*(\d+)\s*fail")
 SUMMARY_RE_B = re.compile(
     r"SUMMARY\s*\n\s*assertions run:\s*(\d+)\s*\n\s*ok\s*:\s*(\d+)\s*\n\s*fail\s*:\s*(\d+)")
+
+# Attempt publication: artifacts are staged in an invocation-owned temp dir and the
+# completed dir appears at the requested path only via an atomic rename. Readers
+# must call verify_attempt() and refuse any dir without a valid completion manifest.
+COMPLETION_FILENAME = "completion.json"
+EXPECTED_ARTIFACTS = (
+    "input-manifest.json",
+    "import-paths.txt",
+    "source-results.txt",
+    "destination-results.txt",
+    "import.patch",
+)
+STAGING_PREFIX = "cur_import_staging_"
+LOCK_SUFFIX = ".lock"
+INCOMPLETE_SUFFIX = ".incomplete"
+LOCK_STALE_SECONDS = 120
+# Test hook ONLY: when set, the process exits immediately after the completion
+# manifest is written but before publication, simulating an interruption. The
+# selftest drives this via a subprocess and cleans up the leaked worktrees.
+CRASH_BEFORE_PUBLISH_ENV = "CUR_IMPORT_CRASH_BEFORE_PUBLISH"
+
+SUPPORTED_MODES = ("100644", "100755", "120000")
 
 
 class Recorder:
@@ -147,6 +184,13 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def blob_bytes(repo, blob):
+    b = subprocess.run(["git", "cat-file", "blob", blob], cwd=repo, capture_output=True)
+    if b.returncode != 0:
+        return None
+    return b.stdout
+
+
 def parse_summary(text):
     """Return (ok_count, total, fail_count) from the LAST recognisable summary block.
 
@@ -179,13 +223,16 @@ def resolve_identity(rec, repo, rev):
 
 
 def enumerate_allowlist(rec, repo, source_sha, allowlist):
-    """Return (entries, missing_paths).
+    """Return (entries, missing_paths, unsupported_entries).
 
-    entries: list of dicts {path, mode, blob, sha256, size} for every FILE selected by
-    the allowlist. Directory entries expand recursively via git ls-tree -r.
+    entries: list of dicts {path, mode, blob, sha256, size} for every FILE or SYMLINK
+    blob selected by the allowlist. Directory specs expand recursively via
+    git ls-tree -r. Non-blob entries (e.g. gitlinks) are reported as unsupported,
+    never silently skipped.
     """
     entries = []
     missing = []
+    unsupported = []
     seen = set()
     for spec in allowlist:
         out = rec.git(repo, "ls-tree", "-r", source_sha, "--", spec)
@@ -202,57 +249,133 @@ def enumerate_allowlist(rec, repo, source_sha, allowlist):
             if len(parts) != 3:
                 continue
             mode, otype, blob = parts
-            if otype != "blob":
-                continue
-            found_any = True
             if path in seen:
                 continue
             seen.add(path)
-            raw = rec.git(repo, "cat-file", "blob", blob)
-            data = raw["stdout"].encode("utf-8") if raw["exit"] == 0 else b""
-            # Need raw bytes; re-read as bytes to avoid text decoding surprises.
-            b = subprocess.run(["git", "cat-file", "blob", blob], cwd=repo,
-                               capture_output=True)
-            blob_bytes = b.stdout if b.returncode == 0 else data
+            found_any = True
+            if otype != "blob":
+                unsupported.append({"path": path, "mode": mode, "otype": otype})
+                continue
+            blob_data = blob_bytes(repo, blob)
+            if blob_data is None:
+                blob_data = b""
             entries.append({
                 "path": path,
                 "mode": mode,
                 "blob": blob,
-                "sha256": sha256_bytes(blob_bytes),
-                "size": len(blob_bytes),
+                "sha256": sha256_bytes(blob_data),
+                "size": len(blob_data),
             })
         if not found_any:
             missing.append(spec)
     entries.sort(key=lambda e: e["path"])
-    return entries, missing
+    unsupported.sort(key=lambda e: e["path"])
+    return entries, missing, unsupported
+
+
+def _existing_kind(target):
+    if not os.path.lexists(target):
+        return "absent"
+    if os.path.islink(target):
+        return "symlink"
+    if os.path.isdir(target):
+        return "dir"
+    return "file"
 
 
 def materialize(rec, repo, entries, dest_root, allow_replace):
-    """Write selected blobs into dest_root. Return (written, collisions)."""
+    """Write selected blobs into dest_root. Return (written, problems).
+
+    Mode handling is exact: 100644/100755 become regular files with that mode,
+    120000 becomes a symlink recreated from the blob target. Any other mode is an
+    explicit problem and nothing is written for that entry. Directories are never
+    replaced, even with an explicit resolution. A differing destination entry is a
+    problem unless an explicit resolution authorizes replacement.
+    """
     written = []
-    collisions = []
+    problems = []
     for e in entries:
         target = os.path.join(dest_root, e["path"])
         parent = os.path.dirname(target)
         if parent and not os.path.isdir(parent):
             os.makedirs(parent, exist_ok=True)
-        if os.path.exists(target):
-            existing = sha256_file(target)
-            if existing != e["sha256"] and e["path"] not in allow_replace:
-                collisions.append({"path": e["path"], "existing_sha256": existing,
-                                   "incoming_sha256": e["sha256"]})
-                continue
-        b = subprocess.run(["git", "cat-file", "blob", e["blob"]], cwd=repo, capture_output=True)
-        if b.returncode != 0:
-            collisions.append({"path": e["path"], "existing_sha256": None,
-                               "incoming_sha256": e["sha256"], "reason": "blob unreadable"})
+        mode = e["mode"]
+        if mode not in SUPPORTED_MODES:
+            problems.append({"path": e["path"],
+                             "reason": "unsupported git mode: %s" % mode})
             continue
+        data = blob_bytes(repo, e["blob"])
+        if data is None:
+            problems.append({"path": e["path"], "reason": "blob unreadable"})
+            continue
+        kind = _existing_kind(target)
+        if kind == "dir":
+            problems.append({"path": e["path"],
+                             "reason": "destination is a directory; not replaced"})
+            continue
+        if mode == "120000":
+            link_target = data.decode("utf-8", "surrogateescape")
+            if kind == "symlink" and os.readlink(target) == link_target:
+                pass  # identical link; rewrite below for a uniform result.
+            elif kind != "absent" and e["path"] not in allow_replace:
+                problems.append({"path": e["path"], "reason": "destination differs",
+                                 "existing_kind": kind})
+                continue
+            if kind != "absent":
+                os.remove(target)
+            os.symlink(link_target, target)
+            written.append({"path": e["path"], "sha256": e["sha256"], "mode": mode,
+                            "target": link_target})
+            continue
+        fmode = 0o755 if mode == "100755" else 0o644
+        if kind == "symlink":
+            if e["path"] not in allow_replace:
+                problems.append({"path": e["path"], "reason": "destination differs",
+                                 "existing_kind": kind})
+                continue
+            os.remove(target)
+        elif kind == "file":
+            if sha256_file(target) != e["sha256"] and e["path"] not in allow_replace:
+                problems.append({"path": e["path"], "reason": "destination differs",
+                                 "existing_kind": kind,
+                                 "existing_sha256": sha256_file(target),
+                                 "incoming_sha256": e["sha256"]})
+                continue
         with open(target, "wb") as f:
-            f.write(b.stdout)
-        mode = 0o755 if e["mode"].endswith("755") else 0o644
-        os.chmod(target, mode)
-        written.append({"path": e["path"], "sha256": e["sha256"], "mode": e["mode"]})
-    return written, collisions
+            f.write(data)
+        os.chmod(target, fmode)
+        written.append({"path": e["path"], "sha256": e["sha256"], "mode": mode})
+    return written, problems
+
+
+def verify_materialized(repo, entries, dest_root):
+    """Confirm every entry is byte/mode equivalent to the source. Returns problems."""
+    problems = []
+    for e in entries:
+        target = os.path.join(dest_root, e["path"])
+        if e["mode"] in ("100644", "100755"):
+            want = 0o755 if e["mode"] == "100755" else 0o644
+            if os.path.islink(target) or not os.path.isfile(target):
+                problems.append("not a regular file after import: %s" % e["path"])
+                continue
+            if sha256_file(target) != e["sha256"]:
+                problems.append("bytes differ after import: %s" % e["path"])
+                continue
+            got = stat.S_IMODE(os.stat(target).st_mode) & 0o777
+            if got != want:
+                problems.append("mode differs after import: %s (want %o, got %o)"
+                                % (e["path"], want, got))
+        elif e["mode"] == "120000":
+            if not os.path.islink(target):
+                problems.append("symlink not recreated: %s" % e["path"])
+                continue
+            data = blob_bytes(repo, e["blob"])
+            want_target = data.decode("utf-8", "surrogateescape") if data is not None else None
+            if want_target is None or os.readlink(target) != want_target:
+                problems.append("symlink target differs after import: %s" % e["path"])
+        else:
+            problems.append("unsupported git mode: %s (%s)" % (e["path"], e["mode"]))
+    return problems
 
 
 # --------------------------------------------------------------------- suites
@@ -294,7 +417,7 @@ def run_suites(rec, root, suites, label):
     return rows
 
 
-def render_results(rows, rec, start_index):
+def render_results(rows, rec, start_index, end_index=None):
     lines = []
     for r in rows:
         lines.append("suite:    %s" % r["suite"])
@@ -307,7 +430,7 @@ def render_results(rows, rec, start_index):
     lines.append("-" * 70)
     lines.append("RAW COMMAND RECORDS")
     lines.append("-" * 70)
-    for idx, rc in enumerate(rec.records[start_index:]):
+    for idx, rc in enumerate(rec.records[start_index:end_index]):
         argv = " ".join(str(a) for a in rc["argv"])
         lines.append("[%d] cwd=%s" % (idx, rc["cwd"]))
         lines.append("    cmd=%s" % argv)
@@ -359,6 +482,135 @@ def check_identity_preserved(rec, dest_root, source_extractor_sha, runtime_sha):
     }
 
 
+# --------------------------------------------------------------------- attempt publication
+def attempt_state(path):
+    """Classify the requested output path: absent | empty-dir | nonempty | file."""
+    if not os.path.lexists(path):
+        return "absent"
+    if os.path.isdir(path) and not os.path.islink(path):
+        try:
+            empty = len(os.listdir(path)) == 0
+        except OSError:
+            return "nonempty"
+        return "empty-dir" if empty else "nonempty"
+    return "file"
+
+
+def acquire_publish_lock(lock_path):
+    """Take the publish lock dir. Returns True only for the holding invocation."""
+    try:
+        os.mkdir(lock_path)
+    except FileExistsError:
+        try:
+            age = time.time() - os.path.getmtime(lock_path)
+        except OSError:
+            return False
+        if age < LOCK_STALE_SECONDS:
+            return False
+        try:
+            shutil.rmtree(lock_path)
+        except OSError:
+            return False
+        try:
+            os.mkdir(lock_path)
+        except OSError:
+            return False
+    except OSError:
+        return False
+    try:
+        with open(os.path.join(lock_path, "pid"), "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        pass
+    return True
+
+
+def release_publish_lock(lock_path):
+    shutil.rmtree(lock_path, ignore_errors=True)
+
+
+def write_completion_manifest(staging, payload):
+    """Hash the staged artifacts and write completion.json. Call this LAST."""
+    artifacts = {}
+    for name in EXPECTED_ARTIFACTS:
+        artifacts[name] = sha256_file(os.path.join(staging, name))
+    doc = dict(payload)
+    doc["artifacts"] = artifacts
+    doc["completed_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    doc["pid"] = os.getpid()
+    comp_path = os.path.join(staging, COMPLETION_FILENAME)
+    with open(comp_path, "w", encoding="utf-8") as f:
+        json.dump(doc, f, indent=2, sort_keys=True)
+        f.write("\n")
+        f.flush()
+        os.fsync(f.fileno())
+    return comp_path
+
+
+def verify_attempt(out_dir):
+    """Consumer-side gate. Returns (ok, reason); refuses anything incomplete."""
+    if not os.path.isdir(out_dir) or os.path.islink(out_dir):
+        return False, "attempt directory absent: %s" % out_dir
+    comp_path = os.path.join(out_dir, COMPLETION_FILENAME)
+    if not os.path.isfile(comp_path) or os.path.islink(comp_path):
+        return False, "completion manifest missing: attempt incomplete, refused"
+    try:
+        with open(comp_path, "r", encoding="utf-8") as f:
+            comp = json.load(f)
+        ok_flag = comp.get("ok")
+        stage = comp.get("stage")
+        artifacts = comp.get("artifacts") or {}
+    except (OSError, ValueError, AttributeError):
+        return False, "completion manifest unreadable: refused"
+    if ok_flag is not True or stage != "done":
+        return False, ("attempt did not complete successfully (ok=%r stage=%r): refused"
+                       % (ok_flag, stage))
+    for name in EXPECTED_ARTIFACTS:
+        try:
+            want = artifacts.get(name)
+        except AttributeError:
+            return False, "completion manifest malformed: refused"
+        p = os.path.join(out_dir, name)
+        if not want or not os.path.isfile(p) or os.path.islink(p):
+            return False, "artifact missing: %s: refused" % name
+        if sha256_file(p) != want:
+            return False, "artifact content differs from manifest: %s: refused" % name
+    return True, "attempt complete and intact"
+
+
+def publish_staging(staging, out_dir):
+    """Atomically move staging to out_dir. Returns (ok, reason).
+
+    Refuses when another attempt owns the path; never merges into an existing
+    directory; never overwrites. Exactly one of two racing invocations succeeds.
+    """
+    lock_path = out_dir + LOCK_SUFFIX
+    if not acquire_publish_lock(lock_path):
+        return False, "output publish lock held by another invocation"
+    try:
+        state = attempt_state(out_dir)
+        if state == "absent":
+            pass
+        elif state == "empty-dir":
+            try:
+                os.rmdir(out_dir)
+            except OSError:
+                return False, "cannot clear empty output directory"
+        else:
+            return False, "output path already exists; refusing to overwrite"
+        try:
+            os.rename(staging, out_dir)
+        except OSError as exc:
+            return False, "atomic publish failed: %s" % exc
+        ok, reason = verify_attempt(out_dir)
+        if not ok:
+            shutil.rmtree(out_dir, ignore_errors=True)
+            return False, "published attempt failed verification: %s" % reason
+        return True, "published"
+    finally:
+        release_publish_lock(lock_path)
+
+
 # --------------------------------------------------------------------- main rehearsal
 def rehearse(rec, repo, tool_source, runtime_base, out_dir, allowlist, suites,
              allow_replace, keep):
@@ -373,6 +625,13 @@ def rehearse(rec, repo, tool_source, runtime_base, out_dir, allowlist, suites,
     if rt_commit is None:
         result["stage"] = "resolve"
         result["problems"].append("runtime-base does not resolve: %s" % runtime_base)
+        return result
+
+    # Refuse a reused attempt dir before doing any work.
+    if attempt_state(out_dir) not in ("absent", "empty-dir"):
+        result["stage"] = "output"
+        result["problems"].append("output directory already exists and is not empty: %s"
+                                  % out_dir)
         return result
 
     # Only TRACKED content is compared here: the rehearsal writes its artifacts into a
@@ -394,10 +653,17 @@ def rehearse(rec, repo, tool_source, runtime_base, out_dir, allowlist, suites,
             worktrees.append(path)
 
         # ---- 1..2 identities recorded; destination isolated at the runtime commit.
-        entries, missing = enumerate_allowlist(rec, repo, src_commit, allowlist)
+        entries, missing, unsupported = enumerate_allowlist(rec, repo, src_commit, allowlist)
         if missing:
             result["stage"] = "allowlist"
             result["problems"].append("allowlist path absent from source: %s" % ", ".join(missing))
+            return result
+        if unsupported:
+            result["stage"] = "mode"
+            for u in unsupported:
+                result["problems"].append(
+                    "unsupported git entry (not a file/symlink blob): %s mode=%s type=%s"
+                    % (u["path"], u["mode"], u["otype"]))
             return result
 
         # ---- 3..5 extract allowlist; refuse differing destination files.
@@ -405,7 +671,17 @@ def rehearse(rec, repo, tool_source, runtime_base, out_dir, allowlist, suites,
         if collisions:
             result["stage"] = "collision"
             for c in collisions:
-                result["problems"].append("destination file differs: %s" % c["path"])
+                if c.get("reason") in (None, "destination differs"):
+                    result["problems"].append("destination file differs: %s" % c["path"])
+                else:
+                    result["problems"].append("%s: %s" % (c["path"], c["reason"]))
+            return result
+
+        # ---- byte/mode equivalence against the source blobs.
+        verify_problems = verify_materialized(repo, entries, dest)
+        if verify_problems:
+            result["stage"] = "verify"
+            result["problems"].extend(verify_problems)
             return result
 
         # ---- import patch from the reconstructed candidate's changes.
@@ -424,6 +700,7 @@ def rehearse(rec, repo, tool_source, runtime_base, out_dir, allowlist, suites,
             if e["path"] == "tools/cur_extract_evidence.py":
                 source_extractor_sha = e["sha256"]
         identity = check_identity_preserved(rec, dest, source_extractor_sha, rt_commit)
+        render_end = len(rec.records)
 
         # ---- non-allowlisted destination files unchanged.
         imported = set(e["path"] for e in entries)
@@ -433,50 +710,14 @@ def rehearse(rec, repo, tool_source, runtime_base, out_dir, allowlist, suites,
             if os.path.exists(p):
                 untouched_probe.append({"path": probe, "sha256": sha256_file(p)})
 
-        # ---- 7 write artifacts.
-        os.makedirs(out_dir, exist_ok=True)
-        manifest_obj = {
-            "harness": "tools/tests/cur_import/run.py",
-            "role": "CUR-GRADER-ENG / import support (disposable rehearsal)",
-            "tool_source": {"rev": tool_source, "commit": src_commit, "tree": src_tree},
-            "runtime_base": {"rev": runtime_base, "commit": rt_commit, "tree": rt_tree},
-            "allowlist": list(allowlist),
-            "suites": list(suites),
-            "allow_replace": list(allow_replace),
-            "dependency_check": "imported tools import stdlib only; no machine modules; "
-                                "no additional paths required",
-            "imported": written,
-            "identity_preservation": identity,
-            "non_allowlisted_untouched_probe": untouched_probe,
-            "source_results": src_rows,
-            "destination_results": dest_rows,
-            "merge_or_tag_performed": "none",
-        }
-        with open(os.path.join(out_dir, "input-manifest.json"), "w", encoding="utf-8") as f:
-            json.dump(manifest_obj, f, indent=2, sort_keys=True)
-            f.write("\n")
-        with open(os.path.join(out_dir, "import-paths.txt"), "w", encoding="utf-8") as f:
-            f.write("path\tmode\tsha256\n")
-            for e in entries:
-                f.write("%s\t%s\t%s\n" % (e["path"], e["mode"], e["sha256"]))
-        with open(os.path.join(out_dir, "source-results.txt"), "w", encoding="utf-8") as f:
-            f.write("SOURCE (pinned tool-source %s) — %d imported files, %d collisions\n\n"
-                    % (src_commit, len(written), len(collisions)))
-            f.write(render_results(src_rows, rec, 0))
-        with open(os.path.join(out_dir, "destination-results.txt"), "w", encoding="utf-8") as f:
-            f.write("DESTINATION (runtime base %s) — suites executed against imported files\n\n"
-                    % rt_commit)
-            f.write(render_results(dest_rows, rec, src_mark))
-        with open(os.path.join(out_dir, "import.patch"), "w", encoding="utf-8") as f:
-            f.write(patch_text)
-
-        # ---- 8 verdicts.
+        # ---- 9 verdicts.
+        verdict_problems = []
         for row in src_rows + dest_rows:
             if row["verdict"] != "PASS":
-                result["problems"].append("%s suite %s: %s" % (
+                verdict_problems.append("%s suite %s: %s" % (
                     "source" if row in src_rows else "destination", row["suite"], row["verdict"]))
         if not identity["ok"]:
-            result["problems"].append("identity: %s" % identity["reason"])
+            verdict_problems.append("identity: %s" % identity["reason"])
 
         # ---- release the disposable worktrees, then compare repository state.
         for w in worktrees:
@@ -488,20 +729,90 @@ def rehearse(rec, repo, tool_source, runtime_base, out_dir, allowlist, suites,
         wt_after = rec.git(repo, "worktree", "list", "--porcelain")["stdout"]
         leftover = [w for w in (dest, src) if w in wt_after]
         if leftover:
-            result["problems"].append("disposable worktrees not removed: %s" % ", ".join(leftover))
+            verdict_problems.append("disposable worktrees not removed: %s" % ", ".join(leftover))
 
         repo_status_after = rec.git(repo, "status", "--porcelain", "-uno")["stdout"]
         if repo_status_before != repo_status_after:
-            result["problems"].append("source repository tracked state changed during rehearsal")
+            verdict_problems.append("source repository tracked state changed during rehearsal")
 
+        result["problems"].extend(verdict_problems)
         result["source_rows"] = src_rows
         result["destination_rows"] = dest_rows
         result["written"] = written
         result["collisions"] = collisions
         result["identity"] = identity
         result["stage"] = "done"
-        result["ok"] = len(result["problems"]) == 0
-        return result
+
+        # ---- 8 stage artifacts, manifest last, then publish atomically.
+        parent = os.path.dirname(os.path.abspath(out_dir))
+        os.makedirs(parent, exist_ok=True)
+        staging = tempfile.mkdtemp(prefix=STAGING_PREFIX, dir=parent)
+        try:
+            manifest_obj = {
+                "harness": "tools/tests/cur_import/run.py",
+                "role": "CUR-GRADER-ENG / import support (disposable rehearsal)",
+                "tool_source": {"rev": tool_source, "commit": src_commit, "tree": src_tree},
+                "runtime_base": {"rev": runtime_base, "commit": rt_commit, "tree": rt_tree},
+                "allowlist": list(allowlist),
+                "suites": list(suites),
+                "allow_replace": list(allow_replace),
+                "dependency_check": "imported tools import stdlib only; no machine modules; "
+                                    "no additional paths required",
+                "imported": written,
+                "identity_preservation": identity,
+                "non_allowlisted_untouched_probe": untouched_probe,
+                "source_results": src_rows,
+                "destination_results": dest_rows,
+                "merge_or_tag_performed": "none",
+            }
+            with open(os.path.join(staging, "input-manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(manifest_obj, f, indent=2, sort_keys=True)
+                f.write("\n")
+            with open(os.path.join(staging, "import-paths.txt"), "w", encoding="utf-8") as f:
+                f.write("path\tmode\tsha256\n")
+                for e in entries:
+                    f.write("%s\t%s\t%s\n" % (e["path"], e["mode"], e["sha256"]))
+            with open(os.path.join(staging, "source-results.txt"), "w", encoding="utf-8") as f:
+                f.write("SOURCE (pinned tool-source %s) — %d imported files, %d collisions\n\n"
+                        % (src_commit, len(written), len(collisions)))
+                f.write(render_results(src_rows, rec, 0, render_end))
+            with open(os.path.join(staging, "destination-results.txt"), "w", encoding="utf-8") as f:
+                f.write("DESTINATION (runtime base %s) — suites executed against imported files\n\n"
+                        % rt_commit)
+                f.write(render_results(dest_rows, rec, src_mark, render_end))
+            with open(os.path.join(staging, "import.patch"), "w", encoding="utf-8") as f:
+                f.write(patch_text)
+            write_completion_manifest(staging, {
+                "harness": "tools/tests/cur_import/run.py",
+                "role": "CUR-GRADER-ENG / import support (disposable rehearsal)",
+                "tool_source": {"rev": tool_source, "commit": src_commit, "tree": src_tree},
+                "runtime_base": {"rev": runtime_base, "commit": rt_commit, "tree": rt_tree},
+                "stage": "done",
+                "ok": len(result["problems"]) == 0,
+                "imported_count": len(written),
+            })
+            if os.environ.get(CRASH_BEFORE_PUBLISH_ENV):
+                os._exit(137)
+            if result["problems"]:
+                incomplete = "%s%s.%d.%d" % (out_dir, INCOMPLETE_SUFFIX, os.getpid(),
+                                             time.time_ns())
+                os.rename(staging, incomplete)
+                staging = None
+                result["ok"] = False
+                result["incomplete_dir"] = incomplete
+                return result
+            ok_pub, reason_pub = publish_staging(staging, out_dir)
+            staging = None
+            if not ok_pub:
+                result["stage"] = "output"
+                result["problems"].append(reason_pub)
+                result["ok"] = False
+                return result
+            result["ok"] = True
+            return result
+        finally:
+            if staging is not None:
+                shutil.rmtree(staging, ignore_errors=True)
     finally:
         if not keep:
             for w in worktrees:
@@ -529,19 +840,31 @@ def selftest(rec, repo, tool_source, runtime_base, out_dir, work_root):
                         kw.get("suites", DEFAULT_SUITES), kw.get("allow_replace", ()),
                         kw.get("keep", False))
 
+    def listed_worktrees(r):
+        s = rec.run(["git", "-C", r, "worktree", "list", "--porcelain"])
+        paths = set()
+        for ln in (s["stdout"] or "").splitlines():
+            if ln.startswith("worktree "):
+                paths.add(ln.split(" ", 1)[1])
+        return paths
+
     # 0. baseline: the rehearsal itself passes.
-    base = call(out=os.path.join(work_root, "baseline"))
-    case("baseline rehearsal passes", base["ok"],
+    base_out = os.path.join(work_root, "baseline")
+    base = call(out=base_out)
+    base_verify, _ = verify_attempt(base_out)
+    case("baseline rehearsal passes", base["ok"] and base_verify,
          "; ".join(base["problems"])[:200])
 
     # 1. missing required source file -> explicit failure.
     badlist = os.path.join(work_root, "bad-allowlist.txt")
     with open(badlist, "w", encoding="utf-8") as f:
         f.write("\n".join(list(DEFAULT_ALLOWLIST) + ["tools/does_not_exist.py"]) + "\n")
-    miss = call(out=os.path.join(work_root, "missing"), allowlist=tuple(
+    miss_out = os.path.join(work_root, "missing")
+    miss = call(out=miss_out, allowlist=tuple(
         open(badlist, encoding="utf-8").read().split()))
     case("missing required source path -> failure",
-         (not miss["ok"]) and miss["stage"] == "allowlist",
+         (not miss["ok"]) and miss["stage"] == "allowlist"
+         and not os.path.lexists(miss_out),
          "stage=%s" % miss["stage"])
 
     # 2. differing destination file -> collision refusal.
@@ -594,7 +917,7 @@ def selftest(rec, repo, tool_source, runtime_base, out_dir, work_root):
     #     pipeline must fail rather than resolve the module from another checkout.
     fb_dir = os.path.join(work_root, "no-fallback")
     Sub(["git", "-C", repo, "worktree", "add", "--detach", fb_dir, rt_full])
-    fb_entries, _ = enumerate_allowlist(rec, repo, src_full, tools_only)
+    fb_entries, _, _ = enumerate_allowlist(rec, repo, src_full, tools_only)
     materialize(rec, repo, fb_entries, fb_dir, set())
     fb_fixture = os.path.join(fb_dir, "tools/tests/cur_extractor/fixtures/e3-pass.json")
     fb_run = Sub([sys.executable, os.path.join(fb_dir, "tools/cur_pipeline.py"), fb_fixture],
@@ -625,11 +948,11 @@ def selftest(rec, repo, tool_source, runtime_base, out_dir, work_root):
     # 5. invocation from an unrelated directory -> same selected files.
     other_cwd = os.path.join(work_root, "elsewhere")
     os.makedirs(other_cwd, exist_ok=True)
-    entries_a, _ = enumerate_allowlist(rec, repo, tool_source, DEFAULT_ALLOWLIST)
+    entries_a, _, _ = enumerate_allowlist(rec, repo, tool_source, DEFAULT_ALLOWLIST)
     prev = os.getcwd()
     try:
         os.chdir(other_cwd)
-        entries_b, _ = enumerate_allowlist(rec, repo, tool_source, DEFAULT_ALLOWLIST)
+        entries_b, _, _ = enumerate_allowlist(rec, repo, tool_source, DEFAULT_ALLOWLIST)
     finally:
         os.chdir(prev)
     case("unrelated cwd selects the same files",
@@ -647,10 +970,10 @@ def selftest(rec, repo, tool_source, runtime_base, out_dir, work_root):
                            "--out", out_b], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     r1 = p1.wait(timeout=1800)
     r2 = p2.wait(timeout=1800)
+    va, _ = verify_attempt(out_a)
+    vb, _ = verify_attempt(out_b)
     case("two concurrent harness runs isolate outputs",
-         r1 == 0 and r2 == 0 and out_a != out_b
-         and os.path.exists(os.path.join(out_a, "input-manifest.json"))
-         and os.path.exists(os.path.join(out_b, "input-manifest.json")),
+         r1 == 0 and r2 == 0 and out_a != out_b and va and vb,
          "rc=%s,%s" % (r1, r2))
 
     # 7. non-allowlisted destination files byte-identical before and after.
@@ -677,6 +1000,159 @@ def selftest(rec, repo, tool_source, runtime_base, out_dir, work_root):
          before == after and len(before) > 0 and untouched["ok"],
          "probed=%d" % len(before))
 
+    # 8. symlink entry: recreated as a symlink (direct materialize + end-to-end patch).
+    link_repo = os.path.join(work_root, "link-repo")
+    scratch_clone(link_repo)
+    link_dir = os.path.join(link_repo, "tools/tests/cur_link")
+    os.makedirs(link_dir, exist_ok=True)
+    LINK_TARGET = "expected-target/placeholder.txt"
+    os.symlink(LINK_TARGET, os.path.join(link_dir, "expected-link.txt"))
+    Sub(["git", "-C", link_repo, "add", "-A"])
+    Sub(["git", "-C", link_repo, "commit", "-q", "-m", "symlink fixture"])
+    link_src = Sub(["git", "-C", link_repo, "rev-parse", "HEAD"])["stdout"].strip()
+    link_entries, link_missing, link_unsup = enumerate_allowlist(
+        rec, link_repo, link_src, ("tools/tests/cur_link/",))
+    link_tmp = os.path.join(work_root, "link-materialized")
+    os.makedirs(link_tmp, exist_ok=True)
+    _, link_probs = materialize(rec, link_repo, link_entries, link_tmp, set())
+    link_path = os.path.join(link_tmp, "tools/tests/cur_link/expected-link.txt")
+    direct_link_ok = (not link_missing and not link_unsup and len(link_entries) == 1
+                      and link_entries[0]["mode"] == "120000" and not link_probs
+                      and os.path.islink(link_path) and os.readlink(link_path) == LINK_TARGET)
+    link_allow = tuple(list(DEFAULT_ALLOWLIST) + ["tools/tests/cur_link/"])
+    link_out = os.path.join(work_root, "link-out")
+    link_run = rehearse(rec, link_repo, link_src, src_full, link_out, link_allow,
+                        ("tools/tests/cur_schema/run.py",), (), False)
+    link_verify_ok = False
+    link_patch_ok = False
+    if link_run["ok"]:
+        link_verify_ok, _ = verify_attempt(link_out)
+        try:
+            with open(os.path.join(link_out, "import.patch"), "r", encoding="utf-8",
+                      errors="replace") as f:
+                patch_body = f.read()
+            link_patch_ok = ("120000" in patch_body
+                             and "tools/tests/cur_link/expected-link.txt" in patch_body)
+        except OSError:
+            link_patch_ok = False
+    case("symlink entry recreated as symlink (direct + end-to-end)",
+         direct_link_ok and link_run["ok"] and link_verify_ok and link_patch_ok,
+         "mode=%s patch120000=%s" % (link_entries[0]["mode"] if link_entries else "?", link_patch_ok))
+
+    # 9. unsupported mode: fabricated entries + a real gitlink are rejected explicitly.
+    real_entries, _, _ = enumerate_allowlist(rec, repo, tool_source, ("tools/cur_pipeline.py",))
+    fab_ok = bool(real_entries)
+    for bad_mode in ("160000", "100640"):
+        if not real_entries:
+            break
+        fab = dict(real_entries[0])
+        fab["mode"] = bad_mode
+        fab_tmp = os.path.join(work_root, "fab-" + bad_mode)
+        os.makedirs(fab_tmp, exist_ok=True)
+        _, fab_probs = materialize(rec, repo, [fab], fab_tmp, set())
+        target = os.path.join(fab_tmp, fab["path"])
+        one = (len(fab_probs) == 1
+               and "unsupported git mode" in fab_probs[0].get("reason", "")
+               and not os.path.lexists(target))
+        fab_ok = fab_ok and one
+    sub_repo = os.path.join(work_root, "sub-repo")
+    scratch_clone(sub_repo)
+    sadd = Sub(["git", "-C", sub_repo, "-c", "protocol.file.allow=always",
+                "submodule", "add", "--quiet", repo, "tools/tests/cur_link/submod"])
+    Sub(["git", "-C", sub_repo, "add", "-A"])
+    Sub(["git", "-C", sub_repo, "commit", "-q", "-m", "submodule fixture"])
+    sub_src = Sub(["git", "-C", sub_repo, "rev-parse", "HEAD"])["stdout"].strip()
+    _, _, sub_unsup = enumerate_allowlist(rec, sub_repo, sub_src, ("tools/tests/cur_link/",))
+    sub_run = rehearse(rec, sub_repo, sub_src, src_full, os.path.join(work_root, "sub-out"),
+                       link_allow, ("tools/tests/cur_schema/run.py",), (), False)
+    sub_ok = (sadd["exit"] == 0 and len(sub_unsup) == 1 and sub_unsup[0]["mode"] == "160000"
+              and (not sub_run["ok"]) and sub_run["stage"] == "mode")
+    case("unsupported mode rejected explicitly (fabricated + gitlink)",
+         fab_ok and sub_ok, "fab=%s stage=%s" % (fab_ok, sub_run["stage"]))
+
+    # 10. nonempty output directory -> refusal; pre-existing content intact.
+    ne_dir = os.path.join(work_root, "nonempty")
+    os.makedirs(ne_dir, exist_ok=True)
+    sentinel = os.path.join(ne_dir, "sentinel.txt")
+    with open(sentinel, "w", encoding="utf-8") as f:
+        f.write("do-not-touch\n")
+    ne = call(out=ne_dir)
+    with open(sentinel, "r", encoding="utf-8") as f:
+        intact = (f.read() == "do-not-touch\n")
+    case("nonempty output directory -> refusal",
+         (not ne["ok"]) and ne["stage"] == "output" and intact
+         and not os.path.lexists(os.path.join(ne_dir, COMPLETION_FILENAME))
+         and not os.path.lexists(os.path.join(ne_dir, "input-manifest.json")),
+         "stage=%s" % ne["stage"])
+
+    # 11. interruption before publish -> no completed output at the final path.
+    wt_before = listed_worktrees(repo)
+    crash_out = os.path.join(work_root, "crash-out")
+    crash_env = dict(os.environ)
+    crash_env[CRASH_BEFORE_PUBLISH_ENV] = "1"
+    cp = subprocess.run(
+        [sys.executable, os.path.abspath(__file__), "--repo", repo,
+         "--tool-source", tool_source, "--runtime-base", runtime_base,
+         "--out", crash_out, "--suites", "tools/tests/cur_schema/run.py"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=900, env=crash_env)
+    crash_verify, _ = verify_attempt(crash_out)
+    try:
+        orphans = [n for n in os.listdir(work_root) if n.startswith(STAGING_PREFIX)]
+    except OSError:
+        orphans = []
+    orphan_has_manifest = any(
+        os.path.isfile(os.path.join(work_root, n, COMPLETION_FILENAME)) for n in orphans)
+    case("interruption before publish -> no completed output",
+         cp.returncode != 0 and (not crash_verify) and (not os.path.lexists(crash_out))
+         and orphan_has_manifest,
+         "rc=%s orphan_staging=%d" % (cp.returncode, len(orphans)))
+    for w in listed_worktrees(repo) - wt_before:
+        rec.run(["git", "-C", repo, "worktree", "remove", "--force", w])
+    rec.run(["git", "-C", repo, "worktree", "prune"])
+    for n in orphans:
+        shutil.rmtree(os.path.join(work_root, n), ignore_errors=True)
+
+    # 12. two invocations targeting the SAME output -> exactly one succeeds.
+    same_out = os.path.join(work_root, "same-out")
+    same_argv = [sys.executable, os.path.abspath(__file__), "--repo", repo,
+                 "--tool-source", tool_source, "--runtime-base", runtime_base,
+                 "--out", same_out, "--suites", "tools/tests/cur_schema/run.py"]
+    q1 = subprocess.Popen(same_argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    q2 = subprocess.Popen(same_argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    s1 = q1.wait(timeout=1800)
+    s2 = q2.wait(timeout=1800)
+    same_verify, _ = verify_attempt(same_out)
+    case("two invocations, same output -> exactly one succeeds",
+         (s1 == 0) != (s2 == 0) and same_verify,
+         "rc=%s,%s" % (s1, s2))
+    for w in listed_worktrees(repo) - wt_before:
+        rec.run(["git", "-C", repo, "worktree", "remove", "--force", w])
+
+    # 13. completion manifest missing -> consumer refuses the attempt.
+    miss_dir = os.path.join(work_root, "manifest-missing")
+    mok = True
+    mreason = "baseline unavailable"
+    if base["ok"] and base_verify:
+        shutil.copytree(base_out, miss_dir)
+        os.remove(os.path.join(miss_dir, COMPLETION_FILENAME))
+        mok, mreason = verify_attempt(miss_dir)
+    case("completion manifest missing -> consumer refuses",
+         base["ok"] and base_verify and (not mok),
+         "consumer=%s" % mreason[:100])
+
+    # 14. tampered artifact -> consumer refuses the attempt.
+    tamp_dir = os.path.join(work_root, "tampered")
+    tok = True
+    treason = "baseline unavailable"
+    if base["ok"] and base_verify:
+        shutil.copytree(base_out, tamp_dir)
+        with open(os.path.join(tamp_dir, "import.patch"), "ab") as f:
+            f.write(b"# tampered\n")
+        tok, treason = verify_attempt(tamp_dir)
+    case("tampered artifact -> consumer refuses",
+         base["ok"] and base_verify and (not tok),
+         "consumer=%s" % treason[:100])
+
     lines = ["HARNESS SELFTESTS — tools/tests/cur_import/run.py", "=" * 70, ""]
     passed = 0
     for c in cases:
@@ -698,10 +1174,16 @@ def selftest(rec, repo, tool_source, runtime_base, out_dir, work_root):
 # --------------------------------------------------------------------- CLI
 USAGE = ("usage: run.py --repo <repo> --tool-source <sha> --runtime-base <sha> --out <dir> "
          "[--allowlist <file>] [--suites \"<a> <b>\"] [--allow-replace <path>] "
-         "[--keep] [--selftest]")
+         "[--keep] [--selftest]\n"
+         "       run.py --verify <attempt-directory>")
 
 
 def main(argv):
+    if len(argv) == 3 and argv[1] == "--verify":
+        ok, reason = verify_attempt(argv[2])
+        print(("ACCEPT" if ok else "REFUSE") + ": %s" % reason)
+        return 0 if ok else 1
+
     repo = None
     tool_source = None
     runtime_base = None
@@ -764,6 +1246,8 @@ def main(argv):
         print("  destination %-42s %s" % (row["suite"], row["verdict"]))
     for p in result["problems"]:
         print("  problem: %s" % p)
+    if result.get("incomplete_dir"):
+        print("incomplete: %s" % result["incomplete_dir"])
     print("artifacts: %s" % out_dir)
     return 0 if result["ok"] else 1
 
