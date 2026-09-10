@@ -3,8 +3,9 @@
 Per CHARTER-v1 §1. One entry per item. Every claim here cites an artifact in
 this directory or under `verification/`.
 
-Status: **item 1 surfaced and named; defect still open after three repair
-attempts.** Items 2, 3, 4 not started. No `preflight` commit and no tag yet.
+Status: **item 1 CLOSED, exact-109 green.** Item 3 complete and
+shape-matched. Item 2 not started. Item 4 gated on item 2. No `preflight`
+commit and no tag yet.
 
 **Correction to the record.** Commit `bfd4bd2` is described in its own
 message as applying a codec-side guard at `persistence.py:806`. It does not.
@@ -57,31 +58,65 @@ count, not load, was the variable.
 **Guard restored.** The harness reverted `testsuite.py:14957` on exit; the
 tree carries no re-raise.
 
-**Fix: partial, committed as partial.** A guard was applied at
-`persistence.py:806` — probe `target.id`, on AttributeError return
-`M.EmptyList`, the index's existing not-found signal. Necessary and correct,
-but **it does not close the defect**. One confirming exact-109 run
-(2026-09-08T19:47:44Z → 19:59:45Z, exit 1) shows the crash moved one frame
-along: the Hypergraph is now queued for interning and reaches the *insert*
-door of the same identity index, `persistence.py:1423` → `trees.py:425`
-`self.key_id = key.id`, with the same `AttributeError`. Full traceback in
-`protocol/preflight/exception-traceback.txt`.
+**Fix: LANDED, upstream, at the constructor site.** Ruling (c), second
+branch: the encode-boundary option was rejected as silent omission, so the
+assignment was traced instead.
 
-The index has two doors. Guarding the lookup alone moves the failure from
-the read door to the write door. Three repairs are available and are not
-equivalent: skip the object at the queue/loop boundary (stops the crash,
-silently omits it from the snapshot); encode it as an opaque scalar
-(preserves it, needs a type discriminator §0 forbids); fix upstream so a
-live Hypergraph never enters machine state (addresses the cause). **A ruling
-is requested; this is not an engineering default.**
+**Offending constructor site: `testsuite.py:4914`, `WorkerProtocolTest`.**
+The retained test edge was built as
+`super().__init__(inputs=M.Pair(graph, empty), results=self.result)` — the
+live `Hypergraph` in a term slot. `testsuite.py:4726`,
+`ConflictDetectionTest`, carried the identical defect. Both now use
+`inputs=M.EmptyList`. This is ruling category (a): a fixture storing the host
+graph into a term field.
 
-**Outstanding, in order:** ruling on the repair; land the complete fix in
-its own commit; then the suite reruns clean. Attempts 2 and 3 exist in the
-ruling to establish non-reproduction; the exception appeared on attempt 1,
-so the "exception appears" branch is taken and they are not required for
-closure.
+**Why the count mattered, finally explained.** `worker_protocol_test` sits at
+cursor index 110: inside the exact-109 set (shard 0, before 218) and outside
+every trailing window tried. 0, 16 and 32 predecessors never constructed the
+offending edge, so the object was never in state. The count was a proxy for
+one registration, exactly as suspected, and the registration is now named.
 
----
+**Minimal reproducer (replaces the 14-minute run for future work):**
+
+    PYTHONPATH=/home/user python3 tools/run_named_tests.py \
+        worker_protocol_test learned_memory_checkpoint_test
+
+Two tests, 59 seconds, fails before the fix with the same
+`PROBE parent pair ... headtype=Hypergraph` and passes after. The 109-test
+configuration was never necessary; it was merely the first set tried that
+included registration 110.
+
+**Three-door history** (each door is a consumer of the same reachable object,
+not a separate accident):
+
+    1. lookup  persistence.py:806  -> guarded, moved
+    2. insert  persistence.py:1423 -> guarded (trees.py), moved
+    3. encode  persistence.py:1317 -> raised
+    fix at the constructor site -> all three silent, because the object is
+    no longer in the object graph at all
+
+**Confirming run:** exact-109 on 13cd338 + the fixture fix,
+2026-09-10T00:55:42Z to 01:11:32Z, exit 0, no traceback. 110 registered,
+108 passed, 2 failed — `tree_insert_deep_pair_lookup_avoids_recursion_test`
+and `compare_search_modes_fill_warms_resident_pool_before_root_wave_test`,
+both pre-existing members of the known failure set.
+`learned_memory_checkpoint_test` passed.
+
+**Index guards at `2a0a876` retained** as defense-in-depth with correct
+answer semantics.
+
+**Not landed: the capture-entry refusal test.** Designed, then held, because
+`inputs=M.Pair(graph, ...)` is a codebase-wide convention, not a two-site
+mistake: it appears in `graph.py` (many), `context.py` (~40 call sites),
+`planner.py`, `search/api.py`, `search/engine.py`, `proof.py`,
+`research.py`, `daemon.py`. A refusal at capture entry fires on all of them.
+Landing it converts one crash into an unknown number of refusals until
+someone rules whether the convention itself is wrong or only its retention is.
+Ruling requested.
+
+**Citation for the eventual preflight commit:** `bfd4bd2` is an experiment
+record whose message claims code it does not contain; superseded by
+`2a0a876` and this fix. No reader should trust its message over its diff.
 
 ## Item 2 — A1 producer/consumer selection probe
 

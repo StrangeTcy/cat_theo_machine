@@ -4723,7 +4723,7 @@ class ConflictDetectionTest(M.Edge):
             )(),
         )()
         super().__init__(
-            inputs=M.Pair(graph, empty),
+            inputs=M.EmptyList,
             results=self.result,
         )
 
@@ -4911,7 +4911,7 @@ class WorkerProtocolTest(M.Edge):
             )(),
         )()
         super().__init__(
-            inputs=M.Pair(graph, empty),
+            inputs=M.EmptyList,
             results=self.result,
         )
 
