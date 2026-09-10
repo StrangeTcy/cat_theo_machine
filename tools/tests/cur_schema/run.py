@@ -191,10 +191,29 @@ def main():
         check("foreign working directory", fwd_rc == 0 and bool(fd_report.get("schema_valid")))
 
         # ---- 11. two concurrent schema checks.
-        p1 = _schema_check(os.path.join(SCHEMA_FIXDIR, "e7-params-only.json"))
-        p2 = _schema_check(os.path.join(SCHEMA_FIXDIR, "missing-optional-evidence.json"))
-        concurrent_ok = p1[0] == 0 and p2[0] == 0
-        check("two concurrent schema checks", concurrent_ok)
+        # Both children are LAUNCHED before either is awaited. The previous version called
+        # the blocking helper twice in sequence, so the "concurrent" label described two
+        # sequential runs. Overlap is now observed, not assumed: both handles are checked
+        # for liveness after both have been started.
+        cmd1 = [sys.executable, SCHEMA_CMD, "check",
+                os.path.join(SCHEMA_FIXDIR, "e7-params-only.json")]
+        cmd2 = [sys.executable, SCHEMA_CMD, "check",
+                os.path.join(SCHEMA_FIXDIR, "missing-optional-evidence.json")]
+        proc1 = subprocess.Popen(cmd1, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        proc2 = subprocess.Popen(cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        overlapped = (proc1.poll() is None) and (proc2.poll() is None)
+        out1, _ = proc1.communicate(timeout=180)
+        out2, _ = proc2.communicate(timeout=180)
+        concurrent_ok = False
+        try:
+            r1 = json.loads(out1)
+            r2 = json.loads(out2)
+            concurrent_ok = (overlapped and proc1.returncode == 0 and proc2.returncode == 0
+                             and bool(r1.get("schema_valid")) and bool(r2.get("schema_valid")))
+        except ValueError:
+            concurrent_ok = False
+        check("two concurrent schema checks", concurrent_ok,
+              "overlapped=%s rc=%s,%s" % (overlapped, proc1.returncode, proc2.returncode))
 
         # ---- 12. drift test: schema-module pinned constants/identities match extractor+grader.
         drift_ok = _run_drift_test()
