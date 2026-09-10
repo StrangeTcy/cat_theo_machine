@@ -1,0 +1,297 @@
+FLT IN A LIVE SESSION — BLOCKERS AND FIXES, LATEST PULL
+=======================================================
+date:     2026-09-10 (local)
+lane:     arena/01a066cf-cat-theo-machine (tools / CUR lane)
+method:   fresh `git fetch origin --prune --tags` of all refs; every load-bearing
+          claim below re-read from the named commit + file + line. Code claims
+          were read out of the tree, not taken from any prior summary.
+scope:    verification artifact only. No machine run this turn, no code change,
+          no tag, no repair. Answers the question "pull the latest commits and
+          state the blockers of proving FLT in a live session, and the fixes."
+
+This extends and corrects the two 2026-09-09 answers and the Option C artifact
+(verification/2026-09-10-FLT-LIVE-SESSION-BLOCKERS.txt at de86c4c, fetched
+2026-09-09T22:41Z). That artifact pinned the INT line at bfd4bd2. The line has
+since MOVED two commits, which changes the first blocker's shape.
+
+------------------------------------------------------------------------------
+0. WHAT "PROVING FLT IN A LIVE SESSION" MEANS (three separate claims)
+------------------------------------------------------------------------------
+  A1 ATTEMPTABLE   the machine parses the exact goal, runs, and NAMES concrete
+                   unmatched premises instead of stalling silent.
+  A2 PROVED-ON-INSTRUMENT   a checked derivation of the exact full goal from
+                   explicitly disclosed HUMAN_SUPPLIED_TRUSTED_THEOREM leaves;
+                   every logical shell checker-validated; every mandatory
+                   obligation checked; checkpointed; cold certificate replay.
+  A3 DISCOVERY     the blind protocol yields a target-specific residual distinct
+                   from the decoy with measured unlock and zero computable
+                   requests. This is a SEPARATE claim.
+
+A3 is WITHDRAWN by the F lane itself, not by the tools lane: F-RUNNER null at
+n=2 (5394650), n=3 (1aed8e4), n=4 (f58eec6), decoy and target both stalling at
+334/0 with zero-successor-root. The session that can be attempted once the chain
+clears is therefore NON-BLIND, residual-guided teaching with the leaves
+disclosed, and it may NOT claim independent discovery. Decoy specificity is a
+discovery criterion, not a proof-validity criterion.
+
+The exact target term, verified on the INT line from the preflight item-3
+artifact (protocol/preflight/decoy-shape.txt at 13cd338), parsing only:
+
+  target: (forall n (implies (greater n 2)
+            (nosolutions positive-integers (unknowns a b c)
+              (eq (plus (pow a n) (pow b n)) (pow c n)))))
+  decoy:  same term with (greater n 1)
+
+The target is a forall/implies/nosolutions shell wrapping a bare eq. The shell is
+therefore the load-bearing outer structure, which is why B-3/B-4 gate everything.
+
+------------------------------------------------------------------------------
+1. MOVEMENT SINCE THE LAST ANSWER (the reason to re-pull)
+------------------------------------------------------------------------------
+INT line refs/heads/arena/01a06542-cat-theo-machine:
+
+  bfd4bd2  Preflight item 1: partial guard committed, defect NOT closed
+  2a0a876  Preflight item 1: index-level guard for candidate lacking term id
+  13cd338  Preflight item 3: structural decoy shape check, SHAPE-MATCHED  <- tip
+
+Consequences, each verified:
+  (a) Preflight item 3 is DONE (13cd338 adds tools/preflight_decoy_shape.py and
+      protocol/preflight/decoy-shape.txt; both sentences parse; SHAPE-MATCHED,
+      differing only in the bound constant).
+  (b) Ruling (c) — guard the identity index itself — was LANDED in trees.py
+      (2a0a876) and is now measured NECESSARY BUT INSUFFICIENT (see R-0).
+  (c) Neither bfd4bd2 nor 13cd338 is contained by any tag: 0 of 15 tags. The
+      union still has no frozen base.
+
+Bookkeeping defect found this pull: at 13cd338, protocol/preflight/ledger.md —
+the authoritative status index — still reads "## Item 3 … Not started" even
+though the tip commit delivers item 3. The ledger was not updated with the
+artifact. The status index and the tree disagree; INT should reconcile before
+relying on the ledger's item states.
+
+Provenance defect found this pull: bfd4bd2's commit message states it applied a
+codec-side guard. Its diff contains only protocol/preflight/ and verification/ —
+no code file. 2a0a876's message records the correction verbatim ("the code change
+was never committed. Left unrewritten."). Confirmed independently: persistence.py
+has NO commits on the INT line since setup (99d9280..13cd338 is empty), so the
+production codec is unguarded at every commit including the tip.
+
+------------------------------------------------------------------------------
+2. BLOCKERS, DEPENDENCY ORDER
+------------------------------------------------------------------------------
+R-0  OPERATOR RULING PENDING — the snapshot repair choice. [BLOCKER OF BLOCKERS]
+  Evidence (protocol/preflight/ledger.md + exception-traceback.txt at 13cd338;
+  commit 2a0a876 message):
+    The defect is OBJECT_ID_INDEX_ASSUMES_TERM_ID_ON_HOST_OBJECT. A host
+    Hypergraph has no machine-term .id, but it is an element of the object graph.
+    Three doors were measured, one object:
+      door 1 lookup  persistence.py:806 -> trees.py:176  (guarded)
+      door 2 insert  persistence.py:1423 -> trees.py:425/506 (guarded)
+      door 3 encode  persistence.py:1592 _encode_captured_subtree
+                       -> 1464 _record_for -> 1317 _encode_field
+                       -> 1325 _encode_scalar
+                       -> TypeError: mpz() requires numeric or string argument
+    Ruling (c) (index-level guard) closed doors 1 and 2 and the failure MOVED to
+    door 3. The commit states the reason: the Hypergraph is the head.value of a
+    term that IS in the index; removing it from the index does not remove the
+    reference, and every consumer of that reference fails in turn.
+  What it blocks: preflight items 2 and 4, the immutable preflight tag, and
+  therefore the reliable checkpoint base for any live session.
+  The fix is a DECISION, then code. Two options remain live; the third is
+  eliminated by measurement:
+    (i)  upstream — stop a live Hypergraph entering machine state at all;
+    (ii) encode boundary — represent an unrepresentable reference explicitly.
+    (dead) index-level guard — measured insufficient.
+  Constraints either way: no arbitrary .id on Hypergraph; no silent omission;
+  no broad except returning success; rejected capture leaves no partial snapshot.
+  Owner: operator (ruling), then INT (code). Status: WAITING ON A DECISION.
+
+B-1  Snapshot codec boundary — land the ruling as code.
+  After R-0: implement the chosen boundary; classify the Hypergraph as
+  reconstructible infrastructure, explicit-adapter state, or unsupported content.
+  Then rerun exact-109 from the committed tree; confirm supported save + cold
+  restore is GREEN (a clean refusal is a robustness fix, not a closure if that
+  configuration is a required checkpoint); then items 2 and 4.
+  Owner: INT.
+
+B-2  No admitted, tagged build; two import decisions pending.
+  Evidence: 0 of 15 tags contain either INT tip. The needed union spans the INT
+  runtime, the item-1 fix, D11 shell characterization, binder checker rules, the
+  teach-binding fix, D21/D22, the D12 header, F1 checkpoint tooling, F2-F4 tools,
+  and the schema tooling. Two SCHEMA-eng implementations sit in the INT import
+  queue (9ba2f43 lane artifact vs c24b0f0 live tree) — INT must diff and pick one
+  or merge by path; no silent dual-land.
+  Fix: INT composes by exact SHA (never branch tip), runs component gates and both
+  complete shards on the composed candidate, classifies failures, cuts the
+  immutable SEMANTIC tag, publishes its allowed measurement scope, requires blank
+  controls on it. F-PROVER must not use shell support before that tag.
+  Owner: INT.
+
+B-3  Outer-shell blindness (D11) — CHARACTERIZATION NOW DONE, closure still open.
+  Evidence — and this is the largest correction to the 09-09 answers, which said
+  no Phase-2 implementation was visible. It EXISTS:
+    f21460c on arena/01a06923, "D11-SHELL-ENG Phase 2 … EXECUTED", base bfd4bd2,
+    carried as patch verification/2026-09-10-d11-shell-phase2.patch.
+    Acceptance, from the raw REPL transcripts:
+      Goal A (nosolutions)     0 -> 1 -> 0 partials
+      Goal B (forall/implies)  0 -> 1 -> 0 partials
+      residuals are CONCRETE:
+        missing (NeedContradictionFromArbitrarySolution positive-integers
+                 (unknowns x) (eq (plus x 1) x))
+        missing (NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))
+      head-symbol negative controls (implies, over) stay 0 throughout;
+      both goals remain unclosed; extended d11 gate 16/16; no FLT vocabulary;
+      arithmetic ExprEq->eq port untouched; checker untouched.
+  The soundness boundary is correctly held by the lane: the premises are
+  capability terms (missing CHECKER support), not mathematics. The lane documents
+  that NeedLabel was deliberately NOT reused so a capability residual cannot be
+  confused with an eligible theorem request, and the gate proves the premises are
+  undischargeable by the generic rewriter (S6).
+  What it does NOT do: close either goal, or produce a proof. A diagnostic
+  residual is not an inference and not an eligible teaching request.
+  Integration gap: the patch is NOT on the INT line (verified: absent from
+  13cd338). It is an unmerged artifact.
+  Owner: shell lane (build) -> INT (import + semantic gate).
+
+B-4  Checker binder / contradiction discipline — THE PROOF-CRITICAL GAP.
+  Evidence: planner.py records that the caller owns freshness because the
+  substrate has no binder discipline; no connective-specific checker semantics
+  exist for forall, implication, or no-solutions-by-contradiction.
+  Fix: checker-native, with enforced semantics rather than names —
+    ForallIntroduction(variable, body, freshness_evidence)
+    ImpliesIntroduction(assumption, derivation)
+    ContradictionIntroduction(assumption, contradiction)
+    NoSolutionsIntroduction(domain, unknowns, assumed_solution, contradiction)
+  Required properties: eigenvariable freshness enforced at check time and not
+  free in undischarged assumptions; assumptions scoped with no sibling leakage;
+  capture-safe substitution; replay rejects a certificate missing freshness or
+  scope evidence; generic rewrite rules cannot close these shells without the
+  appropriate checker rule. Implication introduction means assume the antecedent
+  in a scoped context, derive the consequent, discharge — it must NOT be
+  implemented as proving the antecedent.
+  This is the gap between A1 (naming the residual) and A2 (closing the proof).
+  Owner: INT / logic lane. Status: not started on any branch.
+
+B-5  Teaching is not premise-bound. [verified in code this pull]
+  Evidence: the frozen incident transcript shows an operator supplying the
+  solutionmap theorem for request [3] while request [2] was approved; the
+  counterfactual unlock was REAL (cost 20 -> 8, goal closed), so the machine
+  promoted the WRONG node and recorded an episode pairing request 2's residual
+  with request 3's rule.
+  Code, read at the INT tip (research.py:3245 teach_dependency): it checks the
+  request exists; it calls validate_taught_rule(formal_term, parent_goal_fact);
+  it counterfactual-measures; it gates STATUS on unlock evidence. Read also at
+  research.py: the validator rejects only (a) a premise that restates the parent
+  goal and (b) an empty-premise rule whose conclusion is the parent goal. Nothing
+  unifies the taught conclusion with the REQUEST'S OWN Need. Credit
+  (DependencyStatus.DEMONSTRATED_USEFUL plus the intervention episode) is gated
+  on parent improvement alone.
+  Fix: separate three checked events — (A) theorem accepted as trusted,
+  (B) the application discharges THIS request's exact Need under request scope,
+  (C) that discharge produces measurable parent progress. Credit and any
+  attributed episode require (B); (C) alone never establishes attribution.
+  Regression: a valid rule aimed at the wrong Need with a real unlock must not be
+  credited. Keep theorem acceptance distinct from discharge and from usefulness.
+  Owner: INT / research lane.
+
+B-6  Checkpoint identity and certificate replay.
+  Evidence: main.py:2976-2986 auto-saves and auto-restores research_snapshot.json
+  (undeclared); the D12 header defect (untagged cold start omits build tag/commit
+  and checkpoint id) is recorded; F1 (save/load checkpoint, content-addressed id,
+  parent id) is specced and PARKED.
+  Fix: land F1 when the line carries the needed structure; make auto-restore
+  explicit or print it to the audit header BEFORE use; content-addressed ids with
+  parent identity, build tag+commit, loaded classes, trusted-leaf inventory; atomic
+  save and tamper rejection returning a machine refusal with no state change; cold
+  replay that CHECKS the recorded derivation rather than accepting a fresh search
+  result. Import F2/F3/F4 by exact commit.
+  Owner: INT / F-tools lane.
+
+B-7  Training acceptance (D21/D22). [verified in code this pull]
+  Evidence, read at the INT tip (training.py):
+    D21 ObligationSkeletonConclusionGoal._last_goal returns the FIRST
+        goal-bearing entry (it returns immediately on the first entry whose goal
+        is non-empty) while its own docstring says "the last skeleton entry that
+        carries a goal". An initial restatement carrying a goal is therefore
+        selected as the conclusion.
+    D22 the obligation audit (_first_undischarged_obligation) is called only
+        under `if status is not ProvedLabel` — the FAILURE path. A success never
+        audits the mandatory intermediate obligations.
+    Also: method_text is the hardcoded string "invariance pipeline (strategy hint
+    Invariance)", not the method used.
+  Scope correction, verified: the live research surface calls
+    Rmod.attempt_goal (main.py:3076, 3393); attempt_training_record is called only
+    from the TrainingRecord ingestion path (main.py:4105). D21/D22 therefore gate
+    TRAINING-RECORD ACCEPTANCE, not an independent live proof. Fix them before
+    using any training record as acceptance evidence; do not make them a
+    prerequisite for a directly checked live derivation.
+  Fix: select the final goal-bearing entry per contract; audit every mandatory
+  obligation on BOTH paths; require conclusion proved AND all mandatory
+  obligations proved AND every certificate replayed before SUCCESS; emit
+  per-obligation status; report the real method or "none".
+  Owner: INT / training lane.
+
+------------------------------------------------------------------------------
+3. WHAT PRIOR ANSWERS GOT WRONG OR LEFT STALE
+------------------------------------------------------------------------------
+  1. "No Phase-2 shell implementation is visible yet" (both 09-09 answers) — STALE.
+     f21460c exists, executed, with 0->1->0 on both goals and 16/16 gate.
+  2. "Preflight items 2-4 remain unstarted" — item 3 is DONE as of 13cd338.
+  3. Both answers prescribe the upstream snapshot repair as an open engineering
+     choice; the tree says the choice is an OPERATOR RULING and the index-level
+     option was measured insufficient. The immediate blocker is a decision.
+  4. Both answers treat D21/D22 as gating the live path; the call graph shows they
+     gate the training-ingestion path only.
+  5. Neither answer reports the ledger-vs-tree status disagreement, nor the
+     bfd4bd2 message/diff provenance discrepancy.
+
+------------------------------------------------------------------------------
+4. MINIMAL CRITICAL PATH
+------------------------------------------------------------------------------
+  1. OPERATOR: rule on the snapshot boundary (upstream vs encode). [R-0]
+  2. INT: land the repair; rerun exact-109; supported save + cold restore green; [B-1]
+     then preflight item 2, item 4 on a pinned candidate; reconcile the ledger.
+  3. INT: import the shell characterization patch (f21460c) plus the schema and
+     F2-F4 tools by exact SHA; resolve the dual-SCHEMA queue. [B-3, B-2]
+  4. LOGIC: checker-native forall/implies/contradiction/nosolutions with enforced
+     freshness, scoping, capture-safe substitution, replay rejection. [B-4]
+  5. RESEARCH: premise-bound teaching with a discharge certificate; misattribution
+     regression. [B-5]
+  6. F-TOOLS: F1 checkpoint identity + D12 header + replay; corrupted certificate
+     rejected. [B-6]
+  7. INT: both complete shards on the composed candidate; classify; cut the
+     immutable SEMANTIC tag; publish allowed scope + blank-control requirement. [B-2]
+  8. NON-FLT END-TO-END GATE: quantified toy -> one concrete unresolved premise ->
+     one premise-bound trusted teach -> checked closure -> checkpoint -> cold
+     certificate replay -> deliberately corrupted certificate rejected.
+  9. Only then the live attempt, under a declared NON-BLIND profile with leaves
+     disclosed and no discovery claim; every residual, teach, state transition and
+     replay retained. [A2]
+
+------------------------------------------------------------------------------
+5. THE HONEST CLAIM AT COMPLETION
+------------------------------------------------------------------------------
+  PERMITTED: the instrument checked a derivation of the exact FLT statement
+             relative to the listed human-supplied trusted theorems.
+  NOT PERMITTED: the machine proved FLT; the machine discovered the dependency
+             chain; a nonzero partial-match count is a proof step.
+
+  Every trusted leaf must be disclosed, and a leaf that merely restates the target
+  or embeds the whole conclusion must be flagged: such a run may replay correctly
+  and still demonstrate no decomposition.
+
+------------------------------------------------------------------------------
+6. VERIFICATION INDEX (this pull)
+------------------------------------------------------------------------------
+  INT tip                    13cd338  (moved from bfd4bd2)
+  tags containing INT tip    0 of 15
+  persistence.py INT commits since setup   0
+  trees.py guard             2a0a876
+  preflight item 3           DONE (13cd338), ledger NOT updated
+  shell Phase 2              f21460c, executed, NOT on INT line
+  research.py on INT line    4021 lines, present
+  teach_dependency           research.py:3245, parent-goal validation only
+  D21 selector               training.py:243
+  D22 audit path             training.py:568+
+  live vs ingestion call     main.py:3076/3393 vs main.py:4105
+  F null runs                5394650 (n=2), 1aed8e4 (n=3), f58eec6 (n=4)
