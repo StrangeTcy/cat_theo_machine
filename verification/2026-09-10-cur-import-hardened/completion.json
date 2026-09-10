@@ -1,0 +1,26 @@
+{
+  "artifacts": {
+    "destination-results.txt": "d65ffac2619cd52fa3154446d3232f0c131d2e379856282537f834f6bd4c5708",
+    "import-paths.txt": "395f8d577cb80d9f136977da67db9b2225534fd8f0b7e39bf2e264171cf820a3",
+    "import.patch": "60d55d45eef7ece47fcda0cd08d853494573fe408b96f170e6ed878f64c0dac5",
+    "input-manifest.json": "beb07fe8161da9ae5e0167e68386ea868031327e7e03bdbd5d9488c1bf2dbae2",
+    "source-results.txt": "c6c25f20bdc4b6b17f28cff7f05ebbe0fd71414e4a4faae884d78a42886d62d5"
+  },
+  "completed_utc": "2026-09-10T02:07:57Z",
+  "harness": "tools/tests/cur_import/run.py",
+  "imported_count": 73,
+  "ok": true,
+  "pid": 77299,
+  "role": "CUR-GRADER-ENG / import support (disposable rehearsal)",
+  "runtime_base": {
+    "commit": "13cd338c2b0063c3cc2cdcb61231670361a31355",
+    "rev": "13cd338c2b0063c3cc2cdcb61231670361a31355",
+    "tree": "d481494ccc15ffbac38579f0cd88462dbef86e9b"
+  },
+  "stage": "done",
+  "tool_source": {
+    "commit": "e904cfaf3a4f6ae159889eebb33b144b1b22e6be",
+    "rev": "e904cfaf3a4f6ae159889eebb33b144b1b22e6be",
+    "tree": "467ced801792adc1132f0131043fa2c9917112ed"
+  }
+}

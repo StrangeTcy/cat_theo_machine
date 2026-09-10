@@ -1,0 +1,23 @@
+HARNESS SELFTESTS — tools/tests/cur_import/run.py
+======================================================================
+
+  baseline rehearsal passes                            OK  
+  missing required source path -> failure              OK  stage=allowlist
+  differing destination file -> collision refusal      OK  stage=collision problems=['destination file differs: tools/cur_pipeline.py']
+  explicit resolution authorizes replacement           OK  
+  missing grader -> failure with no fallback           OK  verdict=MISSING_DEPENDENCY
+  no foreign-checkout fallback when grader absent      OK  pipeline exit=2
+  success-looking line + exit 7 -> failure             OK  stage=done verdict=FAIL
+  unrelated cwd selects the same files                 OK  73 vs 73 paths
+  two concurrent harness runs isolate outputs          OK  rc=0,0
+  non-allowlisted files unchanged in the base commit   OK  probed=5
+  symlink entry recreated as symlink (direct + end-to-end) OK  mode=120000 patch120000=True
+  unsupported mode rejected explicitly (fabricated + gitlink) OK  fab=True stage=mode
+  nonempty output directory -> refusal                 OK  stage=output
+  interruption before publish -> no completed output   OK  rc=137 orphan_staging=1
+  two invocations, same output -> exactly one succeeds OK  rc=0,1
+  completion manifest missing -> consumer refuses      OK  consumer=completion manifest missing: attempt incomplete, refused
+  tampered artifact -> consumer refuses                OK  consumer=artifact content differs from manifest: import.patch: refused
+
+SUMMARY: 17/17 harness selftests pass
+======================================================================
