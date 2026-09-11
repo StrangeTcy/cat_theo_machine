@@ -547,10 +547,24 @@ def _string_atom(text: str):
 
 
 def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, registry):
+    request_path = result_path + ".request.wire"
+    if os.path.exists(request_path):
+        with open(request_path, "rb") as handle:
+            request = W.deserialize_term(handle.read())
+        start = M.Head(request)()
+        goal = M.Head(M.Tail(request)())()
+        if M.Tail(M.Tail(request)())() is not M.EmptyList:
+            raise RuntimeError("search-worker request must contain exactly start and goal")
+        # Receipt evidence is the decoded machine term, not a display string.
+        with open(result_path + ".received.wire", "wb") as handle:
+            handle.write(W.serialize_term(M.Pair(start, M.Pair(goal, M.EmptyList))))
+        print("search-worker: machine request received")
+        sys.stdout.flush()
+        return "submitted machine goal", start, goal, M.EmptyList, M.EmptyList
     cases = _theorem_agenda(packs)
     manifest_path = _search_worker_result_manifest_path(result_path)
-    if os.path.exists(manifest_path) is False:
-        return cases[0]
+    if not os.path.exists(manifest_path):
+        raise RuntimeError("search-worker request missing; refusing a substitute theorem")
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
     expected_start_text = manifest.get("start_text", "")
@@ -562,9 +576,9 @@ def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, reg
         candidate_goal = Hmod.HeuristicCanonicalize(goal, heuristic, registry)()
         if M.PrettyTerm(candidate_start, registry)() == expected_start_text:
             if M.PrettyTerm(candidate_goal, registry)() == expected_goal_text:
-                return label, start, goal
+                return label, start, goal, _rules, _phi
         case_index = case_index + 1
-    return cases[0]
+    raise RuntimeError("search-worker legacy request does not identify a theorem; refusing a substitute goal")
 
 
 class _SearchWorkerResultGraph:
@@ -828,6 +842,9 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
         start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
         goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+        if os.path.exists(result_path + ".request.wire"):
+            with open(result_path + ".search-goal.wire", "wb") as handle:
+                handle.write(W.serialize_term(M.Pair(start, M.Pair(goal, M.EmptyList))))
     runtime.graph._search_disable_console = M.truth_value
     runtime.graph._search_disable_progress_ticker = M.false_value
     runtime.graph._search_stop_help_shown = M.truth_value

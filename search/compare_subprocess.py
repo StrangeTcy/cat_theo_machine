@@ -22,12 +22,12 @@ class _ComparisonSubprocessMixin:
         return result_path + ".manifest.json"
 
     def _write_search_worker_manifest(self, result_path):
-        manifest = {
-            "start_text": _debug_term(self.start, self.registry),
-            "goal_text": _debug_term(self.goal, self.registry),
-        }
-        with open(self._search_worker_result_manifest_path(result_path), "w", encoding="utf-8") as handle:
-            json.dump(manifest, handle)
+        from .. import wire as W
+
+        # Transport the terms, not their display strings or a theorem name.
+        request = M.Pair(self.start, M.Pair(self.goal, M.EmptyList))
+        with open(result_path + ".request.wire", "wb") as handle:
+            handle.write(W.serialize_term(request))
 
     def _mode_worker_token(self, mode):
         if M.IdentityCompare(mode, DFSLabel)() is M.truth_value:
@@ -314,7 +314,7 @@ class _ComparisonSubprocessMixin:
         return attempt, performances_by_mode
 
     def _search_compare_result_root(self, package_root):
-        return os.path.join(package_root, "snapshots", "search_compare")
+        return os.path.join(os.environ.get("HYGE_SNAPSHOT_DIR", os.path.join(package_root, "snapshots")), "search_compare")
 
     def _search_worker_snapshot_matches_current_problem(self, mode, heuristic, result_path):
         attempt, performance = self._load_search_worker_snapshot(mode, heuristic, result_path)
