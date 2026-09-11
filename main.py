@@ -42,6 +42,7 @@ else:
     from . import wire as W
     from . import session as Sess
     from . import daemon as Dmn
+    from . import proof_ingress as Ingress
     from .testsuite import install_default_tests
 
 
@@ -2854,6 +2855,37 @@ def run_talk_mode(sentence: str = None):
     def _respond(line, record=True):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
+        request = Ingress.LiveProofRequest(Ingress.ProofTokenStream(line)())
+        if request.recognized is M.truth_value:
+            last_outcome = M.EmptyList
+            last_derivation = M.EmptyList
+            last_goal = M.EmptyList
+            last_proof_registry = M.EmptyList
+            if request.goal is M.EmptyList:
+                return Ingress.ProofIngressMessage(request.outcome)()
+            print("hyge> parsed goal: " + Ingress.ProofGoalText(request.goal)())
+            sys.stdout.flush()
+            if not record:
+                return "parsed recorded request; no proof submitted during replay"
+            if proof_runtime is M.EmptyList:
+                print("hyge> loading theorem packs for foreground proof")
+                sys.stdout.flush()
+                with redirect_stdout(io.StringIO()):
+                    proof_runtime, _proof_packs = boot_from_packs(
+                        PACK_PATHS, _runtime_namespace(),
+                    )
+                _adopt_pack_concepts(
+                    proof_runtime.loaded_packs,
+                    M.FromContextGetAllRules(proof_runtime.graph)(),
+                )
+                _teach_runtime_taught_rules(proof_runtime, learned_version)
+            print("hyge> submitting parsed goal to foreground prover")
+            sys.stdout.flush()
+            submission = Ingress.SubmitForegroundGoal(proof_runtime, request)
+            derivation = submission()
+            if derivation is M.EmptyList:
+                return "Search stalled: no derivation found. Parsing succeeded; no theorem is asserted."
+            return "Foreground search returned a derivation. Ingress does not assert a checked theorem from that result."
         lowered = line.lower()
         if lowered.startswith("training example:"):
             return _handle_training(line, record=record)
