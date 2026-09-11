@@ -1,0 +1,34 @@
+{
+  "id": "E4-M1",
+  "schema_version": 1,
+  "ruleset_id": "e3e4e7-grader-v1-7ae056945c93e3d8",
+  "contract_ref": "CUR-ENGEL-E4-GRADER-CONTRACT.md",
+  "rubric_ref": "CUR-GRADER-RUBRIC.md",
+  "contract": "E4",
+  "evidence": {
+    "C1": {
+      "cites_max_degree_le_3": false,
+      "argues_from_e_in_alone": true
+    },
+    "C2": {
+      "states_exactly_two_houses": true,
+      "house_target_ambiguous": false
+    },
+    "C3": {
+      "derives_delta_h_le_minus1": true,
+      "asserts_unbounded_descent": false
+    },
+    "C4": {
+      "notes_h_bounded_below": true,
+      "termination_no_lower_bound": false
+    },
+    "C5": {
+      "termination_not_global_min": true,
+      "concludes_global_minimum": false
+    },
+    "C6": {
+      "measure_derived": true,
+      "measure_injected": false
+    }
+  }
+}

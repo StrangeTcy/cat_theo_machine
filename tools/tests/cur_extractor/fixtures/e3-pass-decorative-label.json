@@ -1,0 +1,133 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "weights",
+      "moves",
+      "start",
+      "odd",
+      "gen"
+    ],
+    "text": "candidate claim"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned problem"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "weights",
+      "role": "weights",
+      "kind": "derived",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "vector": [
+          1,
+          -1,
+          1,
+          -1,
+          1,
+          -1
+        ],
+        "provenance": "derived",
+        "n": 6
+      }
+    },
+    {
+      "id": "moves",
+      "role": "moves",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "pairs": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            5,
+            0
+          ]
+        ],
+        "n": 6
+      }
+    },
+    {
+      "id": "start",
+      "role": "start",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "vector": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "family": "all_equal"
+      }
+    },
+    {
+      "id": "odd",
+      "role": "odd-control",
+      "kind": "derived",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "target_n": 5
+      }
+    },
+    {
+      "id": "gen",
+      "role": "generation",
+      "kind": "derived",
+      "cites": [
+        "weights"
+      ],
+      "payload": {
+        "on_candidate": [
+          1,
+          -1,
+          1,
+          -1,
+          1,
+          -1
+        ],
+        "off_candidate": null
+      }
+    }
+  ],
+  "expected_label": "DO_NOT_USE",
+  "self_verdict": "PASS"
+}

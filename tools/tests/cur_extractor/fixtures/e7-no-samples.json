@@ -1,0 +1,33 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E7",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "params"
+    ],
+    "text": "no samples"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "params",
+      "role": "params",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "window_width": 4,
+        "modulus": 4
+      }
+    }
+  ]
+}
