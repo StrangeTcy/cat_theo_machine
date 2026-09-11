@@ -1,0 +1,8 @@
+negative-test logs: /tmp/hyge-int-negative.aDfBBcJN
+PASS N3: malformed input submits nothing and clears the pending goal
+PASS N4: missing worker request refuses the bundled-example fallback
+PASS N5: unmatched legacy request refuses a substitute goal
+PASS N5b: tampered worker receipt fails closed
+PASS N7: result directory stays under the isolated-state root
+NEGATIVE_EXIT_CODE=0
+logs retained at: /tmp/hyge-int-negative.aDfBBcJN

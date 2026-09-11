@@ -31,6 +31,8 @@ class ProofIngressRegression(M.Edge):
             # EmptyList has no prover interface: a mistaken submission raises.
             if I.SubmitForegroundGoal(M.EmptyList, request)() is not M.EmptyList:
                 self.result = M.false_value
+            if "No proof submitted." not in I.ProofIngressMessage(request.outcome)():
+                self.result = M.false_value
             print(I.ProofIngressMessage(request.outcome)())
             cases = M.Tail(cases)()
 
@@ -55,6 +57,8 @@ class ProofIngressRegression(M.Edge):
             span = M.Tail(M.Tail(token)())()
             if span is M.EmptyList:
                 self.result = M.false_value
+            if "No proof submitted." not in I.ProofIngressMessage(request.outcome)():
+                self.result = M.false_value
             print(I.ProofIngressMessage(request.outcome)())
             cases = M.Tail(cases)()
 
@@ -77,6 +81,8 @@ class ProofIngressRegression(M.Edge):
                 print("parsed goal: " + I.ProofGoalText(request.goal)())
                 canonical = H.HeuristicCanonicalize(request.goal, heuristic, M.AllConstructors)()
                 if M.Compare(canonical, direct.goal)() is M.false_value:
+                    self.result = M.false_value
+                if M.Compare(M.Head(canonical)(), M.Char("forall"))() is M.false_value:
                     self.result = M.false_value
             cases = M.Tail(cases)()
 
@@ -120,7 +126,10 @@ class ProofIngressRegression(M.Edge):
             self.result = M.false_value
 
         formal = "add ( two , two )"
-        if I.LiveProofRequest(I.ProofTokenStream(formal)()).recognized is not M.false_value:
+        formal_request = I.LiveProofRequest(I.ProofTokenStream(formal)())
+        if formal_request.recognized is not M.false_value:
+            self.result = M.false_value
+        if I.SubmitForegroundGoal(M.EmptyList, formal_request)() is not M.EmptyList:
             self.result = M.false_value
         vocabulary = G.DefaultCorrespondenceVocabulary()()
         digits = M.Head(M.Tail(M.Tail(vocabulary)())())()

@@ -1,0 +1,2 @@
+Comparison-worker receipts checked: 5
+PASS: direct parser == dispatcher == worker request == receipt == search goal
