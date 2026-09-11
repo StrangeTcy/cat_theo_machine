@@ -1,0 +1,102 @@
+{
+ "schema": "geng-bundle/v2",
+ "contract": "E7",
+ "candidate": {
+  "id": "cand",
+  "role": "candidate",
+  "cites": [
+   "res1",
+   "res2",
+   "prm"
+  ],
+  "text": "unclosed goal with characterized shell residuals"
+ },
+ "claims": [
+  {
+   "id": "cl1",
+   "kind": "assumption",
+   "text": "pinned problem"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "res1",
+   "role": "observable",
+   "kind": "derived",
+   "cites": [
+    "cl1"
+   ],
+   "payload": {
+    "head": "NeedContradictionFromArbitrarySolution",
+    "args": [
+     "positive-integers",
+     [
+      "unknowns",
+      "x"
+     ],
+     [
+      "eq",
+      [
+       "plus",
+       "x",
+       1
+      ],
+      "x"
+     ]
+    ],
+    "origin": "unmatched-premise",
+    "rule": "nosolutions_introduction_characterization",
+    "disposition": "missing",
+    "provenance": "missing"
+   }
+  },
+  {
+   "id": "res2",
+   "role": "observable",
+   "kind": "derived",
+   "cites": [
+    "cl1"
+   ],
+   "payload": {
+    "head": "NeedBinderSafeImplication",
+    "args": [
+     "n",
+     [
+      "greater",
+      "n",
+      1
+     ],
+     [
+      "eq",
+      [
+       "plus",
+       "a",
+       "a"
+      ],
+      [
+       "plus",
+       "a",
+       "a"
+      ]
+     ]
+    ],
+    "origin": "unmatched-premise",
+    "rule": "forall_implies_decomposition_characterization",
+    "disposition": "missing",
+    "provenance": "missing"
+   }
+  },
+  {
+   "id": "prm",
+   "role": "params",
+   "kind": "assumption",
+   "cites": [
+    "cl1"
+   ],
+   "payload": {
+    "window_width": 4,
+    "modulus": 4
+   }
+  }
+ ]
+}
