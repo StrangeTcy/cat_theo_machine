@@ -1179,6 +1179,20 @@ fixes, targeted ingress acceptance, the paused-resume solo, receipt tests,
 both full shards, failure set ≤ baseline 295/6/4. Until then this session
 holds: no retry, no tag, no authorization.
 
+Follow-on INT-owned tooling (bounded item 7, 2026-09-12): `e2606fe`
+hardens `tools/run_shards_detached.sh` — unique attempt dir per launch,
+per-shard state/log/pid/completion, per-shard HYGE_SNAPSHOT_DIR,
+attempt-token ownership, completion written only after child exit, four
+states (running / completed-with-report / exited-without-report /
+interrupted-or-unknown), no success claims, old attempts untouched — with
+executable dummy-command tests under `tools/tests/shard_runner/` (10/10,
+raw output in `verification/2026-09-12-shard-runner-tests.txt`). No tag.
+Committed runner bytes match the tested sha256 `ce8e564e…`. Recovery
+note: the sandbox reset between the ratification and this item dropped
+local HEAD to `41e8078`; HEAD was moved back to the pushed tip with the
+tree untouched (`git reset --mixed origin/arena/01a09270…`) and the tree
+verified identical before any new commit.
+
 ---
 
 ## 8. Worker report block
