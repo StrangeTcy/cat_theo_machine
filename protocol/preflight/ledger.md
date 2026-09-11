@@ -302,8 +302,21 @@ surviving any process kill. Use the wrapper; do not run the suite bare.
 
 ## Host-tools import — the published repair-wave base
 
-Tag **`hosttools-f59fb92`**, commit `f59fb92`. This is the base the four
+Tag **`hosttools-7ec5f59`**, commit `7ec5f59`. This is the base the four
 unbuilt repair lanes branch from.
+
+It supersedes `hosttools-f59fb92`, now deleted. That first tag was cut
+one file short: the import commit's add pathspecs covered `tools/` only
+and missed `protocol/G-ENG-ARTIFACT-SCHEMA.md`, the 73rd path. The file
+was present in the working tree throughout, so the five suites did run
+against it and their counts stand — but the published base would have
+been an incomplete import. Corrected by a forward commit, never a
+force-push or a history rewrite, and both names are recorded here so a
+reader holding the old one knows why it stopped resolving.
+
+The lesson for the next import: add by the manifest, not by a directory
+pathspec. The 73 paths were sitting in `import-paths.txt` the whole
+time.
 
 ```text
 classification  NON-SEMANTIC -- host tooling only
