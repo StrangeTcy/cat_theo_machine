@@ -1,0 +1,997 @@
+diff --git a/protocol/S.md b/protocol/S.md
+index f938eee..f678efc 100644
+--- a/protocol/S.md
++++ b/protocol/S.md
+@@ -4,4 +4,33 @@ Ledger entries for this track. Newest last. See protocol/README.md for
+ the rules governing entries, and research_protocol.md for cross-track
+ discipline.
+ 
+-No entries yet.
++## 2026-09-11 -- write-side relation-contract bridge (S-eng)
++
++Predicted: two write-side machine edges, RelationContractRecordAdd and
++RelationContractRecordRemove, give the read-side bridge a producer, and
++records written through them are immediately consumable by
++RelationContractsFor and RelationContractMeets.
++
++Run: in an isolated reconstruction (b812db9 + Batch A + canonical 897c07c
++Batch B + read bridge), implemented the two edges in research.py [S] and
++twelve write-side tests in testsuite.py [S]; re-ran Batch A (5), Batch B
++(2), read bridge (9), write bridge (12), label completeness, and the shard
++cursor pin.
++
++Came back: 30/30 named tests PASS. Soft guard pin 321 -> 333; hard pin
++218/0 held; completeness debt 40/198/18 unchanged (no new labels). The
++write edges are pure over the retained record chain: they construct
++RelationContracts records, refuse variable-bearing atoms and conflicting
++arities atomically, deduplicate equal delivery by machine value, remove a
++selected contract by (relation, source) value, and install no proof law,
++policy, planner alternative, or FireAny entry. The full bridge diff is
++deterministic (byte-identical to a fresh post-B -> post-D reconstruction).
++
++INT request (separate; INT owns command grammar and dispatch):
++  main.py dispatch requested:
++    teach relation contract ...
++    remove relation contract ...
++
++The machine edges do not depend on those commands; they consume retained
++records and are exercised directly by the tests above. Remaining bridge
++work is INT-owned: the main.py dispatch lines.
+diff --git a/research.py b/research.py
+index c90b0a4..1fa6bac 100644
+--- a/research.py
++++ b/research.py
+@@ -4761,4 +4761,179 @@ class RelationContractMeets(Edge):
+         return self.result
+ 
+ 
++def _contract_record_declares(record, relation):
++    """True when any contract atom in `record` names `relation` by value."""
++    atoms = Head(Tail(record)())()
++    walk = atoms
++    while IdentityCompare(walk, EmptyList)() is M.false_value:
++        atom = Head(walk)()
++        if M.Compare(Head(Tail(atom)())(), relation)() is M.truth_value:
++            return True
++        walk = Tail(walk)()
++    return False
++
++
++def _contract_report(status, source, atoms):
++    """Pair(status, Pair(source, Pair(atoms, Pair(ContractFactLabel, EmptyList))))."""
++    return M.Pair(
++        status,
++        M.Pair(source, M.Pair(atoms, M.Pair(Lmod.ContractFactLabel, EmptyList))),
++    )
++
++
++class RelationContractRecordAdd(Edge):
++    """Write-side contract bridge: add one source-bearing contract record.
++
++    Result: Pair(updated_records, Pair(report, EmptyList)) where
++    report = Pair(status, Pair(source, Pair(atoms, Pair(ContractFactLabel,
++    EmptyList)))). status is truth_value when the record is retained
++    (freshly appended, or already present by machine value -- idempotent)
++    and false_value on refusal. Refusals return `records` unchanged and
++    fire on: a variable source, malformed or variable-bearing atoms, or a
++    conflicting arity for one relation (new atoms disagreeing with a
++    retained arity, or with each other). The record is built through the
++    existing RelationContracts constructor, so its ContractFactLabel
++    provenance and full shape are preserved. No trie, rule pool, policy,
++    planner alternative, or FireAny entry is touched: the edge is pure over
++    the retained record chain.
++    """
++
++    def __init__(self, records, atoms, source):
++        self.result = self._add(records, atoms, source)
++        super().__init__(
++            inputs=M.Pair(records, M.Pair(atoms, M.Pair(source, EmptyList))),
++            results=self.result,
++        )
++
++    def _add(self, records, atoms, source):
++        from .proof import ContainsVar
++        from . import graph as Gmod
++
++        refuse = M.Pair(
++            records,
++            M.Pair(_contract_report(M.false_value, source, atoms), EmptyList),
++        )
++        if ContainsVar(source)() is M.truth_value:
++            return refuse
++        if _contract_atoms_well_formed(atoms) is M.false_value:
++            return refuse
++        existing = []
++        walk = records
++        while IdentityCompare(walk, EmptyList)() is M.false_value:
++            if M.IsPair(walk)() is M.false_value:
++                return refuse
++            record = Head(walk)()
++            if _contract_record_well_formed(record) is M.false_value:
++                return refuse
++            existing.append(record)
++            walk = Tail(walk)()
++        if self._arity_conflict(atoms, existing):
++            return refuse
++        record = Gmod.RelationContracts(atoms, source)()
++        if _contract_value_in(existing, record):
++            # Idempotent: the record is already retained by value.
++            return M.Pair(
++                records,
++                M.Pair(_contract_report(M.truth_value, source, atoms), EmptyList),
++            )
++        updated = _contract_chain_of(existing + [record])
++        return M.Pair(
++            updated,
++            M.Pair(_contract_report(M.truth_value, source, atoms), EmptyList),
++        )
++
++    def _arity_conflict(self, atoms, existing_records):
++        new_arities = self._arity_atoms(atoms)
++        old_arities = []
++        for record in existing_records:
++            old_arities.extend(self._arity_atoms(Head(Tail(record)())()))
++        for new_atom in new_arities:
++            new_name = Head(Tail(new_atom)())()
++            new_slot = Head(Tail(Tail(new_atom)())())()
++            for other in new_arities + old_arities:
++                other_name = Head(Tail(other)())()
++                other_slot = Head(Tail(Tail(other)())())()
++                if M.Compare(new_name, other_name)() is M.truth_value:
++                    if M.Compare(new_slot, other_slot)() is M.false_value:
++                        return True
++        return False
++
++    def _arity_atoms(self, atoms):
++        result = []
++        walk = atoms
++        while IdentityCompare(walk, EmptyList)() is M.false_value:
++            atom = Head(walk)()
++            if M.Compare(Head(atom)(), Lmod.RelationArityLabel)() is M.truth_value:
++                result.append(atom)
++            walk = Tail(walk)()
++        return result
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractRecordRemove(Edge):
++    """Write-side contract bridge: remove one selected contract record.
++
++    Selection is by machine value: the record whose source is value-equal
++    to `source` and that declares `relation`. Absent or ambiguous targets
++    refuse with `records` unchanged (no mutation). Result:
++    Pair(updated_records, Pair(report, EmptyList)) where report names the
++    removed source and its atoms with ContractFactLabel provenance; on
++    refusal the atoms are EmptyList. Removing a record removes every
++    flattened atom it carried, so a trie rebuilt from the returned chain
++    satisfies RelationContractMeets on the removed relation only if some
++    other record still supplies it. Unrelated records, unrelated facts,
++    rules, policies, and provenance are untouched.
++    """
++
++    def __init__(self, records, relation, source):
++        self.result = self._remove(records, relation, source)
++        super().__init__(
++            inputs=M.Pair(records, M.Pair(relation, M.Pair(source, EmptyList))),
++            results=self.result,
++        )
++
++    def _remove(self, records, relation, source):
++        from .proof import ContainsVar
++
++        refuse = M.Pair(
++            records,
++            M.Pair(
++                _contract_report(M.false_value, source, EmptyList),
++                EmptyList,
++            ),
++        )
++        if ContainsVar(relation)() is M.truth_value or ContainsVar(source)() is M.truth_value:
++            return refuse
++        existing = []
++        matched = []
++        walk = records
++        while IdentityCompare(walk, EmptyList)() is M.false_value:
++            if M.IsPair(walk)() is M.false_value:
++                return refuse
++            record = Head(walk)()
++            if _contract_record_well_formed(record) is M.false_value:
++                return refuse
++            existing.append(record)
++            walk = Tail(walk)()
++        for record in existing:
++            rec_source = Head(Tail(Tail(record)())())()
++            if M.Compare(rec_source, source)() is M.truth_value:
++                if _contract_record_declares(record, relation):
++                    if not _contract_value_in(matched, record):
++                        matched.append(record)
++        if len(matched) != 1:
++            return refuse
++        removed = matched[0]
++        kept = [r for r in existing if M.Compare(r, removed)() is M.false_value]
++        updated = _contract_chain_of(kept)
++        removed_atoms = Head(Tail(removed)())()
++        report = _contract_report(M.truth_value, source, removed_atoms)
++        return M.Pair(updated, M.Pair(report, EmptyList))
++
++    def __call__(self):
++        return self.result
++
++
+ # [/S] SELF-IMPROVEMENT LOOP
+diff --git a/testsuite.py b/testsuite.py
+index 73facaa..bd98c00 100644
+--- a/testsuite.py
++++ b/testsuite.py
+@@ -16890,7 +16890,7 @@ class TestShardCursorPinTest(M.Edge):
+     broken.
+     """
+ 
+-    EXPECTED_GUARD_COUNT = 321
++    EXPECTED_GUARD_COUNT = 333
+     EXPECTED_CURSOR_INDEX = 218
+     EXPECTED_SHARD = 0
+ 
+@@ -17879,6 +17879,657 @@ class RelationContractLookupNonActivationTest(M.Edge):
+         return self.result
+ 
+ 
++def _contract_atoms_for(relation_name, arity, positions):
++    """Ground contract atoms for one relation: arity plus one ExtensionalAt
++    per position, in that order.
++    """
++    empty = M.EmptyList
++    pieces = [Gmod.RelationContractArity(relation_name, arity)()]
++    walk = positions
++    while M.IdentityCompare(walk, empty)() is M.false_value:
++        pieces.append(
++            Gmod.RelationContractExtensionalAt(relation_name, M.Head(walk)())()
++        )
++        walk = M.Tail(walk)()
++    acc = empty
++    for piece in reversed(pieces):
++        acc = M.Pair(piece, acc)
++    return acc
++
++
++def _contract_records_trie(records, registry, start=None):
++    """Project a retained record chain into a knowledge trie by the existing
++    RelationContracts insertion path.
++    """
++    empty = M.EmptyList
++    trie = M.EmptyTree if start is None else start
++    walk = records
++    while M.IdentityCompare(walk, empty)() is M.false_value:
++        trie = Gmod.RelationContractsInsert(trie, M.Head(walk)(), registry)()
++        walk = M.Tail(walk)()
++    return trie
++
++
++def _chain_length(chain):
++    empty = M.EmptyList
++    n = 0
++    while M.IdentityCompare(chain, empty)() is M.false_value:
++        n += 1
++        chain = M.Tail(chain)()
++    return n
++
++
++def _contract_add_records(result):
++    return M.Head(result)()
++
++
++def _contract_add_report(result):
++    return M.Head(M.Tail(result)())()
++
++
++def _contract_report_status(report):
++    return M.Head(report)()
++
++
++def _contract_report_source(report):
++    return M.Head(M.Tail(report)())()
++
++
++def _contract_report_atoms(report):
++    return M.Head(M.Tail(M.Tail(report)())())()
++
++
++def _contract_report_provenance(report):
++    return M.Head(M.Tail(M.Tail(M.Tail(report)())())())()
++
++
++class RelationContractWriteThenQueryTest(M.Edge):
++    """Write bridge: a record written through RelationContractRecordAdd is
++    immediately consumable by RelationContractsFor and RelationContractMeets.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        positions = M.Pair(M.one, M.Pair(M.two, empty))
++        atoms = _contract_atoms_for(name, arity, positions)
++        source = M.Char("operator-session-2026-09-11")
++        out = Rmod.RelationContractRecordAdd(empty, atoms, source)()
++        records = _contract_add_records(out)
++        report = _contract_add_report(out)
++        selected = Rmod.RelationContractsFor(records, name)()
++        meets = Rmod.RelationContractMeets(records, name, arity, positions)()
++        verdict = M.Head(meets)()
++        support = M.Head(M.Tail(meets)())()
++
++        self.result = M.truth_value
++        if _contract_report_status(report) is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(_contract_report_source(report), source)() is M.false_value:
++            self.result = M.false_value
++        elif M.Compare(_contract_report_atoms(report), atoms)() is M.false_value:
++            self.result = M.false_value
++        elif M.Compare(_contract_report_provenance(report), Lmod.ContractFactLabel)() is M.false_value:
++            self.result = M.false_value
++        elif M.Compare(selected, records)() is M.false_value:
++            self.result = M.false_value
++        elif verdict is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(support, records)() is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractLiveGroundnessRequiredTest(M.Edge):
++    """Write bridge: a variable in relation, arity, extensional position, or
++    source refuses, and the store is unchanged by the refusal.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        var = M.Pair(M.VarTag, M.Pair(M.Char("v"), empty))
++        base_atoms = _contract_atoms_for(name, arity, M.Pair(M.one, empty))
++        source = M.Char("s")
++        out = Rmod.RelationContractRecordAdd(empty, base_atoms, source)()
++        base_records = _contract_add_records(out)
++
++        var_name_atom = M.Pair(Lmod.RelationArityLabel, M.Pair(var, M.Pair(arity, empty)))
++        var_slot_atom = M.Pair(Lmod.RelationArityLabel, M.Pair(name, M.Pair(var, empty)))
++        var_pos_atom = M.Pair(Lmod.ExtensionalAtLabel, M.Pair(name, M.Pair(var, empty)))
++        var_source = M.Pair(M.VarTag, M.Pair(M.Char("src"), empty))
++        cases = [
++            (M.Pair(var_name_atom, empty), source),
++            (M.Pair(var_slot_atom, empty), source),
++            (M.Pair(var_pos_atom, empty), source),
++            (base_atoms, var_source),
++        ]
++
++        self.result = M.truth_value
++        for atoms_i, src_i in cases:
++            out_i = Rmod.RelationContractRecordAdd(base_records, atoms_i, src_i)()
++            if _contract_report_status(_contract_add_report(out_i)) is not M.false_value:
++                self.result = M.false_value
++            if M.Compare(_contract_add_records(out_i), base_records)() is M.false_value:
++                self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractDuplicateDeliveryIdempotentTest(M.Edge):
++    """Write bridge: an equal record delivered twice earns one source and
++    one contract credit.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        positions = M.Pair(M.one, M.Pair(M.two, empty))
++        atoms = _contract_atoms_for(name, arity, positions)
++        source = M.Char("s")
++        first = Rmod.RelationContractRecordAdd(empty, atoms, source)()
++        records = _contract_add_records(first)
++        second = Rmod.RelationContractRecordAdd(records, atoms, source)()
++        records2 = _contract_add_records(second)
++        selected = Rmod.RelationContractsFor(records2, name)()
++
++        self.result = M.truth_value
++        if _contract_report_status(_contract_add_report(second)) is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(records2, records)() is M.false_value:
++            self.result = M.false_value
++        elif M.Compare(selected, records)() is M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractConflictingArityAtomicRefusalTest(M.Edge):
++    """Write bridge: a proposed arity 3 against a retained arity 2 refuses
++    atomically; records and the projected facts are unchanged.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        registry = M.FromContextGetConstructors(graph)()
++        base_atoms = _contract_atoms_for(name, M.two, M.Pair(M.one, empty))
++        out = Rmod.RelationContractRecordAdd(empty, base_atoms, M.Char("s1"))()
++        records = _contract_add_records(out)
++        arity2 = Gmod.RelationContractArity(name, M.two)()
++        arity3 = Gmod.RelationContractArity(name, M.three)()
++        before_trie = _contract_records_trie(records, registry)
++
++        proposed = _contract_atoms_for(name, M.three, M.Pair(M.two, empty))
++        refused = Rmod.RelationContractRecordAdd(records, proposed, M.Char("s2"))()
++        records2 = _contract_add_records(refused)
++        after_trie = _contract_records_trie(records2, registry)
++
++        self.result = M.truth_value
++        if _contract_report_status(_contract_add_report(refused)) is not M.false_value:
++            self.result = M.false_value
++        elif M.Compare(records2, records)() is M.false_value:
++            self.result = M.false_value
++        elif Kmod.KnowledgeTrieHasFact(before_trie, arity2, registry)() is M.false_value:
++            self.result = M.false_value
++        elif Kmod.KnowledgeTrieHasFact(after_trie, arity2, registry)() is M.false_value:
++            self.result = M.false_value
++        elif Kmod.KnowledgeTrieHasFact(after_trie, arity3, registry)() is M.truth_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractMissingExtensionalityAfterWriteTest(M.Edge):
++    """Write bridge: arity alone never qualifies when an extensional
++    position is required.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        arity_only = M.Pair(Gmod.RelationContractArity(name, arity)(), empty)
++        out = Rmod.RelationContractRecordAdd(empty, arity_only, M.Char("s"))()
++        records = _contract_add_records(out)
++        meets = Rmod.RelationContractMeets(records, name, arity, M.Pair(M.one, empty))()
++        verdict = M.Head(meets)()
++
++        self.result = M.truth_value
++        if verdict is not M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractSelectiveRemoveTest(M.Edge):
++    """Write bridge: removing one relation's contract leaves another
++    relation's contract eligible and names the removed source and atoms.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        divides = M.Char("divides")
++        nand = M.Char("nand")
++        arity = M.two
++        positions = M.Pair(M.one, empty)
++        divides_atoms = _contract_atoms_for(divides, arity, positions)
++        nand_atoms = _contract_atoms_for(nand, arity, positions)
++        out = Rmod.RelationContractRecordAdd(empty, divides_atoms, M.Char("s1"))()
++        records = _contract_add_records(out)
++        out2 = Rmod.RelationContractRecordAdd(records, nand_atoms, M.Char("s2"))()
++        records = _contract_add_records(out2)
++
++        rm = Rmod.RelationContractRecordRemove(records, divides, M.Char("s1"))()
++        updated = _contract_add_records(rm)
++        report = _contract_add_report(rm)
++        divides_after = Rmod.RelationContractsFor(updated, divides)()
++        nand_meets = Rmod.RelationContractMeets(updated, nand, arity, positions)()
++        verdict = M.Head(nand_meets)()
++
++        self.result = M.truth_value
++        if _contract_report_status(report) is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(_contract_report_source(report), M.Char("s1"))() is M.false_value:
++            self.result = M.false_value
++        elif M.Compare(_contract_report_atoms(report), divides_atoms)() is M.false_value:
++            self.result = M.false_value
++        elif M.IdentityCompare(divides_after, empty)() is M.false_value:
++            self.result = M.false_value
++        elif verdict is not M.truth_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractSelectiveRemovePreservesUnrelatedFactTest(M.Edge):
++    """Write bridge: an unrelated trie fact survives add and remove, and no
++    stale flattened contract atom remains after removal.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        registry = M.FromContextGetConstructors(graph)()
++        unrelated = BoardSumFact(M.Char("x"), M.two)()
++        atoms = _contract_atoms_for(name, arity, M.Pair(M.one, empty))
++        arity_atom = Gmod.RelationContractArity(name, arity)()
++        out = Rmod.RelationContractRecordAdd(empty, atoms, M.Char("s"))()
++        records = _contract_add_records(out)
++
++        base_trie = Kmod.KnowledgeTrieInsert(M.EmptyTree, unrelated, registry)()
++        trie_add = _contract_records_trie(records, registry, start=base_trie)
++        rm = Rmod.RelationContractRecordRemove(records, name, M.Char("s"))()
++        updated = _contract_add_records(rm)
++        trie_remove = _contract_records_trie(updated, registry, start=base_trie)
++
++        self.result = M.truth_value
++        if Kmod.KnowledgeTrieHasFact(trie_add, unrelated, registry)() is M.false_value:
++            self.result = M.false_value
++        elif Kmod.KnowledgeTrieHasFact(trie_add, arity_atom, registry)() is M.false_value:
++            self.result = M.false_value
++        elif Kmod.KnowledgeTrieHasFact(trie_remove, unrelated, registry)() is M.false_value:
++            self.result = M.false_value
++        elif Kmod.KnowledgeTrieHasFact(trie_remove, arity_atom, registry)() is M.truth_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractRemoveClearsEligibilityTest(M.Edge):
++    """Write bridge: a removed contract no longer satisfies
++    RelationContractMeets.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        positions = M.Pair(M.one, M.Pair(M.two, empty))
++        atoms = _contract_atoms_for(name, arity, positions)
++        out = Rmod.RelationContractRecordAdd(empty, atoms, M.Char("s"))()
++        records = _contract_add_records(out)
++        before = M.Head(Rmod.RelationContractMeets(records, name, arity, positions)())()
++        rm = Rmod.RelationContractRecordRemove(records, name, M.Char("s"))()
++        updated = _contract_add_records(rm)
++        after = M.Head(Rmod.RelationContractMeets(updated, name, arity, positions)())()
++
++        self.result = M.truth_value
++        if before is not M.truth_value:
++            self.result = M.false_value
++        elif after is not M.false_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractWriteSourceSemanticEqualityTest(M.Edge):
++    """Write bridge: separately constructed equal source terms deduplicate
++    by value, and distinct source values stay distinct.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        positions = M.Pair(M.one, empty)
++        atoms = _contract_atoms_for(name, arity, positions)
++
++        out1 = Rmod.RelationContractRecordAdd(empty, atoms, M.Char("session-A"))()
++        records1 = _contract_add_records(out1)
++        out2 = Rmod.RelationContractRecordAdd(records1, atoms, M.Char("session-A"))()
++        records2 = _contract_add_records(out2)
++        out3 = Rmod.RelationContractRecordAdd(records1, atoms, M.Char("session-B"))()
++        records3 = _contract_add_records(out3)
++        sel_equal = Rmod.RelationContractsFor(records2, name)()
++        sel_distinct = Rmod.RelationContractsFor(records3, name)()
++
++        self.result = M.truth_value
++        if M.Compare(records2, records1)() is M.false_value:
++            self.result = M.false_value
++        elif _chain_length(sel_equal) != 1:
++            self.result = M.false_value
++        elif _chain_length(sel_distinct) != 2:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractWriteCheckpointRoundtripTest(M.Edge):
++    """Write bridge: records survive a cold codec save/restore, and query
++    and selective remove keep working on the restored chain.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        divides = M.Char("divides")
++        nand = M.Char("nand")
++        arity = M.two
++        positions = M.Pair(M.one, M.Pair(M.two, empty))
++        atoms = _contract_atoms_for(divides, arity, positions)
++        nand_atoms = _contract_atoms_for(nand, arity, M.Pair(M.one, empty))
++        src = M.Char("session-A")
++        out = Rmod.RelationContractRecordAdd(empty, atoms, src)()
++        records = _contract_add_records(out)
++        out2 = Rmod.RelationContractRecordAdd(records, nand_atoms, M.Char("session-B"))()
++        records = _contract_add_records(out2)
++
++        namespace = dict(vars(M))
++        namespace.update(vars(Lmod))
++        namespace.update(vars(Gmod))
++        codec = SnapshotCodec(namespace)
++        restored = codec.load_snapshot(codec.capture_objects({"records": records})).roots["records"]
++
++        first_record = M.Head(restored)()
++        restored_src = Gmod.RelationContractsSource(first_record)()
++        restored_prov = Gmod.RelationContractsProvenance(first_record)()
++        sel = Rmod.RelationContractsFor(restored, divides)()
++        meets = Rmod.RelationContractMeets(restored, divides, arity, positions)()
++        verdict = M.Head(meets)()
++        rm = Rmod.RelationContractRecordRemove(restored, divides, src)()
++        updated = _contract_add_records(rm)
++        divides_after = Rmod.RelationContractsFor(updated, divides)()
++        nand_meets = Rmod.RelationContractMeets(updated, nand, arity, M.Pair(M.one, empty))()
++        nand_verdict = M.Head(nand_meets)()
++
++        self.result = M.truth_value
++        if M.IdentityCompare(restored, records)() is not M.false_value:
++            self.result = M.false_value
++        elif M.Compare(restored, records)() is M.false_value:
++            self.result = M.false_value
++        elif M.Compare(restored_src, src)() is M.false_value:
++            self.result = M.false_value
++        elif M.Compare(restored_prov, Lmod.ContractFactLabel)() is M.false_value:
++            self.result = M.false_value
++        elif _chain_length(sel) != 1:
++            self.result = M.false_value
++        elif verdict is not M.truth_value:
++            self.result = M.false_value
++        elif _contract_report_status(_contract_add_report(rm)) is not M.truth_value:
++            self.result = M.false_value
++        elif M.IdentityCompare(divides_after, empty)() is M.false_value:
++            self.result = M.false_value
++        elif nand_verdict is not M.truth_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractWriteNeverActivatesRuleTest(M.Edge):
++    """Write bridge: add/remove/query touch no installed rule, policy, or
++    provenance, and an unrelated proof goal cannot close through a
++    contract record.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        arity = M.two
++        positions = M.Pair(M.one, empty)
++        atoms = _contract_atoms_for(name, arity, positions)
++        start = empty
++        goal = M.Pair(BoardSumFact(M.Char("x"), M.two)(), empty)
++        rules = empty
++
++        first = Rmod.attempt_goal(graph, start, goal, rules)
++        first_open = M.false_value
++        if Rmod.ForwardSearchClosed(first)() is M.false_value:
++            first_open = M.truth_value
++
++        before_nodes = graph.nodes
++        before_rules = graph.all_rules
++        before_provenance = graph.provenance_map
++        before_policy = graph.generator_policy
++
++        out = Rmod.RelationContractRecordAdd(empty, atoms, M.Char("s"))()
++        records = _contract_add_records(out)
++        Rmod.RelationContractsFor(records, name)()
++        Rmod.RelationContractMeets(records, name, arity, positions)()
++        rm = Rmod.RelationContractRecordRemove(records, name, M.Char("s"))()
++        Rmod.RelationContractsFor(_contract_add_records(rm), name)()
++
++        second = Rmod.attempt_goal(graph, start, goal, rules)
++        second_open = M.false_value
++        if Rmod.ForwardSearchClosed(second)() is M.false_value:
++            second_open = M.truth_value
++
++        self.result = M.truth_value
++        if first_open is not M.truth_value:
++            self.result = M.false_value
++        elif second_open is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(before_nodes, graph.nodes)() is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(before_rules, graph.all_rules)() is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(before_provenance, graph.provenance_map)() is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(before_policy, graph.generator_policy)() is not M.truth_value:
++            self.result = M.false_value
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
++class RelationContractWriteReadCombinedRegressionTest(M.Edge):
++    """The nine read-side bridge behaviors re-run against write-produced
++    records.
++
++    Records are produced by RelationContractRecordAdd and the read edges
++    are exercised on them. The two read behaviors the write bridge
++    structurally prevents -- a variable-bearing store and conflicting
++    arity declarations -- are verified at the write refusal and then at
++    the read edge's unchanged refusal of hand-built instances.
++    """
++
++    def __init__(self, graph):
++        from . import research as Rmod
++
++        empty = M.EmptyList
++        name = M.Char("divides")
++        other = M.Char("nand")
++        arity = M.two
++        positions = M.Pair(M.one, M.Pair(M.two, empty))
++        registry = M.FromContextGetConstructors(graph)()
++
++        # (1) matching, (2) missing extensionality, (3) unrelated
++        atoms = _contract_atoms_for(name, arity, positions)
++        out = Rmod.RelationContractRecordAdd(empty, atoms, M.Char("s1"))()
++        records = _contract_add_records(out)
++
++        self.result = M.truth_value
++        selected = Rmod.RelationContractsFor(records, name)()
++        meets = Rmod.RelationContractMeets(records, name, arity, positions)()
++        if _chain_length(selected) != 1 or M.Compare(selected, records)() is M.false_value:
++            self.result = M.false_value
++        elif M.Head(meets)() is not M.truth_value:
++            self.result = M.false_value
++        elif M.Compare(M.Head(M.Tail(meets)())(), records)() is M.false_value:
++            self.result = M.false_value
++        elif M.Head(Rmod.RelationContractMeets(records, name, arity, M.Pair(M.one, M.Pair(M.three, empty)))())() is not M.false_value:
++            self.result = M.false_value
++        elif M.IdentityCompare(Rmod.RelationContractsFor(records, other)(), empty)() is M.false_value:
++            self.result = M.false_value
++        elif M.Head(Rmod.RelationContractMeets(records, other, arity, M.Pair(M.one, empty))())() is not M.false_value:
++            self.result = M.false_value
++
++        # (4) reordered and duplicated atoms, write-produced
++        arity_atom = Gmod.RelationContractArity(name, arity)()
++        ext1 = Gmod.RelationContractExtensionalAt(name, M.one)()
++        ext2 = Gmod.RelationContractExtensionalAt(name, M.two)()
++        dup_atoms = M.Pair(ext2, M.Pair(ext1, M.Pair(arity_atom, M.Pair(arity_atom, empty))))
++        out4 = Rmod.RelationContractRecordAdd(empty, dup_atoms, M.Char("s2"))()
++        rec4 = _contract_add_records(out4)
++        out4b = Rmod.RelationContractRecordAdd(rec4, dup_atoms, M.Char("s2"))()
++        rec4b = _contract_add_records(out4b)
++        if M.Compare(rec4b, rec4)() is M.false_value:
++            self.result = M.false_value
++        elif _chain_length(Rmod.RelationContractsFor(rec4, name)()) != 1:
++            self.result = M.false_value
++        elif M.Head(Rmod.RelationContractMeets(rec4, name, arity, positions)())() is not M.truth_value:
++            self.result = M.false_value
++
++        # (5) variable-bearing store: write refuses, read refuses
++        var = M.Pair(M.VarTag, M.Pair(M.Char("p"), empty))
++        var_atom = M.Pair(Lmod.ExtensionalAtLabel, M.Pair(name, M.Pair(var, empty)))
++        out5 = Rmod.RelationContractRecordAdd(records, M.Pair(var_atom, empty), M.Char("s3"))()
++        if _contract_report_status(_contract_add_report(out5)) is not M.false_value:
++            self.result = M.false_value
++        elif M.Compare(_contract_add_records(out5), records)() is M.false_value:
++            self.result = M.false_value
++        malformed = M.Pair(
++            Lmod.RelationContractsLabel,
++            M.Pair(
++                M.Pair(Lmod.ExtensionalAtLabel, M.Pair(name, M.Pair(var, empty))),
++                M.Pair(M.Char("s"), M.Pair(Lmod.ContractFactLabel, empty)),
++            ),
++        )
++        if M.IdentityCompare(Rmod.RelationContractsFor(M.Pair(malformed, records), name)(), empty)() is M.false_value:
++            self.result = M.false_value
++
++        # (6) conflicting declarations: write refuses, read refuses hand-built
++        proposed = _contract_atoms_for(name, M.three, M.Pair(M.two, empty))
++        out6 = Rmod.RelationContractRecordAdd(records, proposed, M.Char("s4"))()
++        if _contract_report_status(_contract_add_report(out6)) is not M.false_value:
++            self.result = M.false_value
++        rec_conf_a = Gmod.RelationContracts(
++            M.Pair(Gmod.RelationContractArity(name, M.two)(), M.Pair(ext1, empty)),
++            M.Char("s5"),
++        )()
++        rec_conf_b = Gmod.RelationContracts(
++            M.Pair(Gmod.RelationContractArity(name, M.three)(), M.Pair(ext2, empty)),
++            M.Char("s6"),
++        )()
++        conf_chain = M.Pair(rec_conf_a, M.Pair(rec_conf_b, empty))
++        if _chain_length(Rmod.RelationContractsFor(conf_chain, name)()) != 2:
++            self.result = M.false_value
++        elif M.Head(Rmod.RelationContractMeets(conf_chain, name, arity, positions)())() is not M.false_value:
++            self.result = M.false_value
++
++        # (7) source equality by value, write-produced
++        out7 = Rmod.RelationContractRecordAdd(records, atoms, M.Char("s1"))()
++        rec7 = _contract_add_records(out7)
++        if M.Compare(rec7, records)() is M.false_value:
++            self.result = M.false_value
++        out7b = Rmod.RelationContractRecordAdd(records, atoms, M.Char("s-other"))()
++        rec7b = _contract_add_records(out7b)
++        if _chain_length(Rmod.RelationContractsFor(rec7b, name)()) != 2:
++            self.result = M.false_value
++
++        # (8) cold codec round-trip of write-produced records
++        namespace = dict(vars(M))
++        namespace.update(vars(Lmod))
++        namespace.update(vars(Gmod))
++        codec = SnapshotCodec(namespace)
++        restored = codec.load_snapshot(codec.capture_objects({"records": records})).roots["records"]
++        if M.Compare(restored, records)() is M.false_value:
++            self.result = M.false_value
++        elif _chain_length(Rmod.RelationContractsFor(restored, name)()) != 1:
++            self.result = M.false_value
++        elif M.Head(Rmod.RelationContractMeets(restored, name, arity, positions)())() is not M.truth_value:
++            self.result = M.false_value
++
++        # (9) non-activation: lookups leave the graph untouched
++        before_nodes = graph.nodes
++        Rmod.RelationContractsFor(records, name)()
++        Rmod.RelationContractMeets(records, name, arity, positions)()
++        if M.Compare(before_nodes, graph.nodes)() is not M.truth_value:
++            self.result = M.false_value
++
++        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
++
++    def __call__(self):
++        return self.result
++
++
+ # --- end [S] ---
+ 
+ # --- [E] -------------------------------------------------------------------
+@@ -20196,6 +20847,102 @@ def install_default_tests(graph):
+             RelationContractLookupNonActivationTest,
+             M.truth_value,
+         )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_write_then_query_test",
++            empty,
++            RelationContractWriteThenQueryTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_live_groundness_required_test",
++            empty,
++            RelationContractLiveGroundnessRequiredTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_duplicate_delivery_idempotent_test",
++            empty,
++            RelationContractDuplicateDeliveryIdempotentTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_conflicting_arity_atomic_refusal_test",
++            empty,
++            RelationContractConflictingArityAtomicRefusalTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_missing_extensionality_after_write_test",
++            empty,
++            RelationContractMissingExtensionalityAfterWriteTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_selective_remove_test",
++            empty,
++            RelationContractSelectiveRemoveTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_selective_remove_preserves_unrelated_fact_test",
++            empty,
++            RelationContractSelectiveRemovePreservesUnrelatedFactTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_remove_clears_eligibility_test",
++            empty,
++            RelationContractRemoveClearsEligibilityTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_write_source_semantic_equality_test",
++            empty,
++            RelationContractWriteSourceSemanticEqualityTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_write_checkpoint_roundtrip_test",
++            empty,
++            RelationContractWriteCheckpointRoundtripTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_write_never_activates_rule_test",
++            empty,
++            RelationContractWriteNeverActivatesRuleTest,
++            M.truth_value,
++        )
++    if Gmod.TestShardAccept(graph)() is M.truth_value:
++        _register_test(
++            graph,
++            "relation_contract_write_read_combined_regression_test",
++            empty,
++            RelationContractWriteReadCombinedRegressionTest,
++            M.truth_value,
++        )
+     # --- end [S] ---
+ 
+     # --- [E] ------------------------------------------------------------

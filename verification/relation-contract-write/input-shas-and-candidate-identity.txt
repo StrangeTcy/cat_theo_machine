@@ -1,0 +1,84 @@
+Write-side relation-contract bridge
+====================================
+Record of inputs, resolved SHAs, and the reconstructed candidate identity.
+Dated 2026-09-11 (Europe/Moscow). Implementation reconstruction performed
+once; then destroyed and rebuilt from scratch per the fresh-reconstruction
+gate, and the full bridge diff was applied and re-verified.
+
+Inputs (recipe-pinned, immutable)
+---------------------------------
+Recipe-pinned replay base:
+  b812db904b44db72def705eb18a50bbe50c12cc2   (b812db9, pre-S; descends from
+                                             experiment-5-frozen-r1 ef571b6)
+
+Canonical S1 source:
+  897c07cdfbfec8866b2b0a0921012d13a646630a   (897c07c)
+
+Batch A - five selected-source S commits (cherry-picked in order):
+  548c6f672de2de642b534b5c89a9a9ce6b65959e   [S] trace mining
+  8738bcf30660279b2ae5304924b1dc5a58e68503   [S] rent gate for compressions
+  1e451888aa24b7814c11711f9c2a7241cbd31d2f   [S] recursive turn
+  0e50bc179ca4aff8186a056db4f33e126461cca1   [S] invariant conjecture from fixed library
+  218a40f66d3aa1fb63c395f85db6202deb76f4c5   [S] learned-memory cycle for self-improvement
+
+Batch B - adapted replay diff:
+  verification/s1-replay/batch-b-897c07c-adapted.diff
+  sha256 5b2a298ff69cfad4f49afa0e81d9ad34b5dd250f5a3a55a0f6138add187f9f26
+
+Read-side bridge - previous ticket, applied as post-C:
+  verification/relation-contract-lookup/read-side-bridge.diff
+
+Reconstruction commits - implementation capture (2026-09-11)
+------------------------------------------------------------
+post-A (Batch A + port deltas; EXPECTED_GUARD_COUNT 305 -> 310):
+  4041683609ae97610ec3bceb8efd3feacbc75619
+
+post-B (canonical 897c07c Batch B; guard 310 -> 312):
+  7697384572648283bf819f7fe8033b2a8b5215a2
+
+post-C (read-side bridge; guard 312 -> 321):
+  6e675cbc92ae27d841ffe4b7b96094d3a2509cab
+  post-C tree: 67b0ac169aac45b8b3bfd78a64348d13318bbf84
+
+post-D (write-side bridge; guard 321 -> 333):
+  a24faf3f68e184b82e0a1e51a4ab2d963c06417b
+  post-D tree: 0d56748947a1655df86728ed9380f86bc7b5b319
+
+Fresh-reconstruction gate (2026-09-11)
+--------------------------------------
+The implementation reconstruction was destroyed and rebuilt from b812db9.
+Fresh post-B:
+  30386cfffd5d6e5ec584f9396bea8e33d64c4c0b
+
+full-bridge-post-b.diff (post-B -> post-D) applied cleanly to the fresh
+post-B; the resulting research.py, testsuite.py, and protocol/S.md are
+byte-identical to post-D (verified with `git diff --quiet a24faf3`).
+
+Exported diffs
+--------------
+  write-side-bridge.diff   (post-C -> post-D; write bridge only)
+    sha256 2d933005d3a9088288384aa2690cd57d0998a36a7fae5337b1cab1c6abe0fae9
+  full-bridge-post-b.diff  (post-B -> post-D; read + write bridge)
+    sha256 86425618b8e81d9896069496aac2df3bdafa5e24733f9dd41c914ac37ce291eb
+
+Both diffs touch only research.py, testsuite.py, and protocol/S.md. The
+full diff is deterministic: applying it to any fresh post-B tree
+reproduces post-D byte for byte.
+
+Test evidence
+-------------
+2026-09-11-test-output.txt: the write-side gate run on the fresh
+reconstruction -- 30/30 PASS:
+    Batch A (5), canonical Batch B (2), read bridge (9), write bridge
+    (12), label_registration_completeness_test, test_shard_cursor_pin_test.
+    Soft guard pin 333, hard cursor/shard pin 218/0, completeness debt
+    40/198/18 unchanged (no new labels minted).
+
+Harness: run_write_tests.py (this directory). Invocation used:
+    ./run_write_tests.py --checkout <reconstructed checkout>
+
+No unrecorded scratch commit: every reconstruction step is a resolved,
+recorded commit; the write bridge is committed as post-D, distinct from
+the A/B replay and read-bridge commits. No merge, no tag, no release.
+Remaining bridge work is INT-owned: the main.py dispatch lines requested
+in protocol/S.md.

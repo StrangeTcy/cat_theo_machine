@@ -334,3 +334,46 @@ CORRECTION (orchestrator, 2026-09-07): two routing lines amended.
    Layer-D lane's own one-page ruling request to INT on the shared-root
    fast-path lane (parked fill_warms locus), recommendation C with A
    interim.
+
+---
+
+## 2026-09-11 — write-side relation-contract bridge (S-eng; verification artifact)
+
+Predicted: two write-side machine edges, RelationContractRecordAdd and
+RelationContractRecordRemove, give the read-side bridge a producer, and
+records written through them are immediately consumable by
+RelationContractsFor and RelationContractMeets.
+
+Run: isolated reconstruction (b812db9 + Batch A + canonical 897c07c Batch
+B + read bridge) per the same scratch pattern as the read bridge; two
+edges in research.py [S], twelve write-side tests in testsuite.py [S].
+Fresh-reconstruction gate: destroyed and rebuilt the reconstruction,
+applied full-bridge-post-b.diff to a fresh post-B, and re-ran the gate.
+
+Came back: 30/30 named tests PASS (Batch A 5, Batch B 2, read bridge 9,
+write bridge 12, label completeness, shard cursor pin). Soft guard pin
+321 -> 333; hard pin 218/0 held; completeness debt 40/198/18 unchanged
+(no new labels). The full bridge diff is deterministic: applying
+full-bridge-post-b.diff to any fresh post-B reproduces post-D byte for
+byte. Artifacts: verification/relation-contract-write/ (write-side-bridge.diff,
+full-bridge-post-b.diff, run_write_tests.py, 2026-09-11-test-output.txt,
+input-shas-and-candidate-identity.txt).
+
+Edge semantics recorded: add constructs the source-bearing RelationContracts
+record, requires ground atoms, refuses a variable in relation/arity/
+position/source, preserves the complete record, deduplicates equal delivery
+by machine value (idempotent), rejects a conflicting arity atomically, and
+installs no proof law, policy, planner alternative, or FireAny entry.
+remove selects one contract by (relation, source) value, removes only it,
+preserves unrelated records and facts, leaves no stale flattened atom, and
+refuses absent or ambiguous targets without mutation. Equality is by
+M.Compare (machine value), never host-object identity.
+
+INT request (separate; INT owns command grammar and dispatch):
+  main.py dispatch requested:
+    teach relation contract ...
+    remove relation contract ...
+
+The machine edges do not depend on those commands; they consume retained
+records directly. Remaining bridge work is INT-owned: the main.py dispatch
+lines.
