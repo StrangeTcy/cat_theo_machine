@@ -1,0 +1,108 @@
+Preflight item 2 — A1 producer/consumer selection probe.
+
+    tree:     64828e3
+    tool:     tools/preflight_a1_selection.py
+    command:  PYTHONPATH=/home/user python3 tools/preflight_a1_selection.py
+    date:     2026-09-10
+    raw log:  verification/2026-09-10-preflight-item2-a1-selection/run.log
+    scope:    compile + select only. Nothing persisted, no pack written,
+              nothing installed into FireAny, no domain content created.
+
+--------------------------------------------------------------------------
+1. Constructed terms
+--------------------------------------------------------------------------
+
+    G = (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
+    P = (a1-producer-premise G)
+    C = (a1-consumer-result G)
+
+    producer: premises = [P],  conclusion = G
+    consumer: premises = [G],  conclusion = C
+
+Both compiled through the real compiler, `research.compile_formal_rule`,
+which is the only door to an executable rule.
+
+--------------------------------------------------------------------------
+2. Both compile to MultiRule
+--------------------------------------------------------------------------
+
+producer:
+  MultiRule shape:  YES
+  inputs is Pair:   True    results EmptyList: True
+  premises slot:    ((a1-producer-premise (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))))
+  replacement slot  (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
+  object:           <cat_theo_machine.proof.MultiRule object at 0x...>
+
+consumer:
+  MultiRule shape:  YES
+  inputs is Pair:   True    results EmptyList: True
+  premises slot:    ((nosolutions positive-integers (unknowns x) (eq (plus x 1) x)))
+  replacement slot  (a1-consumer-result (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)))
+  object:           <cat_theo_machine.proof.MultiRule object at 0x...>
+
+"MultiRule shape" is checked structurally -- inputs is Pair(premises,
+Pair(replacement, EmptyList)) and results is EmptyList -- rather than by a
+host type test. The rendered object confirms the class alongside it.
+
+--------------------------------------------------------------------------
+3. Selection against G, isolated session-only pool
+--------------------------------------------------------------------------
+
+    pool: 1 rule (the producer), session-local, not installed into FireAny
+
+    candidate partial-match count: 1
+
+    selected rule identity: producer
+    rule origin:            primitive
+    attempt record:
+      (None <MultiRule> primitive () () (a1-producer-premise (nosolutions
+       positive-integers (unknowns x) (eq (plus x 1) x))) None)
+
+    goal closed: NO
+
+The record's sixth field is the unmatched premise, and it is P:
+`(a1-producer-premise (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)))`.
+
+--------------------------------------------------------------------------
+4. Decisive evidence
+--------------------------------------------------------------------------
+
+    producer candidate count: >= 1      ->  1                PASS
+    unmatched premise:        P         ->  P, as recorded   PASS
+    goal closed:              no        ->  NO               PASS
+
+No matcher/selection defect is filed. This direct, same-vocabulary probe
+with a nosolutions head registers as a candidate partial match through the
+real selection path.
+
+--------------------------------------------------------------------------
+5. What this does and does not establish
+--------------------------------------------------------------------------
+
+This is a selection probe. It establishes that the instrument will select a
+nosolutions-headed rule when one is present in the pool. It establishes
+nothing about mathematics.
+
+Specifically, and this matters for anyone reading the count: P is an opaque
+session-local marker with no axiom, no law and no derivation behind it. The
+candidate count of 1 reports that the machinery matched a premise shape; it
+does not report that the machine needs P, that P is satisfiable, or that
+anything follows from it. A deliberately unsatisfiable diagnostic premise
+produces exactly the same count as a real one. Selection evidence is not
+proof evidence, and this artifact must not be read as a theorem request, a
+capability claim, or an unlock.
+
+The consumer was compiled but not selected against C; the ruling makes that
+second check optional, and the decisive evidence above is already met.
+
+--------------------------------------------------------------------------
+6. Relation to D11
+--------------------------------------------------------------------------
+
+D11's zero-candidate result on the shipped packs is unaffected by this and
+is not contradicted by it. That probe asked the shipped library for a
+nosolutions-headed rule and found none -- a pack-content absence, filed as
+such. Here the rule is supplied by the probe itself, so the vocabulary is
+present by construction. The two results together say: the selection path
+handles nosolutions heads fine (this run), and the shipped library contains
+no rule with that head (D11).

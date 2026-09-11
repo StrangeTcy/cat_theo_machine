@@ -1,0 +1,49 @@
+Set B1 scope checks -- the taught reflexivity is one exact instance
+===================================================================
+freeze tag: experiment-4-frozen (99fa78a); operator: agent (contaminated).
+
+Sol's scope table, answered: NEITHER probe closes -- (eq (times r s)
+(times r s)) and (eq (plus r s) (plus r s)) both stall class A -- so
+the taught theorem (rule () (eq (times k m) (times k m))) is exactly
+one symbolic instance, not schematic reflexivity, and the empty-
+premise rule does not overgeneralize: it forward-inserts one exact
+fact. The original decomposition goal re-closes with provenance
+DERIVATION_CACHE_HIT after fresh revalidation.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> teach law: (rule (premises (eq ?n (times ?k ?d))) (conclusion (eq (pow ?t ?n) (pow (pow ?t ?k) ?d))))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+you> attempt goal: (eq (pow v (times k m)) (pow (pow v k) m))
+hyge> FAILED. cost=336; rules with a genuine partial match: 1
+residual: missing (eq (times k m) (times k m)) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (eq (times k m) (times k m)))
+you> approve dependency 0
+hyge> approved dependency [0] status=SpeculativeDependency
+you> teach dependency 0: (rule (premises) (conclusion (eq (times k m) (times k m))))
+hyge> counterfactual: cost 336 -> 507; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 1
+you> retry parent goal
+hyge> retry: goal closed
+you> attempt goal: (eq (times r s) (times r s))
+hyge> FAILED. cost=676; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((eq (times r s) (times r s))))
+you> attempt goal: (eq (plus r s) (plus r s))
+hyge> FAILED. cost=676; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((eq (plus r s) (plus r s))))
+you> attempt goal: (eq (pow v (times k m)) (pow (pow v k) m))
+hyge> goal closed. cost=507; provenance DERIVATION_CACHE_HIT
+you> goodbye
+hyge> goodbye

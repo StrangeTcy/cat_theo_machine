@@ -1,0 +1,88 @@
+Set B3 -- no-solutions transport, baseline and calibration
+==========================================================
+freeze tag: experiment-4-frozen (99fa78a); operator: agent (contaminated).
+
+B3-A baseline (library-only, fresh process): class A -- nothing
+consumes a nosolutions term.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> assume axiom: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+you> attempt goal: (nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye
+
+B3-B calibration (cumulative checkpoint, transport theorem taught):
+the machine's request is exactly sol's expected residual --
+Need (solutionmap positive-integers Q P _0) with the witness free --
+taught with witness cuberoot, counterfactual cost 20 -> 8, newly
+enabled: the no-solutions transport rule, goal closed: yes. Episode 3.
+The cumulative state also produced a genuine side-obligation
+(Need (eq (plus p q) _0)) from the restored B2 transport law firing
+over restored knowledge -- left untaught at ObservedMissingPremise.
+
+you> research mode on
+hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
+hyge> research mode ON
+state: taught rules 4; axioms 1; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 2; intervention episodes 2; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+  [0] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule () (divides 3 a))
+  [1] DOMAIN_AXIOM: (eq a (plus p q))
+  [2] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?x ?y) (divides ?k ?x)) (divides ?k ?y))
+  [3] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule () (eq (times k m) (times k m)))
+  [4] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+  intervention episodes: 2
+  learned policies: none
+you> teach law: (rule (premises (nosolutions ?d ?u ?p) (solutionmap ?d ?q ?p ?t)) (conclusion (nosolutions ?d ?u ?q)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((nosolutions ?d ?u ?p) (solutionmap ?d ?q ?p ?t)) (nosolutions ?d ?u ?q))
+you> assume axiom: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+you> attempt goal: (nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))
+hyge> FAILED. cost=20; rules with a genuine partial match: 2
+residual: missing (eq (plus p q) ?y) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+residual: missing (solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) ?t) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [3] status=ObservedMissingPremise kind=THEOREM need=(Need (solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) _0))
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (eq (plus p q) _0))
+you> approve dependency 3
+hyge> approved dependency [3] status=SpeculativeDependency
+you> teach dependency 3: (rule (premises) (conclusion (solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) cuberoot)))
+hyge> counterfactual: cost 20 -> 8; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 3
+you> retry parent goal
+hyge> retry: goal closed
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) _0) outcome=DemonstratedUsefulDependency
+[1] residual=(divides 3 a) outcome=DemonstratedUsefulDependency
+[2] residual=(eq (times k m) (times k m)) outcome=DemonstratedUsefulDependency
+you> show dependencies
+hyge> dependency requests (all):
+  [0] status=DemonstratedUsefulDependency kind=THEOREM need=(Need (eq (times k m) (times k m)))
+  [1] status=DemonstratedUsefulDependency kind=THEOREM need=(Need (divides 3 a))
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (eq (plus p q) _0))
+  [3] status=DemonstratedUsefulDependency kind=THEOREM need=(Need (solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) _0))
+you> goodbye
+hyge> goodbye

@@ -1,0 +1,6 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E7",
+  "candidate": {"id": "cand", "cites": ["params"]},
+  "nodes": [{"id": "params", "role": "params", "cites": ["cand"], "payload": {"window_width": 4, "modulus": 4}}]
+}

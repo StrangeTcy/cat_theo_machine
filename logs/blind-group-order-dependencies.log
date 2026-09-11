@@ -1,0 +1,45 @@
+Blind B -- a finite-structure toy goal on a cold research runtime
+=================================================================
+
+cold start: research_snapshot.json removed before this session.
+
+you> research mode on
+hyge> research mode ON. Derivation-cache answers, comparison shortcuts, prewritten ladders and target-specific schemata are not available here: this runtime holds only live-taught knowledge. Residual states are preserved. `audit knowledge` now prints the cold-start manifest.
+
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+
+you> assume axiom: (system s)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (system s)
+
+you> assume axiom: (size s fifteen)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (size s fifteen)
+
+you> attempt goal: (commuting s)
+hyge> FAILED. cost=0; attempted operational rules with a genuine partial match: 0
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (commuting s)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+
+you> teach law: (rule (premises (system ?g) (partcount ?g ?n) (solo ?n)) (conclusion (commuting ?g)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((system ?g) (partcount ?g ?n) (solo ?n)) (commuting ?g))
+note: teaching stores knowledge; it demonstrates nothing until a retry or counterfactual measures progress.
+
+you> attempt goal: (commuting s)
+hyge> FAILED. cost=1; attempted operational rules with a genuine partial match: 1
+the root remains in the residual record even with zero successors; `suggest dependencies` compiles requests only from concrete unmatched premises.
+
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (partcount s _0))
+
+you> goodbye
+hyge> goodbye

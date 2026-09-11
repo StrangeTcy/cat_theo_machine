@@ -1,0 +1,10 @@
+__pycache__/
+*/__pycache__/
+*.pyc
+*.pyo
+snapshots/research_snapshot.json
+snapshots/search_compare/
+snapshots/*.tmp
+snapshots/*.tmp.json
+snapshots/*.manifest.json
+logs/cold_debug_*.log

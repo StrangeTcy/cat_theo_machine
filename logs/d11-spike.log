@@ -1,0 +1,36 @@
+D11 spike -- where the library/goal boundary actually is
+==================================================
+ran in a throwaway worktree at HEAD (feb457e); the repo tree was never
+modified except by this log and the two fixtures now under protocol/.
+
+one rule, premises -> replacement, identical in all three conditions:
+  (divides k p), (divides k q)  =>  (divides k (plus p q))
+
+--- condition: spike-char loaded, goal (divides k (plus p q)) ---
+you> research mode on
+hyge> research mode ON
+you> load theorem packs
+hyge> theorem packs loaded: library rules 1; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> attempt goal: (divides k (plus p q))
+hyge> FAILED. cost=2; rules with a genuine partial match: 1
+you> goodbye
+
+--- condition: spike-label loaded, goal (divides k (plus p q)) ---
+you> research mode on
+hyge> research mode ON
+you> load theorem packs
+hyge> theorem packs loaded: library rules 1; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> attempt goal: (divides k (plus p q))
+hyge> FAILED. cost=2; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((divides k (plus p q))))
+you> goodbye
+
+--- ablation: spike-char loaded, non-matching goal (cornersum t whole) ---
+you> attempt goal: (cornersum t whole)
+hyge> FAILED. cost=2; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((cornersum t whole)))
+
+reading: identical rule, identical loader path, identical search.
+only the head vocabulary differs: {char: divides} vs {sym: DividesLabel}.
+Char heads match a session goal; Label heads never do, which is why all
+167 shipped rules contribute zero candidates on this tag.

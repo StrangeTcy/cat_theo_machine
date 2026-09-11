@@ -1,0 +1,45 @@
+Blank controls rerun -- Regime A on three domains, post matcher fixes
+=====================================================================
+
+Rerun on the build carrying all three matcher fixes (prefix-skip,
+fired-instantiation sentinels, goal-to-rule seeding), because the
+earlier controls predate them and a prefix-only matcher could report
+a false negative. Same three domains, same cold state, same outcome.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> attempt goal: (anglesum euclideantriangle straight)
+hyge> FAILED. cost=0; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((anglesum euclideantriangle straight)))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (anglesum euclideantriangle straight)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> attempt goal: (cyclic (grouporder prime))
+hyge> FAILED. cost=0; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((cyclic (grouporder prime))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (cyclic (grouporder prime))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> attempt goal: (connected firstaccount secondaccount)
+hyge> FAILED. cost=0; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((connected firstaccount secondaccount)))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (connected firstaccount secondaccount)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye

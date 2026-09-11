@@ -1,0 +1,254 @@
+run: fix confirmation for OBJECT_ID_INDEX_ASSUMES_TERM_ID_ON_HOST_OBJECT
+mode: exact-109
+tree: a3aeff4acbcf5c1369410cc0f070b2343955e434
+guard diff digest: 519b2257c7b15b52fb4b5360c9afe0fac5bbc2ca51f0b3dab345f459648eac56
+start_utc: 2026-09-08T19:47:44Z
+cmd: sh tools/preflight_item1_repro.sh exact
+---
+swap applied at testsuite.py:14957 (re-raise)
+# 304 tests, 304 guards, 2 shards
+predecessors requested: exact
+selection rule:         cursor index < 218 AND shard == 0 of 2
+predecessors selected:  109
+target:                 learned_memory_checkpoint_test (index 218, shard 0)
+ordered set digest:     139c78b9c2bf5c5d375d120f93e768aaea576a55d928fd862850ecbb6c7f87d5
+
+--- selected predecessors, registration order ---
+cmp1_test
+cmp3_test
+nand_test
+count1_test
+thingy1_test
+forall_test_1
+forall_test_2
+is_one_two_test
+sim_pairs_test
+is_zero1
+zero_less_zero
+match1_test
+match3_test
+minimal_graph_one_step_map_extension_test
+comparison_prompt_abort_test
+shared_exact_key_vocabulary_test
+tree_lookup_uses_structural_keys_test
+legacy_tree_lookup_remains_readable_test
+getconstructor_sees_patricia_tree_terms_test
+comparein_sees_tree_wrapper_test
+compare_search_modes_builds_deep_root_wave_shards_without_recursion_test
+compare_search_modes_root_wave_uses_resident_executor_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+compare_search_modes_root_wave_replaces_exhausted_resident_test
+compare_search_modes_root_wave_records_empty_expansion_test
+compare_search_modes_packetizes_wide_frontier_in_chunks_test
+compare_search_modes_fresh_root_jobs_packetize_whole_state_test
+search_tree_delta_skips_structurally_equal_trees_test
+search_tree_delta_skips_structurally_equal_patricia_trees_test
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_enqueue_all_packets_after_exhausted_backlog_test
+compare_search_modes_live_budget_uses_soft_window_test
+compare_search_modes_packet_budget_zero_beam_uses_packet_width_fallback_test
+compare_search_modes_skips_shared_root_schema_during_raw_benchmark_test
+compare_search_modes_worker_entry_tracks_packet_job_test
+compare_search_modes_console_disabled_skips_approval_replay_prompt_test
+compare_search_modes_fallback_winner_uses_recorded_performance_ordering_test
+pretty_print_named_tao_quantity_test
+tao_compact_rules_use_shrunk_premise_sets_test
+build_derivation_replays_structurally_equal_repeated_bindings_test
+legacy_cosine_rules_removed_test
+search_comparison_job_roundtrip_test
+search_worker_baseline_uses_grouped_problem_block_test
+search_worker_launch_uses_grouped_dispatch_test
+search_worker_result_pickle_roundtrip_test
+nat_value_index_snapshot_roundtrip_test
+snapshot_save_timeout_preserves_existing_snapshot_test
+identity_red_black_identity_index_test
+snapshot_preserves_constructor_labels_and_chars_test
+search_worker_resume_state_restores_saved_plan_test
+paused_comparison_job_snapshot_roundtrip_test
+compare_search_modes_stop_mode_marks_only_requested_mode_test
+compare_search_modes_stopped_state_does_not_enqueue_job_frontier_test
+compare_search_modes_pause_requeues_active_packet_into_job_test
+compare_search_modes_empty_ready_result_refills_job_frontier_test
+compare_search_modes_returned_ready_overreported_count_keeps_packet_shape_test
+compare_search_modes_batches_large_returned_ready_packet_wave_test
+compare_search_modes_ignores_stopped_mode_result_test
+compare_search_modes_stale_token_retry_requeues_original_packet_test
+compare_search_modes_decode_missing_payload_uses_expected_token_test
+compare_search_modes_empty_cursor_theorem_fanout_test
+compare_search_modes_theorem_fanout_adds_single_rewrite_handoff_test
+compare_search_modes_rewrite_fanout_produces_one_rule_packets_test
+search_worker_filters_seeded_theorem_continuation_test
+compare_search_modes_batched_wave_matches_sequential_success_test
+loaded_rules_have_direct_progression_edge_equations_test
+invariance_odd_goal_does_not_prune_test
+compile_rule_to_law_test
+laws_inside_graph_versions_test
+proposal_store_inert_test
+obligation_commit_gate_test
+firing_ledger_test
+handle_fold_unfold_test
+handle_promotion_test
+autonomy_cycle_test
+recurring_pattern_mining_test
+witnessed_composition_proposal_test
+law_ordering_from_ledger_test
+retirement_lifecycle_test
+heuristic_trial_proposal_test
+policy_change_countersign_test
+contract_enforcement_test
+migration_lifecycle_test
+worker_protocol_test
+toy_correspondence_round_trip_test
+deduction_law_test
+freshen_template_test
+definition_node_test
+definition_production_test
+lexical_growth_test
+converse_default_mode_test
+correspondence_induction_test
+fire_law_surgery_test
+law_maps_complete_test
+map_extension_alternatives_test
+edge_send_positional_consistency_test
+invariance_flip_one_refutes_parity_test
+blackboard_move_sum_is_sum_minus_twice_min_test
+blackboard_final_number_is_odd_test
+blackboard_proof_expands_no_boards_test
+research_mode_test
+counterfactual_unlock_test
+human_supplied_provenance_test
+generator_policy_learning_test
+zero_successor_residual_test
+toy_demo_generic_test
+blank_memory_stall_test
+strategy_prior_quarantine_test
+cross_domain_blank_test
+--- end selected predecessors ---
+
+Reading pack order-sign...
+Reading pack order-sign, done in 0.04s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.05s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.27s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.14s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.19s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.31s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.44s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.17s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.56s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.39s
+Reading pack order-sign...
+Reading pack order-sign, done in 0.04s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.05s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.54s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.16s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.19s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.33s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.29s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.14s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.75s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.31s
+Reading pack order-sign...
+Reading pack order-sign, done in 0.04s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.05s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.22s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.14s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.20s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.61s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.66s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.15s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.47s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.31s
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 102, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 74, in main
+    install_default_tests(graph)
+  File "/home/user/cat_theo_machine/testsuite.py", line 18614, in install_default_tests
+    _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest, M.truth_value)
+  File "/home/user/cat_theo_machine/testsuite.py", line 16243, in _register_test
+    computation_edge = computation_edge(graph)
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/testsuite.py", line 14944, in __init__
+    codec.save(graph, snap_path, progress=M.false_value)
+  File "/home/user/cat_theo_machine/persistence.py", line 1852, in save
+    snapshot = self.capture(graph, progress=progress, deadline=deadline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1844, in capture
+    return self._capture_from_roots(roots, progress, deadline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1663, in _capture_from_roots
+    self._intern(roots[name], deadline)
+  File "/home/user/cat_theo_machine/persistence.py", line 1423, in _intern
+    insertion = T.IdentityRedBlackNatInsertMissing(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/trees.py", line 506, in __init__
+    super().__init__(tree, key, value_rep)
+  File "/home/user/cat_theo_machine/trees.py", line 425, in __init__
+    self.key_id = key.id
+                  ^^^^^^
+AttributeError: 'Hypergraph' object has no attribute 'id'
+
+run exit: 1
+EXIT=1
+end_utc: 2026-09-08T19:59:45Z

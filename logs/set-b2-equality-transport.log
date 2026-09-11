@@ -1,0 +1,41 @@
+Set B2 -- equality transport
+============================
+freeze tag: experiment-4-frozen (76f4389); operator: agent (contaminated),
+session script by fable 5.1; axioms (eq a b), (divides 3 a) taught as
+DOMAIN_AXIOM; no law taught -- the residual named none.
+
+Outcome: class A. Equality is NOT treated as rewrite anywhere: with
+(eq a b) and (divides 3 a) on record, (divides 3 b) stalls with zero
+footholds and the machine declines to characterize. Per fable's rule
+-- teach only what a residual names concretely -- nothing was taught.
+The substitution gap is real and unnamed: transport of a predicate
+across a taught equality requires a transport law the machine does not
+have and cannot yet ask for by name.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> assume axiom: (eq a b)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (eq a b)
+you> assume axiom: (divides 3 a)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (divides 3 a)
+you> attempt goal: (divides 3 b)
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((divides 3 b)))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (divides 3 b)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye

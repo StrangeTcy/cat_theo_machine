@@ -1,0 +1,37 @@
+Divisibility -- generic arithmetic taught live, second domain family
+====================================================================
+
+Contamination ledger: both laws and both axioms below are supplied by
+the operator, provenance HUMAN_SUPPLIED_TRUSTED_THEOREM / DOMAIN_AXIOM.
+The closed goal is a two-rule chained derivation; the blocked variant
+names its concrete missing premise. This session also forced the
+firing-budget rewrite of the bounded search: the generative sum rule
+fed its own conclusions back and exhausted the host stack when fuel
+bounded rounds instead of work.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> teach law: (rule (premises (eq (times ?k ?q) ?n)) (conclusion (divides ?k ?n)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq (times ?k ?q) ?n)) (divides ?k ?n))
+you> teach law: (rule (premises (divides ?k ?a) (divides ?k ?b)) (conclusion (divides ?k (plus ?a ?b))))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((divides ?k ?a) (divides ?k ?b)) (divides ?k (plus ?a ?b)))
+you> assume axiom: (eq (times 3 2) 6)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (eq (times 3 2) 6)
+you> assume axiom: (eq (times 3 5) 15)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (eq (times 3 5) 15)
+you> attempt goal: (divides 3 (plus 6 15))
+hyge> goal closed. cost=3; provenance SEARCH_DERIVED
+you> attempt goal: (divides 3 (plus 6 14))
+hyge> FAILED. cost=5; rules with a genuine partial match: 1
+residual: missing (divides 3 14) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (divides 3 14))
+you> goodbye
+hyge> goodbye

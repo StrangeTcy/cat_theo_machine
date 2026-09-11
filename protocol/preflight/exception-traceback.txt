@@ -1,0 +1,235 @@
+Preflight item 1 — swallowed exception, surfaced.
+
+    commit:           b38965046fb65e61628ffa845ce172ce2abedc52
+    mode:             exact-109
+    selection rule:   every registration before cursor 218 accepted by
+                      shard 0 of 2, in source registration order
+    predecessors:     109
+    ordered set:      verification/2026-09-07-preflight-item1/attempt-1/ordered-set.txt
+    ordered digest:   139c78b9c2bf5c5d375d120f93e768aaea576a55d928fd862850ecbb6c7f87d5
+    command:          sh tools/preflight_item1_repro.sh exact
+    attempt:          1 of 3
+    start_utc:        2026-09-07T23:42:20Z
+    end_utc:          2026-09-07T23:54:21Z
+    exit:             1
+    host:             Linux 6.1.158+ x86_64
+    python:           Python 3.11.2
+    raw log:          verification/2026-09-07-preflight-item1/attempt-1/run.log
+    raw log digest:   9821e40a4ff091ce2a3f26798d87e0ab608c260da6edab3e98ea27ba55636410
+
+    The re-raise was applied at testsuite.py:14957 for the duration of the
+    run and restored by the harness on exit. The tree carries no re-raise.
+
+--------------------------------------------------------------------------
+Traceback (first complete traceback, verbatim)
+--------------------------------------------------------------------------
+
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 102, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 74, in main
+    install_default_tests(graph)
+  File "/home/user/cat_theo_machine/testsuite.py", line 18614, in install_default_tests
+    _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest, M.truth_value)
+  File "/home/user/cat_theo_machine/testsuite.py", line 16243, in _register_test
+    computation_edge = computation_edge(graph)
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/testsuite.py", line 14944, in __init__
+    codec.save(graph, snap_path, progress=M.false_value)
+  File "/home/user/cat_theo_machine/persistence.py", line 1848, in save
+    snapshot = self.capture(graph, progress=progress, deadline=deadline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1840, in capture
+    return self._capture_from_roots(roots, progress, deadline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1659, in _capture_from_roots
+    self._intern(roots[name], deadline)
+  File "/home/user/cat_theo_machine/persistence.py", line 1448, in _intern
+    queue = self._queue_uncaptured(current.head.value, queue, Pair)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 1365, in _queue_uncaptured
+    if self._captured_object_id(candidate) is not M.EmptyList:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/persistence.py", line 806, in _captured_object_id
+    return T.IdentityRedBlackNatLookupValue(self.object_id_index, target)()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/trees.py", line 176, in __init__
+    self.key_id = key.id
+                  ^^^^^^
+AttributeError: 'Hypergraph' object has no attribute 'id'
+
+--------------------------------------------------------------------------
+Mechanism
+--------------------------------------------------------------------------
+
+Named defect: OBJECT_ID_INDEX_ASSUMES_TERM_ID_ON_HOST_OBJECT
+
+Locus: persistence.py:806, `_captured_object_id`, reaching trees.py:176.
+
+Class: codec type gap, not a size threshold.
+
+Reach path, from the traceback, top to bottom:
+
+  codec.save
+    -> capture
+      -> _capture_from_roots            (persistence.py:1659)
+        -> _intern(roots[name])         (persistence.py:1448)
+          -> _queue_uncaptured(current.head.value, ...)   (persistence.py:1365)
+            -> _captured_object_id(candidate)             (persistence.py:806)
+              -> IdentityRedBlackNatLookupValue(object_id_index, target)
+                -> trees.py:176  self.key_id = key.id
+
+The object-id index is a red-black tree keyed on object identity, and its
+lookup constructor reads `key.id` unconditionally. Every machine term in the
+machine carries `.id`. A `Hypergraph` does not: it is a host object, not a
+machine term. When a Hypergraph arrives at `_captured_object_id` as a
+candidate, the lookup raises AttributeError instead of returning "not
+captured", and the whole registration of the test aborts.
+
+Why it looked load-sensitive, and why 109 was the magic number:
+
+The candidate is `current.head.value` reached through root interning. Whether
+that value is a Hypergraph depends on what the preceding registrations have
+put in the graph. With 0, 16, or 32 predecessors the value is never a
+Hypergraph and the run passes. The exact-109 set — every shard-0
+registration before cursor 218 — is the first configuration tried that puts
+a Hypergraph at that position. The count was never the mechanism; the
+configuration was.
+
+Not a defect in the test. Not a defect in the harness. The test did its job
+and reported a failure; the guard swallowed the reason for ~the whole
+history of the pin.
+
+--------------------------------------------------------------------------
+Second traceback — after the partial guard
+--------------------------------------------------------------------------
+
+A guard was applied at persistence.py:806: probe `target.id`, and on
+AttributeError return M.EmptyList, the index's existing not-found signal.
+The exact-109 configuration was rerun once to confirm. It did not pass.
+
+    commit:           a3aeff4acbcf5c1369410cc0f070b2343955e434 (+ the guard)
+    guard diff digest: 519b2257c7b15b52fb4b5360c9afe0fac5bbc2ca51f0b3dab345f459648eac56
+    mode:             exact-109
+    predecessors:     109
+    ordered digest:   139c78b9c2bf5c5d375d120f93e768aaea576a55d928fd862850ecbb6c7f87d5
+    start_utc:        2026-09-08T19:47:44Z
+    end_utc:          2026-09-08T19:59:45Z
+    exit:             1
+    raw log:          verification/2026-09-08-preflight-item1-fix-confirm/run.log
+
+Traceback (most recent call last):
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 102, in <module>
+    sys.exit(main())
+  File "/home/user/cat_theo_machine/tools/run_named_tests.py", line 74, in main
+    install_default_tests(graph)
+  File "/home/user/cat_theo_machine/testsuite.py", line 18614, in install_default_tests
+    _register_test(graph, "learned_memory_checkpoint_test", empty, LearnedMemoryCheckpointTest, M.truth_value)
+  File "/home/user/cat_theo_machine/testsuite.py", line 16243, in _register_test
+    computation_edge = computation_edge(graph)
+  File "/home/user/cat_theo_machine/testsuite.py", line 14944, in __init__
+    codec.save(graph, snap_path, progress=M.false_value)
+  File "/home/user/cat_theo_machine/persistence.py", line 1852, in save
+    snapshot = self.capture(graph, progress=progress, deadline=deadline)
+  File "/home/user/cat_theo_machine/persistence.py", line 1844, in capture
+    return self._capture_from_roots(roots, progress, deadline)
+  File "/home/user/cat_theo_machine/persistence.py", line 1663, in _capture_from_roots
+    self._intern(roots[name], deadline)
+  File "/home/user/cat_theo_machine/persistence.py", line 1423, in _intern
+    insertion = T.IdentityRedBlackNatInsertMissing(
+  File "/home/user/cat_theo_machine/trees.py", line 506, in __init__
+    super().__init__(tree, key, value_rep)
+  File "/home/user/cat_theo_machine/trees.py", line 425, in __init__
+    self.key_id = key.id
+AttributeError: 'Hypergraph' object has no attribute 'id'
+
+The guard was necessary and did its job: `_captured_object_id` no longer
+raises. But it only removed the lookup-side failure. With the lookup
+answering "not captured", the Hypergraph is queued for interning
+(persistence.py:1365), the interning loop reaches it as `current`, and the
+loop inserts every current into the same identity index
+(persistence.py:1423) — where `IdentityRedBlackInsertMissing.__init__` reads
+`key.id` at trees.py:425 and raises the same AttributeError.
+
+The index has two doors, not one. Guarding the lookup alone moves the crash
+from the read door to the write door.
+
+Relevant facts for choosing the repair:
+
+  - `Hypergraph` (graph.py:24) has `.rep` but no `.id`, `.value`, `.head`,
+    `.tail`, `.inputs`, `.results`. It is the live session host object, not
+    a machine term.
+  - `_scalar_payload` already probes `x.id` (persistence.py:815) and, when
+    absent, tries `_encode_scalar`, which handles only JSON-serialisable
+    objects and mpz. A Hypergraph is neither, so `_scalar_payload` returns
+    None — the same answer it returns for a real term. That conflation is
+    why the Hypergraph reaches the index at all.
+  - Three repairs are available and they are not equivalent. Skipping the
+    object at the queue/loop boundary stops the crash but silently omits it
+    from the snapshot. Encoding it as an opaque scalar preserves it but
+    needs a type discriminator of the kind §0 forbids. Fixing upstream, so
+    a live Hypergraph never enters machine state, addresses the cause. The
+    choice is the operator's; it is not an engineering default.
+
+--------------------------------------------------------------------------
+Third traceback — after the index-level guard (ruling (c))
+--------------------------------------------------------------------------
+
+Ruling (c) was implemented at the index, not the codec: the codec-side guard
+was removed from persistence.py:806, and both doors of the identity index
+were guarded in trees.py — `IdentityRedBlackLookupValue.__init__` and
+`IdentityRedBlackInsertMissing.__init__` now probe `key.id` and, on
+AttributeError, answer with that edge's own not-found / not-inserted result
+instead of raising. One confirming exact-109 run was executed.
+
+    tree:               bfd4bd2 + uncommitted trees.py guards
+    trees.py diff:      160c6ea3ba7070e96c65c592ef3802061d649b8dd3c31d4d09e7f476df83d1f4
+    start_utc:          2026-09-10T00:02:25Z
+    end_utc:            2026-09-10T00:16:37Z
+    exit:               1
+    raw log:            verification/2026-09-08-preflight-item1-fix-c-confirm/run.log
+
+  File "persistence.py", line 1592, in _encode_captured_subtree
+    objects[oid - 1] = self._record_for(obj, oid)
+  File "persistence.py", line 1464, in _record_for
+    "head": self._encode_field(obj.head.value),
+  File "persistence.py", line 1317, in _encode_field
+    return {"tag": "scalar", "value": self._encode_scalar(x)}
+  File "persistence.py", line 1325, in _encode_scalar
+    value = gmpy2.mpz(x)
+TypeError: mpz() requires numeric or string argument
+
+**The index guard cannot close this defect.** Guarding the index stops the
+raise at both doors, but the Hypergraph is still *reachable*: it is the
+`head.value` of a term that is in the index. Skipping it from the index does
+not remove the reference — the parent pair still points at it, and the record
+encoding phase then has to encode that reference. `_encode_scalar` handles
+only JSON-serialisable values and mpz; a Hypergraph is neither, and
+`_encode_field` calls `_encode_scalar` directly rather than through the
+`_scalar_payload` wrapper that swallows TypeError, so it propagates.
+
+Three doors, one object:
+
+    1. lookup   persistence.py:806  -> guarded, moved on
+    2. insert   persistence.py:1423 -> guarded, moved on
+    3. encode   persistence.py:1317 -> raised
+
+The object is not reaching these doors by three separate accidents. It is in
+the object graph, and every consumer of that reference fails in turn.
+
+--------------------------------------------------------------------------
+Closure status
+--------------------------------------------------------------------------
+
+Guard:    restored. The harness reverted testsuite.py:14957 on exit; the
+          tree carries no re-raise.
+Fix:      PARTIAL, and committed as partial. The persistence.py:806 guard
+          is necessary and correct but does not close the defect: the
+          exact-109 run still fails, one frame further along. Ruling
+          requested on which of the three repairs above is authorized.
+Attempts: 1 of 3. Attempts 2 and 3 exist in the ruling to establish
+          non-reproduction; the exception appeared on the first, so the
+          "exception appears" branch is taken and they are not required for
+          closure.
+Confirm:  1 run of exact-109 after the partial guard, recorded above.

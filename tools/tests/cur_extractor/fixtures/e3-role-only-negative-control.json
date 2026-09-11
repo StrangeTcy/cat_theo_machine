@@ -1,0 +1,65 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "weights",
+      "moves",
+      "start",
+      "odd",
+      "gen"
+    ],
+    "text": "role-only candidate"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned problem"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "weights",
+      "role": "weights",
+      "kind": "derived",
+      "cites": [
+        "cl1"
+      ]
+    },
+    {
+      "id": "moves",
+      "role": "moves",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ]
+    },
+    {
+      "id": "start",
+      "role": "start",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ]
+    },
+    {
+      "id": "odd",
+      "role": "odd-control",
+      "kind": "derived",
+      "cites": [
+        "cl1"
+      ]
+    },
+    {
+      "id": "gen",
+      "role": "generation",
+      "kind": "derived",
+      "cites": [
+        "weights"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+Ground evaluation -- decidable arithmetic never becomes a request
+=================================================================
+freeze tag: pre-freeze calibration session (build ca4aa82 + evaluator)
+
+Contamination ledger: the decomposition law, the parity law and the
+axiom (even 4) are operator-supplied. Nothing else is: the
+factorizations (eq 6 (times 2 3)) and (eq 21 (times 3 7)) are
+discharged by the ground evaluator and audited as DOMAIN_AXIOM; the
+obligation (odd 4) is refuted and audited as COUNTEREXAMPLE, and no
+request is ever compiled for either. Compare the exponent-algebra log
+from the previous build, where each factorization cost one full
+request/approve/teach round: those requests were the calibration
+finding, and this session is the calibration applied.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> teach law: (rule (premises (eq ?n (times ?k ?d))) (conclusion (eq (pow ?t ?n) (pow (pow ?t ?k) ?d))))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+you> attempt goal: (eq (pow t 6) (pow (pow t 2) 3))
+hyge> goal closed. cost=1; provenance SEARCH_DERIVED
+you> attempt goal: (eq (pow v 21) (pow (pow v 3) 7))
+hyge> goal closed. cost=1; provenance SEARCH_DERIVED
+you> teach law: (rule (premises (even ?n) (odd ?n)) (conclusion (impossible ?n)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((even ?n) (odd ?n)) (impossible ?n))
+you> assume axiom: (even 4)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (even 4)
+you> attempt goal: (impossible 4)
+hyge> FAILED. cost=4; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((impossible 4)))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (impossible 4)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+  [0] COUNTEREXAMPLE: (odd 4)
+  [1] DOMAIN_AXIOM: (even 4)
+  [2] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((even ?n) (odd ?n)) (impossible ?n))
+  [3] DOMAIN_AXIOM: (eq 21 (times 3 7))
+  [4] DOMAIN_AXIOM: (eq 6 (times 2 3))
+  [5] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+  intervention episodes: 0
+  learned policies: none
+you> attempt goal: (eq (pow t 6) (pow (pow t 2) 3))
+hyge> goal closed. cost=2; provenance SEARCH_DERIVED
+you> goodbye
+hyge> goodbye

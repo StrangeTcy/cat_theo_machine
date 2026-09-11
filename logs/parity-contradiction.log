@@ -1,0 +1,34 @@
+Parity contradiction -- a false obligation, refused
+===================================================
+
+Contamination ledger: the law and the axiom are operator-supplied.
+The machine's request (Need (odd 4)) is correctly compiled from the
+genuine partial match -- and it is FALSE, so the operator rejects it
+instead of teaching a falsehood. The rejection is recorded on the
+same node.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime -- live-taught knowledge only):
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> teach law: (rule (premises (even ?n) (odd ?n)) (conclusion (impossible ?n)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((even ?n) (odd ?n)) (impossible ?n))
+you> assume axiom: (even 4)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (even 4)
+you> attempt goal: (impossible 4)
+hyge> FAILED. cost=2; rules with a genuine partial match: 1
+residual: missing (odd 4) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (odd 4))
+you> reject dependency 0: an even number is not odd
+hyge> rejected dependency [0]
+you> show dependencies
+hyge> dependency requests (all):
+  [0] status=Rejected kind=THEOREM need=(Need (odd 4))
+you> goodbye
+hyge> goodbye

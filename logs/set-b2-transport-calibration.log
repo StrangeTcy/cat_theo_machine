@@ -1,0 +1,75 @@
+Set B2 -- equality transport, baseline and calibration
+======================================================
+freeze tag: experiment-4-frozen (99fa78a); operator: agent (contaminated);
+scripts by sol, adapted: sol's ground probe (divides 3 (plus 3 3)) is
+ground-decidable and closes by evaluation at cost 0 -- shown once, as
+designed -- so transport is probed on symbolic instances.
+
+B2-A baseline (library-only, fresh process): class A on the symbolic
+probe -- no transport shape exists in the library.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> attempt goal: (divides 3 (plus 3 3))
+hyge> goal closed. cost=0; provenance SEARCH_DERIVED
+you> assume axiom: (eq a (plus p q))
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (eq a (plus p q))
+you> assume axiom: (divides 3 a)
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (divides 3 a)
+you> attempt goal: (divides 3 (plus p q))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((divides 3 (plus p q))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (divides 3 (plus p q))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye
+
+B2-B calibration (cumulative checkpoint, transport law taught):
+matched (eq a (plus p q)), missing (divides 3 a) -- requested, taught
+exactly as named, counterfactual cost 12 -> 6, newly enabled: the
+transport rule, goal closed: yes, retry closes. Episode 2.
+
+you> research mode on
+hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
+hyge> research mode ON
+state: taught rules 2; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 1; intervention episodes 1; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+  [0] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule () (eq (times k m) (times k m)))
+  [1] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+  intervention episodes: 1
+  learned policies: none
+you> teach law: (rule (premises (eq ?x ?y) (divides ?k ?x)) (conclusion (divides ?k ?y)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?x ?y) (divides ?k ?x)) (divides ?k ?y))
+you> assume axiom: (eq a (plus p q))
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (eq a (plus p q))
+you> attempt goal: (divides 3 (plus p q))
+hyge> FAILED. cost=12; rules with a genuine partial match: 1
+residual: missing (divides 3 a) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [1] status=ObservedMissingPremise kind=THEOREM need=(Need (divides 3 a))
+you> approve dependency 1
+hyge> approved dependency [1] status=SpeculativeDependency
+you> teach dependency 1: (rule (premises) (conclusion (divides 3 a)))
+hyge> counterfactual: cost 12 -> 6; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 2
+you> retry parent goal
+hyge> retry: goal closed
+you> goodbye
+hyge> goodbye

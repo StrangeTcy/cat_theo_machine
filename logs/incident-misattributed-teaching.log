@@ -1,0 +1,57 @@
+Incident -- misattributed teaching, caught by the transcript
+============================================================
+freeze tag: experiment-4-frozen (99fa78a). Kept verbatim as evidence
+of a real failure mode: on the first B3-B run the operator approved
+and taught against request [2] (the side-obligation Need (eq (plus p
+q) _0)) while supplying the solutionmap theorem that addressed
+request [3]. The counterfactual unlock was real -- the goal closed --
+so the machine promoted the WRONG node and recorded an episode
+pairing request 2's residual with request 3's rule. The instrument
+permitted it: teach_dependency does not require the taught conclusion
+to address the request's Need. Recorded as an instrument observation
+for a future cut (a warning when the taught conclusion does not unify
+with the Need term); the session was discarded and the chain rerun
+with aligned indices. Operator error is data.
+
+you> research mode on
+hyge> restoring the research checkpoint (taught rules will be recompiled and revalidated)
+hyge> research mode ON
+state: taught rules 4; axioms 1; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 2; intervention episodes 2; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+  [0] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule () (divides 3 a))
+  [1] DOMAIN_AXIOM: (eq a (plus p q))
+  [2] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?x ?y) (divides ?k ?x)) (divides ?k ?y))
+  [3] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule () (eq (times k m) (times k m)))
+  [4] HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+  intervention episodes: 2
+  learned policies: none
+you> teach law: (rule (premises (nosolutions ?d ?u ?p) (solutionmap ?d ?q ?p ?t)) (conclusion (nosolutions ?d ?u ?q)))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((nosolutions ?d ?u ?p) (solutionmap ?d ?q ?p ?t)) (nosolutions ?d ?u ?q))
+you> assume axiom: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+you> attempt goal: (nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))
+hyge> FAILED. cost=20; rules with a genuine partial match: 2
+residual: missing (eq (plus p q) ?y) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+residual: missing (solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) ?t) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [3] status=ObservedMissingPremise kind=THEOREM need=(Need (solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) _0))
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (eq (plus p q) _0))
+you> approve dependency 2
+hyge> approved dependency [2] status=SpeculativeDependency
+you> teach dependency 2: (rule (premises) (conclusion (solutionmap positive-integers (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)) (eq (times 2 x) (plus (times 2 y) 1)) cuberoot)))
+hyge> counterfactual: cost 20 -> 8; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 3
+you> retry parent goal
+hyge> retry: goal closed
+you> show intervention episodes
+hyge> intervention episodes (newest first):
+[0] residual=(eq (plus p q) _0) outcome=DemonstratedUsefulDependency
+[1] residual=(divides 3 a) outcome=DemonstratedUsefulDependency
+[2] residual=(eq (times k m) (times k m)) outcome=DemonstratedUsefulDependency
+you> show learned policies
+hyge> no learned policies: a policy needs at least two independent useful episodes whose anti-unification still shares structure.
+you> goodbye
+hyge> goodbye

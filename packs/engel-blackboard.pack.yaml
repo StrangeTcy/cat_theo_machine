@@ -8,6 +8,7 @@ description: >
   the sum by -2*Min(a, b). Nothing here simulates a board or enumerates a move order.
 
 requires: []
+origin: demo-specialized
 
 phi:
   call:

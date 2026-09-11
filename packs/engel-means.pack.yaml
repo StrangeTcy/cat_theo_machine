@@ -5,6 +5,7 @@ name: engel-means
 description: Engel E1. Sequence X, Sequence Y, 0 < b < a. Product is phi. Goal is Product and ExprEq(Apply(X, n), Sqrt(product)).
 
 requires: []
+origin: demo-specialized
 
 phi:
   call: {head: {char: Product}, args: [{var: p}]}

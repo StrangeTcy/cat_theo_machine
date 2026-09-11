@@ -1,0 +1,17 @@
+format: hyge-pack
+version: 1
+
+name: d11-spike-label
+description: minimal conclusion-shaped entry, pack label vocabulary
+requires: []
+
+phi:
+  list: []
+
+rules:
+  - id: spike_divides_add
+    premises:
+      - {call: {head: {sym: DividesLabel}, args: [{var: k}, {var: p}]}}
+      - {call: {head: {sym: DividesLabel}, args: [{var: k}, {var: q}]}}
+    replacement:
+      {call: {head: {sym: DividesLabel}, args: [{var: k}, {call: {head: {sym: ExprAddLabel}, args: [{var: p}, {var: q}]}}]}}

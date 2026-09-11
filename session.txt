@@ -1,0 +1,63 @@
+# session.txt -- everything problem-specific is taught here through the
+# generic readers. The machine file contains no sieve knowledge.
+# Steps of a proc execute in teaching order; a step sees what earlier
+# steps of the same cycle produced.
+
+# the sqrt lemma -- taught, cited by name where the bound is used
+lemma sqrt-divisor-bound every composite m has a divisor i with two <= i <= floor-sqrt(m)
+
+# way one: the sieve of eratosthenes
+proc sieve
+step exclude
+(candidate $M )
+if (lt $M nat-2 )
+drop (candidate $M )
+add (excluded $M )
+step keep
+(candidate $X )
+if (least-of candidate $X )
+drop (candidate $X )
+add (kept $X )
+add (active $X )
+step strike
+(active $X )
+(candidate $Z )
+if (bind $Q (divides $X $Z ) )
+if (lt $X $Z )
+drop (candidate $Z )
+drop (active $X )
+add (struck $Z $X $Q )
+step retire
+(active $X )
+drop (active $X )
+
+# way two: trial division up to floor-sqrt(m), citing the lemma for the bound
+proc trial
+step scan
+(candidate $M )
+if (leq nat-2 $M )
+drop (candidate $M )
+add (scanning $M nat-2 )
+step below-domain
+(candidate $M )
+if (lt $M nat-2 )
+drop (candidate $M )
+add (prime $M )
+step found
+(scanning $M $I )
+if (bind $Q (divides $I $M ) )
+if (leq $I (floor-sqrt $M ) )
+drop (scanning $M $I )
+add (composite $M $I $Q )
+step advance
+(scanning $M $I )
+if (leq $I (floor-sqrt $M ) )
+drop (scanning $M $I )
+add (scanning $M (add $I nat-1 ) )
+step exhausted
+(scanning $M $I )
+if (lt (floor-sqrt $M ) $I )
+drop (scanning $M $I )
+add (prime $M )
+
+query compare sieve trial over one through nine

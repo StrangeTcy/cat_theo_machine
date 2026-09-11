@@ -1,0 +1,29 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "weights",
+      "moves",
+      "start"
+    ],
+    "text": "candidate claim"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned problem"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "weights",
+      "role": "weights",
+      "kind": "assumption",
+      "cites": "not-an-array"
+    }
+  ]
+}

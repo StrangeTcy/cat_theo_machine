@@ -1,0 +1,17 @@
+format: hyge-pack
+version: 1
+
+name: d11-spike-char
+description: minimal conclusion-shaped entry, session surface vocabulary
+requires: []
+
+phi:
+  list: []
+
+rules:
+  - id: spike_divides_add
+    premises:
+      - {call: {head: {char: divides}, args: [{var: k}, {var: p}]}}
+      - {call: {head: {char: divides}, args: [{var: k}, {var: q}]}}
+    replacement:
+      {call: {head: {char: divides}, args: [{var: k}, {call: {head: {char: plus}, args: [{var: p}, {var: q}]}}]}}

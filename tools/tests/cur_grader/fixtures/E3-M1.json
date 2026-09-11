@@ -1,0 +1,34 @@
+{
+  "id": "E3-M1",
+  "schema_version": 1,
+  "ruleset_id": "e3e4e7-grader-v1-7ae056945c93e3d8",
+  "contract_ref": "CUR-ENGEL-E3-EVALUATOR-CONTRACT.md",
+  "rubric_ref": "CUR-GRADER-RUBRIC.md",
+  "contract": "E3",
+  "evidence": {
+    "C1": {
+      "derived_from_move_constraints": false,
+      "stated_without_move_family": true
+    },
+    "C2": {
+      "preserved_all_moves": true,
+      "a_move_changes_reading": false
+    },
+    "C3": {
+      "start_differs_from_target": true,
+      "start_equals_target": false
+    },
+    "C4": {
+      "emits_no_nonzero_observable": true,
+      "odd_cycle_false_invariant": false
+    },
+    "C5": {
+      "generation_disabled_removes_candidate": true,
+      "candidate_survives_removal": false
+    },
+    "C6": {
+      "weights_derived": true,
+      "weights_injected": false
+    }
+  }
+}

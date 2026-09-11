@@ -1,0 +1,65 @@
+Exponent-family policy -- the full three-state ablation cycle
+=============================================================
+
+Contamination ledger: the decomposition law and both factorization
+facts are operator-supplied. The raw request (Need (eq 21 (times 3 7)))
+comes from the genuine partial match and survives every toggle; the
+policy prediction line tracks the learned-memory mask exactly, and
+erasure removes it permanently. This closes Regime C for the second
+learned policy, per the requirement that each policy earn its own
+cycle rather than inherit the coprime policy's proof.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> teach law: (rule (premises (eq ?n (times ?k ?d))) (conclusion (eq (pow ?t ?n) (pow (pow ?t ?k) ?d))))
+hyge> taught and compiled with provenance HUMAN_SUPPLIED_TRUSTED_THEOREM: (rule ((eq ?n (times ?k ?d))) (eq (pow ?t ?n) (pow (pow ?t ?k) ?d)))
+you> attempt goal: (eq (pow t 6) (pow (pow t 2) 3))
+hyge> FAILED. cost=2; rules with a genuine partial match: 1
+residual: missing (eq 6 (times 2 3)) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [0] status=ObservedMissingPremise kind=THEOREM need=(Need (eq 6 (times 2 3)))
+you> approve dependency 0
+hyge> approved dependency [0] status=SpeculativeDependency
+you> teach dependency 0: (rule (premises) (conclusion (eq 6 (times 2 3))))
+hyge> counterfactual: cost 2 -> 6; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 1
+you> attempt goal: (eq (pow u 15) (pow (pow u 3) 5))
+hyge> FAILED. cost=8; rules with a genuine partial match: 1
+residual: missing (eq 15 (times 3 5)) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [1] status=ObservedMissingPremise kind=THEOREM need=(Need (eq 15 (times 3 5)))
+you> approve dependency 1
+hyge> approved dependency [1] status=SpeculativeDependency
+you> teach dependency 1: (rule (premises) (conclusion (eq 15 (times 3 5))))
+hyge> counterfactual: cost 8 -> 9; newly enabled existing firings: 1; goal closed: yes
+status=DemonstratedUsefulDependency; intervention episodes: 2
+you> attempt goal: (eq (pow v 21) (pow (pow v 3) 7))
+hyge> FAILED. cost=12; rules with a genuine partial match: 1
+residual: missing (eq 21 (times 3 7)) (rule origin HUMAN_SUPPLIED_TRUSTED_THEOREM)
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (eq 21 (times 3 7)))
+[learned policy, support 2 episodes] predicts helpful rule shape: (rule () (eq 21 (times 3 7)))
+you> disable learned memory
+hyge> learned memory disabled: the policy store is masked, not erased.
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (eq 21 (times 3 7)))
+you> enable learned memory
+hyge> learned memory enabled.
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (eq 21 (times 3 7)))
+[learned policy, support 2 episodes] predicts helpful rule shape: (rule () (eq 21 (times 3 7)))
+you> reset learned memory
+hyge> learned memory reset: intervention episodes and dependency policies removed. Policy predictions disappear with them.
+you> suggest dependencies
+hyge> dependency requests from attempted rules:
+  [2] status=ObservedMissingPremise kind=THEOREM need=(Need (eq 21 (times 3 7)))
+you> show learned policies
+hyge> no learned policies: a policy needs at least two independent useful episodes whose anti-unification still shares structure.
+you> goodbye
+hyge> goodbye

@@ -31,6 +31,10 @@ class Hypergraph:
         self._test_shard_index = M.Zero
         self._test_shard_count = M.one
         self._test_shard_cursor = M.Zero
+        # None means "no filter": every test is registered, which is the
+        # baseline. A set means "only these names", and is a runner
+        # convenience for iterating on one test -- never a baseline.
+        self._test_name_filter = None
         self._search_console_input = None
         self._search_disable_console = M.false_value
         self._search_disable_progress_ticker = M.false_value
@@ -56,6 +60,18 @@ class Hypergraph:
         self._search_compare_live_workers = M.EmptyList
         self._search_compare_live_idle_executors = M.EmptyList
         self._last_search_comparison_outcome = M.EmptyList
+        # Provenance session memory: the chain of ProvenanceRecord terms
+        # appended by proofs, and the evaluation-mode flag that forbids
+        # cache/comparison/schema/ladder shortcuts. Both are host session
+        # state like the search console flags, not context content.
+        self._proof_provenance = M.EmptyList
+        self._proof_evaluation_mode = M.false_value
+        # Rule-origin association chain (learning instrument): Pair(rule,
+        # Pair(origin-tag, EmptyList)) consed per rule, plus the active
+        # pair-native ProofPolicy. Defaults: empty index, permissive
+        # policy. Both are host session state like the provenance chain.
+        self._rule_origins = M.EmptyList
+        self._proof_policy = M.EmptyList
         # self.context = Ctx.Context(
         #     constructor_registry,
         #     M.EmptyList,
@@ -110,16 +126,25 @@ class Hypergraph:
         self.rule_order = Ctx.ContextRuleOrder(self.context)()
         self.derivations = Ctx.ContextDerivations(self.context)()
         self.derivation_schemata = Ctx.ContextDerivationSchemata(self.context)()
-        # self.search_history = Ctx.ContextSearchHistory(self.context)()
-        # self.search_comparisons = Ctx.ContextSearchComparisons(self.context)()
-        # self.search_jobs = Ctx.ContextSearchJobs(self.context)()
-        # self.search_memo = Ctx.ContextSearchMemo(self.context)()
         self.search_history = Ctx.ContextSearchHistory(self.context)()
         self.search_comparisons = Ctx.ContextSearchComparisons(self.context)()
         self.search_comparison_jobs = Ctx.ContextSearchComparisonJobs(self.context)()
         self.search_jobs = Ctx.ContextSearchJobs(self.context)()
         self.search_memo = Ctx.ContextSearchMemo(self.context)()
         self.nat_value_index = Ctx.ContextNatValueIndex(self.context)()
+        self.dependency_requests = Ctx.ContextDependencyRequests(self.context)()
+        self.dependency_graph = Ctx.ContextDependencyGraph(self.context)()
+        self.generator_metrics = Ctx.ContextGeneratorMetrics(self.context)()
+        self.last_proof = Ctx.ContextLastProof(self.context)()
+        self.research_residuals = Ctx.ContextResearchResiduals(self.context)()
+        self.provenance_map = Ctx.ContextProvenanceMap(self.context)()
+        self.generator_policy = Ctx.ContextGeneratorPolicy(self.context)()
+        self.last_residuals = Ctx.ContextLastResiduals(self.context)()
+        self.counterfactual_results = Ctx.ContextCounterfactualResults(self.context)()
+        self.research_mode = Ctx.ContextResearchMode(self.context)()
+        self.research_attempts = Ctx.ContextResearchAttempts(self.context)()
+        self.intervention_episodes = Ctx.ContextInterventionEpisodes(self.context)()
+        self.dependency_policies = Ctx.ContextDependencyPolicies(self.context)()
         M.AllConstructors = M.set_all_constructors(self.constructor_registry)
         M.NatValueIndex = self.nat_value_index
         return self.context
@@ -171,7 +196,71 @@ class Hypergraph:
         self._replace_context(all_rules=updated_rules, rule_order=updated_order, next_rule_index=next_index, constructors=registry)
         return rule
 
+    def record_provenance(self, tag, subject, witness=None):
+        """Append one ProvenanceRecord to this graph's session chain."""
+        from . import provenance as Prov
+
+        witness_term = witness if witness is not None else M.EmptyList
+        pair = Prov.RecordProvenance(self, tag, subject, witness_term)()
+        # RecordProvenance returns Pair(record, new_chain); the chain is
+        # the whole pair so the newest record is its head.
+        self._proof_provenance = pair
+        return self._proof_provenance
+
+    def provenance_chain(self):
+        from . import provenance as Prov
+
+        return Prov.ProvenanceChain(self)()
+
+    def proof_evaluation_mode(self):
+        from . import provenance as Prov
+
+        return Prov.EvaluationMode(self)()
+
+    def set_proof_evaluation_mode(self, flag):
+        from . import provenance as Prov
+
+        return Prov.SetEvaluationMode(self, flag)()
+
+    # --- Learning instrument: rule origins and proof policy ---------------
+
+    def tag_rule_origin(self, rule, origin_tag):
+        from . import provenance as Prov
+
+        updated = Prov.TagRuleOrigin(self._rule_origins, rule, origin_tag)()
+        self._rule_origins = updated
+        return updated
+
+    def rule_origin(self, rule):
+        from . import provenance as Prov
+
+        registry = Ctx.ContextConstructors(self.context)()
+        return Prov.LookupRuleOrigin(self._rule_origins, rule, registry)()
+
+    def proof_policy(self):
+        from . import provenance as Prov
+
+        if M.IdentityCompare(self._proof_policy, M.EmptyList)() is M.truth_value:
+            return Prov.DefaultProofPolicy()()
+        return self._proof_policy
+
+    def set_proof_policy(self, policy):
+        self._proof_policy = policy
+        return policy
+
+    def admissible_rules(self, rules):
+        """A rule chain filtered by the active proof policy's origins."""
+        from . import provenance as Prov
+
+        registry = Ctx.ContextConstructors(self.context)()
+        policy = self.proof_policy()
+        return Prov.FilterRulesByPolicy(rules, self._rule_origins, policy, registry)()
+
     def lookup_derivation(self, start, goal):
+        from . import provenance as Prov
+
+        if M.IdentityCompare(Prov.EvaluationMode(self)(), M.truth_value)() is M.truth_value:
+            return M.EmptyList
         return P.LookupDerivation(start, goal, Ctx.ContextDerivations(self.context)())()
 
     def add_derivation(self, start, goal, derivation):
@@ -269,6 +358,102 @@ class Hypergraph:
         updated = RemoveSearchJob(start, goal, heuristic, Ctx.ContextSearchJobs(self.context)())()
         self._replace_context(search_jobs=updated)
         return updated
+
+    def add_dependency_request(self, req):
+        self._replace_context(dependency_requests=M.Pair(req, Ctx.ContextDependencyRequests(self.context)()))
+        return req
+
+    def lookup_dependency_request(self, dep_id):
+        cur = Ctx.ContextDependencyRequests(self.context)()
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            req = M.Head(cur)()
+            try:
+                # extract id via Tail chain 11
+                chain = M.Tail(req)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                chain = M.Tail(chain)()
+                rid = M.Head(chain)()
+                if M.TermEqual(rid, dep_id)() is M.truth_value:
+                    return req
+            except Exception:
+                pass
+            cur = M.Tail(cur)()
+        return M.EmptyList
+
+    def add_dependency_graph_entry(self, entry):
+        self._replace_context(dependency_graph=M.Pair(entry, Ctx.ContextDependencyGraph(self.context)()))
+        return entry
+
+    def add_generator_metric(self, metric):
+        self._replace_context(generator_metrics=M.Pair(metric, Ctx.ContextGeneratorMetrics(self.context)()))
+        return metric
+
+    def set_last_proof(self, proof_term):
+        self._replace_context(last_proof=proof_term)
+        return proof_term
+
+    def set_last_residuals(self, residuals):
+        self._replace_context(last_residuals=residuals, research_residuals=residuals)
+        return residuals
+
+    def add_provenance(self, term, prov_label):
+        entry = M.Pair(term, M.Pair(prov_label, M.EmptyList))
+        self._replace_context(provenance_map=M.Pair(entry, Ctx.ContextProvenanceMap(self.context)()))
+        return entry
+
+    def add_counterfactual_result(self, result):
+        self._replace_context(counterfactual_results=M.Pair(result, Ctx.ContextCounterfactualResults(self.context)()))
+        return result
+
+    def set_research_mode(self, enabled):
+        if M.IdentityCompare(enabled, M.truth_value)() is M.truth_value:
+            marker = M.Pair(Lmod.ResearchModeLabel, M.EmptyList)
+            self._replace_context(research_mode=M.Pair(marker, Ctx.ContextResearchMode(self.context)()))
+        else:
+            self._replace_context(research_mode=M.EmptyList)
+
+    def record_research_attempt(self, attempt):
+        """Append one AttemptedRule record to this session's attempt chain."""
+        self._replace_context(
+            research_attempts=M.Pair(attempt, Ctx.ContextResearchAttempts(self.context)())
+        )
+        self.research_attempts = Ctx.ContextResearchAttempts(self.context)()
+        return attempt
+
+    def record_intervention_episode(self, episode):
+        """Append one measured live-teaching episode, newest first."""
+        self._replace_context(
+            intervention_episodes=M.Pair(episode, Ctx.ContextInterventionEpisodes(self.context)())
+        )
+        return episode
+
+    def set_dependency_policies(self, policies):
+        """Replace the learned-policy chain wholesale."""
+        self._replace_context(dependency_policies=policies)
+        return policies
+
+    def reset_learned_memory(self):
+        """Forget episodes and policies. A cold checkpoint has neither."""
+        self._replace_context(intervention_episodes=M.EmptyList, dependency_policies=M.EmptyList)
+        return M.EmptyList
+
+    def clear_research_attempts(self):
+        """Drop the attempt chain. Used when a run restarts."""
+        self._replace_context(research_attempts=M.EmptyList)
+        self.research_attempts = M.EmptyList
+        return M.EmptyList
+
+    def is_research_mode(self):
+        rm = Ctx.ContextResearchMode(self.context)()
+        return M.IdentityCompare(rm, M.EmptyList)() is M.false_value
 
     def _prepend_node_unchecked(self, x):
         self._replace_context(nodes=M.Pair(x, Ctx.ContextNodes(self.context)()))
@@ -11721,8 +11906,14 @@ class DefaultCorrespondenceVocabulary(M.Edge):
             M.Pair(
             CompileRuleToLaw(P.Rule(genus_body, genus_meaning))(),
             M.Pair(
-            CompileRuleToLaw(P.Rule(genus_body_bare, genus_meaning))(),
-            M.Pair(
+            # `genus_body_bare` -- the pattern `?a` -- is deliberately NOT a
+            # template law. ConverseInterpretations consults the number-word
+            # entries only when NO template matched, and `?a` matches every
+            # one-word sentence, so as a template it shadowed every number
+            # word: `four` parsed as a genus rather than 4, and every equality
+            # question died on its bare right clause (defect: the whole
+            # ConversePropositionTest crash). A genus is read from the
+            # anchored `a ?a` form; a bare noun keeps its own meaning.
             CompileRuleToLaw(P.Rule(equal_sentence, equal_meaning))(),
             M.Pair(
                 CompileRuleToLaw(P.Rule(even_sentence, even_meaning))(),
@@ -11819,7 +12010,6 @@ class DefaultCorrespondenceVocabulary(M.Edge):
                         ),
                     ),
                 ),
-            ),
             ),
             ),
             ),
@@ -17707,6 +17897,20 @@ class TestShardAccept(M.Edge):
     """Advance the test ordinal and admit it only to the configured shard."""
 
     def __init__(self, graph):
+        # A filtered run is not a shard run: nothing is being assigned to
+        # a shard, so the cursor has nothing to decide and ticking it is
+        # minutes of pure waste -- each tick replaces the constructor
+        # context, and that context is a large tree. Admit everything and
+        # let `_register_test` do the selecting.
+        #
+        # The full-suite path is untouched, and the pin is a static walk
+        # of the registration source rather than a runtime cursor reading,
+        # so 305 / 218 / 0 means the same thing in both modes.
+        if getattr(graph, "_test_name_filter", None) is not None:
+            self.result = M.truth_value
+            super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+            return
+
         registry = M.FromContextGetConstructors(graph)()
         self.result = M.NatEq(
             graph._test_shard_cursor,
@@ -17724,6 +17928,51 @@ class TestShardAccept(M.Edge):
 
     def __call__(self):
         return self.result
+
+
+class TestNameFilter(M.Edge):
+    """Run only these tests, by exact name.
+
+    Selection is applied *at registration*, before the test object
+    exists. That is the whole point: these tests do their work in their
+    constructors, so a filter applied at run time would save nothing --
+    installing the full suite costs tens of minutes even when one test is
+    wanted, because all 305 get built to be thrown away.
+
+    The shard cursor is deliberately untouched. Every guard still ticks
+    whether or not its test is admitted, so a filtered run cannot move a
+    test across a shard boundary, and the cursor pin (305 / 218 / 0) means
+    the same thing in both modes. A filtered run is therefore evidence
+    about the named tests only; it is never a baseline, and the shard
+    runner is the only thing that produces one.
+    """
+
+    def __init__(self, graph, names):
+        wanted = set()
+        walker = names
+        while M.Compare(walker, M.EmptyList)() is M.false_value:
+            wanted.add(str(M.Head(walker)()()))
+            walker = M.Tail(walker)()
+        graph._test_name_filter = wanted or None
+        self.result = graph
+        super().__init__(
+            inputs=M.Pair(graph, M.Pair(names, M.EmptyList)),
+            results=M.Pair(graph, M.EmptyList),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+def test_name_wanted(graph, name):
+    """Whether `name` survives the current name filter.
+
+    No filter set means everything is admitted, so the full-suite path
+    behaves exactly as it did before the filter existed.
+    """
+
+    wanted = getattr(graph, "_test_name_filter", None)
+    return wanted is None or name in wanted
 
 
 class RunDefaultTestShard(M.Edge):
@@ -17774,8 +18023,10 @@ class Test(Hypergraph):
     def run(self):
         result = self.computation_edge()
 
+        actual = result
         if M.IsPair(result)() is M.truth_value:
             value = M.Head(result)()
+            actual = value
             rest = M.Tail(result)()
             if M.IsPair(rest)() is M.truth_value:
                 maybe_registry = M.Head(rest)()
@@ -17800,7 +18051,12 @@ class Test(Hypergraph):
             outcome = M.TestFail(M.FromContextGetConstructors(self.graph)())
 
         self.result = outcome
-        entry = M.Pair(self.name, M.Pair(outcome, M.EmptyList))
+        # The third field carries the value the test actually returned, not
+        # only the OK/Fail verdict. TestResultsSummary needs it to tell a
+        # genuine pass from a test that returned a known-open sentinel and
+        # was expected to: both come back TestOK, and folding the second
+        # into the pass column hides a standing defect behind a green run.
+        entry = M.Pair(self.name, M.Pair(outcome, M.Pair(actual, M.EmptyList)))
         self.graph._replace_context(test_results=M.Pair(entry, M.FromContextGetTestResults(self.graph)()))
         return entry
 
@@ -17916,6 +18172,49 @@ class RunDefaultTestsParallel(M.Edge):
         return self.result
 
 
+def _term_text(x):
+    """The readable text a term carries, or "" when it carries none.
+
+    Read by value, never by identity: shard results cross a process
+    boundary through a queue on their way to the tally, and an unpickled
+    sentinel is a different object carrying the same text.
+
+    This runs over every result the suite produced, so it refuses to let
+    one unprintable value take the report down with it: a term that
+    carries no text reads as empty and is simply not an open sentinel.
+    """
+
+    try:
+        value = x()
+    except Exception:
+        return ""
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _is_open_sentinel(actual):
+    """True when a test returned one of the registered OPEN sentinels.
+
+    A test registered against an open sentinel reports OK, so the returned
+    value is the only place the standing defect is visible. Both the tally
+    and the report read it here, from one list, by text so that it holds
+    for a shard's results as well as for a test run in this process.
+    """
+
+    from .sentinels import OPEN_SENTINELS
+
+    text = _term_text(actual)
+    if text == "":
+        return M.false_value
+    index = 0
+    while index < len(OPEN_SENTINELS):
+        if text == _term_text(OPEN_SENTINELS[index]):
+            return M.truth_value
+        index = index + 1
+    return M.false_value
+
+
 class TestResultsReport(M.Edge):
     def __init__(self, graph):
         self.graph = graph
@@ -17926,10 +18225,28 @@ class TestResultsReport(M.Edge):
         if M.Compare(results, M.EmptyList)() is M.truth_value:
             return "No tests were run."
 
-        failed_names = self._failed_names(results)
-        if failed_names:
-            return "\n".join(failed_names)
+        lines = list(self._failed_names(results))
+        open_names = self._open_names(results)
+        if open_names:
+            lines.append("open: " + ", ".join(open_names))
+        if lines:
+            return "\n".join(lines)
         return "All the tests have passed."
+
+    def _open_names(self, results):
+        if M.Compare(results, M.EmptyList)() is M.truth_value:
+            return []
+
+        entry = M.Head(results)()
+        rest = M.Tail(results)()
+        names = self._open_names(rest)
+
+        outcome = M.Head(M.Tail(entry)())()
+        if self._is_test_ok(outcome) is M.truth_value:
+            actual = M.Head(M.Tail(M.Tail(entry)())())()
+            if _is_open_sentinel(actual) is M.truth_value:
+                names.append(self._name_text(M.Head(entry)()))
+        return names
 
     def _failed_names(self, results):
         if M.Compare(results, M.EmptyList)() is M.truth_value:
@@ -17944,8 +18261,38 @@ class TestResultsReport(M.Edge):
         if self._is_test_ok(outcome) is M.truth_value:
             return failed
 
-        failed.append(self._name_text(name))
+        # A failing test names what it returned, not only that it failed.
+        # The two cursor pins differ only in the value they hand back, and
+        # that value is the whole difference between "bump the count in
+        # this commit" and "stop and re-baseline".
+        actual = M.Head(M.Tail(M.Tail(entry)())())()
+        line = self._name_text(name)
+        returned = self._optional_text(actual)
+        if returned and len(returned) <= 60:
+            line = line + " -> " + returned
+        failed.append(line)
         return failed
+
+    def _optional_text(self, x):
+        """Like `_name_text`, but empty when the value carries no text.
+
+        A failing test's actual result is often a machine object with no
+        readable value, and printing its repr would bury the names that
+        matter.
+        """
+        constructor = M.GetConstructor(x, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            label = M.Head(constructor)()
+            if M.IdentityCompare(label, M.TestNameLabel)() is M.truth_value:
+                atom = M.Head(M.Tail(constructor)())()
+                value = atom()
+                if value is None:
+                    return ""
+                return str(value)
+        value = x()
+        if value is None:
+            return ""
+        return str(value)
 
     def _is_test_ok(self, outcome):
         value = outcome()
@@ -17971,6 +18318,105 @@ class TestResultsReport(M.Edge):
         if value is None:
             return str(name)
         return str(value)
+
+    def __call__(self):
+        return self.result
+
+
+class TestResultsSummary(M.Edge):
+    """Three-way tally: passed, failed, and known-open.
+
+    A test registered against an open sentinel reports OK, so a two-way
+    summary counts a standing defect as a pass. This prints them apart and
+    names them, so the flip from an open sentinel to `truth_value` shows up
+    in the runner output and not only in a docstring.
+
+    The open test is identified by the value it returned, which rides in
+    the third field of each result entry, so the tally is the same whether
+    the tests ran in this process or came back from a shard worker.
+    """
+
+    def __init__(self, graph):
+        self.graph = graph
+        passed = 0
+        failed = 0
+        open_names = []
+        walker = M.FromContextGetTestResults(graph)()
+        while M.Compare(walker, M.EmptyList)() is M.false_value:
+            entry = M.Head(walker)()
+            name_text = self._name_text(M.Head(entry)())
+            outcome = M.Head(M.Tail(entry)())()
+            actual = M.Head(M.Tail(M.Tail(entry)())())()
+            if self._is_test_ok(outcome) is M.truth_value:
+                if _is_open_sentinel(actual) is M.truth_value:
+                    open_names.append(name_text)
+                else:
+                    passed = passed + 1
+            else:
+                failed = failed + 1
+            walker = M.Tail(walker)()
+
+        if passed == 0 and failed == 0 and not open_names:
+            self.result = "No tests were run."
+        else:
+            suffix = ""
+            if open_names:
+                suffix = " (" + ", ".join(open_names) + ")"
+            self.result = "passed: %d   failed: %d   open: %d%s" % (
+                passed,
+                failed,
+                len(open_names),
+                suffix,
+            )
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
+
+    def _is_test_ok(self, outcome):
+        value = outcome()
+        if value == "TestOK":
+            return M.truth_value
+        if value == "TestFail":
+            return M.false_value
+        constructor = M.GetConstructor(outcome, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        label = M.Head(constructor)()
+        return M.IdentityCompare(label, M.TestOKLabel)()
+
+    def _name_text(self, name):
+        constructor = M.GetConstructor(name, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            label = M.Head(constructor)()
+            if M.IdentityCompare(label, M.TestNameLabel)() is M.truth_value:
+                name_atom = M.Head(M.Tail(constructor)())()
+                value = name_atom()
+                return str(value)
+        value = name()
+        if value is None:
+            return str(name)
+        return str(value)
+
+    def __call__(self):
+        return self.result
+
+
+class ForAll(M.Edge):
+    """ForAll(variable, body): the universal statement shape.
+
+    Pair(ForAllLabel, Pair(variable, Pair(body, EmptyList))). The
+    variable is the bound nat the body ranges over. The extensional
+    equivalence of the two learned sieves is stated in this shape and
+    proved via the generic law machinery, not via host Python loops.
+    """
+
+    def __init__(self, variable, body):
+        self.result = M.Pair(
+            Lmod.ForAllLabel,
+            M.Pair(variable, M.Pair(body, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(variable, M.Pair(body, M.EmptyList)),
+            results=self.result,
+        )
 
     def __call__(self):
         return self.result

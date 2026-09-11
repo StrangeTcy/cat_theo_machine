@@ -1,0 +1,65 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E4",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "params",
+      "moves",
+      "bound",
+      "terminal",
+      "measure"
+    ],
+    "text": "e4 role-only"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "params",
+      "role": "params",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ]
+    },
+    {
+      "id": "moves",
+      "role": "moves",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ]
+    },
+    {
+      "id": "bound",
+      "role": "bound",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ]
+    },
+    {
+      "id": "terminal",
+      "role": "terminal",
+      "kind": "derived",
+      "cites": [
+        "bound"
+      ]
+    },
+    {
+      "id": "measure",
+      "role": "measure",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ]
+    }
+  ]
+}

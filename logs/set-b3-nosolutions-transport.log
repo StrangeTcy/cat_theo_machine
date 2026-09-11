@@ -1,0 +1,41 @@
+Set B3 -- no-solutions transport
+================================
+freeze tag: experiment-4-frozen (76f4389); operator: agent (contaminated),
+session script by fable 5.1; the odd-equals-even impossibility taught as
+DOMAIN_AXIOM; no law taught -- the residual named none.
+
+Outcome: class A. The machine has NO operational surface for
+quantified impossibility statements: nothing consumes a nosolutions
+term, so solution-nonexistence at one exponent cannot transport
+anywhere, and the stall is honestly uncharacterized. This is the
+session that predicts Experiment 4: the FLT sentence is a nosolutions
+statement under a quantifier, so it will stall class A for exactly this
+reason -- the absence of any nosolutions-consuming law -- and not
+because of anything about exponents. The prediction is on record
+before the run.
+
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> load theorem packs
+hyge> loading the theorem packs
+hyge> theorem packs loaded: library rules 167; provenance LIBRARY_THEOREM; they join every attempt from now on.
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: loaded; library rules 167 (LIBRARY_THEOREM)
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> assume axiom: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+hyge> axiom recorded with provenance DOMAIN_AXIOM: (nosolutions positive-integers (unknowns x y) (eq (times 2 x) (plus (times 2 y) 1)))
+you> attempt goal: (nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))
+hyge> FAILED. cost=334; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (nosolutions positive-integers (unknowns x y) (eq (pow (times 2 x) 3) (pow (plus (times 2 y) 1) 3)))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> goodbye
+hyge> goodbye
