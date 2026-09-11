@@ -299,3 +299,61 @@ process tool it lost the evidence along with the run — nothing on disk.
 `tools/run_shards_detached.sh` exists precisely to prevent that, and the
 second attempt used it: logs at `logs/shard-0.log` and `logs/shard-1.log`,
 surviving any process kill. Use the wrapper; do not run the suite bare.
+
+## Host-tools import — the published repair-wave base
+
+Tag **`hosttools-f59fb92`**, commit `f59fb92`. This is the base the four
+unbuilt repair lanes branch from.
+
+```text
+classification  NON-SEMANTIC -- host tooling only
+tool source     e904cfaf3a4f6ae159889eebb33b144b1b22e6be (73 files)
+F-5 cleanup     31306e1 (tools/cur_extract_evidence.py, 2 comment lines)
+harness         2b8b10d (tools/tests/cur_import/run.py, 17/17 selftests)
+rehearsal       f1aa963 - evidence consulted, not imported
+runtime base    fa4b346, re-pinned live from the rehearsal's 13cd338
+```
+
+**Verification recorded:**
+
+```text
+completion.json                  present, ok true, imported_count 73
+--verify                         ACCEPT
+byte+mode vs import-paths.txt    72/72 match, 0 mismatched,
+                                 1 superseded by the F-5 cleanup
+F-5 digest                       edec65b8...9783e MATCH
+five suites, composed tree       cur_grader 56/56, cur_extractor 30/30,
+                                 cur_schema 13/13, cur_pipeline 12/12,
+                                 hardening 12/12 - all match source
+pins                             306 / 218 / 0 PASS
+machine reproducer               worker_protocol_test +
+                                 learned_memory_checkpoint_test -> 2/2
+machine-side diff outside cur_*  empty
+```
+
+The last line is what makes NON-SEMANTIC true rather than claimed: no
+`.py` outside `tools/cur_*` and `tools/tests/cur_*` differs from
+`fa4b346`. Nothing in matcher, search, planner, packs or labels was
+touched, and the pins did not move.
+
+**A correction this lane owes the programme.** `e904cfa`, `31306e1`,
+`f1aa963`, `9ac8e10` and `e18e31f` were each reported at some point as
+unresolvable in this clone. Every one of them is real; they live on other
+`arena/*` branches that had not been fetched. The rule is now: a SHA is
+"unresolvable" only after
+
+```text
+git fetch origin 'refs/heads/arena/*:refs/remotes/origin/arena/*'
+git cat-file -e <sha>^{commit}
+```
+
+both fail. Branch names on this remote carry a `-cat-theo-machine`
+suffix, which is what defeated the first two fetch attempts.
+
+**Baseline for every future batch** — the item-4 six-set, by name:
+`tree_insert_deep_pair_lookup_avoids_recursion_test`,
+`compare_search_modes_fill_warms_resident_pool_before_root_wave_test`,
+`heuristic_canonical_knowledge_agreement_test`, `curator_report_test`,
+`compare_search_modes_finds_reusable_worker_snapshot_dir_test`,
+`cold_e2_reaches_snapshot_save_test`. The last is pre-existing, proven
+identical at `41e8078`, `994a081` and `ddc3d79`.
