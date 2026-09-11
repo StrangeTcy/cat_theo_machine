@@ -1,0 +1,74 @@
+date: 2026-09-11
+agent: C-eng
+branch: arena/01a06da9-cat-theo-machine
+tip: f6cd5723a74157033d7f21c094bfaa511bcc26af
+classification: SEMANTIC
+ready for INT: yes
+
+1. merge range (oldest → newest), ancestors of f6cd572
+   099586ee811935c55a9eaea76cf0211c74401463 [SHARED] process workers: two OS processes, checked join, serial admission
+   6216ce3ea395ccbc3a0cf34139fba7376b8b683b [SHARED] C1 findings: fill phase-gate, reusable TermEqual, ruling request
+   513f8833140c8bc930143fe796d9c9265e1b5889 [SHARED] record INT ruling REVIVE-LATER on compare_search_modes
+   7cf6394359455a002eb1df901d882ae719abe302 [SHARED] two-shard suite matches preflight; compare reds unchanged
+   56a5fc6a2b23d3fa96c7a944ebdb98cb62d5d85b [SHARED] SerialAdmitProposal ablation: vanish on reset, return on re-mine
+   a41406cd1ee11a5ce2d80d29f8df7b3a852a5313 [SHARED] finding: learned-memory mask absent; sibling independence blocked
+   24a84c235018057948ff6222d9602700378fceff [SHARED] SerialAdmitProposal cites re-baseline point on each admission
+   8620e2d3c7585ee334e7e81bc06a9d03abd5238b [SHARED] CheckedAdmitProposal records origin, coordinator, GraphVersion on gated admission
+   d5917947ea8ccb85183e5637094d2cc9b3758ddb [SHARED] ledger CheckedAdmitProposal stale-mismatch rule
+   3e1a2e0fdaf051b0c834482765c22f667c2f3485 [SHARED] sibling independence via RetireLaw; observation journal boundary
+   f6cd5723a74157033d7f21c094bfaa511bcc26af [SHARED] AttemptedRule and CounterfactualEvidence; evidence-class neutrality
+
+   frozen concurrency line: shared-7cf6394 @ 7cf6394359455a002eb1df901d882ae719abe302
+   successor tag: owed by INT after suite; not cut by C-eng
+
+2. classification: SEMANTIC
+   grounds: subprocess workers, join terms, serial/checked admission,
+   retirement-based sibling independence, two new evidence-class labels
+
+3. focused tests INT runs (exact names):
+   shared_two_workers_overlap_and_join_test
+   shared_or_join_and_crash_execution_failure_test
+   shared_serial_admission_and_stale_attempt_test
+   shared_serial_admit_proposal_ablation_test
+   shared_serial_admit_proposal_cites_baseline_test
+   shared_checked_admit_proposal_logging_test
+   shared_sibling_independence_via_retirement_test
+   shared_observation_journal_boundary_test
+   shared_evidence_class_neutrality_test
+
+4. new labels for completeness-table check:
+   AttemptedRuleLabel
+   CounterfactualEvidenceLabel
+   journal constructors (workers.py, not SNAPSHOT names):
+     AttemptedRule, AttemptedRuleValue, AttemptedRuleOrigin
+     CounterfactualEvidence, CounterfactualEvidenceClaim, CounterfactualEvidenceResidual
+   registered:
+     labels.py sync_from_namespace: AttemptedRuleLabel, CounterfactualEvidenceLabel
+     persistence.py SNAPSHOT_SYMBOL_NAMES: AttemptedRuleLabel, CounterfactualEvidenceLabel
+   SNAPSHOT_SYMBOL_NAMES length: 276 (prior 274 at 3e1a2e0; +2 this cut)
+   no separate guard-count symbol on this lineage; length above is the bump
+
+5. baseline expectation:
+   compare_search_modes reds: REVIVE-LATER parked, same two shapes
+     compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+     compare_search_modes_finds_reusable_worker_snapshot_dir_test
+   new reds: zero
+   no absorbed reds without ledger entry
+
+6. files touched (INT path allowlist):
+   workers.py
+   testsuite.py [S]/[SHARED]
+   labels.py [S]
+   persistence.py (SNAPSHOT_SYMBOL_NAMES)
+   protocol/SHARED.md
+   verification/*
+
+7. out of scope:
+   CONVERGE
+   joint-set rent
+   Wave 1
+   learned-memory mask implementation
+   compare_search_modes edits
+
+8. ready for INT: yes
+   blocked on: INT two-shard suite + successor tag to shared-7cf6394

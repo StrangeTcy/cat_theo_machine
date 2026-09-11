@@ -232,6 +232,12 @@ The mask remains absent; it is not required for this item.
 
 CONVERGE is unrelated and still waits on pool warming / snapshot reuse.
 
+## Merge package (handoff to INT)
+
+SEMANTIC. Tip `f6cd572`. Artifact: `verification/2026-09-11-C-ENG-MERGE-PACKAGE.txt`.
+Ready for INT two-shard suite and successor tag to `shared-7cf6394`.
+C-eng does not cut the tag. CONVERGE, joint-set rent, and Wave 1 stay out of scope.
+
 ## Deferred
 
 joint-set rent gate; old-subsystem replacement; full snapshot restore
