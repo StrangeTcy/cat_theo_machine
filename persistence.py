@@ -464,6 +464,8 @@ SNAPSHOT_SYMBOL_NAMES = [
     "AdmissionSucceededLabel",
     "AdmissionStaleLabel",
     "AdmissionRejectedLabel",
+    "AttemptedRuleLabel",
+    "CounterfactualEvidenceLabel",
     "ZeroLabel",
     "one",
     "two",

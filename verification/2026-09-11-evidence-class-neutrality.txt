@@ -1,0 +1,36 @@
+date: 2026-09-11
+line: arena/01a06da9-cat-theo-machine
+base: 3e1a2e0fdaf051b0c834482765c22f667c2f3485
+subject: AttemptedRule + CounterfactualEvidence; evidence-class neutrality
+
+invocation:
+  /tmp/hyge-venv/bin/python isolated constructors on cat_theo_machine.testsuite
+
+results:
+  SharedEvidenceClassNeutralityTest True
+  SharedObservationJournalBoundaryTest True
+  SharedSiblingIndependenceViaRetirementTest True
+  SharedCheckedAdmitProposalLoggingTest True
+  SharedSerialAdmitProposalAblationTest True
+
+neutrality:
+  merge of ObservationJournal + traces + residuals + AttemptedRule +
+  CounterfactualEvidence into GraphVersion nodes:
+    InstalledLaws Compare equal: yes
+    InstalledPolicy Compare equal: yes
+    Match Compare equal: yes
+    Rewrite Compare equal: yes
+    no law installed by the merge: yes
+  SerialAdmitProposal on observation/AttemptedRule/CounterfactualEvidence:
+    AdmissionRejectedLabel, empty queue: yes
+  SerialAdmitProposal on ProposalJournal: queued: yes
+  CheckedAdmitProposal on observation: AdmissionRejectedLabel, prior law remains: yes
+  admission log unchanged by merge: yes
+  journal identity intact: yes
+
+not claimed:
+  FireAny dispatch entry for AttemptedRule / CounterfactualEvidence
+  proof-rule installation of observation terms
+  two-shard suite run
+  CONVERGE opened
+  tag cut

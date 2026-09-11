@@ -111,6 +111,72 @@ class ProposalJournal(M.Edge):
         return self.result
 
 
+class AttemptedRule(M.Edge):
+    def __init__(self, rule, origin):
+        self.result = M.Pair(
+            L.AttemptedRuleLabel,
+            M.Pair(rule, M.Pair(origin, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(rule, M.Pair(origin, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleValue(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class AttemptedRuleOrigin(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CounterfactualEvidence(M.Edge):
+    def __init__(self, claim, residual):
+        self.result = M.Pair(
+            L.CounterfactualEvidenceLabel,
+            M.Pair(claim, M.Pair(residual, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(claim, M.Pair(residual, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class CounterfactualEvidenceClaim(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(term)())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CounterfactualEvidenceResidual(M.Edge):
+    def __init__(self, term):
+        self.result = M.Head(M.Tail(M.Tail(term)())())()
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class SnapshotIdentity(M.Edge):
     def __init__(self, path):
         digest = M.EmptyList

@@ -14087,6 +14087,145 @@ class SharedObservationJournalBoundaryTest(M.Edge):
         return self.result
 
 
+class SharedEvidenceClassNeutralityTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        work_dir = tempfile.mkdtemp(prefix="hyge-evidence-class-")
+        snap_path = os.path.join(work_dir, "coordinator.snapshot.json")
+        Wmod.WriteMinimalSnapshot(snap_path)()
+        origin = Wmod.SnapshotIdentity(snap_path)()
+        reconstructed = Wmod.SnapshotIdentity(snap_path)()
+        left = M.Pair(Lmod.ZeroLabel, empty)
+        right = M.Pair(Lmod.SuccLabel, M.Pair(left, empty))
+        rule = Pmod.Rule(left, right)()
+        law = Gmod.CompileRuleToLaw(rule)()
+        proposal = Gmod.Proposal(law, M.Char("evidence-class-proposal"))()
+        proposal_journal = Wmod.ProposalJournal(M.Pair(proposal, empty))()
+        trace = M.Char("worker-trace")
+        residual = M.Char("worker-residual")
+        attempted = Wmod.AttemptedRule(rule, M.Char("worker-a"))()
+        counterfactual = Wmod.CounterfactualEvidence(
+            M.Char("claim"),
+            residual,
+        )()
+        entries = M.Pair(
+            trace,
+            M.Pair(
+                residual,
+                M.Pair(attempted, M.Pair(counterfactual, empty)),
+            ),
+        )
+        observation = Wmod.ObservationJournal(entries)()
+        saved = observation
+        encoded = Gmod.EncodeTermAsGraph(left)()
+        base = Gmod.GraphVersion(
+            Gmod.GraphNodes(encoded)(),
+            Gmod.GraphEdges(encoded)(),
+            empty,
+        )()
+        authority = M.Char("shared-curator")
+        admitted = Wmod.CheckedAdmitProposal(
+            base,
+            proposal_journal,
+            reconstructed,
+            snap_path,
+            authority,
+        )
+        admitted()
+        log = admitted.result
+        additions = M.Pair(
+            observation,
+            M.Pair(
+                trace,
+                M.Pair(
+                    residual,
+                    M.Pair(attempted, M.Pair(counterfactual, empty)),
+                ),
+            ),
+        )
+        merged = Gmod.GraphVersion(
+            Gmod.ChainAddMissing(Gmod.GraphNodes(admitted.version)(), additions)(),
+            Gmod.GraphEdges(admitted.version)(),
+            Gmod.GraphVersionInvariants(admitted.version)(),
+        )()
+        laws_before = Gmod.InstalledLaws(admitted.version)()
+        laws_after = Gmod.InstalledLaws(merged)()
+        policy_before = Gmod.InstalledPolicy(admitted.version)()
+        policy_after = Gmod.InstalledPolicy(merged)()
+        match_before = M.Match(left, left)()
+        match_after = M.Match(left, left)()
+        rewrite_before = Xmod.Rewrite(Pmod.Rule(left, right)(), left, empty)()
+        rewrite_after = Xmod.Rewrite(Pmod.Rule(left, right)(), left, empty)()
+        serial_observation = Wmod.SerialAdmitProposal(empty, observation)
+        serial_observation()
+        serial_attempted = Wmod.SerialAdmitProposal(empty, attempted)
+        serial_attempted()
+        serial_counterfactual = Wmod.SerialAdmitProposal(empty, counterfactual)
+        serial_counterfactual()
+        serial_proposal = Wmod.SerialAdmitProposal(empty, proposal_journal)
+        serial_proposal()
+        checked_observation = Wmod.CheckedAdmitProposal(
+            admitted.version,
+            observation,
+            origin,
+            snap_path,
+            authority,
+        )
+        checked_observation()
+        self.result = M.truth_value
+        if M.IdentityCompare(admitted.status, Lmod.AdmissionSucceededLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(laws_before, law)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(laws_before, laws_after)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(policy_before, policy_after)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(match_before, match_after)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(rewrite_before, rewrite_after)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(merged)(), observation)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(merged)(), attempted)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.GraphNodes(merged)(), counterfactual)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_observation.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_observation.result, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_attempted.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_attempted.result, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_counterfactual.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_counterfactual.result, empty)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_proposal.status, Lmod.ProposalJournalLabel)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(serial_proposal.result, empty)() is M.truth_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(checked_observation.status, Lmod.AdmissionRejectedLabel)() is M.false_value:
+            self.result = M.false_value
+        elif Gmod.ChainHasTerm(Gmod.InstalledLaws(checked_observation.version)(), law)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(admitted.result, log)() is M.false_value:
+            self.result = M.false_value
+        elif M.IdentityCompare(observation, saved)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(Wmod.AttemptedRuleValue(attempted)(), rule)() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(Wmod.CounterfactualEvidenceResidual(counterfactual)(), residual)() is M.false_value:
+            self.result = M.false_value
+        shutil.rmtree(work_dir, ignore_errors=True)
+        super().__init__(inputs=empty, results=M.Pair(self.result, empty))
+
+    def __call__(self):
+        return self.result
+
+
 class InvarianceFlipOneRefutesParityTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -16377,6 +16516,14 @@ def install_default_tests(graph):
             "shared_observation_journal_boundary_test",
             empty,
             SharedObservationJournalBoundaryTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "shared_evidence_class_neutrality_test",
+            empty,
+            SharedEvidenceClassNeutralityTest(graph),
             M.truth_value,
         )
 

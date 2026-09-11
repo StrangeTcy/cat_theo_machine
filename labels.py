@@ -2406,6 +2406,8 @@ def sync_from_namespace(namespace):
         "AdmissionSucceededLabel",
         "AdmissionStaleLabel",
         "AdmissionRejectedLabel",
+        "AttemptedRuleLabel",
+        "CounterfactualEvidenceLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
@@ -2585,6 +2587,18 @@ class AdmissionRejectedLabel(ConstructorLabel):
 AdmissionSucceededLabel = AdmissionSucceededLabel()
 AdmissionStaleLabel = AdmissionStaleLabel()
 AdmissionRejectedLabel = AdmissionRejectedLabel()
+
+
+class AttemptedRuleLabel(ConstructorLabel):
+    pass
+
+
+class CounterfactualEvidenceLabel(ConstructorLabel):
+    pass
+
+
+AttemptedRuleLabel = AttemptedRuleLabel()
+CounterfactualEvidenceLabel = CounterfactualEvidenceLabel()
 
 
 # --- [S] ---
