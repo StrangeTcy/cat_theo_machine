@@ -248,6 +248,13 @@ class HeuristicCanonicalTerm(Edge):
         super().__init__(inputs=Pair(term, Pair(registry, EmptyList)), results=self.result)
 
     def _canonical(self, term):
+        # The arithmetic sorter is not binder-aware and orders symbolic
+        # operands by runtime identities. A quantified syntax tree is already
+        # an explicit scoped goal: do not reorder its body across processes.
+        # This changes a heuristic normalization boundary, not proof checking.
+        if M.IsPair(term)() is M.truth_value:
+            if M.Compare(M.Head(term)(), M.Char("forall"))() is M.truth_value:
+                return term
         if Pmod.IsKnowledge(term)() is M.truth_value:
             return Pmod.NormalizeKnowledge(term, self.registry)()
         return M.CanonicalArithmeticTerm(term, self.registry)()
