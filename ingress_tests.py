@@ -1,15 +1,14 @@
 """Ingress regressions. Run as a module from the project's Anaconda Prompt.
 
-No mocking or monkeypatching: the boundary check uses MachineRuntime.prove
-with a fresh empty-rule graph. The live-entrypoint fixture is separate in
-verification/live-proof-ingress.cmd and uses the normal installed packs.
+No mocking or monkeypatching. This module checks parsing and dispatch.
+Real coordinator and subprocess equality is checked through the live fixture
+and ingress_receipts, using the normal installed packs, not a substitute prover.
 """
 from . import machine as M
 from . import graph as G
 from . import labels as L
 from . import heuristics as H
 from . import proof_ingress as I
-from .runtime import MachineRuntime
 
 
 class ProofIngressRegression(M.Edge):
@@ -68,11 +67,7 @@ class ProofIngressRegression(M.Edge):
         cases = M.Pair(M.Char("prove that for all n > 2 a^n + b^n = c^n has no solutions in positive integers"), cases)
         cases = M.Pair(M.Char("prove that for all k > 3 x^k + y^k = z^k has no solutions in positive integers"), cases)
         cases = M.Pair(M.Char("prove that for all t > 0 t + 0 = t"), cases)
-        graph = G.Hypergraph(M.AllConstructors)
-        graph._search_disable_console = M.truth_value
-        graph._search_disable_progress_ticker = M.truth_value
         heuristic = H.Heuristic(M.DFSLabel, M.GoalHeadOrderLabel, M.Zero, M.one, M.one, M.one)()
-        runtime = MachineRuntime(graph, heuristic, heuristic)
         while cases is not M.EmptyList:
             request = I.LiveProofRequest(I.ProofTokenStream(M.Head(cases)()())())
             direct = I.MathematicalSentence(request.claim)
@@ -80,13 +75,8 @@ class ProofIngressRegression(M.Edge):
                 self.result = M.false_value
             else:
                 print("parsed goal: " + I.ProofGoalText(request.goal)())
-                submission = I.SubmitForegroundGoal(runtime, request)
-                if M.Compare(submission.goal, direct.goal)() is M.false_value or M.Compare(runtime.last_foreground_goal, direct.goal)() is M.false_value:
-                    self.result = M.false_value
-                previous = runtime.last_foreground_goal
-                failed = I.LiveProofRequest(I.ProofTokenStream("prove that for all >")())
-                I.SubmitForegroundGoal(runtime, failed)()
-                if runtime.last_foreground_goal is not previous:
+                canonical = H.HeuristicCanonicalize(request.goal, heuristic, M.AllConstructors)()
+                if M.Compare(canonical, direct.goal)() is M.false_value:
                     self.result = M.false_value
             cases = M.Tail(cases)()
 
@@ -146,6 +136,6 @@ class ProofIngressRegression(M.Edge):
 
 if __name__ == "__main__":
     if ProofIngressRegression()() is M.truth_value:
-        print("PASS: proof ingress parser/dispatcher/foreground boundary regressions")
+        print("PASS: proof ingress parser/dispatcher/scope regressions")
     else:
         raise SystemExit("FAIL: proof ingress regressions")

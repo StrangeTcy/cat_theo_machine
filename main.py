@@ -2900,6 +2900,9 @@ def run_talk_mode(sentence: str = None):
             sys.stdout.flush()
             submission = Ingress.SubmitForegroundGoal(proof_runtime, request)
             derivation = submission()
+            if M.Compare(proof_runtime.last_foreground_goal, request.goal)() is M.false_value:
+                raise RuntimeError("foreground coordinator received a different goal")
+            print("hyge> foreground coordinator goal preserved (machine structural equality)")
             if derivation is M.EmptyList:
                 return "Search stalled: no derivation found. Parsing succeeded; no theorem is asserted."
             return "Foreground search returned a derivation. Ingress does not assert a checked theorem from that result."

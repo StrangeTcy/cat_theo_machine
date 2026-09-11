@@ -2,6 +2,8 @@
 rem Run ONLY from the already-open project Anaconda Prompt.
 rem No interpreter discovery, activation, checkout changes, or shared state.
 setlocal
+set "HYGE_SEARCH_WORKER_TIMEOUT=5"
+set "PYTHONDONTWRITEBYTECODE=1"
 set "HYGE_SNAPSHOT_DIR=%TEMP%\hyge-ingress-%RANDOM%-%RANDOM%"
 if exist "%HYGE_SNAPSHOT_DIR%" exit /b 2
 mkdir "%HYGE_SNAPSHOT_DIR%"
@@ -38,5 +40,14 @@ findstr /c:"hyge> four" "%HYGE_SNAPSHOT_DIR%\after-live.txt" > nul
 if errorlevel 1 exit /b 1
 findstr /c:"Traceback" /c:"expected-left-parenthesis" /c:"Use Predicate(constant)" "%HYGE_SNAPSHOT_DIR%\after-live.txt" > nul
 if not errorlevel 1 exit /b 1
-echo PASS: live ingress fixture completed; inspect the retained raw transcript for proof-search outcomes.
+for /f %%N in ('find /c "foreground coordinator goal preserved" ^< "%HYGE_SNAPSHOT_DIR%\after-live.txt"') do if not "%%N"=="3" exit /b 1
+pushd "%~dp0.."
+cd ..
+python -m %HYGE_TEST_PACKAGE%.ingress_receipts "%~dp0live-proof-ingress.inputs.txt" >> "%HYGE_SNAPSHOT_DIR%\regressions.txt" 2>&1
+set "HYGE_TEST_EXIT=%ERRORLEVEL%"
+popd
+copy /y "%HYGE_SNAPSHOT_DIR%\regressions.txt" "%~dp0live-proof-ingress-tests.txt" > nul
+copy /y "%HYGE_SNAPSHOT_DIR%\after-live.txt" "%~dp0live-proof-ingress-live-transcript.txt" > nul
+if not "%HYGE_TEST_EXIT%"=="0" exit /b 1
+echo PASS: live ingress fixture and structural worker receipts completed.
 exit /b 0
