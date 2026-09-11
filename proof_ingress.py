@@ -130,7 +130,10 @@ class ProofExpect(M.Edge):
             if M.Compare(state.word, word)() is M.truth_value:
                 self.result = ProofAdvance(state)()
             else:
-                ProofFailure(state, word)()
+                expected = word
+                if M.Compare(word, M.Char(""))() is M.truth_value:
+                    expected = M.Char("end of claim")
+                ProofFailure(state, expected)()
         super().__init__(inputs=M.Pair(state, M.Pair(word, M.EmptyList)), results=self.result)
 
     def __call__(self):
