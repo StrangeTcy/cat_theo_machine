@@ -10834,6 +10834,66 @@ class SnapshotPreservesRuleEdgeInputsTest(M.Edge):
         return self.result
 
 
+class SnapshotHostClassRefusalTest(M.Edge):
+    """The capture boundary REFUSES host classes by name.
+
+    Before the repair the same leak died inside the identity index as an
+    anonymous AttributeError; the test pins the named refusal so a silent
+    regression (or a swallowed re-anonymisation) fails loud.
+    """
+
+    def __init__(self, _graph):
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        codec = SnapshotCodec(namespace)
+        self.result = M.false_value
+        try:
+            codec.capture_objects({"host_class": SnapshotCodec})
+        except RuntimeError as exc:
+            if str(exc).find("Snapshot capture refused") != -1:
+                self.result = M.truth_value
+        except Exception:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SnapshotRestoreRebindsConstructorClassTest(M.Edge):
+    """A restored term is built from the LIVE namespace constructors.
+
+    Capture a term, restore it, and rebuild an equal term through the
+    restoring codec's namespace: the boundary must hand back objects the
+    live machine still recognizes (RawTermEqual over both), never hollow
+    copies that only print alike.
+    """
+
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        v_name = M.Char("v")
+        term = M.Pair(Lmod.SideOfLabel, M.Pair(v_name, empty))
+        codec = SnapshotCodec(namespace)
+        snapshot = codec.capture_objects({"term": term})
+        codec2 = SnapshotCodec(dict(namespace))
+        state = codec2.load_snapshot(snapshot)
+        restored_term = state.roots["term"]
+        rebuilt = codec2.namespace["Pair"](M.Char("v"), empty)
+        self.result = M.truth_value
+        if RawTermEqual(restored_term, term, M.AllConstructors)() is M.false_value:
+            self.result = M.false_value
+        elif RawTermEqual(rebuilt, M.Pair(v_name, empty), M.AllConstructors)() is M.false_value:
+            self.result = M.false_value
+        elif M.IsPair(restored_term)() is not M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SearchWorkerResumeStateRestoresSavedPlanTest(M.Edge):
     def __init__(self, _graph):
         from .main import _search_worker_checkpoint, _search_worker_mode_heuristic, _search_worker_resume_state
@@ -16660,6 +16720,22 @@ def install_default_tests(graph):
             "snapshot_preserves_rule_edge_inputs_test",
             empty,
             SnapshotPreservesRuleEdgeInputsTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_host_class_refusal_test",
+            empty,
+            SnapshotHostClassRefusalTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_restore_rebinds_constructor_class_test",
+            empty,
+            SnapshotRestoreRebindsConstructorClassTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

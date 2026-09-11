@@ -789,7 +789,31 @@ class SnapshotCodec:
             return M.truth_value
         return M.false_value
 
+    def _host_identity_error(self, obj):
+        # The capture boundary carries machine-identity objects. Anything
+        # without an `.id` — a bare class, a module, a plain host instance —
+        # cannot be interned, referenced, or restored. Say so by name.
+        try:
+            describe = obj.__name__
+        except AttributeError:
+            describe = repr(obj)
+        return RuntimeError(
+            "Snapshot capture refused: host object without machine identity: "
+            + str(describe)
+        )
+
+    def _require_capturable(self, obj):
+        try:
+            obj.id
+        except AttributeError:
+            raise self._host_identity_error(obj) from None
+        return obj
+
     def _captured_object_id(self, target):
+        try:
+            target.id
+        except AttributeError:
+            raise self._host_identity_error(target) from None
         return T.IdentityRedBlackNatLookupValue(self.object_id_index, target)()
 
     def _capture_oid_number(self, oid):
@@ -1367,7 +1391,10 @@ class SnapshotCodec:
         if self._scalar_payload(obj) is not None:
             return None
 
-        existing = self._captured_object_id(obj)
+        try:
+            existing = self._captured_object_id(obj)
+        except AttributeError:
+            raise self._host_identity_error(obj) from None
         if existing is not M.EmptyList:
             return existing
         root_oid = M.EmptyList
@@ -1405,7 +1432,7 @@ class SnapshotCodec:
                 continue
             insertion = T.IdentityRedBlackNatInsertMissing(
                 self.object_id_index,
-                current,
+                self._require_capturable(current),
                 self.next_id,
             )
             next_object_id_index = insertion()

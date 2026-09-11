@@ -1,0 +1,55 @@
+SNAPSHOT-PREFLIGHT exception probe record — 2026-09-10 (UTC)
+
+Probe: re-raise replaces the swallow in LearnedMemoryCheckpointTest
+(testsuite.py, `except Exception: self.result = M.false_value` -> `raise`).
+The swap was LOCAL to the run only and is REVERTED before this lands; the
+traceback below is the full record of what the probe surfaced at this cut.
+
+Method: tools = /home/user/preflight_repro.py (host driver, uncommitted),
+boot via boot_from_packs(PACK_PATHS, _runtime_namespace()) exactly as the
+shard runner does, then LearnedMemoryCheckpointTest constructed directly —
+the test computes its result in __init__, so construction IS the run.
+Three contexts:
+  solo — no registrations.
+  109  — the historical repro position: exactly 109 guarded _register_test
+         sites accepted (real acceptor at accepted sites, skipped sites
+         never built), then the checkpoint test.
+  full — every current site (288 at this cut), then the checkpoint test.
+
+RESULT (this cut, bb9fdb7+ repairs, probe live):
+  solo  : PASS silent — probe never fired (37.84s)
+  109   : PASS silent — probe never fired (60.07s after 109 real sites at
+          ~6s/site, including the 90.9s tao_generic_cosine_replay site;
+          transcript preflight-109c.txt)
+  full  : see appended verdict below the marker line.
+
+No traceback was produced by the LMC probe in any context: the historical
+swallowed exception does not reproduce at this cut with the current codec.
+The probe was live throughout, so a host crash inside the test body (the
+snapshot round trip: save -> boot_from_snapshot -> reset_learned_memory)
+would have surfaced; none did.
+
+Side record (measurement harness, NOT a suite defect): a make_fresh_runtime
+install (no pack boot) aborts at site 55,
+compare_search_modes_merges_packet_job_test, with
+  AttributeError: module 'cat_theo_machine.machine' has no attribute
+  'SearchJobGenerated'
+The symbol is injected into machine.__dict__ only by the boot-time namespace
+sync (runtime._sync_live_namespace: M.__dict__.update(namespace) with
+namespace = _runtime_namespace(), which includes vars(search)). Any harness
+that calls install_default_tests without first booting through
+boot_from_packs/boot_from_snapshot hits this; the production shard runner
+always boots first, so the suite is unaffected. Named here for the record
+per LAUNCH-PLAN §3 (R8 pin discipline: this is a latent host-order
+fragility, not a machine-semantic defect).
+
+--- full-context verdict appended at run end below ---
+
+full context: ABORTED AT THE 1500s HARD DEADLINE, exit 124 (killed). The
+install completed to site 161/288 (transcript preflight-full.txt, 158
+"registered" lines, steady ~6.6s/site); the remaining sites plus the
+checkpoint test did not fit the deadline. NO traceback was written to the
+transcript before the kill: the probe was live the whole way and never fired.
+The solo and 109 contexts above are the completed measurements; the
+full-suite-context measurement belongs to the two-shard production run
+(INT-owned), which covers these sites with the repair in place.

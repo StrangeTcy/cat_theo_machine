@@ -79,6 +79,14 @@ TEST_CLASSES = {
     "search_worker_resume_derivation_missing_plan_raises_runtime_error_test": "SearchWorkerResumeDerivationMissingPlanRaisesRuntimeErrorTest",
     "search_worker_resume_state_restores_saved_plan_test": "SearchWorkerResumeStateRestoresSavedPlanTest",
     "search_worker_snapshot_boot_with_runtime_namespace_test": "SearchWorkerSnapshotBootWithRuntimeNamespaceTest",
+    "learned_memory_checkpoint_test": "LearnedMemoryCheckpointTest",
+    "dependency_graph_checkpoint_test": "DependencyGraphCheckpointTest",
+    "snapshot_save_timeout_preserves_existing_snapshot_test": "SnapshotSaveTimeoutPreservesExistingSnapshotTest",
+    "snapshot_preserves_machine_edge_structure_test": "SnapshotPreservesMachineEdgeStructureTest",
+    "snapshot_preserves_constructor_labels_and_chars_test": "SnapshotPreservesConstructorLabelsAndCharsTest",
+    "snapshot_preserves_rule_edge_inputs_test": "SnapshotPreservesRuleEdgeInputsTest",
+    "snapshot_host_class_refusal_test": "SnapshotHostClassRefusalTest",
+    "snapshot_restore_rebinds_constructor_class_test": "SnapshotRestoreRebindsConstructorClassTest",
 }
 
 def main():

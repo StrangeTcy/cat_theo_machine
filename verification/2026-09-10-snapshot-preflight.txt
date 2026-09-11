@@ -1,0 +1,98 @@
+SNAPSHOT-PREFLIGHT — first deliverable transcript
+run window utc 2026-09-10T00:29Z..01:41Z, tree 3c4382b + repair
+(working branch arena/01a05d5d-cat-theo-machine; remote tip at start:
+bb9fdb7 -> 3c4382b recorded by ls-remote at first action of the turn)
+
+== STEP 1: reproduce exact-109, probe live (re-raise replaces the swallow
+in LearnedMemoryCheckpointTest; probe never committed) ==
+
+  solo : PASS (silent: probe never fired) in 37.84s
+  109  : accepted registrations before probe: 109 — exactly the historical
+         guard position, real TestShardAccept at every accepted site:
+         PASS (silent: probe never fired) in 60.07s
+  full : install reached site 161/288 at steady ~6.6s/site with the probe
+         live; killed by the 1500s hard deadline (exit 124); no traceback
+         written before the kill. Full-suite context is INT's two-shard
+         measurement, not re-derived here.
+  VERDICT for completed contexts: the historical swallowed exception does
+  NOT reproduce at this cut with the current codec.
+
+  transcript heads (109 context, first/last sites):
+  [  1.32s] registered cmp1_test
+  [  5.92s] registered cmp2_test
+  [  6.04s] registered cmp3_test
+  [...]
+  [  6.43s] registered compare_search_modes_integrates_returned_ready_packets_test
+  [  6.63s] registered compare_search_modes_empty_ready_result_refills_job_frontier_test
+  [109] accepted registrations before probe: 109
+  [109] PASS (silent: probe never fired) in 60.07s
+  VERDICT: silent in all run contexts
+
+== STEP 2: the boundary defect, shown live (pre-repair probe) ==
+
+  capture of a bare class object died inside the identity index:
+    AttributeError: type object 'Edge' has no attribute 'id'
+  (host object without machine identity -> anonymous host crash; inside the
+  checkpoint test this is exactly the shape the swallow converts into an
+  unlabelled false).
+
+== STEP 3: repair (persistence.py, this commit) ==
+
+  SnapshotCodec._captured_object_id and the capture insertion point now
+  check machine identity first and raise by NAME:
+    RuntimeError: Snapshot capture refused: host object without machine
+    identity: <name>
+  Probed after repair:
+    probing class object: <class 'cat_theo_machine.core.Edge'>
+    capture class raised RuntimeError: Snapshot capture refused: host object
+      without machine identity: Edge (0.000s)
+    capture of Edge instance ok in 0.035s
+    restored is Edge: True
+    restored marker self-consistent: True
+  Refusal semantics unchanged; the failure became a named fact.
+
+  Two default-suite tests added (shard-guarded standard registration):
+    snapshot_host_class_refusal_test            (pins the NAMED refusal; a
+                                                 bare exception no longer
+                                                 passes)
+    snapshot_restore_rebinds_constructor_class_test (restored terms are
+                                                 live-namespace objects,
+                                                 RawTermEqual-recognized)
+
+== STEP 4: same repro and atomicity tests afterward (probe live, then off) ==
+
+  focused boundary family (tools/agent_workers/focused_repro.py, map updated
+  with all six pre-existing boundary tests plus the two new ones):
+registered snapshot_restore_rebinds_constructor_class_test (SnapshotRestoreRebindsConstructorClassTest)
+registered 8 of 8
+elapsed 4.73s
+TEST_REPORT_BEGIN
+All the tests have passed.
+TEST_REPORT_END
+  (identical 8/8 result earlier in the window WITH the re-raise probe
+  installed: "All the tests have passed." — the probe never fired.)
+
+  atomicity coverage = snapshot_save_timeout_preserves_existing_snapshot_test
+  (aborted save leaves the previous file byte-intact, no .tmp residue) —
+  passes above; save's tmp+fsync+os.replace path read directly at
+  persistence.py:1745-1785.
+
+== STEP 5: regressions on the repaired tree ==
+
+  Layer D milestone-2 journal driver: ALL CHECKS ok (27 checks, 0 FAIL)
+  Layer D milestone-1 comparison driver: 18 ok, 0 FAIL
+  (run after probe removal, final tree)
+
+Remaining failure: none observed at this cut; the full-suite context run of
+these sites belongs to INT's two-shard admission and is not claimed here.
+
+== sandbox-recovery re-verification, utc 2026-09-11T00:25 ==
+The commit carrying this work (20dda2d) did not survive the sandbox
+re-clone (local objects reset to the fresh clone; the push of 2026-09-10 failed
+on an expired GH_TOKEN). The repair was re-applied byte-equivalently from the
+recorded edits onto 3c4382b, and every measurement above was RE-RUN in this
+sandbox: focused boundary family 8/8 'All the tests have passed.'
+(boundary-after2, 2026-09-11T00:2xZ), milestone-2 journal driver 27 ok / 0 FAIL,
+milestone-1 driver 18 ok / 0 FAIL. The solo/109 repro verdicts above are carried
+from 2026-09-10 against identical code; the re-raise probe was never part of
+the re-applied tracked content.
