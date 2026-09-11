@@ -48,7 +48,7 @@ else:
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 PACK_DIR = os.path.join(PACKAGE_DIR, "packs")
-SNAPSHOT_DIR = os.path.join(PACKAGE_DIR, "snapshots")
+SNAPSHOT_DIR = os.environ.get("HYGE_SNAPSHOT_DIR", os.path.join(PACKAGE_DIR, "snapshots"))
 INSPECTOR_DIR = os.path.join(PACKAGE_DIR, "inspector")
 SNAPSHOT_NAME = "hyge_snapshot_v8.json"
 SNAPSHOT_SAVE_TIMEOUT_SECONDS = 120.0
@@ -3402,25 +3402,31 @@ def run_live_mode(requested_workers):
     """
     import threading
 
-    # PACKAGE_DIR is this package; its parent is the import root, which is
-    # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
-    # only exists in the re-exec branch above, so it is recomputed here.
+    # Launch from the import root and use this checkout's package name.
+    # The child inherits the environment, including HYGE_SNAPSHOT_DIR;
+    # no fixed package alias or replacement environment mapping is needed.
     import_root = os.path.dirname(PACKAGE_DIR)
+    live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
+    if os.path.exists(live_path):
+        raise RuntimeError("Live state already has a daemon marker; use an isolated HYGE_SNAPSHOT_DIR. No daemon was stopped.")
+    try:
+        os.makedirs(SNAPSHOT_DIR)
+    except FileExistsError:
+        pass
     daemon_child = subprocess.Popen(
-        [
+        (
             sys.executable,
             "-u",
             "-m",
-            "hyge.main",
+            __package__ + ".main",
             "daemon",
             "--workers",
             str(requested_workers),
-        ],
+        ),
         cwd=import_root,
-        env=dict(os.environ, PYTHONPATH=import_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
+        encoding="utf-8",
         bufsize=1,
     )
 
@@ -3441,9 +3447,11 @@ def run_live_mode(requested_workers):
             daemon_child.wait(timeout=5)
         except subprocess.TimeoutExpired:
             daemon_child.kill()
-        live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
         if os.path.exists(live_path):
-            os.remove(live_path)
+            with open(live_path, "r", encoding="utf-8") as marker:
+                owner = marker.read().strip()
+            if owner == str(daemon_child.pid):
+                os.remove(live_path)
         print("live mode: daemon stopped.")
 
 
