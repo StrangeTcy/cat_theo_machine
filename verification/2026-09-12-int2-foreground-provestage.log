@@ -1,0 +1,375 @@
+recognized: True goalEmpty: False
+DEBUG: prove: start=<?>
+DEBUG: prove: goal=[forall, t, [implies, (0 < [bound-variable, t]), (([bound-variable, t] + 0) = [bound-variable, t])]]
+DEBUG: prove-stage: concrete proof path
+DEBUG: prove-stage: research mode - skip stored search-comparison shortcuts
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative(0)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal(0)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Positive([<?>, ?n])
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal([<?>, ?n])
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative(?x)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Positive(?a/?b)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal(?a/?b)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative((?x^2))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative((?x + ?y))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative((?x * ?y))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative((?x / ?y))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal(sqrt(?x))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative(sqrt(?x))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=SqrtSeq(?a)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NewtonStep(SqrtSeq(?a))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NewtonPositive(?s)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NewtonErrorIdentity(?s)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NewtonErrorShrinks(?s)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=SqrtSeqCauchy(?s)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsCauchy(?s)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=RealNum(?s)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal(sqrt(?a))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?c * ?a) + (?c * ?b))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?a * ?b) * ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?a * ?c) / (?b * ?d))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?a * ?b) / ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?a * ?c) / ?b)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=?a
+DEBUG: prove-stage: replacement matched goal
+DEBUG: prove-stage: unary premise did not match current
+DEBUG: prove-stage: goal-instantiating check replacement=?b
+DEBUG: prove-stage: replacement matched goal
+DEBUG: prove-stage: unary premise did not match current
+DEBUG: prove-stage: goal-instantiating check replacement=(?a / ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?b / ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?b / ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?a + ?a)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?a = (?b * ?c))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?b = ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((-?a) / ?b)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(((?a * ?d) + (-(?c * ?b))) / (?b * ?d))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(((?x * ?x) + (2 * (?x * ?y))) + (?y * ?y))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?x + (-?y)) * (?x + (-?y)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((2 * 2) * ?a)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(2 * ?a)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(2 * (?a * ?b))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(((?x * ?x) + (-(2 * (?x * ?y)))) + (?y * ?y))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?a * ?d) < (?c * ?b))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?a < ?b)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?a < ?b)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?b < ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(0 < (?a + ?a))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(0 < ?a)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(0 < Apply(?name, ?n))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(Apply(?yname, ?n) < Apply(?xname, ?n))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?a < ?c)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[<?>, ?xname, ?yname, (1 / 2)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[<?>, ?xname]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[<?>, ?yname]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[<?>, ?xname, Apply(?yname, ?n)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[<?>, ?yname, Apply(?xname, ?n)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[<?>, ?xname, [<?>, ?xname]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[<?>, ?yname, [<?>, ?yname]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=([<?>, ?xname] = [<?>, ?yname])
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal((?a + (?b * ?c)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal((?a + ?b))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=IsReal((?a * ?b))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Parameter(CommonDifference(?object))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=MiddleTermAverage(?object)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Sequence(APName(?q_obj), ?x, Apply(APName(?q_obj), [<?>, ?n]), (Apply(APName(?q_obj), ?n) + ?d))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=?base_val
+DEBUG: prove-stage: replacement matched goal
+DEBUG: prove-stage: goal-instantiating check replacement=(Apply(?q_name, ?n) + ?d)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?x + (2 * ?d))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[eq, ?x, (?b + (-?d))]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?y + ?x)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?x + (?y + ?z))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?y * ?x)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(?x * (?y * ?z))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[eq, ?right, ?left]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Polygon(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Edges(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Vertices(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=SideLengths(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Angles(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Distinct(?right, ?left)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=FirstEdge(Edges(?shape))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=SecondEdge(Edges(?shape))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=ThirdEdge(Edges(?shape))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Length(FirstEdge(Edges(?shape)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Length(SecondEdge(Edges(?shape)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Length(ThirdEdge(Edges(?shape)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=FirstAngle(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=SecondAngle(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=ThirdAngle(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Area(?shape)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved(((Length(FirstEdge(Edges(?triangle))) * Sine(SecondAngle(?triangle))) = (Length(SecondEdge(Edges(?triangle))) * Sine(FirstAngle(?triangle)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?opposite^2) = (((?adjacent1^2) + (?adjacent2^2)) + (-(2 * (?adjacent1 * (?adjacent2 * Cosine(?angle)))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=CosineRuleRelates(?opposite_length, ?adjacent_length_one, ?adjacent_length_two, ?angle_value)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Parameter(Area(?triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Area(?triangle) = (1/2 * ((Length(FirstEdge(Edges(?triangle))) * Length(SecondEdge(Edges(?triangle)))) * Sine(ThirdAngle(?triangle))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((0 < Area(?triangle)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Length(ThirdEdge(Edges(?triangle))) < (Length(FirstEdge(Edges(?triangle))) + Length(SecondEdge(Edges(?triangle))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=EvaluateProblem(?triangle)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=AlgebraicApproach(?triangle)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(((4^2) * (?t^2)) = ((?a + (?b + ?c)) * ((?a + (?b + (-?c))) * ((?a + ((-?b) + ?c)) * ((-?a) + (?b + ?c))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?a^2) = (((?b^2) + (?c^2)) + (-(2 * (?b * (?c * Cosine(?angle)))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=SideOf(Segment(?u, ?v), ?T)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Length(FirstEdge(Edges(?triangle))) = (Length(SecondEdge(Edges(?triangle))) + (-CommonDifference(SideLengths(?triangle))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Length(ThirdEdge(Edges(?triangle))) = (Length(SecondEdge(Edges(?triangle))) + CommonDifference(SideLengths(?triangle)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Length(SecondEdge(Edges(?triangle)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved(((Area(?triangle)^2) = (((3 * (Length(SecondEdge(Edges(?triangle)))^2)) * ((Length(SecondEdge(Edges(?triangle)))^2) + (-(4 * (CommonDifference(SideLengths(?triangle))^2))))) / (4 * 4))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved(((3 * (Length(SecondEdge(Edges(?triangle)))^4)) = (((3 * 4) * ((CommonDifference(SideLengths(?triangle))^2) * (Length(SecondEdge(Edges(?triangle)))^2))) + ((4 * 4) * (Area(?triangle)^2)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Length(SecondEdge(Edges(?triangle))) = sqrt(((2 * (CommonDifference(SideLengths(?triangle))^2)) + (2 * sqrt(((CommonDifference(SideLengths(?triangle))^4) + (4/3 * (Area(?triangle)^2)))))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved(SideLengths(?triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Cosine(FirstAngle(?triangle)) = ((((Length(SecondEdge(Edges(?triangle)))^2) + (Length(ThirdEdge(Edges(?triangle)))^2)) + (-(Length(FirstEdge(Edges(?triangle)))^2))) / (2 * (Length(SecondEdge(Edges(?triangle))) * Length(ThirdEdge(Edges(?triangle))))))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Cosine(SecondAngle(?triangle)) = ((((?first_edge^2) + (?third_edge^2)) + (-(?second_edge^2))) / (2 * (?first_edge * ?third_edge)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved((Cosine(ThirdAngle(?triangle)) = ((((?first_edge^2) + (?second_edge^2)) + (-(?third_edge^2))) / (2 * (?first_edge * ?second_edge)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Solved(Angles(?triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Defines(PerimeterThird(Tao Problem 1.1 triangle), (p / 3))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Defines(APSideRadicand(Tao Problem 1.1 triangle), (((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Defines(APSideOffset(Tao Problem 1.1 triangle), sqrt(APSideRadicand(Tao Problem 1.1 triangle)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Defines(APShortSide(Tao Problem 1.1 triangle), (PerimeterThird(Tao Problem 1.1 triangle) + (-APSideOffset(Tao Problem 1.1 triangle))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Defines(APMiddleSide(Tao Problem 1.1 triangle), PerimeterThird(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Defines(APLongSide(Tao Problem 1.1 triangle), (PerimeterThird(Tao Problem 1.1 triangle) + APSideOffset(Tao Problem 1.1 triangle)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Length(Segment(v, w), APShortSide(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Length(Segment(w, u), APMiddleSide(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Length(Segment(u, v), APLongSide(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(PerimeterThird(Tao Problem 1.1 triangle) + (-APSideOffset(Tao Problem 1.1 triangle)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=PerimeterThird(Tao Problem 1.1 triangle)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(PerimeterThird(Tao Problem 1.1 triangle) + APSideOffset(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=sqrt(APSideRadicand(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(p / 3)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(((p^2) / (6^2)) + (-(((3 * 4) * (A^2)) / (p^2))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Positive(PerimeterThird(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=NonNegative(APSideOffset(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=AngleMeasure(?angle, APAngleValue(Tao Problem 1.1 triangle, ?angle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((APShortSide(Tao Problem 1.1 triangle) + (APMiddleSide(Tao Problem 1.1 triangle) + APLongSide(Tao Problem 1.1 triangle))) = p)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=APAreaIdentity(Tao Problem 1.1 triangle)
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Positive(APShortSide(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Positive(APMiddleSide(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=Positive(APLongSide(Tao Problem 1.1 triangle))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=(APLongSide(Tao Problem 1.1 triangle) < (APShortSide(Tao Problem 1.1 triangle) + APMiddleSide(Tao Problem 1.1 triangle)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=arccos(((((APMiddleSide(Tao Problem 1.1 triangle)^2) + (APLongSide(Tao Problem 1.1 triangle)^2)) + (-(APShortSide(Tao Problem 1.1 triangle)^2))) / (2 * (APMiddleSide(Tao Problem 1.1 triangle) * APLongSide(Tao Problem 1.1 triangle)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=arccos(((((APShortSide(Tao Problem 1.1 triangle)^2) + (APLongSide(Tao Problem 1.1 triangle)^2)) + (-(APMiddleSide(Tao Problem 1.1 triangle)^2))) / (2 * (APShortSide(Tao Problem 1.1 triangle) * APLongSide(Tao Problem 1.1 triangle)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=arccos(((((APShortSide(Tao Problem 1.1 triangle)^2) + (APMiddleSide(Tao Problem 1.1 triangle)^2)) + (-(APLongSide(Tao Problem 1.1 triangle)^2))) / (2 * (APShortSide(Tao Problem 1.1 triangle) * APMiddleSide(Tao Problem 1.1 triangle)))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((A^2) = ((3 * ((APMiddleSide(Tao Problem 1.1 triangle)^2) * ((APMiddleSide(Tao Problem 1.1 triangle)^2) + (-(4 * (APSideOffset(Tao Problem 1.1 triangle)^2)))))) / (4^2)))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[Coin, ?i, Tails], [Coin, [<?>, ?i], Tails], [HeadsCountParity, ?p]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[Coin, ?i, Tails], [Coin, [<?>, ?i], Heads], [HeadsCountParity, ?p]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[Coin, ?i, Heads], [Coin, [<?>, ?i], Tails], [HeadsCountParity, ?p]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[Coin, ?i, Heads], [Coin, [<?>, ?i], Heads], [HeadsCountParity, ?p]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=((?a + ?b) + (-(2 * Min(?a, ?b))))
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?after, (((?s + (-?a)) + (-?b)) + AbsDiff(?a, ?b)))]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?state, (?x + ((?a + ?b) + (-(2 * Min(?a, ?b))))))]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?state, (?s + (-?d)))]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?state, (?s + (-(2 * ?k)))), Parity(?s, ?p), IsEven((2 * ?k))]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[Parity(?x, ?p), IsEven(?d), BoardSum(?state, (?x + (-?d))), Parity((?x + (-?d)), ?p)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?state, ?v), Parity(?v, ?p), Parity(BoardSumObservable, ?p)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[InitialBoard(?n), Parity(?n, ?p), BoardSum(InitialBoard(?n), (?n * ((2 * ?n) + 1)))]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[Parity(?k, ?p), BoardSum(?state, (?x * ((2 * ?k) + 1))), Parity(((2 * ?k) + 1), Odd)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?state, (?x * ?y)), Parity(?x, Odd), Parity(?y, Odd), Parity((?x * ?y), Odd)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?state, (?x * ?y)), Parity(?x, Even), Parity(?y, Odd), Parity((?x * ?y), Even)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[BoardSum(?after, (?s + (-(2 * Min(?a, ?b))))), Parity((?s + (-(2 * Min(?a, ?b)))), ?p), Parity(BoardSumObservable, ?p)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[Invariant(BlackboardProblem, Parity(BoardSumObservable)), Parity(BoardSumObservable, ?p), Terminal(?state), Parity(FinalNumber, ?p)]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, 2, ?n]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, ?a, ?c]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, ?a, (?b + ?c)]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, (?a * ?c), (?b * ?d)]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, ?x, (?a * [<?>, 0])]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, ?x, (?a * [<?>, ?b])]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, ?m, ?n]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: prove-stage: goal-instantiating check replacement=[[<?>, ?g, ?a], [<?>, ?g, ?b]]
+DEBUG: prove-stage: replacement did not match goal
+DEBUG: trying SearchDFS now
+DEBUG: search: console stop control unavailable in this environment
+DEBUG: SearchDFS: start received
+DEBUG: SearchDFS: goal received
+DEBUG: search-step: start
+DEBUG: search-step: after frontier extraction
+DEBUG: search-step: after visited initialization
+DEBUG: search-step: job rules compiled=yes
+DEBUG: search-step: after kernel construction
+DEBUG: search-dfs-stage: advance_state: fresh state start
+DEBUG: search-dfs-stage: advance_state: after goal check
+DEBUG: search-dfs-stage: advance_state: after cached-solution check
+DEBUG: search-dfs-stage: advance_state: before cursor construction
+DEBUG: search-dfs-stage: cursor build: root facts ready; facts=0 rules=167
+DEBUG: search-dfs-stage: cursor build: head index build complete; elapsed=0.001s facts=0
+DEBUG: search-dfs-stage: cursor build: exact trie built; elapsed=0.001s facts=0
+DEBUG: search-dfs-stage: cursor build: initial delta reuses root facts; trie reconstruction=no facts=0
+DEBUG: search-dfs-stage: cursor build: knowledge indexes complete; elapsed=0.001s facts=0 rules=167
+DEBUG: search-dfs-stage: applicability multiprocessing start-method=fork workers=2 rules=167 rules-per-worker=83-84
+DEBUG: search-dfs-stage: applicability worker start slot=0 pid=17458 rules=84
+DEBUG: search-dfs-stage: applicability worker start slot=1 pid=17460 rules=83
+DEBUG: search-dfs-stage: applicability worker done slot=1 pid=17460 elapsed=0.025s exit=0
+DEBUG: search-dfs-stage: applicability worker done slot=0 pid=17458 elapsed=0.025s exit=0
+DEBUG: search-dfs-stage: applicability multiprocessing done workers=2
+DEBUG: search-dfs-stage: cursor build: applicability scan complete; elapsed=0.149s applicable-rules=0
+DEBUG: search-dfs-stage: cursor build: rule ordering complete; elapsed=0.000s queued-rules=0
+DEBUG: search-dfs-stage: cursor build: ready; assembly-elapsed=0.000s total-elapsed=0.150s
+DEBUG: search-dfs-stage: advance_state: after cursor construction
+DEBUG: SearchDFS: failed
+DEBUG: SearchDFS: failed after 11 seconds
+DEBUG: prove-stage: mixed search returned empty plan
+DEBUG: prove-stage: storing search attempt in context.search_history
+DEBUG: prove: no derivation found
+DERIVATION_EMPTY: True

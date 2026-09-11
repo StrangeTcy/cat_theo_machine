@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/user/cat_theo_machine/ingress_receipts.py", line 83, in <module>
+    if WorkerReceiptRegression(os.environ["HYGE_SNAPSHOT_DIR"], sys.argv[1])() is M.truth_value:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/ingress_receipts.py", line 41, in __init__
+    received = W.deserialize_term(stream.read())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/wire.py", line 173, in deserialize_term
+    stack[-1].append(consed[cons_key])
+    ~~~~~^^^^
+IndexError: list index out of range

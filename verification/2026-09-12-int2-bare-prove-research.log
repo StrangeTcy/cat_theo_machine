@@ -1,0 +1,3 @@
+parsed goal: (forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+FAILED. cost=0; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))))

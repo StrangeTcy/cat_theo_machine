@@ -1,0 +1,31 @@
+Candidate: ed1d759fb44246c95cb2d45f000d023781c506f0
+Execution: sandbox Bash, explicitly authorized by user
+State: /tmp/hyge-live-ingress.Ra5yUkzp
+Python 3.11.2
+semantic-clarification at input span [61, 68): Does natural numbers include zero? Specify nonnegative integers (includes zero) or positive integers (excludes zero). No proof submitted.
+parse-failure at input span [19, 20): variable name No proof submitted.
+parse-failure at input span [46, 47): arithmetic atom: numeral, variable, or parenthesized expression No proof submitted.
+parse-failure at input span [48, 56): end of claim No proof submitted.
+parse-failure at input span [47, 47): no-solutions domain for free variables, or a closed quantified identity No proof submitted.
+parse-failure at input span [46, 47): a bound comparison using only the quantified variable and numerals No proof submitted.
+parse-failure at input span [42, 45): single outer universal scope; nested universal grammar is not supported No proof submitted.
+parse-failure at input span [10, 10): for No proof submitted.
+parsed goal: forall(t, implies(lt(0, bound-variable(t)), eq(add(bound-variable(t), 0), bound-variable(t))))
+parsed goal: forall(k, implies(lt(3, bound-variable(k)), nosolutions(positive-integers, unknowns(x, y, z), eq(add(pow(bound-variable(x), bound-variable(k)), pow(bound-variable(y), bound-variable(k))), pow(bound-variable(z), bound-variable(k))))))
+parsed goal: forall(n, implies(lt(2, bound-variable(n)), nosolutions(positive-integers, unknowns(a, b, c), eq(add(pow(bound-variable(a), bound-variable(n)), pow(bound-variable(b), bound-variable(n))), pow(bound-variable(c), bound-variable(n))))))
+parsed goal: forall(n, positive-integers, implies(lt(2, bound-variable(n)), nosolutions(positive-integers, unknowns(a, b, c), eq(add(pow(bound-variable(a), bound-variable(n)), pow(bound-variable(b), bound-variable(n))), pow(bound-variable(c), bound-variable(n))))))
+parsed goal: forall(k, nonnegative-integers, implies(lt(5, bound-variable(k)), nosolutions(nonnegative-integers, unknowns(x, y, z), eq(add(pow(bound-variable(x), bound-variable(k)), pow(bound-variable(y), bound-variable(k))), pow(bound-variable(z), bound-variable(k))))))
+parsed goal: forall(n, nonnegative-integers, eq(add(bound-variable(n), 0), bound-variable(n)))
+parsed goal: forall(t, positive-integers, eq(mul(add(bound-variable(t), 0), 1), bound-variable(t)))
+PASS: proof ingress parser/dispatcher/scope regressions
+LIVE_EXIT_CODE=0
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/user/cat_theo_machine/ingress_receipts.py", line 83, in <module>
+    if WorkerReceiptRegression(os.environ["HYGE_SNAPSHOT_DIR"], sys.argv[1])() is M.truth_value:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/cat_theo_machine/ingress_receipts.py", line 29, in __init__
+    with os.scandir(os.path.join(state_dir, "search_compare")) as runs:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/hyge-live-ingress.Ra5yUkzp/search_compare'

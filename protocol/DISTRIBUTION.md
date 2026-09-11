@@ -1111,6 +1111,63 @@ Noted only. It is F-tooling, owned by whoever takes F.
 Operators stay blocked through step 5. T0 and the runner have not been
 started.
 
+**Successor INT — live-ingress integration, 2026-09-12: BLOCKED, no tag.**
+Operator-appointed replacement sole integrator; the previous INT ref is
+preserved, not rewritten. Record, per the handover rule:
+
+```text
+session:          arena/01a09270-cat-theo-machine @ ed1d759 (tree 57c35c0b...)
+predecessor ref:  arena/01a06542-cat-theo-machine @ 55b773d (preserved)
+selected base:    55b773d (hosttools-7ec5f59 line), tree 8b7f9b56...
+comparison base:  preflight-fa4b346 -> fa4b346, tested code ddc3d79,
+                  295 passed / 6 failed / 4 open (305 registered)
+sources:          ingress endpoint 0334915 (+ predecessors), evidence
+                  155e444 + 90765947; host-tools package f59fb92+7ec5f59
+                  (73 files, 72/72 digests + 1 known F-5 supersede;
+                  import-paths.txt reused as the product allowlist)
+candidate:        ed1d759 (merge; main.py 3-hunk resolution, all else
+                  auto-merged to the reviewed side)
+tag:              none (blocked; no authorization published)
+```
+
+Ruling: full admission BLOCKED on two independent defects; the candidate
+and all evidence are preserved on the branch above.
+
+1. **Pre-existing, on the INT line (live since at least preflight
+   `ddc3d79`):** in `proof.py::_prove`, the cache→comparison→recommended
+   block sits nested inside `if IsKnowledge(self.goal)` after that
+   branch's unconditional returns (dead code), and the trailing `else`
+   ("research mode - skip stored search-comparison shortcuts") pairs with
+   `IsKnowledge`, not with any research-mode condition. Every non-
+   knowledge concrete proof skips the search-mode comparison benchmark,
+   so no worker subprocess ever spawns from `prove` and no
+   `search_compare` receipts are produced. The lane's live contract
+   (15/15 comparison-worker receipts) is unmeetable on this base. Repair
+   belongs to the owning lane: re-enabling the benchmark is a line-wide
+   behavior change (worker fan-out, cache hits, suite timing) that
+   re-baselines the line, not an INT unilateral move.
+2. **Merge-introduced regression:** `paused_comparison_job_snapshot_`
+   `resume_test` passes solo on pristine `55b773d` and fails solo on the
+   candidate, and shard 1 reads 145/5/2 against the preflight 146/4/2
+   (shard 0 identical at 149/2/2; total 294/7/4 vs 295/6/4). The resume
+   path lives in the ingress-side `search/compare_subprocess.py`, so the
+   ingress-side transport changes conflict with INT-side testsuite
+   expectations here. Returned to the ingress lane with the exact test.
+
+Green on the candidate and recorded in
+`verification/2026-09-12-int2-*`: ingress parser/dispatcher/scope
+regressions, all live transcript groups (3/3 submissions, clarification,
+parse-failure, why, formal `four` = parent `four`), negatives
+N3/N4/N5/N5b/N7, research-door preservation (bare `prove` yields the
+INT-line FAILED+residuals; formal research goals and every non-ingress
+line dispatch unchanged), pins 306/218/0 PASS, 305 registrations with
+index 304 = the refusal test. The `prove that` trigger is now
+single-owner (ingress); that overlap is returned to both owning lanes
+as an open grammar negotiation.
+
+Queue: host-tools item inspected and closed without rebuild (above);
+nothing else was queued behind this integration.
+
 ---
 
 ## 8. Worker report block

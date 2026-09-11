@@ -534,3 +534,18 @@ shorten the serial chains inside a track, and it makes the integrator the
 bottleneck for tag cuts. That role wants the most disciplined agent, not the
 most ambitious one: the shared fix, the merge order, the suite, and nothing
 creative.
+
+### Successor-INT handover, 2026-09-12 (index entry; detail in `protocol/DISTRIBUTION.md` §7)
+
+The operator appointed the `arena/01a09270` session replacement sole
+integrator; previous INT assignments are superseded for integration and
+tag publication. The live-ingress composition onto the INT line
+(`55b773d`) is preserved as candidate `ed1d759` with full evidence under
+`verification/2026-09-12-int2-*`, and admission is BLOCKED with no tag:
+a pre-existing INT-line `proof.py` nesting defect (comparison benchmark
+unreachable from `prove`, live since preflight) makes the worker-
+transport receipt contract unmeetable, and the merge newly regresses
+`paused_comparison_job_snapshot_resume_test` (candidate fail vs INT-tip
+pass, solo-confirmed both sides). Both defects are returned to their
+owning lanes with exact hunks and reproductions; no competing tag or
+integration commit should be published from any superseded INT session.
