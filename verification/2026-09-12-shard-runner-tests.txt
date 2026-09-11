@@ -1,0 +1,37 @@
+shard-runner tests
+date_utc: 2026-09-11T23:55:03Z
+repo_head: c594efefb97ba8318c8590e3b0580c3183985e4e
+runner_sha256: ce8e564e9706f59f0347b624cda52953a6148e8df74a88c7cdfe7c8643c21d24
+runner_path: tools/run_shards_detached.sh
+
+--- t00-smoke.sh ---
+PASS: smoke
+
+--- t10-isolation.sh ---
+PASS: isolation
+
+--- t20-status-running.sh ---
+PASS: status-running
+
+--- t30-exit-code.sh ---
+PASS: exit-code
+
+--- t40-no-report.sh ---
+PASS: no-report
+
+--- t50-killed.sh ---
+PASS: killed
+
+--- t60-old-completion.sh ---
+PASS: old-completion
+
+--- t70-concurrent.sh ---
+PASS: concurrent
+
+--- t80-untouched.sh ---
+PASS: untouched
+
+--- t90-no-success-claim.sh ---
+PASS: no-success-claim
+
+runner tests passed: 10 failed: 0
