@@ -1168,6 +1168,17 @@ as an open grammar negotiation.
 Queue: host-tools item inspected and closed without rebuild (above);
 nothing else was queued behind this integration.
 
+**Ratified 2026-09-12 (operator review): BLOCKED, no tag — correct outcome.**
+Both defect classifications accepted as routed: defect 1 (pre-existing
+proof-worker dead path) to the proof/worker lane + operator; defect 2
+(`paused_comparison_job_snapshot_resume_test` merge regression) to the
+ingress lane. Host-tools status accepted and closed for this pass. INT
+re-run is gated on two exact SHAs (ingress regression fix; proof-worker
+dead-path fix) and then requires: reconstruct from `55b773d`, apply both
+fixes, targeted ingress acceptance, the paused-resume solo, receipt tests,
+both full shards, failure set ≤ baseline 295/6/4. Until then this session
+holds: no retry, no tag, no authorization.
+
 ---
 
 ## 8. Worker report block
