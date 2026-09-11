@@ -1,0 +1,25 @@
+OriginalTranscriptCheckoutUnavailable(
+  current_parent = 41e80785d4de090337a9dfc08439f2fcb45915dc,
+  original_messages_absent = true
+)
+
+Classification: new ingress implementation on this checkout, not a demonstrated
+repair of the checkout that produced the quoted expected-left-parenthesis log.
+
+Source inspection:
+  git grep -n -i -e 'understood a natural proof request'
+    -e 'expected-left-parenthesis' -e 'Use Predicate(constant)'
+    41e80785d4de090337a9dfc08439f2fcb45915dc -- '*.py'
+  Result: no matches (git grep exit 1).
+
+Formal-query baseline:
+  Source: git archive of the exact parent in a separate temporary checkout.
+  Its archived snapshots were moved aside; a fresh empty snapshots directory
+  was used. No original checkout or user snapshot was reset or overwritten.
+  Environment: sandbox Python 3.11, explicitly authorized by the user.
+  Command: python -u main.py talk 'add ( two , two )'
+  Exit: 0
+  Raw stdout/stderr:
+four
+
+No original live parsing-failure reproduction is asserted.
