@@ -3,6 +3,10 @@ OriginalTranscriptCheckoutUnavailable(
   original_messages_absent = true
 )
 
+before-state: not reproduced in this environment; the observed failure is
+taken from the operator's pasted transcript at an unrecorded commit.
+The fix is verified against the failure class, not the exact instance.
+
 Classification: new ingress implementation on this checkout, not a demonstrated
 repair of the checkout that produced the quoted expected-left-parenthesis log.
 
