@@ -1,0 +1,23 @@
+live mode: the machine is cycling while you talk. Its work appears as [machine] lines.
+[K[machine] daemon: cycling shared state at /tmp/hyge-int-n3.XfehnDxC/talk_state.wire with 1 worker(s)
+you> HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> prove that for all n > 2 a^n + b^n = c^n has no solutions in positive integers
+hyge> parsed goal: forall(n, implies(lt(2, bound-variable(n)), nosolutions(positive-integers, unknowns(a, b, c), eq(add(pow(bound-variable(a), bound-variable(n)), pow(bound-variable(b), bound-variable(n))), pow(bound-variable(c), bound-variable(n))))))
+hyge> loading theorem packs for foreground proof
+hyge> submitting parsed goal to foreground prover
+hyge> foreground coordinator goal preserved (machine structural equality)
+hyge> Search stalled: no derivation found. Parsing succeeded; no theorem is asserted.
+you> prove that for all > 2 a^n + b^n = c^n has no solutions in positive integers
+hyge> parse-failure at input span [19, 20): variable name No proof submitted.
+you> why
+hyge> I have not answered anything yet; there is nothing to explain.
+you> goodbye
+hyge> goodbye
+live mode: daemon stopped.
