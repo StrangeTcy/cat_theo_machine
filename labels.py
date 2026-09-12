@@ -1327,6 +1327,22 @@ class ForAllLabel(ConstructorLabel):
     pass
 
 
+class NosolutionsIntroductionLabel(ConstructorLabel):
+    pass
+
+
+class ForallImpliesDecompositionLabel(ConstructorLabel):
+    pass
+
+
+class NeedContradictionFromArbitrarySolutionLabel(ConstructorLabel):
+    pass
+
+
+class NeedBinderSafeImplicationLabel(ConstructorLabel):
+    pass
+
+
 class NotLabel(ConstructorLabel):
     pass
 
@@ -2107,6 +2123,10 @@ VariationLabel = VariationLabel()
 BetterLabel = BetterLabel()
 ExistsLabel = ExistsLabel()
 ForAllLabel = ForAllLabel()
+NosolutionsIntroductionLabel = NosolutionsIntroductionLabel()
+ForallImpliesDecompositionLabel = ForallImpliesDecompositionLabel()
+NeedContradictionFromArbitrarySolutionLabel = NeedContradictionFromArbitrarySolutionLabel()
+NeedBinderSafeImplicationLabel = NeedBinderSafeImplicationLabel()
 NotLabel = NotLabel()
 ContradictionLabel = ContradictionLabel()
 CollisionLabel = CollisionLabel()
@@ -2829,6 +2849,10 @@ def sync_from_namespace(namespace):
         "BetterLabel",
         "ExistsLabel",
         "ForAllLabel",
+        "NosolutionsIntroductionLabel",
+        "ForallImpliesDecompositionLabel",
+        "NeedContradictionFromArbitrarySolutionLabel",
+        "NeedBinderSafeImplicationLabel",
         "NotLabel",
         "ContradictionLabel",
         "CollisionLabel",

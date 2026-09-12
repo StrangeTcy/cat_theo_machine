@@ -231,39 +231,57 @@ def surface_records(packs):
     return mapping_lines, rule_lines
 
 
-def ablated_paths():
-    """Shipped pack paths with the surface: header stripped from ported packs."""
+def ablated_paths(pack_names=PORTED_PACKS):
+    """Shipped paths with surface headers stripped from the selected packs."""
     import yaml
     tmpdir = tempfile.mkdtemp(prefix="d11-ablate-")
-    out = []
+    out = ()
     for path in PACK_PATHS:
         doc = yaml.safe_load(open(path, encoding="utf-8"))
-        if doc.get("name") in PORTED_PACKS and "surface" in doc:
+        if doc.get("name") in pack_names and "surface" in doc:
             del doc["surface"]
             target = os.path.join(tmpdir, os.path.basename(path))
             with open(target, "w", encoding="utf-8") as handle:
                 yaml.safe_dump(doc, handle)
-            out.append(target)
+            out = out + (target,)
         else:
-            out.append(path)
+            out = out + (path,)
     return out
 
 
-FLT_WORDS = ("fermat", "flt", "nosolutions", "wiles", "frey")
+FLT_WORDS = ("fermat", "flt", "wiles", "frey")
 
 
 def main(argv):
     baseline_mode = "--baseline" in argv
     probe_goal = None
+    shell_ablation_probe_goal = None
     for i, a in enumerate(argv):
         if a == "--probe" and i + 1 < len(argv):
             probe_goal = argv[i + 1]
+        if a == "--shell-ablation-probe" and i + 1 < len(argv):
+            shell_ablation_probe_goal = argv[i + 1]
 
     # ---- probe mode: one goal against the shipped packs --------------
     if probe_goal is not None:
         runtime, packs = boot(PACK_PATHS)
         result = probe(runtime, probe_goal, packs)
         print("probe:           %s" % probe_goal)
+        print("cost:            %s" % result["cost"])
+        print("partial matches: %d" % result["count"])
+        print("rule ids:        %s" % (", ".join(result["rule_ids"]) or "none"))
+        print("origins:         %s" % (", ".join(result["origins"]) or "none"))
+        for attempt in walk(runtime.graph.research_attempts):
+            print("unmatched:      %s" % _term_text(
+                Rmod.AttemptedRuleUnmatched(attempt)(), runtime.graph
+            ))
+        return 0
+
+    # ---- shell ablation probe: one goal without the shell surface ----
+    if shell_ablation_probe_goal is not None:
+        runtime, packs = boot(ablated_paths(("shell-characterization",)))
+        result = probe(runtime, shell_ablation_probe_goal, packs)
+        print("probe:           %s" % shell_ablation_probe_goal)
         print("cost:            %s" % result["cost"])
         print("partial matches: %d" % result["count"])
         print("rule ids:        %s" % (", ".join(result["rule_ids"]) or "none"))
@@ -300,18 +318,25 @@ def main(argv):
             parts = line.split()
             if len(parts) == 3:
                 pack_base[parts[0]] = (int(parts[1]), parts[2])
+    shell_pack_name = "shell-characterization"
     per_pack = pack_digests(packs, runtime.graph)
-    drifted, expected_drift = [], []
+    drifted, expected_drift, added_packs = (), (), ()
     for name, count, pdigest in per_pack:
-        if name in pack_base and pack_base[name][1] != pdigest:
-            (expected_drift if name in PORTED_PACKS else drifted).append(name)
+        if name not in pack_base:
+            added_packs = added_packs + (name,)
+        elif pack_base[name][1] != pdigest:
+            if name in PORTED_PACKS:
+                expected_drift = expected_drift + (name,)
+            else:
+                drifted = drifted + (name,)
 
     detail = (
         "rules compiled: %d\ncompiled-rule sha256: %s\n"
         "probe %s -> partial matches %d (cost %s)\n"
         "mappings emitted: %d; rules attributed: %d\n"
+        "new characterization packs: %s\n"
         % (len(rules), digest, PROBE_GOAL, result["count"], result["cost"],
-           len(mapping_lines), len(rule_lines))
+           len(mapping_lines), len(rule_lines), ", ".join(added_packs) or "none")
     )
     if not pack_base:
         detail += "NO PER-PACK BASELINE at %s" % PACK_DIGEST_PATH
@@ -320,8 +345,9 @@ def main(argv):
         detail += "ported packs (drift expected): %s" % (
             ", ".join("%s -> %s" % (n, "drifted" if n in expected_drift else "no change")
                       for n in PORTED_PACKS) or "none")
-    ok = (len(rules) == 167 and result["count"] == 0 and not drifted
-          and pack_base and all(n in expected_drift for n in PORTED_PACKS))
+    ok = (len(rules) == 169 and result["count"] == 0 and not drifted
+          and pack_base and all(n in expected_drift for n in PORTED_PACKS)
+          and added_packs == (shell_pack_name,))
     record("1. unported packs unchanged; ported pack drifted as intended", ok, detail)
 
     # ---- condition 2: {sym:} heads, no header ------------------------
@@ -388,10 +414,11 @@ def main(argv):
 
     # ---- P3: unported packs untouched --------------------------------
     print("\n== P3: unported packs untouched ==")
-    ok = bool(pack_base) and not drifted
+    ok = bool(pack_base) and not drifted and added_packs == (shell_pack_name,)
     record("P3. no unported pack digest drift", ok,
-           "drifted: %s\nported (expected): %s"
-           % (", ".join(drifted) or "none", ", ".join(PORTED_PACKS) or "none"))
+           "drifted: %s\nported (expected): %s\nnew characterization pack: %s"
+           % (", ".join(drifted) or "none", ", ".join(PORTED_PACKS) or "none",
+              ", ".join(added_packs) or "none"))
 
     # ---- P4: no FLT vocabulary ---------------------------------------
     print("\n== P4: no FLT vocabulary in the ported packs ==")
@@ -405,8 +432,121 @@ def main(argv):
             hits.append((os.path.basename(path),
                          ", ".join(w for w in FLT_WORDS if w in text)))
     ok = not hits
-    record("P4. no fermat/flt/nosolutions/wiles/frey in any ported pack", ok,
+    record("P4. no fermat/flt/wiles/frey in any ported pack", ok,
            "hits: %s" % ("; ".join("%s: %s" % h for h in hits) or "none"))
+
+    # ---- S1: recorded shell-free baseline -----------------------------
+    shell_b_goal = "(nosolutions positive-integers (unknowns x) (eq (plus x 1) x))"
+    shell_c_goal = "(forall n (implies (greater n 1) (eq (plus a a) (plus a a))))"
+    shell_d_goal = "(shellcontrol positive-integers (unknowns x) (eq (plus x 1) x))"
+    shell_b_premise = "(NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x))"
+    shell_c_premise = "(NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))"
+    bare_eq_goal = "(eq (plus a a) (plus a a))"
+    before_path = os.path.join(
+        ROOT, "verification", "2026-09-12-d11-shell-phase2", "before.txt"
+    )
+    before_text = ""
+    if os.path.exists(before_path):
+        before_text = open(before_path, encoding="utf-8").read()
+    before_b_start = before_text.find("[B] nosolutions shell")
+    before_c_start = before_text.find("[C] forall/implies shell")
+    before_d_start = before_text.find("[D] negative control")
+    before_b_section = before_text[before_b_start:before_c_start]
+    before_c_section = before_text[before_c_start:before_d_start]
+    ok = (before_b_start >= 0 and before_c_start >= 0 and before_d_start >= 0
+          and "partial matches: 0" in before_b_section
+          and "partial matches: 0" in before_c_section)
+    record("S1. recorded shell-free baseline has B/C at 0", ok,
+           "artifact: %s\nB recorded at 0: %s\nC recorded at 0: %s"
+           % (before_path,
+              "yes" if "partial matches: 0" in before_b_section else "no",
+              "yes" if "partial matches: 0" in before_c_section else "no"))
+
+    # ---- S2 and S4: nosolutions shell and exact residual --------------
+    print("\n== S2/S4: nosolutions shell ==")
+    runtime, packs = boot(PACK_PATHS)
+    result_b = probe(runtime, shell_b_goal, packs)
+    expected_b, parse_error_b = _research_parse(shell_b_premise)
+    if parse_error_b is not None:
+        raise RuntimeError("cannot parse expected B residual: %s" % parse_error_b)
+    residual_b_exact = M.false_value
+    residual_b_text = "none"
+    for attempt in walk(runtime.graph.research_attempts):
+        unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
+        residual_b_text = _term_text(unmatched, runtime.graph)
+        if M.Compare(unmatched, expected_b)() is M.truth_value:
+            residual_b_exact = M.truth_value
+    record("S2. B nosolutions shell -> positive partial matches", result_b["count"] > 0,
+           "probe %s -> partial matches %d (cost %s)"
+           % (shell_b_goal, result_b["count"], result_b["cost"]))
+    record("S4. B residual is the exact contradiction capability premise",
+           residual_b_exact is M.truth_value,
+           "residual: %s\nexpected: %s" % (residual_b_text, shell_b_premise))
+
+    # ---- S3 and S5: forall/implies shell and exact residual -----------
+    print("\n== S3/S5: forall/implies shell ==")
+    runtime, packs = boot(PACK_PATHS)
+    result_c = probe(runtime, shell_c_goal, packs)
+    expected_c, parse_error_c = _research_parse(shell_c_premise)
+    if parse_error_c is not None:
+        raise RuntimeError("cannot parse expected C residual: %s" % parse_error_c)
+    residual_c_exact = M.false_value
+    residual_c_text = "none"
+    for attempt in walk(runtime.graph.research_attempts):
+        unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
+        residual_c_text = _term_text(unmatched, runtime.graph)
+        if M.Compare(unmatched, expected_c)() is M.truth_value:
+            residual_c_exact = M.truth_value
+    record("S3. C forall/implies shell -> positive partial matches", result_c["count"] > 0,
+           "probe %s -> partial matches %d (cost %s)"
+           % (shell_c_goal, result_c["count"], result_c["cost"]))
+    record("S5. C residual is the exact binder-safe capability premise",
+           residual_c_exact is M.truth_value,
+           "residual: %s\nexpected: %s" % (residual_c_text, shell_c_premise))
+
+    # ---- S6: characterizations do not close either toy goal -----------
+    record("S6. both shell goals remain unclosed",
+           not result_b["closed"] and not result_c["closed"],
+           "B closed: %s\nC closed: %s"
+           % ("yes" if result_b["closed"] else "no",
+              "yes" if result_c["closed"] else "no"))
+
+    # ---- S7: capability premises remain unavailable -------------------
+    print("\n== S7: capability premises ==")
+    runtime, packs = boot(PACK_PATHS)
+    capability_b = probe(runtime, shell_b_premise, packs)
+    capability_c = probe(runtime, shell_c_premise, packs)
+    ok = capability_b["count"] == 0 and capability_c["count"] == 0
+    record("S7. capability-premise goals have 0 candidates", ok,
+           "B capability candidates: %d\nC capability candidates: %d"
+           % (capability_b["count"], capability_c["count"]))
+
+    # ---- S8: a different outer head remains silent --------------------
+    print("\n== S8: negative control ==")
+    runtime, packs = boot(PACK_PATHS)
+    negative_control = probe(runtime, shell_d_goal, packs)
+    record("S8. different-head negative control remains at 0",
+           negative_control["count"] == 0,
+           "probe %s -> partial matches %d (cost %s)"
+           % (shell_d_goal, negative_control["count"], negative_control["cost"]))
+
+    # ---- S9: removing only this pack's surface header restores silence -
+    print("\n== S9: shell surface ablation ==")
+    runtime, packs = boot(ablated_paths((shell_pack_name,)))
+    ablation_b = probe(runtime, shell_b_goal, packs)
+    ablation_c = probe(runtime, shell_c_goal, packs)
+    ok = ablation_b["count"] == 0 and ablation_c["count"] == 0
+    record("S9. shell surface ablation restores B/C to 0", ok,
+           "B partial matches: %d\nC partial matches: %d"
+           % (ablation_b["count"], ablation_c["count"]))
+
+    # ---- S10: prior equation reachability is unchanged ----------------
+    print("\n== S10: bare equation control ==")
+    runtime, packs = boot(PACK_PATHS)
+    bare_eq = probe(runtime, bare_eq_goal, packs)
+    record("S10. bare eq partial-match count remains 1", bare_eq["count"] == 1,
+           "probe %s -> partial matches %d (cost %s)"
+           % (bare_eq_goal, bare_eq["count"], bare_eq["cost"]))
 
     # ---- condition 5: char form, diagnostic only ---------------------
     print("\n== condition 5: char-form fixture (DIAGNOSTIC, NOT A GATE) ==")

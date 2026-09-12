@@ -1,0 +1,468 @@
+== condition 1: shipped packs, unported ones byte-identical ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.04s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.05s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.26s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.13s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.19s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.32s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.22s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.11s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.50s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.36s
+[PASS] 1. unported packs unchanged; ported pack drifted as intended
+       rules compiled: 169
+       compiled-rule sha256: 7d86a07aa54d577abd0c56a18395897e2e29ec6343c02d91a3ce7bcf75c28f42
+       probe (divides k (plus p q)) -> partial matches 0 (cost 338)
+       mappings emitted: 5; rules attributed: 8
+       new characterization packs: shell-characterization
+       unported packs drifting: none
+       ported packs (drift expected): arithmetic -> drifted
+
+== condition 2: fixture with {sym:} heads, no surface header ==
+Reading pack d11-spike-label...
+Reading pack d11-spike-label, done in 0.00s
+[PASS] 2. no header -> 0 candidates
+       probe (divides k (plus p q)) -> partial matches 0 (cost 2)
+       surface mappings emitted: 0
+
+== condition 3: same fixture plus pack-local surface: header ==
+PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+Reading pack d11-spike-mapped...
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+Reading pack d11-spike-mapped, done in 0.00s
+[PASS] 3. surface: header -> 1 candidate, pack-rule provenance, audit emitted
+       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
+       rule origins: primitive
+       provenance: a pack rule reached through the mapping, not a taught law
+
+== condition 4: unrelated goal, mapped fixture loaded ==
+PackSurfaceMapping(pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+PackSurfaceMapping(pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+Reading pack d11-spike-mapped...
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=ExprAddLabel, surface=plus)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+LibraryRuleMatchedViaSurfaceMapping(rule=spike_divides_add, pack=d11-spike-mapped, label=DividesLabel, surface=divides)
+Reading pack d11-spike-mapped, done in 0.00s
+[PASS] 4. unrelated goal -> 0 candidates
+       probe (cornersum t whole) -> partial matches 0 (cost 2)
+
+== P1: ported probe ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.03s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.22s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.13s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.17s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.30s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.06s
+Reading pack geometry...
+Reading pack geometry, done in 1.38s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.13s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.53s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.24s
+[PASS] P1. ported probe -> >=1 candidate, attributed to the port
+       probe (eq (pow t 6) (pow (pow t 2) 3)) -> partial matches 1 (cost 338)
+       matched rule ids: arithmetic/arithmetic_equation_is_symmetric
+       attributed to the surface mapping: arithmetic/arithmetic_equation_is_symmetric
+       origins: primitive
+
+== P2: ablation, surface: stripped from the ported pack ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.04s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.22s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.11s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.04s
+Reading pack arithmetic...
+Reading pack arithmetic, done in 0.18s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.41s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.33s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.13s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.55s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.29s
+[PASS] P2. ablation -> matches return to 0
+       probe (eq (pow t 6) (pow (pow t 2) 3)) -> partial matches 0 (cost 338)
+       rule ids: none
+
+== P3: unported packs untouched ==
+[PASS] P3. no unported pack digest drift
+       drifted: none
+       ported (expected): arithmetic
+       new characterization pack: shell-characterization
+
+== P4: no FLT vocabulary in the ported packs ==
+[PASS] P4. no fermat/flt/wiles/frey in any ported pack
+       hits: none
+[PASS] S1. recorded shell-free baseline has B/C at 0
+       artifact: /home/user/cat_theo_machine/verification/2026-09-12-d11-shell-phase2/before.txt
+       B recorded at 0: yes
+       C recorded at 0: yes
+
+== S2/S4: nosolutions shell ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.03s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.21s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.13s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.19s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.40s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.13s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.11s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.47s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.24s
+[PASS] S2. B nosolutions shell -> positive partial matches
+       probe (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)) -> partial matches 1 (cost 338)
+[PASS] S4. B residual is the exact contradiction capability premise
+       residual: [NeedContradictionFromArbitrarySolution, positive-integers, [unknowns, x], [eq, [plus, x, 1], x]]
+       expected: (NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x))
+
+== S3/S5: forall/implies shell ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.03s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.21s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.22s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.17s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.30s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.06s
+Reading pack geometry...
+Reading pack geometry, done in 1.46s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.11s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.49s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.24s
+[PASS] S3. C forall/implies shell -> positive partial matches
+       probe (forall n (implies (greater n 1) (eq (plus a a) (plus a a)))) -> partial matches 1 (cost 338)
+[PASS] S5. C residual is the exact binder-safe capability premise
+       residual: [NeedBinderSafeImplication, n, [greater, n, 1], [eq, [plus, a, a], [plus, a, a]]]
+       expected: (NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))
+[PASS] S6. both shell goals remain unclosed
+       B closed: no
+       C closed: no
+
+== S7: capability premises ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.03s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.18s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.11s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.04s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.15s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.38s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.51s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.11s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.47s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.24s
+[PASS] S7. capability-premise goals have 0 candidates
+       B capability candidates: 0
+       C capability candidates: 0
+
+== S8: negative control ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.04s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.23s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.13s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.05s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.18s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.30s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.07s
+Reading pack geometry...
+Reading pack geometry, done in 1.31s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.13s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.44s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.28s
+[PASS] S8. different-head negative control remains at 0
+       probe (shellcontrol positive-integers (unknowns x) (eq (plus x 1) x)) -> partial matches 0 (cost 338)
+
+== S9: shell surface ablation ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.03s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.18s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.11s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.04s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.16s
+Reading pack shell-characterization...
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.36s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.06s
+Reading pack geometry...
+Reading pack geometry, done in 1.28s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.11s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.49s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.24s
+[PASS] S9. shell surface ablation restores B/C to 0
+       B partial matches: 0
+       C partial matches: 0
+
+== S10: bare equation control ==
+Reading pack order-sign...
+Reading pack order-sign, done in 0.03s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.04s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.30s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.13s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.04s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.16s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+LibraryRuleMatchedViaSurfaceMapping(rule=nosolutions_introduction, pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+LibraryRuleMatchedViaSurfaceMapping(rule=forall_implies_decomposition, pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization, done in 0.03s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.25s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.06s
+Reading pack geometry...
+Reading pack geometry, done in 1.14s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.11s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.48s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.24s
+[PASS] S10. bare eq partial-match count remains 1
+       probe (eq (plus a a) (plus a a)) -> partial matches 1 (cost 338)
+
+== condition 5: char-form fixture (DIAGNOSTIC, NOT A GATE) ==
+Reading pack d11-spike-char...
+Reading pack d11-spike-char, done in 0.00s
+       probe (divides k (plus p q)) -> partial matches 1 (cost 2)
+       This is the char shorthand. It worked before the D11 fix and
+       proves nothing about it. It is never cited as D11 fixed.
+
+18/18 gated conditions passed.
