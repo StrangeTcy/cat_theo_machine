@@ -1283,6 +1283,46 @@ Rehearsal evidence, all re-run on INT-controlled trees: 9 shared tests
 whole-namespace consumers 3/3 both trees. Full shards not run — they
 gate the re-submission, not this return. No import commit, no tag.
 
+**Successor INT — D11-SHELL admitted, 2026-09-12: tag
+`live-ingress/d11-shell-1`.** Source `arena/01a09396`, exact SHAs
+verified (code `95d2488`, parent `99ab2f0`, evidence `b31f637` preserved
+on the source branch, not imported; equivalence to lost `eedcd4f` not
+established and not claimed). Admitted base `0d7e1b6` is the merge-base;
+imported net `0d7e1b6..95d2488` as cherry-picks `9202d8a` + `03778de`
+on the session branch (both applied cleanly; branch tip tree
+`181bd2d9...` reproduces the pre-reset tested tree exactly; runtime paths
+byte-identical to `95d2488`). Scope, reviewed line by line: 4 fully-registered labels,
+shell-characterization pack (2 diagnostics, 0 proof rules), pack-loader
+`diagnostic_rules` (never enter graph rules), `prove()` diagnostic
+short-circuit returning EmptyList with a capability report, foreground
+diagnostic talk text, version-2 `d11_gate.py` (tool-only). No core.py,
+no testsuite.py. Gates re-run by INT: d11_gate 23/23, safety probe 8/8
+unclosed, live-ingress probe PASS, ingress_tests PASS, py_compile PASS.
+Both shards via the hardened runner (attempt 20260912-144714-1684):
+151/2/2 + 149/4/2 = **300/6/4 of 310, failure set test-for-test
+identical to `live-ingress/admission-1`.** Tag `live-ingress/d11-shell-1`
+@ `03778de` (annotated `34cdf11`, tree `181bd2d9…`): live-ingress + D11
+shell diagnostics, characterization-only. NOT F-proof-ready. Blank
+controls re-run on the tag (Invariant 2): Run A and Run B transcripts
+byte-identical to the admission-1 blanks, no workers spawned, stderr
+empty — silence baseline
+`verification/2026-09-12-BLANK-CONTROLS-D11-SHELL-1.txt` (`eb7de5d4`,
+header commit line only; transcripts untouched).
+Full record: `verification/2026-09-12-d11-shell-admission.md`; shard
+logs `verification/2026-09-12-d11shell-shard-{0,1}.log`. This admission
+supersedes the D11-SHELL ancestry note above ("tag is ingress-only")
+for the new tag. Still open before any F proof session (programme
+relay): LOGIC-CHECKER-ENG, TEACH-BINDING-ENG, TRAINING-ACCEPTANCE-ENG,
+F-TOOLS-REPLAY-ENG, combined INT semantic tag. Rebuild note: sandbox
+reset #4 destroyed the first publication attempt unpushed (commits
+`b93ff82`/`154a0d1`/`01689c8`, tag object `25565e9`, scratch, and
+`/home/user/d11shell`). INT re-cherry-picked the same remote source
+SHAs; import tree `181bd2d9...` reproduced exactly, evidence restored
+from the surviving tree, all five gates re-run green on the rebuilt
+tree. Old local SHAs are tombstones; live citations use the rebuilt
+ones. Corollary for D10: scratch outside the repo does not survive a
+reset either.
+
 ---
 
 ## 8. Worker report block

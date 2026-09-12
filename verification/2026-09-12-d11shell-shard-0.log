@@ -1,0 +1,116 @@
+Reading pack order-sign...
+Reading pack order-sign, done in 0.05s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.07s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.35s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.17s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.06s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.23s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+Reading pack shell-characterization, done in 0.00s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.51s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.10s
+Reading pack geometry...
+Reading pack geometry, done in 1.91s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.17s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.72s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.51s
+Reading pack order-sign...
+Reading pack order-sign, done in 0.05s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.06s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.29s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.17s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.14s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.51s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+Reading pack shell-characterization, done in 0.00s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.73s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.09s
+Reading pack geometry...
+Reading pack geometry, done in 2.02s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.18s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.65s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.38s
+Reading pack order-sign...
+Reading pack order-sign, done in 0.05s
+Reading pack sqrt-real...
+Reading pack sqrt-real, done in 0.06s
+Reading pack algebra-distribute...
+Reading pack algebra-distribute, done in 0.29s
+Reading pack sequence-order...
+Reading pack sequence-order, done in 0.18s
+Reading pack real-closure...
+Reading pack real-closure, done in 0.06s
+PackSurfaceMapping(pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic...
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=ap_center, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+LibraryRuleMatchedViaSurfaceMapping(rule=arithmetic_equation_is_symmetric, pack=arithmetic, label=ExprEqLabel, surface=eq)
+Reading pack arithmetic, done in 0.24s
+PackSurfaceMapping(pack=shell-characterization, label=NosolutionsIntroductionLabel, surface=nosolutions)
+PackSurfaceMapping(pack=shell-characterization, label=ForallImpliesDecompositionLabel, surface=forall)
+PackSurfaceMapping(pack=shell-characterization, label=NeedContradictionFromArbitrarySolutionLabel, surface=NeedContradictionFromArbitrarySolution)
+PackSurfaceMapping(pack=shell-characterization, label=NeedBinderSafeImplicationLabel, surface=NeedBinderSafeImplication)
+Reading pack shell-characterization...
+Reading pack shell-characterization, done in 0.00s
+Reading pack geometry-ontology...
+Reading pack geometry-ontology, done in 0.41s
+Reading pack trigonometry...
+Reading pack trigonometry, done in 0.08s
+Reading pack geometry...
+Reading pack geometry, done in 2.02s
+Reading pack engel-coins...
+Reading pack engel-coins, done in 0.17s
+Reading pack engel-means...
+Reading pack engel-means, done in 0.00s
+Reading pack engel-blackboard...
+Reading pack engel-blackboard, done in 0.63s
+Reading pack number-theory...
+Reading pack number-theory, done in 0.40s
+SHARD 0 elapsed 1757.1947145462036
+passed: 151   failed: 2   open: 2 (test_milestone_m1_cycles_without_refusal, test_milestone_m3_meta_handle_reorders)
+tree_insert_deep_pair_lookup_avoids_recursion_test
+compare_search_modes_fill_warms_resident_pool_before_root_wave_test
+open: test_milestone_m3_meta_handle_reorders, test_milestone_m1_cycles_without_refusal
