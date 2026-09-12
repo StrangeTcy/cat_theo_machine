@@ -1,0 +1,18 @@
+live mode: the machine is cycling while you talk. Its work appears as [machine] lines.
+[K[machine] daemon: cycling shared state at /tmp/hyge/snapshots/talk_state.wire with 0 worker(s)
+you> [K[machine] daemon cycle 1: fired 0, activated 0, proposed 0 handle(s) and 0 composition(s); stopped: exhausted
+you> [K[machine] daemon: daemon-stop-quiescent
+you> HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> hyge> parse-failure at input span [22, 23): arithmetic atom: numeral, variable, or parenthesized expression No proof submitted.
+you> hyge> parse-failure at input span [22, 23): arithmetic atom: numeral, variable, or parenthesized expression No proof submitted.
+you> hyge> parse-failure at input span [19, 20): variable name No proof submitted.
+you> hyge> four
+you> hyge> goodbye
+live mode: daemon stopped.

@@ -1,0 +1,5 @@
+prove that for all n >= 2 a^n + b^n = c^n is not solvable for a,b,c which are natural numbers
+prove that for all n >= 2 a^n + b^n = c^n is not solvable for a,b,c which are positive integers
+prove that for all > 2 a^n + b^n = c^n has no solutions in positive integers
+add ( two , two )
+goodbye
