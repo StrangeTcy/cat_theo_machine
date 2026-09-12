@@ -3851,27 +3851,31 @@ class Prove(M.Edge):
                 self._store_last_proof_with_provenance(derivation, search_cost, SearchDerivedLabel, self.goal)
                 return self._store_success(derivation, new_registry, search_cost, self.heuristic)
 
-                cached = M.EmptyList
-                if not research_mode and M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.false_value)() is M.truth_value:
-                    cached = self.graph.lookup_derivation(self.start, self.goal)
-                if M.Compare(cached, M.EmptyList)() is not M.truth_value:
-                    _debug("prove-stage: derivation cache hit")
-                    zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
-                    zero_search_cost = M.Head(zero_search_pair)()
-                    self.graph._replace_context(constructors=M.Head(M.Tail(zero_search_pair)())())
-                    self._store_search_attempt(cached, zero_search_cost)
-                    self._maybe_seed_search_comparison()
-                    self._record_proof_tag(Provmod.DerivationCacheHitTag)
-                    self._store_last_proof_with_provenance(cached, zero_search_cost, DerivationCacheHitLabel, self.goal)
-                    return cached
-                if research_mode:
-                    _debug("prove-stage: research mode - skip derivation cache")
-                elif M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.truth_value)() is M.truth_value:
-                    _debug("prove-stage: evaluation mode - skip derivation cache")
 
-                comparison = M.EmptyList
-                if not research_mode and M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.false_value)() is M.truth_value:
-                    comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
+            # Non-knowledge concrete goals. Cache and search-mode comparison
+            # belong to ordinary (non-research, non-evaluation) mode.
+            # Knowledge goals returned above. Research and evaluation skip
+            # those shortcuts and fall through to mixed search.
+            cached = M.EmptyList
+            if not research_mode and M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.false_value)() is M.truth_value:
+                cached = self.graph.lookup_derivation(self.start, self.goal)
+            if M.Compare(cached, M.EmptyList)() is not M.truth_value:
+                _debug("prove-stage: derivation cache hit")
+                zero_search_pair = self._zero_search_cost(M.FromContextGetConstructors(self.graph)())
+                zero_search_cost = M.Head(zero_search_pair)()
+                self.graph._replace_context(constructors=M.Head(M.Tail(zero_search_pair)())())
+                self._store_search_attempt(cached, zero_search_cost)
+                self._maybe_seed_search_comparison()
+                self._record_proof_tag(Provmod.DerivationCacheHitTag)
+                self._store_last_proof_with_provenance(cached, zero_search_cost, DerivationCacheHitLabel, self.goal)
+                return cached
+            if research_mode:
+                _debug("prove-stage: research mode - skip derivation cache")
+            elif M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.truth_value)() is M.truth_value:
+                _debug("prove-stage: evaluation mode - skip derivation cache")
+
+            if not research_mode and M.IdentityCompare(Provmod.EvaluationMode(self.graph)(), M.false_value)() is M.truth_value:
+                comparison = self._comparison_for_problem(M.FromContextGetConstructors(self.graph)())
                 if M.Compare(comparison, M.EmptyList)() is M.truth_value:
                     _debug("prove-stage: no search comparison evidence yet; benchmarking all current search modes")
                     comparison_pair = CompareSearchModes(
@@ -3915,7 +3919,6 @@ class Prove(M.Edge):
                         self._store_last_proof_with_provenance(M.EmptyList, M.EmptyList, FailureLabel, self.goal)
                         return M.EmptyList
 
-
                 recommended_search = self._recommended_search(comparison, M.FromContextGetConstructors(self.graph)())
                 search_pair = M.Head(recommended_search)()
                 recommended_heuristic = M.Head(M.Tail(recommended_search)())()
@@ -3945,8 +3948,10 @@ class Prove(M.Edge):
                             recommended_heuristic,
                         )
                 _debug("prove-stage: falling through to mixed search (research mode off path finished)")
-            else:
+            elif research_mode:
                 _debug("prove-stage: research mode - skip stored search-comparison shortcuts")
+            else:
+                _debug("prove-stage: evaluation mode - skip stored search-comparison shortcuts")
 
         # Mixed search path - always allowed, but in research mode we preserve residuals and don't use schema shortcuts
         if not research_mode:
