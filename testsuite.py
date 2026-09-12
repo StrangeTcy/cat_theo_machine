@@ -16400,7 +16400,7 @@ class TestShardCursorPinTest(M.Edge):
     broken.
     """
 
-    EXPECTED_GUARD_COUNT = 306
+    EXPECTED_GUARD_COUNT = 309
     EXPECTED_CURSOR_INDEX = 218
     EXPECTED_SHARD = 0
 
@@ -16998,6 +16998,234 @@ class ExplanationPlanSnapshotRoundTripTest(M.Edge):
 # --- end [G] ---
 
 # --- [I] -------------------------------------------------------------------
+class PausedComparisonJobResumePreservesRequestedGoalTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        namespace = dict(vars(M))
+        namespace.update(vars(Hmod))
+        namespace.update(vars(Lmod))
+        namespace.update(vars(Pmod))
+        namespace.update(vars(Gmod))
+        namespace.update(vars(Xmod))
+        namespace.update(vars(Rmod))
+        namespace.update(vars(Smod))
+        namespace.update(vars(Theoremmod))
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            registry = _registry(runtime.graph)
+            start = M.Pair(M.one, empty)
+            goal = M.Pair(M.two, empty)
+            heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+            rule = Rule(start, goal)
+            rules = M.Pair(rule, empty)
+            probe = _CompareSearchModesProbe(runtime.graph, start, goal, rules, heuristic, registry)
+            job = probe._fresh_compare_job(M.BFSLabel)
+            queued = probe._comparison_packetize_job_frontier(M.BFSLabel, job)
+            drained_job = M.Head(queued)()
+            packets = M.Head(M.Tail(queued)())()
+            state = probe._comparison_state(
+                M.BFSLabel,
+                drained_job,
+                M.Tree(empty),
+                M.Zero,
+                packets,
+            )
+            paused_job = probe._paused_comparison_job(
+                M.Pair(probe._comparison_pause_state(state), empty),
+                M.SearchPausedLabel,
+            )
+            runtime.graph.store_search_comparison_job(paused_job)
+            save_runtime(runtime, snapshot_path, namespace)
+            loaded_runtime = boot_from_snapshot(snapshot_path, namespace)
+            loaded_runtime.graph._search_disable_console = M.truth_value
+            loaded_registry = _registry(loaded_runtime.graph)
+            loaded_job = M.Head(loaded_runtime.graph.search_comparison_jobs)()
+            self.result = M.truth_value
+            if M.TermEqual(Smod.SearchComparisonJobGoal(loaded_job)(), goal)() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(Smod.SearchComparisonJobStart(loaded_job)(), start)() is M.false_value:
+                self.result = M.false_value
+            elif M.Compare(Smod.SearchComparisonJobRules(loaded_job)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(Smod.SearchComparisonJobHeuristic(loaded_job)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.IdentityCompare(Smod.SearchComparisonJobStates(loaded_job)(), empty)() is M.truth_value:
+                self.result = M.false_value
+            resumed = Smod.CompareSearchModes(loaded_runtime.graph, start, goal, rules, heuristic, loaded_registry)
+            comparison = M.Head(resumed.result)()
+            best_attempt = M.Head(M.Tail(resumed.result)())()
+            if M.Compare(comparison, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif M.Compare(best_attempt, empty)() is M.truth_value:
+                self.result = M.false_value
+            elif RawTermEqual(M.SearchAttemptStatus(best_attempt)(), M.SearchSuccessLabel, resumed.registry)() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(M.SearchAttemptStart(best_attempt)(), start)() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(M.SearchAttemptGoal(best_attempt)(), goal)() is M.false_value:
+                self.result = M.false_value
+            elif M.Compare(loaded_runtime.graph.search_comparison_jobs, empty)() is M.false_value:
+                self.result = M.false_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class PausedComparisonJobResumeRejectsWrongGoalTest(M.Edge):
+    def __init__(self, _graph):
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        namespace = dict(vars(M))
+        namespace.update(vars(Hmod))
+        namespace.update(vars(Lmod))
+        namespace.update(vars(Pmod))
+        namespace.update(vars(Gmod))
+        namespace.update(vars(Xmod))
+        namespace.update(vars(Rmod))
+        namespace.update(vars(Smod))
+        namespace.update(vars(Theoremmod))
+        snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
+        os.close(snapshot_fd)
+        try:
+            registry = _registry(runtime.graph)
+            start = M.Pair(M.one, empty)
+            goal = M.Pair(M.two, empty)
+            other_goal = M.Pair(M.three, empty)
+            heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+            rule = Rule(start, goal)
+            rules = M.Pair(rule, empty)
+            probe = _CompareSearchModesProbe(runtime.graph, start, goal, rules, heuristic, registry)
+            job = probe._fresh_compare_job(M.BFSLabel)
+            queued = probe._comparison_packetize_job_frontier(M.BFSLabel, job)
+            drained_job = M.Head(queued)()
+            packets = M.Head(M.Tail(queued)())()
+            state = probe._comparison_state(
+                M.BFSLabel,
+                drained_job,
+                M.Tree(empty),
+                M.Zero,
+                packets,
+            )
+            paused_job = probe._paused_comparison_job(
+                M.Pair(probe._comparison_pause_state(state), empty),
+                M.SearchPausedLabel,
+            )
+            runtime.graph.store_search_comparison_job(paused_job)
+            save_runtime(runtime, snapshot_path, namespace)
+            loaded_runtime = boot_from_snapshot(snapshot_path, namespace)
+            loaded_job = M.Head(loaded_runtime.graph.search_comparison_jobs)()
+            loaded_registry = _registry(loaded_runtime.graph)
+            matching = _CompareSearchModesProbe(loaded_runtime.graph, start, goal, rules, heuristic, loaded_registry)
+            mismatching = _CompareSearchModesProbe(loaded_runtime.graph, start, other_goal, rules, heuristic, loaded_registry)
+            self.result = M.truth_value
+            if matching._paused_comparison_job_matches_current_problem(loaded_job) is M.false_value:
+                self.result = M.false_value
+            elif mismatching._paused_comparison_job_matches_current_problem(loaded_job) is M.truth_value:
+                self.result = M.false_value
+        finally:
+            try:
+                os.remove(snapshot_path)
+            except OSError:
+                pass
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
+    def __init__(self, _graph):
+        from . import wire as W
+        from .main import _search_worker_problem_from_manifest
+
+        empty = M.EmptyList
+        registry = _registry(_graph)
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        start = M.Pair(M.one, empty)
+        goal = M.Pair(M.two, empty)
+        self.result = M.truth_value
+        temp_dir = tempfile.mkdtemp(prefix="hyge-worker-request-")
+        try:
+            result_path = os.path.join(temp_dir, "bfs.snapshot.json")
+            try:
+                _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
+                self.result = M.false_value
+            except RuntimeError as error:
+                if "refusing a substitute theorem" not in str(error):
+                    self.result = M.false_value
+
+            with open(result_path + ".request.wire", "wb") as handle:
+                handle.write(b"not-a-wire-term")
+            try:
+                _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
+                self.result = M.false_value
+            except Exception:
+                pass
+            os.remove(result_path + ".request.wire")
+
+            extra = M.Pair(start, M.Pair(goal, M.Pair(M.three, empty)))
+            with open(result_path + ".request.wire", "wb") as handle:
+                handle.write(W.serialize_term(extra))
+            try:
+                _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
+                self.result = M.false_value
+            except RuntimeError as error:
+                if "exactly start and goal" not in str(error):
+                    self.result = M.false_value
+            os.remove(result_path + ".request.wire")
+
+            request = M.Pair(start, M.Pair(goal, empty))
+            with open(result_path + ".request.wire", "wb") as handle:
+                handle.write(W.serialize_term(request))
+            label, got_start, got_goal, _rules, _phi = _search_worker_problem_from_manifest(
+                None, result_path, heuristic, registry
+            )
+            if M.TermEqual(got_start, start)() is M.false_value:
+                self.result = M.false_value
+            elif M.TermEqual(got_goal, goal)() is M.false_value:
+                self.result = M.false_value
+            elif not os.path.exists(result_path + ".received.wire"):
+                self.result = M.false_value
+            else:
+                with open(result_path + ".received.wire", "rb") as handle:
+                    received = W.deserialize_term(handle.read())
+                if M.TermEqual(received, request)() is M.false_value:
+                    self.result = M.false_value
+
+            with open(result_path + ".manifest.json", "w", encoding="utf-8") as handle:
+                json.dump({"start_text": "wrong", "goal_text": "wrong"}, handle)
+            os.remove(result_path + ".request.wire")
+
+            class _EmptyPacks:
+                def by_name(self, name):
+                    class _Pack:
+                        examples = {}
+                        rule_chain = M.EmptyList
+                        phi = M.EmptyList
+                    return _Pack()
+
+            try:
+                _search_worker_problem_from_manifest(_EmptyPacks(), result_path, heuristic, registry)
+                self.result = M.false_value
+            except RuntimeError as error:
+                if "refusing a substitute goal" not in str(error):
+                    self.result = M.false_value
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 # --- end [I] ---
 
 class SnapshotRefusesHostObjectInTermSlotTest(M.Edge):
@@ -19240,6 +19468,30 @@ def install_default_tests(graph):
     # --- end [G] ---
 
     # --- [I] ------------------------------------------------------------
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "paused_comparison_job_resume_preserves_requested_goal_test",
+            empty,
+            PausedComparisonJobResumePreservesRequestedGoalTest,
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "paused_comparison_job_resume_rejects_wrong_goal_test",
+            empty,
+            PausedComparisonJobResumeRejectsWrongGoalTest,
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "search_worker_request_refuses_substitute_and_corruption_test",
+            empty,
+            SearchWorkerRequestRefusesSubstituteAndCorruptionTest,
+            M.truth_value,
+        )
     # --- end [I] ---
     graph.default_tests_installed = M.truth_value
     return graph

@@ -563,10 +563,10 @@ def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, reg
         print("search-worker: machine request received")
         sys.stdout.flush()
         return "submitted machine goal", start, goal, M.EmptyList, M.EmptyList
-    cases = _theorem_agenda(packs)
     manifest_path = _search_worker_result_manifest_path(result_path)
     if not os.path.exists(manifest_path):
         raise RuntimeError("search-worker request missing; refusing a substitute theorem")
+    cases = _theorem_agenda(packs)
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
     expected_start_text = manifest.get("start_text", "")

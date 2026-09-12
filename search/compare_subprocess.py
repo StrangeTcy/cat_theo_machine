@@ -11,6 +11,7 @@ from .. import gmprep as Gmpmod
 from .. import machine as M
 from ..proof import *
 from ..proof import _debug, _debug_term
+from .engine import Search
 from .model import *
 
 
@@ -406,9 +407,52 @@ class _ComparisonSubprocessMixin:
         _debug("SearchComparison: provenance recorded")
         return M.Pair(comparison, M.Pair(best_attempt, M.EmptyList))
 
+    def _resume_paused_independent_comparison(self, paused_job):
+        _debug("SearchComparison: resuming paused comparison in-process")
+        self.graph.remove_search_comparison_job(self.signature)
+        heuristic = SearchComparisonJobHeuristic(paused_job)()
+        if M.Compare(heuristic, M.EmptyList)() is M.truth_value:
+            heuristic = self.heuristic
+        # Independent workers cannot see the restored rule edge. Complete
+        # the matching paused job with the same in-process immediate-rule
+        # / cache / schema path the packet comparison uses at the root,
+        # then fall back to a local Search on the requested rules.
+        plan = self._find_immediate_rule_plan(self.rules, self.start)
+        search_cost = self._zero_search_cost(SearchSuccessLabel)
+        if M.Compare(plan, M.EmptyList)() is M.truth_value:
+            search_pair = Search(
+                self.graph,
+                self.start,
+                self.goal,
+                self.rules,
+                heuristic,
+                self.registry,
+            )()
+            plan = M.Head(search_pair)()
+            search_cost = M.Head(M.Tail(search_pair)())()
+        if M.Compare(plan, M.EmptyList)() is M.truth_value:
+            status = SearchFailureLabel
+            if M.IdentityCompare(SearchCostOutcome(search_cost)(), SearchPausedLabel)() is M.truth_value:
+                status = SearchPausedLabel
+        else:
+            status = SearchSuccessLabel
+            search_cost = self._zero_search_cost(SearchSuccessLabel)
+        attempt = self._mode_attempt_from_plan(heuristic, status, plan, search_cost)
+        performance = HeuristicPerformance(
+            attempt,
+            self._gmp_atom("0"),
+            self._gmp_atom("0"),
+            self._reason_atom("resumed-paused-comparison"),
+        )()
+        attempts = M.Pair(attempt, M.EmptyList)
+        performances = M.Pair(performance, M.EmptyList)
+        return self._finalize_independent_mode_attempts(attempts, attempt, performances)
+
     def _compare_all_modes_independent_parallel(self, paused_job=M.EmptyList):
         if M.Compare(paused_job, M.EmptyList)() is M.false_value:
-            _debug("SearchComparison: paused legacy comparison ignored; restarting independent mode attempts")
+            if self._paused_comparison_job_matches_current_problem(paused_job) is M.truth_value:
+                return self._resume_paused_independent_comparison(paused_job)
+            _debug("SearchComparison: paused comparison does not match the requested problem; refusing to resume it")
         _debug("SearchComparison: starting independent mode attempts")
         self.graph.remove_search_comparison_job(self.signature)
         package_root = os.path.dirname(os.path.dirname(__file__))
