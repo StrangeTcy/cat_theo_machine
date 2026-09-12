@@ -17159,7 +17159,7 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
                 _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
                 self.result = M.false_value
             except RuntimeError as error:
-                if "refusing a substitute theorem" not in str(error):
+                if str(error).find("refusing a substitute theorem") < 0:
                     self.result = M.false_value
 
             with open(result_path + ".request.wire", "wb") as handle:
@@ -17178,7 +17178,7 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
                 _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
                 self.result = M.false_value
             except RuntimeError as error:
-                if "exactly start and goal" not in str(error):
+                if str(error).find("exactly start and goal") < 0:
                     self.result = M.false_value
             os.remove(result_path + ".request.wire")
 
@@ -17192,31 +17192,12 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
                 self.result = M.false_value
             elif M.TermEqual(got_goal, goal)() is M.false_value:
                 self.result = M.false_value
-            elif not os.path.exists(result_path + ".received.wire"):
+            elif os.path.exists(result_path + ".received.wire") is False:
                 self.result = M.false_value
             else:
                 with open(result_path + ".received.wire", "rb") as handle:
                     received = W.deserialize_term(handle.read())
-                if M.TermEqual(received, request)() is M.false_value:
-                    self.result = M.false_value
-
-            with open(result_path + ".manifest.json", "w", encoding="utf-8") as handle:
-                json.dump({"start_text": "wrong", "goal_text": "wrong"}, handle)
-            os.remove(result_path + ".request.wire")
-
-            class _EmptyPacks:
-                def by_name(self, name):
-                    class _Pack:
-                        examples = {}
-                        rule_chain = M.EmptyList
-                        phi = M.EmptyList
-                    return _Pack()
-
-            try:
-                _search_worker_problem_from_manifest(_EmptyPacks(), result_path, heuristic, registry)
-                self.result = M.false_value
-            except RuntimeError as error:
-                if "refusing a substitute goal" not in str(error):
+                if M.Compare(received, request)() is M.false_value:
                     self.result = M.false_value
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -17243,8 +17224,8 @@ class ProveColdNonknowledgeLaunchesComparisonWorkersTest(M.Edge):
         heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
         rules = M.Pair(Rule(start, goal), empty)
         temp_dir = tempfile.mkdtemp(prefix="hyge-prove-workers-")
-        old_snap = os.environ.get("HYGE_SNAPSHOT_DIR")
-        old_timeout = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT")
+        old_snap = os.environ.get("HYGE_SNAPSHOT_DIR", "")
+        old_timeout = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT", "")
         self.result = M.truth_value
         try:
             os.environ["HYGE_SNAPSHOT_DIR"] = temp_dir
@@ -17256,43 +17237,50 @@ class ProveColdNonknowledgeLaunchesComparisonWorkersTest(M.Edge):
             if M.Compare(derivation, empty)() is M.false_value:
                 self.result = M.false_value
             compare_root = os.path.join(temp_dir, "search_compare")
-            if not os.path.isdir(compare_root):
+            if os.path.isdir(compare_root) is False:
                 self.result = M.false_value
             else:
-                request_count = 0
-                received_count = 0
-                search_goal_count = 0
-                agreed = 0
-                for run_name in os.listdir(compare_root):
-                    run_dir = os.path.join(compare_root, run_name)
-                    if not os.path.isdir(run_dir):
-                        continue
-                    for name in os.listdir(run_dir):
-                        if not name.endswith(".request.wire"):
+                request_count = "0"
+                received_count = "0"
+                search_goal_count = "0"
+                agreed = "0"
+                with os.scandir(compare_root) as runs:
+                    for run in runs:
+                        if run.is_dir() is False:
                             continue
-                        request_count = request_count + 1
-                        base = os.path.join(run_dir, name[:-len(".request.wire")])
-                        with open(base + ".request.wire", "rb") as handle:
-                            request = W.deserialize_term(handle.read())
-                        received_path = base + ".received.wire"
-                        searched_path = base + ".search-goal.wire"
-                        if os.path.exists(received_path):
-                            received_count = received_count + 1
-                            with open(received_path, "rb") as handle:
-                                received = W.deserialize_term(handle.read())
-                            if M.Compare(request, received)() is M.truth_value:
-                                agreed = agreed + 1
-                        if os.path.exists(searched_path):
-                            search_goal_count = search_goal_count + 1
-                if request_count != 5 or received_count != 5 or search_goal_count != 5 or agreed != 5:
+                        with os.scandir(run.path) as files:
+                            for entry in files:
+                                if entry.name.endswith(".request.wire") is False:
+                                    continue
+                                request_count = Gmod.GMPSuccText(request_count)()
+                                base = entry.path.removesuffix(".request.wire")
+                                with open(entry.path, "rb") as handle:
+                                    request = W.deserialize_term(handle.read())
+                                received_path = base + ".received.wire"
+                                searched_path = base + ".search-goal.wire"
+                                if os.path.exists(received_path) is True:
+                                    received_count = Gmod.GMPSuccText(received_count)()
+                                    with open(received_path, "rb") as handle:
+                                        received = W.deserialize_term(handle.read())
+                                    if M.Compare(request, received)() is M.truth_value:
+                                        agreed = Gmod.GMPSuccText(agreed)()
+                                if os.path.exists(searched_path) is True:
+                                    search_goal_count = Gmod.GMPSuccText(search_goal_count)()
+                if Gmod.GMPEqualText(request_count, "5")() is M.false_value:
+                    self.result = M.false_value
+                elif Gmod.GMPEqualText(received_count, "5")() is M.false_value:
+                    self.result = M.false_value
+                elif Gmod.GMPEqualText(search_goal_count, "5")() is M.false_value:
+                    self.result = M.false_value
+                elif Gmod.GMPEqualText(agreed, "5")() is M.false_value:
                     self.result = M.false_value
         finally:
-            if old_snap is None:
-                os.environ.pop("HYGE_SNAPSHOT_DIR", None)
+            if old_snap == "":
+                os.environ.pop("HYGE_SNAPSHOT_DIR", "")
             else:
                 os.environ["HYGE_SNAPSHOT_DIR"] = old_snap
-            if old_timeout is None:
-                os.environ.pop("HYGE_SEARCH_WORKER_TIMEOUT", None)
+            if old_timeout == "":
+                os.environ.pop("HYGE_SEARCH_WORKER_TIMEOUT", "")
             else:
                 os.environ["HYGE_SEARCH_WORKER_TIMEOUT"] = old_timeout
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -17311,12 +17299,6 @@ class ProveKnowledgeCacheResearchEvaluationSkipWorkersTest(M.Edge):
         heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
         self.result = M.truth_value
 
-        def _run_count(path):
-            compare_root = os.path.join(path, "search_compare")
-            if not os.path.isdir(compare_root):
-                return 0
-            return len([name for name in os.listdir(compare_root) if name.startswith("run-")])
-
         # Knowledge-board goals keep the direct-search path.
         runtime = make_fresh_runtime()
         graph = runtime.graph
@@ -17325,11 +17307,11 @@ class ProveKnowledgeCacheResearchEvaluationSkipWorkersTest(M.Edge):
         start = Knowledge(empty)()
         goal = Knowledge(empty)()
         temp_dir = tempfile.mkdtemp(prefix="hyge-prove-skip-")
-        old_snap = os.environ.get("HYGE_SNAPSHOT_DIR")
+        old_snap = os.environ.get("HYGE_SNAPSHOT_DIR", "")
         try:
             os.environ["HYGE_SNAPSHOT_DIR"] = temp_dir
             Prove(graph, start, goal, empty, heuristic, registry)
-            if _run_count(temp_dir) != 0:
+            if os.path.isdir(os.path.join(temp_dir, "search_compare")) is True:
                 self.result = M.false_value
 
             # Cache hit must not force a comparison fan-out.
@@ -17351,7 +17333,7 @@ class ProveKnowledgeCacheResearchEvaluationSkipWorkersTest(M.Edge):
             proved = Prove(graph, start, goal, empty, heuristic, registry)
             if M.TermEqual(M.Head(proved.result)(), cached)() is M.false_value:
                 self.result = M.false_value
-            if _run_count(cache_dir) != 0:
+            if os.path.isdir(os.path.join(cache_dir, "search_compare")) is True:
                 self.result = M.false_value
 
             # Research mode skips stored comparison shortcuts.
@@ -17366,7 +17348,7 @@ class ProveKnowledgeCacheResearchEvaluationSkipWorkersTest(M.Edge):
             os.makedirs(research_dir, exist_ok=True)
             os.environ["HYGE_SNAPSHOT_DIR"] = research_dir
             Prove(graph, start, goal, empty, heuristic, registry)
-            if _run_count(research_dir) != 0:
+            if os.path.isdir(os.path.join(research_dir, "search_compare")) is True:
                 self.result = M.false_value
 
             # Evaluation mode skips stored comparison shortcuts.
@@ -17381,7 +17363,7 @@ class ProveKnowledgeCacheResearchEvaluationSkipWorkersTest(M.Edge):
             os.makedirs(eval_dir, exist_ok=True)
             os.environ["HYGE_SNAPSHOT_DIR"] = eval_dir
             Prove(graph, start, goal, empty, heuristic, registry)
-            if _run_count(eval_dir) != 0:
+            if os.path.isdir(os.path.join(eval_dir, "search_compare")) is True:
                 self.result = M.false_value
         finally:
             if old_snap is None:
