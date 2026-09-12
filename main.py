@@ -3742,6 +3742,13 @@ def run_talk_mode(sentence: str = None):
                 raise RuntimeError("foreground coordinator received a different goal")
             print("hyge> foreground coordinator goal preserved (machine structural equality)")
             if derivation is M.EmptyList:
+                diagnostic = proof_runtime.last_foreground_diagnostic
+                if M.IdentityCompare(diagnostic, M.EmptyList)() is M.false_value:
+                    return (
+                        "Foreground diagnostic: unsupported shell requires "
+                        + _research_term_text(diagnostic, proof_runtime.graph)
+                        + ". This capability report is not a theorem request; no proof is submitted."
+                    )
                 return "Search stalled: no derivation found. Parsing succeeded; no theorem is asserted."
             return "Foreground search returned a derivation. Ingress does not assert a checked theorem from that result."
         lowered = line.lower()

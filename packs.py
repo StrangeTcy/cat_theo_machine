@@ -73,7 +73,7 @@ class PackTreeMap:
 
 class LoadedPack:
 
-    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi, origin=None):
+    def __init__(self, name, description, requires, rule_map, rule_chain, schema_map, examples, phi, origin=None, diagnostic_rules=()):
         self.name = name
         self.description = description
         self.requires = requires
@@ -85,6 +85,9 @@ class LoadedPack:
         self.schema_map = schema_map
         self.examples = examples
         self.phi = phi
+        # Pack-local diagnostic records: (id, shell, capability requirement).
+        # They are data for foreground reporting, never members of rule_chain.
+        self.diagnostic_rules = diagnostic_rules
         # Machine chain of Pair(word_chain, Pair(atom, EmptyList)):
         # every symbol this pack's compilation resolved, as terms.
         self.symbol_map = M.EmptyList
@@ -349,11 +352,13 @@ class PackLoader:
         pack_start = time.monotonic()
 
         rule_specs = tuple(data.get("rules", ()))
+        diagnostic_specs = tuple(data.get("diagnostics", ()))
         schema_specs = tuple(data.get("schemata", ()))
         example_specs = tuple(data.get("examples", ()))
 
         rule_map = PackTreeMap(self.string_table)
         rule_order = ()
+        diagnostic_rules = ()
         all_rules = graph.all_rules
         graph_rule_order = graph.rule_order
         next_rule_index = graph.next_rule_index
@@ -398,6 +403,18 @@ class PackLoader:
                 )
             if self._surface_this_rule:
                 sys.stdout.flush()
+
+        # Diagnostic records use the same pack-local surface compiler but
+        # never become MultiRule or Rule objects and never enter graph rules.
+        # A matching diagnostic therefore cannot fire, replay, prove, or add
+        # a conclusion to knowledge.
+        for diagnostic in diagnostic_specs:
+            diagnostic_id = diagnostic["id"]
+            var_env = {}
+            self._surface_this_rule = ()
+            requirement = self._compile_term(diagnostic["requirement"], var_env)
+            shell = self._compile_term(diagnostic["shell"], var_env)
+            diagnostic_rules = diagnostic_rules + ((diagnostic_id, shell, requirement),)
 
         rule_chain = self._chain(rule_order)
 
@@ -462,6 +479,7 @@ class PackLoader:
             examples=examples,
             phi=phi,
             origin=origin_tag,
+            diagnostic_rules=diagnostic_rules,
         )
         loaded.symbol_map = self.symbol_map
         # D11-MAP: what this pack declared, and which rules were compiled
