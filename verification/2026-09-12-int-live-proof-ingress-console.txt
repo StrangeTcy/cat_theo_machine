@@ -1,0 +1,14 @@
+Candidate: 6567286bcd35a86e696b1b6dabfd3af4b2ffbe21
+Scope: new ingress on 41e8078; original transcript not reproduced
+Environment: sandbox Bash (authorized), not Anaconda
+Acceptance groups: 8/8
+Foreground submissions: 3 expected, 3 observed
+Comparison-worker receipts: 15 expected, 15 structurally equal
+Natural clarification submissions: 0
+Malformed submissions: 0
+Formal regression: parent and candidate return four
+Daemon routing, isolated state, ownership: pass
+Search results: stalls; no theorem asserted
+EXIT_CODE=0
+Raw transcript: verification/live-proof-ingress-live-transcript.txt
+State and worker receipt evidence: /tmp/hyge-live-ingress.m81mv55N

@@ -40,6 +40,8 @@ class MachineRuntime:
         self.rewrite_heuristic = rewrite_heuristic
         self.loaded_packs = loaded_packs if loaded_packs is not None else ()
         self.snapshot_upgraded = M.false_value
+        # Audit the ingress boundary without serializing or replacing a goal.
+        self.last_foreground_goal = M.EmptyList
         self._compiled_ordered_rules = None
 
     def ordered_rules(self):
@@ -77,6 +79,7 @@ class MachineRuntime:
         return TestResultsReport(self.graph)()
 
     def prove(self, start, goal, rules=None, heuristic=None, phi=None):
+        self.last_foreground_goal = goal
         if rules is None:
             rules = self.ordered_rules()
         else:

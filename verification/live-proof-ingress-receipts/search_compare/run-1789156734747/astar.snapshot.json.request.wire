@@ -1,0 +1,1 @@
+( T ( ( C:forall ( C:t ( ( C:implies ( ( L:ExprLtLabel ( ( L:ExprIntLabel ( G:0 E ) ) ( ( C:bound-variable ( C:t E ) ) E ) ) ) ( ( L:ExprEqLabel ( ( L:ExprAddLabel ( ( C:bound-variable ( C:t E ) ) ( ( L:ExprIntLabel ( G:0 E ) ) E ) ) ) ( ( C:bound-variable ( C:t E ) ) E ) ) ) E ) ) ) E ) ) ) E ) )

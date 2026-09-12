@@ -1,0 +1,8 @@
+prove that for all n > 2 a^n + b^n = c^n has no solutions in natural numbers
+prove that for all n > 2 a^n + b^n = c^n has no solutions in positive integers
+prove that for all k > 3 x^k + y^k = z^k has no solutions in positive integers
+prove that for all t > 0 t + 0 = t
+prove that for all > 2 a^n + b^n = c^n has no solutions in positive integers
+why
+add ( two , two )
+goodbye

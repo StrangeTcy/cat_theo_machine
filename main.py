@@ -43,13 +43,14 @@ else:
     from . import wire as W
     from . import session as Sess
     from . import daemon as Dmn
+    from . import proof_ingress as Ingress
     from . import provenance as Provmod
     from .testsuite import install_default_tests
 
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 PACK_DIR = os.path.join(PACKAGE_DIR, "packs")
-SNAPSHOT_DIR = os.path.join(PACKAGE_DIR, "snapshots")
+SNAPSHOT_DIR = os.environ.get("HYGE_SNAPSHOT_DIR", os.path.join(PACKAGE_DIR, "snapshots"))
 INSPECTOR_DIR = os.path.join(PACKAGE_DIR, "inspector")
 SNAPSHOT_NAME = "hyge_snapshot_v8.json"
 SNAPSHOT_SAVE_TIMEOUT_SECONDS = 120.0
@@ -548,10 +549,24 @@ def _string_atom(text: str):
 
 
 def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, registry):
+    request_path = result_path + ".request.wire"
+    if os.path.exists(request_path):
+        with open(request_path, "rb") as handle:
+            request = W.deserialize_term(handle.read())
+        start = M.Head(request)()
+        goal = M.Head(M.Tail(request)())()
+        if M.Tail(M.Tail(request)())() is not M.EmptyList:
+            raise RuntimeError("search-worker request must contain exactly start and goal")
+        # Receipt evidence is the decoded machine term, not a display string.
+        with open(result_path + ".received.wire", "wb") as handle:
+            handle.write(W.serialize_term(M.Pair(start, M.Pair(goal, M.EmptyList))))
+        print("search-worker: machine request received")
+        sys.stdout.flush()
+        return "submitted machine goal", start, goal, M.EmptyList, M.EmptyList
     cases = _theorem_agenda(packs)
     manifest_path = _search_worker_result_manifest_path(result_path)
-    if os.path.exists(manifest_path) is False:
-        return cases[0]
+    if not os.path.exists(manifest_path):
+        raise RuntimeError("search-worker request missing; refusing a substitute theorem")
     with open(manifest_path, "r", encoding="utf-8") as handle:
         manifest = json.load(handle)
     expected_start_text = manifest.get("start_text", "")
@@ -563,9 +578,9 @@ def _search_worker_problem_from_manifest(packs, result_path: str, heuristic, reg
         candidate_goal = Hmod.HeuristicCanonicalize(goal, heuristic, registry)()
         if M.PrettyTerm(candidate_start, registry)() == expected_start_text:
             if M.PrettyTerm(candidate_goal, registry)() == expected_goal_text:
-                return label, start, goal
+                return label, start, goal, _rules, _phi
         case_index = case_index + 1
-    return cases[0]
+    raise RuntimeError("search-worker legacy request does not identify a theorem; refusing a substitute goal")
 
 
 class _SearchWorkerResultGraph:
@@ -829,6 +844,9 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
         start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
         goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+        if os.path.exists(result_path + ".request.wire"):
+            with open(result_path + ".search-goal.wire", "wb") as handle:
+                handle.write(W.serialize_term(M.Pair(start, M.Pair(goal, M.EmptyList))))
     runtime.graph._search_disable_console = M.truth_value
     runtime.graph._search_disable_progress_ticker = M.false_value
     runtime.graph._search_stop_help_shown = M.truth_value
@@ -3683,6 +3701,48 @@ def run_talk_mode(sentence: str = None):
         nonlocal registry, proof_runtime
         nonlocal last_outcome, last_derivation, last_goal, last_proof_registry
         nonlocal research_parent_goal, research_last_blocking
+        # Dispatch composition (INT): the ingress grammar and the research
+        # protocol both read "prove ..." lines. Routing is by recognition,
+        # not by order: only a line the ingress grammar recognizes takes
+        # the ingress path. Everything else falls through to the research
+        # dispatch and the rest of the conversation unchanged, so formal
+        # research goals and every non-ingress line behave exactly as on
+        # the INT line. Under the INT line alone, the newly routed lines
+        # were research refusals ("cannot compile ... No attempt was made").
+        request = Ingress.LiveProofRequest(Ingress.ProofTokenStream(line)())
+        if request.recognized is M.truth_value:
+            last_outcome = M.EmptyList
+            last_derivation = M.EmptyList
+            last_goal = M.EmptyList
+            last_proof_registry = M.EmptyList
+            if request.goal is M.EmptyList:
+                return Ingress.ProofIngressMessage(request.outcome)()
+            print("hyge> parsed goal: " + Ingress.ProofGoalText(request.goal)())
+            sys.stdout.flush()
+            if not record:
+                return "parsed recorded request; no proof submitted during replay"
+            if proof_runtime is M.EmptyList:
+                print("hyge> loading theorem packs for foreground proof")
+                sys.stdout.flush()
+                with redirect_stdout(io.StringIO()):
+                    proof_runtime, _proof_packs = boot_from_packs(
+                        PACK_PATHS, _runtime_namespace(),
+                    )
+                _adopt_pack_concepts(
+                    proof_runtime.loaded_packs,
+                    M.FromContextGetAllRules(proof_runtime.graph)(),
+                )
+                _teach_runtime_taught_rules(proof_runtime, learned_version)
+            print("hyge> submitting parsed goal to foreground prover")
+            sys.stdout.flush()
+            submission = Ingress.SubmitForegroundGoal(proof_runtime, request)
+            derivation = submission()
+            if M.Compare(proof_runtime.last_foreground_goal, request.goal)() is M.false_value:
+                raise RuntimeError("foreground coordinator received a different goal")
+            print("hyge> foreground coordinator goal preserved (machine structural equality)")
+            if derivation is M.EmptyList:
+                return "Search stalled: no derivation found. Parsing succeeded; no theorem is asserted."
+            return "Foreground search returned a derivation. Ingress does not assert a checked theorem from that result."
         lowered = line.lower()
         # research live protocol commands take precedence
         rc = _handle_research_command(line)
@@ -4243,25 +4303,33 @@ def run_live_mode(requested_workers):
     """
     import threading
 
-    # PACKAGE_DIR is this package; its parent is the import root, which is
-    # what a child needs on PYTHONPATH to import hyge. IMPORT_ROOT itself
-    # only exists in the re-exec branch above, so it is recomputed here.
+    # Launch from the import root and use this checkout's package name.
+    # The child inherits the environment, including HYGE_SNAPSHOT_DIR;
+    # no fixed package alias or replacement environment mapping is needed.
     import_root = os.path.dirname(PACKAGE_DIR)
+    live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
+    if os.path.exists(live_path):
+        raise RuntimeError("Live state already has a daemon marker; use an isolated HYGE_SNAPSHOT_DIR. No daemon was stopped.")
+    try:
+        os.makedirs(SNAPSHOT_DIR)
+    except FileExistsError:
+        pass
     daemon_child = subprocess.Popen(
-        [
+        (
             sys.executable,
             "-u",
             "-m",
+            # INT-side literal: identical to __package__ + ".main" in this
+            # checkout; the line's bytes are kept.
             "cat_theo_machine.main",
             "daemon",
             "--workers",
             str(requested_workers),
-        ],
+        ),
         cwd=import_root,
-        env=dict(os.environ, PYTHONPATH=import_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
+        encoding="utf-8",
         bufsize=1,
     )
 
@@ -4282,9 +4350,11 @@ def run_live_mode(requested_workers):
             daemon_child.wait(timeout=5)
         except subprocess.TimeoutExpired:
             daemon_child.kill()
-        live_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_LIVE_NAME)
         if os.path.exists(live_path):
-            os.remove(live_path)
+            with open(live_path, "r", encoding="utf-8") as marker:
+                owner = marker.read().strip()
+            if owner == str(daemon_child.pid):
+                os.remove(live_path)
         print("live mode: daemon stopped.")
 
 
