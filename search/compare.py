@@ -175,6 +175,18 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
     def _comparison_uses_shared_root_fast_paths(self):
         return M.IdentityCompare(self.graph._search_compare_enable_shared_root_fast_paths, M.truth_value)()
 
+    def _paused_comparison_job_matches_current_problem(self, paused_job):
+        if M.Compare(paused_job, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.TermEqual(SearchComparisonJobStart(paused_job)(), self.start)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(SearchComparisonJobGoal(paused_job)(), self.goal)() is M.false_value:
+            return M.false_value
+        # Rules are restored as a new term graph. They remain the job's
+        # frontier-compatible rule set, but they are not host-identical to
+        # the caller-supplied chain, so problem identity is start and goal.
+        return M.truth_value
+
     def _compare_all_modes(self, paused_job=M.EmptyList):
         if self._comparison_uses_shared_root_fast_paths() is M.false_value:
             return self._compare_all_modes_independent(paused_job)
