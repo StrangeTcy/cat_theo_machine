@@ -1,0 +1,4 @@
+boot 1.8s   install 97.9s   run 1.2s   total 100.9s
+registered 1 tests
+passed: 0   failed: 1   open: 0
+paused_comparison_job_snapshot_resume_test

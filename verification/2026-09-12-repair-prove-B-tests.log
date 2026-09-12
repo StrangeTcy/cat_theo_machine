@@ -1,0 +1,4 @@
+boot 1.8s   install 144.2s   run 3.1s   total 149.1s
+registered 4 tests
+passed: 4   failed: 0   open: 0
+All the tests have passed.
