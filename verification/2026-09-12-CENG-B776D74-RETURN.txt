@@ -1,0 +1,153 @@
+INT DISPOSITION: C-eng merge package b776d74 — RETURN TO OWNER (no admission)
+date: 2026-09-12 (Europe/Moscow)
+integrator: INT session arena/01a09270 (sole active integrator)
+
+PACKAGE
+  package: b776d74 (tip of arena/01a06da9-cat-theo-machine)
+  range: 099586e..f6cd572 (11 commits, 2026-09-06..2026-09-11)
+  work tip: f6cd572 "[SHARED] AttemptedRule and CounterfactualEvidence; evidence-class neutrality"
+  base parent: 412b215 ("preflight", 2026-09-06)
+  merge-base with candidate base: 41e8078 (2026-08-23)
+  candidate base: 55b773d ("Ledger: the published base is hosttools-7ec5f59, not f59fb92")
+  frozen ref: shared-7cf6394 @ 7cf6394 (2026-09-06; does NOT contain f6cd572)
+  net range delta: 11 files, +1762/-0 (pure addition)
+    runtime scope (4 files): workers.py (new, 577 lines), labels.py (+96),
+      persistence.py (+15: SNAPSHOT_SYMBOL_NAMES only, no new functions),
+      testsuite.py (+636: Wmod import + 9 test classes + 9 registrations)
+    docs scope (7 files, out of runtime admission): protocol/SHARED.md,
+      protocol/preflight/ledger.md, protocol/research_protocol.md,
+      verification/2026-09-07-shared-two-shard.txt,
+      verification/2026-09-08-checked-admit-proposal.txt,
+      verification/2026-09-09-sibling-independence-via-retirement.txt,
+      verification/2026-09-11-evidence-class-neutrality.txt
+  the 9 shared tests: shared_two_workers_overlap_and_join_test,
+    shared_or_join_and_crash_execution_failure_test,
+    shared_serial_admission_and_stale_attempt_test,
+    shared_serial_admit_proposal_ablation_test,
+    shared_serial_admit_proposal_cites_baseline_test,
+    shared_checked_admit_proposal_logging_test,
+    shared_sibling_independence_via_retirement_test,
+    shared_observation_journal_boundary_test,
+    shared_evidence_class_neutrality_test
+
+VERDICT: RETURN TO OWNER (C-eng). No commit of the import, no tag.
+Finding 1 is structural and blocks admission. Finding 2 was fixed in
+rehearsal and must be adopted by C-eng at re-submission.
+
+FINDING 1 (BLOCKING): same-label dual-shape records.
+  AttemptedRuleLabel + CounterfactualEvidenceLabel are shared by two
+  incompatible record shapes:
+    INT line, research.py (prior art since 118d11d, 2026-09-01, "Dependency
+    requests come from attempted rules, not from goal shape"):
+      AttemptedRule(rule_id, origin, substitution, matched, unmatched, failure) — 6 fields
+      CounterfactualEvidence(cost_before, cost_after, newly_enabled, removed, new,
+        goal_closed) — 6 fields
+    C-eng, workers.py (new 2026-09-11, built on pre-118d11d base 412b215):
+      AttemptedRule(rule, origin) — 2 fields
+      CounterfactualEvidence(claim, residual) — 2 fields
+  C-eng's tip has no research.py records (0 matches for either class): the
+  collision exists ONLY after import, so C-eng's suite-green says nothing
+  about co-existence. The research gate IsAttemptedRule (research.py:277)
+  keys on the head label only, so workers-shaped records PASS it, and every
+  positional reader past field 2 then walks off the end of the record.
+  Reproduction on the rehearsal tree (direct constructor/reader calls, no
+  mocks; each record built with distinct per-field markers):
+    IsAttemptedRule(workers-2-field)       => truth_value (gate passes: the trap)
+    AttemptedRuleId(workers)               => Char('RULE') (silent: a rule in the rule-id slot)
+    AttemptedRuleOrigin(workers)           => Char('ORIG') (accidentally correct)
+    AttemptedRuleSubstitution(workers)     => RAISED AttributeError: 'Thingy' has no attribute 'head'
+    AttemptedRuleUnmatched(workers)        => RAISED AttributeError: 'Thingy' has no attribute 'tail'
+    AttemptedRuleFailure(workers)          => RAISED AttributeError
+    HasNameableUnmatchedPremise(workers)   => RAISED AttributeError (research.py:375 gate-then-read path)
+    workers AttemptedRuleValue(6-field)    => Char('ID') (silent: an id in the rule slot)
+    workers AttemptedRuleOrigin(6-field)   => Char('ORIG') (accidentally correct; masks the conflict)
+    workers Claim(research-6-field-ev)     => cost_before atom (silent: a cost in the claim slot)
+    workers Residual(research-6-field-ev)  => cost_after atom (silent: a cost in the residual slot)
+    own-shape reads (both sides)           => all correct (probe is valid, not a harness artifact)
+  Live consumer sites of the crashing readers: research.py:375
+  (HasNameableUnmatchedPremise), main.py:3107-3109 and main.py:3628-3630
+  (research display reads AttemptedRuleUnmatched + AttemptedRuleOrigin).
+  Research-side CounterfactualEvidence has no field readers (constructor +
+  2 construction sites only), so the evidence direction fails silently
+  through workers Claim/Residual readers plus any label-keyed traversal.
+  Ruled out: padding workers records to 6 fields would turn the crashes
+  into SILENTLY WRONG cross-reads (worse); renaming workers labels may
+  break gate matching (CheckedAdmitProposal queue semantics key on these
+  classes). Reconciliation is a lane-level design decision, not an INT
+  mechanical edit. Prior art stays: 118d11d is published and frozen, and
+  published history is never rewritten.
+  Owner: C-eng. Consulted: S-eng/research (owns research.py readers + display).
+  Re-submission options (INT rules on re-submit): (a) worker-scoped labels
+  for the workers records; (b) adopt/extend the 6-field records; (c) prove
+  disjointness of the two record flows and take a lane waiver.
+
+FINDING 2 (FIXED IN REHEARSAL; C-eng ADOPTS AT RE-SUBMISSION): workers.py import order.
+  8620e2d (2026-09-08, "[SHARED] CheckedAdmitProposal records origin,
+  coordinator, GraphVersion on gated admission") added
+  `from . import graph as Gmod` FIRST in workers.py's import block, to use
+  Gmod.ProposalStore*/ActivateProposal. Graph-first import deadlocks
+  against machine.py:1037 (`from .graph import Hypergraph, ...`), a cycle
+  present since 41e8078 on EVERY committed tree of both lines and all tags.
+  Every worker child (`sys.executable -m cat_theo_machine.workers`) therefore
+  dies with ImportError on every committed tree — reproduced on C-eng's own
+  tip f6cd572 — so the 2 spawn tests are red at C-eng's tip: test 1 needs
+  live timestamps for its overlap check (dead children give 0<0, false) and
+  test 2 needs a live side-A ObligationDischarged label. Timeline: workers
+  born 099586e (2026-09-06) with graph-absent imports, green in the Sept-7
+  two-shard verification (@ 513f883); red since 8620e2d, unnoticed (the
+  Sept-8/9/11 verification files do not run the spawn tests). C-eng's
+  package message claims no test color; the Sept-6 frozen tag predates the
+  regression. The Gmod API use itself is sound (all 18 required graph APIs
+  plus ZeroLabel/SuccLabel verified present at the candidate base) — only
+  the import POSITION breaks. Fix (verified in rehearsal): order the block
+  machine -> labels -> graph. With it, 9/9 green with live children (real
+  PIDs + overlapping timestamps). Green on a committed tree is impossible
+  without this fix; any green observed elsewhere requires an uncommitted
+  local reorder. Owner: C-eng (one-line move in their file).
+
+REHEARSAL (scratch tree, not committed; base 55b773d + scoped import):
+  workers.py verbatim + 13 labels in the [SHARED] label block
+  (AttemptedRule/CounterfactualEvidence skipped: already on the INT line
+  as classes, singletons, sync names, and snapshot names) + 13
+  sync_from_namespace names + 13 SNAPSHOT_SYMBOL_NAMES + Wmod import +
+  9 classes in the [SHARED] class block + 9 registrations in the [SHARED]
+  registration block, converted to class-style per INT convention (C-eng's
+  line predates the name filter; instance-style would defeat filtered
+  runs) + guard pin EXPECTED_GUARD_COUNT 306 -> 315 (pinned
+  learned_memory_checkpoint_test stays index 218 / shard 0).
+  Duplicate map: 13/15 labels new, 2 pre-existing; workers.py new;
+  SerialAdmitProposal / CheckedAdmitProposal / ObservationJournal have no
+  INT counterpart (safe additions); RetireLaw bodies identical both lines
+  (no action); AttemptedRule / CounterfactualEvidence shapes collide
+  (Finding 1). workers.py dependency-clean (graph/labels/machine + stdlib);
+  the 9 tests are self-contained (Wmod+Gmod+Pmod+Xmod+tempfile+os, all
+  present at base).
+
+EVIDENCE (isolated filtered runner, boot-from-packs each leg; runner is
+spawn-safe with an exported PYTHONPATH so children resolve the same tree):
+  set A (the 9 shared tests):
+    verbatim import order: 7 pass / 2 fail (the 2 spawn tests; children ImportError)
+    + Finding-2 reorder: 9 pass / 0 fail ("All the tests have passed.")
+  set B (16 tests: test_shard_cursor_pin, label_registration_completeness
+  with missing pins 40/198 stable, 8 research-adjacent, 6
+  snapshot/persistence): candidate 16/16; pristine-55b773d baseline 16/16.
+  set C (3 remaining whole-namespace consumers: definition_node,
+    paused_comparison_job_snapshot_roundtrip/resume): candidate 3/3; baseline 3/3.
+  static sweep at base: the extended tables are consumed only by the D1
+  test (green); all other Lmod uses are named-label references
+  (addition-proof); all 9 vars(Lmod) sites covered (6 in set B, 3 in set C).
+  Full two-shard suite NOT run: admission is structurally blocked by
+  Finding 1, and shards gate the re-submission, not this return. The 9
+  focused tests + 19 baseline-compared tests (16+3, identical both trees)
+  + the cross-shape reproduction are the complete evidence for a return.
+  No outcome was inferred from C-eng's runs: every number above was re-run
+  on INT-controlled trees. No live-ingress repair was placed on C-eng:
+  nothing from live-ingress is in this scope.
+
+RE-SUBMISSION CHECKLIST FOR C-eng:
+  1. Reconcile the AttemptedRule/CounterfactualEvidence shapes (Finding 1
+     options a/b/c); coordinate with S-eng/research on shared labels.
+  2. Adopt the workers.py import reorder (Finding 2) and show the 2 spawn
+     tests green on YOUR tip.
+  3. Re-submit a merge package; INT re-rehearses from the then-current base
+     and both full shards gate admission.

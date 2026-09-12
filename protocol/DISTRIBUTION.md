@@ -1249,6 +1249,40 @@ an ancestor of `live-ingress/admission-1`. The tag is ingress-only;
 shell partials will still be 0 on this tree until that merge lands.
 ```
 
+**Successor INT — C-eng merge package `b776d74`, 2026-09-12: RETURNED, no
+tag.** Range `099586e..f6cd572` (11 commits, 2026-09-06..11; +1762/-0,
+pure addition), candidate base `55b773d`, rehearsed in a scratch tree
+(not committed). Returned on two findings; full record with reproduction
+in `verification/2026-09-12-CENG-B776D74-RETURN.txt` (`b01d4de3…`):
+
+1. **BLOCKING, structural:** `AttemptedRuleLabel` /
+   `CounterfactualEvidenceLabel` are shared by two incompatible record
+   shapes — the INT line's 6-field `research.py` records (prior art
+   since `118d11d`, 2026-09-01) and C-eng's new 2-field `workers.py`
+   records (built on pre-`118d11d` base `412b215`). The head-label-only
+   gate `IsAttemptedRule` passes workers-shaped records, then every
+   positional reader past field 2 raises `AttributeError`
+   (`AttemptedRuleSubstitution/Unmatched/Failure`,
+   `HasNameableUnmatchedPremise`; the field-5 reader is consumed live
+   by `main.py:3107,3628`), while the reverse direction misreads
+   silently (rule-id in the rule slot, costs in the claim/residual
+   slots). Reconciliation (worker-scoped labels, adopt the 6-field
+   records, or proven disjointness + waiver) is a lane-level design
+   decision. Owner: C-eng, consulted S-eng/research.
+2. **Fixed in rehearsal, C-eng adopts:** `8620e2d` (2026-09-08) put
+   `from . import graph as Gmod` first in `workers.py`'s import block,
+   which deadlocks against the `machine.py:1037` cycle on every
+   committed tree — all worker children die with `ImportError`, so the
+   2 spawn tests are red at C-eng's tip (last green: the Sept-7
+   verification @ `513f883`, before `8620e2d`). Fix: order the block
+   machine → labels → graph.
+
+Rehearsal evidence, all re-run on INT-controlled trees: 9 shared tests
+7/2 verbatim, 9/9 with the reorder; 16 guard/D1/research/snapshot tests
+16/16 on candidate and 16/16 on pristine-`55b773d` baseline; 3 remaining
+whole-namespace consumers 3/3 both trees. Full shards not run — they
+gate the re-submission, not this return. No import commit, no tag.
+
 ---
 
 ## 8. Worker report block
