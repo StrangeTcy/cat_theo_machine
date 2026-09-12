@@ -1242,6 +1242,11 @@ finding: The current build (live-ingress/admission-1) lacks the structured
          bundle writer for 'geng-bundle/v2'. Artifacts for CUR grading
          remain hand-crafted mocks.
 routing: INT queue (future).
+
+**D11-SHELL ancestry check, 2026-09-12:** `6b258fea884c2b` resolves on
+no branch or tag in this repository after a full fetch, so it is not
+an ancestor of `live-ingress/admission-1`. The tag is ingress-only;
+shell partials will still be 0 on this tree until that merge lands.
 ```
 
 ---
