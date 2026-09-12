@@ -6,8 +6,8 @@ description: Characterization rules exposing unresolved proof-capability obligat
 origin: primitive
 
 # D11 shell frontier. These are pack-local constructor-head mappings only.
-# Each rule can expose one concrete capability premise from a matching outer
-# shell; neither rule proves its conclusion without that premise.
+# Each diagnostic describes one concrete capability requirement from a matching
+# outer shell. Diagnostic entries never enter the proof-rule collection.
 surface:
   NosolutionsIntroductionLabel: nosolutions
   ForallImpliesDecompositionLabel: forall
@@ -17,16 +17,16 @@ surface:
 phi:
   list: []
 
-rules:
+diagnostics:
   - id: nosolutions_introduction
-    pattern:
+    requirement:
       call:
         head: {sym: NeedContradictionFromArbitrarySolutionLabel}
         args:
           - {var: domain}
           - {var: unknowns}
           - {var: equation}
-    replacement:
+    shell:
       call:
         head: {sym: NosolutionsIntroductionLabel}
         args:
@@ -35,14 +35,14 @@ rules:
           - {var: equation}
 
   - id: forall_implies_decomposition
-    pattern:
+    requirement:
       call:
         head: {sym: NeedBinderSafeImplicationLabel}
         args:
           - {var: variable}
           - {var: antecedent}
           - {var: consequent}
-    replacement:
+    shell:
       call:
         head: {sym: ForallImpliesDecompositionLabel}
         args:

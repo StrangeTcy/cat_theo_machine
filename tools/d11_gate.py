@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-"""D11-MAP gate.
+"""D11 diagnostic-isolation gate, version 2.
 
 Re-runnable from a fresh clone:
 
-    python3 tools/d11_gate.py              # all conditions
+    python3 tools/d11_gate.py              # all gated conditions
     python3 tools/d11_gate.py --baseline   # (re)record the shipped-167 digest
+    python3 tools/d11_gate.py --safety-probe
+    python3 tools/d11_gate.py --live-ingress-probe
 
-What it proves, in the terms of the §8 ruling:
-
-  1. shipped packs, no surface headers  -> rule count and compiled-rule
-     digest unchanged from the pre-change baseline in
-     protocol/d11-spike/shipped-167-rules.sha256; zero surface records;
-     zero candidates on the D11 probe
-  2. fixture with {sym:} heads, no header      -> partial matches 0
-  3. same fixture plus a surface: header       -> partial matches 1,
-     provenance LIBRARY_THEOREM, audit line names the pack-local mapping
-  4. unrelated goal, mapped fixture loaded     -> partial matches 0
-  5. char-form fixture                         -> diagnostic only, printed
-     and explicitly NOT cited as D11 fixed
+Version 2 preserves the arithmetic surface-port checks, but supersedes the
+old executable B/C partial-match expectation. The shell pack contributes two
+diagnostic records and zero fireable proof rules: B/C have one diagnostic
+candidate, zero proof-rule candidates, and an empty returned derivation.
+The gate also rejects supplied Need facts, empty-premise taught Need rules,
+restored supplied facts, and replayed taught Need rules as paths to either
+shell conclusion. The live toy verifies parsed -> submitted -> received goal
+identity before recording its diagnostic-only result.
 
 Exit status is 0 only if every gated condition passes.
 """
@@ -50,6 +48,7 @@ from cat_theo_machine.main import (  # noqa: E402
     _term_text,
 )
 from cat_theo_machine.proof import CollectRules  # noqa: E402
+from cat_theo_machine import proof_ingress as Ingress  # noqa: E402
 
 SPIKE_DIR = os.path.join(ROOT, "protocol", "d11-spike")
 DIGEST_PATH = os.path.join(SPIKE_DIR, "shipped-167-rules.sha256")
@@ -171,16 +170,19 @@ def boot(paths):
     return runtime, getattr(runtime, "loaded_packs", ())
 
 
-def probe(runtime, goal_text, packs=()):
+def probe(runtime, goal_text, packs=(), start_facts=None, rule_chain=None):
     """One goal attempt through the real research path. Returns a summary."""
     graph = runtime.graph
     id_index = rule_id_index(packs)
     term, err = _research_parse(goal_text)
     if term is None:
         raise RuntimeError("cannot parse goal %r: %s" % (goal_text, err))
-    rules = rules_of(graph)
+    if start_facts is None:
+        start_facts = Rmod.axiom_facts(graph)
+    if rule_chain is None:
+        rule_chain = rules_of(graph)
     outcome = Rmod.attempt_goal(
-        graph, Rmod.axiom_facts(graph), M.Pair(term, M.EmptyList), rules
+        graph, start_facts, M.Pair(term, M.EmptyList), rule_chain
     )
     attempts = walk(getattr(graph, "research_attempts", M.EmptyList))
     rule_ids = ()
@@ -254,11 +256,16 @@ FLT_WORDS = ("fermat", "flt", "wiles", "frey")
 
 def main(argv):
     baseline_mode = "--baseline" in argv
+    safety_probe_mode = "--safety-probe" in argv
+    live_ingress_probe_mode = "--live-ingress-probe" in argv
     probe_goal = None
+    diagnostic_probe_goal = None
     shell_ablation_probe_goal = None
     for i, a in enumerate(argv):
         if a == "--probe" and i + 1 < len(argv):
             probe_goal = argv[i + 1]
+        if a == "--diagnostic-probe" and i + 1 < len(argv):
+            diagnostic_probe_goal = argv[i + 1]
         if a == "--shell-ablation-probe" and i + 1 < len(argv):
             shell_ablation_probe_goal = argv[i + 1]
 
@@ -277,6 +284,26 @@ def main(argv):
             ))
         return 0
 
+    # ---- diagnostic probe: one goal against isolated shell diagnostics -
+    if diagnostic_probe_goal is not None:
+        runtime, _packs = boot(PACK_PATHS)
+        goal, error = _research_parse(diagnostic_probe_goal)
+        if error is not None:
+            raise RuntimeError("cannot parse diagnostic goal %r: %s" % (diagnostic_probe_goal, error))
+        derivation = runtime.prove(M.truth_value, goal)
+        diagnostic = runtime.last_foreground_diagnostic
+        count = 0
+        if M.IdentityCompare(diagnostic, M.EmptyList)() is M.false_value:
+            count = 1
+        print("diagnostic probe: %s" % diagnostic_probe_goal)
+        print("diagnostic candidates: %d" % count)
+        if count == 1:
+            print("capability requirement: %s" % _term_text(diagnostic, runtime.graph))
+        print("proof result empty: %s" % (
+            M.IdentityCompare(derivation, M.EmptyList)() is M.truth_value
+        ))
+        return 0
+
     # ---- shell ablation probe: one goal without the shell surface ----
     if shell_ablation_probe_goal is not None:
         runtime, packs = boot(ablated_paths(("shell-characterization",)))
@@ -286,6 +313,112 @@ def main(argv):
         print("partial matches: %d" % result["count"])
         print("rule ids:        %s" % (", ".join(result["rule_ids"]) or "none"))
         print("origins:         %s" % (", ".join(result["origins"]) or "none"))
+        return 0
+
+    # ---- isolated live ingress diagnostic ---------------------------
+    if live_ingress_probe_mode:
+        text = "prove that for all n > 1 n + n = n + n"
+        runtime, _packs = boot(PACK_PATHS)
+        request = Ingress.LiveProofRequest(Ingress.ProofTokenStream(text)())
+        direct = Ingress.MathematicalSentence(request.claim)
+        submission = Ingress.SubmitForegroundGoal(runtime, request)
+        returned = submission()
+        received = runtime.last_foreground_goal
+        diagnostic = runtime.last_foreground_diagnostic
+        passed = (
+            request.recognized is M.truth_value
+            and request.goal is not M.EmptyList
+            and M.Compare(direct.goal, request.goal)() is M.truth_value
+            and M.Compare(submission.goal, request.goal)() is M.truth_value
+            and M.Compare(received, request.goal)() is M.truth_value
+            and M.IdentityCompare(returned, M.EmptyList)() is M.truth_value
+            and M.IdentityCompare(diagnostic, M.EmptyList)() is M.false_value
+        )
+        print("live ingress text: " + text)
+        print("parsed goal: " + Ingress.ProofGoalText(request.goal)())
+        print("foreground submission: " + Ingress.ProofGoalText(submission.goal)())
+        print("worker-received goal: " + Ingress.ProofGoalText(received)())
+        print("returned diagnostic: " + _term_text(diagnostic, runtime.graph))
+        print("returned derivation: empty")
+        if passed:
+            print("PASS: parsed goal == foreground submission == worker-received goal; diagnostic only")
+            return 0
+        print("FAIL: live ingress diagnostic identity or isolation")
+        return 1
+
+    # ---- adversarial capability-supply probe ------------------------
+    if safety_probe_mode:
+        shell_cases = (
+            (
+                "B",
+                "(nosolutions positive-integers (unknowns x) (eq (plus x 1) x))",
+                "(NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x))",
+            ),
+            (
+                "C",
+                "(forall n (implies (greater n 1) (eq (plus a a) (plus a a))))",
+                "(NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))",
+            ),
+        )
+        for name, goal_text, premise_text in shell_cases:
+            premise, premise_error = _research_parse(premise_text)
+            if premise_error is not None:
+                raise RuntimeError("cannot parse capability premise: %s" % premise_error)
+
+            runtime, packs = boot(PACK_PATHS)
+            ordinary_fact = probe(
+                runtime, goal_text, packs, M.Pair(premise, M.EmptyList)
+            )
+            print("%s ordinary capability fact: closed=%s proof-candidates=%d" % (
+                name, ordinary_fact["closed"], ordinary_fact["count"]
+            ))
+
+            runtime, packs = boot(PACK_PATHS)
+            formal = Rmod.FormalRule(M.EmptyList, premise)()
+            taught = Rmod.teach_trusted_theorem(runtime.graph, formal)
+            taught_rules = M.Pair(taught, rules_of(runtime.graph))
+            taught_result = probe(runtime, goal_text, packs, M.EmptyList, taught_rules)
+            print("%s empty-premise taught capability: closed=%s proof-candidates=%d" % (
+                name, taught_result["closed"], taught_result["count"]
+            ))
+
+            directory = tempfile.mkdtemp(prefix="d11-shell-fact-")
+            snapshot_path = os.path.join(directory, "state.json")
+            runtime, packs = boot(PACK_PATHS)
+            Rmod.assume_axiom(runtime.graph, premise)
+            runtime.save_snapshot(snapshot_path, _runtime_namespace())
+            restored = RT.boot_from_snapshot(
+                snapshot_path, _runtime_namespace(), save_upgraded_snapshot=M.false_value
+            )
+            restored_fact = probe(
+                restored, goal_text, (), Rmod.axiom_facts(restored.graph)
+            )
+            print("%s restored ordinary capability fact: closed=%s proof-candidates=%d" % (
+                name, restored_fact["closed"], restored_fact["count"]
+            ))
+            os.remove(snapshot_path)
+            os.rmdir(directory)
+
+            directory = tempfile.mkdtemp(prefix="d11-shell-taught-")
+            snapshot_path = os.path.join(directory, "state.json")
+            runtime, packs = boot(PACK_PATHS)
+            formal = Rmod.FormalRule(M.EmptyList, premise)()
+            Rmod.teach_trusted_theorem(runtime.graph, formal)
+            runtime.save_snapshot(snapshot_path, _runtime_namespace())
+            restored = RT.boot_from_snapshot(
+                snapshot_path, _runtime_namespace(), save_upgraded_snapshot=M.false_value
+            )
+            replayed = Rmod.rebuild_taught_rules(restored.graph)
+            replayed_rules = rules_of(restored.graph)
+            while M.IdentityCompare(replayed, M.EmptyList)() is M.false_value:
+                replayed_rules = M.Pair(M.Head(M.Head(replayed)())(), replayed_rules)
+                replayed = M.Tail(replayed)()
+            restored_taught = probe(restored, goal_text, (), M.EmptyList, replayed_rules)
+            print("%s restored empty-premise taught capability: closed=%s proof-candidates=%d" % (
+                name, restored_taught["closed"], restored_taught["count"]
+            ))
+            os.remove(snapshot_path)
+            os.rmdir(directory)
         return 0
 
     # ---- baseline ----------------------------------------------------
@@ -345,7 +478,7 @@ def main(argv):
         detail += "ported packs (drift expected): %s" % (
             ", ".join("%s -> %s" % (n, "drifted" if n in expected_drift else "no change")
                       for n in PORTED_PACKS) or "none")
-    ok = (len(rules) == 169 and result["count"] == 0 and not drifted
+    ok = (len(rules) == 167 and result["count"] == 0 and not drifted
           and pack_base and all(n in expected_drift for n in PORTED_PACKS)
           and added_packs == (shell_pack_name,))
     record("1. unported packs unchanged; ported pack drifted as intended", ok, detail)
@@ -462,54 +595,69 @@ def main(argv):
               "yes" if "partial matches: 0" in before_b_section else "no",
               "yes" if "partial matches: 0" in before_c_section else "no"))
 
-    # ---- S2 and S4: nosolutions shell and exact residual --------------
-    print("\n== S2/S4: nosolutions shell ==")
+    # ---- S2 and S4: isolated nosolutions diagnostic -------------------
+    print("\n== S2/S4: nosolutions shell diagnostic ==")
     runtime, packs = boot(PACK_PATHS)
     result_b = probe(runtime, shell_b_goal, packs)
+    goal_b, goal_error_b = _research_parse(shell_b_goal)
     expected_b, parse_error_b = _research_parse(shell_b_premise)
-    if parse_error_b is not None:
-        raise RuntimeError("cannot parse expected B residual: %s" % parse_error_b)
-    residual_b_exact = M.false_value
-    residual_b_text = "none"
-    for attempt in walk(runtime.graph.research_attempts):
-        unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
-        residual_b_text = _term_text(unmatched, runtime.graph)
-        if M.Compare(unmatched, expected_b)() is M.truth_value:
-            residual_b_exact = M.truth_value
-    record("S2. B nosolutions shell -> positive partial matches", result_b["count"] > 0,
-           "probe %s -> partial matches %d (cost %s)"
-           % (shell_b_goal, result_b["count"], result_b["cost"]))
-    record("S4. B residual is the exact contradiction capability premise",
-           residual_b_exact is M.truth_value,
-           "residual: %s\nexpected: %s" % (residual_b_text, shell_b_premise))
+    if goal_error_b is not None or parse_error_b is not None:
+        raise RuntimeError("cannot parse B shell diagnostic terms")
+    derivation_b = runtime.prove(M.truth_value, goal_b)
+    diagnostic_b = runtime.last_foreground_diagnostic
+    b_no_requests = M.IdentityCompare(runtime.graph.dependency_requests, M.EmptyList)()
+    b_no_interventions = M.IdentityCompare(runtime.graph.intervention_episodes, M.EmptyList)()
+    diagnostic_b_count = 0
+    if M.IdentityCompare(diagnostic_b, M.EmptyList)() is M.false_value:
+        diagnostic_b_count = 1
+    record("S2. B has one diagnostic candidate and 0 proof candidates",
+           diagnostic_b_count == 1 and result_b["count"] == 0,
+           "diagnostic candidates: %d\nproof candidates: %d"
+           % (diagnostic_b_count, result_b["count"]))
+    record("S4. B diagnostic is the exact contradiction capability premise",
+           M.Compare(diagnostic_b, expected_b)() is M.truth_value,
+           "diagnostic: %s\nexpected: %s"
+           % (_term_text(diagnostic_b, runtime.graph), shell_b_premise))
 
-    # ---- S3 and S5: forall/implies shell and exact residual -----------
-    print("\n== S3/S5: forall/implies shell ==")
+    # ---- S3 and S5: isolated forall/implies diagnostic ----------------
+    print("\n== S3/S5: forall/implies shell diagnostic ==")
     runtime, packs = boot(PACK_PATHS)
     result_c = probe(runtime, shell_c_goal, packs)
+    goal_c, goal_error_c = _research_parse(shell_c_goal)
     expected_c, parse_error_c = _research_parse(shell_c_premise)
-    if parse_error_c is not None:
-        raise RuntimeError("cannot parse expected C residual: %s" % parse_error_c)
-    residual_c_exact = M.false_value
-    residual_c_text = "none"
-    for attempt in walk(runtime.graph.research_attempts):
-        unmatched = Rmod.AttemptedRuleUnmatched(attempt)()
-        residual_c_text = _term_text(unmatched, runtime.graph)
-        if M.Compare(unmatched, expected_c)() is M.truth_value:
-            residual_c_exact = M.truth_value
-    record("S3. C forall/implies shell -> positive partial matches", result_c["count"] > 0,
-           "probe %s -> partial matches %d (cost %s)"
-           % (shell_c_goal, result_c["count"], result_c["cost"]))
-    record("S5. C residual is the exact binder-safe capability premise",
-           residual_c_exact is M.truth_value,
-           "residual: %s\nexpected: %s" % (residual_c_text, shell_c_premise))
+    if goal_error_c is not None or parse_error_c is not None:
+        raise RuntimeError("cannot parse C shell diagnostic terms")
+    derivation_c = runtime.prove(M.truth_value, goal_c)
+    diagnostic_c = runtime.last_foreground_diagnostic
+    c_no_requests = M.IdentityCompare(runtime.graph.dependency_requests, M.EmptyList)()
+    c_no_interventions = M.IdentityCompare(runtime.graph.intervention_episodes, M.EmptyList)()
+    diagnostic_c_count = 0
+    if M.IdentityCompare(diagnostic_c, M.EmptyList)() is M.false_value:
+        diagnostic_c_count = 1
+    record("S3. C has one diagnostic candidate and 0 proof candidates",
+           diagnostic_c_count == 1 and result_c["count"] == 0,
+           "diagnostic candidates: %d\nproof candidates: %d"
+           % (diagnostic_c_count, result_c["count"]))
+    record("S5. C diagnostic is the exact binder-safe capability premise",
+           M.Compare(diagnostic_c, expected_c)() is M.truth_value,
+           "diagnostic: %s\nexpected: %s"
+           % (_term_text(diagnostic_c, runtime.graph), shell_c_premise))
 
-    # ---- S6: characterizations do not close either toy goal -----------
-    record("S6. both shell goals remain unclosed",
-           not result_b["closed"] and not result_c["closed"],
-           "B closed: %s\nC closed: %s"
+    # ---- S6: diagnostics are not derivations or theorem requests -------
+    record("S6. both shell goals remain unclosed with no discharge or intervention credit",
+           (not result_b["closed"] and not result_c["closed"]
+            and M.IdentityCompare(derivation_b, M.EmptyList)() is M.truth_value
+            and M.IdentityCompare(derivation_c, M.EmptyList)() is M.truth_value
+            and b_no_requests is M.truth_value and c_no_requests is M.truth_value
+            and b_no_interventions is M.truth_value and c_no_interventions is M.truth_value),
+           "B/C proof closed: %s/%s\nforeground results empty: %s/%s\n"
+           "dependency requests empty: %s/%s\nintervention episodes empty: %s/%s"
            % ("yes" if result_b["closed"] else "no",
-              "yes" if result_c["closed"] else "no"))
+              "yes" if result_c["closed"] else "no",
+              M.IdentityCompare(derivation_b, M.EmptyList)() is M.truth_value,
+              M.IdentityCompare(derivation_c, M.EmptyList)() is M.truth_value,
+              b_no_requests is M.truth_value, c_no_requests is M.truth_value,
+              b_no_interventions is M.truth_value, c_no_interventions is M.truth_value))
 
     # ---- S7: capability premises remain unavailable -------------------
     print("\n== S7: capability premises ==")
@@ -517,36 +665,161 @@ def main(argv):
     capability_b = probe(runtime, shell_b_premise, packs)
     capability_c = probe(runtime, shell_c_premise, packs)
     ok = capability_b["count"] == 0 and capability_c["count"] == 0
-    record("S7. capability-premise goals have 0 candidates", ok,
-           "B capability candidates: %d\nC capability candidates: %d"
+    record("S7. capability-premise goals have 0 proof candidates", ok,
+           "B capability proof candidates: %d\nC capability proof candidates: %d"
            % (capability_b["count"], capability_c["count"]))
 
-    # ---- S8: a different outer head remains silent --------------------
+    # ---- S8: a different outer head has neither candidate kind ---------
     print("\n== S8: negative control ==")
     runtime, packs = boot(PACK_PATHS)
     negative_control = probe(runtime, shell_d_goal, packs)
-    record("S8. different-head negative control remains at 0",
-           negative_control["count"] == 0,
-           "probe %s -> partial matches %d (cost %s)"
-           % (shell_d_goal, negative_control["count"], negative_control["cost"]))
+    negative_goal, negative_error = _research_parse(shell_d_goal)
+    if negative_error is not None:
+        raise RuntimeError("cannot parse negative control")
+    runtime.prove(M.truth_value, negative_goal)
+    record("S8. different-head control has 0 diagnostic and proof candidates",
+           (negative_control["count"] == 0
+            and M.IdentityCompare(runtime.last_foreground_diagnostic, M.EmptyList)() is M.truth_value),
+           "proof candidates: %d\ndiagnostic candidates: %d"
+           % (negative_control["count"],
+              0 if M.IdentityCompare(runtime.last_foreground_diagnostic, M.EmptyList)() is M.truth_value else 1))
 
-    # ---- S9: removing only this pack's surface header restores silence -
+    # ---- S9: removing this pack's surface header removes diagnostics ---
     print("\n== S9: shell surface ablation ==")
     runtime, packs = boot(ablated_paths((shell_pack_name,)))
     ablation_b = probe(runtime, shell_b_goal, packs)
     ablation_c = probe(runtime, shell_c_goal, packs)
-    ok = ablation_b["count"] == 0 and ablation_c["count"] == 0
-    record("S9. shell surface ablation restores B/C to 0", ok,
-           "B partial matches: %d\nC partial matches: %d"
-           % (ablation_b["count"], ablation_c["count"]))
+    runtime.prove(M.truth_value, goal_b)
+    ablation_diagnostic_b = runtime.last_foreground_diagnostic
+    runtime.prove(M.truth_value, goal_c)
+    ablation_diagnostic_c = runtime.last_foreground_diagnostic
+    ok = (ablation_b["count"] == 0 and ablation_c["count"] == 0
+          and M.IdentityCompare(ablation_diagnostic_b, M.EmptyList)() is M.truth_value
+          and M.IdentityCompare(ablation_diagnostic_c, M.EmptyList)() is M.truth_value)
+    record("S9. shell surface ablation removes B/C diagnostics", ok,
+           "B proof/diagnostic candidates: %d/%d\nC proof/diagnostic candidates: %d/%d"
+           % (ablation_b["count"],
+              0 if M.IdentityCompare(ablation_diagnostic_b, M.EmptyList)() is M.truth_value else 1,
+              ablation_c["count"],
+              0 if M.IdentityCompare(ablation_diagnostic_c, M.EmptyList)() is M.truth_value else 1))
 
     # ---- S10: prior equation reachability is unchanged ----------------
     print("\n== S10: bare equation control ==")
     runtime, packs = boot(PACK_PATHS)
     bare_eq = probe(runtime, bare_eq_goal, packs)
-    record("S10. bare eq partial-match count remains 1", bare_eq["count"] == 1,
-           "probe %s -> partial matches %d (cost %s)"
+    record("S10. bare eq proof partial-match count remains 1", bare_eq["count"] == 1,
+           "probe %s -> proof candidates %d (cost %s)"
            % (bare_eq_goal, bare_eq["count"], bare_eq["cost"]))
+
+    # ---- I1: diagnostic records never enter the fireable rule store ----
+    shell_pack = ()
+    for loaded_pack in packs:
+        if loaded_pack.name == shell_pack_name:
+            shell_pack = loaded_pack
+    record("I1. shell pack stores diagnostics outside proof rules",
+           len(shell_pack.rule_map) == 0 and len(shell_pack.diagnostic_rules) == 2,
+           "proof rules: %d\ndiagnostic records: %d"
+           % (len(shell_pack.rule_map), len(shell_pack.diagnostic_rules)))
+
+    # ---- I2: direct capability facts cannot close shell goals ----------
+    print("\n== I2: direct capability-fact adversary ==")
+    runtime, packs = boot(PACK_PATHS)
+    direct_b = probe(runtime, shell_b_goal, packs, M.Pair(expected_b, M.EmptyList))
+    direct_c = probe(runtime, shell_c_goal, packs, M.Pair(expected_c, M.EmptyList))
+    record("I2. supplied capability facts cannot close B/C",
+           not direct_b["closed"] and not direct_c["closed"],
+           "B closed: %s\nC closed: %s"
+           % ("yes" if direct_b["closed"] else "no",
+              "yes" if direct_c["closed"] else "no"))
+
+    # ---- I3: empty-premise taught capability cannot close shell goals --
+    print("\n== I3: taught capability adversary ==")
+    runtime, packs = boot(PACK_PATHS)
+    taught_b_formal = Rmod.FormalRule(M.EmptyList, expected_b)()
+    taught_b = Rmod.teach_trusted_theorem(runtime.graph, taught_b_formal)
+    taught_b_result = probe(
+        runtime, shell_b_goal, packs, M.EmptyList,
+        M.Pair(taught_b, rules_of(runtime.graph))
+    )
+    taught_c_formal = Rmod.FormalRule(M.EmptyList, expected_c)()
+    taught_c = Rmod.teach_trusted_theorem(runtime.graph, taught_c_formal)
+    taught_c_result = probe(
+        runtime, shell_c_goal, packs, M.EmptyList,
+        M.Pair(taught_c, rules_of(runtime.graph))
+    )
+    record("I3. empty-premise taught capabilities cannot close B/C",
+           not taught_b_result["closed"] and not taught_c_result["closed"],
+           "B closed: %s\nC closed: %s"
+           % ("yes" if taught_b_result["closed"] else "no",
+              "yes" if taught_c_result["closed"] else "no"))
+
+    # ---- I4: restored facts and replayed teachings remain non-proving --
+    print("\n== I4: restored-state adversary ==")
+    directory = tempfile.mkdtemp(prefix="d11-shell-isolation-")
+    snapshot_path = os.path.join(directory, "state.json")
+    runtime, packs = boot(PACK_PATHS)
+    Rmod.assume_axiom(runtime.graph, expected_b)
+    Rmod.assume_axiom(runtime.graph, expected_c)
+    runtime.save_snapshot(snapshot_path, _runtime_namespace())
+    restored = RT.boot_from_snapshot(
+        snapshot_path, _runtime_namespace(), save_upgraded_snapshot=M.false_value
+    )
+    restored_facts = Rmod.axiom_facts(restored.graph)
+    restored_b = probe(restored, shell_b_goal, (), restored_facts)
+    restored_c = probe(restored, shell_c_goal, (), restored_facts)
+    os.remove(snapshot_path)
+    os.rmdir(directory)
+
+    directory = tempfile.mkdtemp(prefix="d11-shell-replay-")
+    snapshot_path = os.path.join(directory, "state.json")
+    runtime, packs = boot(PACK_PATHS)
+    Rmod.teach_trusted_theorem(runtime.graph, Rmod.FormalRule(M.EmptyList, expected_b)())
+    Rmod.teach_trusted_theorem(runtime.graph, Rmod.FormalRule(M.EmptyList, expected_c)())
+    runtime.save_snapshot(snapshot_path, _runtime_namespace())
+    restored = RT.boot_from_snapshot(
+        snapshot_path, _runtime_namespace(), save_upgraded_snapshot=M.false_value
+    )
+    replayed = Rmod.rebuild_taught_rules(restored.graph)
+    replay_rules = rules_of(restored.graph)
+    while M.IdentityCompare(replayed, M.EmptyList)() is M.false_value:
+        replay_rules = M.Pair(M.Head(M.Head(replayed)())(), replay_rules)
+        replayed = M.Tail(replayed)()
+    replayed_b = probe(restored, shell_b_goal, (), M.EmptyList, replay_rules)
+    replayed_c = probe(restored, shell_c_goal, (), M.EmptyList, replay_rules)
+    os.remove(snapshot_path)
+    os.rmdir(directory)
+    record("I4. restored facts and replayed teachings cannot close B/C",
+           (not restored_b["closed"] and not restored_c["closed"]
+            and not replayed_b["closed"] and not replayed_c["closed"]),
+           "restored fact B/C closed: %s/%s\nreplayed teaching B/C closed: %s/%s"
+           % ("yes" if restored_b["closed"] else "no",
+              "yes" if restored_c["closed"] else "no",
+              "yes" if replayed_b["closed"] else "no",
+              "yes" if replayed_c["closed"] else "no"))
+
+    # ---- I5: live ingress preserves the foreground object -------------
+    print("\n== I5: live ingress diagnostic identity ==")
+    text = "prove that for all n > 1 n + n = n + n"
+    runtime, packs = boot(PACK_PATHS)
+    request = Ingress.LiveProofRequest(Ingress.ProofTokenStream(text)())
+    direct = Ingress.MathematicalSentence(request.claim)
+    submission = Ingress.SubmitForegroundGoal(runtime, request)
+    returned = submission()
+    received = runtime.last_foreground_goal
+    diagnostic = runtime.last_foreground_diagnostic
+    record("I5. live toy preserves parsed/submitted/received goal and returns only a diagnostic",
+           (request.recognized is M.truth_value
+            and request.goal is not M.EmptyList
+            and M.Compare(direct.goal, request.goal)() is M.truth_value
+            and M.Compare(submission.goal, request.goal)() is M.truth_value
+            and M.Compare(received, request.goal)() is M.truth_value
+            and M.IdentityCompare(returned, M.EmptyList)() is M.truth_value
+            and M.IdentityCompare(diagnostic, M.EmptyList)() is M.false_value),
+           "parsed goal: %s\nforeground submission: %s\nworker-received goal: %s\nreturned diagnostic: %s\nreturned derivation: empty"
+           % (Ingress.ProofGoalText(request.goal)(),
+              Ingress.ProofGoalText(submission.goal)(),
+              Ingress.ProofGoalText(received)(),
+              _term_text(diagnostic, runtime.graph)))
 
     # ---- condition 5: char form, diagnostic only ---------------------
     print("\n== condition 5: char-form fixture (DIAGNOSTIC, NOT A GATE) ==")

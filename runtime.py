@@ -42,6 +42,8 @@ class MachineRuntime:
         self.snapshot_upgraded = M.false_value
         # Audit the ingress boundary without serializing or replacing a goal.
         self.last_foreground_goal = M.EmptyList
+        # A matched diagnostic requirement is reporting data, never a proof.
+        self.last_foreground_diagnostic = M.EmptyList
         self._compiled_ordered_rules = None
 
     def ordered_rules(self):
@@ -80,6 +82,14 @@ class MachineRuntime:
 
     def prove(self, start, goal, rules=None, heuristic=None, phi=None):
         self.last_foreground_goal = goal
+        self.last_foreground_diagnostic = M.EmptyList
+        for pack in self.loaded_packs:
+            for _diagnostic_id, shell, requirement in pack.diagnostic_rules:
+                match = M.Match(shell, goal)()
+                if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
+                    instantiated = M.Instantiate(requirement, M.Tail(match)())()
+                    self.last_foreground_diagnostic = M.Head(instantiated)()
+                    return M.EmptyList
         if rules is None:
             rules = self.ordered_rules()
         else:
