@@ -16400,7 +16400,7 @@ class TestShardCursorPinTest(M.Edge):
     broken.
     """
 
-    EXPECTED_GUARD_COUNT = 309
+    EXPECTED_GUARD_COUNT = 311
     EXPECTED_CURSOR_INDEX = 218
     EXPECTED_SHARD = 0
 
@@ -17219,6 +17219,175 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
                 if "refusing a substitute goal" not in str(error):
                     self.result = M.false_value
         finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+
+
+class ProveColdNonknowledgeLaunchesComparisonWorkersTest(M.Edge):
+    def __init__(self, _graph):
+        from .proof import Prove
+        from . import wire as W
+
+        empty = M.EmptyList
+        runtime = make_fresh_runtime()
+        graph = runtime.graph
+        graph._search_disable_console = M.truth_value
+        registry = _registry(graph)
+        start = M.Pair(M.Char("prove-start"), empty)
+        goal = M.Pair(M.Char("prove-goal"), empty)
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        rules = M.Pair(Rule(start, goal), empty)
+        temp_dir = tempfile.mkdtemp(prefix="hyge-prove-workers-")
+        old_snap = os.environ.get("HYGE_SNAPSHOT_DIR")
+        old_timeout = os.environ.get("HYGE_SEARCH_WORKER_TIMEOUT")
+        self.result = M.truth_value
+        try:
+            os.environ["HYGE_SNAPSHOT_DIR"] = temp_dir
+            os.environ["HYGE_SEARCH_WORKER_TIMEOUT"] = "2"
+            proved = Prove(graph, start, goal, rules, heuristic, registry)
+            derivation = M.Head(proved.result)()
+            # Workers do not receive the in-memory rule edge; failure must
+            # stay failure, not a proof success.
+            if M.Compare(derivation, empty)() is M.false_value:
+                self.result = M.false_value
+            compare_root = os.path.join(temp_dir, "search_compare")
+            if not os.path.isdir(compare_root):
+                self.result = M.false_value
+            else:
+                request_count = 0
+                received_count = 0
+                search_goal_count = 0
+                agreed = 0
+                for run_name in os.listdir(compare_root):
+                    run_dir = os.path.join(compare_root, run_name)
+                    if not os.path.isdir(run_dir):
+                        continue
+                    for name in os.listdir(run_dir):
+                        if not name.endswith(".request.wire"):
+                            continue
+                        request_count = request_count + 1
+                        base = os.path.join(run_dir, name[:-len(".request.wire")])
+                        with open(base + ".request.wire", "rb") as handle:
+                            request = W.deserialize_term(handle.read())
+                        received_path = base + ".received.wire"
+                        searched_path = base + ".search-goal.wire"
+                        if os.path.exists(received_path):
+                            received_count = received_count + 1
+                            with open(received_path, "rb") as handle:
+                                received = W.deserialize_term(handle.read())
+                            if M.Compare(request, received)() is M.truth_value:
+                                agreed = agreed + 1
+                        if os.path.exists(searched_path):
+                            search_goal_count = search_goal_count + 1
+                if request_count != 5 or received_count != 5 or search_goal_count != 5 or agreed != 5:
+                    self.result = M.false_value
+        finally:
+            if old_snap is None:
+                os.environ.pop("HYGE_SNAPSHOT_DIR", None)
+            else:
+                os.environ["HYGE_SNAPSHOT_DIR"] = old_snap
+            if old_timeout is None:
+                os.environ.pop("HYGE_SEARCH_WORKER_TIMEOUT", None)
+            else:
+                os.environ["HYGE_SEARCH_WORKER_TIMEOUT"] = old_timeout
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class ProveKnowledgeCacheResearchEvaluationSkipWorkersTest(M.Edge):
+    def __init__(self, _graph):
+        from .proof import Prove, Knowledge
+        from . import provenance as Provmod
+
+        empty = M.EmptyList
+        heuristic = M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)()
+        self.result = M.truth_value
+
+        def _run_count(path):
+            compare_root = os.path.join(path, "search_compare")
+            if not os.path.isdir(compare_root):
+                return 0
+            return len([name for name in os.listdir(compare_root) if name.startswith("run-")])
+
+        # Knowledge-board goals keep the direct-search path.
+        runtime = make_fresh_runtime()
+        graph = runtime.graph
+        graph._search_disable_console = M.truth_value
+        registry = _registry(graph)
+        start = Knowledge(empty)()
+        goal = Knowledge(empty)()
+        temp_dir = tempfile.mkdtemp(prefix="hyge-prove-skip-")
+        old_snap = os.environ.get("HYGE_SNAPSHOT_DIR")
+        try:
+            os.environ["HYGE_SNAPSHOT_DIR"] = temp_dir
+            Prove(graph, start, goal, empty, heuristic, registry)
+            if _run_count(temp_dir) != 0:
+                self.result = M.false_value
+
+            # Cache hit must not force a comparison fan-out.
+            runtime = make_fresh_runtime()
+            graph = runtime.graph
+            graph._search_disable_console = M.truth_value
+            registry = _registry(graph)
+            start = M.Pair(M.Char("cache-start"), empty)
+            goal = M.Pair(M.Char("cache-goal"), empty)
+            proof_cost = Pmod.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+            deriv_pair = Pmod.Derivation(empty, proof_cost, registry)()
+            cached = M.Head(deriv_pair)()
+            registry = M.Head(M.Tail(deriv_pair)())()
+            graph._replace_context(constructors=registry)
+            graph.add_derivation(start, goal, cached)
+            cache_dir = os.path.join(temp_dir, "cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            os.environ["HYGE_SNAPSHOT_DIR"] = cache_dir
+            proved = Prove(graph, start, goal, empty, heuristic, registry)
+            if M.TermEqual(M.Head(proved.result)(), cached)() is M.false_value:
+                self.result = M.false_value
+            if _run_count(cache_dir) != 0:
+                self.result = M.false_value
+
+            # Research mode skips stored comparison shortcuts.
+            runtime = make_fresh_runtime()
+            graph = runtime.graph
+            graph._search_disable_console = M.truth_value
+            graph.set_research_mode(M.truth_value)
+            registry = _registry(graph)
+            start = M.Pair(M.Char("research-start"), empty)
+            goal = M.Pair(M.Char("research-goal"), empty)
+            research_dir = os.path.join(temp_dir, "research")
+            os.makedirs(research_dir, exist_ok=True)
+            os.environ["HYGE_SNAPSHOT_DIR"] = research_dir
+            Prove(graph, start, goal, empty, heuristic, registry)
+            if _run_count(research_dir) != 0:
+                self.result = M.false_value
+
+            # Evaluation mode skips stored comparison shortcuts.
+            runtime = make_fresh_runtime()
+            graph = runtime.graph
+            graph._search_disable_console = M.truth_value
+            Provmod.SetEvaluationMode(graph, M.truth_value)()
+            registry = _registry(graph)
+            start = M.Pair(M.Char("eval-start"), empty)
+            goal = M.Pair(M.Char("eval-goal"), empty)
+            eval_dir = os.path.join(temp_dir, "eval")
+            os.makedirs(eval_dir, exist_ok=True)
+            os.environ["HYGE_SNAPSHOT_DIR"] = eval_dir
+            Prove(graph, start, goal, empty, heuristic, registry)
+            if _run_count(eval_dir) != 0:
+                self.result = M.false_value
+        finally:
+            if old_snap is None:
+                os.environ.pop("HYGE_SNAPSHOT_DIR", None)
+            else:
+                os.environ["HYGE_SNAPSHOT_DIR"] = old_snap
             shutil.rmtree(temp_dir, ignore_errors=True)
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
@@ -19490,6 +19659,22 @@ def install_default_tests(graph):
             "search_worker_request_refuses_substitute_and_corruption_test",
             empty,
             SearchWorkerRequestRefusesSubstituteAndCorruptionTest,
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "prove_cold_nonknowledge_launches_comparison_workers_test",
+            empty,
+            ProveColdNonknowledgeLaunchesComparisonWorkersTest,
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "prove_knowledge_cache_research_evaluation_skip_workers_test",
+            empty,
+            ProveKnowledgeCacheResearchEvaluationSkipWorkersTest,
             M.truth_value,
         )
     # --- end [I] ---
