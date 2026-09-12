@@ -1,0 +1,56 @@
+D11-SHELL-ENG — Phase 2 shell frontier characterization
+
+base tag: live-ingress/admission-1@0d7e1b6651430fd6b3fa28a3a406250476294c05
+branch: arena/01a09396-cat-theo-machine (tip SHA reported with delivery)
+prior shell commits: absent/non-ancestor confirmed yes
+
+rules added:
+- nosolutions_introduction
+- forall_implies_decomposition
+
+pack:
+- packs/shell-characterization.pack.yaml
+- pack-local surface mappings for the two shell conclusions and their two capability residual heads
+
+fresh-process partial-match matrix
+                              before  after  ablation
+A bare eq                        1      1       1
+B nosolutions shell              0      1       0
+C forall/implies shell           0      1       0
+D different-head control         0      0       0
+
+The ablation removes the surface header from shell-characterization only.
+The prior arithmetic surface header remains loaded, so the bare eq control
+stays at its recorded count of one.
+
+residual B:
+(NeedContradictionFromArbitrarySolution positive-integers (unknowns x) (eq (plus x 1) x))
+
+residual C:
+(NeedBinderSafeImplication n (greater n 1) (eq (plus a a) (plus a a)))
+
+capability-premise candidate counts:
+- NeedContradictionFromArbitrarySolution: 0
+- NeedBinderSafeImplication: 0
+
+goals remain unclosed: yes
+d11_gate: 18/18 pass
+focused tests:
+- label_registration_completeness_test: pass
+- labels.py, persistence.py, packs.py, main.py, tools/d11_gate.py: py_compile pass
+
+artifacts:
+- verification/2026-09-12-d11-shell-phase2/before.txt
+- verification/2026-09-12-d11-shell-phase2/after.txt
+- verification/2026-09-12-d11-shell-phase2/ablation.txt
+- verification/2026-09-12-d11-shell-phase2/gate-transcript.txt
+- verification/2026-09-12-d11-shell-phase2/summary.txt
+
+classification: SEMANTIC
+ready for INT: yes
+
+not built:
+- checker calculus
+- theorem teaching
+- FLT target
+- Experiment 4

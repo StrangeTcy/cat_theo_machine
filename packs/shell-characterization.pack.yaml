@@ -1,0 +1,54 @@
+format: hyge-pack
+version: 1
+
+name: shell-characterization
+description: Characterization rules exposing unresolved proof-capability obligations for outer logical shells.
+origin: primitive
+
+# D11 shell frontier. These are pack-local constructor-head mappings only.
+# Each rule can expose one concrete capability premise from a matching outer
+# shell; neither rule proves its conclusion without that premise.
+surface:
+  NosolutionsIntroductionLabel: nosolutions
+  ForallImpliesDecompositionLabel: forall
+  NeedContradictionFromArbitrarySolutionLabel: NeedContradictionFromArbitrarySolution
+  NeedBinderSafeImplicationLabel: NeedBinderSafeImplication
+
+phi:
+  list: []
+
+rules:
+  - id: nosolutions_introduction
+    pattern:
+      call:
+        head: {sym: NeedContradictionFromArbitrarySolutionLabel}
+        args:
+          - {var: domain}
+          - {var: unknowns}
+          - {var: equation}
+    replacement:
+      call:
+        head: {sym: NosolutionsIntroductionLabel}
+        args:
+          - {var: domain}
+          - {var: unknowns}
+          - {var: equation}
+
+  - id: forall_implies_decomposition
+    pattern:
+      call:
+        head: {sym: NeedBinderSafeImplicationLabel}
+        args:
+          - {var: variable}
+          - {var: antecedent}
+          - {var: consequent}
+    replacement:
+      call:
+        head: {sym: ForallImpliesDecompositionLabel}
+        args:
+          - {var: variable}
+          - call:
+              head: {char: implies}
+              args:
+                - {var: antecedent}
+                - {var: consequent}
