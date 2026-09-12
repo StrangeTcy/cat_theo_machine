@@ -17000,17 +17000,11 @@ class ExplanationPlanSnapshotRoundTripTest(M.Edge):
 # --- [I] -------------------------------------------------------------------
 class PausedComparisonJobResumePreservesRequestedGoalTest(M.Edge):
     def __init__(self, _graph):
+        from .main import _runtime_namespace
+
         empty = M.EmptyList
         runtime = make_fresh_runtime()
-        namespace = dict(vars(M))
-        namespace.update(vars(Hmod))
-        namespace.update(vars(Lmod))
-        namespace.update(vars(Pmod))
-        namespace.update(vars(Gmod))
-        namespace.update(vars(Xmod))
-        namespace.update(vars(Rmod))
-        namespace.update(vars(Smod))
-        namespace.update(vars(Theoremmod))
+        namespace = _runtime_namespace()
         snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
         os.close(snapshot_fd)
         try:
@@ -17081,17 +17075,11 @@ class PausedComparisonJobResumePreservesRequestedGoalTest(M.Edge):
 
 class PausedComparisonJobResumeRejectsWrongGoalTest(M.Edge):
     def __init__(self, _graph):
+        from .main import _runtime_namespace
+
         empty = M.EmptyList
         runtime = make_fresh_runtime()
-        namespace = dict(vars(M))
-        namespace.update(vars(Hmod))
-        namespace.update(vars(Lmod))
-        namespace.update(vars(Pmod))
-        namespace.update(vars(Gmod))
-        namespace.update(vars(Xmod))
-        namespace.update(vars(Rmod))
-        namespace.update(vars(Smod))
-        namespace.update(vars(Theoremmod))
+        namespace = _runtime_namespace()
         snapshot_fd, snapshot_path = tempfile.mkstemp(suffix=".json")
         os.close(snapshot_fd)
         try:
@@ -17156,7 +17144,7 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
         try:
             result_path = os.path.join(temp_dir, "bfs.snapshot.json")
             try:
-                _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
+                _search_worker_problem_from_manifest(M.EmptyList, result_path, heuristic, registry)
                 self.result = M.false_value
             except RuntimeError as error:
                 if str(error).find("refusing a substitute theorem") < 0:
@@ -17165,7 +17153,7 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
             with open(result_path + ".request.wire", "wb") as handle:
                 handle.write(b"not-a-wire-term")
             try:
-                _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
+                _search_worker_problem_from_manifest(M.EmptyList, result_path, heuristic, registry)
                 self.result = M.false_value
             except Exception:
                 pass
@@ -17175,7 +17163,7 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
             with open(result_path + ".request.wire", "wb") as handle:
                 handle.write(W.serialize_term(extra))
             try:
-                _search_worker_problem_from_manifest(None, result_path, heuristic, registry)
+                _search_worker_problem_from_manifest(M.EmptyList, result_path, heuristic, registry)
                 self.result = M.false_value
             except RuntimeError as error:
                 if str(error).find("exactly start and goal") < 0:
@@ -17186,7 +17174,7 @@ class SearchWorkerRequestRefusesSubstituteAndCorruptionTest(M.Edge):
             with open(result_path + ".request.wire", "wb") as handle:
                 handle.write(W.serialize_term(request))
             label, got_start, got_goal, _rules, _phi = _search_worker_problem_from_manifest(
-                None, result_path, heuristic, registry
+                M.EmptyList, result_path, heuristic, registry
             )
             if M.TermEqual(got_start, start)() is M.false_value:
                 self.result = M.false_value
@@ -17366,8 +17354,8 @@ class ProveKnowledgeCacheResearchEvaluationSkipWorkersTest(M.Edge):
             if os.path.isdir(os.path.join(eval_dir, "search_compare")) is True:
                 self.result = M.false_value
         finally:
-            if old_snap is None:
-                os.environ.pop("HYGE_SNAPSHOT_DIR", None)
+            if old_snap == "":
+                os.environ.pop("HYGE_SNAPSHOT_DIR", "")
             else:
                 os.environ["HYGE_SNAPSHOT_DIR"] = old_snap
             shutil.rmtree(temp_dir, ignore_errors=True)
