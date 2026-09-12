@@ -1,0 +1,13 @@
+===== live run 1 state:
+run dirs: 3
+received files: 15
+submission 0 AC-equivalent: True
+submission 1 AC-equivalent: True
+submission 2 AC-equivalent: True
+
+===== live run 2 state:
+run dirs: 3
+received files: 15
+submission 0 AC-equivalent: True
+submission 1 AC-equivalent: True
+submission 2 AC-equivalent: True

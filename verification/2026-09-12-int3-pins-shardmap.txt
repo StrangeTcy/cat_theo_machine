@@ -1,0 +1,12 @@
+guards: 311 pin: 311
+index:  218 pin: 218
+shard:  0 pin: 0
+RESULT: PASS
+
+304  0  snapshot_refuses_host_object_in_term_slot_test
+305  1  paused_comparison_job_resume_preserves_requested_goal_test
+306  0  paused_comparison_job_resume_rejects_wrong_goal_test
+307  1  search_worker_request_refuses_substitute_and_corruption_test
+308  0  prove_cold_nonknowledge_launches_comparison_workers_test
+309  1  prove_knowledge_cache_research_evaluation_skip_workers_test
+310

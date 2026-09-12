@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/tmp/int3c/cat_theo_machine/main.py", line 5136, in <module>
+    main()
+  File "/tmp/int3c/cat_theo_machine/main.py", line 5113, in main
+    run_live_mode(args.workers)
+  File "/tmp/int3c/cat_theo_machine/main.py", line 4312, in run_live_mode
+    raise RuntimeError("Live state already has a daemon marker; use an isolated HYGE_SNAPSHOT_DIR. No daemon was stopped.")
+RuntimeError: Live state already has a daemon marker; use an isolated HYGE_SNAPSHOT_DIR. No daemon was stopped.

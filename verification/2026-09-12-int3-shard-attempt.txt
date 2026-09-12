@@ -1,0 +1,23 @@
+== attempt.meta:
+started_utc=2026-09-12T02:02:33Z
+interpreter=/usr/bin/python (Python 3.11.2)
+suite=tools/shard_suite.py
+tested_commit=9614bcf00852168e0e5faafc0acaa31c163ff735
+shards=2
+launcher_pid=7057
+
+== shard-0.completion:
+state=completed-with-report
+exit_code=0
+child_pid=7078
+log_sha256=ffa40564c77c59f11f6aa7bf79f39224e7ef79197b48b49524559b8eb77aede3
+finished_utc=2026-09-12T02:30:34Z
+tally=passed: 151   failed: 2   open: 2 (test_milestone_m1_cycles_without_refusal, test_milestone_m3_meta_handle_reorders)
+
+== shard-1.completion:
+state=completed-with-report
+exit_code=0
+child_pid=7080
+log_sha256=641c66dd14fe804e73a1cba93ba4bc294e9018d48673a8789da09561871bede7
+finished_utc=2026-09-12T02:38:50Z
+tally=passed: 149   failed: 4   open: 2 (test_milestone_m2_handle_lifecycle, test_milestone_m4_policy_loosen_then_tighten)

@@ -1193,6 +1193,28 @@ local HEAD to `41e8078`; HEAD was moved back to the pushed tip with the
 tree untouched (`git reset --mixed origin/arena/01a09270…`) and the tree
 verified identical before any new commit.
 
+**Successor INT — repairs admitted, 2026-09-12: tag
+`live-ingress/admission-1`.** Both gated SHAs landed on
+`arena/01a092ed` (`b0390fc` paused-resume, `e8cc54a` proof-worker
+routing) plus the §0 test cleanup (`97e3b36`). INT reconstructed the
+candidate from pristine `55b773d` (replay tree-identical to `ed1d759`,
+three cherry-picks clean): tested `9614bcf` (tree `b38f9888…`),
+integrated `957e1c5`, product files verified byte-identical to the
+tested tree. Targeted gates all green (paused solo pass, 5/5 new
+regressions, ingress PASS, pins 311/218/0, live groups green, formal
+`four` both sides, negatives N3/N4/N5/N5b/N7 exit 0). Both shards via
+the hardened runner: 151/2/2 + 149/4/2 = **300/6/4, failure set
+identical to the 295/6/4 baseline, +5 passing, zero new failures.**
+Recorded judgment (§4 of the report): worker receipts exist 15/15 with
+byte-faithful transport and AC-equivalent goals; the receipts checker's
+syntactic-identity line is unsatisfiable-deterministically against the
+pre-existing creation-ordered canonicalizer (`Prove.__init__` →
+`CanonicalArithmeticTerm` → `IdentityLess`), so the candidate was
+admitted on substance with the checker alignment returned as a
+non-blocking follow-up. Scope: live-ingress + worker-transport +
+paused-resume repair. NOT F-proof-ready; blank controls must be re-run
+on the tag. Full record: `verification/2026-09-12-int3-report.md`.
+
 ---
 
 ## 8. Worker report block

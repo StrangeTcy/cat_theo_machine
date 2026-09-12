@@ -1,0 +1,20 @@
+===== paused_comparison_job_resume_preserves_requested_goal_test
+registered 1 tests
+passed: 1   failed: 0   open: 0
+All the tests have passed.
+===== paused_comparison_job_resume_rejects_wrong_goal_test
+registered 1 tests
+passed: 1   failed: 0   open: 0
+All the tests have passed.
+===== search_worker_request_refuses_substitute_and_corruption_test
+registered 1 tests
+passed: 1   failed: 0   open: 0
+All the tests have passed.
+===== prove_cold_nonknowledge_launches_comparison_workers_test
+registered 1 tests
+passed: 1   failed: 0   open: 0
+All the tests have passed.
+===== prove_knowledge_cache_research_evaluation_skip_workers_test
+registered 1 tests
+passed: 1   failed: 0   open: 0
+All the tests have passed.

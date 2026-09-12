@@ -549,3 +549,14 @@ transport receipt contract unmeetable, and the merge newly regresses
 pass, solo-confirmed both sides). Both defects are returned to their
 owning lanes with exact hunks and reproductions; no competing tag or
 integration commit should be published from any superseded INT session.
+
+### Successor-INT admission, 2026-09-12 (detail in `protocol/DISTRIBUTION.md` §7)
+
+Both gated repair SHAs plus the §0 cleanup were reconstructed onto
+pristine `55b773d` (tested `9614bcf`, integrated `957e1c5`) and admitted
+as tag `live-ingress/admission-1`: targeted gates green, both shards
+300/6/4 with the failure set identical to baseline. Scope is
+live-ingress + worker-transport + paused-resume repair only — NOT
+F-proof-ready — and blank controls must be re-run on the tag. The
+receipts-checker-vs-canonicalizer alignment is a non-blocking follow-up
+for the owning lanes; the `prove that` grammar negotiation stays open.
