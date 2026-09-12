@@ -1215,6 +1215,35 @@ non-blocking follow-up. Scope: live-ingress + worker-transport +
 paused-resume repair. NOT F-proof-ready; blank controls must be re-run
 on the tag. Full record: `verification/2026-09-12-int3-report.md`.
 
+**Ratified 2026-09-12 (operator review): admission SUCCESS with caveats.**
+The receipts-checker judgment is accepted as the correct engineering
+decision (AC-equivalence + byte-faithful transport over the
+creation-id-ordered canonicalizer). Two transcription errors in the
+ratification message are corrected here for the record: the tag's tree
+is `db63b50b…`, not `8d94d6ae…` (that was the INT2 evidence tree); the
+admitted candidate tally is **300/6/4 of 310**, not 294/7/4 (that was
+the blocked `ed1d759`). Integrated `957e1c5`, tag
+`live-ingress/admission-1` @ `0d7e1b6` (annotated). Push blocked on
+expired `GH_TOKEN`; operator to reconnect, then push branch + tag.
+
+**Blank controls re-run on the tag (Invariant 2), same turn:** research
+triple replays r1's `after-goal-directed` measurements exactly (3×
+FAILED cost=0, 0 partial matches, `zero-successor-root` residuals,
+dependency uncharacterized; only the audit header wording differs);
+the new ingress ladder (gcd / predicate-constant / forall lines) all
+decline at the ingress gate with no submissions, no workers, nothing
+asserted. Silence baseline:
+`verification/2026-09-12-BLANK-CONTROLS-ADMISSION-1.txt`.
+
+```text
+D27 — MissingGengBundleWriter
+locus: persistence.py / main.py
+finding: The current build (live-ingress/admission-1) lacks the structured
+         bundle writer for 'geng-bundle/v2'. Artifacts for CUR grading
+         remain hand-crafted mocks.
+routing: INT queue (future).
+```
+
 ---
 
 ## 8. Worker report block

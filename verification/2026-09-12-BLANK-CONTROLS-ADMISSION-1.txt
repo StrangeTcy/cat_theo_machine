@@ -1,0 +1,116 @@
+BLANK CONTROLS RERUN on live-ingress/admission-1 (Invariant 2, semantic tag)
+=====================================================================
+tag: live-ingress/admission-1 (annotated, local; push pending GH reconnect)
+commit: 0d7e1b6651430fd6b3fa28a3a406250476294c05
+tree: db63b50bce7ea9ab93e4fb64c578ab4d4dffab8d
+date_utc: 2026-09-12T02:46:33Z
+interpreter: /usr/bin/python (Python 3.11.2), gmpy2 2.3.1, yaml 6.0.3
+method: detached worktree at the tag; talk mode; cold isolated HYGE_SNAPSHOT_DIR per run;
+  HYGE_PARENT_FORMAL unset; HYGE_SEARCH_WORKER_TIMEOUT unset (6000 default).
+r1 baseline: experiment-5-frozen-r1, logs/blank-controls-after-goal-directed.log
+(regime-a triple agrees; after-goal-directed is the latest rerun).
+
+RUN A INPUTS (r1 replication): research mode on / audit knowledge /
+  attempt goal x suggest dependencies, three domains.
+RUN B INPUTS (ladder, new machinery): research mode on / audit knowledge /
+  prove that gcd(1071, 462) = 21
+  prove that (predicate constant)
+  prove that (forall x (implies (p x) (p x)))
+  why
+
+===== RUN A TRANSCRIPT (verbatim) =====
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> attempt goal: (anglesum euclideantriangle straight)
+hyge> FAILED. cost=0; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((anglesum euclideantriangle straight)))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (anglesum euclideantriangle straight)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> attempt goal: (cyclic (grouporder prime))
+hyge> FAILED. cost=0; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((cyclic (grouporder prime))))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (cyclic (grouporder prime))
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> attempt goal: (connected firstaccount secondaccount)
+hyge> FAILED. cost=0; rules with a genuine partial match: 0
+residual record: (zero-successor-root ((connected firstaccount secondaccount)))
+you> suggest dependencies
+hyge> search stalled, and I cannot characterize the missing theorem.
+  goal: (connected firstaccount secondaccount)
+  attempted operational rules: 0
+  concrete unmatched formal premises: none
+  dependency characterized: no
+you> 
+
+===== RUN B TRANSCRIPT (verbatim) =====
+HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.
+Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',
+'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).
+Parentheses group subexpressions: 'two times (two plus two)'.
+Teach me: 'training example: double two <-> mul ( two , two )'.
+Tasks: 'run self-diagnostics', 'solve the tao triangle problem',
+'solve engel e1', 'solve engel e2', 'solve the coin problem',
+'prove square roots are real'.
+you> research mode on
+hyge> research mode ON
+state: taught rules 0; axioms 0; library rules 0 (packs load on demand: `load theorem packs`); dependency requests 0; intervention episodes 0; learned policies 0; residual generator enabled
+you> audit knowledge
+hyge> audit knowledge (research runtime):
+  theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+  (cold start: the manifest is empty)
+  intervention episodes: 0
+  learned policies: none
+you> prove that gcd(1071, 462) = 21
+hyge> parse-failure at input span [11, 14): for No proof submitted.
+you> prove that (predicate constant)
+hyge> parse-failure at input span [11, 12): for No proof submitted.
+you> prove that (forall x (implies (p x) (p x)))
+hyge> parse-failure at input span [11, 12): for No proof submitted.
+you> why
+hyge> I have not answered anything yet; there is nothing to explain.
+you> 
+
+===== F3 DIFF vs r1 blanks (run-A body vs after-goal-directed body) =====
+(talk banner stripped both sides; r1 header stripped; EOF-vs-goodbye noted)
+5c5,6
+< hyge> audit knowledge (research runtime -- live-taught knowledge only):
+---
+> hyge> audit knowledge (research runtime):
+>   theorem packs: not loaded (`load theorem packs`); this manifest covers live-taught knowledge only
+36,37d36
+< you> goodbye
+< hyge> goodbye
+
+F3 VERDICT: measurements identical. 3x FAILED cost=0, 0 partial matches,
+zero-successor-root residuals, dependency characterized: no -- all match r1.
+Deltas: (1) audit-knowledge header wording + packs-not-loaded note
+(INT-line display text, not a measurement); (2) r1 fed goodbye, this run fed EOF.
+The admission changed nothing on the research path.
+
+SILENCE BASELINE (new machinery): all three ladder lines decline at the
+ingress gate (parse-failure, no proof submitted); no workers spawned
+(no search_compare dir in run-B state); no theorem asserted; why ->
+nothing-to-explain. This file is the Silence baseline for the tag.
