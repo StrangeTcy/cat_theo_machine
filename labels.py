@@ -3679,5 +3679,63 @@ StructureRecognizedLabel = StructureRecognizedLabel()
 # --- [I] --- IMO problems: training-record and tier terms ---------------
 # --- end [I] ---
 
+# --- [L] --- logic-checker: binder-safe introduction calculus -----------
+# Additive-only block for the minimal binder-safe proof calculus. Term
+# heads for the binder object language plus certificate heads for the
+# checked introduction rules. Reuses the existing ForAllLabel,
+# NosolutionsIntroductionLabel, ContradictionLabel, NotLabel, InLabel and
+# HumanSuppliedTrustedTheoremLabel; no name here shadows an existing one.
+class ImpliesLabel(ConstructorLabel):
+    pass
+
+
+class FalseLabel(ConstructorLabel):
+    pass
+
+
+class EqLabel(ConstructorLabel):
+    pass
+
+
+class PlusLabel(ConstructorLabel):
+    pass
+
+
+class GreaterLabel(ConstructorLabel):
+    pass
+
+
+class ForallIntroductionLabel(ConstructorLabel):
+    pass
+
+
+class ImpliesIntroductionLabel(ConstructorLabel):
+    pass
+
+
+class ContradictionIntroductionLabel(ConstructorLabel):
+    pass
+
+
+class FreshnessEvidenceLabel(ConstructorLabel):
+    pass
+
+
+class BinderAxiomLabel(ConstructorLabel):
+    pass
+
+
+ImpliesLabel = ImpliesLabel()
+FalseLabel = FalseLabel()
+EqLabel = EqLabel()
+PlusLabel = PlusLabel()
+GreaterLabel = GreaterLabel()
+ForallIntroductionLabel = ForallIntroductionLabel()
+ImpliesIntroductionLabel = ImpliesIntroductionLabel()
+ContradictionIntroductionLabel = ContradictionIntroductionLabel()
+FreshnessEvidenceLabel = FreshnessEvidenceLabel()
+BinderAxiomLabel = BinderAxiomLabel()
+# --- end [L] ---
+
 
 __all__ = [name for name in globals() if not name.startswith("_")]
