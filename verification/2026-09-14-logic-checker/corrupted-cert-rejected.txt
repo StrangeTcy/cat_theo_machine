@@ -1,0 +1,6 @@
+single-field corruption is rejected on replay
+
+uncorrupted toy: accept
+corrupted conclusion: reject (expect reject)
+corrupted fresh variable: reject (expect reject)
+corrupted freshness evidence: reject (expect reject)

@@ -1,0 +1,10 @@
+toy goal closed through introduction rules
+
+trusted leaf: accept
+implies intro: accept
+forall intro: accept
+replay: accept
+fresh rebuild replay: accept
+conclusion matches goal: accept
+conclusion: (forall n (implies (greater n 1) (eq (plus n 0) n)))
+trusted statement: (eq (plus nf 0) nf)

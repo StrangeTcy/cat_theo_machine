@@ -1,0 +1,6 @@
+fresh-process rebuild plus recheck
+returncode: 0
+cold-replay: constructor-flag: accept
+cold-replay: checker-verdict: accept
+cold-replay: conclusion: (forall n (implies (greater n 1) (eq (plus n 0) n)))
+cold replay: PASS

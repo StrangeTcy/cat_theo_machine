@@ -1,0 +1,84 @@
+T10 generic_rewriter_cannot_close_shell_test: PASS
+packs loaded: 14
+rules collected: 167
+rules mentioning binder heads: 0
+applicable to knowledge holding toy goal: 0
+toy goal: (forall n (implies (greater n 1) (eq (plus n 0) n)))
+successors keeping the forall shell: 0 of 0
+goal remains open: accept
+
+T1 forall_reflexivity_closes_test: PASS
+axiom leaf: accept
+forall intro: accept
+replay: accept
+conclusion: (forall x (eq x x))
+
+T2 forall_missing_freshness_rejected_test: PASS
+free var in open assumption: reject (expect reject)
+evidence missing coverage: reject (expect reject)
+
+T3 implication_identity_closes_test: PASS
+axiom leaf: accept
+implies intro: accept
+replay: accept
+conclusion: (implies (eq a a) (eq a a))
+
+T4 implication_assumption_leak_rejected_test: PASS
+extra assumption beyond scope: reject (expect reject)
+declared assumption absent: reject (expect reject)
+
+T5 contradiction_certificate_required_test: PASS
+false leaf: accept
+valid contradiction intro: accept
+non-false subderivation: reject (expect reject)
+conclusion: (not (greater a 1))
+
+T6 nosolutions_scoped_assumption_test: PASS
+substitution: accept
+false leaf: accept
+nosolutions intro: accept
+replay: accept
+wrong substituted equation: reject (expect reject)
+conclusion: (not (eq (plus s 0) 1))
+
+T7 sibling_assumption_leak_rejected_test: PASS
+branch A leaf: accept
+sibling scopes disjoint: accept
+A certificate in B scope: reject (expect reject)
+
+T8 corrupted_quantified_certificate_rejected_test: PASS
+uncorrupted toy: accept
+corrupted conclusion: reject (expect reject)
+corrupted fresh variable: reject (expect reject)
+corrupted freshness evidence: reject (expect reject)
+
+T9 cold_replay_quantified_toy_test: PASS
+trusted leaf: accept
+implies intro: accept
+forall intro: accept
+replay: accept
+fresh rebuild replay: accept
+conclusion matches goal: accept
+conclusion: (forall n (implies (greater n 1) (eq (plus n 0) n)))
+trusted statement: (eq (plus nf 0) nf)
+
+A1 discharge_removes_assumption_test: PASS
+implies intro: accept
+assumption present after discharge: reject (expect reject)
+inner leaf replayed at outer scope: reject (expect reject)
+
+A2 cross_branch_certificate_rejected_test: PASS
+conclusions structurally identical: accept
+A certificate in B scope: reject (expect reject)
+B certificate in A scope: reject (expect reject)
+
+A3 assumption_scope_escape_rejected_test: PASS
+implies escape with outer hypothesis: reject (expect reject)
+forall escape with outer hypothesis: reject (expect reject)
+
+A4 fresh_variable_reuse_test: PASS
+first instance: accept
+sibling reuse in disjoint scope: accept
+reuse where scope names it: reject (expect reject)
+
+total: 14/14

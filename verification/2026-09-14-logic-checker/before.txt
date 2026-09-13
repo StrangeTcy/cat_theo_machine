@@ -1,0 +1,9 @@
+T10 generic rewriter cannot close the quantified shell
+
+packs loaded: 14
+rules collected: 167
+rules mentioning binder heads: 0
+applicable to knowledge holding toy goal: 0
+toy goal: (forall n (implies (greater n 1) (eq (plus n 0) n)))
+successors keeping the forall shell: 0 of 0
+goal remains open: accept
