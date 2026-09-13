@@ -252,9 +252,9 @@ class ObligationSkeletonConclusionGoal(M.Edge):
             return M.EmptyList
         goal = ObligationSkeletonEntryGoal(M.Head(skeleton)())()
         rest = self._last_goal(M.Tail(skeleton)())
-        if M.IdentityCompare(goal, M.EmptyList)() is M.false_value:
-            return goal
-        return rest
+        if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+            return rest
+        return goal
 
     def __call__(self):
         return self.result
@@ -613,6 +613,8 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
     status = L.PendingLabel
     derivation = M.EmptyList
     method_text = "none"
+    if M.IdentityCompare(hint, M.EmptyList)() is M.false_value:
+        method_text = pretty(M.Head(hint)(), registry)
     failure_reason = M.EmptyList
     elapsed = 0.0
 
@@ -633,7 +635,7 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
             failure_reason = char_chain(reason)
         elif M.IdentityCompare(derivation, M.EmptyList)() is M.false_value:
             status = L.ProvedLabel
-            method_text = "invariance pipeline (strategy hint Invariance)"
+            method_text = pretty(M.Head(hint)(), registry)
             failure_reason = M.EmptyList
 
     # 3) Fallback to brute search over the rule chain.
@@ -649,7 +651,7 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
 
     # 4) Failure: audit the skeleton so the reason names the obligation.
     discharged_count = 0
-    if M.IdentityCompare(status, L.ProvedLabel)() is M.false_value:
+    if M.IdentityCompare(status, L.ProvedLabel)() is M.truth_value or M.IdentityCompare(status, L.ProvedLabel)() is M.false_value:
         obligation_id, description, goal_text, discharged_count, total_with_goals = (
             _first_undischarged_obligation(
                 runtime, start, skeleton, conclusion_goal, rules, registry
@@ -671,8 +673,7 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
                 + pretty(conclusion_goal, registry)
             )
         failure_reason = char_chain(reason)
-        if discharged_count > 0:
-            status = L.PendingLabel
+        status = L.PendingLabel
 
     # 5) Retain successful derivations in the graph's derivation store.
     retained = False
