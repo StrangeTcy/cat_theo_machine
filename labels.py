@@ -1175,6 +1175,334 @@ class TaoProblem11PerimeterValueLabel(ConstructorLabel):
     pass
 
 
+class ExperimentApplicationLabel(ConstructorLabel):
+    pass
+
+
+class ObservedEquationLabel(ConstructorLabel):
+    pass
+
+
+class CounterexampleLabel(ConstructorLabel):
+    pass
+
+
+class StructureSignatureLabel(ConstructorLabel):
+    pass
+
+
+class StructureCandidateLabel(ConstructorLabel):
+    pass
+
+
+class CertifiedStructureLabel(ConstructorLabel):
+    pass
+
+
+class CertifiedLawLabel(ConstructorLabel):
+    pass
+
+
+class ConjecturedLawLabel(ConstructorLabel):
+    pass
+
+
+class DeclaredOperationLabel(ConstructorLabel):
+    pass
+
+
+class DeclaredTableEntryLabel(ConstructorLabel):
+    pass
+
+
+class DirectOperationKindLabel(ConstructorLabel):
+    pass
+
+
+class TableOperationKindLabel(ConstructorLabel):
+    pass
+
+
+class ClosureLawLabel(ConstructorLabel):
+    pass
+
+
+class AssociativeLawLabel(ConstructorLabel):
+    pass
+
+
+class IdentityLawLabel(ConstructorLabel):
+    pass
+
+
+class InverseLawLabel(ConstructorLabel):
+    pass
+
+
+class CommutativeLawLabel(ConstructorLabel):
+    pass
+
+
+class LawHoldsLabel(ConstructorLabel):
+    pass
+
+
+class LawViolatedLabel(ConstructorLabel):
+    pass
+
+
+class LawConjecturedLabel(ConstructorLabel):
+    pass
+
+
+class LawUnknownLabel(ConstructorLabel):
+    pass
+
+
+class IdentityCandidateLabel(ConstructorLabel):
+    pass
+
+
+class InverseCandidateLabel(ConstructorLabel):
+    pass
+
+
+class CommutativityObservationLabel(ConstructorLabel):
+    pass
+
+
+class ClosureObservationLabel(ConstructorLabel):
+    pass
+
+
+class AssociativitySearchRecordLabel(ConstructorLabel):
+    pass
+
+
+class IdentitySearchExhaustedLabel(ConstructorLabel):
+    pass
+
+
+class InverseSearchExhaustedLabel(ConstructorLabel):
+    pass
+
+
+class ExplorationResultLabel(ConstructorLabel):
+    pass
+
+
+class ExplorationCompleteLabel(ConstructorLabel):
+    pass
+
+
+class ExplorationBudgetExhaustedLabel(ConstructorLabel):
+    pass
+
+
+class LaboratoryCheckpointLabel(ConstructorLabel):
+    pass
+
+
+class WorkerJournalLabel(ConstructorLabel):
+    pass
+
+
+class ObservationLedgerLabel(ConstructorLabel):
+    pass
+
+
+class AdmissionOutcomeLabel(ConstructorLabel):
+    pass
+
+
+class ProposalRejectedLabel(ConstructorLabel):
+    pass
+
+
+class ProposalWithheldLabel(ConstructorLabel):
+    pass
+
+
+class CatalogueEntryLabel(ConstructorLabel):
+    pass
+
+
+class RecognizerCatalogueLabel(ConstructorLabel):
+    pass
+
+
+class AbstractSemigroupLabel(ConstructorLabel):
+    pass
+
+
+class AbstractMonoidLabel(ConstructorLabel):
+    pass
+
+
+class AbstractGroupLabel(ConstructorLabel):
+    pass
+
+
+class AbstractAbelianGroupLabel(ConstructorLabel):
+    pass
+
+
+class CertificationGateLabel(ConstructorLabel):
+    pass
+
+
+class CandidateRecognizedLabel(ConstructorLabel):
+    pass
+
+
+class CandidateRejectedLabel(ConstructorLabel):
+    pass
+
+
+class WithheldStructureLabel(ConstructorLabel):
+    pass
+
+
+class TriangleTransformLabel(ConstructorLabel):
+    pass
+
+
+class TriangleRotationKindLabel(ConstructorLabel):
+    pass
+
+
+class TriangleReflectionKindLabel(ConstructorLabel):
+    pass
+
+
+class TriangleIdentityKindLabel(ConstructorLabel):
+    pass
+
+
+class TriangleComposeOperationLabel(ConstructorLabel):
+    pass
+
+
+class RenamedTriangleComposeOperationLabel(ConstructorLabel):
+    pass
+
+
+class RenamedElementLabel(ConstructorLabel):
+    pass
+
+
+class DecoyLoopOperationLabel(ConstructorLabel):
+    pass
+
+
+class DecoyRightProjectionOperationLabel(ConstructorLabel):
+    pass
+
+
+class DecoyAlphaLabel(ConstructorLabel):
+    pass
+
+
+class DecoyBetaLabel(ConstructorLabel):
+    pass
+
+
+class DecoyGammaLabel(ConstructorLabel):
+    pass
+
+
+class ReplayRecordLabel(ConstructorLabel):
+    pass
+
+
+class ReplayVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class ReplayMismatchLabel(ConstructorLabel):
+    pass
+
+
+class ExhaustiveFiniteCheckLabel(ConstructorLabel):
+    pass
+
+
+class LawVariableLabel(ConstructorLabel):
+    pass
+
+
+class LawFindingsLabel(ConstructorLabel):
+    pass
+
+
+class LawVerdictLabel(ConstructorLabel):
+    pass
+
+
+class CertificationAttemptLabel(ConstructorLabel):
+    pass
+
+
+class AppliedTermLabel(ConstructorLabel):
+    pass
+
+
+class TransferPredictionLabel(ConstructorLabel):
+    pass
+
+
+class TransferUnavailableLabel(ConstructorLabel):
+    pass
+
+
+class TransferConfirmedLabel(ConstructorLabel):
+    pass
+
+
+class TransferMismatchLabel(ConstructorLabel):
+    pass
+
+
+class MissingTableEntryLabel(ConstructorLabel):
+    pass
+
+
+class OperationFailedLabel(ConstructorLabel):
+    pass
+
+
+class NotInCarrierLabel(ConstructorLabel):
+    pass
+
+
+class MissingIndexLabel(ConstructorLabel):
+    pass
+
+
+class ClosureWorkerRoleLabel(ConstructorLabel):
+    pass
+
+
+class IdentityWorkerRoleLabel(ConstructorLabel):
+    pass
+
+
+class InverseWorkerRoleLabel(ConstructorLabel):
+    pass
+
+
+class CommutativityWorkerRoleLabel(ConstructorLabel):
+    pass
+
+
+class AssociativityWorkerRoleLabel(ConstructorLabel):
+    pass
+
+
+class StructureRecognizedLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1467,6 +1795,88 @@ TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
 TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
 TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
 DistinctLabel = DistinctLabel()
+ExperimentApplicationLabel = ExperimentApplicationLabel()
+ObservedEquationLabel = ObservedEquationLabel()
+CounterexampleLabel = CounterexampleLabel()
+StructureSignatureLabel = StructureSignatureLabel()
+StructureCandidateLabel = StructureCandidateLabel()
+CertifiedStructureLabel = CertifiedStructureLabel()
+CertifiedLawLabel = CertifiedLawLabel()
+ConjecturedLawLabel = ConjecturedLawLabel()
+DeclaredOperationLabel = DeclaredOperationLabel()
+DeclaredTableEntryLabel = DeclaredTableEntryLabel()
+DirectOperationKindLabel = DirectOperationKindLabel()
+TableOperationKindLabel = TableOperationKindLabel()
+ClosureLawLabel = ClosureLawLabel()
+AssociativeLawLabel = AssociativeLawLabel()
+IdentityLawLabel = IdentityLawLabel()
+InverseLawLabel = InverseLawLabel()
+CommutativeLawLabel = CommutativeLawLabel()
+LawHoldsLabel = LawHoldsLabel()
+LawViolatedLabel = LawViolatedLabel()
+LawConjecturedLabel = LawConjecturedLabel()
+LawUnknownLabel = LawUnknownLabel()
+IdentityCandidateLabel = IdentityCandidateLabel()
+InverseCandidateLabel = InverseCandidateLabel()
+CommutativityObservationLabel = CommutativityObservationLabel()
+ClosureObservationLabel = ClosureObservationLabel()
+AssociativitySearchRecordLabel = AssociativitySearchRecordLabel()
+IdentitySearchExhaustedLabel = IdentitySearchExhaustedLabel()
+InverseSearchExhaustedLabel = InverseSearchExhaustedLabel()
+ExplorationResultLabel = ExplorationResultLabel()
+ExplorationCompleteLabel = ExplorationCompleteLabel()
+ExplorationBudgetExhaustedLabel = ExplorationBudgetExhaustedLabel()
+LaboratoryCheckpointLabel = LaboratoryCheckpointLabel()
+WorkerJournalLabel = WorkerJournalLabel()
+ObservationLedgerLabel = ObservationLedgerLabel()
+AdmissionOutcomeLabel = AdmissionOutcomeLabel()
+ProposalRejectedLabel = ProposalRejectedLabel()
+ProposalWithheldLabel = ProposalWithheldLabel()
+CatalogueEntryLabel = CatalogueEntryLabel()
+RecognizerCatalogueLabel = RecognizerCatalogueLabel()
+AbstractSemigroupLabel = AbstractSemigroupLabel()
+AbstractMonoidLabel = AbstractMonoidLabel()
+AbstractGroupLabel = AbstractGroupLabel()
+AbstractAbelianGroupLabel = AbstractAbelianGroupLabel()
+CertificationGateLabel = CertificationGateLabel()
+CandidateRecognizedLabel = CandidateRecognizedLabel()
+CandidateRejectedLabel = CandidateRejectedLabel()
+WithheldStructureLabel = WithheldStructureLabel()
+TriangleTransformLabel = TriangleTransformLabel()
+TriangleRotationKindLabel = TriangleRotationKindLabel()
+TriangleReflectionKindLabel = TriangleReflectionKindLabel()
+TriangleIdentityKindLabel = TriangleIdentityKindLabel()
+TriangleComposeOperationLabel = TriangleComposeOperationLabel()
+RenamedTriangleComposeOperationLabel = RenamedTriangleComposeOperationLabel()
+RenamedElementLabel = RenamedElementLabel()
+DecoyLoopOperationLabel = DecoyLoopOperationLabel()
+DecoyRightProjectionOperationLabel = DecoyRightProjectionOperationLabel()
+DecoyAlphaLabel = DecoyAlphaLabel()
+DecoyBetaLabel = DecoyBetaLabel()
+DecoyGammaLabel = DecoyGammaLabel()
+ReplayRecordLabel = ReplayRecordLabel()
+ReplayVerifiedLabel = ReplayVerifiedLabel()
+ReplayMismatchLabel = ReplayMismatchLabel()
+ExhaustiveFiniteCheckLabel = ExhaustiveFiniteCheckLabel()
+LawVariableLabel = LawVariableLabel()
+LawFindingsLabel = LawFindingsLabel()
+LawVerdictLabel = LawVerdictLabel()
+CertificationAttemptLabel = CertificationAttemptLabel()
+AppliedTermLabel = AppliedTermLabel()
+TransferPredictionLabel = TransferPredictionLabel()
+TransferUnavailableLabel = TransferUnavailableLabel()
+TransferConfirmedLabel = TransferConfirmedLabel()
+TransferMismatchLabel = TransferMismatchLabel()
+MissingTableEntryLabel = MissingTableEntryLabel()
+OperationFailedLabel = OperationFailedLabel()
+NotInCarrierLabel = NotInCarrierLabel()
+MissingIndexLabel = MissingIndexLabel()
+ClosureWorkerRoleLabel = ClosureWorkerRoleLabel()
+IdentityWorkerRoleLabel = IdentityWorkerRoleLabel()
+InverseWorkerRoleLabel = InverseWorkerRoleLabel()
+CommutativityWorkerRoleLabel = CommutativityWorkerRoleLabel()
+AssociativityWorkerRoleLabel = AssociativityWorkerRoleLabel()
+StructureRecognizedLabel = StructureRecognizedLabel()
 
 
 def sync_from_namespace(namespace):
@@ -1763,6 +2173,88 @@ def sync_from_namespace(namespace):
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",
+        "ExperimentApplicationLabel",
+        "ObservedEquationLabel",
+        "CounterexampleLabel",
+        "StructureSignatureLabel",
+        "StructureCandidateLabel",
+        "CertifiedStructureLabel",
+        "CertifiedLawLabel",
+        "ConjecturedLawLabel",
+        "DeclaredOperationLabel",
+        "DeclaredTableEntryLabel",
+        "DirectOperationKindLabel",
+        "TableOperationKindLabel",
+        "ClosureLawLabel",
+        "AssociativeLawLabel",
+        "IdentityLawLabel",
+        "InverseLawLabel",
+        "CommutativeLawLabel",
+        "LawHoldsLabel",
+        "LawViolatedLabel",
+        "LawConjecturedLabel",
+        "LawUnknownLabel",
+        "IdentityCandidateLabel",
+        "InverseCandidateLabel",
+        "CommutativityObservationLabel",
+        "ClosureObservationLabel",
+        "AssociativitySearchRecordLabel",
+        "IdentitySearchExhaustedLabel",
+        "InverseSearchExhaustedLabel",
+        "ExplorationResultLabel",
+        "ExplorationCompleteLabel",
+        "ExplorationBudgetExhaustedLabel",
+        "LaboratoryCheckpointLabel",
+        "WorkerJournalLabel",
+        "ObservationLedgerLabel",
+        "AdmissionOutcomeLabel",
+        "ProposalRejectedLabel",
+        "ProposalWithheldLabel",
+        "CatalogueEntryLabel",
+        "RecognizerCatalogueLabel",
+        "AbstractSemigroupLabel",
+        "AbstractMonoidLabel",
+        "AbstractGroupLabel",
+        "AbstractAbelianGroupLabel",
+        "CertificationGateLabel",
+        "CandidateRecognizedLabel",
+        "CandidateRejectedLabel",
+        "WithheldStructureLabel",
+        "TriangleTransformLabel",
+        "TriangleRotationKindLabel",
+        "TriangleReflectionKindLabel",
+        "TriangleIdentityKindLabel",
+        "TriangleComposeOperationLabel",
+        "RenamedTriangleComposeOperationLabel",
+        "RenamedElementLabel",
+        "DecoyLoopOperationLabel",
+        "DecoyRightProjectionOperationLabel",
+        "DecoyAlphaLabel",
+        "DecoyBetaLabel",
+        "DecoyGammaLabel",
+        "ReplayRecordLabel",
+        "ReplayVerifiedLabel",
+        "ReplayMismatchLabel",
+        "ExhaustiveFiniteCheckLabel",
+        "LawVariableLabel",
+        "LawFindingsLabel",
+        "LawVerdictLabel",
+        "CertificationAttemptLabel",
+        "AppliedTermLabel",
+        "TransferPredictionLabel",
+        "TransferUnavailableLabel",
+        "TransferConfirmedLabel",
+        "TransferMismatchLabel",
+        "MissingTableEntryLabel",
+        "OperationFailedLabel",
+        "NotInCarrierLabel",
+        "MissingIndexLabel",
+        "ClosureWorkerRoleLabel",
+        "IdentityWorkerRoleLabel",
+        "InverseWorkerRoleLabel",
+        "CommutativityWorkerRoleLabel",
+        "AssociativityWorkerRoleLabel",
+        "StructureRecognizedLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

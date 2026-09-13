@@ -1,0 +1,81 @@
+=== TEST 5: Structure Play Laboratory ===
+
+[1] Declaring the triangle composition operation...
+    name kind: TriangleComposeOperation
+
+[2] Complete operation table (row-major)...
+    table cells: 36 (expected 36 )
+    cell (e, r1) is r1: True
+    cell (s_a, s_a) is e: True
+    noncommutativity witnessed at (r1, s_a): True
+
+[3] Bounded exploration run over the triangle carrier...
+    verdict: ExplorationComplete
+    ledger entries: 31
+    closure observation positive: True
+    closure, associativity, identity, inverse conjectures proposed: True
+    refuted commutativity correctly left unconjectured: True
+
+[4] Serial proposal admission...
+    conjectures admitted: 4 (expected 4)
+
+[5] Unnamed signature and certificates...
+    signature term: StructureSignature
+    four group-relevant slots certified with verified replays: True
+    refuted commutativity left uncertified: True
+    counterexample slot carries the refutation evidence: True
+
+[6] Recognition against the catalogue...
+    verdict: CandidateRecognized
+    recognized entry: AbstractGroup
+    group gate opens on the certified signature: True
+    abelian gate closed, blocking requirement commutativity: True
+
+[7] Transfer: certified shortcut, then disabled...
+    held-out prediction confirmed: True
+    predicted element is the identity: True
+    with certificates removed the shortcut is unavailable: True
+
+[8] Nonassociative decoy...
+    closure holds: True
+    associativity violated: True
+    identity violated: True
+    concrete counterexample recorded: True
+    worker journal produced the refutation: True
+    serial admission rejected the refutation as structure: True
+    associativity slot withheld: True
+    counterexample slot populated: True
+    recognition withheld: True
+    blocking requirement is associativity: True
+
+[9] Semigroup-without-identity decoy...
+    closure certified: True
+    associativity certified: True
+    identity slot empty: True
+    recognized entry: AbstractSemigroup
+    monoid gate closed, blocking requirement identity: True
+
+[10] Renamed-carrier invariance...
+    all five probe verdicts agree under renaming: True
+    renamed carrier recognizes: AbstractGroup
+    renamed closure certificate replays against the renamed table: True
+    renamed carrier stays noncommutative: True
+
+[11] Certification lifecycle: disable, verify blocked, restore...
+    identity slot removed: True
+    group recognition gone while disabled: True
+    remaining certificates still support: AbstractSemigroup
+    group gate now blocked at identity: True
+    recognition restored: True
+    restored entry: AbstractGroup
+
+[12] Exploration budget guard...
+    over-budget run refused: True
+    over-budget ledger empty: True
+
+=== TEST 5 RESULTS ===
+  failures: 0
+  STATUS: ALL STRUCTURE-PLAY SCENARIO CHECKS PASSED
+  total time: 1470.307s
+
+=== TEST 5 COMPLETE ===
