@@ -637,6 +637,17 @@ SNAPSHOT_SYMBOL_NAMES = [
     "CommutativityWorkerRoleLabel",
     "AssociativityWorkerRoleLabel",
     "StructureRecognizedLabel",
+    # logic-checker block L labels
+    "ImpliesLabel",
+    "FalseLabel",
+    "EqLabel",
+    "PlusLabel",
+    "GreaterLabel",
+    "ForallIntroductionLabel",
+    "ImpliesIntroductionLabel",
+    "ContradictionIntroductionLabel",
+    "FreshnessEvidenceLabel",
+    "BinderAxiomLabel",
 ]
 
 

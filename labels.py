@@ -3068,6 +3068,17 @@ def sync_from_namespace(namespace):
         "CommutativityWorkerRoleLabel",
         "AssociativityWorkerRoleLabel",
         "StructureRecognizedLabel",
+        # logic-checker block L labels
+        "ImpliesLabel",
+        "FalseLabel",
+        "EqLabel",
+        "PlusLabel",
+        "GreaterLabel",
+        "ForallIntroductionLabel",
+        "ImpliesIntroductionLabel",
+        "ContradictionIntroductionLabel",
+        "FreshnessEvidenceLabel",
+        "BinderAxiomLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
