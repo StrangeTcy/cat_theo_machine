@@ -537,6 +537,15 @@ def _planner_alternative_status(final_state, hint):
     return status
 
 
+def _tail_has_goal(skeleton):
+    remaining = skeleton
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        if M.IdentityCompare(ObligationSkeletonEntryGoal(M.Head(remaining)())(), M.EmptyList)() is M.false_value:
+            return M.truth_value
+        remaining = M.Tail(remaining)()
+    return M.false_value
+
+
 def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, rules, registry):
     """
     Audit the obligation skeleton. Returns (obligation_id_text, description_text,
@@ -551,8 +560,13 @@ def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, ru
         goal = ObligationSkeletonEntryGoal(entry)()
         if M.IdentityCompare(goal, M.EmptyList)() is M.false_value:
             total_with_goals = total_with_goals + 1
-            if M.TermEqual(goal, conclusion_goal)() is M.truth_value:
-                remaining = M.Tail(remaining)()
+            tail = M.Tail(remaining)()
+            if M.TermEqual(goal, conclusion_goal)() is M.truth_value and _tail_has_goal(tail) is M.false_value:
+                remaining = tail
+                continue
+            if M.TermEqual(start, goal)() is M.truth_value:
+                discharged_count = discharged_count + 1
+                remaining = tail
                 continue
             plan = Imod.RewriteSearch(start, goal, rules, registry)()
             if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
@@ -578,6 +592,8 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
     rules = None
     if rules_pack_name is not None:
         rules = packs.by_name(rules_pack_name).rule_chain
+    if rules is None:
+        rules = runtime.ordered_rules()
 
     if M.IdentityCompare(conclusion_goal, M.EmptyList)() is M.truth_value:
         reason = "obligation skeleton carries no conclusion goal; nothing to prove"
@@ -673,7 +689,8 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
                 + pretty(conclusion_goal, registry)
             )
         failure_reason = char_chain(reason)
-        status = L.PendingLabel
+        if obligation_id is not None:
+            status = L.PendingLabel
 
     # 5) Retain successful derivations in the graph's derivation store.
     retained = False
