@@ -537,15 +537,6 @@ def _planner_alternative_status(final_state, hint):
     return status
 
 
-def _tail_has_goal(skeleton):
-    remaining = skeleton
-    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-        if M.IdentityCompare(ObligationSkeletonEntryGoal(M.Head(remaining)())(), M.EmptyList)() is M.false_value:
-            return M.truth_value
-        remaining = M.Tail(remaining)()
-    return M.false_value
-
-
 def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, rules, registry):
     """
     Audit the obligation skeleton. Returns (obligation_id_text, description_text,
@@ -561,10 +552,22 @@ def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, ru
         if M.IdentityCompare(goal, M.EmptyList)() is M.false_value:
             total_with_goals = total_with_goals + 1
             tail = M.Tail(remaining)()
-            if M.TermEqual(goal, conclusion_goal)() is M.truth_value and _tail_has_goal(tail) is M.false_value:
+            tail_has_goal = M.false_value
+            tail_scan = tail
+            while M.IdentityCompare(tail_scan, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(ObligationSkeletonEntryGoal(M.Head(tail_scan)())(), M.EmptyList)() is M.false_value:
+                    tail_has_goal = M.truth_value
+                    break
+                tail_scan = M.Tail(tail_scan)()
+            if M.TermEqual(goal, conclusion_goal)() is M.truth_value and tail_has_goal is M.false_value:
                 remaining = tail
                 continue
-            if M.TermEqual(start, goal)() is M.truth_value:
+            if P.IsKnowledge(start)() is M.truth_value and P.IsKnowledge(goal)() is M.truth_value:
+                if P.FactsCover(P.KnowledgeFacts(goal)(), P.KnowledgeFacts(start)())() is M.truth_value:
+                    discharged_count = discharged_count + 1
+                    remaining = tail
+                    continue
+            elif M.TermEqual(start, goal)() is M.truth_value:
                 discharged_count = discharged_count + 1
                 remaining = tail
                 continue
@@ -684,13 +687,17 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
                 + " not derivable from the meaning structure"
             )
         else:
-            reason = (
-                "conclusion obligation not proved by search: "
-                + pretty(conclusion_goal, registry)
-            )
-        failure_reason = char_chain(reason)
+            if M.IdentityCompare(status, L.ProvedLabel)() is M.truth_value:
+                failure_reason = M.EmptyList
+            else:
+                reason = (
+                    "conclusion obligation not proved by search: "
+                    + pretty(conclusion_goal, registry)
+                )
+                failure_reason = char_chain(reason)
         if obligation_id is not None:
             status = L.PendingLabel
+            failure_reason = char_chain(reason)
 
     # 5) Retain successful derivations in the graph's derivation store.
     retained = False
