@@ -1,0 +1,14 @@
+UTC date: 2026-09-15
+Command: PYTHONPATH=/home/user python -m cat_theo_machine.main ingest verification/2026-09-15-training-acceptance/d22-vacuous-success.yaml
+
+Result:
+d22_vacuous_success: PARTIAL
+method: brute search fallback
+planner root: Failed
+method alternative: Failed
+derivation retained: False
+reason: obligation [intermediate] (Underivable intermediate) not discharged
+
+The historical false-success shape is rejected by attempt_training_record.
+The audit now asks runtime.prove for each non-conclusion obligation, rather
+than treating a non-empty rewrite plan as a certificate.

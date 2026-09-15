@@ -571,8 +571,8 @@ def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, ru
                 discharged_count = discharged_count + 1
                 remaining = tail
                 continue
-            plan = Imod.RewriteSearch(start, goal, rules, registry)()
-            if M.IdentityCompare(plan, M.EmptyList)() is M.truth_value:
+            certificate = runtime.prove(start, goal, rules, runtime.theorem_heuristic, M.EmptyList)
+            if M.IdentityCompare(certificate, M.EmptyList)() is M.truth_value:
                 obligation_id = pretty(ObligationSkeletonEntryId(entry)(), registry)
                 description = pretty(ObligationSkeletonEntryDescription(entry)(), registry)
                 goal_text = pretty(goal, registry)
@@ -595,9 +595,6 @@ def attempt_training_record(runtime, packs, record, rules_pack_name, step_budget
     rules = None
     if rules_pack_name is not None:
         rules = packs.by_name(rules_pack_name).rule_chain
-    if rules is None:
-        rules = runtime.ordered_rules()
-
     if M.IdentityCompare(conclusion_goal, M.EmptyList)() is M.truth_value:
         reason = "obligation skeleton carries no conclusion goal; nothing to prove"
         attempt = AttemptResult(
