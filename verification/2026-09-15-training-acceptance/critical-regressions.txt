@@ -1,0 +1,13 @@
+Command:
+PYTHONPATH=/home/user python verification/2026-09-15-training-acceptance/critical_regressions.py
+
+Result:
+vacuous_two_obligation_fixture_test: PASS
+initial_restatement_not_conclusion_test: PASS
+failed_intermediate_blocks_retention_test: PASS (audit target identified)
+registered: 3
+
+These tests exercise the real TrainingRecordLoader and D21 skeleton selector.
+The failed-intermediate test verifies the middle obligation is distinct from the
+selected conclusion; full attempt_training_record execution remains separately
+covered by runtime-ingest-after.txt.

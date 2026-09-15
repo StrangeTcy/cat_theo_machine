@@ -1,0 +1,47 @@
+format: hyge-training-records
+version: 1
+records:
+- id: d22_vacuous_success
+  problem_statement:
+    text: vacuous intermediate obligation regression
+  meaning_structure:
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+        - list:
+          - call:
+              head: {sym: ParityLabel}
+              args: [{char: '2'}, {sym: OddLabel}]
+  obligation_skeleton:
+  - id: initial
+    text: Initial restatement
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+        - list:
+          - call:
+              head: {sym: ParityLabel}
+              args: [{char: '2'}, {sym: OddLabel}]
+  - id: intermediate
+    text: Underivable intermediate
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+        - list:
+          - call:
+              head: {sym: ParityLabel}
+              args: [{char: '3'}, {sym: OddLabel}]
+  - id: conclusion
+    text: Provable conclusion
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+        - list:
+          - call:
+              head: {sym: ParityLabel}
+              args: [{char: '2'}, {sym: OddLabel}]
+  test_instances: []
