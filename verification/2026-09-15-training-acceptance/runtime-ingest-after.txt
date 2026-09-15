@@ -1,0 +1,17 @@
+Command:
+PYTHONPATH=/home/user python -m cat_theo_machine.main ingest training_records/engel_e2_blackboard_parity.yaml
+
+Environment:
+gmpy2 2.3.1
+PyYAML 6.0.3
+
+Observed:
+loaded 14 packs; 167 rules; 1 training record
+record: engel_e2_blackboard_parity
+status: PARTIAL
+method: <?>
+planner root: Failed
+method alternative: Failed
+derivation retained: False
+
+This is a genuine runtime execution. It did not report SUCCESS for the supplied record.
