@@ -1,0 +1,32 @@
+format: hyge-training-records
+version: 1
+records:
+- id: d21_distinct
+  problem_statement: {text: distinct final goal}
+  meaning_structure:
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args: [{list: [{char: P}]}]
+  obligation_skeleton:
+  - id: initial
+    text: initial
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args: [{list: [{char: P}]}]
+  - id: middle
+    text: middle
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args: [{list: [{char: R}]}]
+  - id: final
+    text: final
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args: [{list: [{char: Q}]}]
+  - id: trailing-description
+    text: trailing description
+  test_instances: []

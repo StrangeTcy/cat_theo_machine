@@ -1,0 +1,24 @@
+format: hyge-training-records
+version: 1
+records:
+- id: complete_success
+  problem_statement: {text: complete success}
+  meaning_structure:
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args: [{list: [{char: P}]}]
+  obligation_skeleton:
+  - id: initial
+    text: initial given
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args: [{list: [{char: P}]}]
+  - id: final
+    text: final given
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args: [{list: [{char: P}]}]
+  test_instances: []

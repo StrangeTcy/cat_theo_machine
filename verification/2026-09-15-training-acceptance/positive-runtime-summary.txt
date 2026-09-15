@@ -1,0 +1,10 @@
+Command:
+PYTHONPATH=/home/user python -m cat_theo_machine.main ingest verification/2026-09-15-training-acceptance/positive-complete.yaml
+
+Result:
+complete_success: SUCCESS
+method: brute search fallback
+planner root: Failed
+method alternative: Failed
+derivation retained: True
+failure reason: none printed (empty)
