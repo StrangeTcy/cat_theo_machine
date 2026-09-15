@@ -502,6 +502,13 @@ class AttemptSummary:
         self.record_id = record_id
         self.status_text = status_text
         self.method_text = method_text
+        self.requested_method = method_text if method_text not in ("none", "brute search fallback") else "none"
+        if method_text == "brute search fallback":
+            self.execution_route = method_text
+        elif method_text == "none":
+            self.execution_route = "none"
+        else:
+            self.execution_route = "strategy-hinted proof"
         self.elapsed = elapsed
         self.planner_root_status = planner_root_status
         self.alternative_status = alternative_status
@@ -545,6 +552,7 @@ def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, ru
     """
     total_with_goals = 0
     discharged_count = 0
+    first_failure = None
     remaining = skeleton
     while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
         entry = M.Head(remaining)()
@@ -576,9 +584,13 @@ def _first_undischarged_obligation(runtime, start, skeleton, conclusion_goal, ru
                 obligation_id = pretty(ObligationSkeletonEntryId(entry)(), registry)
                 description = pretty(ObligationSkeletonEntryDescription(entry)(), registry)
                 goal_text = pretty(goal, registry)
-                return obligation_id, description, goal_text, discharged_count, total_with_goals
-            discharged_count = discharged_count + 1
+                if first_failure is None:
+                    first_failure = (obligation_id, description, goal_text)
+            else:
+                discharged_count = discharged_count + 1
         remaining = M.Tail(remaining)()
+    if first_failure is not None:
+        return first_failure[0], first_failure[1], first_failure[2], discharged_count, total_with_goals
     return None, None, None, discharged_count, total_with_goals
 
 
