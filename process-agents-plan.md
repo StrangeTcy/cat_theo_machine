@@ -53,12 +53,28 @@ compare_search_modes_fill_warms_resident_pool_before_root_wave_test
 All four return `false_value`. None raise. Confirmed by instantiating the real test classes
 directly against a packed runtime — no exception, `result: FALSE` for each.
 
-**Platform divergence that bears on every worker test:** `environment.yml` records a Windows
-conda prefix; `multiprocessing.get_start_method()` here returns `fork`. The code pins its
-context explicitly rather than relying on the default — `multiprocessing.get_context("spawn")`
-at `search/compare.py:201` and `:251`, `get_context("fork")` at `search/engine.py:654` — so a
-diagnosis reached on Linux is not automatically a diagnosis on the author's machine. State the
-platform in every finding.
+**Platform divergence — measured, not assumed.** `environment.yml` records a Windows conda
+prefix (`prefix: C:\Users\hatgu\anaconda3\envs\hyge`, `python=3.12.13`); this sandbox is Python
+3.11 / Linux and `multiprocessing.get_start_method()` returns `fork`, `cpu_count()` returns 2.
+
+The grep the plan would otherwise have assigned to an agent is already done. Every process-
+creation site in the tree, and the context each one uses:
+
+```text
+search/compare_executors.py:271   mp_context.Process(...)   context from compare.py:201/251 = "spawn"
+search/engine.py:702              mp_context.Process(...)   context from engine.py:654/656
+persistence.py:565                ctx.Process(...)          ctx = get_context("spawn")  persistence.py:562
+persistence.py:658                ctx.Process(...)          ctx = get_context("spawn")  persistence.py:647
+search/compare_subprocess.py:268  subprocess.Popen(...)     per-mode search-worker child
+search/compare_subprocess.py:462  subprocess.Popen(...)     per-mode search-worker child
+main.py:24                        subprocess.run(...)       module re-exec wrapper
+main.py:1308                      multiprocessing.freeze_support()
+search/ui.py:131                  queue.Queue               threading queue, not mp
+```
+
+**No un-contexted `Process()` or `Pool()` call exists.** There are no `multiprocessing.Pool`
+uses at all, and no `set_start_method` anywhere. So the divergence risk is not un-pinned
+spawns. It is one pinned site that behaves differently per platform — see §2.1.
 
 ---
 
@@ -105,6 +121,52 @@ edges: `PlannerAlternativeParent/Method/Children/Status/Evidence` (`planner.py:4
 **Do not invent `WorkItem` / `Claim` / `WorkerResult` terms.** `SearchWorkerPacket`,
 `SearchWorkerLaunch`, and `SearchWorkerResult` already fill those roles. Extending the
 existing vocabulary is the task; adding a parallel one is the defect.
+
+### 2.1 Three worker mechanisms, and one platform-dependent code path
+
+There are **three** distinct ways this tree spawns work, not one:
+
+```text
+(a) resident executors   multiprocessing, context "spawn"
+                         compare_executors.py:265-287, ready handshake at :293
+(b) applicability shards multiprocessing, context "fork" (or serial — see below)
+                         engine.py:702, target _SearchApplicableRulesShardWorker
+(c) per-mode workers     subprocess.Popen of `python -m <pkg>.main search-worker ...`
+                         compare_subprocess.py:268 and :462, each with a
+                         threading.Thread output relay at :278 and :472
+```
+
+Mechanism (c) was missing from the earlier inventory. It launches one child process per
+search mode with `HYGE_SEARCH_WORKER_DEFER_DERIVATION=1` (`:461`) or
+`HYGE_SEARCH_WORKER_RESUME_DERIVATION=1` (`:267`), collects `exit_code` at `:280`, and
+reloads the snapshot via `_load_search_worker_snapshot` at `:283`. Any concurrency work that
+claims to cover "the worker path" must say which of the three it means.
+
+**The one pinned site whose behaviour differs by platform** is
+`_theorem_applicable_rules_sharded` (`search/engine.py:646`):
+
+```python
+if multiprocessing.get_start_method() == "spawn":          # engine.py:649
+    return FilterApplicableRulesWithIndex(...)              # engine.py:651  serial
+try:
+    mp_context = multiprocessing.get_context("fork")        # engine.py:654
+except ValueError:
+    mp_context = multiprocessing.get_context("spawn")       # engine.py:656
+if mp_context.get_start_method() == "spawn":                # engine.py:657
+    return FilterApplicableRulesWithIndex(...)              # engine.py:659  serial
+```
+
+Measured here: default start method `fork`; `get_start_method() == "spawn"` is `False`;
+`get_context("fork")` succeeds and reports `fork`, so the `:657` guard does **not** trip.
+`cpu_count()` is 2 and cold boot gives `rule_count: 159`, so `worker_capacity` computes to 2
+and the parallel shard path at `:702` is the one taken.
+
+On a Windows default (`spawn`) the function returns at `:651` and runs
+`FilterApplicableRulesWithIndex` in-process instead. Two platforms, two different
+implementations of rule-applicability filtering. A behavioural difference between them
+presents as a nondeterministic test flake rather than as a platform difference, which is
+exactly the failure mode to pre-empt. Any finding about mechanism (b) must state which branch
+produced it.
 
 ---
 
@@ -202,6 +264,19 @@ Standing constraints:
   directories. Remove only directories you created this turn. The 20 files committed under
   run-1786543184669 and run-1786548752373 are tracked fixtures — check `git status` before
   removing anything under snapshots/.
+
+VOCABULARY SCOPE — the one hard line in this plan.
+No agent may introduce rent, provenance, adoption, promotion, learned-memory, mask, or
+schema vocabulary. Verified: none of it exists at this commit (§0, row 4 — 0 hits for
+INVENTED_LEMMA, HUMAN_SUPPLIED_TRUSTED_THEOREM, adopt_compressed_law, LearnedMemoryCheckpoint,
+RelationSchema, TrainingRecord). The absence is not an invitation. Building a rent-gate-shaped
+or provenance-shaped thing under a new name, inside a concurrency fix, and calling it
+infrastructure is the specific failure this plan exists to prevent. It requires its own
+charter, its own review, and its own measurements, and it is out of scope for every brief
+below. If your task seems to require it, stop and write the requirement down instead.
+What you may add: worker execution-failure terms, journal terms, replay/claim/replay-state
+terms, and tests. All of them are observations about work already done; none of them decide
+what the machine is allowed to believe.
 ```
 
 ### Agent A — worker runtime diagnosis
@@ -209,10 +284,18 @@ Standing constraints:
 ```text
 You are A-RUNTIME. Worktree of your own. Base: 428ecdc.
 
+EVIDENCE STANDARD for every mechanism you name. A locus is three things, not one: the single
+write site of the value in question, the full guard chain that reaches it, and the measured
+state of that chain on the failing input. §3 of this document is the worked example for the
+fill test. A plausible narrative without all three is not a diagnosis and will be returned.
+This applies to Task 1 especially: do not inherit or invent a story about the second red.
+
 Task 1 — trace the second red. compare_search_modes_finds_reusable_worker_snapshot_dir_test
 (testsuite.py:1331) fails at testsuite.py:1375-1378. Determine whether
-_reusable_search_worker_result_paths returns no "SearchBFS" key or a different path. Name
-the mechanism with file:line. Do not fix it yet.
+_reusable_search_worker_result_paths returns no "SearchBFS" key or a different path, then
+produce the three-part locus for it. Note the test writes a deliberately mismatching manifest
+at testsuite.py:1371-1372 and expects run-1 to be chosen over run-2; find out which half of
+that expectation breaks. Do not fix it yet.
 
 Task 2 — confirm the §3 diagnosis of the fill test independently, then state a minimal fix
 proposal. The locus is the ordering between _grow_parallel_executor_pool
@@ -220,15 +303,40 @@ proposal. The locus is the ordering between _grow_parallel_executor_pool
 (compare_packets.py:1393-1411). Do not widen any of the five guards at
 compare_packets.py:1436-1440 without stating what else reaches that code.
 
-Task 3 — bounded execution hardening on the existing spawn path
-(compare_executors.py:265-287): verify timeout, cancellation, and cleanup behaviour of
-_retire_parallel_executor and _terminate_active_children (defined main.py:1232, called from
-the KeyboardInterrupt path at main.py:1303). Convert any crash
-or timeout you find into a machine execution-failure term. A worker crash is not evidence
-that the mathematical obligation is false.
+WARNING — the green half of this test is also lying, and fixing only the failing assertion
+is not a fix. Two of its four assertions pass for the wrong reason:
+  A) "spawned != 0" passes because probe.spawned is an M.Atom (testsuite.py:1636), so
+     NatEq(spawned, Zero) is false even when the count is zero. It proves nothing.
+  C) "workers non-empty" passes because workers arrived via the budget-launch path
+     (compare_executors.py:687-696), not via the pool-warming the test name claims.
+     _grow_parallel_executor_pool only runs when need_shared_root_wave is true
+     (compare_executors.py:662), which is false for all five states.
+  D) "needs_shared_root_wave is false" passes because nothing was consumed, not because the
+     wave completed.
+Your fix must make the test's green assertions true for the reason the test name states.
+Restate A, C and D as assertions that can fail, and say what each one now proves. If your
+change leaves any of them vacuous, say so rather than reporting the test as fixed.
 
-Deliver: two traced mechanisms with loci, a minimal fix for the fill test, and a suite run
-whose failure set is the baseline minus the tests you fixed. State the platform.
+Task 3 — bounded execution hardening, and the platform check.
+The un-pinned-spawn grep is already done; the inventory is in §1 and it is clean, so do not
+redo it. There are three worker mechanisms (§2.1) — say which one each finding applies to.
+  (a) resident executors, compare_executors.py:265-287: verify timeout, cancellation and
+      cleanup of _retire_parallel_executor and _terminate_active_children (defined
+      main.py:1232, called from the KeyboardInterrupt path at main.py:1303).
+  (b) applicability shards, engine.py:702: this path is platform-dependent. State which
+      branch produced your result — the parallel shard path past engine.py:657, or the serial
+      FilterApplicableRulesWithIndex return at engine.py:651/659. On Linux with fork and
+      cpu_count 2 the parallel branch is taken here; on a Windows spawn default it is not.
+      If you cannot run both, say which one you ran.
+  (c) per-mode subprocess workers, compare_subprocess.py:268 and :462: check exit-code
+      handling at :280 and the relay-thread join at :281 for orphaned children on timeout.
+      Note :281 joins with timeout=1.0 and does not act on a join that expires.
+Convert any crash or timeout you find into a machine execution-failure term. A worker crash
+is not evidence that the mathematical obligation is false.
+
+Deliver: two traced mechanisms with three-part loci, a minimal fix for the fill test with A,
+C and D restated, and a suite run whose failure set is the baseline minus the tests you fixed.
+State the platform and, for mechanism (b), the branch.
 ```
 
 ### Agent B — snapshot and worker-state isolation
@@ -314,7 +422,17 @@ Admission requires, on the composed candidate:
   crash, retry, cancellation and duplicate delivery preserve accounting;
   journal import leaves active rules and search inputs unchanged;
   wall time AND aggregate work recorded — parallelism is not assumed faster;
+  every mechanism (b) finding names its branch — parallel shard past engine.py:657, or the
+  serial return at engine.py:651/659. A finding that does not say is not admitted;
+  no rent, provenance, adoption, promotion, learned-memory, mask, or schema vocabulary
+  entered the diff. Grep the composed diff for these before merging. A branch that adds them
+  is excluded from the batch regardless of test results, and the requirement goes in the
+  index as a separate charter proposal;
   the full suite failure set is a subset of the four-test baseline.
+
+A test that newly passes is only credited if its assertions can now fail. If an engineer
+reports a fixed test whose assertions are vacuous — the A/C/D pattern in Agent A's brief —
+return it. A green suite reached by making assertions unfalsifiable is worse than the red.
 
 Only then cut an immutable tag. Record the platform and the suite duration with it.
 
@@ -348,4 +466,10 @@ not built (deliberate): <list>
 - Any journal or worker-result import that changes active rules or search inputs -> defect.
 - A worker result accepted without derivation replay -> defect.
 - A claim of speedup with no aggregate-work number alongside it -> not a measurement.
+- A test reported fixed whose new assertions cannot fail -> returned, not credited.
+- A mechanism named without write site + guard chain + measured state -> not a diagnosis.
+- Rent/provenance/adoption/mask/schema vocabulary in any diff -> branch excluded, requirement
+  re-filed as a separate charter proposal.
+- A mechanism (b) finding that does not name its branch (engine.py:657 parallel vs :651/:659
+  serial) -> not admitted.
 ```
