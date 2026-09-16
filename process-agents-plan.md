@@ -198,6 +198,10 @@ Standing constraints:
   Report the platform: this sandbox is Python 3.11 / Linux / start method "fork";
   environment.yml targets conda Python 3.12 / Windows. Say which one a finding came from.
   Do not claim a test is fixed unless the full suite failure set shrank by exactly that test.
+  Housekeeping: a full suite run writes new untracked snapshots/search_compare/run-<epoch-ms>/
+  directories. Remove only directories you created this turn. The 20 files committed under
+  run-1786543184669 and run-1786548752373 are tracked fixtures — check `git status` before
+  removing anything under snapshots/.
 ```
 
 ### Agent A — worker runtime diagnosis
@@ -242,6 +246,12 @@ Task 1 — restore equivalence. A snapshot path and a content hash do not prove 
 restoration. Write a test that boots from packs, saves, boots the snapshot in a fresh
 runtime, and compares the roots listed in SnapshotCodec.ROOT_NAMES. Report any root that
 does not round-trip.
+
+Note: the repo already commits 20 fixture files under snapshots/search_compare/
+(run-1786543184669, run-1786548752373; per-mode *.snapshot.json plus *.manifest.json for
+astar/beam/bfs/dfs/rewritedfs). Read them before writing fixtures of your own. They are
+tracked content, not debris: do not delete them. Fresh suite runs write new
+snapshots/search_compare/run-<epoch-ms>/ directories; leave tracked ones alone.
 
 Task 2 — fresh-process restore. The worker path re-boots inside a child process
 (main.py:749-788). Verify that a child booted from a saved snapshot reaches the same state
