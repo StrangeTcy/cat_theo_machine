@@ -47,6 +47,15 @@ GATE_HUMAN = "human"
 # admitted -> activating -> activated is the forward path.
 # activation-failed stays in the accepted set (version is published and
 # monotonic); a retry uses activate_front again with the same version.
+#
+# Each admitted proposal has a stable activation_id (generated before the
+# 'activating' record is persisted) so the activation adapter can be
+# idempotent keyed on that ID, and recovery can reconcile.
+
+
+def _new_activation_id():
+    import uuid as _uuid
+    return "act-" + _uuid.uuid4().hex[:16]
 
 
 class ChildSpec:
@@ -399,6 +408,7 @@ class JoinAdmission:
             entry["state"] = "admitted"
             entry["admitted_at"] = _time.time()
             entry["admitted_at_version"] = self._accepted_state_version
+            entry["activation_id"] = _new_activation_id()
             self._accepted_proposals.append(entry)
             self._proposal_queue.pop(0)
             self._accepted_state_version += 1
@@ -413,17 +423,29 @@ class JoinAdmission:
                     return e
             return None
 
-    def activate_front(self, activation_fn):
+    def activate_front(self, activation_fn, reconcile_fn=None):
         """Run activation idempotently:
 
-        1. Persist an 'activating' marker BEFORE invoking activation_fn so a
-           crash can detect an unresolved activation and reconcile.
-        2. Invoke activation_fn(entry, accepted, version).
-        3. On True, mark 'activated' and persist.
-        4. On False/exception, mark 'activation-failed' and persist; version
-           is NOT decremented (monotonic). Caller must retry; no next
-           candidate is admitted while a proposal is in
-           admitted/activating/activation-failed.
+        1. The admitted entry carries a stable activation_id (assigned at
+           admit time) that the activation adapter MUST use as its
+           idempotency/reconciliation key.
+        2. Persist 'activating' BEFORE invoking activation_fn so a crash
+           can detect an unresolved activation.
+        3. Invoke activation_fn(entry, accepted, version). The first arg
+           dict contains 'activation_id'; the adapter MUST treat that as
+           the idempotency key for its external effect (if it cannot tell,
+           it must raise so the state stays 'activating' for reconcile).
+        4. If the entry is in 'activating' on entry (recovery path) and
+           reconcile_fn is provided, call reconcile_fn(entry) to query
+           whether the external effect committed:
+             - True  -> mark 'activated' without invoking activation_fn;
+             - False -> invoke activation_fn with the same activation_id;
+             - None  -> leave state as 'activating' (ambiguous; HOLD).
+           If reconcile_fn is None (default), we invoke activation_fn
+           idempotently.
+        5. On True, mark 'activated' and persist. On False/exception,
+           mark 'activation-failed' and persist; version is NOT
+           decremented (monotonic).
 
         Returns (ok, pid, reason). If the front is already 'activated' this
         returns (True, pid, 'already-activated') without invoking the fn.
@@ -440,6 +462,27 @@ class JoinAdmission:
                 return False, "", "no admitted proposal"
             if entry.get("state") == "activated":
                 return True, entry["proposal_id"], "already-activated"
+            # Ensure activation_id is present (for recovery of manifests
+            # written before this field existed).
+            if not entry.get("activation_id"):
+                entry["activation_id"] = _new_activation_id()
+            # Recovery reconciliation for 'activating': ask the adapter
+            # whether the effect for this activation_id is known committed.
+            if entry.get("state") == "activating" and reconcile_fn is not None:
+                try:
+                    verdict = reconcile_fn(entry)
+                except Exception:
+                    verdict = None
+                if verdict is True:
+                    entry["state"] = "activated"
+                    entry["activated_at"] = _time.time()
+                    entry["reconciled_at"] = _time.time()
+                    self._activation_inflight = False
+                    self._persist()
+                    return True, entry["proposal_id"], "reconciled-activated"
+                if verdict is None:
+                    return False, entry["proposal_id"], "activation ambiguous"
+                # verdict is False -> fall through to invoke.
             # Write 'activating' durable record before invoking the callback.
             entry["state"] = "activating"
             entry["activation_started_at"] = _time.time()

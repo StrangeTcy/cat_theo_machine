@@ -359,6 +359,10 @@ def _spawn_search_worker_process(package_root, worker_dir, mode_token,
     # proof). Without defer we get rc=0 after worker-side replay, which is
     # fine too (stage=success-derivation-built); we replay either way.
     env["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = ""
+    # Strip any inherited gate env vars from the caller environment so the
+    # child's behaviour is governed solely by the gate_dir argument below.
+    env.pop("HYGE_SEARCH_WORKER_GATE_PATH", None)
+    env.pop("HYGE_SEARCH_WORKER_READY_TIMEOUT", None)
     if gate_dir is not None:
         env["HYGE_SEARCH_WORKER_GATE_PATH"] = gate_dir
         # Give the coordinator plenty of time to observe ready and write
@@ -375,22 +379,45 @@ def _spawn_search_worker_process(package_root, worker_dir, mode_token,
 
 
 class SearchWorkerDispatch:
-    def __init__(self, pool, package_root):
+    def __init__(self, pool, package_root, state_path=None):
         self.pool = pool
         self.package_root = package_root
         # Map child_id -> current expected attempt_id for stale-attempt fencing.
         self._expected_attempt = {}
+        self._state_path = state_path
+        if state_path is not None and os.path.exists(state_path):
+            try:
+                with open(state_path, "r", encoding="utf-8") as _sh:
+                    _saved = _json.load(_sh)
+                if isinstance(_saved, dict) and isinstance(_saved.get("expected_attempt"), dict):
+                    self._expected_attempt = dict(_saved["expected_attempt"])
+            except Exception:
+                # Corrupt state -> start empty (fail-closed: no in-flight
+                # expectations; spawn will re-assign).
+                self._expected_attempt = {}
+
+    def _persist_state(self):
+        if self._state_path is None: return
+        d = os.path.dirname(os.path.abspath(self._state_path))
+        if d: os.makedirs(d, exist_ok=True)
+        tmp = self._state_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as _sh:
+            _json.dump({"expected_attempt": dict(self._expected_attempt)},
+                       _sh, indent=2, sort_keys=True)
+            _sh.flush(); os.fsync(_sh.fileno())
+        os.replace(tmp, self._state_path)
 
     def spawn(self, mode_token, start_text, goal_text, task_id, attempt_id,
               obligation_text, assumptions_term, budget_millis,
               worker_timeout_seconds=None, assumption_hash_override=None,
-              gate_path=None, manual_release=False):
-        """Spawn a search worker. If gate_path is provided, that directory is
-        used for the ready/release handshake (test/external control);
-        otherwise a per-work-dir _gate directory is used. When manual_release
-        is True, the caller is responsible for writing the release marker
-        (useful for readiness-handshake assertions); by default the dispatcher
-        writes release immediately after validating readiness."""
+              gate_path=None, manual_release=False, gate_enabled=True):
+        """Spawn a search worker. gate_enabled=True (default): a ready/release
+        handshake directory is used (coordinator validates readiness then
+        releases before obligation execution). gate_enabled=False: no gate
+        env vars are passed to the child; behaviour matches the pre-gate CLI
+        (search starts immediately after checkpoint restore) -- regression
+        guard for backward compatibility. When manual_release=True the caller
+        writes the release marker (test-only)."""
         if worker_timeout_seconds is None:
             worker_timeout_seconds = max(1, int(budget_millis // 1000))
         worker_id = self.pool._new_worker_id()
@@ -418,9 +445,12 @@ class SearchWorkerDispatch:
                                       task_id, attempt_id, worker_id,
                                       obligation_text, assumption_hash,
                                       code_ident.snapshot_id, str(budget_millis))
-        gate_dir = gate_path if gate_path is not None else os.path.join(work_dir, "_gate")
-        os.makedirs(gate_dir, exist_ok=True)
-        # Pass gate_dir via env; child reads HYGE_SEARCH_WORKER_GATE_PATH.
+        if gate_enabled:
+            gate_dir = gate_path if gate_path is not None else os.path.join(work_dir, "_gate")
+            os.makedirs(gate_dir, exist_ok=True)
+        else:
+            gate_dir = None
+        # Pass gate_dir via env (None -> no gate env vars -> legacy path).
         try:
             proc = _spawn_search_worker_process(self.package_root, work_dir,
                                                 mode_token, result_path,
@@ -442,6 +472,15 @@ class SearchWorkerDispatch:
         self.pool._outstanding += 1
         # Record expected attempt for stale-result fencing.
         self._expected_attempt[task_id] = attempt_id
+        self._persist_state()
+        if not gate_enabled:
+            # Legacy mode (no gate): mark S_DISPATCHED immediately; child
+            # runs without waiting for a release marker. No gate directory
+            # is passed to the subprocess.
+            ticket._ready_env = env.make_ready(code_ident.snapshot_id, obligation_text)
+            ticket.status = S_DISPATCHED
+            ticket._release_sent = True
+            return ticket
         self._wait_ready(ticket, env, code_ident.snapshot_id, obligation_text)
         # Release the child to begin obligation execution ONLY after we have
         # validated readiness (gate exists, manifest matches, stage is running-search).
@@ -559,6 +598,7 @@ class SearchWorkerDispatch:
             n = 1
         new_id = "a-" + str(n)
         self._expected_attempt[task_id] = new_id
+        self._persist_state()
         return new_id
 
     def cancel(self, ticket):
