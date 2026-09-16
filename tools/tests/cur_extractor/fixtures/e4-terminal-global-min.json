@@ -1,0 +1,86 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E4",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "params",
+      "moves",
+      "bound",
+      "terminal",
+      "measure"
+    ],
+    "text": "global-min claim"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "params",
+      "role": "params",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "houses": 2,
+        "degree_bound": 3
+      }
+    },
+    {
+      "id": "moves",
+      "role": "moves",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ],
+      "payload": {
+        "moves": [
+          {
+            "e_in": 2,
+            "e_out": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "bound",
+      "role": "bound",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ],
+      "payload": {
+        "lower_bound": 0
+      }
+    },
+    {
+      "id": "terminal",
+      "role": "terminal",
+      "kind": "derived",
+      "cites": [
+        "bound"
+      ],
+      "payload": {
+        "claim": "global_min"
+      }
+    },
+    {
+      "id": "measure",
+      "role": "measure",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ],
+      "payload": {
+        "provenance": "derived"
+      }
+    }
+  ]
+}

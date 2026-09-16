@@ -173,6 +173,15 @@ class IdentityRedBlackLookupValue(IdentityRedBlackLookup):
     """Return an identity-associated value directly, or EmptyList if absent."""
 
     def __init__(self, tree, key):
+        try:
+            key.id
+        except AttributeError:
+            # A candidate with no machine identity cannot key an identity
+            # index. Answer with this edge's own not-found result instead
+            # of raising, so the caller takes its existing not-found path.
+            self.key_id = EmptyList
+            self.result = EmptyList
+            return
         self.key_id = key.id
         self.result = self._lookup_value(tree, key)
 
@@ -422,6 +431,16 @@ class IdentityRedBlackInsertMissing(IdentityRedBlackInsert):
     """Insert only when an identity key is absent and expose machine insertion truth."""
 
     def __init__(self, tree, key, value):
+        try:
+            key.id
+        except AttributeError:
+            # No machine identity means nothing to key the index on.
+            # Report not-inserted and hand the tree back unchanged, which
+            # is this edge's existing answer for a key it did not insert.
+            self.key_id = EmptyList
+            self.inserted = false_value
+            self.result = tree
+            return
         self.key_id = key.id
         self.inserted = false_value
         inserted_tree = self._insert_missing(tree, key, value)

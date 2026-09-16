@@ -1,0 +1,31 @@
+======================================================================
+goal   G = (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
+marker P = (a1-producer-premise (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)))
+marker C = (a1-consumer-result (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)))
+======================================================================
+
+producer:
+  MultiRule shape: YES
+  inputs is Pair:  True   results EmptyList: True
+  premises slot:   ((a1-producer-premise (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))))
+  replacement slot (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))
+  object:          <cat_theo_machine.proof.MultiRule object at 0x7f4658dd9110>
+
+consumer:
+  MultiRule shape: YES
+  inputs is Pair:  True   results EmptyList: True
+  premises slot:   ((nosolutions positive-integers (unknowns x) (eq (plus x 1) x)))
+  replacement slot (a1-consumer-result (nosolutions positive-integers (unknowns x) (eq (plus x 1) x)))
+  object:          <cat_theo_machine.proof.MultiRule object at 0x7f4658dd8f90>
+
+session-only pool: 1 rule (the producer); not installed into FireAny
+
+candidate partial-match count: 1
+  selected rule identity: producer
+  rule origin:            primitive
+  attempt record:         (None <cat_theo_machine.proof.MultiRule object at 0x7f4658dd9110> primitive () () (a1-producer-premise (nosolutions positive-integers (unknowns x) (eq (plus x 1) x))) None)
+
+goal closed: NO
+forward search cost: (None None)
+
+expected: producer candidate count >= 1; unmatched premise P; goal not closed

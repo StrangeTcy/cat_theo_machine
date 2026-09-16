@@ -1,0 +1,90 @@
+Preflight item 3 — structural decoy shape check.
+
+    tree:     2a0a876 (+ uncommitted upstream-trace probes; no parser change)
+    tool:     tools/preflight_decoy_shape.py
+    commands: two fresh processes, one sentence each
+              PYTHONPATH=/home/user python3 tools/preflight_decoy_shape.py "<sentence>"
+    date:     2026-09-10
+    scope:    parsing and structural comparison only. No search, no teaching,
+              no target session.
+
+--------------------------------------------------------------------------
+0. A grammar note on the sentence as written
+--------------------------------------------------------------------------
+
+The ruling gives the two sentences with a leading "prove that". That prefix
+is not in the sentence grammar. Parsed literally:
+
+    prove that for all n > 2 a^n + b^n = c^n has no solutions in positive integers
+    -> parse error: cannot read the sentence past 'that'
+
+The scanner reaches "for all" only at token 2; "prove" is consumed as the
+start of an equation and "that" then has no production. So the sentences were
+run without the prefix. Everything below is from the two sentences as run.
+
+--------------------------------------------------------------------------
+1. Sentences as run (fresh parser processes)
+--------------------------------------------------------------------------
+
+target:  for all n > 2 a^n + b^n = c^n has no solutions in positive integers
+decoy:   for all n > 1 a^n + b^n = c^n has no solutions in positive integers
+
+--------------------------------------------------------------------------
+2. Parsed terms
+--------------------------------------------------------------------------
+
+target:
+(forall n (implies (greater n 2) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+
+decoy:
+(forall n (implies (greater n 1) (nosolutions positive-integers (unknowns a b c) (eq (plus (pow a n) (pow b n)) (pow c n)))))
+
+Both match the terms the ruling predicted, exactly and in full.
+
+--------------------------------------------------------------------------
+3. Normalized comparison
+--------------------------------------------------------------------------
+
+Tokenised (parentheses as separate tokens):
+
+    token count   target 43   decoy 43
+    differing positions: one
+
+        position 8:  target "2"   decoy "1"
+
+Replacing only the bound constant with a placeholder makes the two token
+streams identical:
+
+    identical after placeholder:  True
+
+--------------------------------------------------------------------------
+4. Per-criterion verification
+--------------------------------------------------------------------------
+
+criterion              result
+---------------------  --------------------------------------------------
+forall arity           same (1 binder, "n", in both)
+implies arity          same (2 args: constraint, body)
+greater position       same (index 3 in both; args (n, <bound>))
+nosolutions arity      same (domain, unknowns list, equation)
+unknown count          same (a b c, three, in both)
+eq/plus placement      same (eq wraps plus; plus wraps the two left pows)
+three pow positions    same (pow a n, pow b n, pow c n)
+only difference        bound constant 2 vs 1, one token, position 8
+
+--------------------------------------------------------------------------
+5. Verdict
+--------------------------------------------------------------------------
+
+SHAPE-MATCHED. The decoy differs from the target at exactly one token: the
+bound constant. Every structural criterion holds.
+
+One deviation from the ruling as written, recorded rather than papered over:
+the "prove that" prefix does not parse. The check was run on the sentences
+without it, and the resulting terms are the ones the ruling predicted. If the
+prefix is load-bearing for the eventual session text, the grammar needs a
+production for it — that is parser work, and preflight item 3 is parsing and
+comparison only.
+
+No `DECOY REDESIGN REQUIRED`: the two terms are shape-matched on every
+criterion the ruling names.

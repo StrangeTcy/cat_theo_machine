@@ -1,0 +1,90 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E4",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "params",
+      "moves",
+      "bound",
+      "terminal",
+      "measure"
+    ],
+    "text": "e4 candidate"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "params",
+      "role": "params",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "houses": 2,
+        "degree_bound": 3
+      }
+    },
+    {
+      "id": "moves",
+      "role": "moves",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ],
+      "payload": {
+        "moves": [
+          {
+            "e_in": 2,
+            "e_out": 1
+          },
+          {
+            "e_in": 3,
+            "e_out": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "bound",
+      "role": "bound",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ],
+      "payload": {
+        "lower_bound": 0
+      }
+    },
+    {
+      "id": "terminal",
+      "role": "terminal",
+      "kind": "derived",
+      "cites": [
+        "bound"
+      ],
+      "payload": {
+        "claim": "no_legal_move"
+      }
+    },
+    {
+      "id": "measure",
+      "role": "measure",
+      "kind": "derived",
+      "cites": [
+        "params"
+      ],
+      "payload": {
+        "provenance": "derived"
+      }
+    }
+  ]
+}

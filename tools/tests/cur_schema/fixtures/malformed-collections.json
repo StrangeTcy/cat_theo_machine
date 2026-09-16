@@ -1,0 +1,6 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "candidate": {"id": "cand", "cites": []},
+  "nodes": {"not": "an-array"}
+}

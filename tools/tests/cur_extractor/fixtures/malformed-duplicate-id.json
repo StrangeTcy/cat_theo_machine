@@ -1,0 +1,77 @@
+{
+  "schema": "geng-bundle/v2",
+  "contract": "E3",
+  "candidate": {
+    "id": "cand",
+    "role": "candidate",
+    "cites": [
+      "weights",
+      "moves",
+      "start"
+    ],
+    "text": "candidate claim"
+  },
+  "claims": [
+    {
+      "id": "cl1",
+      "kind": "assumption",
+      "text": "pinned problem"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "weights",
+      "role": "weights",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "vector": [
+          1,
+          -1,
+          1,
+          -1,
+          1,
+          -1
+        ]
+      }
+    },
+    {
+      "id": "weights",
+      "role": "moves",
+      "kind": "assumption",
+      "cites": [
+        "cl1"
+      ],
+      "payload": {
+        "pairs": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            5,
+            0
+          ]
+        ]
+      }
+    }
+  ]
+}
