@@ -1,0 +1,4 @@
+{"header":{"v":1,"snapshot_id":"sid-1","task_id":"t1","attempt_id":"a1","worker_id":"w0","memory_profile":"d","budget":"1s","assumption_hash":"35db175171e650c2","assumptions":["peano"]}}
+{"seq":1,"entry_id":"t1:a1:00000001","kind":"observation","record":{"kind":"trace","body":"ready","ts":1789579741.6616595}}
+{"seq":2,"entry_id":"t1:a1:00000002","kind":"proposal","record":{"kind":"candidate_law","body":"x","ts":1789579741.6617374,"state":"inactive"}}
+{"footer":{"closed":true,"seq":2}}

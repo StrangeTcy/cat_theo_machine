@@ -1,0 +1,19 @@
+{
+  "index": {
+    "t:a:00000001": {
+      "content_hash": "1ae38a8cc22340837886bc53c1f8eb54fb61c6704cbf91b38ea3ef5916164b19",
+      "kind": "observation"
+    },
+    "t:a:00000002": {
+      "content_hash": "551177303743aa43561d59b4f9748f43be2c91b9cae915b7bcf5cb295bbb97be",
+      "kind": "proposal"
+    }
+  },
+  "obs": [
+    "t:a:00000001"
+  ],
+  "pro": [
+    "t:a:00000002"
+  ],
+  "v": 1
+}
