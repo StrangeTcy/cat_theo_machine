@@ -89,7 +89,7 @@ spawn          search/compare_executors.py:265-287
                  process.start()
 ready handshake  _await_parallel_executor_ready, compare_executors.py:293
                  raises "resident executor did not acknowledge startup" on failure
-worker entry   main.py:1290  mode "search-worker"
+worker entry   main.py:1292  mode "search-worker"
                  run_search_worker_mode(worker_mode, result_path, timeout_seconds)  main.py:749
 term vocabulary  ~80 SearchWorker* classes in search/model.py:
                  SearchWorkerSetup, SearchWorkerPacket, SearchWorkerLaunch,
@@ -116,7 +116,8 @@ class PlannerAlternative(M.Edge):
 
 It is an `M.Edge`, not a dataclass, and it is documented in-tree as "planner data … never
 inserted into mathematical Knowledge" (`planner.py:414-420`). Accessors exist as separate
-edges: `PlannerAlternativeParent/Method/Children/Status/Evidence` (`planner.py:449-494`).
+edges: `PlannerAlternativeParent/Method/Children/Status/Evidence` (`planner.py:449-491`, at
+`:449`, `:458`, `:467`, `:476`, `:485`).
 
 **Do not invent `WorkItem` / `Claim` / `WorkerResult` terms.** `SearchWorkerPacket`,
 `SearchWorkerLaunch`, and `SearchWorkerResult` already fill those roles. Extending the
@@ -151,22 +152,47 @@ if multiprocessing.get_start_method() == "spawn":          # engine.py:649
 try:
     mp_context = multiprocessing.get_context("fork")        # engine.py:654
 except ValueError:
-    mp_context = multiprocessing.get_context("spawn")       # engine.py:656
-if mp_context.get_start_method() == "spawn":                # engine.py:657
-    return FilterApplicableRulesWithIndex(...)              # engine.py:659  serial
+    mp_context = multiprocessing.get_context("spawn")       # engine.py:656  UNREACHABLE
+if mp_context.get_start_method() == "spawn":                # engine.py:657  ALWAYS FALSE
+    return FilterApplicableRulesWithIndex(...)              # engine.py:659  dead
 ```
 
-Measured here: default start method `fork`; `get_start_method() == "spawn"` is `False`;
-`get_context("fork")` succeeds and reports `fork`, so the `:657` guard does **not** trip.
-`cpu_count()` is 2 and cold boot gives `rule_count: 159`, so `worker_capacity` computes to 2
-and the parallel shard path at `:702` is the one taken.
+**Lines 654-659 are dead code on every platform.** Verified against CPython 3.11.2, the
+interpreter this baseline was measured on:
 
-On a Windows default (`spawn`) the function returns at `:651` and runs
-`FilterApplicableRulesWithIndex` in-process instead. Two platforms, two different
-implementations of rule-applicability filtering. A behavioural difference between them
-presents as a nondeterministic test flake rather than as a platform difference, which is
-exactly the failure mode to pre-empt. Any finding about mechanism (b) must state which branch
-produced it.
+```text
+BaseContext.get_start_method()  returns self._name            (multiprocessing/context.py)
+ForkContext._name               == 'fork'  (class attribute)
+_concrete_contexts              includes 'fork' unconditionally; the dict literal sits in no
+                                platform conditional
+BaseContext._check_available()  is `pass`; ForkContext does not override it
+=> get_context("fork") never raises, so the `except ValueError` at :656 cannot run
+=> mp_context is always a ForkContext, so :657 is always False and :659 is unreachable
+```
+
+Separately, on a platform whose default start method is `spawn`, `:649` already returned at
+`:651`, so `:654` is never reached. The block is dead from both directions.
+
+Two consequences for anyone reasoning about this file:
+
+1. The live platform split is at **`:649`**, not at `:657`. Default `spawn` returns serial
+   `FilterApplicableRulesWithIndex` at `:651`; default `fork` falls through to the sharded
+   `Process` spawn at `:702`. That is the only behavioural difference between platforms here.
+2. `:654-659` is a guard that cannot fail. Do not build a platform-behaviour story on top of
+   it, and do not "fix" the platform divergence by editing it. Either remove it or record in a
+   comment that it is retained as a defensive no-op and why.
+
+Unchecked: Python 3.12+, which is what `environment.yml` targets (`python=3.12.13`). The
+analysis above is 3.11.2. Re-verify the three source facts on 3.12 before removing the block
+on the author's machine.
+
+Measured here, 3.11.2 / Linux: default start method `fork`; `get_start_method() == "spawn"` is
+`False`, so `:649` does not return; `cpu_count()` is 2 against `rule_count: 159`, so
+`worker_capacity` computes to 2 and the sharded `Process` path at `:702` is the one taken.
+Any finding about mechanism (b) must state which branch produced it — `:702` parallel or
+`:651` serial — because they are different implementations of rule-applicability filtering,
+and a difference between them presents as a nondeterministic flake rather than as a platform
+difference.
 
 ---
 
@@ -208,7 +234,7 @@ A) spawned != 0             PASS   (but probe.spawned is M.Atom, testsuite.py:16
                                     so NatEq(spawned, Zero) is false even at count 0)
 B) shared_root_cands ready  FAIL   <- the real failure
 C) workers non-empty        PASS   (workers came from the budget-launch path at
-                                    compare_executors.py:687-696, not from
+                                    compare_executors.py:689-692, not from
                                     _grow_parallel_executor_pool, which only runs when
                                     need_shared_root_wave is true — compare_executors.py:662)
 D) needs_shared_root_wave   PASS   (passes because nothing was consumed)
@@ -260,6 +286,13 @@ Standing constraints:
   Report the platform: this sandbox is Python 3.11 / Linux / start method "fork";
   environment.yml targets conda Python 3.12 / Windows. Say which one a finding came from.
   Do not claim a test is fixed unless the full suite failure set shrank by exactly that test.
+  Cite code as file:line plus the symbol on that line. Line numbers drift when anyone edits a
+  cited file; a bare line number is not a citation. If you change a file this plan cites,
+  update the manifest in tools/check_plan_citations.py in the same commit and confirm it
+  still exits 0.
+  The four-test baseline is conditional on core count, start method and interpreter version,
+  because worker_capacity derives from cpu_count() at search/engine.py:666. Record all three
+  with any failure set you report.
   Housekeeping: a full suite run writes new untracked snapshots/search_compare/run-<epoch-ms>/
   directories. Remove only directories you created this turn. The 20 files committed under
   run-1786543184669 and run-1786548752373 are tracked fixtures — check `git status` before
@@ -308,7 +341,7 @@ is not a fix. Two of its four assertions pass for the wrong reason:
   A) "spawned != 0" passes because probe.spawned is an M.Atom (testsuite.py:1636), so
      NatEq(spawned, Zero) is false even when the count is zero. It proves nothing.
   C) "workers non-empty" passes because workers arrived via the budget-launch path
-     (compare_executors.py:687-696), not via the pool-warming the test name claims.
+     (compare_executors.py:689-692), not via the pool-warming the test name claims.
      _grow_parallel_executor_pool only runs when need_shared_root_wave is true
      (compare_executors.py:662), which is false for all five states.
   D) "needs_shared_root_wave is false" passes because nothing was consumed, not because the
@@ -323,11 +356,32 @@ redo it. There are three worker mechanisms (§2.1) — say which one each findin
   (a) resident executors, compare_executors.py:265-287: verify timeout, cancellation and
       cleanup of _retire_parallel_executor and _terminate_active_children (defined
       main.py:1232, called from the KeyboardInterrupt path at main.py:1303).
-  (b) applicability shards, engine.py:702: this path is platform-dependent. State which
-      branch produced your result — the parallel shard path past engine.py:657, or the serial
-      FilterApplicableRulesWithIndex return at engine.py:651/659. On Linux with fork and
-      cpu_count 2 the parallel branch is taken here; on a Windows spawn default it is not.
-      If you cannot run both, say which one you ran.
+  (b) applicability shards, engine.py:702: this path is platform-dependent, and part of it is
+      dead. Two sub-tasks, both required.
+
+      b1 — the dead guard. Lines 654-659 cannot execute; §2.1 has the three verified source
+      facts. Remove the block, or keep it with a comment stating it is a retained defensive
+      no-op and why. Do not build any platform-behaviour narrative on top of it, and do not
+      treat editing it as fixing the platform split — the live split is at engine.py:649.
+      If you remove it, re-verify the three source facts on the target interpreter first;
+      they were checked on 3.11.2 and environment.yml targets 3.12.13.
+
+      b2 — fork while threads are alive. engine.py:702 forks. This tree also starts threads:
+      the per-mode output relays at compare_subprocess.py:278 and :472 (daemon=True), and the
+      search input thread named "hyge-search-input" at search/ui.py:101 (daemon=True, started
+      by the start() method at :96). Forking a process with live non-main threads leaves the
+      child holding copies of mutexes nobody will release — logging, stdio buffers, allocator
+      arenas — and the symptom is an intermittent hang that reads as a test flake.
+      Instrument the fork site: call threading.enumerate() immediately before engine.py:702
+      under the test harness and record the count. If the count is ever greater than 1, name
+      every thread and the call path that put it there. Known callers of mechanism (b) are
+      engine.py:823 in _theorem_applicable_rules_for (def at :793) and engine.py:945 in
+      _theorem_cursor_for (def at :868) — trace whether either is reachable in the driver
+      process while a relay thread from mechanism (c) is alive. The "all spawn sites pinned"
+      grep in §1 cannot see this hazard: it is about timing, not context.
+      Note for measurement: Python 3.11 emits no warning for this case (verified — forking
+      with 2 live threads produced zero warnings and exit code 0), so a clean run proves
+      nothing. Only the enumerate() count is evidence.
   (c) per-mode subprocess workers, compare_subprocess.py:268 and :462: check exit-code
       handling at :280 and the relay-thread join at :281 for orphaned children on timeout.
       Note :281 joins with timeout=1.0 and does not act on a join that expires.
@@ -410,6 +464,16 @@ You are INT. You do not write track features and you do not run sessions.
 Pin the base: 428ecdc. Record the four-test baseline from a full suite run yourself; do not
 inherit it.
 
+THE BASELINE IS CONDITIONAL — re-measure it on the integration machine and report both.
+The four-failure baseline was measured on Python 3.11.2 / Linux / `cpu_count()` 2 / start
+method `fork`. `worker_capacity` in `_theorem_applicable_rules_sharded`
+(`search/engine.py:666-671`) derives from `cpu_count()`, and it gates both which branch the
+function takes and how the 159 cold-boot rules are partitioned across workers. A machine with
+8 cores runs a different partition and may produce a different failure set. That delta is
+information about mechanism (b), not noise: report the core count, start method, interpreter
+version and failure set together, every time. Never compare a failure set across machines
+without all four.
+
 Merge order: A, then B, then C, onto a candidate branch. A conflict inside a marked region
 you resolve and report. A conflict where two branches touch one behaviour — the spawn path,
 the snapshot codec, the result-acceptance path, or the ROOT_NAMES list — is semantic:
@@ -422,13 +486,21 @@ Admission requires, on the composed candidate:
   crash, retry, cancellation and duplicate delivery preserve accounting;
   journal import leaves active rules and search inputs unchanged;
   wall time AND aggregate work recorded — parallelism is not assumed faster;
-  every mechanism (b) finding names its branch — parallel shard past engine.py:657, or the
-  serial return at engine.py:651/659. A finding that does not say is not admitted;
+  every mechanism (b) finding names its branch — the sharded Process path at engine.py:702,
+  or the serial FilterApplicableRulesWithIndex return at engine.py:651. The live split is the
+  start-method test at engine.py:649; lines 654-659 are dead and must not be cited as a
+  branch. A finding that does not say is not admitted;
   no rent, provenance, adoption, promotion, learned-memory, mask, or schema vocabulary
   entered the diff. Grep the composed diff for these before merging. A branch that adds them
   is excluded from the batch regardless of test results, and the requirement goes in the
   index as a separate charter proposal;
-  the full suite failure set is a subset of the four-test baseline.
+  `python3 tools/check_plan_citations.py` exits 0 on the composed tree. A merge shifts line
+  numbers, and a shifted citation is a silent falsehood in the plan. Run it after every
+  batch, and update the manifest in that script whenever a cited file changes. The script
+  checks symbol-on-line, not merely line-in-range: a range check was tried first and it
+  passed all three citation errors made while writing this plan;
+  the full suite failure set is a subset of the four-test baseline, re-measured on this
+  machine with core count, start method and interpreter version recorded alongside it.
 
 A test that newly passes is only credited if its assertions can now fail. If an engineer
 reports a fixed test whose assertions are vacuous — the A/C/D pattern in Agent A's brief —
@@ -470,6 +542,8 @@ not built (deliberate): <list>
 - A mechanism named without write site + guard chain + measured state -> not a diagnosis.
 - Rent/provenance/adoption/mask/schema vocabulary in any diff -> branch excluded, requirement
   re-filed as a separate charter proposal.
-- A mechanism (b) finding that does not name its branch (engine.py:657 parallel vs :651/:659
-  serial) -> not admitted.
+- A mechanism (b) finding that does not name its branch (engine.py:702 sharded vs :651
+  serial) -> not admitted. Citing :657 as a branch -> returned; that guard is dead (§2.1).
+- A thread count recorded at the engine.py:702 fork site that is greater than 1 without the
+  thread named and its call path traced -> not a completed finding.
 ```
