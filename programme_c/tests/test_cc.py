@@ -75,6 +75,8 @@ class JoinTests(unittest.TestCase):
     def test_stale_superseded_rejected(self):
         ja = J.JoinAdmission()
         ja.create_claim("p", J.COMBINATOR_AND, [J.child_spec("a","ob-a","SID","")])
+        # Pre-assign to att-1 (as dispatcher does) then deliver.
+        ja.assign_child_attempt("p", "a", "att-1")
         ok, _, rec = ja.deliver_child_result("p", _env("a","att-1","completed","SID","ob-a"))
         self.assertTrue(ok); self.assertEqual(rec.status, "completed")
         ok2, reason, _ = ja.deliver_child_result("p", _env("a","att-2","completed","SID","ob-a"))
@@ -192,17 +194,37 @@ class EndToEndTests(unittest.TestCase):
 
     def test_stale_attempt_after_retry_does_not_overwrite(self):
         # Issue a first attempt that crashes, retry succeeds, late first result rejected.
+        # Fencing also applies WHILE the retry is still running, not only when
+        # it has completed.
         with tempfile.TemporaryDirectory() as td:
             ident, snap, pool = _make_ident_and_pool(td)
             ja = J.JoinAdmission()
             ja.create_claim("p", J.COMBINATOR_AND, [J.child_spec("a","ob-a",ident.snapshot_id,"")])
-            # Simulate a successful retry result directly.
+            # Assign first attempt (as dispatcher would).  Fence is active.
+            ja.assign_child_attempt("p", "a", "att-1")
+            # Stale-attempt rejection works before the retry is even dispatched:
+            ok_pre, reason_pre, _ = ja.deliver_child_result(
+                "p", _env("a","att-0","completed",ident.snapshot_id,"ob-a"))
+            self.assertFalse(ok_pre)
+            self.assertTrue(M.IdentityCompare(reason_pre, P.F_STALE_RESULT)() is M.truth_value)
+            # Simulate retry: assign att-2, which supersedes att-1.
+            ja.retry_child("p", "a", "att-2")
+            # While att-2 is still running (child not terminal), a late att-1 envelope
+            # is rejected by fencing BEFORE cert validation.
+            ok_mid, reason_mid, _ = ja.deliver_child_result(
+                "p", _env("a","att-1","completed",ident.snapshot_id,"ob-a"))
+            self.assertFalse(ok_mid)
+            self.assertTrue(M.IdentityCompare(reason_mid, P.F_STALE_RESULT)() is M.truth_value)
+            # Now att-2 completes successfully.
             ok, _, rec = ja.deliver_child_result("p", _env("a","att-2","completed",ident.snapshot_id,"ob-a"))
             self.assertTrue(ok); self.assertEqual(rec.status, "completed")
-            # Late delivery of att-1 (e.g. a timeout-delayed result) must be rejected.
+            # Late att-1 result (e.g. a timeout-delayed packet) still rejected.
             ok2, reason, _ = ja.deliver_child_result("p", _env("a","att-1","completed",ident.snapshot_id,"ob-a"))
             self.assertFalse(ok2)
             self.assertTrue(M.IdentityCompare(reason, P.F_STALE_RESULT)() is M.truth_value)
+            # Duplicate of att-2 accepted idempotently.
+            ok3, _, _ = ja.deliver_child_result("p", _env("a","att-2","completed",ident.snapshot_id,"ob-a"))
+            self.assertTrue(ok3)
             pool.shutdown()
 
 

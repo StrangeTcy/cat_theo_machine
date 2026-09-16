@@ -885,6 +885,34 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         P._debug(mode_name + ": resuming derivation build from checkpoint stage=" + resume_stage_text)
     error_text = ""
     plan = M.EmptyList
+    # Optional readiness gate: if HYGE_SEARCH_WORKER_GATE_PATH is set, the worker
+    # writes a "ready" sentinel after the running-search checkpoint is durable
+    # and blocks on a matching "release" sentinel before beginning the search.
+    # This gives the coordinator a deterministic restore->READY->release->execute
+    # boundary. If unset, behaviour is unchanged from eng-base-0.
+    gate_path = os.environ.get("HYGE_SEARCH_WORKER_GATE_PATH", "")
+    ready_wait_timeout_seconds = int(os.environ.get("HYGE_SEARCH_WORKER_READY_TIMEOUT", "30"))
+    if gate_path:
+        P._debug(mode_name + ": readiness gate enabled at " + gate_path)
+        ready_marker = os.path.join(gate_path, "ready-" + str(os.getpid()))
+        release_marker = os.path.join(gate_path, "release-" + str(os.getpid()))
+        try:
+            os.makedirs(gate_path, exist_ok=True)
+            with open(ready_marker, "w", encoding="utf-8") as _rm:
+                _rm.write("ready\n")
+            P._debug(mode_name + ": wrote ready marker; awaiting release")
+            _wait_started = time.time()
+            while not os.path.exists(release_marker):
+                if time.time() - _wait_started > ready_wait_timeout_seconds:
+                    P._debug(mode_name + ": release marker timed out")
+                    try: os.unlink(ready_marker)
+                    except Exception: pass
+                    return 5  # dedicated rc for readiness-timeout
+                time.sleep(0.05)
+            P._debug(mode_name + ": release marker observed; beginning search")
+        except Exception as _ge:
+            P._debug(mode_name + ": readiness gate error: " + str(_ge))
+            return 5
     try:
         if M.Compare(resume_plan, M.EmptyList)() is M.truth_value:
             if resume_derivation_only:

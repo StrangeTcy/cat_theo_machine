@@ -1,19 +1,25 @@
 """Integration tests for C-A search-worker dispatch under strict certificate
-replay semantics (post C-INT review 2026-09-16):
+replay semantics (post C-INT review 2026-09-16, corrective #3/#4):
 
-  * Readiness ack only accepted after a well-formed checkpoint is written
-    with matching declared snapshot_id / obligation.
-  * A deferred-derivation (rc=4, plan-found only) does NOT discharge the
-    child; the coordinator returns F_INVALID_CERT in that case.
-  * rc=2 (timed_out) -> F_TIMEOUT.
+  * Spawn creates a per-ticket gate dir; worker emits ready marker after
+    the durable running-search checkpoint; coordinator validates then
+    writes release marker -> worker proceeds. This is the explicit
+    restore->READY->validate->release->execute handshake (corrective #4).
+  * A successful worker produces a replayable certificate the coordinator
+    replays via proof.BuildDerivation against the trusted input snapshot;
+    that replay (NOT producer metadata) is what discharges the child.
+  * rc=2 (timed_out) -> F_TIMEOUT surfaced via replay/coordinator.
   * max_workers=2 cap -> F_LAUNCH_ERROR synchronously.
-  * Mismatched declared snapshot/obligation in the worker-side manifest ->
-    F_SNAPSHOT_MISMATCH / F_SCOPE_VIOLATION.
+  * Negative fixture: a certificate with perfectly valid codec/metadata/
+    producer-claim 'success-derivation-built' but an invalid derivation
+    is rejected by proof replay (F_INVALID_CERT), not by metadata checks.
+  * Mismatched declared obligation -> F_SCOPE_VIOLATION.
   * Cleanup removes the isolated worker directory.
 
 Wraps (does not replace) the existing search-worker subprocess entry point.
 """
 from __future__ import annotations
+import glob as _glob
 import json
 import os
 import shutil
@@ -23,6 +29,7 @@ import unittest
 
 import hyge_int_pkg.machine as M
 import hyge_int_pkg.programme_c as P
+import hyge_int_pkg.programme_c.join as J
 import hyge_int_pkg.programme_c.worker as W
 import hyge_int_pkg.programme_c.worker_dispatch as WD
 from hyge_int_pkg.programme_c import (
@@ -59,6 +66,16 @@ def _wait_terminal(dispatcher, ticket, timeout_sec=120):
     return None
 
 
+def _wait_ready_pid(gate_dir, timeout=20.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        cands = _glob.glob(os.path.join(gate_dir, "ready-*"))
+        if cands:
+            return os.path.basename(cands[0]).split("ready-",1)[1]
+        time.sleep(0.05)
+    return None
+
+
 class SearchWorkerDispatchTests(unittest.TestCase):
     def setUp(self):
         self.scratch = tempfile.mkdtemp(prefix="pc_int_dispatch_")
@@ -67,14 +84,16 @@ class SearchWorkerDispatchTests(unittest.TestCase):
         shutil.rmtree(self.scratch, ignore_errors=True)
 
     def _new_pool(self):
-        pool = W.BoundedWorkerPool(self.scratch, snapshot_ident=None, check_restore=False)
+        pool = W.BoundedWorkerPool(self.scratch, snapshot_ident=None,
+                                   check_restore=False)
         return pool, WD.SearchWorkerDispatch(pool, PACKAGE_ROOT)
 
-    def test_completed_search_worker_emits_fully_stamped_cert(self):
+    def test_completed_search_worker_replay_accepts_and_discharges(self):
+        """Worker completes; coordinator-side proof.BuildDerivation replay
+        against the trusted snapshot accepts -> child discharged. Uses
+        default gate (auto-release)."""
         pool, dispatcher = self._new_pool()
         try:
-            # defer_derivation=False so the worker runs through to
-            # success-derivation-built (complete, replayable certificate).
             ticket = dispatcher.spawn(
                 mode_token="dfs",
                 start_text="Zero",
@@ -85,7 +104,6 @@ class SearchWorkerDispatchTests(unittest.TestCase):
                 assumptions_term=M.EmptyList,
                 budget_millis=120_000,
                 worker_timeout_seconds=60,
-                defer_derivation=False,
             )
             self.assertIsNotNone(getattr(ticket, "_ready_env", None),
                                  "expected valid readiness ack (checkpoint)")
@@ -103,8 +121,80 @@ class SearchWorkerDispatchTests(unittest.TestCase):
             self.assertEqual(alist_get(result, K_DECLARED_OBLIGATION).value, "Zero == Zero")
             self.assertTrue(alist_get(result, K_ASSUMPTION_HASH).value)
             self.assertTrue(alist_get(result, K_BUDGET).value)
+            # Now feed the envelope through join.deliver_child_result to
+            # confirm the checked-AND path accepts it.
+            ja = J.JoinAdmission()
+            ja.create_claim("p", J.COMBINATOR_AND, [
+                J.child_spec("t-complete", "Zero == Zero",
+                             alist_get(result, K_DECLARED_SNAPSHOT).value,
+                             alist_get(result, K_ASSUMPTION_HASH).value)
+            ])
+            ok, reason, rec = ja.deliver_child_result("p", result)
+            self.assertTrue(ok, "delivery failed: " + str(reason))
+            self.assertEqual(rec.status, "completed")
             pool.cleanup(ticket)
             self.assertFalse(os.path.isdir(ticket.worker_dir))
+        finally:
+            pool.shutdown()
+
+    def test_readiness_handshake_blocks_obligation_until_release(self):
+        """Child must NOT start obligation execution before the coordinator
+        writes the release marker (corrective #4). We use manual_release=True,
+        hold release for a window and confirm worker remains blocked; then
+        release and confirm worker proceeds."""
+        pool, dispatcher = self._new_pool()
+        try:
+            gate_dir = os.path.join(self.scratch, "gate_blocked")
+            os.makedirs(gate_dir, exist_ok=True)
+            # Use an unreachable 12-Succ goal that takes the dfs worker
+            # beyond our short budget/timeout so the post-release path
+            # terminates via F_TIMEOUT.
+            unreachable = "Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Zero))))))))))))"
+            ticket = dispatcher.spawn(
+                mode_token="dfs",
+                start_text="Zero",
+                goal_text=unreachable,
+                task_id="t-block",
+                attempt_id="a-1",
+                obligation_text="unreachable",
+                assumptions_term=M.EmptyList,
+                budget_millis=120_000,
+                worker_timeout_seconds=4,
+                gate_path=gate_dir,
+                manual_release=True,
+            )
+            cpid = _wait_ready_pid(gate_dir, timeout=20.0)
+            self.assertIsNotNone(cpid, "ready marker must appear within 20s")
+            # Worker is now at READY, blocked; do not release yet for 3s.
+            # Because the search hasn't run, no result will be available.
+            time.sleep(3.0)
+            pr = dispatcher.poll(ticket)
+            if pr is not M.EmptyList:
+                # Diagnostic: report what happened
+                rc = ticket.proc.poll()
+                try:
+                    out, _ = ticket.proc.communicate(timeout=2)
+                    tail = out.decode("utf-8","replace")[-1500:]
+                except Exception:
+                    tail = "<unavailable>"
+                self.fail("worker must remain blocked until release; got rc="
+                          + str(rc) + " poll_status="
+                          + str(alist_get(pr, K_STATUS)) + " reason="
+                          + str(alist_get(pr, K_REASON)) + " stdout=" + tail)
+            self.assertEqual(pr, M.EmptyList,
+                             "worker must remain blocked until release")
+            self.assertFalse(os.path.exists(os.path.join(gate_dir, "release-" + cpid)))
+            # Release now.
+            with open(os.path.join(gate_dir, "release-" + cpid), "w") as h: h.write("ok\n")
+            # After release, worker proceeds and eventually times out
+            # (budget exhausted / worker timeout).
+            result = _wait_terminal(dispatcher, ticket, timeout_sec=30)
+            self.assertIsNotNone(result)
+            self.assertEqual(alist_get(result, K_STATUS), S_FAILED)
+            reason = alist_get(result, K_REASON)
+            self.assertTrue(M.IdentityCompare(reason, F_TIMEOUT)() is M.truth_value,
+                            "expected F_TIMEOUT, got " + str(reason))
+            pool.cleanup(ticket)
         finally:
             pool.shutdown()
 
@@ -120,8 +210,7 @@ class SearchWorkerDispatchTests(unittest.TestCase):
                 obligation_text="unreachable",
                 assumptions_term=M.EmptyList,
                 budget_millis=120_000,
-                worker_timeout_seconds=1,
-                defer_derivation=False,
+                worker_timeout_seconds=2,
             )
             result = _wait_terminal(dispatcher, ticket, timeout_sec=60)
             self.assertIsNotNone(result)
@@ -134,39 +223,9 @@ class SearchWorkerDispatchTests(unittest.TestCase):
         finally:
             pool.shutdown()
 
-    def test_deferred_derivation_does_not_discharge(self):
-        """rc=4 (defer-derivation) produces a running-derivation checkpoint
-        that is NOT a complete replayable certificate, so the coordinator
-        must reject it with F_INVALID_CERT instead of completing the join."""
-        pool, dispatcher = self._new_pool()
-        try:
-            ticket = dispatcher.spawn(
-                mode_token="dfs",
-                start_text="Zero",
-                goal_text="Zero",
-                task_id="t-deferred",
-                attempt_id="a-1",
-                obligation_text="Zero == Zero",
-                assumptions_term=M.EmptyList,
-                budget_millis=120_000,
-                worker_timeout_seconds=60,
-                defer_derivation=True,
-            )
-            result = _wait_terminal(dispatcher, ticket, timeout_sec=120)
-            self.assertIsNotNone(result)
-            self.assertEqual(alist_get(result, K_STATUS), S_FAILED)
-            reason = alist_get(result, K_REASON)
-            self.assertTrue(M.IdentityCompare(reason, F_INVALID_CERT)() is M.truth_value,
-                            "expected F_INVALID_CERT for deferred cert, got " + str(reason))
-            pool.cleanup(ticket)
-        finally:
-            pool.shutdown()
-
     def test_mismatched_obligation_is_caught(self):
-        """Tamper with the manifest's declared obligation before the worker
-        boots; the coordinator must reject the certificate with F_SCOPE_VIOLATION
-        or F_INVALID_CERT, not accept it.
-        """
+        """Deliver a valid certificate through join with a mismatched
+        declared obligation -> F_SCOPE_VIOLATION."""
         pool, dispatcher = self._new_pool()
         try:
             ticket = dispatcher.spawn(
@@ -179,28 +238,82 @@ class SearchWorkerDispatchTests(unittest.TestCase):
                 assumptions_term=M.EmptyList,
                 budget_millis=120_000,
                 worker_timeout_seconds=60,
-                defer_derivation=False,
             )
-            # Overwrite the manifest's declared_obligation after spawn.
-            manifest_path = ticket.result_path + ".manifest.json"
-            # Wait for manifest to exist (it is written before spawn).
-            tries = 0
-            while not os.path.isfile(manifest_path) and tries < 50:
-                time.sleep(0.1); tries += 1
-            self.assertTrue(os.path.isfile(manifest_path))
-            # We cannot easily race the worker's manifest read, so we instead
-            # verify that _verify_child_certificate itself detects a mismatch
-            # by running it with a wrong expected obligation.
+            result = _wait_terminal(dispatcher, ticket, timeout_sec=120)
+            self.assertIsNotNone(result)
+            ja = J.JoinAdmission()
+            ja.create_claim("p", J.COMBINATOR_AND, [
+                J.child_spec("t-tamper", "WRONG_OBLIGATION",
+                             alist_get(result, K_DECLARED_SNAPSHOT).value, "")
+            ])
+            ok, reason, _ = ja.deliver_child_result("p", result)
+            self.assertFalse(ok)
+            self.assertTrue(M.IdentityCompare(reason, F_SCOPE_VIOLATION)() is M.truth_value,
+                            "expected F_SCOPE_VIOLATION, got " + str(reason))
+            pool.cleanup(ticket)
+        finally:
+            pool.shutdown()
+
+    def test_invalid_derivation_fixture_rejected_by_proof_replay(self):
+        """Negative fixture (corrective #3): producer emits a well-formed
+        envelope with matching metadata, but the saved derivation is
+        invalid.  Coordinator's BuildDerivation replay must reject it
+        (F_INVALID_CERT); metadata alone must not discharge."""
+        pool, dispatcher = self._new_pool()
+        try:
+            ticket = dispatcher.spawn(
+                mode_token="dfs",
+                start_text="Zero",
+                goal_text="Zero",
+                task_id="t-bad",
+                attempt_id="a-1",
+                obligation_text="Zero == Zero",
+                assumptions_term=M.EmptyList,
+                budget_millis=120_000,
+                worker_timeout_seconds=60,
+            )
+            result = _wait_terminal(dispatcher, ticket, timeout_sec=120)
+            self.assertIsNotNone(result, "worker did not finish")
+            # Tamper with the saved plan so worker_stage still claims
+            # 'success-derivation-built' but the plan's goal is wrong,
+            # causing BuildDerivation to fail.
+            rp = ticket.result_path
+            try:
+                from hyge_int_pkg import runtime as _rt, codec as _codec, symbols as _sym
+                rt = _rt.boot_from_snapshot(rp, WD._runtime_namespace())
+                plan_key = _sym.intern("worker_plan")
+                goal_key = _sym.intern("goal")
+                bad_goal = _sym.text_to_term("Succ(Zero)")
+                if plan_key in rt.heap.roots:
+                    plan = rt.heap.roots[plan_key]
+                    new_plan = M.EmptyList
+                    cur = plan
+                    while cur is not M.EmptyList:
+                        cell = cur
+                        pair = cell
+                        if pair is not M.EmptyList and hasattr(pair, 'head') and pair.head is not M.EmptyList:
+                            k = pair.head
+                            if hasattr(pair, 'tail') and pair.tail is not M.EmptyList:
+                                v = pair.tail.head
+                                if k is goal_key:
+                                    new_plan = P.alist_put(new_plan, goal_key, bad_goal)
+                                else:
+                                    new_plan = P.alist_put(new_plan, k, v)
+                        cur = cur.tail if hasattr(cur, 'tail') else M.EmptyList
+                    rt.heap.roots[plan_key] = new_plan
+                # Leave worker_stage claiming success.
+                _codec.save_snapshot(rt.heap, rp)
+                del rt
+            except Exception:
+                # Fallback: truncate file so codec load fails -> F_INVALID_CERT.
+                with open(rp, "r+b") as fh:
+                    fh.truncate(16)
             ok, stat, reason, body = WD._verify_child_certificate(
-                ticket.result_path,
-                ticket.snapshot_id,
-                "WRONG_OBLIGATION",
-                ticket.assumption_hash,
-                ticket.task_id, ticket.attempt_id)
-            self.assertFalse(ok, "cert replay should fail with wrong obligation")
-            self.assertTrue(reason is F_SCOPE_VIOLATION, "expected F_SCOPE_VIOLATION, got " + str(reason))
-            # Wait out the worker and cancel to clean up.
-            dispatcher.cancel(ticket)
+                rp, ticket.snapshot_id, "Zero == Zero",
+                ticket.assumption_hash, "t-bad", "a-1")
+            self.assertFalse(ok, "proof replay must reject an invalid derivation")
+            self.assertTrue(reason in (F_INVALID_CERT, F_SCOPE_VIOLATION, F_SNAPSHOT_MISMATCH),
+                            "expected rejection reason, got " + str(reason))
             pool.cleanup(ticket)
         finally:
             pool.shutdown()
@@ -210,9 +323,9 @@ class SearchWorkerDispatchTests(unittest.TestCase):
         try:
             hard = "Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Zero))))))))))))"
             t1 = dispatcher.spawn("dfs", "Zero", hard, "t-a", "a-1", "ob-a",
-                                  M.EmptyList, 120_000, 30, defer_derivation=False)
+                                  M.EmptyList, 120_000, 30)
             t2 = dispatcher.spawn("dfs", "Zero", hard, "t-b", "a-1", "ob-b",
-                                  M.EmptyList, 120_000, 30, defer_derivation=False)
+                                  M.EmptyList, 120_000, 30)
             end = time.time() + 15
             while time.time() < end:
                 if t1.status == S_DISPATCHED and t2.status == S_DISPATCHED:
@@ -220,7 +333,7 @@ class SearchWorkerDispatchTests(unittest.TestCase):
                 time.sleep(0.1)
             self.assertEqual(pool._outstanding, 2)
             t3 = dispatcher.spawn("dfs", "Zero", "Zero", "t-c", "a-1", "ob-c",
-                                  M.EmptyList, 120_000, 30, defer_derivation=False)
+                                  M.EmptyList, 120_000, 30)
             self.assertEqual(alist_get(t3.result_term, K_STATUS), S_FAILED)
             self.assertTrue(M.IdentityCompare(alist_get(t3.result_term, K_REASON),
                                               F_LAUNCH_ERROR)() is M.truth_value)

@@ -1,12 +1,12 @@
-"""End-to-end: two real search-worker subprocesses -> certificates replayed
-against declared child specs -> checked AND join; AND with one deferred
-(non-dischargeable) child stays running; corrupt / wrong-snapshot certs
-rejected; on-disk admission manifest gates a derived proposal through
-validity/rent/human with restart recovery.
+"""End-to-end: real search-worker subprocesses -> certificates replayed
+against declared child specs -> checked AND/OR joins; wrong-obligation
+/ wrong-snapshot certs rejected; on-disk admission manifest gates a
+derived proposal through validity/rent/human with restart recovery and
+crash-safe activation.
 
-These tests boot actual search-worker subprocesses so they are slower; they
-exercise the full coordinator -> child -> checkpoint -> certificate replay
--> join -> admission path end-to-end.
+These tests boot actual search-worker subprocesses so they are slower;
+they exercise the full coordinator -> child -> checkpoint -> certificate
+replay -> join -> admission path end-to-end.
 """
 from __future__ import annotations
 import json
@@ -73,23 +73,20 @@ class RealWorkerE2ETests(unittest.TestCase):
         return pool, disp
 
     def test_two_workers_replayed_to_checked_and_join(self):
+        """Two real Zero->Zero workers, replayed by coordinator, checked
+        AND join completes; producer metadata alone does not discharge -
+        proof.BuildDerivation on the trusted snapshot does."""
         pool, disp = self._bootstrap()
         try:
-            ident = pool.snapshot_ident  # set lazily on first spawn
-            # Launch two workers. Use defer_derivation=False so they run to
-            # success-derivation-built (complete, replayable certificates).
             t1 = disp.spawn("dfs", "Zero", "Zero", "c1", "a-1", "ob-c1",
-                            M.EmptyList, 300_000, 120, defer_derivation=False)
+                            M.EmptyList, 300_000, 120)
             t2 = disp.spawn("dfs", "Zero", "Zero", "c2", "a-1", "ob-c2",
-                            M.EmptyList, 300_000, 120, defer_derivation=False)
-            # Wait for both.
+                            M.EmptyList, 300_000, 120)
             r1 = _poll(disp, t1, timeout=240); self.assertIsNotNone(r1)
             r2 = _poll(disp, t2, timeout=240); self.assertIsNotNone(r2)
             self.assertEqual(alist_get(r1, K_STATUS), S_COMPLETED,
                              "c1 expected completed: " + str(alist_get(r1, K_BODY)))
             self.assertEqual(alist_get(r2, K_STATUS), S_COMPLETED)
-            # Create AND parent with child specs matching the worker's
-            # declared snapshot/obligation, then deliver the certificates.
             snap_id = t1.snapshot_id
             ja = J.JoinAdmission()
             specs = [child_spec("c1", "ob-c1", snap_id, t1.assumption_hash),
@@ -97,41 +94,45 @@ class RealWorkerE2ETests(unittest.TestCase):
             ja.create_claim("p", COMBINATOR_AND, specs)
             ok1, reason1, rec = ja.deliver_child_result("p", r1)
             self.assertTrue(ok1, "delivery c1 failed: " + str(reason1))
-            # Parent still running (one child pending).
             self.assertEqual(rec.status, "running")
             ok2, reason2, rec = ja.deliver_child_result("p", r2)
             self.assertTrue(ok2, "delivery c2 failed: " + str(reason2))
             self.assertEqual(rec.status, "completed")
-            # Parent term is an AND-joined term, kind=joined.
-            self.assertIsNotNone(rec.accepted_result)
             kind = P._atom_text(alist_get(rec.accepted_result, K_KIND))
             self.assertEqual(kind, "joined")
             pool.cleanup(t1); pool.cleanup(t2)
         finally:
             pool.shutdown()
 
-    def test_incomplete_cert_does_not_discharge(self):
+    def test_checked_or_first_completing_alternative_discharges(self):
+        """Real-worker checked OR (corrective #3): first completing child
+        (Zero->Zero) discharges the parent even though siblings remain
+        pending; late sibling results are idempotent/rejected as stale."""
         pool, disp = self._bootstrap()
         try:
-            t = disp.spawn("dfs", "Zero", "Zero", "c", "a-1", "ob",
-                           M.EmptyList, 300_000, 120, defer_derivation=True)
-            r = _poll(disp, t, timeout=240); self.assertIsNotNone(r)
-            # Deferred derivation -> F_INVALID_CERT (cert not complete).
-            self.assertEqual(alist_get(r, K_STATUS), S_FAILED)
-            self.assertTrue(M.IdentityCompare(alist_get(r, K_REASON), F_INVALID_CERT)() is M.truth_value,
-                            "expected F_INVALID_CERT got " + str(alist_get(r, K_REASON)))
+            # c-fast completes (Zero->Zero); c-slow is an unreachable deep goal.
+            fast = disp.spawn("dfs", "Zero", "Zero", "c-fast", "a-1", "ob-fast",
+                              M.EmptyList, 300_000, 120)
+            deep = "Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Zero))))))))))))"
+            slow = disp.spawn("dfs", "Zero", deep, "c-slow", "a-1", "ob-slow",
+                              M.EmptyList, 300_000, 120)
+            r_fast = _poll(disp, fast, timeout=240)
+            self.assertIsNotNone(r_fast)
+            self.assertEqual(alist_get(r_fast, K_STATUS), S_COMPLETED)
+            # Deliver only c-fast to an OR parent -> parent completes.
             ja = J.JoinAdmission()
-            snap_id = t.snapshot_id
-            specs = [child_spec("c", "ob", snap_id, t.assumption_hash)]
-            ja.create_claim("p", COMBINATOR_AND, specs)
-            ok, reason, rec = ja.deliver_child_result("p", r)
-            # Even if we delivered the envelope (which is a failure envelope,
-            # not a result), the child status is 'failed' but the cert itself
-            # was invalid-coded. The key invariant: parent does NOT complete.
-            self.assertTrue(ok or not ok)
-            self.assertEqual(rec.status, "running" if rec.status != "failed" else "failed",
-                             "parent must not complete on incomplete cert")
-            pool.cleanup(t)
+            specs = [child_spec("c-fast", "ob-fast", fast.snapshot_id, fast.assumption_hash),
+                     child_spec("c-slow", "ob-slow", slow.snapshot_id, slow.assumption_hash)]
+            ja.create_claim("p", COMBINATOR_OR, specs)
+            ok, reason, rec = ja.deliver_child_result("p", r_fast)
+            self.assertTrue(ok, "OR failed on first completing child: " + str(reason))
+            self.assertEqual(rec.status, "completed")
+            sel = P._atom_text(alist_get(rec.accepted_result,
+                                         P.text_atom("selected_child")))
+            self.assertEqual(sel, "c-fast")
+            # Cancel slow.
+            disp.cancel(slow)
+            pool.cleanup(fast); pool.cleanup(slow)
         finally:
             pool.shutdown()
 
@@ -139,12 +140,11 @@ class RealWorkerE2ETests(unittest.TestCase):
         pool, disp = self._bootstrap()
         try:
             t = disp.spawn("dfs", "Zero", "Zero", "c", "a-1", "ob-good",
-                           M.EmptyList, 300_000, 120, defer_derivation=False)
+                           M.EmptyList, 300_000, 120)
             r = _poll(disp, t, timeout=240); self.assertIsNotNone(r)
             self.assertEqual(alist_get(r, K_STATUS), S_COMPLETED,
                              "expected completed: " + str(alist_get(r, K_BODY)))
             ja = J.JoinAdmission()
-            # Declare child with a DIFFERENT obligation -> delivery must fail.
             specs = [child_spec("c", "ob-WRONG", t.snapshot_id, t.assumption_hash)]
             ja.create_claim("p", COMBINATOR_AND, specs)
             ok, reason, rec = ja.deliver_child_result("p", r)
@@ -152,7 +152,6 @@ class RealWorkerE2ETests(unittest.TestCase):
             self.assertTrue(M.IdentityCompare(reason, F_SCOPE_VIOLATION)() is M.truth_value,
                             "expected F_SCOPE_VIOLATION got " + str(reason))
             self.assertEqual(rec.status, "running")
-            # Declare child with wrong snapshot_id -> F_SNAPSHOT_MISMATCH.
             ja2 = J.JoinAdmission()
             specs2 = [child_spec("c", "ob-good", "WRONG-SNAP-ID", t.assumption_hash)]
             ja2.create_claim("p2", COMBINATOR_AND, specs2)
@@ -164,16 +163,17 @@ class RealWorkerE2ETests(unittest.TestCase):
         finally:
             pool.shutdown()
 
-    def test_admission_after_join_through_gates_with_manifest_recovery(self):
-        """Join completes -> enqueue proposal -> admit_next through all three
-        gates with on-disk manifest; simulate a crash before activation and
-        recover (no duplicate admission)."""
+    def test_admission_after_join_through_gates_with_crash_safe_activation(self):
+        """Join completes -> enqueue proposal -> admit_next through all
+        three gates with on-disk manifest. Then write 'activating' and
+        simulate crash; restart must not double-activate and activation
+        must run exactly once. Version stays monotonic on failure."""
         pool, disp = self._bootstrap()
         try:
             manifest = os.path.join(self.scratch, "adm", "manifest.json")
             os.makedirs(os.path.dirname(manifest), exist_ok=True)
             t = disp.spawn("dfs", "Zero", "Zero", "c", "a-1", "ob-c",
-                           M.EmptyList, 300_000, 120, defer_derivation=False)
+                           M.EmptyList, 300_000, 120)
             r = _poll(disp, t, timeout=240); self.assertIsNotNone(r)
             self.assertEqual(alist_get(r, K_STATUS), S_COMPLETED)
             bench = os.path.join(self.scratch, "bench"); os.makedirs(bench)
@@ -181,38 +181,53 @@ class RealWorkerE2ETests(unittest.TestCase):
                 json.dump({"ms": 100}, h)
             val = make_validity_check(structural_only_validity_for_tests())
             rent = make_rent_check(benchmark_dir=bench)
-            # Phase 1: admit with human-deny, then crash before activation.
+            human = make_human_check(lambda e: True)
             ja = J.JoinAdmission(manifest_path=manifest, strict_manifest=True)
             specs = [child_spec("c", "ob-c", t.snapshot_id, t.assumption_hash)]
             ja.create_claim("p", COMBINATOR_AND, specs)
-            ja.deliver_child_result("p", r)
+            ok_d, reason_d, _ = ja.deliver_child_result("p", r)
+            self.assertTrue(ok_d, "delivery failed: " + str(reason_d))
             self.assertEqual(ja.claims["p"].status, "completed")
             ja.enqueue_proposal("law-1", "p",
                                 [GATE_VALIDITY, GATE_RENT, GATE_HUMAN])
-            human_state = [False]
-            human = make_human_check(lambda e: human_state[0])
             ok, _, why = ja.admit_next(val, rent, human)
-            self.assertFalse(ok); self.assertEqual(why, "awaiting human")
+            self.assertTrue(ok, why); self.assertEqual(why, "admitted")
+            self.assertEqual(ja._accepted_state_version, 1)
+            # Simulate: failed activation first (version stays 1; entry
+            # remains 'activation-failed' blocking further admission).
+            ok_f, _, why_f = ja.activate_front(lambda e, a, v: False)
+            self.assertFalse(ok_f); self.assertEqual(why_f, "activation failed")
+            self.assertEqual(ja._accepted_state_version, 1)
+            # Cannot enqueue new proposals while activation unresolved.
+            self.assertEqual(ja.enqueue_proposal("blocked", "p", []), "")
+            # Simulate crash DURING retry: set state='activating' (as the
+            # activate_front path does immediately before invoking fn),
+            # persist, then drop the JoinAdmission.
+            ja._accepted_proposals[-1]["state"] = "activating"
+            ja._activation_inflight = True
+            ja._persist()
             del ja
-            # Phase 2: simulate restart. Re-hydrate, rebuild the claim with
-            # fresh ChildSpec objects (join state is rebuilt by replaying
-            # children), then admit with approving human and activate.
+            # Restart.
             ja2 = J.JoinAdmission(manifest_path=manifest, strict_manifest=True)
-            fresh_specs = [child_spec("c", "ob-c", t.snapshot_id, t.assumption_hash)]
-            ja2.create_claim("p", COMBINATOR_AND, fresh_specs)
-            ok_d, reason_d, _ = ja2.deliver_child_result("p", r)
-            self.assertTrue(ok_d, "delivery failed after restart: " + P._atom_text(reason_d))
-            self.assertEqual(ja2.claims["p"].status, "completed")
-            self.assertEqual(len(ja2._proposal_queue), 1)
-            self.assertEqual(ja2._proposal_queue[0]["state"], "awaiting-human")
-            human_state[0] = True
-            ok2, _, why2 = ja2.admit_next(val, rent, make_human_check(lambda e: True))
-            self.assertTrue(ok2, why2)
-            activated = {"n": 0}
-            ok3, _, why3 = ja2.activate_front(
-                lambda e, a, v: (activated.__setitem__("n", activated["n"]+1) or True))
-            self.assertTrue(ok3, why3)
-            self.assertEqual(activated["n"], 1)
+            self.assertTrue(ja2._activation_inflight)
+            self.assertEqual(ja2.pending_activation()["state"], "activating")
+            self.assertEqual(ja2._accepted_state_version, 1)
+            # Cannot enqueue until activation resolves.
+            self.assertEqual(ja2.enqueue_proposal("blocked2", "p", []), "")
+            # Activate successfully; fn invoked exactly once.
+            n = {"calls": 0}
+            ok_a, _, why_a = ja2.activate_front(
+                lambda e, a, v: (n.__setitem__("calls", n["calls"]+1) or True))
+            self.assertTrue(ok_a, why_a); self.assertEqual(n["calls"], 1)
+            # Idempotent.
+            ok_a2, _, why_a2 = ja2.activate_front(
+                lambda e, a, v: (n.__setitem__("calls", n["calls"]+1) or True))
+            self.assertTrue(ok_a2); self.assertEqual(why_a2, "already-activated")
+            self.assertEqual(n["calls"], 1)
+            with open(manifest) as h:
+                m = json.load(h)
+            self.assertEqual(m["accepted_state_version"], 1)
+            self.assertEqual(m["accepted"][-1]["state"], "activated")
             pool.cleanup(t)
         finally:
             pool.shutdown()
