@@ -43,11 +43,22 @@ def alist_get(alist, key_atom):
 
 def _atom_text(atom):
     """Return host string for an atom's value. Try/except only (no callable/type)."""
-    v = atom.value
+    if atom is None:
+        return ""
     try:
-        return v()
+        v = atom.value
+    except Exception:
+        return str(atom)
+    try:
+        r = v()
+        return r
     except TypeError:
         return v
+    except Exception:
+        try:
+            return str(v)
+        except Exception:
+            return ""
 
 
 def pair_list_from_py(py_seq, to_term):

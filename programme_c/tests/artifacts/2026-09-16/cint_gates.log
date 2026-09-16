@@ -1,1 +1,1 @@
-int_gates tests 2026-09-16T17:31:39Z: 3/3 (validity->rent->human; manifest; reject-front)
+cint_gates (fail-closed+fsync+recovery) tests 2026-09-16T18:33:20Z: 9/9

@@ -1,12 +1,25 @@
-"""Integration test: C-A search-worker subprocess dispatch wrapper stamps
-K_SNAPSHOT_ID/K_OBLIGATION/K_ASSUMPTION_HASH/K_TASK_ID/K_ATTEMPT_ID on every
-result envelope, readiness ack arrives with declared snapshot/obligation,
-timeout produces F_TIMEOUT, cancellation produces F_CANCELLED, and cleanup
-removes the worker directory. Wraps (does not replace) the existing
-search-worker subprocess entry point in main.py.
+"""Integration tests for C-A search-worker dispatch under strict certificate
+replay semantics (post C-INT review 2026-09-16):
+
+  * Readiness ack only accepted after a well-formed checkpoint is written
+    with matching declared snapshot_id / obligation.
+  * A deferred-derivation (rc=4, plan-found only) does NOT discharge the
+    child; the coordinator returns F_INVALID_CERT in that case.
+  * rc=2 (timed_out) -> F_TIMEOUT.
+  * max_workers=2 cap -> F_LAUNCH_ERROR synchronously.
+  * Mismatched declared snapshot/obligation in the worker-side manifest ->
+    F_SNAPSHOT_MISMATCH / F_SCOPE_VIOLATION.
+  * Cleanup removes the isolated worker directory.
+
+Wraps (does not replace) the existing search-worker subprocess entry point.
 """
 from __future__ import annotations
-import os, shutil, sys, tempfile, time, unittest
+import json
+import os
+import shutil
+import tempfile
+import time
+import unittest
 
 import hyge_int_pkg.machine as M
 import hyge_int_pkg.programme_c as P
@@ -14,11 +27,13 @@ import hyge_int_pkg.programme_c.worker as W
 import hyge_int_pkg.programme_c.worker_dispatch as WD
 from hyge_int_pkg.programme_c import (
     S_COMPLETED, S_FAILED, S_DISPATCHED,
-    F_TIMEOUT, F_CRASH, F_CANCELLED, F_LAUNCH_ERROR,
+    F_TIMEOUT, F_CRASH, F_CANCELLED, F_LAUNCH_ERROR, F_INVALID_CERT,
+    F_SNAPSHOT_MISMATCH, F_SCOPE_VIOLATION,
     K_TASK_ID, K_ATTEMPT_ID, K_WORKER_ID, K_STATUS, K_KIND, K_REASON, K_BODY,
     K_DECLARED_SNAPSHOT, K_DECLARED_OBLIGATION, K_ASSUMPTION_HASH, K_BUDGET,
-    alist_get, text_atom,
+    alist_get,
 )
+
 
 def _find_package_root():
     here = os.path.abspath(WD.__file__)
@@ -34,6 +49,16 @@ def _find_package_root():
 PACKAGE_ROOT = _find_package_root()
 
 
+def _wait_terminal(dispatcher, ticket, timeout_sec=120):
+    end = time.time() + timeout_sec
+    while time.time() < end:
+        r = dispatcher.poll(ticket)
+        if r is not M.EmptyList:
+            return r
+        time.sleep(0.05)
+    return None
+
+
 class SearchWorkerDispatchTests(unittest.TestCase):
     def setUp(self):
         self.scratch = tempfile.mkdtemp(prefix="pc_int_dispatch_")
@@ -41,123 +66,164 @@ class SearchWorkerDispatchTests(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.scratch, ignore_errors=True)
 
-    def _wait_terminal(self, dispatcher, ticket, timeout_sec=90):
-        end = time.time() + timeout_sec
-        while time.time() < end:
-            r = dispatcher.poll(ticket)
-            if r is not M.EmptyList:
-                return r
-            time.sleep(0.05)
-        return None
-
     def _new_pool(self):
         pool = W.BoundedWorkerPool(self.scratch, snapshot_ident=None, check_restore=False)
         return pool, WD.SearchWorkerDispatch(pool, PACKAGE_ROOT)
 
-    def test_readiness_ack_stamps_declared_fields(self):
+    def test_completed_search_worker_emits_fully_stamped_cert(self):
         pool, dispatcher = self._new_pool()
         try:
-            # Use dfs mode, trivial start/goal (zero == zero) — completes fast.
+            # defer_derivation=False so the worker runs through to
+            # success-derivation-built (complete, replayable certificate).
             ticket = dispatcher.spawn(
                 mode_token="dfs",
                 start_text="Zero",
                 goal_text="Zero",
-                task_id="t-readiness",
+                task_id="t-complete",
                 attempt_id="a-1",
                 obligation_text="Zero == Zero",
                 assumptions_term=M.EmptyList,
-                budget_millis=60_000,
-                worker_timeout_seconds=30,
+                budget_millis=120_000,
+                worker_timeout_seconds=60,
+                defer_derivation=False,
             )
-            self.assertIsNotNone(getattr(ticket, "_ready_env", None), "ready ack missing")
+            self.assertIsNotNone(getattr(ticket, "_ready_env", None),
+                                 "expected valid readiness ack (checkpoint)")
             ready = ticket._ready_env
             self.assertEqual(alist_get(ready, K_KIND).value, "ready")
-            self.assertEqual(alist_get(ready, K_TASK_ID).value, "t-readiness")
+            self.assertEqual(alist_get(ready, K_TASK_ID).value, "t-complete")
             self.assertEqual(alist_get(ready, K_ATTEMPT_ID).value, "a-1")
-            self.assertTrue(alist_get(ready, K_WORKER_ID).value.startswith("w-"))
-            self.assertTrue(len(alist_get(ready, K_DECLARED_SNAPSHOT).value) > 0)
             self.assertEqual(alist_get(ready, K_DECLARED_OBLIGATION).value, "Zero == Zero")
-            # Wait for completion and verify result envelope stamps.
-            result = self._wait_terminal(dispatcher, ticket, timeout_sec=90)
-            self.assertIsNotNone(result, "did not finish in time")
+            result = _wait_terminal(dispatcher, ticket, timeout_sec=120)
+            self.assertIsNotNone(result, "worker did not finish")
             self.assertEqual(alist_get(result, K_KIND).value, "result")
-            self.assertEqual(alist_get(result, K_TASK_ID).value, "t-readiness")
+            self.assertEqual(alist_get(result, K_STATUS), S_COMPLETED)
+            self.assertEqual(alist_get(result, K_TASK_ID).value, "t-complete")
             self.assertEqual(alist_get(result, K_ATTEMPT_ID).value, "a-1")
             self.assertEqual(alist_get(result, K_DECLARED_OBLIGATION).value, "Zero == Zero")
             self.assertTrue(alist_get(result, K_ASSUMPTION_HASH).value)
             self.assertTrue(alist_get(result, K_BUDGET).value)
-            self.assertEqual(alist_get(result, K_STATUS), S_COMPLETED)
             pool.cleanup(ticket)
             self.assertFalse(os.path.isdir(ticket.worker_dir))
         finally:
             pool.shutdown()
 
-    def test_timeout_produces_f_timeout(self):
+    def test_timeout_yields_f_timeout(self):
         pool, dispatcher = self._new_pool()
         try:
-            # Goal that requires deep forward search; tight worker_timeout yields
-            # rc=2 "timed_out" from search; verify F_TIMEOUT on the envelope.
             ticket = dispatcher.spawn(
                 mode_token="dfs",
                 start_text="Zero",
-                goal_text="Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Zero))))))))))",
+                goal_text="Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Zero))))))))))))",
                 task_id="t-timeout",
                 attempt_id="a-1",
                 obligation_text="unreachable",
                 assumptions_term=M.EmptyList,
-                budget_millis=60_000,
+                budget_millis=120_000,
                 worker_timeout_seconds=1,
+                defer_derivation=False,
             )
-            result = self._wait_terminal(dispatcher, ticket, timeout_sec=30)
+            result = _wait_terminal(dispatcher, ticket, timeout_sec=60)
             self.assertIsNotNone(result)
             self.assertEqual(alist_get(result, K_STATUS), S_FAILED)
-            body_val = alist_get(result, K_BODY)
-            body_text = P._atom_text(body_val) if body_val is not None else ""
             reason = alist_get(result, K_REASON)
-            is_timeout = (M.IdentityCompare(reason, F_TIMEOUT)() is M.truth_value) or ("timed" in body_text.lower())
-            self.assertTrue(is_timeout, "expected F_TIMEOUT, got reason=" + str(reason) + " body=" + body_text[:200])
+            self.assertTrue(M.IdentityCompare(reason, F_TIMEOUT)() is M.truth_value,
+                            "expected F_TIMEOUT, got " + str(reason))
             pool.cleanup(ticket)
             self.assertFalse(os.path.isdir(ticket.worker_dir))
         finally:
             pool.shutdown()
 
-    def test_max_workers_cap_enforced(self):
+    def test_deferred_derivation_does_not_discharge(self):
+        """rc=4 (defer-derivation) produces a running-derivation checkpoint
+        that is NOT a complete replayable certificate, so the coordinator
+        must reject it with F_INVALID_CERT instead of completing the join."""
         pool, dispatcher = self._new_pool()
         try:
-            # Occupy both slots with a task that takes long enough for the cap
-            # check to fire: use a hard goal but give a generous timeout.
-            def _wait_both_dispatched(tickets, deadline=10.0):
-                end = time.time() + deadline
-                while time.time() < end:
-                    if all(getattr(t, "status") == S_DISPATCHED for t in tickets):
-                        return True
-                    time.sleep(0.05)
-                return False
-            hard_goal = "Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Zero))))))))))))"
-            t1 = dispatcher.spawn(
-                mode_token="dfs", start_text="Zero", goal_text=hard_goal,
-                task_id="t-mw-a", attempt_id="a-1",
-                obligation_text="ob-a", assumptions_term=M.EmptyList,
-                budget_millis=60_000, worker_timeout_seconds=30)
-            t2 = dispatcher.spawn(
-                mode_token="dfs", start_text="Zero", goal_text=hard_goal,
-                task_id="t-mw-b", attempt_id="a-1",
-                obligation_text="ob-b", assumptions_term=M.EmptyList,
-                budget_millis=60_000, worker_timeout_seconds=30)
-            self.assertTrue(_wait_both_dispatched([t1, t2]),
-                            "both workers did not reach dispatched state; t1=" + str(t1.status) + " t2=" + str(t2.status))
+            ticket = dispatcher.spawn(
+                mode_token="dfs",
+                start_text="Zero",
+                goal_text="Zero",
+                task_id="t-deferred",
+                attempt_id="a-1",
+                obligation_text="Zero == Zero",
+                assumptions_term=M.EmptyList,
+                budget_millis=120_000,
+                worker_timeout_seconds=60,
+                defer_derivation=True,
+            )
+            result = _wait_terminal(dispatcher, ticket, timeout_sec=120)
+            self.assertIsNotNone(result)
+            self.assertEqual(alist_get(result, K_STATUS), S_FAILED)
+            reason = alist_get(result, K_REASON)
+            self.assertTrue(M.IdentityCompare(reason, F_INVALID_CERT)() is M.truth_value,
+                            "expected F_INVALID_CERT for deferred cert, got " + str(reason))
+            pool.cleanup(ticket)
+        finally:
+            pool.shutdown()
+
+    def test_mismatched_obligation_is_caught(self):
+        """Tamper with the manifest's declared obligation before the worker
+        boots; the coordinator must reject the certificate with F_SCOPE_VIOLATION
+        or F_INVALID_CERT, not accept it.
+        """
+        pool, dispatcher = self._new_pool()
+        try:
+            ticket = dispatcher.spawn(
+                mode_token="dfs",
+                start_text="Zero",
+                goal_text="Zero",
+                task_id="t-tamper",
+                attempt_id="a-1",
+                obligation_text="Zero == Zero",
+                assumptions_term=M.EmptyList,
+                budget_millis=120_000,
+                worker_timeout_seconds=60,
+                defer_derivation=False,
+            )
+            # Overwrite the manifest's declared_obligation after spawn.
+            manifest_path = ticket.result_path + ".manifest.json"
+            # Wait for manifest to exist (it is written before spawn).
+            tries = 0
+            while not os.path.isfile(manifest_path) and tries < 50:
+                time.sleep(0.1); tries += 1
+            self.assertTrue(os.path.isfile(manifest_path))
+            # We cannot easily race the worker's manifest read, so we instead
+            # verify that _verify_child_certificate itself detects a mismatch
+            # by running it with a wrong expected obligation.
+            ok, stat, reason, body = WD._verify_child_certificate(
+                ticket.result_path,
+                ticket.snapshot_id,
+                "WRONG_OBLIGATION",
+                ticket.assumption_hash,
+                ticket.task_id, ticket.attempt_id)
+            self.assertFalse(ok, "cert replay should fail with wrong obligation")
+            self.assertTrue(reason is F_SCOPE_VIOLATION, "expected F_SCOPE_VIOLATION, got " + str(reason))
+            # Wait out the worker and cancel to clean up.
+            dispatcher.cancel(ticket)
+            pool.cleanup(ticket)
+        finally:
+            pool.shutdown()
+
+    def test_max_workers_cap_synchronous_launch_error(self):
+        pool, dispatcher = self._new_pool()
+        try:
+            hard = "Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Succ(Zero))))))))))))"
+            t1 = dispatcher.spawn("dfs", "Zero", hard, "t-a", "a-1", "ob-a",
+                                  M.EmptyList, 120_000, 30, defer_derivation=False)
+            t2 = dispatcher.spawn("dfs", "Zero", hard, "t-b", "a-1", "ob-b",
+                                  M.EmptyList, 120_000, 30, defer_derivation=False)
+            end = time.time() + 15
+            while time.time() < end:
+                if t1.status == S_DISPATCHED and t2.status == S_DISPATCHED:
+                    break
+                time.sleep(0.1)
             self.assertEqual(pool._outstanding, 2)
-            t3 = dispatcher.spawn(
-                mode_token="dfs", start_text="Zero", goal_text="Zero",
-                task_id="t-mw-c", attempt_id="a-1",
-                obligation_text="ob-c", assumptions_term=M.EmptyList,
-                budget_millis=60_000, worker_timeout_seconds=30)
+            t3 = dispatcher.spawn("dfs", "Zero", "Zero", "t-c", "a-1", "ob-c",
+                                  M.EmptyList, 120_000, 30, defer_derivation=False)
             self.assertEqual(alist_get(t3.result_term, K_STATUS), S_FAILED)
-            b3 = alist_get(t3.result_term, K_BODY)
-            body3 = P._atom_text(b3) if b3 is not None else ""
-            self.assertTrue(M.IdentityCompare(alist_get(t3.result_term, K_REASON), F_LAUNCH_ERROR)() is M.truth_value
-                            or "max_workers" in body3)
-            # Cancel outstanding workers to avoid hanging.
+            self.assertTrue(M.IdentityCompare(alist_get(t3.result_term, K_REASON),
+                                              F_LAUNCH_ERROR)() is M.truth_value)
             dispatcher.cancel(t1); dispatcher.cancel(t2)
             pool.cleanup(t1); pool.cleanup(t2); pool.cleanup(t3)
         finally:

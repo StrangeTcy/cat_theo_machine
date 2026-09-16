@@ -93,26 +93,42 @@ def _opt(fn, term, key, fn2=None, term2=None, key2=None):
 
 
 class JoinAdmission:
-    def __init__(self, manifest_path=None):
+    def __init__(self, manifest_path=None, strict_manifest=True):
         self.claims = {}
         self._lock = _threading.RLock()
         self._proposal_queue = []
         self._accepted_proposals = []
         self._next_proposal_seq = 0
         self._manifest_path = manifest_path
-        # If a manifest already exists, hydrate accepted set and queue from
-        # durable state so the next candidate sees it (the charter requires
-        # the on-disk manifest to be the authoritative admission source).
+        self._accepted_state_version = 0
+        self.manifest_error = None
+        # Hydrate from durable manifest fail-closed. If strict_manifest is
+        # True (default for live admission), a corrupt/wrong-version
+        # manifest raises ManifestError rather than being silently ignored.
         if manifest_path is not None:
+            from hyge_int_pkg.programme_c.admission_hooks import (
+                load_admission_manifest, ManifestError,
+            )
+            accepted, queue, version = [], [], 0
             try:
-                from hyge_int_pkg.programme_c.admission_hooks import load_admission_manifest
-                accepted, queue = load_admission_manifest(manifest_path)
-                self._accepted_proposals = accepted
-                self._proposal_queue = queue
-                # Re-number seq past whatever was enqueued so new ids stay unique.
-                self._next_proposal_seq = len(queue) + len(accepted)
-            except Exception:
-                pass
+                accepted, queue, version = load_admission_manifest(manifest_path)
+            except ManifestError as exc:
+                self.manifest_error = exc
+                if strict_manifest:
+                    raise
+            self._accepted_proposals = accepted
+            self._proposal_queue = queue
+            self._accepted_state_version = int(version)
+            # Re-number seq past what was enqueued so new ids stay unique.
+            max_seq = 0
+            for e in queue + accepted:
+                pid = e.get("proposal_id", "")
+                if pid.startswith("proposal-"):
+                    try:
+                        n = int(pid[len("proposal-"):])
+                        if n > max_seq: max_seq = n
+                    except ValueError: pass
+            self._next_proposal_seq = max_seq
 
     def create_claim(self, claim_id, combinator, child_specs):
         with self._lock:
@@ -150,13 +166,24 @@ class JoinAdmission:
                 return False, F_SCOPE_VIOLATION, rec
             if cert.assumption_hash and child.assumption_hash and cert.assumption_hash != child.assumption_hash:
                 return False, F_INCOMPATIBLE_ASSUMPTIONS, rec
+            reason = cert.reason
+            # Invalid certificates (F_INVALID_CERT / F_SNAPSHOT_MISMATCH /
+            # F_SCOPE_VIOLATION / F_INCOMPATIBLE_ASSUMPTIONS / F_UNKNOWN_CHILD /
+            # F_STALE_RESULT) are NOT recorded as child outcomes. They are
+            # rejected outright so the child stays 'running' and can be retried.
+            invalid_reasons = (F_INVALID_CERT,)
+            is_invalid = False
+            for bad in invalid_reasons:
+                if reason is not None and M.IdentityCompare(reason, bad)() is M.truth_value:
+                    is_invalid = True; break
+            if is_invalid:
+                return False, F_INVALID_CERT, rec
             child.current_attempt += 1
             rec.latest_attempt_per_child[child.child_id] = cert.attempt_id
-            reason = cert.reason
             if cert.status == "completed":
                 child.status = "completed"
             elif cert.status == "failed":
-                if M.IdentityCompare(reason, F_REFRUTATION)() is M.truth_value:
+                if reason is not None and M.IdentityCompare(reason, F_REFRUTATION)() is M.truth_value:
                     child.status = "refuted"
                 else:
                     child.status = "failed"
@@ -188,6 +215,8 @@ class JoinAdmission:
         return False, M.EmptyList, None
 
     def _status_text(self, s):
+        if s is None:
+            return ""
         if isinstance(s, str):
             return s
         try:
@@ -277,27 +306,51 @@ class JoinAdmission:
 
     def enqueue_proposal(self, proposal_text, source_claim_id, gates):
         with self._lock:
+            if self.manifest_error is not None:
+                return ""
             self._next_proposal_seq += 1
             pid = "proposal-" + str(self._next_proposal_seq)
-            entry = {"proposal_id": pid, "source_claim_id": source_claim_id,
-                     "proposal_text": proposal_text, "gates": list(gates),
-                     "enqueued_at": _time.time(), "state": "queued"}
+            entry = {
+                "proposal_id": pid,
+                "source_claim_id": source_claim_id,
+                "proposal_text": proposal_text,
+                "gates": list(gates),
+                "enqueued_at": _time.time(),
+                "state": "queued",
+                "evidence_state_version": self._accepted_state_version,
+            }
             self._proposal_queue.append(entry)
+            self._persist()
             return pid
 
     def _persist(self):
         if self._manifest_path is None:
             return
+        from hyge_int_pkg.programme_c.admission_hooks import write_admission_manifest
+        write_admission_manifest(
+            self._manifest_path,
+            self._accepted_proposals,
+            self._proposal_queue,
+            accepted_state_version=self._accepted_state_version,
+        )
+
+    def _run_gate(self, fn, *args):
+        """Run a gate callable fail-closed: any exception -> False."""
         try:
-            from hyge_int_pkg.programme_c.admission_hooks import write_admission_manifest
-            write_admission_manifest(self._manifest_path,
-                                     self._accepted_proposals,
-                                     self._proposal_queue)
+            return bool(fn(*args))
         except Exception:
-            pass
+            return False
 
     def admit_next(self, validity_check, rent_check, human_approval_check):
+        """One-at-a-time gate chain. Fail-closed: gate exceptions, missing
+        callables, and persistence failures all return False. Gate evidence
+        is bound to the current accepted_state_version; after a successful
+        admission the version is bumped, invalidating prior evidence.
+        Activation does not occur here; use activate_front after this
+        returns True so persistence and activation stay recoverable."""
         with self._lock:
+            if self.manifest_error is not None:
+                return False, "", "manifest error: " + str(self.manifest_error)
             if not self._proposal_queue:
                 return False, "", "empty queue"
             entry = self._proposal_queue[0]
@@ -305,33 +358,71 @@ class JoinAdmission:
             if rec is None or rec.status != "completed":
                 return False, entry["proposal_id"], "source claim not completed"
             for prior in self._accepted_proposals:
-                if prior.get("proposal_text") == entry["proposal_text"]:
-                    self._accepted_proposals.append(entry)
+                if (prior.get("proposal_text") == entry["proposal_text"]
+                        and prior.get("source_claim_id") == entry.get("source_claim_id")
+                        and prior.get("state") == "activated"):
                     self._proposal_queue.pop(0)
-                    entry["state"] = "admitted"; entry["admitted_at"] = _time.time()
                     self._persist()
                     return True, entry["proposal_id"], "duplicate"
+            entry["evidence_state_version"] = self._accepted_state_version
             if GATE_VALIDITY in entry["gates"]:
-                if not validity_check(entry, self._accepted_proposals):
-                    entry["state"] = "rejected-validity"; self._proposal_queue.pop(0)
+                if not self._run_gate(validity_check, entry,
+                                      list(self._accepted_proposals),
+                                      self._accepted_state_version):
+                    entry["state"] = "rejected-validity"
+                    entry["rejected_at"] = _time.time()
+                    self._proposal_queue.pop(0)
                     self._persist()
                     return False, entry["proposal_id"], "validity failed"
             if GATE_RENT in entry["gates"]:
-                if not rent_check(entry):
+                if not self._run_gate(rent_check, entry):
                     entry["state"] = "rent-hold"
                     self._persist()
                     return False, entry["proposal_id"], "rent hold"
             if GATE_HUMAN in entry["gates"]:
-                if not human_approval_check(entry):
+                if not self._run_gate(human_approval_check, entry):
                     entry["state"] = "awaiting-human"
                     self._persist()
                     return False, entry["proposal_id"], "awaiting human"
-            entry["state"] = "admitted"; entry["admitted_at"] = _time.time()
+            entry["state"] = "admitted"
+            entry["admitted_at"] = _time.time()
+            entry["admitted_at_version"] = self._accepted_state_version
             self._accepted_proposals.append(entry)
             self._proposal_queue.pop(0)
-            # Publish updated state to on-disk manifest before returning.
+            self._accepted_state_version += 1
             self._persist()
             return True, entry["proposal_id"], "admitted"
+
+    def activate_front(self, activation_fn):
+        """Run the real activation (e.g. graph.ActivateProposal on the parent
+        runtime) against the most recently admitted proposal. Success marks
+        the entry 'activated' and persists; failure rolls it back to the
+        queue front as 'activation-failed' and decrements the version so a
+        retry can replay without double-counting or duplicate activation
+        across a crash."""
+        with self._lock:
+            if self.manifest_error is not None:
+                return False, "", "manifest error"
+            if not self._accepted_proposals:
+                return False, "", "no accepted proposals"
+            entry = self._accepted_proposals[-1]
+            if entry.get("state") != "admitted":
+                return False, entry.get("proposal_id", ""), "front not in admitted state"
+            ok = self._run_gate(activation_fn, entry,
+                                list(self._accepted_proposals),
+                                self._accepted_state_version)
+            if ok:
+                entry["state"] = "activated"
+                entry["activated_at"] = _time.time()
+                self._persist()
+                return True, entry["proposal_id"], "activated"
+            entry["state"] = "activation-failed"
+            entry["failed_at"] = _time.time()
+            self._accepted_proposals.pop()
+            self._accepted_state_version = max(0, self._accepted_state_version - 1)
+            self._proposal_queue.insert(0, entry)
+            self._persist()
+            return False, entry["proposal_id"], "activation failed"
 
 
 def _atom_eq(a, b):

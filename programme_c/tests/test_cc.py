@@ -143,7 +143,7 @@ class AdmissionTests(unittest.TestCase):
         ja.deliver_child_result("p", _env("a","att-1","completed","SID","ob-a"))
         pid = ja.enqueue_proposal("law-x", "p", [J.GATE_VALIDITY, J.GATE_RENT, J.GATE_HUMAN])
         v_calls=[]; r_calls=[]; h_calls=[]
-        def v(e, acc): v_calls.append(1); return True
+        def v(e, acc, ver=0): v_calls.append(1); return True
         def r(e): r_calls.append(1); return False
         def h(e): h_calls.append(1); return True
         ok, _, det = ja.admit_next(v, r, h)
