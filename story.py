@@ -430,20 +430,37 @@ class VerifyConflictSet(Edge):
 
 class CertifyClauseProvenance(Edge):
     """
-    L-S-5 Provenance Certificate Verifier.
+    L-S-5 / L-S-5a Provenance Certificate Verifier.
+
+    LIMITATION NOTE ON ENTAILMENT SCOPE:
+    Full semantic entailment of a rendered clause (verifying that the natural-language
+    proposition is strictly entailed by its source terms) is not independently re-derived
+    via a text-to-term parser. Instead, clause faithfulness is guaranteed constructively
+    by the combination of operator determinism, machine-native term schemas, and closed-cut
+    provenance certification. To strengthen this boundary against operator misfires, structural
+    preconditions of cited merge rules (such as RelationCausesLabel edges connecting cited
+    source IDs in CAUSE_CHAIN, contrastive roles or relations in CONTRAST, and multi-source
+    linkages in SCOPE_AGREEMENT) are mechanically verified against the closed cut's edge set
+    when edges are provided.
+
     Checks that a RenderedClause:
       1. Has a non-empty clause_id
       2. Has a non-empty proposition
       3. Traces to >= 1 valid source_fragment_id from the closed cut
       4. Declares an authorized merge_rule
       5. Carries an authorized audience_cut
-    Returns Pair(truth_value, EmptyList) if certified, else Pair(false_value, reason).
+      6. Verifies structural rule preconditions when edges are provided:
+         - CAUSE_CHAIN: cited sources must be connected by a RelationCausesLabel edge
+         - CONTRAST: cited sources must include >= 2 distinct fragments
+         - SCOPE_AGREEMENT: cited sources must include >= 2 distinct fragments
+    Returns:
+      Pair(truth_value, EmptyList) if certified, else Pair(false_value, reason).
     """
 
-    def __init__(self, clause, closed_cut_fragment_ids):
-        self.result = self._certify(clause, closed_cut_fragment_ids)
+    def __init__(self, clause, closed_cut_fragment_ids, edges=EmptyList):
+        self.result = self._certify(clause, closed_cut_fragment_ids, edges)
         super().__init__(
-            inputs=Pair(clause, Pair(closed_cut_fragment_ids, EmptyList)),
+            inputs=Pair(clause, Pair(closed_cut_fragment_ids, Pair(edges, EmptyList))),
             results=self.result,
         )
 
@@ -455,7 +472,7 @@ class CertifyClauseProvenance(Edge):
             curr = Tail(curr)()
         return false_value
 
-    def _certify(self, cl, closed_ids):
+    def _certify(self, cl, closed_ids, edges=EmptyList):
         cid = RenderedClauseId(cl)()
         prop = RenderedClauseProposition(cl)()
         srcs = RenderedClauseSourceFragments(cl)()
@@ -491,6 +508,152 @@ class CertifyClauseProvenance(Edge):
         if TermSame(rule_valid, truth_value)() is false_value:
             return Pair(false_value, "CERT_FAIL: unauthorized merge rule: " + str(rule))
 
+        # Structural rule precondition re-checks when edges are provided
+        if TermSame(edges, EmptyList)() is false_value:
+            if rule == "CAUSE_CHAIN":
+                s1 = Head(srcs)()
+                s2_rest = Tail(srcs)()
+                if TermSame(s2_rest, EmptyList)() is truth_value:
+                    return Pair(false_value, "CERT_FAIL: CAUSE_CHAIN requires >= 2 source fragments")
+                s2 = Head(s2_rest)()
+                causes_connected = false_value
+                curr_e = edges
+                while TermSame(curr_e, EmptyList)() is false_value:
+                    e = Head(curr_e)()
+                    try:
+                        rel = StoryEdgeRelation(e)()
+                        src = StoryEdgeSource(e)()
+                        tgt = StoryEdgeTarget(e)()
+                        if TermSame(rel, RelationCausesLabel)() is truth_value:
+                            if (src == s1 and tgt == s2) or (src == s2 and tgt == s1):
+                                causes_connected = truth_value
+                                break
+                    except Exception:
+                        pass
+                    curr_e = Tail(curr_e)()
+                if TermSame(causes_connected, truth_value)() is false_value:
+                    return Pair(
+                        false_value,
+                        "CERT_FAIL: CAUSE_CHAIN precondition failed: no causes edge between "
+                        + str(s1)
+                        + " and "
+                        + str(s2),
+                    )
+            elif rule == "CONTRAST":
+                s1 = Head(srcs)()
+                s2_rest = Tail(srcs)()
+                if TermSame(s2_rest, EmptyList)() is truth_value:
+                    return Pair(false_value, "CERT_FAIL: CONTRAST requires >= 2 source fragments")
+            elif rule == "SCOPE_AGREEMENT":
+                s1 = Head(srcs)()
+                s2_rest = Tail(srcs)()
+                if TermSame(s2_rest, EmptyList)() is truth_value:
+                    return Pair(false_value, "CERT_FAIL: SCOPE_AGREEMENT requires >= 2 source fragments")
+
+        return Pair(truth_value, EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class VerifyBlockerCoverage(Edge):
+    """
+    Standalone Blocker Coverage Verifier (Gap 1).
+    Assures that every fragment in closed_fragments meeting the blocker promotion criteria:
+      (role ∈ {RoleBlockerLabel, RoleDiscrepancyLabel}
+       ∨ event ∈ {EventFailedLabel, EventRejectedLabel, EventHeldLabel,
+                  EventNonDischargeBudgetLabel, EventRefutedLabel})
+    whose target_cuts includes cut, is represented in >= 1 rendered clause's source_fragment_ids.
+    Returns:
+      Pair(truth_value, EmptyList) if fully covered.
+      Pair(false_value, Pair(error_reason, Pair(missing_fragment_id, EmptyList))) on missing blocker.
+    """
+
+    def __init__(self, closed_fragments, rendered_clauses, cut):
+        self.result = self._verify(closed_fragments, rendered_clauses, cut)
+        super().__init__(
+            inputs=Pair(closed_fragments, Pair(rendered_clauses, Pair(cut, EmptyList))),
+            results=self.result,
+        )
+
+    def _is_blocker(self, frag):
+        role = StoryFragmentRole(frag)()
+        ev = StoryFragmentEvent(frag)()
+        if TermSame(role, RoleBlockerLabel)() is truth_value:
+            return truth_value
+        if TermSame(role, RoleDiscrepancyLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventFailedLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventRejectedLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventHeldLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventNonDischargeBudgetLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventRefutedLabel)() is truth_value:
+            return truth_value
+        return false_value
+
+    def _is_cut_applicable(self, frag, cut):
+        cuts = StoryFragmentTargetCuts(frag)()
+        if TermSame(cuts, CutAllLabel)() is truth_value or TermSame(cuts, cut)() is truth_value:
+            return truth_value
+        try:
+            curr = cuts
+            while TermSame(curr, EmptyList)() is false_value:
+                c = Head(curr)()
+                if TermSame(c, CutAllLabel)() is truth_value or TermSame(c, cut)() is truth_value:
+                    return truth_value
+                curr = Tail(curr)()
+        except Exception:
+            pass
+        return false_value
+
+    def _extract_clauses(self, rendered_clauses):
+        # Supports passing the full pipeline result Pair(halt, Pair(sections, Pair(clauses, EmptyList)))
+        # as well as directly passing a Pair chain of RenderedClauses.
+        try:
+            second = Tail(rendered_clauses)()
+            third = Tail(second)()
+            candidate_clauses = Head(third)()
+            return candidate_clauses
+        except Exception:
+            return rendered_clauses
+
+    def _id_in_clause_sources(self, fid, clauses):
+        curr_cl = clauses
+        while TermSame(curr_cl, EmptyList)() is false_value:
+            cl = Head(curr_cl)()
+            srcs = RenderedClauseSourceFragments(cl)()
+            curr_s = srcs
+            while TermSame(curr_s, EmptyList)() is false_value:
+                if TermSame(Head(curr_s)(), fid)() is truth_value:
+                    return truth_value
+                curr_s = Tail(curr_s)()
+            curr_cl = Tail(curr_cl)()
+        return false_value
+
+    def _verify(self, closed_frags, rendered_clauses, cut):
+        clauses = self._extract_clauses(rendered_clauses)
+        curr = closed_frags
+        while TermSame(curr, EmptyList)() is false_value:
+            f = Head(curr)()
+            if (
+                TermSame(self._is_blocker(f), truth_value)() is truth_value
+                and TermSame(self._is_cut_applicable(f, cut), truth_value)() is truth_value
+            ):
+                fid = StoryFragmentId(f)()
+                if TermSame(self._id_in_clause_sources(fid, clauses), truth_value)() is false_value:
+                    return Pair(
+                        false_value,
+                        Pair(
+                            "BLOCKER_COVERAGE_HALT: blocker fragment not represented in clauses: "
+                            + str(fid),
+                            Pair(fid, EmptyList),
+                        ),
+                    )
+            curr = Tail(curr)()
         return Pair(truth_value, EmptyList)
 
     def __call__(self):

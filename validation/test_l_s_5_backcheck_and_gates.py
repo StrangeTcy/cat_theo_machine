@@ -112,10 +112,47 @@ def run_tests():
     cert_unauth = S.CertifyClauseProvenance(unauth_rule_clause, closed_cut_ids)()
     assert M.IdentityCompare(M.Head(cert_unauth)(), M.false_value)() is M.truth_value
     assert "unauthorized merge rule" in M.Tail(cert_unauth)()
-    print("[PASS] 3. CertifyClauseProvenance: contract enforces non-empty IDs, closed-cut provenance, and authorized rules.")
+
+    # 3e (Gap 2): Rule precondition re-check with edge graph
+    # CAUSE_CHAIN requires a connecting RelationCausesLabel edge between cited sources
+    valid_edge = S.StoryEdge(S.RelationCausesLabel, "frag-01", "frag-02")()
+    edges_valid = M.Pair(valid_edge, empty)
+    cert_edge_pos = S.CertifyClauseProvenance(valid_clause, closed_cut_ids, edges_valid)()
+    assert M.IdentityCompare(M.Head(cert_edge_pos)(), M.truth_value)() is M.truth_value
+
+    # Negative edge test: edge does not connect frag-01 and frag-02
+    invalid_edge = S.StoryEdge(S.RelationCausesLabel, "frag-03", "frag-02")()
+    edges_invalid = M.Pair(invalid_edge, empty)
+    cert_edge_neg = S.CertifyClauseProvenance(valid_clause, closed_cut_ids, edges_invalid)()
+    assert M.IdentityCompare(M.Head(cert_edge_neg)(), M.false_value)() is M.truth_value
+    assert "CAUSE_CHAIN precondition failed" in M.Tail(cert_edge_neg)()
+
+    # Verify entailment limitation note is present at gate definition
+    assert "LIMITATION NOTE ON ENTAILMENT SCOPE" in S.CertifyClauseProvenance.__doc__
+    print("[PASS] 3. CertifyClauseProvenance: contract enforces non-empty IDs, closed-cut provenance, authorized rules, and structural edge preconditions.")
 
     # -------------------------------------------------------------------------
-    # 4. Pipeline-Level Tests for Fixtures 1, 4, 5 (Closing the Gap)
+    # 4. VerifyBlockerCoverage: Blocker-Coverage Gate (Gap 1)
+    # -------------------------------------------------------------------------
+    f11_entry = f_entries[10]
+    f11_frags = M.Head(M.Tail(f11_entry)())()
+    pipe_f11 = S.MergePipeline(f11_frags, empty, S.CutOperatorLabel)()
+
+    # 4a: Positive test: blocker discrepancy fragment from fixture 11 is covered in rendered clauses
+    cov_pos = S.VerifyBlockerCoverage(f11_frags, pipe_f11, S.CutOperatorLabel)()
+    assert M.IdentityCompare(M.Head(cov_pos)(), M.truth_value)() is M.truth_value
+
+    # 4b: Negative test: delete the fixture-11 discrepancy clause from pipeline output; assert verifier halts
+    cov_neg = S.VerifyBlockerCoverage(f11_frags, empty, S.CutOperatorLabel)()
+    assert M.IdentityCompare(M.Head(cov_neg)(), M.false_value)() is M.truth_value
+    cov_err_reason = M.Head(M.Tail(cov_neg)())()
+    cov_missing_id = M.Head(M.Tail(M.Tail(cov_neg)())())()
+    assert "BLOCKER_COVERAGE_HALT" in cov_err_reason
+    assert cov_missing_id == "fixture-11-discrepancy"
+    print("[PASS] 4. VerifyBlockerCoverage: positive coverage verified; negative deletion test halts on missing blocker.")
+
+    # -------------------------------------------------------------------------
+    # 5. Pipeline-Level Tests for Fixtures 1, 4, 5 (Closing the Gap)
     # -------------------------------------------------------------------------
     # Fixture 1: 7 unreduced AST terms suppressed; semantic progress summary present
     f1_frag = M.Head(M.Tail(f_entries[0])())()
@@ -124,7 +161,7 @@ def run_tests():
     for raw_ast in ("Given(ArithmeticProgression", "Need(Angles", "Parameter(CommonDifference", "Given(Triangle"):
         assert raw_ast not in proj_f1_op
     assert "applicability scan in progress over geometric premises" in proj_f1_op
-    print("[PASS] 4. Fixture 1 pipeline test: raw AST premises suppressed; semantic progress summary present.")
+    print("[PASS] 5. Fixture 1 pipeline test: raw AST premises suppressed; semantic progress summary present.")
 
     # Fixture 4: Bare host True/False booleans suppressed; structured invariant NonNegative(x) present
     f4_frag = M.Head(M.Tail(f_entries[3])())()
@@ -135,7 +172,7 @@ def run_tests():
         assert "EMPTY True" not in cut_text
         assert "UNREACH False" not in cut_text
         assert "NonNegative(x)" in cut_text
-    print("[PASS] 5. Fixture 4 pipeline test: bare host booleans absent; structured invariant NonNegative(x) present.")
+    print("[PASS] 6. Fixture 4 pipeline test: bare host booleans absent; structured invariant NonNegative(x) present.")
 
     # Fixture 5: <hyge.core.Pair object at 0x...> memory pointer addresses suppressed; semantic counts present
     f5_frag = M.Head(M.Tail(f_entries[4])())()
@@ -147,10 +184,10 @@ def run_tests():
         assert "at 0x" not in cut_text
         assert "121 rules" in cut_text
         assert "0 derivations" in cut_text
-    print("[PASS] 6. Fixture 5 pipeline test: object pointer addresses suppressed; semantic root counts present.")
+    print("[PASS] 7. Fixture 5 pipeline test: object pointer addresses suppressed; semantic root counts present.")
 
     # -------------------------------------------------------------------------
-    # 5. Referring Expression Placeholder Resolution Test
+    # 6. Referring Expression Placeholder Resolution Test
     # -------------------------------------------------------------------------
     f_mention_1 = S.StoryFragment("m1", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "search_bfs_worker", "initialization", S.EventCompletedLabel, "ev", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
     f_mention_2 = S.StoryFragment("m2", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "search_bfs_worker", "execution", S.EventCompletedLabel, "ev", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
@@ -160,10 +197,10 @@ def run_tests():
     # First mention retains canonical name; second mention resolves to referring expression 'the resident worker'
     assert "search_bfs_worker" in proj_mention_op
     assert "the resident worker" in proj_mention_op
-    print("[PASS] 7. Placeholder resolution: the_<entity> placeholder resolves to natural referring expression.")
+    print("[PASS] 8. Placeholder resolution: the_<entity> placeholder resolves to natural referring expression.")
 
     # -------------------------------------------------------------------------
-    # 6. Conformance & Invariance Checks
+    # 7. Conformance & Invariance Checks
     # -------------------------------------------------------------------------
     core_path = os.path.join(IMPORT_ROOT, "core.py")
     with open(core_path, "r", encoding="utf-8") as f:
@@ -180,9 +217,9 @@ def run_tests():
     assert "admission_hooks" not in story_src
     assert "prose_rent" not in story_src
 
-    print("[PASS] 8. Scope & Invariance check: core.py untouched; rent excluded; zero forbidden constructs.")
+    print("[PASS] 9. Scope & Invariance check: core.py untouched; rent excluded; zero forbidden constructs.")
 
-    print("\nALL 8 CHECKS IN SUITE L-S-5 PASSED SUCCESSFULLY.")
+    print("\nALL 9 CHECKS IN SUITE L-S-5 PASSED SUCCESSFULLY.")
 
 
 if __name__ == "__main__":

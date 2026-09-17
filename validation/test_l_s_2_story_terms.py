@@ -81,9 +81,12 @@ def run_checks():
     assert S.StoryFragmentSubject(frag)() == "admission_gate"
     assert S.StoryFragmentPredicate(frag)() == "token_mismatch"
     assert M.IdentityCompare(S.StoryFragmentEvent(frag)(), S.EventRejectedLabel)() is M.truth_value
+    assert S.StoryFragmentEvidence(frag)() == ev
     assert M.IdentityCompare(S.StoryFragmentSalience(frag)(), S.SalienceHighLabel)() is M.truth_value
-    assert M.IdentityCompare(S.StoryFragmentConflicts(frag)(), empty)() is M.truth_value
-    print("[PASS] 4. StoryFragment 13-field construction and round-trip accessors verified.")
+    assert M.IdentityCompare(S.StoryFragmentDependencies(frag)(), deps)() is M.truth_value
+    assert M.IdentityCompare(S.StoryFragmentConflicts(frag)(), confs)() is M.truth_value
+    assert M.IdentityCompare(S.StoryFragmentTargetCuts(frag)(), cuts)() is M.truth_value
+    print("[PASS] 4. StoryFragment 14-field construction and round-trip accessors verified.")
 
     # 5. RenderedClause Accessors
     clause = S.RenderedClause(
