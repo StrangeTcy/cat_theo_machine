@@ -149,7 +149,14 @@ def run_tests():
     cov_missing_id = M.Head(M.Tail(M.Tail(cov_neg)())())()
     assert "BLOCKER_COVERAGE_HALT" in cov_err_reason
     assert cov_missing_id == "fixture-11-discrepancy"
-    print("[PASS] 4. VerifyBlockerCoverage: positive coverage verified; negative deletion test halts on missing blocker.")
+    # 4c: Carry-forward test: fragment carrying ONLY CutAllLabel (as bare atom)
+    # expands to cover all concrete cuts (Operator, Engineer, Review, Machine)
+    f_all_atom = S.StoryFragment("f-all-atom", "c1", "v1", empty, S.RoleBlockerLabel, S.TrackFToolsLabel, "worker_pool", "fail", S.EventFailedLabel, "ev", S.SalienceHighLabel, empty, empty, S.CutAllLabel)()
+    cl_all_covered = S.RenderedClause("cl-all", "worker failed", M.Pair("f-all-atom", empty), "PROMOTE_BLOCKER", S.CutOperatorLabel)()
+    for target_cut in (S.CutOperatorLabel, S.CutEngineerLabel, S.CutReviewLabel, S.CutMachineLabel):
+        cov_all = S.VerifyBlockerCoverage(M.Pair(f_all_atom, empty), M.Pair(cl_all_covered, empty), target_cut)()
+        assert M.IdentityCompare(M.Head(cov_all)(), M.truth_value)() is M.truth_value
+    print("[PASS] 4. VerifyBlockerCoverage: positive coverage verified; negative deletion test halts on missing blocker; CutAllLabel bare atom expansion confirmed.")
 
     # -------------------------------------------------------------------------
     # 5. Pipeline-Level Tests for Fixtures 1, 4, 5 (Closing the Gap)
