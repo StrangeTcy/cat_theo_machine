@@ -145,17 +145,17 @@ class AdmissionTests(unittest.TestCase):
         ja.deliver_child_result("p", _env("a","att-1","completed","SID","ob-a"))
         pid = ja.enqueue_proposal("law-x", "p", [J.GATE_VALIDITY, J.GATE_RENT, J.GATE_HUMAN])
         v_calls=[]; r_calls=[]; h_calls=[]
-        def v(e, acc, ver=0): v_calls.append(1); return True
-        def r(e): r_calls.append(1); return False
-        def h(e): h_calls.append(1); return True
+        def v(e, acc=0, ver=0): v_calls.append(1); return True
+        def r(e, acc=0, ver=0): r_calls.append(1); return False
+        def h(e, acc=0, ver=0): h_calls.append(1); return True
         ok, _, det = ja.admit_next(v, r, h)
         self.assertFalse(ok); self.assertEqual(det, "rent hold"); self.assertEqual(v_calls+r_calls+h_calls, [1,1])
         v_calls=[]; r_calls=[]; h_calls=[]
-        def rok(e): r_calls.append(1); return True
-        def hno(e): h_calls.append(1); return False
+        def rok(e, acc=0, ver=0): r_calls.append(1); return True
+        def hno(e, acc=0, ver=0): h_calls.append(1); return False
         ok, _, det = ja.admit_next(v, rok, hno)
         self.assertFalse(ok); self.assertEqual(det, "awaiting human"); self.assertEqual(v_calls+r_calls+h_calls, [1,1,1])
-        def hyes(e): h_calls.append(1); return True
+        def hyes(e, acc=0, ver=0): h_calls.append(1); return True
         ok, _, det = ja.admit_next(v, rok, hyes)
         self.assertTrue(ok); self.assertEqual(det, "admitted")
         with open(os.path.join(_art(), "cc_serial_admission.log"), "w") as fh:

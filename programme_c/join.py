@@ -28,7 +28,7 @@ from hyge_int_pkg.programme_c import (
     S_RUNNING, S_COMPLETED, S_FAILED, S_CANCELLED,
     F_STALE_RESULT, F_INCOMPATIBLE_ASSUMPTIONS,
     F_SCOPE_VIOLATION, F_SNAPSHOT_MISMATCH, F_INVALID_CERT, F_UNKNOWN_CHILD,
-    F_CRASH, F_TIMEOUT, F_CANCELLED, F_REFRUTATION, F_LAUNCH_ERROR,
+    F_CRASH, F_TIMEOUT, F_CANCELLED, F_REFRUTATION, F_LAUNCH_ERROR, F_RENT_FAIL,
     K_TASK_ID, K_ATTEMPT_ID, K_WORKER_ID, K_STATUS, K_KIND, K_BODY,
     K_OBLIGATION, K_ASSUMPTION_HASH, K_BUDGET, K_REASON,
     K_DECLARED_SNAPSHOT, K_DECLARED_OBLIGATION,
@@ -426,13 +426,30 @@ class JoinAdmission:
                     self._proposal_queue.pop(0); self._persist()
                     return False, entry["proposal_id"], "validity failed"
             if GATE_RENT in entry["gates"]:
-                ok, _r = self._run_gate(rent_check, entry)
+                ok, reason = self._run_gate(rent_check, entry,
+                                            list(self._accepted_proposals),
+                                            self._accepted_state_version)
                 if not ok:
+                    if reason is not None and M.IdentityCompare(
+                            reason, F_LAUNCH_ERROR)() is M.truth_value:
+                        return False, entry["proposal_id"], "rent-launch-error"
+                    if reason is not None and M.IdentityCompare(
+                            reason, F_RENT_FAIL)() is M.truth_value:
+                        entry["state"] = "rejected-rent"
+                        entry["rejected_at"] = _time.time()
+                        self._proposal_queue.pop(0); self._persist()
+                        return False, entry["proposal_id"], "rent failed"
+                    # Plain False (no reason atom) / other -> hold awaiting rent.
                     entry["state"] = "rent-hold"; self._persist()
                     return False, entry["proposal_id"], "rent hold"
             if GATE_HUMAN in entry["gates"]:
-                ok, _r = self._run_gate(human_approval_check, entry)
+                ok, reason = self._run_gate(human_approval_check, entry,
+                                            list(self._accepted_proposals),
+                                            self._accepted_state_version)
                 if not ok:
+                    if reason is not None and M.IdentityCompare(
+                            reason, F_LAUNCH_ERROR)() is M.truth_value:
+                        return False, entry["proposal_id"], "human-launch-error"
                     entry["state"] = "awaiting-human"; self._persist()
                     return False, entry["proposal_id"], "awaiting human"
             entry["state"] = "admitted"

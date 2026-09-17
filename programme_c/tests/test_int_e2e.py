@@ -177,8 +177,11 @@ class RealWorkerE2ETests(unittest.TestCase):
             r = _poll(disp, t, timeout=240); self.assertIsNotNone(r)
             self.assertEqual(alist_get(r, K_STATUS), S_COMPLETED)
             bench = os.path.join(self.scratch, "bench"); os.makedirs(bench)
-            with open(os.path.join(bench, "rent_benchmark.json"),"w") as h:
-                json.dump({"ms": 100}, h)
+            # Write a valid rent benchmark (benchmark.json, schema v1).
+            from hyge_int_pkg.programme_c.tests.test_int_gates import (
+                _write_passing_rent_benchmark,
+            )
+            _write_passing_rent_benchmark(bench)
             val = make_validity_check(structural_only_validity_for_tests())
             rent = make_rent_check(benchmark_dir=bench)
             human = make_human_check(lambda e: True)
@@ -188,8 +191,14 @@ class RealWorkerE2ETests(unittest.TestCase):
             ok_d, reason_d, _ = ja.deliver_child_result("p", r)
             self.assertTrue(ok_d, "delivery failed: " + str(reason_d))
             self.assertEqual(ja.claims["p"].status, "completed")
-            ja.enqueue_proposal("law-1", "p",
+            pid = ja.enqueue_proposal("law-1", "p",
                                 [GATE_VALIDITY, GATE_RENT, GATE_HUMAN])
+            _id_enc = {"kind": "rule", "left": {"Char": "z"}, "right": {"Char": "z"}}
+            for e in ja._proposal_queue:
+                if e["proposal_id"] == pid:
+                    e["proposal_encoding"] = _id_enc
+                    e["law_encoding"] = _id_enc
+                    break
             ok, _, why = ja.admit_next(val, rent, human)
             self.assertTrue(ok, why); self.assertEqual(why, "admitted")
             self.assertEqual(ja._accepted_state_version, 1)

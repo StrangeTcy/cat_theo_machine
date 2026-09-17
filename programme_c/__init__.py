@@ -130,3 +130,4 @@ F_MISSING_CHILD = text_atom("missing-child")
 F_INVALID_CERT = text_atom("invalid-certificate")
 F_UNKNOWN_CHILD = text_atom("unknown-child")
 F_REFRUTATION = text_atom("refutation")  # logical, distinct from execution failure
+F_RENT_FAIL = text_atom("rent-fail")  # performance-only; reject + pop

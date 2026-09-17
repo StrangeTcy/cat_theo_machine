@@ -52,6 +52,26 @@ def _fake_completed_claim(ja, claim_id="c-1"):
     return rec
 
 
+def _write_passing_rent_benchmark(benchmark_dir):
+    """Write a benchmark.json that trivially passes (small identity specs,
+    generous budgets)."""
+    os.makedirs(benchmark_dir, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "timeout_seconds": 90,
+        "step_budget": 100000,
+        "max_total_ms": 60000,
+        "specs": [
+            {"name": "id-z",
+             "left": {"Char": "z"}, "right": {"Char": "z"},
+             "start": {"Char": "z"}},
+        ],
+    }
+    with open(os.path.join(benchmark_dir, "benchmark.json"), "w",
+              encoding="utf-8") as h:
+        json.dump(payload, h)
+
+
 class GateIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.scratch = tempfile.mkdtemp(prefix="pc_int_gates_")
@@ -73,16 +93,26 @@ class GateIntegrationTests(unittest.TestCase):
         pid = ja.enqueue_proposal("proposal-ok", "c-1",
                                   [GATE_VALIDITY, GATE_RENT, GATE_HUMAN])
         self.assertTrue(pid)
+        _id_enc = {"kind": "rule", "left": {"Char": "z"}, "right": {"Char": "z"}}
+        for e in ja._proposal_queue:
+            if e["proposal_id"] == pid:
+                e["proposal_encoding"] = _id_enc
+                e["law_encoding"] = _id_enc
+                break
+        # No benchmark.json yet -> F_LAUNCH_ERROR, front intact (rent-launch-error).
         ok, _, reason = ja.admit_next(
             lambda e, a, v: (calls.append("validity"), val(e, a, v))[1],
-            lambda e: (calls.append("rent"), rent(e))[1],
+            rent,
             human)
-        self.assertFalse(ok); self.assertEqual(reason, "rent hold")
-        with open(os.path.join(benchmark_dir, "rent_benchmark.json"), "w") as h:
-            json.dump({"baseline_ms": 100}, h)
+        self.assertFalse(ok); self.assertEqual(reason, "rent-launch-error")
+        # Front is NOT popped, state preserved.
+        self.assertEqual(len(ja._proposal_queue), 1)
+        self.assertEqual(ja._proposal_queue[0]["proposal_id"], pid)
+        # Write a passing benchmark.json -> rent advances to human gate.
+        _write_passing_rent_benchmark(benchmark_dir)
         ok2, _, reason2 = ja.admit_next(
             lambda e, a, v: (calls.append("validity2"), val(e, a, v))[1],
-            lambda e: (calls.append("rent2"), rent(e))[1],
+            rent,
             human)
         self.assertFalse(ok2); self.assertEqual(reason2, "awaiting human")
         # Before admit nothing blocks enqueue; the block applies only once
@@ -94,7 +124,7 @@ class GateIntegrationTests(unittest.TestCase):
         human_state["ok"] = True
         ok3, _, reason3 = ja.admit_next(
             lambda e, a, v: (calls.append("validity3"), val(e, a, v))[1],
-            lambda e: (calls.append("rent3"), rent(e))[1],
+            rent,
             human)
         self.assertTrue(ok3, reason3); self.assertEqual(reason3, "admitted")
         self.assertEqual(ja._accepted_state_version, 1)
@@ -144,20 +174,32 @@ class GateIntegrationTests(unittest.TestCase):
         ja = J.JoinAdmission(manifest_path=self.manifest)
         _fake_completed_claim(ja, "c-1")
         ja.enqueue_proposal("p", "c-1", [GATE_VALIDITY, GATE_RENT])
-        ok, _, reason = ja.admit_next(
+        front_pid = ja._proposal_queue[0]["proposal_id"]
+        ok, pid, reason = ja.admit_next(
             make_validity_check(structural_only_validity_for_tests()),
             make_rent_check(benchmark_dir=None),
             make_human_check(None))
-        self.assertFalse(ok); self.assertEqual(reason, "rent hold")
+        # No benchmark dir configured -> F_LAUNCH_ERROR, front intact.
+        self.assertFalse(ok); self.assertEqual(reason, "rent-launch-error")
+        self.assertEqual(pid, front_pid)
+        self.assertEqual(len(ja._proposal_queue), 1)
 
     def test_missing_human_callback_fails_closed(self):
         benchmark_dir = os.path.join(self.scratch, "bench")
         os.makedirs(benchmark_dir)
-        with open(os.path.join(benchmark_dir, "rent_benchmark.json"), "w") as h:
-            json.dump({"x": 1}, h)
+        _write_passing_rent_benchmark(benchmark_dir)
         ja = J.JoinAdmission(manifest_path=self.manifest)
         _fake_completed_claim(ja, "c-1")
-        ja.enqueue_proposal("p", "c-1", [GATE_VALIDITY, GATE_RENT, GATE_HUMAN])
+        pid = ja.enqueue_proposal("p", "c-1", [GATE_VALIDITY, GATE_RENT, GATE_HUMAN])
+        # Attach a trivial identity law encoding so rent subprocess can
+        # install the candidate (tests use text-only structural checks).
+        for e in ja._proposal_queue:
+            if e["proposal_id"] == pid:
+                _id_enc = {"kind": "rule", "left": {"Char": "z"},
+                            "right": {"Char": "z"}}
+                e["proposal_encoding"] = _id_enc
+                e["law_encoding"] = _id_enc
+                break
         ok, _, reason = ja.admit_next(
             make_validity_check(structural_only_validity_for_tests()),
             make_rent_check(benchmark_dir=benchmark_dir),
@@ -180,10 +222,15 @@ class GateIntegrationTests(unittest.TestCase):
         # restart must see activation pending and refuse new admission.
         ja = J.JoinAdmission(manifest_path=self.manifest)
         _fake_completed_claim(ja, "c-1")
-        benchmark_dir = os.path.join(self.scratch, "bench"); os.makedirs(benchmark_dir)
-        with open(os.path.join(benchmark_dir, "rent_benchmark.json"), "w") as h:
-            json.dump({"x":1}, h)
-        ja.enqueue_proposal("law-x", "c-1", [GATE_VALIDITY, GATE_RENT, GATE_HUMAN])
+        benchmark_dir = os.path.join(self.scratch, "bench")
+        _write_passing_rent_benchmark(benchmark_dir)
+        pid = ja.enqueue_proposal("law-x", "c-1", [GATE_VALIDITY, GATE_RENT, GATE_HUMAN])
+        _id_enc = {"kind": "rule", "left": {"Char": "z"}, "right": {"Char": "z"}}
+        for e in ja._proposal_queue:
+            if e["proposal_id"] == pid:
+                e["proposal_encoding"] = _id_enc
+                e["law_encoding"] = _id_enc
+                break
         ok, _, _ = ja.admit_next(
             make_validity_check(structural_only_validity_for_tests()),
             make_rent_check(benchmark_dir=benchmark_dir),
@@ -376,6 +423,90 @@ class LiveActivateProposalValidityTests(unittest.TestCase):
                         "against accepted-set with auto policy already installed "
                         "the same proposal must be accepted (identity change, "
                         "no loosening); reason=%r" % (reason_prior,))
+
+
+class RentHookTests(unittest.TestCase):
+    """Rent hook (cint-integrated-7, 2026-09-17). Subprocess-isolated
+    benchmark gate; F_LAUNCH_ERROR on missing/failing benchmark (front
+    held intact), F_RENT_FAIL on spec failure (reject+pop), pass with
+    evidence bound to (proposal_id, accepted_state_version,
+    benchmark_identity)."""
+
+    def setUp(self):
+        self.scratch = tempfile.mkdtemp(prefix="pc_rent_")
+
+    def tearDown(self):
+        shutil.rmtree(self.scratch, ignore_errors=True)
+
+    def _entry(self):
+        enc = {"kind": "rule", "left": {"Char": "z"}, "right": {"Char": "z"}}
+        return {"proposal_id": "p-rent-test", "proposal_text": "",
+                "origin": "test", "state": "queued",
+                "proposal_encoding": enc, "law_encoding": enc}
+
+    def test_missing_benchmark_dir_returns_launch_error(self):
+        ja = J.JoinAdmission(manifest_path=os.path.join(self.scratch, "m.json"))
+        _fake_completed_claim(ja, "c-1")
+        ja.enqueue_proposal("p", "c-1", [GATE_RENT])
+        front_pid = ja._proposal_queue[0]["proposal_id"]
+        ok, pid, why = ja.admit_next(
+            make_validity_check(structural_only_validity_for_tests()),
+            make_rent_check(benchmark_dir=os.path.join(self.scratch, "nobench")),
+            make_human_check(None))
+        self.assertFalse(ok)
+        self.assertEqual(why, "rent-launch-error")
+        self.assertEqual(pid, front_pid)
+        self.assertEqual(len(ja._proposal_queue), 1,
+                         "launch error must NOT pop queue front")
+
+    def test_benchmark_pass_advances(self):
+        bench = os.path.join(self.scratch, "bench")
+        _write_passing_rent_benchmark(bench)
+        ja = J.JoinAdmission(manifest_path=os.path.join(self.scratch, "m.json"))
+        _fake_completed_claim(ja, "c-1")
+        pid = ja.enqueue_proposal("p", "c-1", [GATE_RENT])
+        _id_enc = {"kind": "rule", "left": {"Char": "z"}, "right": {"Char": "z"}}
+        for e in ja._proposal_queue:
+            if e["proposal_id"] == pid:
+                e["proposal_encoding"] = _id_enc
+                e["law_encoding"] = _id_enc
+                break
+        ok, _, why = ja.admit_next(
+            make_validity_check(structural_only_validity_for_tests()),
+            make_rent_check(benchmark_dir=bench),
+            make_human_check(lambda e: True))
+        self.assertTrue(ok, "rent pass + human approve -> admitted; got " + why)
+        self.assertEqual(why, "admitted")
+        self.assertEqual(ja._accepted_state_version, 1)
+        # Evidence file exists for (proposal, v=0, bench_id).
+        ev_dir = os.path.join(bench, "evidence")
+        self.assertTrue(os.path.isdir(ev_dir))
+        files = os.listdir(ev_dir)
+        self.assertTrue(any(files), "evidence record must be written")
+
+    def test_stale_evidence_revalidates_on_version_change(self):
+        bench = os.path.join(self.scratch, "bench")
+        _write_passing_rent_benchmark(bench)
+        chk = make_rent_check(benchmark_dir=bench)
+        entry = self._entry()
+        entry["evidence_state_version"] = 0
+        ok1, _ = chk(entry, [], 0); self.assertTrue(ok1)
+        # Version 1: evidence for v=0 is stale -> revalidate (subprocess runs
+        # again; the benchmark still passes, so returns True).
+        ok2, _ = chk(entry, [], 1); self.assertTrue(ok2)
+
+    def test_encoding_surface_fail_closed_launch_error(self):
+        """Carry-forward Fable 4.6: entry without proposal_encoding must
+        surface as F_LAUNCH_ERROR (front intact), NOT as F_RENT_FAIL and
+        NOT as a silent pass."""
+        bench = os.path.join(self.scratch, "bench")
+        _write_passing_rent_benchmark(bench)
+        chk = make_rent_check(benchmark_dir=bench)
+        bad_entry = {"proposal_id": "p-bad", "proposal_text": "no-encoding",
+                     "state": "queued", "evidence_state_version": 0}
+        ok, reason = chk(bad_entry, [], 0)
+        self.assertFalse(ok)
+        self.assertIs(M.IdentityCompare(reason, P.F_LAUNCH_ERROR)(), M.truth_value)
 
 
 if __name__ == "__main__":

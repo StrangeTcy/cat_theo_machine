@@ -167,45 +167,49 @@ def structural_only_validity_for_tests():
     return _check
 
 
-def make_rent_check(benchmark_dir=None, benchmark_filename="rent_benchmark.json"):
-    """Rent gate: fail-closed. benchmark_dir must exist and contain a
-    readable JSON benchmark file for rent to pass. If benchmark_dir is
-    None (no held-out benchmark configured) -> block."""
+def make_rent_check(benchmark_dir=None, benchmark_filename=None):
+    """Rent gate: performance-only. Delegates to programme_c.rent which
+    runs the held-out benchmark in an isolated subprocess. Returns
+    (bool, reason_atom).
+
+    Missing/unreadable benchmark -> (False, F_LAUNCH_ERROR) (front held).
+    Benchmark execution failure -> (False, F_LAUNCH_ERROR) (front held).
+    Rent fail (step/time budget exceeded or spec rejected)
+        -> (False, F_RENT_FAIL) (reject + pop).
+    Pass -> (True, None); evidence recorded keyed by
+        (proposal_id, accepted_state_version, benchmark_identity).
+
+    The benchmark_filename argument is retained for backward compat
+    (default: "benchmark.json" inside benchmark_dir); new code should
+    place the rent benchmark at benchmark_dir/benchmark.json per the
+    convention in programme_c/rent.py.
+    """
+    from hyge_int_pkg.programme_c.rent import make_rent_check as _rent_make
     if benchmark_dir is None:
-        def _deny(_entry): return False
+        import hyge_int_pkg.programme_c as PP
+        F_LAUNCH = PP.F_LAUNCH_ERROR
+        def _deny(_entry, _accepted=None, _version=None):
+            return False, F_LAUNCH
         return _deny
-    def _check(entry):
-        try:
-            if not os.path.isdir(benchmark_dir):
-                return False
-            path = os.path.join(benchmark_dir, benchmark_filename)
-            if not os.path.isfile(path):
-                return False
-            with open(path, "r", encoding="utf-8") as h:
-                data = _json.load(h)
-            # Probe for dict-ness by requiring key access (a JSON object
-            # supports __getitem__; a list does too, but .keys narrows it).
-            try:
-                _ = data.keys
-            except AttributeError:
-                return False
-            return True
-        except Exception:
-            return False
-    return _check
+    return _rent_make(benchmark_dir=benchmark_dir)
 
 
 def make_human_check(approval_callback=None):
     """Human gate: default denies (no private activation per protocol/F.md).
-    Missing callback or exception -> deny."""
+    Missing callback or exception -> deny. Accepts (entry, accepted,
+    accepted_version) signature consistent with the other gates; the
+    callback receives the entry only. Human launch-error support is
+    plumbed through admit_next for symmetry, but the default denier
+    returns plain False -> awaiting-human (human is still fail-closed
+    denier until its wiring slice)."""
     if approval_callback is None:
-        def _deny(_entry): return False
+        def _deny(_entry, _accepted=None, _version=None): return False
         return _deny
-    def _check(entry):
+    def _check(entry, _accepted=None, _version=None):
         try:
-            return bool(approval_callback(entry))
+            return bool(approval_callback(entry)), None
         except Exception:
-            return False
+            return False, None
     return _check
 
 

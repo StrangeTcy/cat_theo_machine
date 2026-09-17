@@ -7,23 +7,48 @@ or interfere with certificate replay in worker_dispatch. This matches
 the existing C-A pattern: coordinator dispatches an isolated child
 process, child reports a stamped response, coordinator verifies.
 
-The parent writes a JSON request to a temp file, invokes
+Parent writes a JSON request to a temp file, invokes
   python -m hyge_int_pkg.main validity-check <req.json> <resp.json>
-the child boots an isolated runtime, runs graph.ActivateProposal against
-the candidate (after InstallLaw-replaying any prior accepted laws), and
-writes a JSON response:
+child boots an isolated runtime, runs graph.ActivateProposal against
+the candidate (after InstallLaw-replaying any prior accepted laws,
+after applying BootstrapSafetyInvariants), and writes a JSON response:
   { "status": "completed"|"failed"|"launch-error",
     "passed": bool, "reason": str, "detail": str }
 
-The parent returns (bool, reason) pairs to admit_next so F_LAUNCH_ERROR
+Parent returns (bool, reason_atom) pairs to admit_next so F_LAUNCH_ERROR
 keeps the queue front intact (halt-and-report).
 
-Term construction: request encodes laws via a small JSON surface
-syntax (Zero / Succ / Char / Pair / rule) which the child decodes into
-machine terms. No free-text parser is wired in the live path; entries
-without a decodable proposal_encoding fail closed. The synthetic
-Approved annotation is attached inside the child only -- the queue
-entry is never mutated with a synthetic approval.
+=== Encoding surface (fail-closed invariant per Fable 4.6 carry-forward) ===
+
+Request encodes laws via a small JSON surface which the child decodes
+into machine terms. Representable shapes (shared with rent.py):
+
+  * "EmptyList"                 -> M.EmptyList
+  * "arbitrary string"          -> M.Char(s)
+  * {"Zero": null}              -> M.Zero
+  * {"Succ": <spec>}            -> M.Succ(decoded(spec))()
+  * {"Char": "text"}            -> M.Char(text)
+  * {"Pair": [<spec>, <spec>]}  -> M.Pair(decoded(a), decoded(b))
+  * Law kinds:
+      {"kind": "rule",         "left": <spec>, "right": <spec>}
+          -> CompileRuleToLaw(Rule(left, right))
+      {"kind": "policy_entry", "class_name": "...", "gate": "..."}
+          -> CompileRuleToLaw(Rule(PolicyEntry(Char(cls), Char(gate)),
+                                   PolicyEntry(Char(cls), Char(gate))))
+
+Invariant (C2 carry-forward: encoding surface fail-closed): any accepted
+entry or candidate that lacks a decodable proposal_encoding /
+law_encoding (missing key, unsupported shape, CompileRuleToLaw returns
+EmptyList) surfaces as F_LAUNCH_ERROR -- queue front held intact,
+no pop, no false pass, no F_INVALID_CERT misclassification. The
+parent-side serialization probe in run_validity_check_subprocess
+raises/returns launch-error before spawning the child for known-missing
+encodings; child-side decode errors return launch-error in the
+response. No free-text parser is wired in the live path.
+
+The synthetic Approved annotation is attached inside the child only,
+to a freshly-decoded copy of the candidate -- the queue entry is
+never mutated with a synthetic approval.
 
 No reconciliation surface: validity runs inside admit_next BEFORE the
 entry is moved to 'admitted'; the child's runtime is discarded, the
