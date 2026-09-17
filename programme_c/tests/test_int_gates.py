@@ -233,61 +233,149 @@ class GateIntegrationTests(unittest.TestCase):
 
 
 class LiveActivateProposalValidityTests(unittest.TestCase):
-    """Real check-only graph.ActivateProposal validity gate (isolated
-    runtime). These are slower (~20s) because each boots packs."""
+    """Real check-only graph.ActivateProposal validity gate (subprocess-
+    isolated per Q1). Each test boots packs in a child process (~10s)."""
 
     @classmethod
     def setUpClass(cls):
-        chk, BootError = make_live_activate_proposal_check()
-        cls._check = staticmethod(chk)
-        cls._BootError = BootError
+        cls._check = staticmethod(make_live_activate_proposal_check(
+            timeout_seconds=120))
 
     def _silent(self, fn, *a, **kw):
         buf = io.StringIO()
         import contextlib
-        with contextlib.redirect_stdout(buf):
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             return fn(*a, **kw)
 
-    def test_well_formed_proposal_passes_isolated_activate_proposal(self):
-        from hyge_int_pkg import graph as G, labels as L, proof as P2
-        left = M.Pair(L.ZeroLabel, M.EmptyList)
-        right = M.Pair(L.ZeroLabel, M.EmptyList)  # Zero == Zero
-        rule = P2.Rule(left, right)()
-        law = G.CompileRuleToLaw(rule)()
-        self.assertIsNot(M.IdentityCompare(law, M.EmptyList)(), M.truth_value,
-                        "CompileRuleToLaw must produce a law for Zero==Zero")
-        proposal = G.Proposal(law, M.Char("test-origin"))()
-        entry = {"proposal_term": proposal}
-        ok = self._silent(self._check, entry, [], 0)
-        self.assertTrue(ok, "ActivateProposal must accept a well-formed law")
+    def _entry(self, left_spec, right_spec, origin="test-origin"):
+        enc = {"kind": "rule", "left": left_spec, "right": right_spec}
+        return {"proposal_id": "p-live",
+                "proposal_text": "",
+                "origin": origin,
+                "proposal_encoding": enc,
+                "law_encoding": enc,
+                "state": "queued"}
 
-    def test_empty_proposal_fails_closed(self):
-        from hyge_int_pkg import graph as G
-        bad = G.Proposal(M.EmptyList, M.Char("oops"))()
-        ok = self._silent(self._check, {"proposal_term": bad}, [], 0)
+    def _acc(self, pid, left_spec, right_spec, origin="prior"):
+        enc = {"kind": "rule", "left": left_spec, "right": right_spec}
+        return {"proposal_id": pid,
+                "proposal_text": "",
+                "origin": origin,
+                "proposal_encoding": enc,
+                "law_encoding": enc,
+                "state": "activated"}
+
+    def _policy_entry(self, cls_name, gate):
+        return {"kind": "policy_entry", "class_name": cls_name, "gate": gate}
+
+    def _policy_entry_acc(self, pid, cls_name, gate, origin="prior"):
+        enc = self._policy_entry(cls_name, gate)
+        return {"proposal_id": pid, "proposal_text": "", "origin": origin,
+                "proposal_encoding": enc, "law_encoding": enc,
+                "state": "activated"}
+
+    def test_well_formed_identity_passes(self):
+        entry = self._entry({"Char": "z"}, {"Char": "z"})
+        ok, reason = self._silent(self._check, entry, [], 0)
+        self.assertTrue(ok, "well-formed identity must pass; reason=%r" % (reason,))
+        self.assertIsNone(reason)
+
+    def test_undecodable_entry_fails_invalid_cert(self):
+        entry = {"proposal_text": "free-text only", "state": "queued"}
+        ok, reason = self._silent(self._check, entry, [], 0)
         self.assertFalse(ok)
+        self.assertIs(M.IdentityCompare(reason, P.F_INVALID_CERT)(), M.truth_value)
 
-    def test_text_only_entry_fails_no_structural_fallback(self):
-        # Free-text only with no term must NOT pass (no parser, no fallback).
-        ok = self._silent(self._check, {"proposal_text": "anything"}, [], 0)
-        self.assertFalse(ok)
-
-    def test_isolated_runtime_discarded_no_host_mutation(self):
-        """Confirm the check has no reconciliation surface by running it
-        twice: results are stable because each call boots a fresh
-        isolated runtime; no state leaks across calls and there is no
-        durable side effect (no activation_id commit, no persistent
-        mutation)."""
-        from hyge_int_pkg import graph as G, labels as L, proof as P2
-        left = M.Pair(L.ZeroLabel, M.EmptyList)
-        right = M.Pair(L.ZeroLabel, M.EmptyList)
-        rule = P2.Rule(left, right)()
-        law = G.CompileRuleToLaw(rule)()
-        proposal = G.Proposal(law, M.Char("test-origin"))()
-        entry = {"proposal_term": proposal}
-        ok1 = self._silent(self._check, entry, [], 0)
-        ok2 = self._silent(self._check, entry, [], 0)
+    def test_subprocess_isolated_no_host_registry_mutation(self):
+        """Q1 regression: two back-to-back checks produce identical results;
+        no constructor-registry leakage between calls because each spawns
+        a fresh child."""
+        entry = self._entry({"Char": "z"}, {"Char": "z"})
+        ok1, _ = self._silent(self._check, entry, [], 0)
+        ok2, _ = self._silent(self._check, entry, [], 0)
         self.assertTrue(ok1); self.assertTrue(ok2)
+
+    def test_launch_error_holds_queue_front(self):
+        """Q2: injected launch failure (invalid package_root) must yield
+        F_LAUNCH_ERROR, not F_INVALID_CERT; admit_next must NOT pop the
+        queue front and must return 'validity-launch-error'."""
+        bad_check = staticmethod(make_live_activate_proposal_check(
+            package_root="/nonexistent-package-root-xyz",
+            timeout_seconds=10))
+        entry = self._entry({"Char": "z"}, {"Char": "z"})
+        ok, reason = self._silent(bad_check, entry, [], 0)
+        self.assertFalse(ok)
+        self.assertIs(M.IdentityCompare(reason, P.F_LAUNCH_ERROR)(), M.truth_value)
+        # admit_next keeps front intact.
+        manifest = os.path.join(self.scratch() if False else tempfile.mkdtemp(),
+                                "manifest.json")
+        try:
+            ja = J.JoinAdmission(manifest_path=manifest)
+            _fake_completed_claim(ja, "c-1")
+            ja.enqueue_proposal("z=z", "c-1", [GATE_VALIDITY])
+            front_pid = ja._proposal_queue[0]["proposal_id"]
+            front_state_before = ja._proposal_queue[0]["state"]
+            ok_a, pid, why = ja.admit_next(bad_check,
+                                            make_rent_check(None),
+                                            make_human_check(None))
+            self.assertFalse(ok_a)
+            self.assertEqual(why, "validity-launch-error")
+            self.assertEqual(pid, front_pid)
+            # front not popped:
+            self.assertEqual(len(ja._proposal_queue), 1)
+            self.assertEqual(ja._proposal_queue[0]["proposal_id"], front_pid)
+            # state NOT mutated to rejected-validity; preserved queued.
+            self.assertEqual(ja._proposal_queue[0]["state"], front_state_before)
+        finally:
+            try: shutil.rmtree(os.path.dirname(manifest))
+            except OSError: pass
+
+    def test_q3_well_formed_policy_change_loosening_refused(self):
+        """Q3(i): a well-formed policy_change proposal that loosens
+        install_law from the bootstrap gate ('human') to 'auto' is
+        structurally valid (compiles to a Law, ClassifyProposal
+        recognizes policy_change) but ActivateProposal refuses it via
+        ReasonUncountersigned because no Countersigned annotation from
+        a structurally distinct authority is attached. This exercises
+        real ActivateProposal gating, not shape checking."""
+        pol_enc = self._policy_entry("install_law", "auto")
+        entry = {"proposal_id": "p-pol", "proposal_text": "", "origin": "test",
+                 "state": "queued",
+                 "proposal_encoding": pol_enc, "law_encoding": pol_enc}
+        ok, reason = self._silent(self._check, entry, [], 0)
+        self.assertFalse(ok,
+                         "loosening policy change without countersign must be refused")
+        self.assertIs(M.IdentityCompare(reason, P.F_INVALID_CERT)(), M.truth_value)
+
+    def test_q3_state_dependence_pair(self):
+        """Q3(ii): state-dependence pair -- the SAME policy_change
+        proposal (install_law human->auto) is:
+          - REFUSED against empty accepted state (bootstrap effective
+            policy still has install_law=human; loosening requires
+            countersign which is absent);
+          - ACCEPTED against an accepted set where install_law=auto is
+            already installed (InstallLaw replay rebuilds effective
+            policy so the proposal is an identity change, not a
+            loosening, and the countersign requirement does not apply).
+        This confirms InstallLaw replay of prior accepted laws actually
+        shapes ActivateProposal's decision, not just shape checking."""
+        pol_enc = self._policy_entry("install_law", "auto")
+        candidate = {"proposal_id": "p-pol", "proposal_text": "",
+                     "origin": "test", "state": "queued",
+                     "proposal_encoding": pol_enc, "law_encoding": pol_enc}
+        # Empty accepted: refused.
+        ok_empty, reason_empty = self._silent(self._check, candidate, [], 0)
+        self.assertFalse(ok_empty,
+                         "against empty accepted state the loosening must fail")
+        self.assertIs(M.IdentityCompare(reason_empty, P.F_INVALID_CERT)(),
+                      M.truth_value)
+        # Accepted set already has install_law=auto as an activated law.
+        accepted = [self._policy_entry_acc("acc-1", "install_law", "auto")]
+        ok_prior, reason_prior = self._silent(self._check, candidate, accepted, 1)
+        self.assertTrue(ok_prior,
+                        "against accepted-set with auto policy already installed "
+                        "the same proposal must be accepted (identity change, "
+                        "no loosening); reason=%r" % (reason_prior,))
 
 
 if __name__ == "__main__":

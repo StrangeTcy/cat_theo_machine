@@ -28,7 +28,7 @@ from hyge_int_pkg.programme_c import (
     S_RUNNING, S_COMPLETED, S_FAILED, S_CANCELLED,
     F_STALE_RESULT, F_INCOMPATIBLE_ASSUMPTIONS,
     F_SCOPE_VIOLATION, F_SNAPSHOT_MISMATCH, F_INVALID_CERT, F_UNKNOWN_CHILD,
-    F_CRASH, F_TIMEOUT, F_CANCELLED, F_REFRUTATION,
+    F_CRASH, F_TIMEOUT, F_CANCELLED, F_REFRUTATION, F_LAUNCH_ERROR,
     K_TASK_ID, K_ATTEMPT_ID, K_WORKER_ID, K_STATUS, K_KIND, K_BODY,
     K_OBLIGATION, K_ASSUMPTION_HASH, K_BUDGET, K_REASON,
     K_DECLARED_SNAPSHOT, K_DECLARED_OBLIGATION,
@@ -255,7 +255,13 @@ class JoinAdmission:
 
     def _status_text(self, s):
         if s is None: return ""
-        if isinstance(s, str): return s
+        try:
+            # Prefer already-decoded Python strings (set directly by
+            # coordinator code paths). Use a string-method probe rather
+            # than isinstance to keep host type checks off the path.
+            return s if s.startswith is None else s
+        except Exception:
+            pass
         try: return P._atom_text(s)
         except Exception: return ""
 
@@ -363,14 +369,30 @@ class JoinAdmission:
         )
 
     def _run_gate(self, fn, *args):
-        try: return bool(fn(*args))
-        except Exception: return False
+        try:
+            r = fn(*args)
+        except Exception:
+            return False, None
+        if r is None:
+            return False, None
+        # Accept old-style bool returns or (bool, reason) pairs.
+        try:
+            ok = bool(r[0])
+            reason = r[1] if len(r) > 1 else None
+            return ok, reason
+        except Exception:
+            return bool(r), None
 
     def admit_next(self, validity_check, rent_check, human_approval_check):
         """One-at-a-time fail-closed gate chain. Returns False if any gate
         fails (or raises) or if persistence fails, or if an activation is
         pending. Bumps accepted_state_version ONLY on transition to
-        'admitted'; version is monotonic (never decremented)."""
+        'admitted'; version is monotonic (never decremented).
+
+        Validity returns a (bool, reason) pair from make_validity_check /
+        make_live_activate_proposal_check. On F_LAUNCH_ERROR the queue
+        front is NOT popped -- callers should halt and report rather
+        than dropping the proposal."""
         with self._lock:
             if self.manifest_error is not None:
                 return False, "", "manifest error: " + str(self.manifest_error)
@@ -390,19 +412,27 @@ class JoinAdmission:
                     return True, entry["proposal_id"], "duplicate"
             entry["evidence_state_version"] = self._accepted_state_version
             if GATE_VALIDITY in entry["gates"]:
-                if not self._run_gate(validity_check, entry,
-                                      list(self._accepted_proposals),
-                                      self._accepted_state_version):
+                ok, reason = self._run_gate(validity_check, entry,
+                                            list(self._accepted_proposals),
+                                            self._accepted_state_version)
+                if not ok:
+                    # Launch error: do NOT pop front; do NOT mutate state
+                    # so the caller can retry / halt-and-report.
+                    if reason is not None and M.IdentityCompare(
+                            reason, F_LAUNCH_ERROR)() is M.truth_value:
+                        return False, entry["proposal_id"], "validity-launch-error"
                     entry["state"] = "rejected-validity"
                     entry["rejected_at"] = _time.time()
                     self._proposal_queue.pop(0); self._persist()
                     return False, entry["proposal_id"], "validity failed"
             if GATE_RENT in entry["gates"]:
-                if not self._run_gate(rent_check, entry):
+                ok, _r = self._run_gate(rent_check, entry)
+                if not ok:
                     entry["state"] = "rent-hold"; self._persist()
                     return False, entry["proposal_id"], "rent hold"
             if GATE_HUMAN in entry["gates"]:
-                if not self._run_gate(human_approval_check, entry):
+                ok, _r = self._run_gate(human_approval_check, entry)
+                if not ok:
                     entry["state"] = "awaiting-human"; self._persist()
                     return False, entry["proposal_id"], "awaiting human"
             entry["state"] = "admitted"

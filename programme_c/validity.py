@@ -1,216 +1,354 @@
-"""Isolated check-only ActivateProposal validity gate (C-INT, slice 2026-09-16).
+"""Isolated check-only ActivateProposal validity gate (C-INT, 2026-09-17).
 
-Boots an isolated runtime (fresh process-local heap; no shared mutable
-state), attaches an Approved annotation to the candidate proposal entry,
-calls graph.ActivateProposal(graph_version, approved_entry, proposal_store),
-and accepts iff the returned installed_version is not EmptyList.
+The validity check runs in a SPAWNED SUBPROCESS so that boot_from_packs /
+make_fresh_runtime (which reset M.AllConstructors and build a fresh
+Hypergraph) cannot mutate the coordinator's live constructor registry
+or interfere with certificate replay in worker_dispatch. This matches
+the existing C-A pattern: coordinator dispatches an isolated child
+process, child reports a stamped response, coordinator verifies.
 
-The isolated runtime is built from scratch on every call (via
-runtime.boot_from_packs -> runtime.make_fresh_runtime), which resets
-M.AllConstructors and creates a fresh Hypergraph; the runtime object is
-discarded unconditionally after the check so no state leaks. There is
-no reconciliation surface because check-only does not mutate durable
-state and does not invoke any activation_fn (satisfies the forward
-requirement from cint-integrated-4 review).
+The parent writes a JSON request to a temp file, invokes
+  python -m hyge_int_pkg.main validity-check <req.json> <resp.json>
+the child boots an isolated runtime, runs graph.ActivateProposal against
+the candidate (after InstallLaw-replaying any prior accepted laws), and
+writes a JSON response:
+  { "status": "completed"|"failed"|"launch-error",
+    "passed": bool, "reason": str, "detail": str }
 
-Fail-closed semantics:
+The parent returns (bool, reason) pairs to admit_next so F_LAUNCH_ERROR
+keeps the queue front intact (halt-and-report).
 
-  * If the isolated runtime cannot boot (packs missing, import error,
-    runtime exception), raise F_LAUNCH_ERROR via the check raising --
-    callers should halt and report rather than substituting a partial
-    check. The factory returns a checker that raises BootError; tests
-    may trap it.
-  * If ActivateProposal returns EmptyList installed_version (rejected
-    for any reason: unapproved/unsafe/uncountersigned), return False.
-  * Unexpected exception -> return False (F_INVALID_CERT).
-  * No structural/text fallback.
+Term construction: request encodes laws via a small JSON surface
+syntax (Zero / Succ / Char / Pair / rule) which the child decodes into
+machine terms. No free-text parser is wired in the live path; entries
+without a decodable proposal_encoding fail closed. The synthetic
+Approved annotation is attached inside the child only -- the queue
+entry is never mutated with a synthetic approval.
 
-Entry keys:
-
-  * entry["proposal_entry"]  - pre-built ProposalEntry term. The check
-    will attach an additional Approved annotation (idempotent via
-    ChainAddMissing) for check-only.
-  * entry["proposal_term"]   - pre-built Proposal term; wrapped in a
-    ProposalEntry with no existing annotations.
-  * entry["proposal_text"]   - free text. The live path does NOT parse
-    free text into laws; supplying only "proposal_text" fails closed
-    with False unless the caller provides proposal_entry_constructor.
-
-proposal_entry_constructor is TEST-ONLY: given (entry, ns) it returns a
-ProposalEntry term. When absent (live-path default), only the two
-term-bearing entry forms above are accepted; text-only entries fail
-closed.
+No reconciliation surface: validity runs inside admit_next BEFORE the
+entry is moved to 'admitted'; the child's runtime is discarded, the
+parent commits no state during the check, and no activation_id is
+consumed.
 """
 from __future__ import annotations
 
+import json as _json
 import os
+import subprocess as _sp
+import sys as _sys
+import tempfile
+import time as _time
 
 
-class BootError(RuntimeError):
-    """Raised when the isolated runtime cannot be booted. Callers must
-    HALT and report, not substitute a structural check."""
+LAUNCH_ERROR_REASON = "launch-error"
+INVALID_CERT_REASON = "invalid-certificate"
+COMPLETED_STATUS = "completed"
+FAILED_STATUS = "failed"
+TIMEOUT_SECONDS = 120
 
 
-def _sync_constants(M, L=None):
-    if "NatValueIndex" not in vars(M):
-        M.NatValueIndex = M.Tree(M.EmptyList)
-    out = {
-        "Zero": M.Zero, "one": M.one, "two": M.two, "three": M.three,
-        "four": M.four, "five": M.five, "six": M.six, "seven": M.seven,
-        "eight": M.eight, "nine": M.nine,
-        "NatValueIndex": M.NatValueIndex,
-    }
-    if L is not None:
-        for n in ("ZeroLabel", "SuccLabel", "PairLabel", "TreeLabel"):
-            if hasattr(L, n):
-                out[n] = getattr(L, n)
-    return out
+def _find_package_root():
+    here = os.path.abspath(__file__)
+    return os.path.abspath(os.path.join(os.path.dirname(here), ".."))
 
 
-def _default_pack_paths(package_root):
-    pack_dir = os.path.join(package_root, "packs")
-    names = [
-        "order-sign.pack.yaml",
-        "sqrt-real.pack.yaml",
-        "algebra-distribute.pack.yaml",
-        "sequence-order.pack.yaml",
-        "real-closure.pack.yaml",
-        "arithmetic.pack.yaml",
-        "geometry-ontology.pack.yaml",
-        "trigonometry.pack.yaml",
-        "geometry.pack.yaml",
-        "engel-coins.pack.yaml",
-        "engel-means.pack.yaml",
-        "engel-blackboard.pack.yaml",
-        "number-theory.pack.yaml",
-    ]
-    return [os.path.join(pack_dir, n) for n in names]
+def _default_python():
+    return _sys.executable
 
 
-def _install_accepted_proposals(G, M, graph_version, accepted_proposals):
-    """Replay each previously-activated proposal_entry with InstallLaw
-    into the isolated graph so ActivateProposal sees the actual accepted
-    state (monotonic). Entries missing proposal_entry are skipped; this
-    is conservative -- ActivateProposal will simply run against a
-    smaller graph, which fails closed rather than spuriously accepting."""
-    v = graph_version
-    for e in accepted_proposals or ():
-        if not isinstance(e, dict): continue
-        if e.get("state") != "activated": continue
-        entry = e.get("proposal_entry")
-        if entry is None: continue
+def run_validity_check_subprocess(entry, accepted_proposals,
+                                   accepted_state_version,
+                                   package_root=None,
+                                   python_exe=None,
+                                   timeout_seconds=TIMEOUT_SECONDS):
+    """Run check-only ActivateProposal in an isolated subprocess.
+
+    Returns dict:
+      { "status": "completed"|"failed"|"launch-error",
+        "passed": bool, "reason": str, "detail": str }
+    """
+    if package_root is None:
+        package_root = _find_package_root()
+    if python_exe is None:
+        python_exe = _default_python()
+    req_fd, req_path = tempfile.mkstemp(prefix="validity_req_", suffix=".json")
+    resp_fd, resp_path = tempfile.mkstemp(prefix="validity_resp_", suffix=".json")
+    os.close(req_fd); os.close(resp_fd)
+    try:
+        payload = {
+            "entry": _entry_to_json(entry),
+            "accepted_proposals": [_entry_to_json(e) for e in (accepted_proposals or [])],
+            "accepted_state_version": int(accepted_state_version or 0),
+            "package_root": package_root,
+        }
+        with open(req_path, "w", encoding="utf-8") as h:
+            _json.dump(payload, h)
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.path.dirname(package_root) + os.pathsep + env.get("PYTHONPATH", "")
+        env.pop("HYGE_SEARCH_WORKER_GATE_PATH", None)
+        env.pop("HYGE_SEARCH_WORKER_READY_TIMEOUT", None)
+        cmd = [python_exe, "-m", "hyge_int_pkg.main",
+               "validity-check", req_path, resp_path]
         try:
-            proposal = G.ProposalEntryProposal(entry)()
-            law = G.ProposalLaw(proposal)()
-            v = G.InstallLaw(v, law)()
-        except Exception:
-            continue
-    return v
+            proc = _sp.Popen(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE,
+                              cwd=package_root, env=env)
+        except Exception as exc:
+            return _resp_launch("failed to spawn: " + str(exc))
+        try:
+            out, err = proc.communicate(timeout=timeout_seconds)
+        except _sp.TimeoutExpired:
+            try: proc.kill()
+            except Exception: pass
+            proc.wait(timeout=5)
+            return _resp_launch("validity subprocess timed out")
+        rc = proc.returncode
+        if rc != 0:
+            tail = (out or b"").decode("utf-8", "replace")[-500:]
+            tail_e = (err or b"").decode("utf-8", "replace")[-500:]
+            return _resp_launch("rc=%d stdout=%s stderr=%s" % (rc, tail, tail_e))
+        try:
+            with open(resp_path, "r", encoding="utf-8") as h:
+                data = _json.load(h)
+        except Exception as exc:
+            return _resp_launch("invalid response json: " + str(exc))
+        return data
+    finally:
+        for p in (req_path, resp_path):
+            try: os.unlink(p)
+            except OSError: pass
 
 
-def make_activate_proposal_validity_check(package_root=None, pack_paths=None,
-                                           proposal_entry_constructor=None):
-    """Return a validity check callable:
-        (entry, accepted_proposals, accepted_state_version) -> bool
-    Raises BootError if the isolated runtime cannot be booted (caller
-    must halt, not fall back)."""
-    # Import the hyge stack once per factory -- the boot call rebuilds a
-    # fresh runtime (fresh Hypergraph + registry) on each invocation so
-    # state does not leak across calls.
+def _resp_launch(detail):
+    return {"status": "launch-error", "passed": False,
+            "reason": LAUNCH_ERROR_REASON, "detail": detail}
+
+
+def _entry_to_json(entry):
+    """Serialize an admission entry for the validity child. Probes for
+    expected keys via try/except (no isinstance)."""
+    out = {}
+    try:
+        for k in ("proposal_id", "proposal_text", "state", "origin",
+                  "proposal_encoding", "law_encoding"):
+            try:
+                out[k] = entry[k]
+            except (KeyError, TypeError):
+                pass
+        return out
+    except (AttributeError, TypeError):
+        return None
+
+
+# ------------------------- child process entry ---------------------------
+
+def _child_simple_term(ns, spec):
+    """Decode a simple S-expr-ish JSON value into a machine term. Probes
+    structure with try/except key access (no isinstance/type)."""
+    M = ns["M"]
+    # Dict shapes first (so we don't accidentally treat a dict with a
+    # "Zero" key as a string/Char).
+    try:
+        _ = spec["Zero"]
+        if spec["Zero"] is None:
+            return M.Zero
+    except (KeyError, TypeError):
+        pass
+    try:
+        sub = spec["Succ"]
+        return M.Succ(_child_simple_term(ns, sub))()
+    except (KeyError, TypeError):
+        pass
+    try:
+        return M.Char(str(spec["Char"]))
+    except (KeyError, TypeError):
+        pass
+    try:
+        a, b = spec["Pair"]
+        return M.Pair(_child_simple_term(ns, a), _child_simple_term(ns, b))
+    except (KeyError, TypeError, ValueError):
+        pass
+    # Plain string: either "EmptyList" sentinel or a Char atom.
+    try:
+        s = spec + ""
+        if s == "EmptyList":
+            return M.EmptyList
+        return M.Char(s)
+    except Exception:
+        pass
+    raise ValueError("unsupported term spec")
+
+
+def _child_boot_ns(package_root):
+    parent = os.path.dirname(package_root)
+    if parent not in _sys.path:
+        _sys.path.insert(0, parent)
     from hyge_int_pkg import (
         machine as M, graph as G, runtime as R, labels as L,
         heuristics as H, constructors as C, programme_c as P,
     )
-    _sync_constants(M, L)
-
-    if package_root is None:
-        here = os.path.abspath(__file__)
-        package_root = os.path.abspath(os.path.join(os.path.dirname(here), ".."))
-    if pack_paths is None:
-        pack_paths = _default_pack_paths(package_root)
-    for p in pack_paths:
-        if not os.path.isfile(p):
-            raise BootError("pack file missing: " + p)
-
-    def _check(entry, accepted_proposals, accepted_state_version):
-        # Fresh isolated runtime per call. boot_from_packs calls
-        # make_fresh_runtime which rebuilds constructors/Hypergraph
-        # from scratch, so prior installs from previous checks do not
-        # leak across calls.
-        try:
-            runtime, _packs = R.boot_from_packs(
-                list(pack_paths), _runtime_namespace(M, G, H, L, P, R, C),
-                debug=M.false_value)
-        except Exception as exc:
-            raise BootError("failed to boot isolated runtime: " + str(exc))
-        try:
-            empty = M.EmptyList
-            # Starting GraphVersion: empty nodes/edges/invariants. Note
-            # that pack booting loads rules/constructors into the graph
-            # but does not populate the GraphVersion term (GraphVersion
-            # is a separate term threaded through install operations).
-            gv = G.GraphVersion(empty, empty, empty)()
-            gv = _install_accepted_proposals(G, M, gv, accepted_proposals)
-
-            cand_entry = None
-            if isinstance(entry, dict):
-                cand_entry = entry.get("proposal_entry")
-                cand_prop = entry.get("proposal_term")
-                if cand_entry is None and cand_prop is None and proposal_entry_constructor is not None:
-                    try:
-                        cand_entry = proposal_entry_constructor(entry, {
-                            "M": M, "G": G, "L": L, "P": P,
-                        })
-                    except Exception:
-                        cand_entry = None
-                if cand_entry is None and cand_prop is not None:
-                    cand_entry = G.ProposalEntry(cand_prop, empty)()
-            if cand_entry is None:
-                return False
-
-            proposal = G.ProposalEntryProposal(cand_entry)()
-            existing = G.ProposalEntryAnnotations(cand_entry)()
-            approval = G.Approved(proposal, M.Char("c-int-validity-check"))()
-            annotated = G.ProposalEntry(
-                proposal,
-                G.ChainAddMissing(existing, M.Pair(approval, empty))(),
-            )()
-            store = G.ProposalStore(M.Pair(annotated, empty))()
-            activated = G.ActivateProposal(gv, annotated, store)()
-            installed = M.Head(activated)()
-            # installed != EmptyList -> ActivateProposal produced a next
-            # version (law installed). That is the validity pass.
-            return M.IdentityCompare(installed, empty)() is not M.truth_value
-        except BootError:
-            raise
-        except Exception:
-            return False
-        finally:
-            del runtime
-
-    return _check
-
-
-def _runtime_namespace(M, G, H, L, P, R, C):
-    ns = {}
-    for mod in (M, G, H, L, P, R, C):
-        ns.update(vars(mod))
-    ns.update(_sync_constants(M, L))
-    # Populate additional modules that packs may reference.
+    if "NatValueIndex" not in vars(M):
+        M.NatValueIndex = M.Tree(M.EmptyList)
+    ns = {"M": M, "G": G, "R": R, "L": L, "H": H, "C": C, "P": P}
     try:
-        from hyge_int_pkg import (
-            symbols as S, rewrite_rules as X, session as T,
-        )
-        ns.update(vars(S)); ns.update(vars(X)); ns.update(vars(T))
+        from hyge_int_pkg import symbols as S, rewrite_rules as X, session as T
+        ns["S"] = S; ns["X"] = X; ns["T"] = T
     except Exception:
         pass
     return ns
 
 
-def make_failing_activate_proposal_check():
-    """Explicit fail-closed sentinel for environments where boot is
-    impossible (e.g., pack files unavailable). This never accepts; the
-    caller is expected to HALT and report rather than substitute."""
-    def _check(entry, accepted, version):
-        return False
-    return _check
+def _runtime_ns(ns):
+    out = {}
+    for mod in (ns["M"], ns["G"], ns["H"], ns["L"], ns["P"], ns["R"], ns["C"]):
+        out.update(vars(mod))
+    for name in ("Zero","one","two","three","four","five","six","seven","eight",
+                 "nine","NatValueIndex"):
+        try: out[name] = vars(ns["M"])[name]
+        except KeyError: pass
+    for name in ("ZeroLabel","SuccLabel","PairLabel","TreeLabel"):
+        try: out[name] = vars(ns["L"])[name]
+        except KeyError: pass
+    for k in ("S","X","T"):
+        if k in ns:
+            out.update(vars(ns[k]))
+    return out
+
+
+def _child_pack_paths(package_root):
+    pack_dir = os.path.join(package_root, "packs")
+    return [os.path.join(pack_dir, n) for n in (
+        "order-sign.pack.yaml", "sqrt-real.pack.yaml",
+        "algebra-distribute.pack.yaml", "sequence-order.pack.yaml",
+        "real-closure.pack.yaml", "arithmetic.pack.yaml",
+        "geometry-ontology.pack.yaml", "trigonometry.pack.yaml",
+        "geometry.pack.yaml", "engel-coins.pack.yaml",
+        "engel-means.pack.yaml", "engel-blackboard.pack.yaml",
+        "number-theory.pack.yaml",
+    )]
+
+
+def _write_resp(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as h:
+        _json.dump(data, h)
+        h.flush()
+        os.fsync(h.fileno())
+    os.replace(tmp, path)
+
+
+def _child_law_from_encoding(ns, enc):
+    """Decode a law encoding. Supports:
+      {"kind":"rule", "left":..., "right":...}   -- rewrite Rule
+      {"kind":"policy_entry", "class_name":..., "gate":...}
+          -- a PolicyEntry(class_name, gate) term wrapped as a law via
+             Rule(policy_entry, policy_entry) identity so CompileRuleToLaw
+             encodes it as a graph node (ClassifyProposal scans the right
+             side for PolicyEntryLabel terms to detect policy_change)."""
+    G, M = ns["G"], ns["M"]
+    kind = enc["kind"]
+    if kind == "rule":
+        left = _child_simple_term(ns, enc["left"])
+        right = _child_simple_term(ns, enc["right"])
+        from hyge_int_pkg import proof as P2
+        rule = P2.Rule(left, right)()
+        law = G.CompileRuleToLaw(rule)()
+        if M.IdentityCompare(law, M.EmptyList)() is M.truth_value:
+            raise ValueError("CompileRuleToLaw returned EmptyList")
+        return law
+    if kind == "policy_entry":
+        cls = M.Char(str(enc["class_name"]))
+        gate = M.Char(str(enc["gate"]))
+        pe = G.PolicyEntry(cls, gate)()
+        # Wrap the policy-entry term as a trivial identity rule so
+        # CompileRuleToLaw produces a Law whose RHS contains the
+        # PolicyEntryLabel node (required for ClassifyProposal to
+        # recognize a policy_change proposal).
+        from hyge_int_pkg import proof as P2
+        rule = P2.Rule(pe, pe)()
+        law = G.CompileRuleToLaw(rule)()
+        if M.IdentityCompare(law, M.EmptyList)() is M.truth_value:
+            raise ValueError("CompileRuleToLaw returned EmptyList for policy_entry")
+        return law
+    raise ValueError("unsupported law kind")
+
+
+def run_validity_child(req_path, resp_path):
+    """Subprocess entry point: boot isolated runtime, decode request, run
+    ActivateProposal, write response JSON."""
+    with open(req_path, "r", encoding="utf-8") as h:
+        req = _json.load(h)
+    package_root = req.get("package_root") or _find_package_root()
+    response = {"status": FAILED_STATUS, "passed": False,
+                "reason": INVALID_CERT_REASON, "detail": ""}
+    try:
+        ns = _child_boot_ns(package_root)
+    except Exception as exc:
+        response["status"] = "launch-error"
+        response["reason"] = LAUNCH_ERROR_REASON
+        response["detail"] = "import failed: " + str(exc)
+        _write_resp(resp_path, response); return 0
+    M, G = ns["M"], ns["G"]
+    try:
+        runtime, _packs = ns["R"].boot_from_packs(
+            _child_pack_paths(package_root), _runtime_ns(ns),
+            debug=M.false_value)
+    except Exception as exc:
+        response["status"] = "launch-error"
+        response["reason"] = LAUNCH_ERROR_REASON
+        response["detail"] = "boot_from_packs failed: " + str(exc)
+        _write_resp(resp_path, response); return 0
+    try:
+        empty = M.EmptyList
+        raw_gv = G.GraphVersion(empty, empty, empty)()
+        # Bootstrap safety invariants so CheckSafety can evaluate floor
+        # violations on the candidate law.
+        gv = G.BootstrapSafetyInvariants(raw_gv)()
+        for acc in req.get("accepted_proposals", []) or []:
+            try:
+                if acc.get("state") != "activated":
+                    continue
+                law = _child_law_from_encoding(ns, acc["law_encoding"])
+                gv = G.InstallLaw(gv, law)()
+            except Exception:
+                continue
+        entry = req.get("entry") or {}
+        cand_prop = None
+        try:
+            enc = entry["proposal_encoding"]
+            law = _child_law_from_encoding(ns, enc)
+            origin = entry.get("origin", "c-int-validity-check")
+            try: origin = origin + ""
+            except Exception: origin = "c-int-validity-check"
+            cand_prop = G.Proposal(law, M.Char(origin))()
+        except Exception:
+            cand_prop = None
+        if cand_prop is None:
+            response["detail"] = "no decodable proposal_encoding"
+            _write_resp(resp_path, response); return 0
+        existing = empty
+        cand_entry = G.ProposalEntry(cand_prop, existing)()
+        proposal = G.ProposalEntryProposal(cand_entry)()
+        approval = G.Approved(proposal, M.Char("c-int-validity-check"))()
+        annotated = G.ProposalEntry(
+            proposal,
+            G.ChainAddMissing(existing, M.Pair(approval, empty))(),
+        )()
+        store = G.ProposalStore(M.Pair(annotated, empty))()
+        activated = G.ActivateProposal(gv, annotated, store)()
+        installed = M.Head(activated)()
+        if M.IdentityCompare(installed, empty)() is M.truth_value:
+            refusal = M.Head(M.Tail(activated)())()
+            response["detail"] = "refused"
+            _write_resp(resp_path, response); return 0
+        response["status"] = COMPLETED_STATUS
+        response["passed"] = True
+        response["reason"] = "ok"
+        _write_resp(resp_path, response); return 0
+    except Exception as exc:
+        response["status"] = "launch-error"
+        response["reason"] = LAUNCH_ERROR_REASON
+        response["detail"] = "runtime exception: " + str(exc)
+        _write_resp(resp_path, response); return 0
+    finally:
+        try: del runtime
+        except Exception: pass

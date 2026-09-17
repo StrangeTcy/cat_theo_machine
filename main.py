@@ -3451,14 +3451,15 @@ def main():
         default="talk",
         choices=[
             "talk", "cold", "warm", "test", "inspect", "search-worker",
+            "validity-check",
             "ingest", "daemon", "live",
         ],
         help=(
             "Boot mode: talk (default; natural-language interaction through "
             "correspondence laws), cold (from packs), warm (from snapshot), "
-            "test, inspect, search-worker, ingest (training records), or "
-            "daemon (cycle the shared talk state), or live (one process "
-            "supervising a conversation and a cycling daemon)"
+            "test, inspect, search-worker, validity-check, ingest (training "
+            "records), or daemon (cycle the shared talk state), or live (one "
+            "process supervising a conversation and a cycling daemon)"
         ),
     )
     parser.add_argument(
@@ -3513,6 +3514,12 @@ def main():
             if args.arg3 is not None:
                 timeout_seconds = int(args.arg3)
             raise SystemExit(run_search_worker_mode(args.arg1, args.arg2, timeout_seconds))
+        elif args.mode == "validity-check":
+            if args.arg1 is None or args.arg2 is None:
+                raise RuntimeError("validity-check requires REQ_PATH RESP_PATH")
+            from hyge_int_pkg.programme_c.validity import run_validity_child
+            run_validity_child(args.arg1, args.arg2)
+            raise SystemExit(0)
         elif args.mode == "ingest":
             if args.arg1 is None:
                 raise RuntimeError("ingest requires a training-records file path")

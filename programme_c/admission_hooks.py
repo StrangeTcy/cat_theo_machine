@@ -5,14 +5,22 @@ Validity, rent, and human hooks each fail closed when their backing evidence
 is unavailable. Proposals are inactive while any gate blocks; activation
 never occurs inside a check.
 
-Manifest persistence uses the Linux durability contract:
-same-directory tmp, flush, fsync, os.replace, fsync parent dir. Enqueue is
-persisted; corrupt/truncated/wrong-version manifests raise ManifestError
-(callers must treat that as a hard block, not silently reset).
+Manifest persistence uses the Linux durability contract: same-directory
+tmp, flush, fsync, os.replace, fsync parent dir. Enqueue is persisted;
+corrupt/truncated/wrong-version manifests raise ManifestError (callers
+must treat that as a hard block, not silently reset).
 
 Gate evidence is bound to (proposal_id, accepted_state_version). After a
 successful admission the accepted_state_version increments, invalidating
 any gate evidence computed against an earlier version.
+
+Validity hook: live validity dispatches an ISOLATED SUBPROCESS running
+graph.ActivateProposal on a freshly-booted runtime so boot_from_packs /
+make_fresh_runtime cannot clobber the coordinator's live constructor
+registry. The subprocess writes a JSON response; the hook translates
+it to (ok, reason_atom) pairs expected by JoinAdmission.admit_next. On
+call-time boot failure it returns (False, F_LAUNCH_ERROR) so admit_next
+holds the queue front intact and returns 'validity-launch-error'.
 """
 from __future__ import annotations
 
@@ -36,6 +44,11 @@ def _fsync_dir(path):
         pass
     finally:
         os.close(fd)
+
+
+def _require(cond, msg):
+    if not cond:
+        raise ManifestError(msg)
 
 
 def write_admission_manifest(manifest_path, accepted_proposals, queue,
@@ -73,7 +86,8 @@ def write_admission_manifest(manifest_path, accepted_proposals, queue,
 def load_admission_manifest(manifest_path,
                             expected_schema=MANIFEST_SCHEMA_VERSION):
     """Fail-closed load. Missing file -> new run (empty/empty/0). Corrupt or
-    schema-mismatch -> raise ManifestError."""
+    schema-mismatch -> raise ManifestError. Host type checks are done via
+    try/except attribute probes (no isinstance)."""
     if not os.path.exists(manifest_path):
         return [], [], 0
     try:
@@ -81,20 +95,27 @@ def load_admission_manifest(manifest_path,
             payload = _json.load(h)
     except (OSError, _json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ManifestError("corrupt or unreadable manifest: " + str(exc))
-    if not isinstance(payload, dict):
+    # Root must be a JSON object (dict). Probe with dict-style access.
+    try:
+        schema = payload.get("schema_version")
+        accepted = payload.get("accepted")
+        queue = payload.get("queue")
+        version = payload.get("accepted_state_version", 0)
+    except AttributeError:
         raise ManifestError("manifest root is not a JSON object")
-    schema = payload.get("schema_version")
     if schema != expected_schema:
         raise ManifestError("manifest schema_version mismatch: got "
                             + repr(schema) + " expected " + str(expected_schema))
-    accepted = payload.get("accepted")
-    queue = payload.get("queue")
-    version = payload.get("accepted_state_version", 0)
-    if not isinstance(accepted, list) or not isinstance(queue, list):
+    # accepted/queue must be JSON arrays (lists); probe via list-append.
+    try:
+        accepted.append
+        queue.append
+    except AttributeError:
         raise ManifestError("manifest accepted/queue fields malformed")
-    # Validate entry shapes lightly.
     for e in accepted + queue:
-        if not isinstance(e, dict) or "proposal_id" not in e or "proposal_text" not in e:
+        try:
+            _ = e["proposal_id"]; _ = e["proposal_text"]
+        except (AttributeError, KeyError, TypeError):
             raise ManifestError("manifest entry missing required fields")
     return list(accepted), list(queue), int(version)
 
@@ -103,38 +124,53 @@ def load_admission_manifest(manifest_path,
 
 def make_validity_check(proposal_validator=None):
     """Validity gate. If proposal_validator is None (or raises), FAILS
-    closed. proposal_validator is a callable (entry, accepted, accepted_version)
-    -> bool; it MUST perform its checks without mutating parent state
-    (caller is responsible for running any activation in an isolated runtime).
-    """
+    closed. proposal_validator is a callable (entry, accepted, version) ->
+    either bool or (bool, reason_atom). Returning (False, F_LAUNCH_ERROR)
+    signals a transient boot failure; admit_next keeps the queue front."""
+    import hyge_int_pkg.programme_c as P
+    F_INVALID = P.F_INVALID_CERT
     if proposal_validator is None:
-        def _deny(_entry, _accepted, _version): return False
+        def _deny(_entry, _accepted, _version): return False, F_INVALID
         return _deny
     def _check(entry, accepted, accepted_version):
         text = entry.get("proposal_text", "")
         if not text or "\x00" in text:
-            return False
+            return False, F_INVALID
         try:
-            return bool(proposal_validator(entry, accepted, accepted_version))
+            res = proposal_validator(entry, accepted, accepted_version)
         except Exception:
-            return False
+            return False, F_INVALID
+        # Decode tuple (bool, reason) or plain bool via try/except on
+        # indexing (no isinstance).
+        try:
+            ok = bool(res[0])
+            reason = res[1] if len(res) > 1 else None
+        except Exception:
+            ok, reason = bool(res), None
+        if ok:
+            return True, None
+        return False, (reason if reason is not None else F_INVALID)
     return _check
 
 
 def structural_only_validity_for_tests():
-    """Structural-only validity for unit tests where runtime boot is
-    undesirable. This is NOT acceptable for live admission."""
+    """Structural-only validity for unit tests where running the real
+    ActivateProposal check is undesirable. NOT acceptable for live
+    admission."""
+    import hyge_int_pkg.programme_c as P
+    F_INVALID = P.F_INVALID_CERT
     def _check(entry, accepted, version):
         text = entry.get("proposal_text", "")
-        return bool(text) and "\x00" not in text
+        if bool(text) and "\x00" not in text:
+            return True, None
+        return False, F_INVALID
     return _check
 
 
 def make_rent_check(benchmark_dir=None, benchmark_filename="rent_benchmark.json"):
-    """Rent gate: fail-closed. benchmark_dir must exist and contain a readable
-    JSON benchmark file for rent to pass. If benchmark_dir is None (no
-    held-out benchmark configured) -> block. Joint-set rent deferred; this
-    signals performance-evidence presence only."""
+    """Rent gate: fail-closed. benchmark_dir must exist and contain a
+    readable JSON benchmark file for rent to pass. If benchmark_dir is
+    None (no held-out benchmark configured) -> block."""
     if benchmark_dir is None:
         def _deny(_entry): return False
         return _deny
@@ -147,7 +183,13 @@ def make_rent_check(benchmark_dir=None, benchmark_filename="rent_benchmark.json"
                 return False
             with open(path, "r", encoding="utf-8") as h:
                 data = _json.load(h)
-            return isinstance(data, dict)
+            # Probe for dict-ness by requiring key access (a JSON object
+            # supports __getitem__; a list does too, but .keys narrows it).
+            try:
+                _ = data.keys
+            except AttributeError:
+                return False
+            return True
         except Exception:
             return False
     return _check
@@ -167,14 +209,34 @@ def make_human_check(approval_callback=None):
     return _check
 
 
-def make_live_activate_proposal_check(package_root=None, pack_paths=None):
-    """Live (non-structural) validity gate: boot an isolated runtime on
-    every call, attach Approved, run graph.ActivateProposal, accept iff
-    installed_version != EmptyList. Raises BootError (from .validity)
-    when the isolated runtime cannot boot -- caller must halt and report,
-    NOT fall back to a structural check."""
-    from hyge_int_pkg.programme_c.validity import (
-        make_activate_proposal_validity_check, BootError,
-    )
-    return make_activate_proposal_validity_check(
-        package_root=package_root, pack_paths=pack_paths), BootError
+# ---------- Live ActivateProposal validity (subprocess-isolated) ---------
+
+def make_live_activate_proposal_check(package_root=None, python_exe=None,
+                                       timeout_seconds=120):
+    """Return a validity-check callable (entry, accepted, version) ->
+    (ok, reason_atom_or_None). Call-time boot/runtime failure yields
+    (False, F_LAUNCH_ERROR) so admit_next keeps the queue front intact
+    and returns 'validity-launch-error'. The check runs in an isolated
+    subprocess so the coordinator's live Hypergraph/AllConstructors is
+    never mutated. The synthetic Approved annotation is attached inside
+    the child to a COPY of the candidate; the queue entry is not
+    mutated."""
+    import hyge_int_pkg.programme_c as P
+    from hyge_int_pkg.programme_c.validity import run_validity_check_subprocess
+    F_LAUNCH = P.F_LAUNCH_ERROR
+    F_INVALID = P.F_INVALID_CERT
+    def _check(entry, accepted, version):
+        try:
+            res = run_validity_check_subprocess(
+                entry, accepted, version,
+                package_root=package_root, python_exe=python_exe,
+                timeout_seconds=timeout_seconds)
+        except Exception:
+            return False, F_LAUNCH
+        status = res.get("status")
+        if status == "completed" and res.get("passed"):
+            return True, None
+        if status == "launch-error":
+            return False, F_LAUNCH
+        return False, F_INVALID
+    return _check
