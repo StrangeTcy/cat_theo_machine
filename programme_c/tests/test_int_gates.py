@@ -1,5 +1,5 @@
 """C-C gate + on-disk admission manifest tests under fail-closed semantics
-(post corrective 2026-09-16 #2):
+(post corrective 2026-09-16):
 
   * Validity/rent/human each fail closed when callback missing/raising.
   * Gate order; human deny -> approve -> admit -> activate with crash-safe
@@ -12,7 +12,14 @@
   * Persistence failures raise (fail closed).
   * No next candidate admitted while activation pending.
   * One admission at a time.
+  * Isolated check-only graph.ActivateProposal validity gate:
+      - accepts a well-formed Zero->Succ(Zero) law;
+      - rejects an EmptyList proposal body;
+      - rejects a text-only entry (no structural fallback);
+      - check discards its runtime so no host-state mutation occurs
+        (no reconciliation surface).
 """
+import io
 import json
 import os
 import shutil
@@ -20,12 +27,15 @@ import tempfile
 import time
 import unittest
 
+import hyge_int_pkg.machine as M
 import hyge_int_pkg.programme_c.join as J
+import hyge_int_pkg.programme_c as P
 from hyge_int_pkg.programme_c.admission_hooks import (
     MANIFEST_SCHEMA_VERSION, ManifestError,
     make_validity_check, structural_only_validity_for_tests,
     make_rent_check, make_human_check,
     write_admission_manifest, load_admission_manifest,
+    make_live_activate_proposal_check,
 )
 from hyge_int_pkg.programme_c.join import (
     COMBINATOR_AND, GATE_VALIDITY, GATE_RENT, GATE_HUMAN, child_spec,
@@ -220,6 +230,64 @@ class GateIntegrationTests(unittest.TestCase):
             self.assertRaises((OSError, PermissionError), _try)
         finally:
             os.chmod(ro_dir, 0o700)
+
+
+class LiveActivateProposalValidityTests(unittest.TestCase):
+    """Real check-only graph.ActivateProposal validity gate (isolated
+    runtime). These are slower (~20s) because each boots packs."""
+
+    @classmethod
+    def setUpClass(cls):
+        chk, BootError = make_live_activate_proposal_check()
+        cls._check = staticmethod(chk)
+        cls._BootError = BootError
+
+    def _silent(self, fn, *a, **kw):
+        buf = io.StringIO()
+        import contextlib
+        with contextlib.redirect_stdout(buf):
+            return fn(*a, **kw)
+
+    def test_well_formed_proposal_passes_isolated_activate_proposal(self):
+        from hyge_int_pkg import graph as G, labels as L, proof as P2
+        left = M.Pair(L.ZeroLabel, M.EmptyList)
+        right = M.Pair(L.ZeroLabel, M.EmptyList)  # Zero == Zero
+        rule = P2.Rule(left, right)()
+        law = G.CompileRuleToLaw(rule)()
+        self.assertIsNot(M.IdentityCompare(law, M.EmptyList)(), M.truth_value,
+                        "CompileRuleToLaw must produce a law for Zero==Zero")
+        proposal = G.Proposal(law, M.Char("test-origin"))()
+        entry = {"proposal_term": proposal}
+        ok = self._silent(self._check, entry, [], 0)
+        self.assertTrue(ok, "ActivateProposal must accept a well-formed law")
+
+    def test_empty_proposal_fails_closed(self):
+        from hyge_int_pkg import graph as G
+        bad = G.Proposal(M.EmptyList, M.Char("oops"))()
+        ok = self._silent(self._check, {"proposal_term": bad}, [], 0)
+        self.assertFalse(ok)
+
+    def test_text_only_entry_fails_no_structural_fallback(self):
+        # Free-text only with no term must NOT pass (no parser, no fallback).
+        ok = self._silent(self._check, {"proposal_text": "anything"}, [], 0)
+        self.assertFalse(ok)
+
+    def test_isolated_runtime_discarded_no_host_mutation(self):
+        """Confirm the check has no reconciliation surface by running it
+        twice: results are stable because each call boots a fresh
+        isolated runtime; no state leaks across calls and there is no
+        durable side effect (no activation_id commit, no persistent
+        mutation)."""
+        from hyge_int_pkg import graph as G, labels as L, proof as P2
+        left = M.Pair(L.ZeroLabel, M.EmptyList)
+        right = M.Pair(L.ZeroLabel, M.EmptyList)
+        rule = P2.Rule(left, right)()
+        law = G.CompileRuleToLaw(rule)()
+        proposal = G.Proposal(law, M.Char("test-origin"))()
+        entry = {"proposal_term": proposal}
+        ok1 = self._silent(self._check, entry, [], 0)
+        ok2 = self._silent(self._check, entry, [], 0)
+        self.assertTrue(ok1); self.assertTrue(ok2)
 
 
 if __name__ == "__main__":

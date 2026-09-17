@@ -165,3 +165,16 @@ def make_human_check(approval_callback=None):
         except Exception:
             return False
     return _check
+
+
+def make_live_activate_proposal_check(package_root=None, pack_paths=None):
+    """Live (non-structural) validity gate: boot an isolated runtime on
+    every call, attach Approved, run graph.ActivateProposal, accept iff
+    installed_version != EmptyList. Raises BootError (from .validity)
+    when the isolated runtime cannot boot -- caller must halt and report,
+    NOT fall back to a structural check."""
+    from hyge_int_pkg.programme_c.validity import (
+        make_activate_proposal_validity_check, BootError,
+    )
+    return make_activate_proposal_validity_check(
+        package_root=package_root, pack_paths=pack_paths), BootError
