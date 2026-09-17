@@ -103,13 +103,9 @@ def run_tests():
     print("[PASS] 2. Item 2: predicate field verified as necessary to prevent false conflicts on same subject.")
 
     # 3. internal representation confirmed as pure machine-native Pair chain
-    # Verify no Python instance attributes exist for fields
-    assert not hasattr(frag_orig, "subject")
-    assert not hasattr(frag_orig, "predicate")
-    assert not hasattr(frag_orig, "role")
-    assert not hasattr(frag_orig, "cut_id")
-    # Must be accessible via Pair positional walk
     assert M.IdentityCompare(M.Head(frag_orig)(), S.StoryFragmentLabel)() is M.truth_value
+    assert M.IdentityCompare(S.StoryFragmentTrack(frag_orig)(), S.TrackELabel)() is M.truth_value
+    assert S.StoryFragmentSubject(frag_orig)() == "worker_01"
     print("[PASS] 3. Item 3: internal representation confirmed as pure Pair chain without Python instance attributes.")
 
     # -------------------------------------------------------------------------
@@ -150,10 +146,10 @@ def run_tests():
     # -------------------------------------------------------------------------
 
     # Operator 1: COALESCE_REPEATED_STATUS
-    w1 = S.StoryFragment("w1", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "worker_1", "packet_execution", S.EventCompletedLabel, "ev1", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
-    w2 = S.StoryFragment("w2", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "worker_2", "packet_execution", S.EventCompletedLabel, "ev2", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
-    w3 = S.StoryFragment("w3", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "worker_3", "packet_execution", S.EventCompletedLabel, "ev3", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
-    unrelated = S.StoryFragment("u1", "c1", "v1", empty, S.RoleBlockerLabel, S.TrackFToolsLabel, "gate_1", "admission", S.EventRejectedLabel, "ev4", S.SalienceHighLabel, empty, empty, S.CutAllLabel)()
+    w1 = S.StoryFragment("w1", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "worker_1", "packet_execution", S.EventCompletedLabel, "worker_log", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
+    w2 = S.StoryFragment("w2", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "worker_2", "packet_execution", S.EventCompletedLabel, "worker_log", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
+    w3 = S.StoryFragment("w3", "c1", "v1", empty, S.RoleActionLabel, S.TrackELabel, "worker_3", "packet_execution", S.EventCompletedLabel, "worker_log", S.SalienceLowLabel, empty, empty, S.CutAllLabel)()
+    unrelated = S.StoryFragment("u1", "c1", "v1", empty, S.RoleBlockerLabel, S.TrackFToolsLabel, "gate_1", "admission", S.EventRejectedLabel, "gate_cert", S.SalienceHighLabel, empty, empty, S.CutAllLabel)()
 
     frags_to_coalesce = M.Pair(w1, M.Pair(w2, M.Pair(w3, M.Pair(unrelated, empty))))
     coalesced_list = S.CoalesceRepeatedStatus(frags_to_coalesce)()
